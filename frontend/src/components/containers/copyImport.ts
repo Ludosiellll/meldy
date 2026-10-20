@@ -466,6 +466,78 @@ export const QUEUE = {
   tagDropped: 'убран',
 } as const;
 
+// ───────────────────────────── the review of a file (import/BankReview.tsx) ─────────────────────────────
+
+const units = (n: number) => count(n, 'единица', 'единицы', 'единиц');
+
+/**
+ * The review screen of one file: the questions the importer is unsure of, next to the file's lines, with one-press fixes.
+ * The model pass is offered in plain words with its price; what the model read is labelled as such.
+ */
+export const REVIEW = {
+  title: 'Сомнительные места',
+  file: (name: string) => `Файл «${name}»`,
+  counts: (total: number, doubtful: number, checked: number) =>
+    nb([count(total, 'вопрос', 'вопроса', 'вопросов'), `сомнительных: ${doubtful}`, checked ? `проверено: ${checked}` : null].filter(Boolean).join(' · ')),
+  onlyDoubtful: 'Только сомнительные',
+  none: 'Сомнительных мест нет.',
+  allChecked: 'Все сомнительные места проверены.',
+  aiButton: 'Разобрать сложные места',
+  aiNote: (n: number) => nb(`Отправим в модель только непонятные куски файла, ${units(n)}.`),
+  aiResets: 'Правки на этой странице сбросятся.',
+  aiRunning: 'Модель читает непонятные куски файла.',
+  aiDone: (n: number) => nb(`Сложные места разобраны. Списано ${units(n)}.`),
+  aiFailed: 'Не получилось разобрать сложные места. Остался разбор по правилам, попробуйте ещё раз.',
+  aiBusy: 'Модель сейчас занята. Попробуйте через минуту.',
+  fromModel: 'Прочитано моделью',
+  same: 'Модель прочитала так же',
+  differ: 'Модель прочитала иначе',
+  modelOnly: 'Этот вопрос нашла только модель',
+  keyRejected: 'Модель назвала ответ, но в файле он не отмечен, поэтому ключа нет.',
+  takeModel: 'Взять версию модели',
+  takeRules: 'Взять прежний разбор',
+  other: (text: string) => `Другая версия: «${text}»`,
+  inFile: 'Как в файле',
+  noFragment: 'Строк файла для этого вопроса нет.',
+  picture: '[картинка]',
+  cell: (cell: string) => {
+    const m = /^T(\d+) R(\d+) C(\d+)$/.exec(cell);
+    return m ? `табл. ${m[1]}, стр. ${m[2]}, кол. ${m[3]}` : cell;
+  },
+  number: (label: string, position: number) => (label ? `№ ${label}` : `Вопрос ${position}`),
+  answer: 'Ответ:',
+  noAnswer: 'Ответ не отмечен',
+  pickKey: 'Нажмите верный вариант.',
+  pickKeys: 'Нажмите все верные варианты.',
+  mergeNext: 'Соединить со следующим',
+  joinUp: 'Это вариант вопроса выше',
+  splitHere: 'Отсюда новый вопрос',
+  notQuestion: 'Это не вопрос',
+  keep: 'Оставить как есть',
+  checked: 'Проверено',
+  undo: 'Отменить правку',
+  done: 'Готово',
+  back: 'Назад',
+  pageLine: (name: string, n: number) =>
+    nb(`В файле «${name}» ${count(n, 'сомнительное место', 'сомнительных места', 'сомнительных мест')}.`),
+  pageGo: 'Посмотреть',
+  doubts: {
+    structure: 'С вариантами что-то не так: их мало, слишком много или они пустые.',
+    option_merged: 'В вариант попал лишний текст: другой вариант, строка ответа или следующий вопрос.',
+    stem_merged: 'В тексте вопроса, похоже, два вопроса.',
+    options_in_stem: 'Варианты остались в тексте вопроса.',
+    stem_fragment: 'Похоже на вариант вопроса выше, а не на отдельный вопрос.',
+    options_unread: 'Под вопросом есть варианты, которые не прочитались.',
+    options_count: 'Необычное число вариантов.',
+    options_unlike: 'Вариантов не столько, сколько у соседних вопросов.',
+    unnumbered: 'У вопроса нет номера, а у соседних есть.',
+    open_among_choice: 'Вопрос без вариантов среди вопросов с вариантами.',
+    joined_lines: 'Строки файла склеены: проверьте, где кончается вопрос.',
+    no_key: 'Ответ в файле не отмечен.',
+    key: 'Ключ в файле прочитан не наверняка.',
+  } as Record<string, string>,
+} as const;
+
 // ─────────────────────────────────────────────── «Ключи» (the author) ───────────────────────────────────────────────
 
 export const KEYS = {

@@ -712,6 +712,20 @@ export interface ParseBankInput {
  * and `key_mode`, `key_text`, `key_file` (with `key_section`), `format` when given. Throws ContainerApiError with the server's Russian `detail` and `code`.
  */
 export async function parseBank(input: ParseBankInput): Promise<BankParseResult> {
+  return bankResult(await backend('/api/exams/parse-bank', { method: 'POST', body: bankForm(input), signal: input.signal }), 'parse-bank');
+}
+
+/**
+ * POST /api/exams/parse-bank/ai: the same form, read again with the model on the doubtful places only (scope 'flagged')
+ * or the whole file ('all'). Spends units (the answer's ai.units); 429 ai_busy, 502 ai_failed, 422 no_doubts.
+ */
+export async function parseBankAi(input: ParseBankInput & { scope?: 'flagged' | 'all' }): Promise<BankParseResult> {
+  const form = bankForm(input);
+  if (input.scope) form.append('scope', input.scope);
+  return bankResult(await backend('/api/exams/parse-bank/ai', { method: 'POST', body: form, signal: input.signal }), 'parse-bank/ai');
+}
+
+function bankForm(input: ParseBankInput): FormData {
   const form = new FormData();
   if (input.file) form.append('file', input.file, input.file.name);
   else form.append('text', input.text ?? '');
@@ -722,14 +736,18 @@ export async function parseBank(input: ParseBankInput): Promise<BankParseResult>
   if (input.format) form.append('format', input.format);
   // The page saves the pictures of a DOCX (saveImport.ts); without this the importer only flags them (has_image).
   if (input.file) form.append('pictures', '1');
-  const raw = await backend('/api/exams/parse-bank', { method: 'POST', body: form, signal: input.signal });
-  if (!isRecord(raw) || !Array.isArray(raw.items) || !Array.isArray(raw.subjects)) throw badShape('parse-bank');
+  return form;
+}
+
+function bankResult(raw: unknown, what: string): BankParseResult {
+  if (!isRecord(raw) || !Array.isArray(raw.items) || !Array.isArray(raw.subjects)) throw badShape(what);
   return {
     ...(raw as object),
     topics: list(raw.topics),
     skipped: strings(raw.skipped),
     warnings: list(raw.warnings).filter(isRecord),
     pictures: isRecord(raw.pictures) ? (raw.pictures as BankParseResult['pictures']) : {},
+    source_lines: list(raw.source_lines).filter(isRecord) as unknown as BankParseResult['source_lines'],
   } as BankParseResult;
 }
 

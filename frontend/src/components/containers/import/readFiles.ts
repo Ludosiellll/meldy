@@ -10,7 +10,7 @@
  * - What can be told before sending is told at once: a Word 97–2003 file (.doc), another format, an empty or too big
  *   file. Errors carry the importer's code and the spec's Russian line (copyImport.ts PARSE_ERRORS).
  */
-import { parseBank } from '../../../api/containers';
+import { parseBank, parseBankAi } from '../../../api/containers';
 import { examErrorMessage, parseQuestionList, type ParseResult } from '../../../api/exams';
 import type { BankItem, BankParseResult } from '../../../types/container';
 import { PARSE_ERRORS } from '../copyImport';
@@ -142,6 +142,22 @@ export async function readBank(input: ReadInput): Promise<{ result: BankParseRes
     if (failure.code === 'scan_pdf' && input.file) return readScan(input.file);
     throw failure;
   }
+}
+
+/**
+ * The same file read again with the model on its doubtful places (the review screen's «Разобрать сложные места»).
+ * Spends units; errors are the API's (ContainerApiError with the server's line), useBankReview words them.
+ */
+export async function readBankAi(input: ReadInput): Promise<BankParseResult> {
+  return parseBankAi({
+    file: input.file,
+    text: input.file ? undefined : input.text,
+    format: input.format,
+    keyText: input.keyText?.trim() ? input.keyText : undefined,
+    keyFile: input.keyFile ?? undefined,
+    keySection: input.keySection ?? null,
+    scope: 'flagged',
+  });
 }
 
 /** A PDF without text, as before: the oral list's parser reads the scan as a list of open questions. */

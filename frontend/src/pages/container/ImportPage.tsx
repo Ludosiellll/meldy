@@ -11,7 +11,7 @@ import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import type { BankParseResult, BankPicture, PlanItem, Tempo, TestItem, Uuid } from '../../types/container';
-import { dayText, errorText, IMPORT, nb, SETTINGS } from '../../components/containers/copyImport';
+import { dayText, errorText, IMPORT, nb, REVIEW, SETTINGS } from '../../components/containers/copyImport';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
@@ -43,7 +43,9 @@ import {
   type KeySignal,
 } from '../../components/containers/import/importModel';
 import { minutesLines } from '../../components/containers/import/minutesLines';
-import { readBank, ReadError } from '../../components/containers/import/readFiles';
+import { readBank, readBankAi, ReadError } from '../../components/containers/import/readFiles';
+import BankReview from '../../components/containers/import/BankReview';
+import { reviewCounts } from '../../components/containers/import/reviewModel';
 import { useTelegramFile } from '../../lib/telegram/fileTicket';
 import {
   freshSaveState,
@@ -112,11 +114,17 @@ interface FormState {
   tempo: Tempo;
 }
 
-type View = { kind: 'main' } | { kind: 'subject'; key: string } | { kind: 'check' } | { kind: 'key'; fileId: string; paste: boolean };
+type View =
+  | { kind: 'main' }
+  | { kind: 'subject'; key: string }
+  | { kind: 'check' }
+  | { kind: 'key'; fileId: string; paste: boolean }
+  | { kind: 'review'; fileId: string };
 
 function viewOf(hash: string): View {
   const value = decodeURIComponent(hash.replace(/^#/, ''));
   if (value === 'check') return { kind: 'check' };
+  if (value.startsWith('review=')) return { kind: 'review', fileId: value.slice(7) };
   if (value.startsWith('s=')) return { kind: 'subject', key: value.slice(2) };
   if (value.startsWith('key=')) {
     const [fileId, flag] = value.slice(4).split('&');
@@ -818,6 +826,42 @@ export default function ImportPage() {
     );
   }
 
+  const reviewEntry = view.kind === 'review' ? entries.find((entry) => entry.id === view.fileId && entry.result) ?? null : null;
+  if (view.kind === 'review' && reviewEntry?.result) {
+    const entry = reviewEntry;
+    return (
+      <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
+        <BankReview
+          key={entry.id}
+          result={entry.result as BankParseResult}
+          fileName={entry.name}
+          runAi={
+            entry.pdf
+              ? undefined
+              : async () => {
+                  const result = await readBankAi({
+                    file: entry.file ?? undefined,
+                    text: entry.text ?? undefined,
+                    format: entry.format,
+                    keyText: entry.keyText,
+                    keyFile: entry.keyFile,
+                    keySection: entry.keySection,
+                  });
+                  track('container.import_ai', { units: result.ai?.units ?? 0, found: result.ai?.found ?? 0, rejected: result.ai?.rejected_keys ?? 0 });
+                  return result;
+                }
+          }
+          onDone={(result) => {
+            forgetEdits(entry.id);
+            update(entry.id, { result });
+            closeView();
+          }}
+          onBack={closeView}
+        />
+      </div>
+    );
+  }
+
   if (view.kind === 'key' && keyFile && keyEntry) {
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
@@ -953,6 +997,18 @@ export default function ImportPage() {
     </p>
   ) : null;
   const pdfLine = files.some((file) => file.source === 'pdf') ? <p className="im-line" data-muted="">{IMPORT.pdfNote}</p> : null;
+  // «Сомнительные места»: a file whose parse is unsure of some questions (bank_markup.confidence) — the review screen.
+  const reviewLines = files
+    .map((file) => ({ file, n: reviewCounts(file.result).doubtful }))
+    .filter(({ n }) => n > 0)
+    .map(({ file, n }) => (
+      <p key={`review-${file.id}`} className="im-line">
+        {REVIEW.pageLine(file.name, n)}{' '}
+        <button type="button" className="sf-link" disabled={locked} onClick={() => openView(`#review=${encodeURIComponent(file.id)}`)}>
+          {REVIEW.pageGo}
+        </button>
+      </p>
+    ));
 
   // «Обновить из файла»: what the file brings to the subject; the notes speak of the new questions only.
   const updateNew = updatePlan?.add ?? [];
@@ -1005,6 +1061,7 @@ export default function ImportPage() {
       ) : null}
 
       {noKeyBlock(noKeySubjects, active.length > 1)}
+      {reviewLines}
       {problemsLine(problems)}
       {splitGroups.map((subject) => (
         <p key={`split-${subject.key}`} className="im-line" data-muted="">

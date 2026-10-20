@@ -551,7 +551,58 @@ export interface BankItem {
   marks: Record<string, number[]>; // per formatting signal: the marked share of each option, 0..1
   /** Pictures carried from a DOCX (asked with pictures=1): ids into BankParseResult.pictures; null — none. */
   images?: { stem: string[]; options: string[][] } | null;
+  /** The question's lines in the file ([first, last], numbered as BankParseResult.source_lines); null — GIFT, Moodle XML. */
+  lines?: [number, number] | null;
+  /** How sure the parse is, 0..1; below BANK_DOUBT_AT the question is doubtful (bank_markup.confidence). */
+  confidence?: number;
+  /** Why the parse is unsure: 'structure', 'key', 'option_merged', 'stem_merged', 'options_in_stem', 'stem_fragment'… */
+  doubts?: string[];
+  /** After the AI pass (POST /api/exams/parse-bank/ai): whose version this is, and the other version when they differ. */
+  source?: 'rules' | 'ai' | 'both';
+  alt?: BankItemVersion | null;
+  /** Client only: the student looked at the question on the review screen and kept it. */
+  reviewed?: boolean;
 }
+/** The other reading of a question (rules or the model) when the two disagree. */
+export interface BankItemVersion {
+  text: string;
+  options: string[];
+  correct: number[];
+  kind: BankItemKind;
+  answer: string | null;
+  evidence: string | null;
+  source: 'rules' | 'ai';
+}
+/** A line of the file as the review screen shows it: pieces with their formatting ('b u i s hl shade color code'). */
+export interface BankSourceLine {
+  n: number;
+  runs: Array<{ t: string; m: string }>;
+  cell: string | null; // «T2 R5 C3»: a table cell
+  checkbox: boolean | null;
+  images: number;
+}
+/** Whether to offer «Разобрать сложные места» and its price in units (5 per started 100 questions sent). */
+export interface BankAiOffer {
+  worth: boolean;
+  reasons: string[];
+  questions: number;
+  units: number;
+  doubtful: number;
+}
+/** Counts of an AI pass. */
+export interface BankAiStats {
+  chunks: number;
+  failed_chunks: number;
+  questions: number;
+  units: number;
+  found: number;
+  rejected_keys: number;
+  disagreements: number;
+  replaced: number;
+  added: number;
+}
+/** Confidence below this — a doubtful question (bank_markup.DOUBT_AT). */
+export const BANK_DOUBT_AT = 0.6;
 /** A picture of the file: its MIME type and bytes in base64. */
 export interface BankPicture {
   type: string;
@@ -593,6 +644,13 @@ export interface BankParseResult {
   key_file?: BankKeyFile | null;
   /** The pictures the items name (id = sha256 of the bytes); {} without pictures=1 or without pictures. */
   pictures?: Record<string, BankPicture>;
+  /** Doubtful questions, the file's line count and the lines of their fragments (with formatting). */
+  doubtful?: number;
+  line_count?: number;
+  source_lines?: BankSourceLine[];
+  ai_offer?: BankAiOffer;
+  /** Present after the AI pass. */
+  ai?: BankAiStats;
 }
 export interface BankKeyFile {
   sections: Array<{ title: string; variant: number | null; count: number }>;

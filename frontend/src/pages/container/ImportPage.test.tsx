@@ -92,7 +92,7 @@ vi.mock('../../lib/containers/oralPlan', () => ({ loadOralPlanItems: api.loadOra
 
 import ImportPage from './ImportPage';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
-import { IMPORT, PARSE_ERRORS, QUEUE } from '../../components/containers/copyImport';
+import { IMPORT, PARSE_ERRORS, QUEUE, REVIEW } from '../../components/containers/copyImport';
 
 const TWO = twoSubjects as unknown as BankParseResult;
 const OPEN = openList as unknown as BankParseResult;
@@ -361,6 +361,44 @@ describe('ImportPage: one door for every file', () => {
     expect(saved[1]).toMatchObject({ correct: [0], key_source: 'bold' });
     expect(saved[1].flags).not.toContain('has_image');
     expect(saved[2]).toMatchObject({ correct: [1], key_source: 'manual' });
+  });
+
+  it('«Сомнительные места»: a glued question is split on the review screen, and the save carries both', async () => {
+    const items = [
+      item(1, {
+        options: ['один', 'два', '2. Сколько дней в високосном году?', '365', '366'],
+        correct: [0, 4],
+        marks: { bold: [1, 0, 0, 0, 1] },
+        flags: ['several_marked'],
+        lines: [1, 6],
+        confidence: 0.1,
+        doubts: ['structure', 'option_merged'],
+      }),
+      item(2, { lines: [7, 10], confidence: 1, doubts: [] }),
+    ];
+    api.parseBank.mockResolvedValue({
+      ...bank(items, 'Сети'),
+      doubtful: 1,
+      source_lines: [{ n: 4, runs: [{ t: '2. Сколько дней в високосном году?', m: '' }], cell: null, checkbox: null, images: 0 }],
+    });
+    renderAt();
+    upload(['Сети.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sвопроса/ });
+    expect(plain(screen.getByText(/сомнительное место/).textContent)).toContain('В файле «Сети.docx» 1 сомнительное место.');
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.pageGo }));
+    expect(await screen.findByRole('heading', { name: REVIEW.title })).toBeInTheDocument();
+    expect(where).toContain('#review=');
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.splitHere }));
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.done }));
+
+    await screen.findByRole('heading', { name: /Нашли 3\sвопроса/ });
+    expect(screen.queryByText(/сомнительное место/)).not.toBeInTheDocument();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(api.addItems).toHaveBeenCalled());
+    const saved = api.addItems.mock.calls[0][1];
+    expect(saved.map((entry: { stem: string }) => entry.stem)).toEqual(['Вопрос 1?', 'Сколько дней в високосном году?', 'Вопрос 2?']);
+    expect(saved[0]).toMatchObject({ options: ['один', 'два'], correct: [0] });
+    expect(saved[1]).toMatchObject({ options: ['365', '366'], correct: [1] });
   });
 
   it('a picture that came with a Word mark over it that did not: the queue says the mark is missing, not the picture', async () => {
