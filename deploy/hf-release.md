@@ -4,6 +4,30 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.8: the new main page, «Защита от списывания», the studio on a phone (from the commit of this entry)
+
+- **Main page v3 «Один вопрос»** (owner, 19.10: «переделать основную страницу… видео, так как там нет ничего про
+  функции… особенно про конструктор не забудь»): one lecture and one ticket question through lectures, the department
+  file, the plan, a session, the ticket aloud, the cheat sheet, the group and Telegram, and the test constructor as the
+  longest chapter (76 s reel); a small studio to touch on the page; «Пройти тест без входа» opens the jury's public test.
+  Headline «Готовьтесь к экзамену и собирайте свои тесты», one face «Meldy — подготовка к экзамену и конструктор
+  тестов», preview `og-image-4.jpg`. The first screen is static HTML; a guest on «/» no longer loads the Supabase client
+  and nothing is prefetched at idle. Phone ×4 (local build): LCP 7.8 → 0.8 s, reel 40 → 56–58 fps, JS before the first
+  action 255 → 143 KB, 10 composited layers.
+- **«Защита от списывания»** for a контрольная (owner, 20.10): off / normal / strict. The question is covered the moment
+  the page loses focus or visibility, shrinks to split screen or leaves fullscreen; every time away is recorded once
+  with its kind, length and question; strict adds fullscreen on Android, no selection or copy, a watermark with the
+  name, and the attempt ends itself after N times away (checked by the server too). The author sees each attempt's
+  record, marks in the stats and the CSV, a filter «только с нарушениями». Migration `20261020120000_quiz_protection`
+  applied before this release (run 39506621429, checks green). A web page cannot see a second phone or a photo of the
+  screen; the page says so.
+- **The studio on a phone and a tablet:** the bottom bar up to 1023 px, a new block scrolled into view, no bar over the
+  keyboard, 44 px targets, names «Настройки блока / Копия / Удалить», «Вернуть» after a removal, the sheet steps away
+  during a drag, «Отправить» under 400 px, hints in two lines, hover only where there is hover, «Проверка теста» in its
+  own sheet; the 47.4 live check's media items (one-screen background, 16 px video field, «Загрузить другую», status
+  order, HEIC words, bad-link error in view, `allow` only, cover upload with upsert).
+- Gate on 2d102ab: pytest 2313, bot 359, sync ok, Vitest 343 files / 6165 tests, Docker-layout build ok.
+
 ## 2026-10-20 — Release 47.7: question files of any layout — CSV, HTML, Moodle XML, PDF, doubtful places for the model, a review screen (from the commit of this entry)
 
 - **The owner, 19.10:** «наш парсер не универсален… он должен идеально под всевозможные варианты подстраиваться». The
