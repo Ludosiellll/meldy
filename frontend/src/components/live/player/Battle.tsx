@@ -97,7 +97,15 @@ const HpBar = memo(function HpBar({ k }: { k: number }) {
 /** 3 · 2 · 1 before the buttons open: each digit a delayed CSS animation, the delays fixed at mount. */
 const Countdown = memo(function Countdown({ untilMs }: { untilMs: number }) {
   const [start] = useState(() => untilMs);
-  const now = Math.ceil(start / 1000);
+  const [still] = useState(reducedMotion);
+  const [at] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Math.ceil(start / 1000));
+  // Reduced motion: no animation, so the digit changes by a timer instead (three renders of one span).
+  useEffect(() => {
+    if (!still) return undefined;
+    const t = setInterval(() => setNow(Math.max(1, Math.ceil((start - (Date.now() - at)) / 1000))), 250);
+    return () => clearInterval(t);
+  }, [still, start, at]);
   return (
     <div className="lp-cd" aria-hidden="true">
       {[3, 2, 1].map((n) => (
