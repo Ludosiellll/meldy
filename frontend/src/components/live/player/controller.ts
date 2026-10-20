@@ -145,6 +145,8 @@ export class PlayerController {
   private disposed = false;
   /** Each start() and dispose() moves it on: a start's late answers see they are stale. */
   private gen = 0;
+  /** The question whose end already has its read scheduled (one per question, not one per poll). */
+  private closeReadFor = -1;
   private readonly onOnline = () => this.kick();
   private readonly onOffline = () => this.set({ link: 'lost' });
   private readonly onVisible = () => {
@@ -535,7 +537,8 @@ export class PlayerController {
     }
     this.set(patch);
     // A question that closes by time: read once just after its end (the hint may come later than the clock).
-    if (st.state === 'open' && st.question) {
+    if (st.state === 'open' && st.question && this.closeReadFor !== st.qi) {
+      this.closeReadFor = st.qi;
       const end = Date.parse(st.question.closes_at) + GRACE_MS + 250 - this.serverNow();
       const qi = st.qi;
       this.later(end, () => {
@@ -642,6 +645,7 @@ export class PlayerController {
     this.stopWatch?.();
     this.stopWatch = null;
     this.token = null;
+    this.closeReadFor = -1;
     this.platform.setPlaying(false);
     this.set({ step: 'pin', pin: '', game: null, state: null, pick: null, answered: null, review: null, reviewError: null, reviewOnly: false, turnQi: -1, hpFrom: null, gone: null, error: null, notice: null });
   }

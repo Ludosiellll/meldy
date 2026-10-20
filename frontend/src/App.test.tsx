@@ -40,6 +40,9 @@ vi.mock('./pages/container/JoinContainerPage', () => ({ default: () => <h1>Пр�
 vi.mock('./components/authReel/AuthReel', () => ({ default: () => null }));
 // The Mini App's own page has its tests (pages/TelegramMiniApp.test.tsx): here it is its heading.
 vi.mock('./pages/TelegramMiniApp', () => ({ default: () => <h1>Вход через Telegram</h1> }));
+// The live game's player pages have their tests (pages/play/*.test.tsx): here they are their headings.
+vi.mock('./pages/play/PlayPage', () => ({ default: () => <h1>Игрок на сайте</h1> }));
+vi.mock('./pages/play/TgPlayPage', () => ({ default: () => <h1>Игрок в Telegram</h1> }));
 vi.mock('./api/materials', () => ({
   getMaterials: vi.fn(async () => materials.list),
   deleteMaterial: vi.fn(),
@@ -221,7 +224,6 @@ describe('removed sections', () => {
     '/courses',
     '/planner',
     '/chat',
-    '/play',
     '/teacher',
     '/study-session',
     '/pricing',
@@ -233,6 +235,18 @@ describe('removed sections', () => {
     openAt(path);
     expect(await screen.findByRole('heading', { name: 'Главная' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/');
+    expect(screen.queryByTestId('layout')).toBeNull();
+  });
+});
+
+describe('the live game «Битва с монстром» (docs/live/CONTRACT.md)', () => {
+  // /play was an old section; since the live game it is the player's page (join_url …/play?pin=…), open to all.
+  it.each([
+    ['/play?pin=482913', 'Игрок на сайте'],
+    ['/tg/play?pin=482913', 'Игрок в Telegram'],
+  ])('%s opens the player without the signed-in shell', async (path, heading) => {
+    openAt(path);
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
     expect(screen.queryByTestId('layout')).toBeNull();
   });
 });
