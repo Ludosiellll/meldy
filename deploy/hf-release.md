@@ -4,6 +4,18 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-20 — Release 47.5: the main page no longer lags on a phone (from the commit of this entry)
+
+- **The owner, 19.10:** «на телефоне вроде подлагивает главная страница». Measured on a 390×844 phone profile with the
+  CPU slowed ×4: finger scroll 30 → 45 fps (×6: 27 → 45), the reel 31 → 44 fps (the cheat sheet chapter 19 → 38),
+  tasks over 50 ms in 50 s of the reel 217 → 64; on the landing without a press, JS 322 → 156 KB at most, no app chunks.
+  Both sides were measured interleaved under the same machine load, so the absolute numbers are lower than a phone's.
+- The mic's pulse is two rings animated by scale and opacity, only while the mic is on screen (was an endless box-shadow
+  animation); the reel's particle canvases hold as many pixels as the screen shows; the cheat sheet's map redraws only
+  the squares that changed; on a phone or a slow connection Login/Register/TryExample load on the first press, not in
+  advance; the «→» in the sheet's lines is an inline SVG, so the 19 KB symbols font is not fetched. The look is the same.
+- Gate on c23db9e + this change: pytest 2242, bot 359, sync ok, Vitest 331 files / 6019 tests, Docker-layout build ok.
+
 ## 2026-10-19 — Release 47.4: own pictures, own background and a video block in the studio; question import from wild layouts (from the commit of this entry)
 
 - **The owner, 19.10:** «почему нельзя добавлять свои картинки и тому подобное, на фон тоже почему нельзя своё».
