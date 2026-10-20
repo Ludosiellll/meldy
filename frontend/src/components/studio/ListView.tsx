@@ -27,7 +27,20 @@ const NEW = 'new:';
 
 type Step = { kind: 'edit'; id: string } | { kind: 'add'; at: ToolbarPlace } | { kind: 'new'; type: BuildType };
 
-export default function ListView({ studio, build, containerId, group }: { studio: Studio; build: Build; containerId: string; group: boolean }) {
+export default function ListView({
+  studio,
+  build,
+  containerId,
+  group,
+  savedLine,
+}: {
+  studio: Studio;
+  build: Build;
+  containerId: string;
+  group: boolean;
+  /** The line under a saved question (containers/keys/useSavedLine): no «Счёт… заново» where nothing was counted. */
+  savedLine: (itemId: string, revChanged: boolean) => string;
+}) {
   const { doc, rows } = studio;
   const rootRef = useRef<HTMLDivElement>(null);
   const onPage = useMemo(() => {
@@ -107,7 +120,7 @@ export default function ListView({ studio, build, containerId, group }: { studio
     setEditError(null);
     try {
       const result = await studio.patchRow(item.id, patch);
-      say(item.id, result.rev_changed ? KEYS.editedReset(group) : KEYS.edited);
+      say(item.id, savedLine(item.id, result.rev_changed));
       if (!goOn()) {
         setEditing(null);
         refocus.current = `[data-act="edit:${item.id}"]`;

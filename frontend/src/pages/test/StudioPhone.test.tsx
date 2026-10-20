@@ -49,6 +49,7 @@ vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: null, session: n
 
 import StudioPage from './StudioPage';
 import { item, subject, summary } from '../../components/containers/testkit/fixtures';
+import { KEYS } from '../../components/containers/copyImport';
 import { STUDIO } from '../../components/studio/copyStudio';
 import { hintFor } from '../../components/studio/Workspace';
 import { DRAFT_WORDS } from '../../lib/studio/checker';
@@ -264,6 +265,32 @@ describe('«Проверка теста» on a phone', () => {
     fireEvent.click(within(bar() as HTMLElement).getByRole('button', { name: STUDIO.panelsLabel }));
     const settings = screen.getByRole('dialog', { name: STUDIO.panelsLabel });
     expect(within(settings).getByRole('tab', { name: STUDIO.panels.block })).toHaveAttribute('aria-selected', 'true');
+  });
+});
+
+describe('a question saved in the studio (useSavedLine)', () => {
+  const saveStem = async (stem: string) => {
+    fireEvent.click(frame('qblock000001'));
+    const panel = screen.getByRole('complementary', { name: STUDIO.panelsLabel });
+    fireEvent.change(within(panel).getByLabelText('Текст вопроса'), { target: { value: stem } });
+    fireEvent.click(within(panel).getByRole('button', { name: 'Сохранить' }));
+    return panel;
+  };
+
+  it('a test nobody answered: «Вопрос сохранён.», not «Счёт… начнётся заново»', async () => {
+    api.updateItem.mockReset().mockImplementation(async (id: string) => ({ id, rev: 2, rev_changed: true, doubts_resolved: 0 }));
+    await openStored();
+    const panel = await saveStem('Какой город — столица Франции?');
+    expect(await within(panel).findByText(STUDIO.editorSaved)).toBeInTheDocument();
+    expect(panel).not.toHaveTextContent(/начнётся заново/);
+  });
+
+  it('a test with a group: the count starts again, and it is said', async () => {
+    api.state.summary = { ...(api.state.summary as object), owner: { members: 3, doubts_open: 0, links: [] } };
+    api.updateItem.mockReset().mockImplementation(async (id: string) => ({ id, rev: 2, rev_changed: true, doubts_resolved: 0 }));
+    await openStored();
+    const panel = await saveStem('Какой город — столица Франции?');
+    expect(await within(panel).findByText(KEYS.editedReset(true))).toBeInTheDocument();
   });
 });
 

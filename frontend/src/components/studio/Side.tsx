@@ -30,6 +30,8 @@ export interface SideProps {
   unsaved: string | null;
   onDiscard: () => void;
   onSaved: () => void;
+  /** The line under a saved question (containers/keys/useSavedLine). */
+  savedLine: (itemId: string, revChanged: boolean) => string;
   /** In a sheet the tabs stay; the sheet's own title says where. */
   tabs?: boolean;
 }
@@ -78,6 +80,7 @@ export default function Side(props: SideProps) {
             unsaved={props.unsaved}
             onDiscard={props.onDiscard}
             onSaved={props.onSaved}
+            savedLine={props.savedLine}
           />
         ) : panel === 'design' ? (
           <DesignPanel studio={studio} dark={props.dark} api={api} onPreview={props.onPreview} />

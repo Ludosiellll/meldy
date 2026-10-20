@@ -429,7 +429,8 @@ describe('StudioPage: undo, moving, inserting, removing (spec §47.6 «Холс�
     const stem = within(side()).getByLabelText('Текст вопроса') as HTMLTextAreaElement;
     await waitFor(() => expect(stem).toHaveFocus());
     expect(selection(stem)).toEqual([0, DRAFT_WORDS.stem.length]);
-  });
+    // Some 80 keys typed through userEvent: 3–9 s on a busy shared machine (the base commit as slow as this one).
+  }, 20000);
 
   it('«/» in an empty text block opens the block menu, and the chosen block takes its place', async () => {
     await openStored();

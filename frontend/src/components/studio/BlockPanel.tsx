@@ -157,9 +157,10 @@ interface QuestionPanelProps {
   unsaved: string | null;
   onDiscard: () => void;
   onSaved: () => void;
+  savedLine: (itemId: string, revChanged: boolean) => string;
 }
 
-function QuestionPanel({ studio, block, number, containerId, group, onDirty, unsaved, onDiscard, onSaved }: QuestionPanelProps) {
+function QuestionPanel({ studio, block, number, containerId, group, onDirty, unsaved, onDiscard, onSaved, savedLine }: QuestionPanelProps) {
   const item = studio.rows.get(block.item_id);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -181,7 +182,9 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
     setError(null);
     try {
       const result = await studio.patchRow(item.id, patch);
-      setNote(result.rev_changed ? KEYS.editedReset(group) : STUDIO.editorSaved);
+      // «Счёт… начнётся заново» only where somebody's answers were counted (useSavedLine); otherwise the studio's words.
+      const line = savedLine(item.id, result.rev_changed);
+      setNote(line === KEYS.edited ? STUDIO.editorSaved : line);
       onSaved();
     } catch (caught) {
       setError(errorText(caught));
@@ -242,9 +245,10 @@ export interface BlockPanelProps {
   unsaved: string | null;
   onDiscard: () => void;
   onSaved: () => void;
+  savedLine: (itemId: string, revChanged: boolean) => string;
 }
 
-export default function BlockPanel({ studio, selected, containerId, group, api, numbers, onDirty, unsaved, onDiscard, onSaved }: BlockPanelProps) {
+export default function BlockPanel({ studio, selected, containerId, group, api, numbers, onDirty, unsaved, onDiscard, onSaved, savedLine }: BlockPanelProps) {
   const { doc } = studio;
   const at = selected ? doc.blocks.findIndex((block) => block.id === selected) : -1;
   const block = at >= 0 ? doc.blocks[at] : null;
@@ -278,6 +282,7 @@ export default function BlockPanel({ studio, selected, containerId, group, api, 
           unsaved={unsaved}
           onDiscard={onDiscard}
           onSaved={onSaved}
+          savedLine={savedLine}
         />
       ) : (
         <div className="st-panel-body">

@@ -6,6 +6,7 @@ import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { checkTest } from '../../lib/studio/checker';
 import { useFrame } from '../../components/exams/useFrame';
 import { KEYS } from '../../components/containers/copyImport';
+import { useSavedLine } from '../../components/containers/keys/useSavedLine';
 import { TO_EXAMS } from '../../components/containers/copy';
 import { goneWords } from '../../components/test/copyTest';
 import { useBuild } from '../../components/test/useBuild';
@@ -95,6 +96,8 @@ export default function StudioPage() {
   const typing = useTyping(mainRef);
   const build = useBuild(containerId);
   const { data, summary, owner, group } = build;
+  /** «Счёт… начнётся заново» only where somebody's answers were counted (not on a new test's first saves). */
+  const savedLine = useSavedLine(data.data?.planInput, group);
   const studio = useStudio(containerId, build);
   const { user } = useAuth();
   const dark = useDark();
@@ -296,6 +299,7 @@ export default function StudioPage() {
       group={group}
       dark={dark}
       hints={hints}
+      savedLine={savedLine}
       tabs={!(narrow && panel === 'check')}
       onShow={(blockId) => {
         showBlock(blockId);
@@ -441,7 +445,7 @@ export default function StudioPage() {
           />
         ) : view === 'list' ? (
           <div className="st-scrollpage">
-            <ListView studio={studio} build={build} containerId={containerId} group={group} />
+            <ListView studio={studio} build={build} containerId={containerId} group={group} savedLine={savedLine} />
           </div>
         ) : (
           <TextView key={textStart?.round ?? 0} studio={studio} items={items} start={textStart?.text ?? null} />
