@@ -66,14 +66,26 @@ interface Props {
 
 const GROWS = 'textarea.qe-text';
 
-/** A field as tall as its text (resize none): the height is its scroll height, the page keeps its place. */
-function grow(field: HTMLTextAreaElement) {
-  const y = typeof window !== 'undefined' ? window.scrollY : 0;
-  field.style.height = 'auto';
-  const height = field.scrollHeight;
-  if (height > 0) field.style.height = `${height}px`;
-  else field.style.removeProperty('height');
-  if (typeof window !== 'undefined' && window.scrollY !== y) window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior });
+/**
+ * Fields as tall as their text (resize none): the height is the scroll height. All the writes come first, then all
+ * the reads, then the writes again, so a keystroke lays the page out once (smoothness audit 20.10: a key in the
+ * constructor's question laid it out six times — the width, the page's scroll before and after, each field). A field
+ * is set to its natural height to be measured with its old height held under it as a margin: the page below does not
+ * move up meanwhile, so the window keeps its scroll without reading it.
+ */
+function grow(fields: readonly HTMLTextAreaElement[]) {
+  if (fields.length === 0) return;
+  for (const field of fields) {
+    const held = field.style.height;
+    if (held) field.style.marginBottom = held;
+    field.style.height = 'auto';
+  }
+  const heights = fields.map((field) => field.scrollHeight);
+  fields.forEach((field, index) => {
+    field.style.removeProperty('margin-bottom');
+    if (heights[index] > 0) field.style.height = `${heights[index]}px`;
+    else field.style.removeProperty('height');
+  });
 }
 
 function PictureIcon() {
@@ -156,18 +168,21 @@ export default function QuestionEditor({
   }, [dirty]);
   useEffect(() => () => onDirtyRef.current?.(false), []);
 
-  // Every field as tall as its text, after each change and when the column's width changes (a phone turned, fonts in).
+  // Every field as tall as its text: after a change only the field whose text (or face) changed — the one being typed
+  // in — and every field when the column's width changes (a phone turned) or the fonts come. The width is the
+  // observer's report, never read from the page.
   const sized = useRef(new WeakMap<HTMLTextAreaElement, string>());
   const sizeAll = (force = false) => {
     const form = formRef.current;
     if (!form) return;
-    const width = form.clientWidth;
+    const due: HTMLTextAreaElement[] = [];
     form.querySelectorAll<HTMLTextAreaElement>(GROWS).forEach((field) => {
-      const stamp = `${width}:${field.dataset.code ?? ''}:${field.value}`;
+      const stamp = `${field.dataset.code ?? ''}:${field.value}`;
       if (!force && sized.current.get(field) === stamp) return;
       sized.current.set(field, stamp);
-      grow(field);
+      due.push(field);
     });
+    grow(due);
   };
   const sizeAllRef = useRef(sizeAll);
   sizeAllRef.current = sizeAll;
@@ -175,12 +190,17 @@ export default function QuestionEditor({
   useEffect(() => {
     const form = formRef.current;
     if (!form) return;
-    let width = form.clientWidth;
+    // The first report is the width the fields were just sized at.
+    let width: number | null = null;
     const observer =
       typeof ResizeObserver !== 'undefined'
-        ? new ResizeObserver(() => {
-            if (form.clientWidth === width) return;
-            width = form.clientWidth;
+        ? new ResizeObserver((entries) => {
+            const next = Math.round(entries[entries.length - 1]?.contentRect.width ?? 0);
+            if (width === null || next === width) {
+              width = next;
+              return;
+            }
+            width = next;
             sizeAllRef.current(true);
           })
         : null;
