@@ -128,18 +128,19 @@ function useEvent<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) =
  * transition) instead of vanishing.
  */
 function useLinger(on: boolean, ms = 220): boolean {
-  const [held, setHeld] = useState(false);
-  const [was, setWas] = useState(on);
-  // Worked out in the render that sees `on` change (React redoes that render at once: no commit of its own).
-  if (was !== on) {
-    setWas(on);
-    setHeld(!on);
-  }
+  const [, recheck] = useReducer((n: number) => n + 1, 0);
+  // When it went off, kept by the render that sees it go (no update of its own then: an update made while rendering
+  // left the gap's store subscription deaf — the «+» stayed under a block no longer chosen).
+  const until = useRef(0);
+  const was = useRef(on);
+  if (was.current && !on) until.current = Date.now() + ms;
+  was.current = on;
+  const held = !on && Date.now() < until.current;
   useEffect(() => {
     if (!held) return undefined;
-    const timer = window.setTimeout(() => setHeld(false), ms);
+    const timer = window.setTimeout(recheck, Math.max(0, until.current - Date.now()) + 1);
     return () => window.clearTimeout(timer);
-  }, [held, ms]);
+  }, [held]);
   return on || held;
 }
 
@@ -273,9 +274,10 @@ const CanvasFrame = memo(function CanvasFrame({ block, index, count, number, ite
         if (!selected && (event.target === event.currentTarget || !(event.target as HTMLElement).closest('.st-acts'))) a.select(id);
       }}
       onKeyDown={(event) => a.key(id, event)}
-      // The bar shows for the block under the mouse, as on hover before; a finger never sets it.
+      // The bar shows for the block under the mouse, as on hover before (a device that hovers: the mouse a browser
+      // fakes after a finger's scroll does not count); a finger never sets it.
       onPointerEnter={(event) => {
-        if (event.pointerType === 'mouse') store.set({ hovered: id });
+        if (event.pointerType === 'mouse' && canHover()) store.set({ hovered: id });
       }}
       onPointerLeave={(event) => {
         if (event.pointerType === 'mouse') store.set((state) => (state.hovered === id ? { hovered: null } : {}));
@@ -335,9 +337,11 @@ const CanvasGap = memo(function CanvasGap({ index, before }: EditGapProps) {
       data-file={file ? '' : undefined}
       data-next={next ? '' : undefined}
       onPointerEnter={(event) => {
-        if (event.pointerType === 'mouse') setHover(true);
+        if (event.pointerType === 'mouse' && canHover()) setHover(true);
       }}
-      onPointerLeave={() => setHover(false)}
+      onPointerLeave={() => {
+        if (hover) setHover(false);
+      }}
     >
       {fileLine(file)}
       {plus ? (

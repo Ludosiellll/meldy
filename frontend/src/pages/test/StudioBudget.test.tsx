@@ -232,6 +232,32 @@ describe('the studio’s render budget on a phone, a page of 30 blocks', () => {
     expect(frame(texts[0].id)).not.toHaveAttribute('data-selected');
     expect(chosen.commits, chosen.components.join(', ')).toHaveLength(1);
     expect(chosen.components.length, chosen.components.join(', ')).toBeLessThanOrEqual(10);
+    // The «+» is under the block chosen now, not under both (a gap that missed the change kept it).
+    const next = Array.from(document.querySelectorAll<HTMLElement>('.st-gap[data-next]'));
+    expect(next.map((gap) => (gap.previousElementSibling as HTMLElement | null)?.dataset.block)).toEqual([texts[1].id]);
+    // The bar of the block left fades out, then is gone.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(frame(texts[0].id).querySelector('.st-acts')).toBeNull();
+    expect(frame(texts[1].id).querySelector('.st-acts')).not.toBeNull();
+  });
+
+  it('a touch screen scrolled: the mouse a browser fakes over the blocks renders nothing (no bar, no commit)', async () => {
+    // A device that does not hover (a phone): its bars show for the chosen block only, as the CSS :hover did before.
+    vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }));
+    try {
+      await openPage();
+      const id = blockIds()[5];
+      const passed = measure(() => {
+        fireEvent.pointerOver(frame(id), { pointerType: 'mouse' });
+        fireEvent.pointerOut(frame(id), { pointerType: 'mouse' });
+      });
+      expect(passed.commits).toHaveLength(0);
+      expect(frame(id).querySelector('.st-acts')).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('a step of a drag that moves the drop line: at most 5 of the app’s components (two gaps, the dragged handle)', async () => {

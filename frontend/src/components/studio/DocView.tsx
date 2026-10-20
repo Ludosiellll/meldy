@@ -29,8 +29,8 @@ import './docview.css';
  *   step's word, as in the participant's run) hands them to `onSubmit`, and the result it gives is shown. Question
  *   blocks whose row is missing are skipped.
  * - `mode="edit"` is the studio's canvas: every block in page order (a «Новая страница» shows as a mark between
- *   pages), the texts editable in place (Editable), and the canvas's own frame around each block (`editor.frame`:
- *   selection, the handle, the actions) and between them (`editor.gap`: «+» and the drop line).
+ *   pages), the texts editable in place (Editable), and the canvas's own frame around each block (`editor.Frame`:
+ *   selection, the handle, the actions) and between them (`editor.Gap`, `editor.EndGap`: «+» and the drop line).
  * - `mode="take"` is a quiz «как в студии» (release 47.2, components/quiz/QuizDocRun.tsx): the same steps and blocks,
  *   but the caller keeps everything — the answers (saved to the server as they change), the step, the required
  *   questions it has to name, «Назад / Дальше / Завершить» — and the options stand in the attempt's order. No result
