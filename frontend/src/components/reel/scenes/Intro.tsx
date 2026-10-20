@@ -1,19 +1,19 @@
 import { useMemo, useRef } from 'react';
 import { opacity, place, put, useEls, useFrame } from '../engine';
 import { drawBurst, drawDust, drawRing, makeBurst, makeDust } from '../particles';
-import { Marker, ParticleCanvas } from '../parts';
+import { ParticleCanvas } from '../parts';
 import { clamp, ease, mix, seg } from '../timeline';
 
-/** The first question of the session the reel tells (chapter 03 asks it), its key word underlined. */
-const INTRO_CARD = { subject: 'Экономика', before: 'Что показывает', marked: 'эластичность', after: 'спроса?', meta: 'Вопрос 14 из 240' };
+/** The first question of the session the reel tells (chapter 03 asks it). */
+const INTRO_CARD = { subject: 'Экономика', question: 'Что показывает эластичность спроса?', meta: 'Вопрос 14 из 240' };
 
 const YELLOW = '#F4C45B';
 /** The particles and the outer rings are white: the only colour is the yellow dot and its own ring. */
 const WHITE = ['#ffffff', 'rgba(255,255,255,0.7)', 'rgba(255,255,255,0.45)'];
 
 /**
- * 1 · The dot. Meldy's yellow dot appears in the dark, stretches into the hand-drawn line, and the
- * line unfolds into a question card with two more behind it; then the stack rushes at the camera.
+ * 1 · The dot. Meldy's yellow dot appears in the dark, stretches into a line, and the line unfolds
+ * into a question card with two more behind it; then the stack rushes at the camera.
  */
 export default function Intro() {
   const root = useRef<HTMLDivElement>(null);
@@ -37,14 +37,10 @@ export default function Intro() {
     put(dot, 'width', `${width.toFixed(1)}px`);
     put(dot, 'height', `${height.toFixed(1)}px`);
     put(dot, 'margin', `${(-height / 2).toFixed(1)}px 0 0 ${(-width / 2).toFixed(1)}px`);
-    put(dot, 'transform', `scale(${popped.toFixed(3)})`);
-    // The straight line becomes the hand-drawn one, which then folds up into the card.
-    const toStroke = seg(l, 1260, 160);
-    opacity(dot, 1 - toStroke);
-    const line = one('line');
-    const fold = seg(l, 1420, 260);
-    opacity(line, toStroke * (1 - fold));
-    put(line, 'transform', `scale(${mix(1, 0.82, ease.in(fold)).toFixed(3)},1)`);
+    // The line folds up into the card, gone before the card's words can be read.
+    const fold = seg(l, 1380, 120);
+    put(dot, 'transform', `scale(${(popped * mix(1, 0.82, ease.in(fold))).toFixed(3)},${popped.toFixed(3)})`);
+    opacity(dot, 1 - fold);
 
     // The card unfolds from the line (1420–2050 ms); two more fan out behind it (2050–2650 ms).
     const stack = one('stack');
@@ -100,22 +96,12 @@ export default function Intro() {
             <span className="mr-ticket-tag">{INTRO_CARD.subject}</span>
           </div>
           <div className="mr-intro-q">
-            {INTRO_CARD.before}{' '}
-            <span className="mr-mark">
-              {INTRO_CARD.marked}
-              <Marker at={1950} dur={650} />
-            </span>{' '}
-            {INTRO_CARD.after}
+            {INTRO_CARD.question}
           </div>
           <div className="mr-intro-meta">{INTRO_CARD.meta}</div>
         </div>
       </div>
       <div data-a="dot" className="mr-intro-dot" />
-      <div data-a="line" className="mr-intro-line">
-        <svg viewBox="0 0 580 36" aria-hidden="true">
-          <path d="M8 21 C 120 11, 240 9, 330 14 S 500 25, 572 13" />
-        </svg>
-      </div>
     </div>
   );
 }

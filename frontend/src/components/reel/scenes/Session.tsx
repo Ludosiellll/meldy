@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { FIGURE_AFTER, FIGURE_AFTER_FIRST, FIGURE_BEFORE, SESSION_QUESTIONS, SESSION_SIZE, SESSION_SUBJECT, SESSION_WORDS } from '../content';
 import { blur, flag, opacity, place, put, text, useEls, useFrame } from '../engine';
-import { Cursor, Kinetic, Marker, Pill, Roller, TypeLabel } from '../parts';
+import { Cursor, Kinetic, Pill, Roller, TypeLabel } from '../parts';
 import { clamp, ease, mix, pulse, seg } from '../timeline';
 
 /** The right answer, the move to the next question, the wrong one, the rest of the session, its end. */
@@ -212,10 +212,7 @@ export default function Session() {
               <div data-a="end" className="mr-s-end" style={{ opacity: 0 }}>
                 <p className="mr-s-end-h">
                   {lead}
-                  <span className="mr-mark">
-                    {marked}
-                    <Marker at={END_AT + 450} dur={800} />
-                  </span>
+                  {marked}
                   {tail}
                 </p>
                 <p data-a="end-p" className="mr-s-end-p">

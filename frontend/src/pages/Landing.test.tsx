@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import Landing, { EXAM_TITLE_H, EYEBROW, FINAL_LEAD, HEADLINE, LECTURE_EXAMPLE_LINE, LEAD, METHOD, RESULT_NOTE, RESULT_SAMPLE, RESULT_TITLE, SIGN_UP_SHORT, START_LABEL, STEPS, TRY_LABEL } from './Landing';
+import Landing, { EXAM_TITLE_H, FINAL_LEAD, HEADLINE, LECTURE_EXAMPLE_LINE, LEAD, METHOD, RESULT_NOTE, RESULT_SAMPLE, RESULT_TITLE, SIGN_UP_SHORT, START_LABEL, STEPS, TRY_LABEL } from './Landing';
 import { REEL_EVENT } from '../components/home/reelJump';
 import { SHEET_EXAMPLE, SHEET_REPLAY_EVENT, SHEET_TITLE } from '../components/home/HeroSheet';
 import { freePlanLine } from '../components/landing/freePlan';
@@ -91,21 +91,21 @@ describe('Landing page', () => {
     vi.restoreAllMocks();
   });
 
-  it('opens on the promise: what Meldy is, the headline with its hand-drawn line, and the exam as it is now', () => {
-    renderLanding();
-    expect(plain(document.querySelector('.hm-eyebrow')?.textContent)).toBe(EYEBROW);
-    expect(EYEBROW).toBe('Тренажёр экзамена по вопросам кафедры');
+  it('opens on what Meldy is, in plain words: no eyebrow, no hand-drawn line, and the exam as it is now', () => {
+    const { container } = renderLanding();
     const h1 = screen.getByRole('heading', { level: 1 });
     expect(plain(h1.textContent)).toBe(HEADLINE);
-    expect(HEADLINE).toBe('ИИ не отвечает за вас — он вас спрашивает');
-    expect(plain(h1.querySelector('.hm-mark')?.textContent)).toBe('спрашивает');
-    expect(h1.querySelector('.hm-mark svg path')).not.toBeNull();
+    expect(HEADLINE).toBe('Тренажёр экзамена по вопросам вашей кафедры');
+    // The owner, 2026-10-19: «убрать иишные надписи и это подчеркивание волной».
+    expect(h1.querySelector('svg')).toBeNull();
+    expect(container.querySelector('.hm-eyebrow, .hm-mark, .hm-flag, .hm-tint-k')).toBeNull();
     expect(plain(document.querySelector('.hm-hero .hm-lead')?.textContent)).toBe(LEAD);
     // The import's own words (one file or one per subject), the plan by days, the oral questions against the lectures.
     expect(LEAD).toContain('один файл или по файлу на предмет');
     expect(LEAD).toContain('по дням до экзамена');
-    expect(LEAD).toContain('устные спросит вслух и сверит с вашими лекциями');
-    expect(LEAD).not.toMatch(/шпаргалк/i);
+    expect(LEAD).toContain('устные задаст вслух и сверит ответ с вашими лекциями');
+    expect(LEAD).toContain('тест');
+    expect(LEAD).not.toMatch(/шпаргалк|ИИ/i);
   });
 
   it('shows one exam for the whole preparation below how it works: the example\'s page and its oral subject\'s sheet', () => {
@@ -201,22 +201,18 @@ describe('Landing page', () => {
     expect(OUTRO_CTA_LABEL).toBe(TRY_LABEL);
   });
 
-  it('tells how it works in four numbered steps, in the order of the work: the file, the plan, the answer aloud, the sheet', () => {
+  it('tells how it works in four steps, in the order of the work: the file, the plan, the answer aloud, the sheet', () => {
     renderLanding();
     const how = document.getElementById('how')!;
     const steps = within(how).getAllByRole('listitem').filter((item) => item.classList.contains('hm-step'));
     expect(steps).toHaveLength(4);
-    expect(Array.from(how.querySelectorAll('.hm-flag')).map((flag) => plain(flag.textContent))).toEqual([
-      '1Вопросы',
-      '2План по дням',
-      '3Ответ вслух',
-      '4Шпаргалка',
-    ]);
+    // An ordered list says the order; no numbered chips over the headings.
+    expect(how.querySelector('.hm-flag')).toBeNull();
     expect(within(how).getAllByRole('heading', { level: 3 }).map((h) => plain(h.textContent))).toEqual(STEPS.map((step) => plain(step.title)));
     expect(STEPS.map((step) => step.title)).toEqual([
-      'Вопросы — из файла кафедры',
-      'Каждый день — занятие по плану',
-      'Устные — вслух, по вашим лекциям',
+      'Вопросы из файла кафедры',
+      'План на каждый день до экзамена',
+      'Устные вопросы вы отвечаете вслух',
       'Строки стирают только ответы в разные дни',
     ]);
     expect(plain(how.textContent)).toContain('Кнопки «знаю» нет');
@@ -303,7 +299,7 @@ describe('Landing page', () => {
     renderLanding();
     const final = document.getElementById('start')!;
     expect(plain(final.querySelector('.hm-lead')?.textContent)).toBe(plain(FINAL_LEAD));
-    expect(FINAL_LEAD).toContain('Один общий файл или по файлу на предмет');
+    expect(FINAL_LEAD).toContain('один общий файл или по файлу на предмет');
     const buttons = within(final).getAllByRole('button');
     expect(buttons.map((button) => plain(button.textContent))).toEqual([START_LABEL, TRY_LABEL]);
     fireEvent.click(buttons[1]);
@@ -315,7 +311,7 @@ describe('Landing page', () => {
     const final = document.getElementById('start')!;
     const line = within(final).getByRole('link');
     expect(plain(line.textContent)).toBe(plain(LECTURE_EXAMPLE_LINE));
-    expect(LECTURE_EXAMPLE_LINE).toBe('Что Meldy делает из лекции — пример разбора');
+    expect(LECTURE_EXAMPLE_LINE).toBe('Пример разбора лекции');
     expect(line).toHaveAttribute('href', '/try/lecture');
     fireEvent.click(line);
     expect(screen.getByText('Разбор лекции примера')).toBeInTheDocument();
@@ -330,7 +326,9 @@ describe('Landing page', () => {
   it('tells the method in three cards by the exam\'s own rule, without percentages it cannot back', () => {
     renderLanding();
     const method = document.getElementById('method')!;
-    expect(Array.from(method.querySelectorAll('.hm-tint-k')).map((k) => k.textContent)).toEqual(['Сначала вопрос', 'Потом — реже', 'Разные дни']);
+    // No kicker labels over the cards: each says its point in one plain line.
+    expect(method.querySelector('.hm-tint-k')).toBeNull();
+    expect(Array.from(method.querySelectorAll('.hm-tint-big')).map((big) => plain(big.textContent))).toEqual(METHOD.map((item) => plain(item.big)));
     expect(method.textContent).not.toMatch(/\d+\s?%/);
     // «Как считается» of the exam: the intervals of the rule and its two different days, 20 hours apart.
     const rule = howCounted(DUE_DAYS).map(plain);

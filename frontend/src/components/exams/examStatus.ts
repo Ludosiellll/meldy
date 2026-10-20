@@ -69,7 +69,7 @@ export interface ExamStatus {
   tone: ExamStatusTone;
   /** The flag over the headline: the step of the way (lectures → mapping → cheat sheet → answers). */
   flag: string;
-  /** The headline in three parts: the middle one gets the hand-drawn yellow line (empty: no line). */
+  /** The headline in three parts: the middle one, its key words, stays on one line (empty: none). */
   title: { lead: string; mark: string; tail: string };
   text: string | null;
   /**

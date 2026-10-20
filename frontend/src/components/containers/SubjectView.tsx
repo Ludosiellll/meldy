@@ -7,7 +7,7 @@ import { freeSession } from '../../lib/containers/session';
 import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
 import PageHead from './PageHead';
-import PlanCard, { PlanTitle } from './PlanCard';
+import PlanCard from './PlanCard';
 import FigureBlock from './FigureBlock';
 import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet, TopicSheet } from './Sheets';
@@ -112,7 +112,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
     title = (solo && plan ? titleText(plan) : lineWords({ key: 'exam_today' }).replace(/\.$/, '')) || copy.EXAM_TODAY;
     pill = walk && errorsHref ? { href: errorsHref, label: copy.walkErrors(errorsToday) } : null;
   } else if (share && shareCount > 0) {
-    title = <PlanTitle text={titleText(share)} />;
+    title = titleText(share);
   } else {
     // A subject of several on a day off says the exam's day off («Сегодня выходной. Следующие вопросы — …»).
     const dayOff = plan?.lines.find((line) => line.key === 'day_off');

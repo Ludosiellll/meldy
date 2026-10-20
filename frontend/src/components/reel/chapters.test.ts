@@ -69,7 +69,8 @@ describe('the session the reel tells', () => {
     expect(SUBJECTS.filter((subject) => subject.oral > 0).map((subject) => subject.title)).toEqual(['Философия']);
     // The files are the formats the import reads without AI: DOCX, XLSX, GIFT, TXT.
     expect(SUBJECTS.map((subject) => subject.file.split('.').pop())).toEqual(['docx', 'xlsx', 'gift', 'txt']);
-    expect(CHAOS_LINES).toEqual(['960 вопросов. 18 дней.', 'С чего начать?']);
+    // A plain statement, no rhetorical question (the owner, 2026-10-19: «убрать иишные надписи»).
+    expect(CHAOS_LINES).toEqual(['960 вопросов,', 'а до экзамена 18 дней.']);
   });
 });
 
@@ -80,8 +81,9 @@ describe('01 «Вопросы»: the import page in its own words', () => {
     expect(IMPORT_WORDS.dropping).toBe(IMPORT.dropping);
     expect(plain(IMPORT_WORDS.reading)).toBe('Читаем 4 файла');
     expect(plain(IMPORT_WORDS.found)).toBe('Нашли 4 предмета и 960 вопросов');
-    // «Ключей ИИ не придумывает» is the import's own sentence.
-    expect(IMPORT.side.join(' ')).toContain(IMPORT_WORDS.noAi.replace(/\.$/, ''));
+    // Where the keys come from, as the import's side says it, without a word about the AI.
+    expect(IMPORT_WORDS.keys).toBe('Ключи берутся из файлов.');
+    expect(IMPORT.side.join(' ')).toContain('возьмёт ключ из оформления');
   });
 
   it('lists each subject as the preview does: the count and how the file marks the key, or the oral questions', () => {

@@ -7,7 +7,7 @@ import { dayText } from '../../lib/containers/words';
 import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
 import PageHead from './PageHead';
-import PlanCard, { PlanTitle, type PlanTip } from './PlanCard';
+import PlanCard, { type PlanTip } from './PlanCard';
 import FigureBlock from './FigureBlock';
 import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet } from './Sheets';
@@ -268,7 +268,7 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
       </>
     );
   } else if (plan && state === 'study') {
-    title = <PlanTitle text={titleText(plan)} />;
+    title = titleText(plan);
     const detail = detailText(plan);
     sub = (
       <>

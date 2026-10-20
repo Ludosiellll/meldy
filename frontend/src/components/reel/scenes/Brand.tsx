@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { blur, opacity, put, useEls, useFrame } from '../engine';
 import { drawBurst, drawGather, drawRing, makeBurst } from '../particles';
-import { Kinetic, Marker, ParticleCanvas } from '../parts';
+import { Kinetic, ParticleCanvas } from '../parts';
 import { ease, mix, seg } from '../timeline';
 
 /** Ink in three strengths, for the particles. */
@@ -76,7 +76,6 @@ export default function Brand() {
         <Kinetic text="Сессия начинается со" at={1300} stagger={85} />{' '}
         <span className="mr-mark">
           <Kinetic text="списка вопросов." at={1555} stagger={85} />
-          <Marker at={1920} dur={700} />
         </span>
       </div>
     </div>

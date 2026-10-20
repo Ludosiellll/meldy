@@ -213,15 +213,6 @@
   padding-bottom: 64px;
 }
 
-.hm-eyebrow {
-  margin: 0;
-  font-size: clamp(16px, 1.3vw, 19px);
-  line-height: 1.35;
-  font-weight: 500;
-  color: var(--sf-accent-fg);
-  text-wrap: balance;
-}
-
 /* The size follows the window's height too (audit 2026-10-08, PUB-9): at 1912×920 the 124 px cap broke the line
    into three and pushed the video to 845 px; at 1532×734 it is 92 px instead of 113, two lines either way. */
 .hm-h1 {
@@ -231,33 +222,6 @@
   font-weight: 500;
   letter-spacing: -0.035em;
   text-wrap: balance;
-}
-
-.hm-mark {
-  position: relative;
-  display: inline-block;
-  white-space: nowrap;
-}
-
-.hm-mark svg {
-  position: absolute;
-  left: -1%;
-  right: -1%;
-  bottom: -0.16em;
-  width: 102%;
-  height: 0.36em;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.hm-mark path {
-  fill: none;
-  stroke: var(--m-yellow);
-  stroke-width: 8px;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: hm-draw 1.5s 0.55s cubic-bezier(0.65, 0, 0.35, 1) forwards;
 }
 
 .hm-lead {
@@ -1094,40 +1058,6 @@
   mask-image: linear-gradient(200deg, #000, transparent 70%);
 }
 
-.hm-flag {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  height: 34px;
-  padding: 0 26px 0 14px;
-  color: #0b121c;
-  font-size: 15px;
-  font-weight: 500;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 12px) 50%, 100% 100%, 0 100%);
-}
-
-/* The step's number: the order of the steps is the order of the work. */
-.hm-flag b {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-
-.hm-flag--sky {
-  background: var(--m-sky);
-}
-
-.hm-flag--yellow {
-  background: var(--m-yellow);
-}
-
-.hm-flag--green {
-  background: var(--m-green);
-}
-
-.hm-flag--pink {
-  background: var(--m-pink);
-}
-
 .hm-h3 {
   margin: 20px 0 0;
   font-size: 32px;
@@ -1588,14 +1518,8 @@
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--sf-accent) 14%, transparent);
 }
 
-.hm-tint-k {
-  font-size: 16px;
-  font-weight: 500;
-  color: var(--sf-accent-fg);
-}
-
 .hm-tint-big {
-  margin: 18px 0 0;
+  margin: 0;
   font-size: 30px;
   line-height: 1.15;
   font-weight: 500;
@@ -1755,12 +1679,6 @@
   from {
     opacity: 0;
     transform: translateY(30px);
-  }
-}
-
-@keyframes hm-draw {
-  to {
-    stroke-dashoffset: 0;
   }
 }
 
@@ -2044,10 +1962,6 @@
   .hm *::after {
     animation: none !important;
     transition: none !important;
-  }
-
-  .hm-mark path {
-    stroke-dashoffset: 0;
   }
 
   .hm-marquee {

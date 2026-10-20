@@ -108,7 +108,7 @@ export function Session({ leave }: { leave: number }) {
           </span>
         </div>
       </div>
-      <Statement lines={['Ошибка —', 'вернётся завтра.']} at={350} out={leave} className="ar-say" />
+      <Statement lines={['Ошибка', 'вернётся завтра.']} at={350} out={leave} className="ar-say" />
     </div>
   );
 }
@@ -174,7 +174,7 @@ export function Oral({ leave }: { leave: number }) {
           <ListCaption items={ORAL_CAPTION} className="ar-cap" />
         </div>
       </div>
-      <Statement lines={['Ответ вслух —', 'по вашим лекциям.']} at={350} out={leave} className="ar-say ar-say--oral" />
+      <Statement lines={['Ответ вслух', 'по вашим лекциям.']} at={350} out={leave} className="ar-say ar-say--oral" />
     </div>
   );
 }

@@ -35,7 +35,7 @@ export const MOVE_EXAMPLE = {
 
 /** The plan the engine makes on 18 October for the exam moved to 25 October (StepClips.test compares). */
 export const MOVE_PLAN = {
-  /** titleText: «Сегодня 64 вопроса, около 30 минут», the yellow line under «64 вопроса». */
+  /** titleText: «Сегодня 64 вопроса, около 30 минут». */
   title: ['Сегодня ', `64${' '}вопроса`, `, около 30${' '}минут`] as const,
   /** detailText. */
   detail: '64 знакомых',
@@ -102,9 +102,6 @@ export function MoveScene() {
     focusRow(one('day1'), l, MV.saved + 260, 460);
     focusRow(one('note0'), l, MV.plan, 420);
     focusRow(one('note1'), l, MV.plan + 220, 420);
-    const mark = seg(l, MV.plan + 300, 700);
-    put(one('mark'), 'stroke-dashoffset', (1 - ease.inOut(mark)).toFixed(4));
-    opacity(one('mark'), mark > 0 ? 1 : 0);
     opacity(one('pill0'), between(l, -1000, MV.saved + 160, 200));
     focusRow(one('pill1'), l, MV.saved + 420, 460);
   });
@@ -155,12 +152,7 @@ export function MoveScene() {
           <div data-a="day1" className="mv-day" style={{ opacity: 0 }}>
             <p className="mv-title">
               {MOVE_PLAN.title[0]}
-              <span className="sx-mark">
-                {MOVE_PLAN.title[1]}
-                <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true">
-                  <path data-a="mark" pathLength={1} d="M4 15 C 80 7, 170 6, 262 10 S 362 15, 396 8" style={{ opacity: 0 }} />
-                </svg>
-              </span>
+              {MOVE_PLAN.title[1]}
               {MOVE_PLAN.title[2]}
             </p>
             <p className="mv-links">

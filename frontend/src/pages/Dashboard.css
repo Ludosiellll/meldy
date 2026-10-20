@@ -39,26 +39,6 @@
 }
 .td-loading { margin: 0; font-size: 17px; line-height: 26px; color: var(--sf-muted); }
 
-/* One hand-drawn yellow line under «повторим», drawn in once. */
-.td-mark { position: relative; display: inline-block; white-space: nowrap; }
-.td-mark svg {
-  position: absolute;
-  left: -1%;
-  bottom: -.14em;
-  width: 102%;
-  height: .34em;
-  overflow: visible;
-  pointer-events: none;
-}
-.td-mark path {
-  fill: none;
-  stroke: var(--m-yellow);
-  stroke-width: 8px;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: td-draw 1.3s .45s cubic-bezier(.65, 0, .35, 1) forwards;
-}
 
 /* ---------------------------------------------------------------- the grid and the cards */
 /* The exam on top of the main column and the lectures right under it; the side spans both rows. The second
@@ -745,9 +725,6 @@
 @keyframes td-rise {
   from { opacity: 0; transform: translateY(26px); }
 }
-@keyframes td-draw {
-  to { stroke-dashoffset: 0; }
-}
 @keyframes td-pop {
   from { opacity: 0; transform: translateY(10px); }
 }
@@ -1008,5 +985,4 @@
   .td *,
   .td *::before,
   .td *::after { animation: none !important; transition: none !important; }
-  .td-mark path { stroke-dashoffset: 0; }
 }

@@ -4,21 +4,9 @@ import * as copy from './copy';
 import './containers.css';
 
 /**
- * Small pieces the exam's screens share: the screen's one hand-drawn yellow line under a few words (design language
- * 3), a sheet (a bottom sheet on a phone, a dialog card on a computer) and the arrow of a row.
+ * Small pieces the exam's screens share: a sheet (a bottom sheet on a phone, a dialog card on a computer) and the arrow
+ * of a row. The hand-drawn yellow line under a few words is gone (the owner, 2026-10-19: «это подчеркивание волной»).
  */
-
-/** The yellow line under the key words, drawn in once; under reduced motion it is simply there. */
-export function Mark({ children }: { children: ReactNode }) {
-  return (
-    <span className="ct-mark">
-      {children}
-      <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-        <path pathLength={1} d="M4 15 C 80 7, 170 6, 262 10 S 362 15, 396 8" />
-      </svg>
-    </span>
-  );
-}
 
 export function Chevron() {
   return (

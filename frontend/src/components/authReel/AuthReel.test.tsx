@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { EYEBROW } from '../../pages/Landing';
+import { HEADLINE } from '../../pages/Landing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../lib/supabase', () => ({
@@ -83,7 +83,7 @@ describe('the story the reels tell (the exam for the whole preparation)', () => 
   });
 
   it('signs off with what Meldy is, in the landing\'s words', () => {
-    expect(READY_TAG).toBe(EYEBROW);
+    expect(READY_TAG).toBe(HEADLINE);
   });
 
   it('says nothing of the old story: no paper sheet, summary, cards, tests, grades or stamps', () => {
@@ -133,12 +133,12 @@ describe('the reel in the panel', () => {
     [
       'login',
       LOGIN_SCRIPT,
-      ['960', 'вопросов.', 'Один', 'план.', 'Вся', 'группа', 'одной', 'ссылке.', 'Продолжите', 'места', EXAM_TITLE, words.flag, START_LABEL, INVITE_WORDS.title, INVITE_WORDS.lead],
+      ['960', 'вопросов', 'одном', 'плане.', 'Одна', 'ссылка', 'всю', 'группу.', 'Продолжите', 'места', EXAM_TITLE, words.flag, START_LABEL, INVITE_WORDS.title, INVITE_WORDS.lead],
     ],
     [
       'register',
       REGISTER_SCRIPT,
-      ['Один', 'файл', '960', 'вопросов.', 'Каждый', 'день', 'понемногу.', 'Начните', 'списка', IMPORT_WORDS.title, IMPORT_WORDS.found, words.planTitle, words.days[0], words.days[2]],
+      ['одном', 'файле', '960', 'вопросов.', 'Около', '45', 'минут', 'день.', 'Начните', 'списка', IMPORT_WORDS.title, IMPORT_WORDS.found, words.planTitle, words.days[0], words.days[2]],
     ],
   ] as const)('%s: plays its beats in the screens\' own words, and nothing of the old story', (variant, script, own) => {
     window.__MELDY_AUTH_REEL_EXPORT__ = true;
@@ -250,7 +250,7 @@ describe('the sign-in pages', () => {
   it('shows the reel under the panel heading of both pages, both told as the exam is now', () => {
     const login = renderAt('/login');
     expect(screen.getByRole('heading', { name: LOGIN_PANEL_TITLE })).toBeInTheDocument();
-    expect(LOGIN_PANEL_TITLE.replace(/\u00a0/g, ' ')).toBe('Сотни вопросов — один план на каждый день.');
+    expect(LOGIN_PANEL_TITLE.replace(/\u00a0/g, ' ')).toBe('План по дням для сотен вопросов.');
     expect(screen.getByText(LOGIN_LEDE.replace(/\u00a0/g, ' '))).toBeInTheDocument();
     expect(screen.getByText('Ролик: как работает Meldy, 19 секунд, без звука.')).toBeInTheDocument();
     // The form's card no longer promises cheat sheets: the exams, the lectures, the answers.
@@ -259,7 +259,7 @@ describe('the sign-in pages', () => {
 
     const { container } = renderAt('/register');
     expect(screen.getByRole('heading', { name: SIGN_UP_PANEL_TITLE })).toBeInTheDocument();
-    expect(SIGN_UP_PANEL_TITLE.replace(/\u00a0/g, ' ')).toBe('От файла с вопросами — до плана на каждый день');
+    expect(SIGN_UP_PANEL_TITLE.replace(/\u00a0/g, ' ')).toBe('План на каждый день из файла с вопросами');
     expect(screen.getByText(SIGN_UP_LEDE.replace(/\u00a0/g, ' '))).toBeInTheDocument();
     expect(screen.getByText('Ролик: от файла с вопросами до плана на каждый день, 19 секунд, без звука.')).toBeInTheDocument();
     // The password and its repeat stand side by side.

@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import { PLAN_DAYS, PLAN_TODAY, PLAN_WORDS } from '../content';
 import { blur, opacity, put, useEls, useFrame } from '../engine';
-import { Cursor, Kinetic, Marker, Pill, TypeLabel } from '../parts';
+import { Cursor, Kinetic, Pill, TypeLabel } from '../parts';
 import { ease, mix, pulse, seg } from '../timeline';
 
 /** A day's tile and the step between tiles (stage px). */
@@ -64,7 +64,7 @@ export default function Plan() {
       opacity(tile, p);
     });
 
-    // Today's card: the plan in its own words, with the yellow line under today's questions.
+    // Today's card: the plan in its own words.
     const card = one('card');
     const rise = ease.brand(seg(l, 520, 700));
     put(card, 'transform', `translate3d(0,${mix(50, 0, rise).toFixed(1)}px,0)`);
@@ -122,7 +122,7 @@ export default function Plan() {
 
         <div data-a="card" className="mr-card mr-p-card" style={{ opacity: 0 }}>
           <div className="mr-p-card-t">
-            <PlanTitle text={PLAN_WORDS.title} />
+            <b className="mr-p-title">{PLAN_WORDS.title}</b>
             <p className="mr-p-card-sub">
               {PLAN_WORDS.detail}
               <span className="mr-p-link">{PLAN_WORDS.byDays}</span>
@@ -133,21 +133,5 @@ export default function Plan() {
         <Cursor keys={PLAN_CURSOR} clicks={[START_AT]} from={4500} to={START_AT + 420} />
       </div>
     </div>
-  );
-}
-
-/** The app's PlanTitle: the yellow line under today's questions («90 вопросов»). */
-function PlanTitle({ text }: { text: string }) {
-  const match = /\d+[  ]вопрос(?:а|ов)?/.exec(text);
-  if (!match) return <b className="mr-p-title">{text}</b>;
-  return (
-    <b className="mr-p-title">
-      {text.slice(0, match.index)}
-      <span className="mr-mark">
-        {match[0]}
-        <Marker at={1500} dur={800} />
-      </span>
-      {text.slice(match.index + match[0].length)}
-    </b>
   );
 }

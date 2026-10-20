@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { blur, opacity, put, useEls, useFrame } from '../engine';
 import { drawBurst, drawDust, drawGather, drawRing, makeBurst, makeDust } from '../particles';
-import { Kinetic, Marker, ParticleCanvas, Pill } from '../parts';
+import { Kinetic, ParticleCanvas, Pill } from '../parts';
 import { clamp, ease, mix, pulse, sceneWindow, seg } from '../timeline';
 
 const MARK_TOP = 205;
@@ -16,7 +16,7 @@ const LENGTH = sceneWindow('outro').to - sceneWindow('outro').from;
 const FEATURES = [
   {
     title: 'Вопросы',
-    sub: 'из файлов кафедры, без\u00a0ИИ',
+    sub: 'из файлов кафедры',
     tone: { background: '#E8EFFC', color: '#1C4DB1' },
     icon: <path d="M5 6h10M5 10h10M5 14h6" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
   },
@@ -33,7 +33,7 @@ const FEATURES = [
   },
   {
     title: 'Шпаргалка',
-    sub: 'уходит с\u00a0ответами',
+    sub: 'строки стирают ответы',
     tone: { background: '#E2F2E5', color: '#2C6B3A' },
     // Three lines of the sheet.
     icon: <path d="M4.5 5.5h11M4.5 10h11M4.5 14.5h7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />,
@@ -153,7 +153,6 @@ export default function Outro() {
         <div className="mr-outro-tag">
           <span className="mr-mark">
             <Kinetic text="Вспоминать" at={1250} />
-            <Marker at={1760} dur={650} variant={1} />
           </span>{' '}
           <span className="mr-muted">
             <Kinetic text="полезнее, чем перечитывать." at={1340} stagger={85} />

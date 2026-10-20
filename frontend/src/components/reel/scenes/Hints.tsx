@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react';
 import { ORAL, ORAL_WORDS } from '../content';
 import { blur, flag, opacity, put, useEls, useFrame } from '../engine';
-import { Kinetic, Marker, TypeLabel } from '../parts';
+import { Kinetic, TypeLabel } from '../parts';
 import { clamp, ease, mix, rng, seg } from '../timeline';
 import HintsSheet from './hints/HintsSheet';
 import { NAMED_AT, SHEET_AT, wordAt } from './hints/model';
@@ -14,7 +14,7 @@ const LEAVE = 7580;
 const WAVE = Array.from({ length: 22 }, (_, index) => index);
 /** Which point a word of the answer names (the words the check matched), for its highlight. */
 const MATCHED_BY = new Map<number, number>(ORAL.matched.flatMap((words, point) => words.map((word) => [word, point] as [number, number])));
-/** The answer as runs of words: a matched phrase is one run (one yellow line under it). */
+/** The answer as runs of words: a matched phrase is one run (kept whole on its line). */
 const PHRASES: Array<{ point: number | null; words: number[] }> = WORDS.reduce<Array<{ point: number | null; words: number[] }>>((runs, _, index) => {
   const point = MATCHED_BY.get(index) ?? null;
   const last = runs[runs.length - 1];
@@ -25,7 +25,7 @@ const PHRASES: Array<{ point: number | null; words: number[] }> = WORDS.reduce<A
 
 /**
  * 8 · Chapter 04, «Шпаргалка». An open question of «Философия» answered aloud: the words come as they are said, the
- * points from the student's lectures light up as the answer names them, the matched words get the app's yellow line.
+ * points from the student's lectures light up as the answer names them.
  * Then the cheat sheet (./hints): the question's lines get a stroke and fade to «named once»; on another day they go;
  * the days run to the exam and the map of the sheet empties.
  */
@@ -134,14 +134,13 @@ export default function Hints() {
                     </span>
                   ))
                 ) : (
-                  // The words the check matched to a point: the app's yellow line under them as the point is named.
+                  // The words the check matched to a point, kept whole: their point lights up on the right as it is named.
                   <span key={phrase.words[0]} className="mr-mark mr-h-hit">
                     {phrase.words.map((index) => (
                       <span key={index} data-a="w" className="mr-said-w">
                         {WORDS[index]}
                       </span>
                     ))}
-                    <Marker at={(NAMED_AT[phrase.point] ?? 0) - 40} dur={520} variant={phrase.point} />
                   </span>
                 ),
               )}

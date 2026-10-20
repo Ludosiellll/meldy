@@ -297,15 +297,7 @@ export default function UploadZone({
   return (
     <div className="az-upload">
       <header className="az-head az-rise">
-        <h1 className="az-h1">
-          Разобрать{' '}
-          <span className="az-mark">
-            лекцию
-            <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-              <path pathLength={1} d="M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9" />
-            </svg>
-          </span>
-        </h1>
+        <h1 className="az-h1">Разобрать лекцию</h1>
         <p className="az-lede">
           {phone
             ? 'Meldy сделает конспект, карточки и тест.'

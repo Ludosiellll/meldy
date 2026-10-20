@@ -242,7 +242,7 @@ export default function Questions() {
             <Kinetic text="вопросов" at={ROW_AT[0] + READ_MS + 200} unit="letter" variant="drop" stagger={30} dur={620} />
           </div>
           <div className="mr-big-in">
-            <Kinetic text={IMPORT_WORDS.noAi} at={ROW_AT[3] + READ_MS + 500} stagger={95} accentFrom={2} />
+            <Kinetic text={IMPORT_WORDS.keys}at={ROW_AT[3] + READ_MS + 500} stagger={95} accentFrom={2} />
           </div>
 
           <div className="mr-persp">

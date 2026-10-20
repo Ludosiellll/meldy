@@ -1,6 +1,6 @@
 /*
  * The Meldy reel: a 1920×1080 stage scaled to its frame. Colours, type and shapes follow the new
- * Meldy style (warm paper, ink, blue pills with a circle arrow, the yellow hand-drawn marker). The cheat sheet's
+ * Meldy style (warm paper, ink, blue pills with a circle arrow, the yellow dot). The cheat sheet's
  * own look is in scenes/hints/hints.css, the Telegram chat's in scenes/telegram/telegram.css.
  * Positions are stage pixels; everything that moves is written by the scene's frame function.
  */
@@ -201,28 +201,11 @@
   text-align: center;
 }
 
+/* A phrase kept whole on its line. */
 .mr-mark {
   position: relative;
   display: inline-block;
   white-space: nowrap;
-}
-
-.mr-marker {
-  position: absolute;
-  left: -2%;
-  bottom: -0.2em;
-  width: 104%;
-  height: 0.38em;
-  overflow: visible;
-}
-
-.mr-marker path {
-  fill: none;
-  stroke: var(--yellow);
-  stroke-width: 9px;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
 }
 
 /* ------------------------------------------------------------------ brand pieces */
@@ -452,31 +435,6 @@
   bottom: 40px;
   font-size: 22px;
   color: var(--muted);
-}
-
-.mr-intro-line {
-  position: absolute;
-  left: 960px;
-  top: 540px;
-  height: 0;
-  width: 0;
-}
-
-.mr-intro-line svg {
-  position: absolute;
-  left: -290px;
-  top: -18px;
-  width: 580px;
-  height: 36px;
-  overflow: visible;
-}
-
-.mr-intro-line path {
-  fill: none;
-  stroke: var(--yellow);
-  stroke-width: 14px;
-  stroke-linecap: round;
-  stroke-linejoin: round;
 }
 
 /* ------------------------------------------------------------------ 2 · chaos */
@@ -1205,7 +1163,7 @@
   color: var(--muted);
 }
 
-/* Today's card (components/containers/PlanCard): the plan's title with its yellow line, the muted line, the pill. */
+/* Today's card (components/containers/PlanCard): the plan's title, the muted line, the pill. */
 .mr-p-card {
   left: 150px;
   right: 150px;
@@ -1511,7 +1469,7 @@
   line-height: 1.55;
 }
 
-/* A phrase the check matched to a point: one yellow line under it. */
+/* A phrase the check matched to a point, kept whole; its point lights up on the right. */
 .mr-h-hit {
   margin-right: 0.27em;
 }

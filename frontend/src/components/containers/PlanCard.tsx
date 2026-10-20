@@ -1,9 +1,8 @@
 import type { ReactNode, RefObject } from 'react';
-import { Mark } from './ui';
 
 /**
- * Today's step first (decision 46): a white status card, as on today's oral exam page — the title with the screen's one
- * yellow line («Сегодня 90 вопросов, около 45 минут»), one muted line («30 новых и 60 знакомых. План по дням»), the
+ * Today's step first (decision 46): a white status card, as on today's oral exam page — the title («Сегодня 90
+ * вопросов, около 45 минут»), one muted line («30 новых и 60 знакомых. План по дням»), the
  * plan's own lines (a skipped day, the final days, the minutes that fall short) and, on a computer, the one blue pill
  * on the card's right. A phone and a tablet carry the pill in the bar at the bottom.
  */
@@ -50,22 +49,6 @@ export default function PlanCard({ id, title, sub, links, notes = [], action, ti
         {action ? <div className="ct-plan-act">{action}</div> : null}
       </section>
       {tip?.card ?? null}
-    </>
-  );
-}
-
-/** The words that carry the yellow line: today's number of questions («90 вопросов»). */
-const MARKED = /\d+[\u00a0 ]вопрос(?:а|ов)?/;
-
-/** «Сегодня 90 вопросов, около 45 минут» (the plan's words, lib/containers/words.ts planTitle) with the yellow line under «90 вопросов». */
-export function PlanTitle({ text }: { text: string }) {
-  const match = MARKED.exec(text);
-  if (!match) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, match.index)}
-      <Mark>{match[0]}</Mark>
-      {text.slice(match.index + match[0].length)}
     </>
   );
 }

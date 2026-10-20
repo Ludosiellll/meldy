@@ -344,8 +344,8 @@
 /* ---------------------------------------------------------------- the status block (examStatus.ts) */
 /* What Meldy did with the exam, what it found, the one thing to do next (owner, 2026-10-07): a white card under
    the header. A flag names the step (lectures, mapping, cheat sheet, answers) in the colour of whose move it is —
-   yellow: the student's, sky: Meldy works, green: answering. The headline's key words get the screen's one
-   hand-drawn yellow line (design language 3); a sentence or two in grey; the page's one filled pill on the right,
+   yellow: the student's, sky: Meldy works, green: answering. The headline's key words stay on one line; a
+   sentence or two in grey; the page's one filled pill on the right,
    a quiet link under it. On phones and tablets the pill rides in the bar at the bottom. */
 .sf-page .ex-st {
   display: grid;
@@ -391,30 +391,8 @@
 }
 .sf-page .ex-st-title:focus { outline: none; }
 .sf-page .ex-st-title:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 4px; border-radius: 6px; }
-/* The yellow line under the key words, drawn in once per state; the words stay above it. */
-.sf-page .ex-st-mark { position: relative; z-index: 0; white-space: nowrap; }
-.sf-page .ex-st-mark svg {
-  position: absolute;
-  z-index: -1;
-  left: -1%;
-  bottom: -.12em;
-  width: 102%;
-  height: .34em;
-  overflow: visible;
-  pointer-events: none;
-}
-.sf-page .ex-st-mark path {
-  fill: none;
-  stroke: var(--m-yellow);
-  stroke-width: 8px;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: ex-st-draw 1.1s .3s cubic-bezier(.65, 0, .35, 1) forwards;
-}
-@keyframes ex-st-draw {
-  to { stroke-dashoffset: 0; }
-}
+/* The key words of the headline stay on one line. */
+.sf-page .ex-st-mark { white-space: nowrap; }
 .sf-page .ex-st-text { margin: 10px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 /* Why the action is unavailable now (the daily limit): in ink, with the yellow dot of the page's notes. */
 .sf-page .ex-st-blocked { position: relative; margin: 10px 0 0; padding-left: 17px; font-size: 16px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
@@ -2195,7 +2173,6 @@ html[data-stage] .sf-page .ex-links,
 html[data-stage] .sf-page [data-stage-hide] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
-  .sf-page .ex-st-mark path { animation: none; stroke-dashoffset: 0; }
   .sf-page .ex-peak-big .ex-was { animation: ex-was-in 150ms ease both; }
   .sf-page .ex-qnote[data-fresh] { animation: none; }
   .sf-page .dw-card[data-state='lift'] { animation: dw-fade 150ms ease both; }

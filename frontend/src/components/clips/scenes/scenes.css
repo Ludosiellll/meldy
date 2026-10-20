@@ -1,6 +1,6 @@
 /*
  * The how-to clips: Meldy's screens on a 1440 × 900 stage, drawn at about twice the app's size so they read in a frame a
- * quarter as wide. Paper, white cards, ink and the app's greys; the yellow line and dot; blue only where the app is blue.
+ * quarter as wide. Paper, white cards, ink and the app's greys; the yellow dot; blue only where the app is blue.
  */
 
 .sx-scene { background: #fbfbf9; }
@@ -37,11 +37,6 @@
   text-underline-offset: 9px;
   white-space: nowrap;
 }
-
-/* The yellow line under the plan's number (the app's PlanTitle). */
-.sx-mark { position: relative; z-index: 0; white-space: nowrap; }
-.sx-mark svg { position: absolute; z-index: -1; left: -1%; bottom: -.1em; width: 102%; height: .34em; overflow: visible; }
-.sx-mark path { fill: none; stroke: var(--yellow); stroke-width: 13px; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; vector-effect: non-scaling-stroke; }
 
 .sx-pill { justify-content: space-between; }
 .sx-pill-t { white-space: nowrap; }

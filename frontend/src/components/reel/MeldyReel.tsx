@@ -52,7 +52,7 @@ const segmentAt = (t: number) => Math.max(0, SEGMENTS.findIndex((segment) => t >
  */
 export const CAPTIONS: readonly string[] = [
   'Сессия начинается со списка вопросов.',
-  'Файлы кафедры как есть: ключ — из файла, без ИИ.',
+  'Вопросы и ключи берутся из файлов кафедры.',
   'План по дням до экзамена, только в ваши дни занятий.',
   'Ключ виден после ответа, а ошибка вернётся в день занятий.',
   'Строки уходят, когда вы называете пункт в разные дни.',
@@ -67,7 +67,7 @@ export const REEL_SECONDS = Math.round(TOTAL / 1000);
 const TRANSCRIPT = [
   `Сессия: ${CHAOS_LINES[0]} ${CHAOS_LINES[1]}`,
   'Meldy. Сессия начинается со списка вопросов.',
-  `Вопросы: файлы кафедры, по одному на предмет. ${IMPORT_WORDS.found}: ${SUBJECTS.map((subject) => `«${subject.title}» — ${subjectMeta(subject)}`).join('; ')}. ${IMPORT_WORDS.noAi}`,
+  `Вопросы: файлы кафедры, по одному на предмет. ${IMPORT_WORDS.found}: ${SUBJECTS.map((subject) => `«${subject.title}» — ${subjectMeta(subject)}`).join('; ')}. ${IMPORT_WORDS.keys}`,
   `План: ${PLAN_WORDS.head} ${PLAN_WORDS.studyDays}, в воскресенье выходной, в последние дни — только знакомые вопросы. ${PLAN_WORDS.title}.`,
   `Занятие: ответ — нажатием, ключ из файла виден сразу. Верно — и ${FIGURE_AFTER_FIRST} из ${QUESTIONS_TOTAL} верно в два разных дня. ${SESSION_WORDS.wrong} В конце: ${SESSION_WORDS.endHead.join('')}. ${SESSION_WORDS.endText} ${SESSION_WORDS.endLeft}`,
   `Шпаргалка: строки стирают только ответы. Ответ вслух на вопрос «${ORAL.question}»: названные пункты загораются, их строки бледнеют, а в другой день, названные снова, исчезают. К экзамену на шпаргалке остаётся немного строк.`,

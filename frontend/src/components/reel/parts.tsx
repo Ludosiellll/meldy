@@ -240,29 +240,6 @@ export function Roller({ value, digits = 3, className }: { value: (lt: number) =
 }
 
 // ---------------------------------------------------------------------------------------------
-// The yellow hand-drawn underline of the brand, drawn under a phrase.
-
-const MARKER_PATHS = [
-  'M4 15 C 80 7, 170 5, 250 9 S 360 16, 396 8',
-  'M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9',
-  'M3 12 C 70 16, 160 6, 240 9 S 350 14, 397 10',
-];
-
-export function Marker({ at, dur = 700, variant = 0, className }: { at: number; dur?: number; variant?: number; className?: string }) {
-  const path = useRef<SVGPathElement>(null);
-  useFrame((lt) => {
-    const p = ease.inOut(seg(lt, at, dur));
-    put(path.current, 'stroke-dashoffset', (1 - p).toFixed(4));
-    opacity(path.current, p > 0 ? 1 : 0);
-  });
-  return (
-    <svg className={`mr-marker ${className ?? ''}`} viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true">
-      <path ref={path} pathLength={1} d={MARKER_PATHS[variant % MARKER_PATHS.length]} />
-    </svg>
-  );
-}
-
-// ---------------------------------------------------------------------------------------------
 // The pointer: moves along key points, presses on clicks and leaves a ripple.
 
 export interface CursorKey {

@@ -79,8 +79,8 @@ export const CHAOS_CARDS: FloatingCard[] = [
   { kind: 'date', title: '27 октября', meta: 'Экзамен', x: 1230, y: 730, scale: 0.64, rotate: -4, depth: 0 },
 ];
 
-/** The chaos's two lines: the size of the session and its days, then the question (the plan chapter's 18 days). */
-export const CHAOS_LINES = [`${QUESTIONS_TOTAL} вопросов. 18 дней.`, 'С чего начать?'] as const;
+/** The chaos's two lines: the size of the session and its days (the plan chapter's 18 days). */
+export const CHAOS_LINES = [`${QUESTIONS_TOTAL} вопросов,`, 'а до экзамена 18 дней.'] as const;
 
 // ---------------------------------------------------------------------------------------------
 // 01 · «Вопросы»: the import page (copyImport.ts IMPORT, KEY_WORDS)
@@ -110,8 +110,8 @@ export const IMPORT_WORDS = {
   readingWait: IMPORT.readingWait,
   found: IMPORT.found(SUBJECTS.length, QUESTIONS_TOTAL),
   save: IMPORT.save,
-  /** The import side's own sentence: Meldy takes the key from the file and never makes one up. */
-  noAi: 'Ключей ИИ не придумывает.',
+  /** Where the keys come from, as the import side says it («возьмёт ключ из оформления»). */
+  keys: 'Ключи берутся из файлов.',
 } as const;
 
 // ---------------------------------------------------------------------------------------------

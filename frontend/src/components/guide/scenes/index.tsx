@@ -352,7 +352,7 @@ export const EXAMS_EXAMPLE = {
 const NB = '\u00a0';
 /** The plan the engine makes for the example (lib/containers/plan.ts planDay and daysAhead on 10 October). */
 export const EXAMS_PLAN = {
-  /** planTitle: the yellow line is under «38 вопросов». */
+  /** planTitle: «Сегодня 38 вопросов, около 30 минут». */
   title: [`Сегодня `, `38${NB}вопросов`, `, около 30${NB}минут`] as const,
   start: startLabel(20, 15, null),
   days: [
@@ -454,11 +454,8 @@ function Exams() {
     opacity(one('saveb'), seg(l, EX.save + 40, 120));
     leave(one('import'), l, EX.page);
 
-    // 2 · The exam's page: today's plan, the yellow line, «План по дням» up to the date, «Начать».
+    // 2 · The exam's page: today's plan, «План по дням» up to the date, «Начать».
     arrive(one('pagein'), l, EX.page);
-    const mark = seg(l, EX.page + 500, 700);
-    put(one('mark'), 'stroke-dashoffset', (1 - ease.inOut(mark)).toFixed(4));
-    opacity(one('mark'), mark > 0 ? 1 : 0);
     put(one('dayslink'), 'transform', `scale(${(1 - 0.08 * pressDepth(l, EX.days)).toFixed(3)})`);
     opacity(one('dim'), 0.22 * ease.inOut(seg(l, EX.days + 100, 380)) * (1 - ease.inOut(seg(l, EX.daysOut, 380))));
     if (l < EX.daysOut) slideIn(one('sheet'), l, EX.days + 100, { dy: 420, dur: 640, smear: 14 });
@@ -584,12 +581,7 @@ function Exams() {
             <div className="fm-card gs-ex-plan">
               <p className="gs-ex-plan-t">
                 {EXAMS_PLAN.title[0]}
-                <span className="gs-ex-mark">
-                  {EXAMS_PLAN.title[1]}
-                  <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true">
-                    <path data-a="mark" pathLength={1} d="M4 15 C 80 7, 170 6, 262 10 S 362 15, 396 8" style={{ opacity: 0 }} />
-                  </svg>
-                </span>
+                {EXAMS_PLAN.title[1]}
                 {EXAMS_PLAN.title[2]}
               </p>
               <div className="gs-ex-plan-row">

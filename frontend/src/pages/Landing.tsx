@@ -28,16 +28,16 @@ const meldyReelPart = lazyPart(() => import('../components/reel/MeldyReel').then
 /**
  * One face on every entry (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07): the same
  * promise as the page title, the link preview, the manifest and the README — «Meldy — тренажёр
- * экзамена по вопросам кафедры. ИИ не отвечает за студента — он его спрашивает».
+ * экзамена по вопросам вашей кафедры». No eyebrow above it and no slogan (the owner, 2026-10-19: «убрать иишные
+ * надписи»): the headline says what Meldy is, the lead what happens.
  */
-export const EYEBROW = 'Тренажёр экзамена по вопросам кафедры';
-export const HEADLINE = 'ИИ не отвечает за вас — он вас спрашивает';
+export const HEADLINE = 'Тренажёр экзамена по вопросам вашей кафедры';
 /**
  * The exam as it is now (decision 2026-10-09, the universal exam): one file or one per subject, a plan by days to the
- * exam, the oral questions asked aloud against the student's own lectures.
+ * exam, the oral questions asked aloud against the student's own lectures, and a test of the same questions by a link.
  */
 export const LEAD =
-  'Загрузите вопросы к экзамену — один файл или по файлу на предмет. Meldy разложит их по дням до экзамена, а устные спросит вслух и сверит с вашими лекциями.';
+  'Загрузите вопросы к экзамену: один файл или по файлу на предмет. Meldy разложит их по дням до экзамена, а устные задаст вслух и сверит ответ с вашими лекциями. Из этих же вопросов можно собрать тест и отправить его по ссылке.';
 /** The first action of the page: the example exam (/try), no account needed. */
 export const TRY_LABEL = 'Попробовать на примере';
 /** Sign-up, to start with one's own list of questions; the final call repeats it. */
@@ -55,34 +55,26 @@ export const RESULT_NOTE = 'Meldy проверяет только, назвал�
 export const RESULT_SAMPLE = 'Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора';
 
 /** «Как это работает», in the order of the work: the file, the plan by days, the answer aloud, the sheet. */
-export const STEPS: ReadonlyArray<{ flag: string; title: string; text: string; panel: 'blue' | 'warm' | 'sky' | 'rose'; color: 'sky' | 'yellow' | 'green' | 'pink' }> = [
+export const STEPS: ReadonlyArray<{ title: string; text: string; panel: 'blue' | 'warm' | 'sky' | 'rose' }> = [
   {
-    flag: 'Вопросы',
-    title: 'Вопросы — из файла кафедры',
-    text: 'Один общий файл или по файлу на предмет: Word, Excel или TXT, а PDF и сканы — для списков без вариантов. Ключ к вопросам с вариантами Meldy возьмёт из оформления файла.',
+    title: 'Вопросы из файла кафедры',
+    text: 'Один общий файл или по файлу на предмет: Word, Excel или TXT. PDF и сканы подходят для списков без вариантов ответа. Ключ к вопросам с вариантами Meldy возьмёт из оформления файла.',
     panel: 'blue',
-    color: 'sky',
   },
   {
-    flag: 'План по дням',
-    title: 'Каждый день — занятие по плану',
-    text: 'Новые вопросы и знакомые — на столько минут в день, сколько вы выбрали. Ошибка вернётся на следующий день занятий, а в последние дни перед экзаменом новых нет — только знакомые.',
+    title: 'План на каждый день до экзамена',
+    text: 'В плане на день новые и знакомые вопросы на столько минут, сколько вы выбрали. Ошибка вернётся на следующий день занятий. В последние дни перед экзаменом новых вопросов нет, только знакомые.',
     panel: 'warm',
-    color: 'yellow',
   },
   {
-    flag: 'Ответ вслух',
-    title: 'Устные — вслух, по вашим лекциям',
-    text: 'Тяните билет и отвечайте голосом или текстом — готовый текст не вставить. Meldy сверит ответ с пунктами из ваших лекций, а экзаменатор переспросит о том, что вы пропустили.',
+    title: 'Устные вопросы вы отвечаете вслух',
+    text: 'Тяните билет и отвечайте голосом или текстом. Вставить готовый текст нельзя. Meldy сверит ответ с пунктами из ваших лекций, а экзаменатор спросит о том, что вы пропустили.',
     panel: 'sky',
-    color: 'green',
   },
   {
-    flag: 'Шпаргалка',
     title: 'Строки стирают только ответы в разные дни',
-    text: 'Под каждым устным вопросом — пункты ответа из ваших лекций. Кнопки «знаю» нет: назвали пункт — строка стёрлась наполовину, назвали снова в другой день — совсем, не назвали потом — вернулась.',
+    text: 'Под каждым устным вопросом записаны пункты ответа из ваших лекций. Кнопки «знаю» нет. Если вы назвали пункт, его строка стирается наполовину, а если назвали снова в другой день, то целиком. Если потом пункт не назван, строка возвращается.',
     panel: 'rose',
-    color: 'pink',
   },
 ];
 
@@ -101,24 +93,21 @@ const QUESTIONS: Array<{ n: number; text: string; tone?: 'y' | 'g' | 'p' }> = [
 /** The method in three cards: the counting rule of the exam's «Как считается» (copy.ts howCounted). */
 export const METHOD = [
   {
-    k: 'Сначала вопрос',
     big: 'Каждая попытка вспомнить закрепляет ответ',
-    p: 'Даже неудачная — если потом свериться с ответом. Психологи называют это эффектом тестирования.',
+    p: 'Даже неудачная, если потом свериться с ответом. Психологи называют это эффектом тестирования.',
   },
   {
-    k: 'Потом — реже',
     big: 'Вопрос в счёте возвращается всё реже',
     p: 'Вопросы в счёте возвращаются через 5, 12, 25 и 50 дней, а в последние дни перед экзаменом — все.',
   },
   {
-    k: 'Разные дни',
     big: 'Одного удачного ответа мало',
     p: 'Поэтому в счёт идёт вопрос, на который вы ответили верно в два разных дня — между ответами не меньше 20 часов.',
   },
 ];
 
 /** The heading of the exam's section, and the words under it: the plan's own lines for the example. */
-export const EXAM_TITLE_H = 'Сотни вопросов — один план';
+export const EXAM_TITLE_H = 'Один план на все вопросы экзамена';
 
 function Arrow() {
   return (
@@ -138,18 +127,6 @@ function Pill({ tone, small, onClick, children }: { tone: 'blue' | 'white' | 'gh
         </span>
       )}
     </button>
-  );
-}
-
-/** The yellow hand-drawn line under a phrase. */
-function Mark({ children, path = 'M4 15 C 80 7, 170 5, 250 9 S 360 16, 396 8' }: { children: ReactNode; path?: string }) {
-  return (
-    <span className="hm-mark">
-      {children}
-      <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true">
-        <path pathLength={1} d={path} />
-      </svg>
-    </span>
   );
 }
 
@@ -206,16 +183,11 @@ function Navbar() {
 
 function Hero() {
   const navigate = useNavigate();
-  // The hand-drawn line goes under «спрашивает»; ty() keeps a short word off a line's end («за | вас»).
-  const [before, after] = HEADLINE.split('спрашивает');
   return (
     <section className="hm-wrap hm-hero" aria-labelledby="hm-hero-h">
       <div className="hm-hero-text">
-        <p className="hm-eyebrow hm-rise">{ty(EYEBROW)}</p>
         <h1 id="hm-hero-h" className="hm-h1 hm-rise hm-d1">
-          {ty(before)}
-          <Mark path="M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9">спрашивает</Mark>
-          {after}
+          {ty(HEADLINE)}
         </h1>
         <p className="hm-lead hm-rise hm-d2">{ty(LEAD)}</p>
         <div className="hm-acts hm-rise hm-d3">
@@ -338,19 +310,15 @@ function HowSection() {
       <h2 id="how-h" className="hm-h2 hm-reveal">
         Как это работает
       </h2>
-      <p className="hm-sub hm-reveal">{ty('Тестовые и устные вопросы — в одном экзамене, с одним планом на каждый день.')}</p>
+      <p className="hm-sub hm-reveal">{ty('В одном экзамене могут быть тестовые и устные вопросы, план на день у них общий.')}</p>
       <ol className="hm-steps">
         {STEPS.map((step, index) => (
-          <li key={step.flag} className="hm-step hm-reveal">
+          <li key={step.title} className="hm-step hm-reveal">
             <div className={`hm-panel hm-panel--${step.panel}`} aria-hidden="true">
               <div className="hm-dots" />
               <StepArt index={index} />
             </div>
             <div className="hm-card-body">
-              <span className={`hm-flag hm-flag--${step.color}`}>
-                <b>{index + 1}</b>
-                {step.flag}
-              </span>
               <h3 className="hm-h3">{ty(step.title)}</h3>
               <p className="hm-p">{ty(step.text)}</p>
               {/* Each step opens its chapter of the reel «Meldy за 48 секунд»; the answer aloud is chapter 04 with the sheet. */}
@@ -411,11 +379,10 @@ function ResultAndGroup() {
           </div>
         </div>
         <div className="hm-card-body">
-          <span className="hm-flag hm-flag--green">Итог ответа</span>
           <h2 id="result-h" className="hm-h3">
             {RESULT_TITLE}
           </h2>
-          <p className="hm-p">{ty(`${RESULT_NOTE} Итог ответа — сколько главных пунктов вы назвали сами и сколько после вопроса экзаменатора.`)}</p>
+          <p className="hm-p">{ty(`${RESULT_NOTE} В итоге ответа видно, сколько главных пунктов вы назвали сами и сколько после вопроса экзаменатора.`)}</p>
         </div>
       </article>
       <article className="hm-card hm-reveal" aria-labelledby="group-h">
@@ -427,13 +394,12 @@ function ResultAndGroup() {
           </div>
         </div>
         <div className="hm-card-body">
-          <span className="hm-flag hm-flag--sky">Группа</span>
           <h2 id="group-h" className="hm-h3">
             Одна ссылка на всю группу
           </h2>
           <p className="hm-p">
             {ty(
-              'Соберите экзамен один раз и отправьте ссылку в беседу группы: каждый получит весь экзамен. Ответы и прогресс у каждого свои — их не видит никто. А план на день может приходить в Telegram.',
+              'Соберите экзамен один раз и отправьте ссылку в беседу группы: каждый получит весь экзамен. Ответы и прогресс у каждого свои, и никто другой их не видит. План на день может приходить в Telegram.',
             )}
           </p>
         </div>
@@ -461,7 +427,7 @@ function ReelSection() {
         <h2 id="reel-heading" className="hm-h2">
           {REEL_HEADING}
         </h2>
-        <p className="hm-sub">{ty('От списка вопросов до пустой шпаргалки. Ролик без звука — главы можно листать.')}</p>
+        <p className="hm-sub">{ty('Ролик показывает путь от списка вопросов до пустой шпаргалки. Он без звука, главы можно листать.')}</p>
       </div>
       {MeldyReel ? <MeldyReel onCta={() => navigate('/try')} /> : <div className="hm-reel-wait" aria-hidden="true" />}
     </section>
@@ -474,7 +440,7 @@ function Ticker() {
   const items = reduce ? QUESTIONS : [...QUESTIONS, ...QUESTIONS];
   return (
     <section className="hm-ticker" aria-label="Примеры вопросов">
-      <p className="hm-ticker-cap">Вопросы, с которых начинается сессия</p>
+      <p className="hm-ticker-cap">Примеры вопросов к экзамену</p>
       <div className="hm-marquee">
         <ul className="hm-track">
           {items.map((question, index) => (
@@ -493,14 +459,13 @@ function MethodSection() {
   return (
     <section id="method" className="hm-wrap hm-sec" aria-labelledby="method-heading">
       <h2 id="method-heading" className="hm-h2 hm-reveal">
-        <Mark path="M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9">Вспоминать</Mark> полезнее,{' '}
+        Вспоминать полезнее,{' '}
         <br />
         чем перечитывать
       </h2>
       <div className="hm-grid3">
         {METHOD.map((item) => (
-          <div key={item.k} className="hm-tint hm-reveal">
-            <span className="hm-tint-k">{item.k}</span>
+          <div key={item.big} className="hm-tint hm-reveal">
             <p className="hm-tint-big">{ty(item.big)}</p>
             <p className="hm-p">{ty(item.p)}</p>
           </div>
@@ -511,12 +476,12 @@ function MethodSection() {
 }
 
 /** The final call's words: what to start with, and the example first for those who want to look. */
-export const FINAL_LEAD = 'Один общий файл или по файлу на предмет — Word, Excel или TXT. Лекции нужны для устных вопросов. Хотите сначала посмотреть — откройте готовый пример, без регистрации.';
+export const FINAL_LEAD = 'Подойдёт один общий файл или по файлу на предмет: Word, Excel или TXT. Лекции нужны для устных вопросов. Готовый пример открывается без регистрации.';
 /**
  * Under the final call's buttons: what Meldy makes of a lecture, on the example's first lecture (/try/lecture). It names
  * no materials: the page keeps to the exam, not to the old «конспекты, карточки и тесты» or the podcast's hosts.
  */
-export const LECTURE_EXAMPLE_LINE = 'Что Meldy делает из лекции — пример разбора';
+export const LECTURE_EXAMPLE_LINE = 'Пример разбора лекции';
 
 function FinalCall() {
   const navigate = useNavigate();
@@ -569,7 +534,7 @@ function Footer() {
       <a className="hm-logo" href="#" aria-label="Meldy, наверх">
         Meldy
       </a>
-      <span>Тренажёр экзамена по вопросам кафедры · © {new Date().getFullYear()}</span>
+      <span>{HEADLINE} · © {new Date().getFullYear()}</span>
       <a href="#">Наверх</a>
       <p className="hm-foot-note">{ty(TELEMETRY_NOTE)}</p>
     </footer>

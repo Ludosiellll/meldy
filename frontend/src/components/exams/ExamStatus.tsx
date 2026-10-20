@@ -25,8 +25,8 @@ interface ExamStatusCardProps {
 
 /**
  * The status block at the top of the exam page (components/exams/examStatus.ts picks it): a flag with the step
- * of the way, the headline — what Meldy did or found, its key words underlined by the hand-drawn yellow line —
- * one or two sentences, and the one action. The headline is a live region: a screen reader hears the new state
+ * of the way, the headline — what Meldy did or found, its key words kept on one line — one or two sentences, and the
+ * one action. The headline is a live region: a screen reader hears the new state
  * (a mapping that ended, a sheet written), not every number of a run going on.
  */
 const ExamStatusCard = forwardRef<HTMLHeadingElement, ExamStatusCardProps>(function ExamStatusCard({ status, id, actions, notes = [], brief = false }, headingRef) {
@@ -58,15 +58,7 @@ const ExamStatusCard = forwardRef<HTMLHeadingElement, ExamStatusCardProps>(funct
           <div className="ex-st-body">
             <h2 className="ex-st-title" id={`${id}-t`} ref={headingRef} tabIndex={-1} aria-live="polite" aria-atomic="true">
               {glue(lead)}
-              {mark ? (
-                <span className="ex-st-mark">
-                  {glue(mark)}
-                  {/* A new state draws its line in again (the svg is new); under reduced motion it is simply there. */}
-                  <svg key={status.key} viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-                    <path pathLength={1} d="M4 15 C 80 7, 170 6, 262 10 S 362 15, 396 8" />
-                  </svg>
-                </span>
-              ) : null}
+              {mark ? <span className="ex-st-mark">{glue(mark)}</span> : null}
               {glue(tail)}
             </h2>
             {text ? <p className="ex-st-text">{glue(text)}</p> : null}

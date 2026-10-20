@@ -61,7 +61,7 @@ function Today() {
         </p>
       </div>
       <i data-a="home" className="fm-brand-dot ar-home" style={{ transform: `translate3d(${HOME.x - HOME.size / 2}px,${HOME.y - HOME.size / 2}px,0)` }} />
-      <Statement lines={['960 вопросов.', 'Один план.']} at={1900} out={TODAY_LEAVE} className="ar-say" />
+      <Statement lines={['960 вопросов', 'в одном плане.']} at={1900} out={TODAY_LEAVE} className="ar-say" />
     </div>
   );
 }
@@ -111,7 +111,7 @@ function Group({ leave }: { leave: number }) {
           <span>{TELEGRAM_WORDS.about}</span>
         </div>
       </div>
-      <Statement lines={['Вся группа —', 'по одной ссылке.']} at={350} out={leave} className="ar-say" />
+      <Statement lines={['Одна ссылка', 'на всю группу.']} at={350} out={leave} className="ar-say" />
     </div>
   );
 }

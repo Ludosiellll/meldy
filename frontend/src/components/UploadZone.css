@@ -24,26 +24,6 @@
   color: var(--sf-ink);
   text-wrap: balance;
 }
-/* One hand-drawn yellow line on the screen, under «лекцию». */
-.az-mark { position: relative; display: inline-block; white-space: nowrap; }
-.az-mark svg {
-  position: absolute;
-  left: -1%;
-  bottom: -.14em;
-  width: 102%;
-  height: .34em;
-  overflow: visible;
-  pointer-events: none;
-}
-.az-mark path {
-  fill: none;
-  stroke: var(--m-yellow);
-  stroke-width: 8px;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  animation: az-draw 1.3s .45s cubic-bezier(.65, 0, .35, 1) forwards;
-}
 /* A dash never starts a line: «материал —» stays together. */
 .az-nowrap { white-space: nowrap; }
 .az-lede { margin: 14px 0 0; max-width: 52em; font-size: 19px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
@@ -509,9 +489,6 @@
 @keyframes az-rise {
   from { opacity: 0; transform: translateY(24px); }
 }
-@keyframes az-draw {
-  to { stroke-dashoffset: 0; }
-}
 
 /* ---------------------------------------------------------------- sizes */
 @media (max-width: 1023px) {
@@ -682,7 +659,6 @@
   .az-upload *,
   .az-upload *::before,
   .az-upload *::after { animation: none !important; transition: none !important; }
-  .az-mark path { stroke-dashoffset: 0; }
   .az-drop:hover,
   .az-drop:hover .az-drop-icon { transform: none; }
 }

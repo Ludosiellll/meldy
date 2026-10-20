@@ -3,21 +3,21 @@ import indexHtml from '../../index.html?raw';
 import viteConfigSource from '../../vite.config.ts?raw';
 import readme from '../../../README.md?raw';
 import readmeHf from '../../../README_HF.md?raw';
-import ogImage from '../../public/og-image-2.jpg?inline';
+import ogImage from '../../public/og-image-3.jpg?inline';
 import icon192 from '../../public/pwa-192x192.png?inline';
 import icon512 from '../../public/pwa-512x512.png?inline';
 import iconMaskable from '../../public/pwa-maskable-512x512.png?inline';
 import appleTouchIcon from '../../public/apple-touch-icon.png?inline';
-import { EYEBROW } from '../pages/Landing';
+import { HEADLINE, LEAD } from '../pages/Landing';
 
 /**
  * One face on every entry: the page title, the link preview, the manifest and the README say what
  * the landing says (notes: 10_Project/CodingFest_11_Improvement_Plan_2026-10-07, «Одно лицо на всех входах»).
  */
-const TITLE = 'Meldy — тренажёр экзамена по вопросам кафедры';
-const PROMISE = 'ИИ не отвечает за студента — он его спрашивает';
+const TITLE = 'Meldy — тренажёр экзамена по вопросам вашей кафедры';
+const PROMISE = 'Загрузите вопросы к экзамену: Meldy разложит их по дням до экзамена, а устные задаст вслух и сверит ответ с вашими лекциями';
 const SITE = 'https://ludosiel-studyforge.hf.space/';
-const OLD = /Конспекты, карточки и тесты|помощник для учёбы|засчит/i;
+const OLD = /Конспекты, карточки и тесты|помощник для учёбы|засчит|ИИ не отвечает/i;
 
 /** The public PNGs, inlined by Vite as data: URLs (their bytes, base64). */
 const PNG: Record<string, string> = {
@@ -71,10 +71,11 @@ function meta(attribute: 'name' | 'property', key: string): string | null {
 describe('index.html', () => {
   it('names the page by the promise and describes it the same way for search and link previews', () => {
     expect(indexHtml).toContain(`<title>${TITLE}</title>`);
-    expect(TITLE).toBe(`Meldy — ${EYEBROW.charAt(0).toLowerCase()}${EYEBROW.slice(1)}`);
+    expect(TITLE).toBe(`Meldy — ${HEADLINE.charAt(0).toLowerCase()}${HEADLINE.slice(1)}`);
     const description = meta('name', 'description');
-    expect(description).toContain(PROMISE);
-    expect(description).toContain('шпаргалки');
+    expect(description).toBe(`${PROMISE}.`);
+    // The landing's lead says the same, with what one uploads and the test by a link around it.
+    expect(LEAD).toContain(PROMISE.slice(PROMISE.indexOf('Meldy')));
     expect(description!.length).toBeLessThanOrEqual(160);
     expect(meta('property', 'og:title')).toBe(TITLE);
     expect(meta('property', 'og:description')).toBe(description);
@@ -86,7 +87,7 @@ describe('index.html', () => {
     expect(meta('property', 'og:site_name')).toBe('Meldy');
     expect(meta('property', 'og:locale')).toBe('ru_RU');
     expect(meta('property', 'og:url')).toBe(SITE);
-    expect(meta('property', 'og:image')).toBe(`${SITE}og-image-2.jpg`);
+    expect(meta('property', 'og:image')).toBe(`${SITE}og-image-3.jpg`);
     expect(meta('property', 'og:image:type')).toBe('image/jpeg');
     expect(meta('property', 'og:image:width')).toBe('1200');
     expect(meta('property', 'og:image:height')).toBe('630');
@@ -102,7 +103,7 @@ describe('index.html', () => {
     expect(indexHtml).toContain('<link rel="icon" href="/pwa-192x192.png" sizes="192x192" type="image/png" />');
     expect(indexHtml).toContain('<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />');
     expect(pngSize('apple-touch-icon.png')).toEqual([180, 180]);
-    expect(indexHtml).toMatch(/<noscript>[\s\S]*Meldy — тренажёр экзамена по вопросам кафедры[\s\S]*<\/noscript>/);
+    expect(indexHtml).toMatch(new RegExp(`<noscript>[\\s\\S]*${TITLE}[\\s\\S]*</noscript>`));
   });
 });
 
@@ -110,7 +111,7 @@ describe('the PWA manifest (vite.config.ts)', () => {
   it('says the promise and lists the PNG icons first, the maskable one among them', () => {
     expect(viteConfigSource).toContain("name: 'Meldy — тренажёр экзамена'");
     expect(viteConfigSource).toContain("short_name: 'Meldy'");
-    expect(viteConfigSource).toContain(`description: 'Тренажёр экзамена по вопросам кафедры. ${PROMISE}.'`);
+    expect(viteConfigSource).toContain(`description: '${HEADLINE}. ${PROMISE}.'`);
     expect(viteConfigSource).toContain("display: 'standalone'");
     expect(viteConfigSource).not.toMatch(OLD);
     const icons = [...viteConfigSource.matchAll(/src: '([^']+)',\s*sizes: '([^']+)',\s*type: '([^']+)'(?:,\s*purpose: '([^']+)')?/g)].map(([, src, sizes, type, purpose]) => ({

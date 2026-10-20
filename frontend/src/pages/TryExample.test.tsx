@@ -477,7 +477,7 @@ describe('«Попробовать на примере» (/try)', () => {
     renderAt('/try');
     expect(screen.getByRole('tab', { name: 'Шпаргалка' })).toHaveAttribute('aria-selected', 'true');
     expect(plain(document.querySelector('.tx-sheet-cap')?.textContent)).toBe(
-      'Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9: что вы назвали — стёрто наполовину, что не назвали — с пометкой «не назван». Ответьте на вопрос 5 — что назовёте снова, сотрётся совсем. Ответ проверяет ИИ — так же, как в вашем экзамене.',
+      'Для примера считаем, что вчера в это же время вы ответили на вопросы 1, 5 и 9. Названные пункты стёрты наполовину, остальные помечены «не назван». Ответьте на вопрос 5: пункты, которые вы назовёте снова, сотрутся совсем. Ответ проверяет ИИ, как и в вашем экзамене.',
     );
     // The scripted moment is the page's blue pill under the caption (PUB-15); «Тянуть билет» (a random question) is the white one.
     expect(screen.getByRole('link', { name: 'Ответить на вопрос 5' })).toHaveAttribute('href', '/try/ticket?q=q5');

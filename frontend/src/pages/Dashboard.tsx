@@ -46,7 +46,7 @@ import './containerScreens.css';
  * «Сегодня» in the Meldy language (prototype Today.dc.html, approved 2026-10-04; notes:
  * 10_Project/Design_Language_2026-10-04). The first screen after signing in and after registration.
  *
- * - The greeting with the date and one hand-drawn yellow line under «повторим».
+ * - The greeting with the date.
  * - One main card of what to do now: the nearest exam (a flag with the days left, the subject, the
  *   meta line, then at once the next step — «Тянуть билет», or «Тянуть билет из них» when an answer can
  *   erase lines of the cheat sheet today — so it is on the first screen at every size (audit of
@@ -808,25 +808,6 @@ function PillDot() {
   );
 }
 
-/** The greeting with one hand-drawn yellow line under «повторим» or «начнём» (drawn in once; already there under reduced motion). */
-function Greeting({ text }: { text: string }) {
-  const word = text.includes('повторим') ? 'повторим' : 'начнём';
-  const at = text.indexOf(word);
-  if (at < 0) return <>{text}</>;
-  return (
-    <>
-      {text.slice(0, at)}
-      <span className="td-mark">
-        {word}
-        <svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true" focusable="false">
-          <path pathLength={1} d="M4 14 C 90 6, 190 6, 280 10 S 370 15, 396 9" />
-        </svg>
-      </span>
-      {text.slice(at + word.length)}
-    </>
-  );
-}
-
 /** Marks inside the status dots of the list in miniature: 12 px on a computer, a little larger on a phone. */
 const RIBBON_MARKS: Record<'desk' | 'phone', Record<CoverageMarkKind, { width: number; height: number }>> = {
   desk: { tick: { width: 12, height: 10 }, dtick: { width: 12, height: 10 }, cup: { width: 11, height: 7 }, dash: { width: 11, height: 5 }, dot: { width: 6, height: 6 } },
@@ -1197,7 +1178,7 @@ export default function Dashboard() {
     <header className="td-head">
       <p className="td-date td-rise">{todayLine()}</p>
       <h1 className="sf-h1 td-h1 td-rise" data-d="1">
-        <Greeting text={newAccount ? startGreeting(user?.user_metadata?.full_name) : greeting(user?.user_metadata?.full_name)} />
+        {newAccount ? startGreeting(user?.user_metadata?.full_name) : greeting(user?.user_metadata?.full_name)}
       </h1>
     </header>
   );

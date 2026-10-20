@@ -8,7 +8,7 @@ import { track } from '../../lib/telemetry';
 import QuestionCard from './QuestionCard';
 import { RoomBar } from './RoomParts';
 import MockSetup from './MockSetup';
-import { Mark, Sheet } from './ui';
+import { Sheet } from './ui';
 import * as copy from './copy';
 import { comesBackWhen, dayIn, studyHref, subjectTitle } from './model';
 import { clock, drawMock, isAnswered, mockAnswers, scoreMock, type MockAnswer } from './mockModel';
@@ -257,7 +257,7 @@ export default function MockRun({
             {copy.mockResultHead(dayText(result.day))}
           </h1>
           <p className="ct-score">
-            <Mark>{copy.mockScore(result.correct, result.items)}</Mark>
+            {copy.mockScore(result.correct, result.items)}
           </p>
           <p className="ct-end-p">
             {copy.mockTime(result.minutes, result.limit)} {copy.mockErrors(errors, result.unanswered, comesBackWhen(result.day, input?.studyWeekdays))}

@@ -105,7 +105,7 @@ function File() {
         </div>
       </div>
       <i data-a="home" className="fm-brand-dot ar-home" style={{ transform: `translate3d(${HOME.x - HOME.size / 2}px,${HOME.y - HOME.size / 2}px,0)` }} />
-      <Statement lines={['Один файл —', '960 вопросов.']} at={2500} out={FILE_LEAVE} className="ar-say" />
+      <Statement lines={['В одном файле', '960 вопросов.']} at={2500} out={FILE_LEAVE} className="ar-say" />
     </div>
   );
 }
@@ -147,7 +147,7 @@ function Plan({ leave }: { leave: number }) {
           ))}
         </div>
       </div>
-      <Statement lines={['Каждый день —', 'понемногу.']} at={350} out={leave} className="ar-say" />
+      <Statement lines={['Около 45 минут', 'в день.']} at={350} out={leave} className="ar-say" />
     </div>
   );
 }

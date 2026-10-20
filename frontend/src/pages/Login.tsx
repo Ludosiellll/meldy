@@ -12,9 +12,9 @@ import { useDocumentTitle } from '../lib/useDocumentTitle';
 import InAppNote from '../components/InAppNote';
 
 /** Under the heading: what waits after signing in («продолжите с того же места» — as the group room says it, copyImport leaveAsk). */
-export const LOGIN_LEDE = 'Ваши экзамены, лекции и ответы сохранены\u00a0— продолжите с\u00a0того же места.';
+export const LOGIN_LEDE = 'Ваши экзамены, лекции и ответы сохранены. Продолжите с\u00a0того же места.';
 /** The panel above the reel: the exam as it is now — hundreds of questions, one plan for every day. */
-export const LOGIN_PANEL_TITLE = 'Сотни вопросов\u00a0— один план на\u00a0каждый день.';
+export const LOGIN_PANEL_TITLE = 'План по\u00a0дням для сотен вопросов.';
 
 /**
  * Вход (Meldy 2026-10-04): форма в белой карточке, рядом цветная панель с полутоновыми точками —
@@ -195,7 +195,6 @@ export default function Login() {
         </section>
 
         <aside className="au-panel au-panel--reel au-rise au-d1" aria-labelledby="login-panel-title">
-          <p className="au-cap">Как работает Meldy</p>
           <h2 id="login-panel-title" className="au-panel-h">{LOGIN_PANEL_TITLE}</h2>
           <div className="au-panel-more">
             <AuthReel variant="login" />

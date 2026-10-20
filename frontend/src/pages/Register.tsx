@@ -23,7 +23,7 @@ export const TYPO_NOTE = 'Возможно, опечатка в адресе.';
 /** Under the heading: what the account keeps. */
 export const SIGN_UP_LEDE = 'Сохраните экзамены и продолжайте подготовку с\u00a0любого устройства.';
 /** The panel above the reel: the way from the department's file to the plan of each day (the reel's story). */
-export const SIGN_UP_PANEL_TITLE = 'От файла с\u00a0вопросами\u00a0— до плана на\u00a0каждый день';
+export const SIGN_UP_PANEL_TITLE = 'План на\u00a0каждый день из\u00a0файла с\u00a0вопросами';
 /**
  * The e-mail field in the page's own language (it read «Email», «you@example.com»: jury QA of /try, 2026-10-11); the
  * placeholder keeps a reserved example domain (RFC 2606), so it never names somebody's real mailbox.

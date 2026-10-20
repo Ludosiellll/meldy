@@ -61,9 +61,9 @@ describe('MeldyReel', () => {
     const transcript = Array.from(container.querySelectorAll('ol.mr-sr li'), (item) => plain(item.textContent));
     expect(transcript).toHaveLength(8);
     // The chapters say what the stage shows: the session's files, the plan, the «занятие», the sheet, the group and the bot.
-    expect(transcript[0]).toContain('960 вопросов. 18 дней. С чего начать?');
+    expect(transcript[0]).toContain('960 вопросов, а до экзамена 18 дней.');
     expect(transcript[2]).toContain('Нашли 4 предмета и 960 вопросов');
-    expect(transcript[2]).toContain('Ключей ИИ не придумывает.');
+    expect(transcript[2]).toContain('Ключи берутся из файлов.');
     expect(transcript[3]).toContain('До экзамена 18 дней.');
     expect(transcript[4]).toContain('Вернётся через пару вопросов и в понедельник.');
     expect(transcript[4]).toContain('Теперь 147 из 960 — верно в два разных дня');

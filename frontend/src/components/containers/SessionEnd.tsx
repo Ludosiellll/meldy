@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import type { ContainerSummary, DayPlan, LocalDay, PlanInput } from '../../types/container';
 import DailyReminder from '../reminders/DailyReminder';
 import { TelegramRemindLink } from '../telegram/TelegramCard';
-import { Mark } from './ui';
 import { RoomBar } from './RoomParts';
 import { firstCountText, planText, safeStart, text as lineWords } from './planLines';
 import { sessionOpens } from './studySetup';
@@ -327,8 +326,7 @@ export default function SessionEnd({
           {figure ? (
             <>
               {figure[0]}
-              {/* Drawn when the headline is shown: the line is the reward, not an animation played out of sight. */}
-              <Mark key={holdingHead ? 'held' : 'shown'}>{figure[1]}</Mark>
+              {figure[1]}
               {figure[2]}
             </>
           ) : (
