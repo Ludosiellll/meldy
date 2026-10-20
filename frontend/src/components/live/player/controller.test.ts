@@ -226,8 +226,7 @@ describe('player controller on the fake server', () => {
   it('kicked by the host: the game says so and stops', async () => {
     await joinDemo();
     const g = api.peek(ctl.getSnapshot().game!.id)!;
-    // The fake's kick takes effect, then its reply of `undefined` fails to clone (fake.ts `clone`): reported to W1/W2.
-    await api.kick(g.id, g.hostToken, ctl.getSnapshot().state!.me.player_id).catch(() => undefined);
+    await api.kick(g.id, g.hostToken, ctl.getSnapshot().state!.me.player_id);
     await until(() => step() === 'gone');
     expect(ctl.getSnapshot().gone?.title).toBe('Ведущий убрал вас из игры');
   });

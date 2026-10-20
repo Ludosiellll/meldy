@@ -321,7 +321,7 @@
 .lp-rv-q { font: 600 17px/1.35 var(--ph-sans, sans-serif); margin: 8px 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .lp-rv-opt { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px; border-radius: 12px; font: 500 15px/1.3 var(--ph-sans, sans-serif); }
 .lp-rv-opt + .lp-rv-opt { margin-top: 4px; }
-.lp-rv-opt .lp-ans__l { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; background: var(--lp-soft); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
+.lp-rv-opt .lp-ans__l { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; background: var(--lp-soft); color: var(--lp-ink); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
 .lp-rv-opt[data-key='true'] { background: var(--m-green-soft, #e2f2e5); }
 .lp-rv-opt[data-mine='true'][data-key='false'] { background: var(--lp-ice); color: #0b121c; }
 .lp-rv-opt small { margin-left: auto; flex: none; font: 600 12.5px/1 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }

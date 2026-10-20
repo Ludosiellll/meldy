@@ -383,7 +383,9 @@ export class PlayerController {
         // Many joins at once from one address (a class behind one router): wait a few seconds and try again.
         if (e.code === 'ML005' && attempt < JOIN_RETRIES) {
           this.set({ notice: 'Много входов сразу. Пробуем ещё раз…' });
-          await new Promise<void>((resolve) => this.later(JOIN_WAIT_MS + Math.floor(Math.random() * 1500), resolve));
+          // The server's wait when it is known (Retry-After, at most a minute), else ~3 s; a little jitter either way.
+          const wait = e.retryAfterS !== null && e.retryAfterS > 0 ? Math.min(e.retryAfterS, 60) * 1000 : JOIN_WAIT_MS;
+          await new Promise<void>((resolve) => this.later(wait + Math.floor(Math.random() * 1500), resolve));
           if (gen !== this.gen) return;
           continue;
         }
