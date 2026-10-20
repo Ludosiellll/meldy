@@ -4,6 +4,27 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-20 — Release 47.6: the owner's three session bugs, plain words without the hand-drawn line, phone fixes (from the commit of this entry)
+
+- **The owner, 20.10, three bugs in a study session.** (1) After a right answer the session moves on by itself and
+  the phone kept `:hover` on the reused option button, so the same place lit up on the next question, which could be
+  the right answer when a bank keeps keys in one place: options and the short-answer field are now keyed by question,
+  and the tint is for devices that hover. (2) «Только ошибки: N» counted every open mistake while its session skipped
+  today's answers: the mistakes session no longer skips them (a right answer still counts only by the day rule).
+  (3) A reload started a new session from question 1: the session is kept from its start with `?sid=` in the address,
+  so a reload or a killed browser returns to the same question; an answer on screen is sent once when the page closes.
+- **Plain words** (owner, 19.10: «убрать иишные надписи и это подчеркивание волной»): no eyebrow, h1 «Тренажёр экзамена
+  по вопросам вашей кафедры», no «X — Y» headings or kicker chips, no «ИИ не придумывает» captions; the hand-drawn yellow
+  line is gone from the landing, the reel, the plan card, the session end, «Как на экзамене», «Сегодня», «Разобрать
+  лекцию» and the clips. One face: title, meta, manifest, README, link preview `og-image-3.jpg`.
+- **Phone fixes outside the studio:** a way back on quiz pages, 16 px code and link fields, the run turned sideways,
+  the guide's buttons at the bottom of its card, a sticky «Сохранить» in the keys editor, sign-in without the banner on
+  short phones, «Нажали не туда?» clear of the bar, 13 px badges, sheet numbers at 5:1 contrast, lecture tabs in one
+  scrolling row, hover looks only where there is hover; a refused picture's message where it was picked; the cover hint
+  as it is now; deleting a test or exam removes its pictures from storage first.
+- Gate on 85a2921: pytest 2242, bot 359, sync ok, Docker-layout build ok, Vitest 6065/6066 — the one failure
+  (`mapDraw.test.ts`, 5.2 s against a 5 s limit at load 15) passes alone 4/4.
+
 ## 2026-10-20 — Release 47.5: the main page no longer lags on a phone (from the commit of this entry)
 
 - **The owner, 19.10:** «на телефоне вроде подлагивает главная страница». Measured on a 390×844 phone profile with the
