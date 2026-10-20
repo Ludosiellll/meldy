@@ -4,6 +4,22 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-20 — Release 47.7: question files of any layout — CSV, HTML, Moodle XML, PDF, doubtful places for the model, a review screen (from the commit of this entry)
+
+- **The owner, 19.10:** «наш парсер не универсален… он должен идеально под всевозможные варианты подстраиваться». The
+  rule parse now reads CSV, HTML, Moodle XML and PDF (text layer via PyPDF2; a scan goes to the existing OCR path) and
+  scores every question's confidence. Wild corpus: right keys 1026 → 1074 of 1080 (tuned set), 60 → 102 of 122 and
+  54 → 129 of 152 on the two later sets (tuned during this stage too, so a fresh held-out set comes next).
+- **«Разобрать сложные места»** (`POST /api/exams/parse-bank/ai`): only the doubtful chunks go to the model on a press
+  (5 units per started 100 questions, in the AI limit and the heavy-call slot); the model cites line ids, the server
+  rebuilds text from the file and accepts a key only with a mark it finds there — a stand-in model sending fake keys
+  had every one refused. A real model has not been run yet (no provider keys in the build machine).
+- **«Сомнительные места»**: each doubtful question beside its lines of the file, one-press fixes («это ключ», merge,
+  split, «не вопрос», «это вариант вопроса выше», take the model's or the rules' version); phone-safe at 375 px.
+- The live game's contract, fake server and art are in the tree (`docs/live/`, `lib/live/`, `components/live/art/`),
+  not reachable yet except a development-only preview.
+- Gate on df62de1: pytest 2313, bot 359, sync ok, Vitest 338 files / 6108 tests, Docker-layout build ok.
+
 ## 2026-10-20 — Release 47.6: the owner's three session bugs, plain words without the hand-drawn line, phone fixes (from the commit of this entry)
 
 - **The owner, 20.10, three bugs in a study session.** (1) After a right answer the session moves on by itself and
