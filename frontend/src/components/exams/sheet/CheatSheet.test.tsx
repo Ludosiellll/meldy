@@ -771,11 +771,25 @@ describe('the cheat sheet', () => {
     const bars = (container: HTMLElement) =>
       [...container.querySelectorAll<HTMLElement>('.cs-line[data-state="rubbed"] .cs-slot')].map((bar) => ({ top: bar.style.top, width: bar.style.width }));
     const selfTest = { onlyLeft: false, cover: true, zoom: false };
+    /**
+     * The sheet as the browser first shows it: the card's width comes from the size observer's first report, after
+     * the first layout and before the paint (lib/observeSize), and the questions are laid out then.
+     */
+    const renderLaid = (p: CheatSheetProps) => {
+      const view = renderSheet(p);
+      act(() => {
+        for (const observer of observers) {
+          const wraps = observer.targets.filter((target) => target.classList.contains('cs-wrap'));
+          if (wraps.length) observer.callback(wraps.map((target) => ({ target }) as unknown as ResizeObserverEntry), {} as ResizeObserver);
+        }
+      });
+      return view;
+    };
 
     it('lays the questions out in the card’s columns before a line measures its words', () => {
       const q1 = question(1);
       const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY)], NOW);
-      renderSheet(props(sheet.blocks, { mode: selfTest }));
+      renderLaid(props(sheet.blocks, { mode: selfTest }));
       // A line that measured its words in a card of one column kept bars as wide as the whole card.
       expect(seen.length).toBeGreaterThan(0);
       expect(seen[0]).toBe('2');
@@ -784,7 +798,7 @@ describe('the cheat sheet', () => {
     it('one bar per row of words, never wider than the line’s body; measured again when the body changes, its first report too', async () => {
       const q1 = question(1);
       const sheet = buildSheet([q1, question(2)], [named(q1, 'p1', NOW - DAY)], NOW);
-      const { container } = renderSheet(props(sheet.blocks, { mode: selfTest }));
+      const { container } = renderLaid(props(sheet.blocks, { mode: selfTest }));
       expect(bars(container)).toEqual([{ top: '0px', width: `${WORDS}px` }]);
       // The body narrowed between the first measure and the observer's first report (the card got its columns,
       // a font, a scrollbar): three rows of words, three bars — not the one wide bar measured before.
@@ -809,7 +823,7 @@ describe('the cheat sheet', () => {
       const answer = [named(q1, 'p1', NOW - 60_000, true, 'last')];
       const after = buildSheet([q1], [...earlier, ...answer], NOW);
       const changes = sheetChanges(sheetWithout([q1], [...earlier, ...answer], 'last', NOW), after);
-      const { container } = renderSheet(props(after.blocks, { replay: { token: 12, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } }));
+      const { container } = renderLaid(props(after.blocks, { replay: { token: 12, changes, focusQuestionIds: ['q1'], slow: false, waitForClick: false } }));
       await act(async () => {
         await vi.advanceTimersByTimeAsync(250 + 450 + 10);
       });

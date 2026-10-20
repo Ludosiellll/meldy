@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react';
 import type { LineState, SheetBlock } from '../../../lib/exams/cheatSheet';
 import { mapGeometry } from './layout';
+import { observeSize } from '../../../lib/observeSize';
 import { MapLegend } from './SheetLegend';
 
 /**
@@ -113,6 +114,13 @@ const NEW_MS = 600;
 /** Where the map is not measured yet (and in tests): the inner width of the column's card and of a phone's card, px. */
 const DEFAULT_WIDTH = 280;
 const DEFAULT_WIDTH_COMPACT = 296;
+/** The inner width last seen per kind of map and window width. */
+const keptWidths = new Map<string, number>();
+const widthKey = (compact: boolean) => `${compact ? 'c' : 'w'}|${typeof window !== 'undefined' ? window.innerWidth : 0}`;
+function keepWidth(key: string, width: number) {
+  keptWidths.set(key, width);
+  if (keptWidths.size > 20) keptWidths.delete(keptWidths.keys().next().value as string);
+}
 
 export interface SheetMapProps {
   /** The lines as the paper shows them (the history's day while it plays). */
@@ -128,7 +136,11 @@ export function SheetMap({ blocks, drawn = null, compact = false }: SheetMapProp
   const shown = useSyncExternalStore(store.subscribe, store.get, store.get);
   const lines = useMemo(() => mapLines(blocks), [blocks]);
   const mapRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(compact ? DEFAULT_WIDTH_COMPACT : DEFAULT_WIDTH);
+  // The width last seen at this window width (a map opened again is drawn once), else the card's usual one.
+  const [width, setWidth] = useState(() => keptWidths.get(widthKey(compact)) ?? (compact ? DEFAULT_WIDTH_COMPACT : DEFAULT_WIDTH));
+  // The inner width from the size observer (lib/observeSize): after the browser's layout and before the paint, so the
+  // squares measured are painted in the same frame. Read in a layout effect it laid the page out an extra time three
+  // times on /try (smoothness audit 20.10). Without the observer (tests) it is read here.
   useLayoutEffect(() => {
     const element = mapRef.current;
     if (!element) return undefined;
@@ -136,12 +148,17 @@ export function SheetMap({ blocks, drawn = null, compact = false }: SheetMapProp
       const style = getComputedStyle(element);
       const inner = element.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
       if (inner > 0) setWidth((previous) => (Math.abs(previous - inner) < 0.5 ? previous : inner));
+      return inner;
     };
-    measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
+    if (typeof ResizeObserver === 'undefined') {
+      measure();
+      return undefined;
+    }
+    return observeSize(element, () => {
+      const inner = measure();
+      if (inner > 0) keepWidth(widthKey(compact), inner);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const geometry = mapGeometry(lines.length, width, compact ? { maxHeight: 56, maxSize: 8 } : { maxHeight: 150 });
 

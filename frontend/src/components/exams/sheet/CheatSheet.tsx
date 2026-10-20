@@ -21,6 +21,7 @@ import { glue, NBSP } from '../sheetModel';
 import { blockNote, gluedArrows, lineNote, lineSpeech } from './copy';
 import { blockHeight, estimateHeight, numberGutter, paperGeometry, rowMetrics, splitColumns, splitMany, zoomPlan } from './layout';
 import { markSquare, type DrawnMotion, type DrawnStore } from './SheetMap';
+import { observeSize } from '../../../lib/observeSize';
 import './sheet.css';
 
 /**
@@ -883,6 +884,14 @@ export function explainedLines(blocks: readonly SheetBlock[], shownErased: Reado
 }
 
 const NO_NOTES: ReadonlyMap<string, string> = new Map();
+/** The card's width last seen per sheet and window width (a sheet opened again starts laid out). */
+const keptWidths = new Map<string, number>();
+const widthKey = (examId: string) => `${examId}|${typeof window !== 'undefined' ? window.innerWidth : 0}`;
+function keepWidth(key: string, width: number) {
+  keptWidths.delete(key);
+  keptWidths.set(key, width);
+  if (keptWidths.size > 40) keptWidths.delete(keptWidths.keys().next().value as string);
+}
 const NO_MARKERS: ReadonlyMap<string, 'draw' | 'still'> = new Map();
 const NO_TIMES: ReadonlyMap<string, number> = new Map();
 
@@ -936,11 +945,12 @@ export default function CheatSheet({
   replayStepHandler.current = onReplayStep;
   const wrapRef = useRef<HTMLElement>(null);
   const paperRef = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(0);
+  // The card's width as last seen for this sheet at this window width: a sheet opened again is laid out once.
+  const [width, setWidth] = useState(() => (typeof ResizeObserver !== 'undefined' ? keptWidths.get(widthKey(examId)) ?? 0 : 0));
   // The questions are laid out once the card's width is known: a line that measured its rows of words in a card
-  // of one column, before the card had its two, kept bars as wide as the whole card (EX-18). The width is read
-  // before the first paint, so nothing is seen without its questions.
-  const [sized, setSized] = useState(false);
+  // of one column, before the card had its two, kept bars as wide as the whole card (EX-18). The width comes before
+  // the first paint, so nothing is seen without its questions.
+  const [sized, setSized] = useState(() => width > 0);
   const [phase, setPhase] = useState<Phase>('idle');
   const [overrides, setOverrides] = useState<ReadonlyMap<string, LineStatus>>(NO_STATUSES);
   const [motions, setMotions] = useState<ReadonlyMap<string, Motion>>(NO_MOTIONS);
@@ -969,17 +979,28 @@ export default function CheatSheet({
     return () => window.clearTimeout(timer);
   }, [peeked]);
 
-  // The card's width (the wrap's, while «Весь лист на экране» gives the card a width of its own).
+  // The card's width (the wrap's, while «Весь лист на экране» gives the card a width of its own), from the size
+  // observer (lib/observeSize): it reports after the browser's layout and before the paint, and the questions laid
+  // out then are painted in that same frame. Read in a layout effect, it laid the page out an extra time (smoothness
+  // audit 20.10, /try). Without the observer (tests) it is read here.
   useLayoutEffect(() => {
     const element = wrapRef.current;
     if (!element) return undefined;
-    const measure = () => setWidth((previous) => (previous === element.clientWidth ? previous : element.clientWidth));
-    measure();
-    setSized(true);
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
+    const measure = () => {
+      const next = element.clientWidth;
+      setWidth((previous) => (previous === next ? previous : next));
+      setSized(true);
+      return next;
+    };
+    if (typeof ResizeObserver === 'undefined') {
+      measure();
+      return undefined;
+    }
+    return observeSize(element, () => {
+      const next = measure();
+      if (next > 0) keepWidth(widthKey(examId), next);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const geometry = useMemo(() => paperGeometry(width), [width]);
