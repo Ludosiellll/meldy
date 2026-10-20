@@ -125,6 +125,35 @@ describe('QuestionEditor', () => {
     expect(screen.queryByRole('list', { name: EDITOR.pictures })).toBeNull();
   });
 
+  // Live check of 47.4: a HEIC's refusal stood above «Сохранить», 500–580 px from the control, in plain text.
+  it('says a refused picture right under the option that took it, as an error, and brings it into view', async () => {
+    const { upload } = setup();
+    const scrolled = vi.fn();
+    const before = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollIntoView');
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrolled });
+    try {
+      const heic = new File([new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70])], 'IMG_0001.HEIC', { type: 'image/heic' });
+      fireEvent.paste(screen.getByLabelText(EDITOR.option('Б')), { clipboardData: { files: [heic] } });
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent(EDITOR.pictureHeic);
+      expect(alert).toHaveAttribute('data-bad');
+      // Under option Б, not in the notes above «Сохранить».
+      const row = screen.getByLabelText(EDITOR.option('Б')).closest('li') as HTMLElement;
+      expect(row).toContainElement(alert);
+      expect(document.querySelector('.qe-notes')).not.toContainElement(alert);
+      await waitFor(() => expect(scrolled).toHaveBeenCalled());
+      expect(upload).not.toHaveBeenCalled();
+      // The question's own picture: the line under «Добавить картинку».
+      fireEvent.paste(screen.getByLabelText(EDITOR.stem), { clipboardData: { files: [heic] } });
+      await waitFor(() => expect(row).not.toContainElement(screen.getByRole('alert')));
+      const stemAlert = screen.getByRole('alert');
+      expect(stemAlert).toHaveTextContent(EDITOR.pictureHeic);
+      expect(stemAlert.previousElementSibling).toHaveClass('qe-row');
+    } finally {
+      if (before) Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', before);
+    }
+  });
+
   it('keeps pasted words as words', () => {
     const { upload } = setup();
     fireEvent.paste(screen.getByLabelText(EDITOR.stem), { clipboardData: { files: [] } });

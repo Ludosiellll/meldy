@@ -139,7 +139,8 @@ export const QA_SETUP = {
   practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его прогресс вам не виден.',
   partLook: 'Оформление',
   cover: 'Обложка',
-  coverHint: 'Картинка над названием на странице контрольной: PNG, JPEG, GIF или WebP до 3 МБ.',
+  // Release 47.4 shrinks a big photo itself (api/itemPictures pictureFromFile): only a GIF keeps the 3 MB limit.
+  coverHint: 'Картинка над названием на странице контрольной: JPEG, PNG, WebP или GIF. Большое фото Meldy уменьшит само, GIF — до 3 МБ.',
   coverUpload: 'Загрузить обложку',
   coverReplace: 'Заменить',
   coverRemove: 'Убрать',

@@ -115,7 +115,14 @@ export default function QuestionEditor({
   const [draft, setDraft] = useState<Draft>(() => (item ? draftOf(item) : emptyDraft()));
   const [local, setLocal] = useState<Record<string, BankPicture>>({});
   const [loading, setLoading] = useState(0);
-  const [pictureNote, setPictureNote] = useState<string | null>(null);
+  /**
+   * What became of the picture just picked, said under the control that took it (the question's «Добавить картинку» or
+   * the option's picture button) and brought into view: «Загружаем картинку…», or why it was not taken, as an error.
+   * Live check of 47.4: the refusal of a HEIC stood above «Сохранить», 500–580 px away, in plain text — the author saw
+   * nothing happen.
+   */
+  const [pictureNote, setPictureNote] = useState<{ target: Target; text: string; bad: boolean } | null>(null);
+  const pictureNoteRef = useRef<HTMLParagraphElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const targetRef = useRef<Target>('stem');
@@ -214,24 +221,50 @@ export default function QuestionEditor({
 
   const addPicture = async (target: Target, file: Blob) => {
     if (!roomFor(target)) return;
-    setPictureNote(null);
+    const refuse = (text: string) => setPictureNote({ target, text, bad: true });
+    setPictureNote({ target, text: EDITOR.uploading, bad: false });
     setLoading((n) => n + 1);
     try {
       const made = await pictureFromFile(file);
-      if (made === 'type') return setPictureNote(EDITOR.pictureType);
-      if (made === 'size') return setPictureNote(EDITOR.pictureSize);
-      if (made === 'heic') return setPictureNote(EDITOR.pictureHeic);
+      if (made === 'type') return refuse(EDITOR.pictureType);
+      if (made === 'size') return refuse(EDITOR.pictureSize);
+      if (made === 'heic') return refuse(EDITOR.pictureHeic);
       const path = picturePath(containerId, made.id, made.picture.type);
-      if (!path) return setPictureNote(EDITOR.pictureType);
-      if ((await upload(path, made.picture)) !== 'kept') return setPictureNote(EDITOR.pictureFailed);
+      if (!path) return refuse(EDITOR.pictureType);
+      if ((await upload(path, made.picture)) !== 'kept') return refuse(EDITOR.pictureFailed);
       setLocal((current) => ({ ...current, [path]: made.picture }));
       setPictures(target, (list) => (list.includes(path) ? list : [...list, path]));
+      setPictureNote((current) => (current && current.target === target && !current.bad ? null : current));
     } catch {
-      setPictureNote(EDITOR.pictureFailed);
+      refuse(EDITOR.pictureFailed);
     } finally {
       setLoading((n) => n - 1);
     }
   };
+
+  // The line about a picture is where the author looks: brought into view, clear of the bars at the top and bottom.
+  useEffect(() => {
+    if (!pictureNote) return;
+    let calm = false;
+    try {
+      calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    } catch {
+      calm = false;
+    }
+    pictureNoteRef.current?.scrollIntoView?.({ block: 'nearest', behavior: calm ? 'auto' : 'smooth' });
+  }, [pictureNote]);
+  const pictureLine = (target: Target) =>
+    pictureNote && pictureNote.target === target ? (
+      <p
+        ref={pictureNoteRef}
+        className="kq-note qe-pic-note"
+        data-bad={pictureNote.bad ? '' : undefined}
+        data-muted={pictureNote.bad ? undefined : ''}
+        role={pictureNote.bad ? 'alert' : 'status'}
+      >
+        {pictureNote.text}
+      </p>
+    ) : null;
 
   /** A picture pasted into a field goes to that field's question or option; pasted words stay words. */
   const pasteInto = (target: Target) => (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -340,6 +373,7 @@ export default function QuestionEditor({
           <span>{EDITOR.code}</span>
         </label>
       </div>
+      {pictureLine('stem')}
 
       {draft.short ? (
         <>
@@ -390,6 +424,7 @@ export default function QuestionEditor({
                       onPaste={pasteInto(index)}
                     />
                     {pictureRow(index, EDITOR.option(l))}
+                    {pictureLine(index)}
                   </div>
                   <span className="qe-option-tools">
                     {!trueFalse && roomFor(index) ? (
@@ -480,12 +515,6 @@ export default function QuestionEditor({
       />
 
       <div className="qe-notes" aria-live="polite">
-        {loading > 0 ? <p className="kq-note" data-muted="">{EDITOR.uploading}</p> : null}
-        {pictureNote ? (
-          <p className="kq-note" role="alert">
-            {pictureNote}
-          </p>
-        ) : null}
         {problems.map((problem) => (
           <p key={problem} className="kq-note qe-problem">
             {EDITOR.problems[problem]}

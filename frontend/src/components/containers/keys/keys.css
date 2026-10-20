@@ -359,6 +359,20 @@
 .qe-count { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); text-align: right; font-variant-numeric: tabular-nums; }
 .qe-count[data-over] { color: var(--sf-ink); font-weight: 600; }
 .qe-notes:empty { display: none; }
+/* The line about a picture just picked, under the control that took it (QuestionEditor pictureLine): «Загружаем…»
+   quiet; a refusal as an error — the pink edge on a pink tint and the words in ink, never colour alone. Clear of the
+   top line and of the editor's bar at the bottom when it is brought into view. */
+.qe-pic-note { margin: 8px 0 0; scroll-margin: 96px 0 150px; }
+.qe-pic-note[data-bad] {
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--m-pink) 24%, var(--sf-surface));
+  box-shadow: inset 4px 0 0 var(--m-pink);
+  font-weight: 500;
+  color: var(--sf-ink);
+  text-wrap: pretty;
+}
+.dark .qe-pic-note[data-bad] { background: color-mix(in srgb, var(--m-pink) 16%, var(--sf-surface)); }
 .qe-problem { color: var(--sf-ink); }
 .qe-warn { padding-left: 17px; position: relative; }
 .qe-warn::before {

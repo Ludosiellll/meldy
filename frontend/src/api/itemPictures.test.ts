@@ -10,7 +10,7 @@ vi.mock('../lib/supabase', () => ({
   supabaseFetch: (input: RequestInfo | URL, init?: RequestInit) => net.fetch!(input, init),
 }));
 
-import { guestPictureUrl, isHeic, MAX_PICTURE_BYTES, MAX_PICTURE_SIDE, pictureFromFile, picturePath, pictureUrl } from './itemPictures';
+import { guestPictureUrl, isHeic, MAX_PICTURE_BYTES, MAX_PICTURE_SIDE, pictureFromFile, picturePath, pictureUrl, removeContainerPictures } from './itemPictures';
 import { supabase } from '../lib/supabase';
 import { createSupabaseFetch } from '../lib/supabaseRoute';
 
@@ -361,5 +361,48 @@ describe('pictureUrl (signed in)', () => {
     const url = await guestPictureUrl(path, ATTEMPT, TOKEN);
     expect(await pictureUrl(path)).toBe(url);
     expect(download).not.toHaveBeenCalled();
+  });
+});
+
+describe('removeContainerPictures (live check of 47.4: a deleted test’s public pictures kept opening)', () => {
+  const EXAM = '90a6a48d-b7ad-478f-b274-da63cea1a4de';
+  const file = (name: string) => ({ id: `${name}-id`, name });
+  it('lists the exam’s folder of both buckets page by page and removes what it holds', async () => {
+    const covers = Array.from({ length: 130 }, (_, n) => file(`${String(n).padStart(64, '0')}.jpg`));
+    const lists: Record<string, Array<{ id: string | null; name: string }>> = {
+      'quiz-covers': covers,
+      'test-item-images': [file(`${'a'.repeat(64)}.png`), { id: null, name: 'sub' }],
+    };
+    const removed: Array<[string, string[]]> = [];
+    vi.mocked(supabase.storage.from).mockImplementation(((bucket: string) => ({
+      list: vi.fn(async (folder: string, options: { limit: number; offset: number }) => {
+        expect(folder).toBe(EXAM);
+        return { data: lists[bucket].slice(options.offset, options.offset + options.limit), error: null };
+      }),
+      remove: vi.fn(async (paths: string[]) => {
+        removed.push([bucket, paths]);
+        return { data: paths.map((name) => ({ name })), error: null };
+      }),
+    })) as never);
+    await expect(removeContainerPictures(EXAM)).resolves.toBe(131);
+    expect(removed.map(([bucket, paths]) => [bucket, paths.length])).toEqual([
+      ['quiz-covers', 100],
+      ['quiz-covers', 30],
+      ['test-item-images', 1],
+    ]);
+    expect(removed[0][1][0]).toBe(`${EXAM}/${'0'.repeat(64)}.jpg`);
+    // A sub-folder (no id) is not an object of the exam.
+    expect(removed[2][1]).toEqual([`${EXAM}/${'a'.repeat(64)}.png`]);
+  });
+
+  it('touches nothing for an id that is not an exam’s, and throws what storage refuses', async () => {
+    vi.mocked(supabase.storage.from).mockClear();
+    await expect(removeContainerPictures('../other')).resolves.toBe(0);
+    expect(supabase.storage.from).not.toHaveBeenCalled();
+    vi.mocked(supabase.storage.from).mockImplementation((() => ({
+      list: vi.fn(async () => ({ data: null, error: new Error('denied') })),
+      remove: vi.fn(),
+    })) as never);
+    await expect(removeContainerPictures(EXAM)).rejects.toThrow('denied');
   });
 });

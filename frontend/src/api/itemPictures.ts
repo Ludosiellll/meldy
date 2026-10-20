@@ -69,6 +69,48 @@ export async function uploadPicture(path: string, picture: BankPicture, bucket: 
   throw error;
 }
 
+/** Objects a page of a folder's listing holds (storage list); the listing goes on while a page is full. */
+const LIST_PAGE = 100;
+/** A folder of more than this many pages is not the folder of one exam: the listing stops. */
+const LIST_PAGES_MAX = 100;
+
+/** Every object in the exam's folder of `bucket` that the caller may read: «<container id>/<name>». */
+async function folderPaths(bucket: string, containerId: string): Promise<string[]> {
+  const paths: string[] = [];
+  for (let page = 0; page < LIST_PAGES_MAX; page += 1) {
+    const { data, error } = await supabase.storage
+      .from(bucket)
+      .list(containerId, { limit: LIST_PAGE, offset: page * LIST_PAGE, sortBy: { column: 'name', order: 'asc' } });
+    if (error) throw error;
+    const rows = data ?? [];
+    // A sub-folder is listed with no id: the exam's pictures lie in its folder itself.
+    for (const row of rows) if (row.id && row.name) paths.push(`${containerId}/${row.name}`);
+    if (rows.length < LIST_PAGE) break;
+  }
+  return paths;
+}
+
+/**
+ * The pictures of an exam or a test go with it (live check of 47.4: a deleted test's cover and page pictures kept
+ * opening from the public bucket quiz-covers): its folder in quiz-covers and in test-item-images, through the author's
+ * own session. The storage policies («Quiz covers: owner reads / deletes», «Test item images: read own or joined /
+ * owner deletes») know the owner from the container's row, so this runs before the row is deleted. The number of
+ * pictures removed; a failure throws (the caller goes on with the delete).
+ */
+export async function removeContainerPictures(containerId: string): Promise<number> {
+  if (!UUID_RE.test(containerId)) return 0;
+  let removed = 0;
+  for (const bucket of [COVER_BUCKET, PICTURE_BUCKET]) {
+    const paths = await folderPaths(bucket, containerId);
+    for (let at = 0; at < paths.length; at += LIST_PAGE) {
+      const { data, error } = await supabase.storage.from(bucket).remove(paths.slice(at, at + LIST_PAGE));
+      if (error) throw error;
+      removed += data?.length ?? 0;
+    }
+  }
+  return removed;
+}
+
 /** The address anyone can open of a saved cover (the bucket is public). */
 export function coverUrl(path: string): string {
   return supabase.storage.from(COVER_BUCKET).getPublicUrl(path).data.publicUrl;

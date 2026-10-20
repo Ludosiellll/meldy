@@ -14,6 +14,7 @@
  * `status` is the HTTP status (0 when nothing came back); `detail` the server's detail (`item 7: options`).
  */
 import { supabase } from '../lib/supabase';
+import { removeContainerPictures } from './itemPictures';
 import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
 import {
@@ -530,6 +531,14 @@ export async function deleteSubject(subjectId: Uuid): Promise<void> {
 
 /** The owner deletes the exam; with members still in it the database refuses (MC009). */
 export async function deleteContainer(containerId: Uuid): Promise<void> {
+  // Its pictures first (quiz covers, the studio's page pictures, question pictures): the storage policies know the
+  // owner from this row, and a deleted test's public pictures kept opening (live check of 47.4). A failure leaves them
+  // and does not stop the delete.
+  try {
+    await removeContainerPictures(containerId);
+  } catch {
+    // The pictures stay in the folder; the exam still goes.
+  }
   await deleteRow('containers', containerId);
 }
 
