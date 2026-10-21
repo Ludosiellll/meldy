@@ -256,9 +256,10 @@ although the round opened in phase 2 with nobody right; `result.void: true`, cou
 
 ## 9. Release order
 
-1. Apply `20261024090000_live_mixed.sql` after `20261022090000_live_stand.sql` (before or after
-   `20261023090000_live_stand_phone.sql`: they touch different functions), then run `supabase/tests/live_mixed.sql`,
-   `live_stand.sql` and `live_game.sql`. The old `live_create` ignores an unknown `stand_every` (it makes a plain
+1. Apply `20261024090000_live_mixed.sql` after `20261022090000_live_stand.sql` and
+   `20261023090000_live_stand_phone.sql` (they touch different functions, so the order of the last two does not
+   matter), then run `supabase/tests/live_mixed.sql`, `live_stand.sql`, `live_stand_phone.sql` and `live_game.sql`. The
+   rehearsal (`supabase/tests/local/live_game_run.sh`) applies them in this order. The old `live_create` ignores an unknown `stand_every` (it makes a plain
    battle), so the setup must not offer the picker before the migration is live.
 2. Release the Space (the room: `live_move_mixed.py`). A mixed game whose room is not there plays its movement rounds as
    void rounds (closed by time, nothing counts).

@@ -182,7 +182,8 @@ begin
   perform pg_temp.eq('no unlocks', meldy_private.live_unlocks(2, 0, 1, 0, 1, 0, '{}')::text, '{}');
   perform pg_temp.eq('look ok', meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"phones","x":1}', '{}')::text,
                      '{"hat": "phones", "body": "cloud", "eyes": "round", "colour": "orange"}');
-  perform pg_temp.eq('look unknown', pg_temp.e($$select meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"tophat"}', '{}')$$),
+  -- 'fez' is unknown before and after 20261023090000_live_stand_phone.sql (which makes 'tophat' a free hat).
+  perform pg_temp.eq('look unknown', pg_temp.e($$select meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"fez"}', '{}')$$),
                      'ML007/unknown_part@400');
   perform pg_temp.eq('look locked', pg_temp.e($$select meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"crown"}', '{}')$$),
                      'ML007/locked@400');

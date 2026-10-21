@@ -23,8 +23,8 @@
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PHONE_MIG (the path of 20261023090000_live_stand_phone.sql, applied
-# before the mixed stage), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SB=$(cd "$HERE/../.." && pwd)
@@ -402,8 +402,9 @@ print(str(len(out)) + ':' + hashlib.md5(','.join(map(str, out)).encode()).hexdig
 fi
 
 # ─── The battle with movement rounds (20261024090000_live_mixed.sql, docs/live/MODE_MIXED.md) on top of the stand ───
-# Optionally 20261023090000_live_stand_phone.sql first (LIVE_PHONE_MIG: its path, e.g. from the move-phone branch): the
-# two touch different functions, so either order gives the same result. Its contract fails before it; applied twice
+# First 20261023090000_live_stand_phone.sql (the kit's hats, the mode in the bot's facts), as live has it, with its
+# contract (LIVE_PHONE_MIG: another path; LIVE_PHONE_MIG=none skips it — the two touch different functions, so the mixed
+# migration works on either). Then the mixed one: its contract fails before it; applied twice
 # (the same catalog); its contract, live_stand.sql and live_game.sql hold; live_mixed_behaviour.sql (three games), the
 # stand's and the battle's behaviours still pass; the rule and the damage of every millisecond against
 # backend/live_move_mixed.py (the mirror the room's tests and the end to end use); the room end to end
@@ -417,8 +418,12 @@ else
   MDOWN=$SB/rollback/20261024090000_live_mixed_down.sql
   MCONTRACT=$SB/tests/live_mixed.sql
   MBEHAVIOUR=$HERE/live_mixed_behaviour.sql
-  if [ -n "${LIVE_PHONE_MIG:-}" ]; then
-    step "the phone's migration first: $(basename "$LIVE_PHONE_MIG")" "$LIVE_PHONE_MIG"
+  PHONE_MIG=${LIVE_PHONE_MIG:-$SB/migrations/20261023090000_live_stand_phone.sql}
+  if [ "$PHONE_MIG" != none ] && [ -f "$PHONE_MIG" ]; then
+    step "the phone's migration first: $(basename "$PHONE_MIG")" "$PHONE_MIG"
+    [ -f "$SB/tests/live_stand_phone.sql" ] && step "contract: live_stand_phone.sql" "$SB/tests/live_stand_phone.sql"
+  else
+    echo "  skip  the phone's migration (LIVE_PHONE_MIG=none or not found)"
   fi
   FPRE=$(fingerprint)
   if run "$MCONTRACT"; then bad "live_mixed.sql passes before its migration (it tests nothing)"; else ok "live_mixed.sql fails before its migration"; fi
