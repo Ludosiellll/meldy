@@ -424,9 +424,9 @@ interface ProtocolSheetProps {
   points: ProtocolPoint[];
   followup: ProtocolFollowup | null;
   /**
-   * What the answer did to the cheat sheet, under the heading where the «Засчитано» stamp used to be
-   * (Ф1): «На шпаргалке: 2 строки стёрлись наполовину, 1 вернулась». Null when the protocol does not
-   * know it (not saved yet, a saved protocol read later, the journal not read): then nothing is there.
+   * What the answer did to its topic, under the heading where the «Засчитано» stamp used to be (Ф1):
+   * «Тема «…» выучена.» or «В теме «…» осталось 2 вопроса из 6.» Null when the protocol does not know it
+   * (not saved yet, a saved protocol read later, learn_left not read): then nothing is there.
    */
   sheetNote?: ReactNode;
   /**

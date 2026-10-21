@@ -90,10 +90,9 @@ export default function ExamDraw() {
   const [historyFailed, setHistoryFailed] = useState(false);
   const [drawn, setDrawn] = useState<Drawn | null>(null);
   const counter = useRef(0);
-  // «Ждут подтверждения» draws from the questions whose cheat-sheet lines an answer erases now — the ones
-  // «Сегодня» counts in «Сегодня можно стереть строки шпаргалки у N вопросов» (Сегодня-lite), by the sheet's
-  // own rules. Read when the mode is chosen; 'failed': the sheet could not be read, the readiness rule's «ждут»
-  // stands in.
+  // «Можно выучить сегодня» draws from the questions an answer now makes learned (public.learn_left) — the ones
+  // «Сегодня» counts in «Сегодня можно выучить N вопросов». Read when the mode is chosen; 'failed': learn_left could
+  // not be read, the readiness rule's «ждут» stands in.
   const [sheetPool, setSheetPool] = useState<{ examId: string; ids: ReadonlySet<string> | 'failed' } | null>(null);
 
   const load = useCallback(async () => {

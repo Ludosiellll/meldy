@@ -10,11 +10,10 @@
  *   passed but not confirmed 2, confirmed 1, confirmed but «пора проверить» 2. Questions that are not in the
  *   lectures (coverage none) never come out.
  * - «Из уже отвеченных» (answered): only questions with at least one answer, uniform.
- * - «Ждут подтверждения» (awaiting): questions with a cheat-sheet line an answer erases now — a rubbed
- *   line named on another day and at least 20 hours ago, or an erased line due for its check
- *   (lib/exams/cheatSheet.erasableNow, the questions «Сегодня» counts in «…можно стереть строки шпаргалки»);
- *   uniform. The page passes them as `awaiting`; without the sheet, the readiness rule's own
- *   QuestionState.awaiting.
+ * - «Можно выучить сегодня» (awaiting): questions an answer now makes learned — every main point named on
+ *   another day, at least 20 hours ago (public.learn_left, the questions «Сегодня» counts in «Сегодня можно
+ *   выучить N вопросов»); uniform. The page passes them as `awaiting`; when learn_left cannot be read, the
+ *   readiness rule's own QuestionState.awaiting.
  * Every mode says what it draws from (poolLine), so a drawn question never looks picked by hand.
  *
  * The last three tickets are not repeated (sessionStorage meldy_exam_last_tickets_<examId>).

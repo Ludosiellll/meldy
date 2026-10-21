@@ -2068,7 +2068,7 @@ describe('ExamDetail: «Пригласить группу»', () => {
             exam_id: 'exam-1',
             ready: false,
             copy: false,
-            reason: { code: 'not_ready', reason: 'needs_sheet', questions: 2, detail: 'Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.' },
+            reason: { code: 'not_ready', reason: 'needs_sheet', questions: 2, detail: 'У 2 вопросов ещё нет пунктов ответа. Подготовьте их на странице экзамена.' },
             consent: 'Делюсь с группой вопросами, текстом моих лекций и пунктами ответа. Мои ответы и прогресс никто не увидит.',
             max_members: 80,
             shares: [],
@@ -2086,7 +2086,7 @@ describe('ExamDetail: «Пригласить группу»', () => {
     expect(fetchMock).not.toHaveBeenCalledWith('/api/exam-shares?exam_id=exam-1', undefined);
     fireEvent.click(invite);
     const dialog = await screen.findByRole('dialog', { name: 'Пригласить группу' });
-    expect(await within(dialog).findByText('Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('У 2 вопросов ещё нет пунктов ответа. Подготовьте их на странице экзамена.')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith('/api/exam-shares?exam_id=exam-1', undefined);
   });
 });

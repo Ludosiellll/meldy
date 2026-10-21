@@ -166,10 +166,10 @@ describe('«Пригласить группу»', () => {
   });
 
   it('says what to do when the exam is not ready, and offers no link', async () => {
-    server({ ready: false, reason: { code: 'not_ready', reason: 'needs_sheet', questions: 2, detail: 'Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.' } });
+    server({ ready: false, reason: { code: 'not_ready', reason: 'needs_sheet', questions: 2, detail: 'У 2 вопросов ещё нет пунктов ответа. Подготовьте их на странице экзамена.' } });
     renderInvite();
     const dialog = await openDialog();
-    expect(await within(dialog).findByText('Сначала допишите шпаргалку: у 2 вопросов ещё нет пунктов ответа.')).toBeInTheDocument();
+    expect(await within(dialog).findByText('У 2 вопросов ещё нет пунктов ответа. Подготовьте их на странице экзамена.')).toBeInTheDocument();
     expect(within(dialog).queryByRole('checkbox')).toBeNull();
     expect(within(dialog).queryByRole('button', { name: 'Создать ссылку' })).toBeNull();
   });
