@@ -180,6 +180,8 @@ export default function MockRun({
     async (timedOutAway = false) => {
       if (!progress || finishing.current) return;
       finishing.current = true;
+      // The address of this try: once the result is in, it names the result, unless the student has left the page.
+      const here = window.location.pathname;
       setFinishOpen(false);
       setAllOpen(false);
       const ended = Math.min(Date.now(), progress.timeLimitS !== null ? progress.startedAt + progress.timeLimitS * 1000 : Date.now());
@@ -224,7 +226,7 @@ export default function MockRun({
       const final: Result = server ? { ...base, correct: server.correct, items: server.items, unanswered: server.unanswered } : { ...base, offline: true };
       track('container.mock_finished', { items: final.items, correct: final.correct });
       writeDraftValue(resultKey(progress.runId), { ...final, subjectId: progress.subjectIds[0] ?? '' });
-      setAddressParams({ n: null, t: null, q: null, done: progress.runId });
+      if (window.location.pathname === here) setAddressParams({ n: null, t: null, q: null, done: progress.runId });
       setResult(final);
     },
     [progress, items, tz, userId, containerId, orders],
