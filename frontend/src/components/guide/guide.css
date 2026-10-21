@@ -195,7 +195,8 @@
 .gd-p { margin: -4px 0 0; font-size: 16px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .gd-phone { display: none; }
 
-.gd-actions { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+/* «Пропустить знакомство» and «Дальше» share the line; on a narrow card «Дальше» goes under it, never past its edge. */
+.gd-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; }
 .gd-quiet,
 .gd-open {
   display: inline-flex;
