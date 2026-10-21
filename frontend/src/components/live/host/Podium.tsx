@@ -7,7 +7,7 @@
  */
 import { memo } from 'react';
 import { Link } from 'react-router-dom';
-import { accuracyPct } from '../../../lib/live/rules';
+import { accuracyPct, sharedPlaces } from '../../../lib/live/rules';
 import type { HostState, Look, RosterRow, TopRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
 import { CLOSED, NEXT, PODIUM, nb } from './copy';
@@ -88,6 +88,7 @@ export function Podium({ state, top, drawn, more, width, busy, onReview, onAgain
   const players = state.roster.length;
   const pct = classAccuracy(state, outcome);
   const spots = podiumTopSlots(width);
+  const places = sharedPlaces(top.map((r) => r.dmg));
   return (
     <div className="lvh-podium" data-won={won ? '' : undefined} data-outcome={outcome}>
       <div className="lvh-pod-head">
@@ -103,7 +104,7 @@ export function Podium({ state, top, drawn, more, width, busy, onReview, onAgain
               className={`lvh-pod-col ${COLUMN_CLASS[i]}`}
               style={{ left: width / 2 + col.dx, width: 220, height: col.h, top: PODIUM_FLOOR - col.h, ['--i' as string]: i }}
             >
-              <b>{i + 1}</b>
+              <b>{places[i]}</b>
               <span className="lvh-pod-name">{r.name}</span>
               <span className="lvh-pod-dmg">{PODIUM.dmg(r.dmg)}</span>
             </li>

@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Maximize, Minimize, Users, Volume2, VolumeX } from 'lucide-react';
+import { sharedPlaces } from '../../../lib/live/rules';
 import type { BossKind, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
 import { STAND_LETTERS, type StandState, type StandTopEntry } from '../../../lib/live/move';
 import { ZONE_COLOURS } from '../../../lib/live/three';
@@ -67,11 +68,13 @@ function Letter({ i, big = false }: { i: number; big?: boolean }) {
 }
 
 function TopList({ rows, nameOf }: { rows: StandTopEntry[]; nameOf: (r: StandTopEntry) => string }) {
+  // equal points, the same place («1, 2, 2, 4»)
+  const places = sharedPlaces(rows.slice(0, 5).map((r) => r.pts));
   return (
     <ol className="lvst-top">
       {rows.slice(0, 5).map((r, i) => (
         <li key={`${r.id ?? 'x'}-${r.name}-${i}`} className={i === 0 ? 'lvst-top-first' : undefined} style={{ ['--i' as string]: i }}>
-          <span className="lvst-top-place">{i + 1}</span>
+          <span className="lvst-top-place">{places[i]}</span>
           <Thumb look={r.look} size={96} />
           <span className="lvst-top-name">{nameOf(r)}</span>
           <span className="lvst-top-pts">{nb(r.pts)}</span>
@@ -85,6 +88,7 @@ function TopList({ rows, nameOf }: { rows: StandTopEntry[]; nameOf: (r: StandTop
 function PodiumBlocks({ rows }: { rows: StandTopEntry[] }) {
   // 2 · 1 · 3 on the blocks, 4 and 5 beside
   const order = [1, 0, 2].filter((i) => rows[i]);
+  const places = sharedPlaces(rows.slice(0, 5).map((r) => r.pts));
   return (
     <div className="lvst-podium">
       <div className="lvst-podium-blocks">
@@ -95,7 +99,7 @@ function PodiumBlocks({ rows }: { rows: StandTopEntry[] }) {
               <div className="lvst-pod-name">{rows[i].name}</div>
               <div className="lvst-pod-pts">{nb(rows[i].pts)}</div>
             </div>
-            <div className="lvst-pod-block">{i + 1}</div>
+            <div className="lvst-pod-block">{places[i]}</div>
           </div>
         ))}
       </div>
@@ -103,7 +107,7 @@ function PodiumBlocks({ rows }: { rows: StandTopEntry[] }) {
         <ol className="lvst-podium-rest" start={4}>
           {rows.slice(3, 5).map((r, k) => (
             <li key={`${r.name}-${k}`}>
-              <span className="lvst-top-place">{k + 4}</span>
+              <span className="lvst-top-place">{places[k + 3]}</span>
               <Thumb look={r.look} size={56} />
               <span className="lvst-top-name">{r.name}</span>
               <span className="lvst-top-pts">{nb(r.pts)}</span>

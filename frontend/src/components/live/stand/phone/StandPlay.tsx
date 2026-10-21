@@ -18,6 +18,7 @@
  */
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { zoneIndexAt } from '../../../../lib/live/move/sim';
+import { sharedPlaces, shownPlace } from '../../../../lib/live/rules';
 import type { StandState, StandTopEntry } from '../../../../lib/live/move/protocol';
 import { clothesHex, toPlayerLook } from '../../../../lib/live/three/look';
 import type { Look } from '../../../../lib/live/types';
@@ -117,13 +118,15 @@ const Options = memo(function Options({
 });
 
 function Board({ top, you }: { top: readonly StandTopEntry[]; you: number | null }) {
+  // equal points, the same place («1, 2, 2, 4»)
+  const places = sharedPlaces(top.map((r) => r.pts));
   return (
     <ol className="sp-board" aria-label="Первая пятёрка">
       {top.map((row, i) => {
         const l = toPlayerLook(row.look);
         return (
           <li key={i} className="sp-board__row" data-me={row.id !== null && row.id === you ? 'true' : undefined}>
-            <span className="sp-board__n">{i + 1}</span>
+            <span className="sp-board__n">{places[i]}</span>
             <Thumb body={l.body} colour={l.colour} hat={l.hat} size={34} />
             <span className="sp-board__name">{row.name}</span>
             <span className="sp-board__pts">{points(row.pts)}</span>
@@ -403,7 +406,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
     head = (
       <section className="sp-card sp-place">
         <div>
-          <p className="sp-place__big">{me.place !== null ? placeLine(me.place, me.of) : points(me.pts)}</p>
+          <p className="sp-place__big">{me.place !== null ? placeLine(shownPlace(st?.top ? st.top.map((r) => ({ id: r.id, points: r.pts })) : null, { id: you, points: me.pts, place: me.place }), me.of) : points(me.pts)}</p>
           <p className="sp-sub">{points(me.pts)}</p>
           {me.streak >= 2 && <p className="sp-sub">{streakLine(me.streak)}</p>}
         </div>

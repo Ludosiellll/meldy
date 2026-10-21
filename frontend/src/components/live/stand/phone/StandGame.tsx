@@ -17,6 +17,7 @@ import StandBuilder from './StandBuilder';
 import { StandPlay } from './StandPlay';
 import { Thumb } from './Thumb';
 import { OPENED, placeLine, points } from './words';
+import { shownPlace } from '../../../../lib/live/rules';
 import './stand.css';
 
 /** The room silent this long (a dead Space, a phone between networks): the database tells how the game goes on. */
@@ -96,7 +97,10 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   if (over) {
     const final = st?.final ?? null;
     const me = v.me;
-    const place = me?.place ?? final?.place ?? null;
+    const serverPlace = me?.place ?? final?.place ?? null;
+    // the own place as the lists show it: a tie in the five shares its place
+    const top = v.state?.top ?? null;
+    const place = serverPlace === null ? null : shownPlace(top ? top.map((r) => ({ id: r.id, points: r.pts })) : null, { id: v.you, points: me?.pts ?? final?.dmg ?? 0, place: serverPlace });
     const of = me?.of ?? st?.players ?? 0;
     const pts = me?.pts ?? final?.dmg ?? 0;
     const best = me?.best ?? final?.best ?? 0;

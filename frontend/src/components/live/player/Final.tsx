@@ -7,6 +7,7 @@
  * the podium keeps that much free space above its tallest character (it never covers the heading).
  */
 import { useEffect, useRef, useState } from 'react';
+import { sharedPlaces, shownPlace } from '../../../lib/live/rules';
 import type { Boss, Final as FinalData, Look, TopRow, UnlockId } from '../../../lib/live/types';
 import { LiveChar } from './art';
 import type { PlayerController } from './controller';
@@ -26,7 +27,9 @@ const SIZE = [88, 72, 72];
 const DELAY = [900, 450, 100];
 
 function Podium({ rows, meId, mine, won }: { rows: readonly TopRow[]; meId: string; mine: Look; won: boolean }) {
-  const label = rows.map((r, i) => `${i + 1}. ${r.player_id === meId ? `${r.name} (вы)` : r.name}`).join(', ');
+  // equal damage, the same place («1, 1, 3»)
+  const places = sharedPlaces(rows.map((r) => r.dmg));
+  const label = rows.map((r, i) => `${places[i]}. ${r.player_id === meId ? `${r.name} (вы)` : r.name}`).join(', ');
   return (
     <div className="lp-podium" role="img" aria-label={`Тройка по урону: ${label}`}>
       {ORDER.map((i) => {
@@ -39,7 +42,7 @@ function Podium({ rows, meId, mine, won }: { rows: readonly TopRow[]; meId: stri
               <LiveChar look={me ? mine : row.look} size={SIZE[i]} face={me || won ? 'happy' : 'idle'} move={me ? 'cheer' : 'idle'} phaseMs={i * 230} />
             </div>
             <div className="lp-podium__step" style={{ height: STEP[i], animationDelay: `${DELAY[i]}ms` }}>
-              <b>{i + 1}</b>
+              <b>{places[i]}</b>
               <span>{me ? 'Вы' : row.name}</span>
             </div>
           </div>
@@ -77,6 +80,8 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
   const mine: Look = crown ? { ...look, hat: 'crown' } : look;
   const podium = (top ?? []).slice(0, 3);
   const onPodium = podium.some((r) => r.player_id === meId);
+  // the own place as the lists show it: a tie in the five shares its place
+  const place = shownPlace(top ? top.map((r) => ({ id: r.player_id, points: r.dmg })) : null, { id: meId, points: final.dmg, place: final.place });
   // A web guest in the top three: the crown stays only with an account or Telegram (CONTRACT §10; nothing is saved
   // for a web guest, and a sign-in later does not bring this game's crown back), so the nudge is for the next game.
   const crownNudge = guest && platform.kind === 'web' && final.place <= 3 && final.dmg > 0 && !crown;
@@ -97,7 +102,7 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
     if (!t || busy) return;
     setBusy(true);
     const title = won ? 'Дедлайн повержен' : 'Битва с Дедлайном';
-    const text = `${final.place}-е место из ${players}, урон ${nb(final.dmg)}, верных ответов ${final.right} из ${asked}.`;
+    const text = `${place}-е место из ${players}, урон ${nb(final.dmg)}, верных ответов ${final.right} из ${asked}.`;
     const result = await platform.share({ title, text, url: shareUrl, gameId, token: t });
     setShared(result);
     setBusy(false);
@@ -117,7 +122,7 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
                 <LiveChar look={mine} size={96} face={won ? 'happy' : 'idle'} move={won ? 'cheer' : 'idle'} />
               </div>
               <div className="lp-podium__step" style={{ height: 64 }}>
-                <b>{final.place}</b>
+                <b>{place}</b>
                 <span>Вы</span>
               </div>
             </div>
@@ -126,11 +131,11 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
         <div className="lp-card lp-result">
           {!onPodium && podium.length > 0 && (
             <div className="lp-result__me">
-              <LiveChar look={mine} size={64} face="happy" title={`Ваш персонаж, ${final.place}-е место`} />
+              <LiveChar look={mine} size={64} face="happy" title={`Ваш персонаж, ${place}-е место`} />
             </div>
           )}
           <div className="lp-result__place">
-            <b>{final.place}-е место</b>
+            <b>{place}-е место</b>
             <span>из {players} по урону</span>
           </div>
         </div>

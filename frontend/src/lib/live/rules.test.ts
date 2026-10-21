@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import nameCases from '../../../../contracts/live/name_cases.json';
 import lookCases from '../../../../contracts/live/default_looks.json';
-import { accuracyPct, checkLook, checkName, closeQuestion, damage, defaultLook, healAmount, hpFor, KIT_HATS, KIT_HATS_ON, phaseFor, rank, rightNeeded, unlocksAfter, type ClosePlayer } from './rules';
+import { accuracyPct, checkLook, checkName, closeQuestion, damage, defaultLook, healAmount, hpFor, KIT_HATS, KIT_HATS_ON, phaseFor, rank, rightNeeded, sharedPlaces, shownPlace, unlocksAfter, type ClosePlayer } from './rules';
 import { HAT_OPTIONS } from './three/look';
 
 const P = (id: string, extra: Partial<ClosePlayer> = {}): ClosePlayer => ({ id, streak: 0, best: 0, frozen: false, dmg: 0, right: 0, thaws: 0, active: true, ...extra });
@@ -153,3 +153,22 @@ describe('the shared cases (contracts/live: the SQL gives the same answers)', ()
   });
 });
 
+
+describe('the places shown beside a ranked list', () => {
+  it('equal points share the place of the first of them («1, 2, 2, 4»), the order stays the server\'s', () => {
+    expect(sharedPlaces([900, 800, 800, 700, 700])).toEqual([1, 2, 2, 4, 4]);
+    expect(sharedPlaces([500, 500, 500])).toEqual([1, 1, 1]);
+    expect(sharedPlaces([3, 2, 1])).toEqual([1, 2, 3]);
+    expect(sharedPlaces([])).toEqual([]);
+  });
+
+  it('the own place: its row in the five, a tie that goes on past the five, else the server\'s place', () => {
+    const top = [900, 800, 800, 700, 700].map((points, i) => ({ id: `p${i}`, points }));
+    expect(shownPlace(top, { id: 'p2', points: 800, place: 3 })).toBe(2);
+    expect(shownPlace(top, { id: 'me', points: 700, place: 7 })).toBe(4);
+    expect(shownPlace(top, { id: 'me', points: 650, place: 6 })).toBe(6);
+    expect(shownPlace(null, { id: 'me', points: 650, place: 6 })).toBe(6);
+    // a short list holds everyone: no tie past it
+    expect(shownPlace([{ id: 'a', points: 620 }], { id: 'me', points: 620, place: 4 })).toBe(4);
+  });
+});
