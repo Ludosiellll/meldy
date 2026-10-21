@@ -347,6 +347,7 @@
 
 /* ---------------------------------------------------------------- step 2: the answer room */
 /* The steps across both columns of the room, above the question and the desk. */
+.sf-page.or-room.tx-room { row-gap: 32px; }
 .sf-page.or-room.tx-room > .tx-steps { grid-column: 1 / -1; margin: 0; }
 /* What to do and what will happen, under the question, before the answer. */
 .sf-page.tx-room .tx-next { max-width: 36em; margin: 20px 4px 0; font-size: 18px; line-height: 27px; color: var(--sf-ink); text-wrap: pretty; }
@@ -446,7 +447,7 @@
 
 /* ---------------------------------------------------------------- phones and tablets */
 @media (max-width: 1023px) {
-  .sf-page.tx-room > .tx-steps { margin-bottom: 14px; }
+  .sf-page.or-room.tx-room > .tx-steps { margin-bottom: 18px; }
   .sf-page.tx-room .tx-next { margin-top: 14px; font-size: 17px; line-height: 25px; }
   /* Before the answer, the closed points as five numbered blanks: the rows open with the answer. */
   .sf-page.tx-room .tx-pts-line { margin: 2px 6px 8px; font-size: 15px; line-height: 22px; }
@@ -509,8 +510,11 @@
   .sf-page .tx-lecture > summary::after { grid-column: 2; grid-row: 1 / span 2; align-self: center; }
   .sf-page .tx-lecture-t { grid-column: 1; overflow-wrap: anywhere; }
   .sf-page .tx-lecture-m { grid-column: 1; }
-  .sf-page .tx-step-t { font-size: 14px; }
-  .sf-page .tx-step + .tx-step::before { width: 10px; margin: 0 6px; }
+  /* The three steps keep one line down to 320 px. */
+  .sf-page .tx-steps ol { flex-wrap: nowrap; }
+  .sf-page .tx-step-in { gap: 6px; font-size: 14px; }
+  .sf-page .tx-step-n { width: 26px; height: 26px; font-size: 13px; }
+  .sf-page .tx-step + .tx-step::before { width: 8px; margin: 0 5px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
