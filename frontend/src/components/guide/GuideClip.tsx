@@ -3,11 +3,13 @@ import { ReelClock } from '../reel/clock';
 import { ClockProvider, SceneProvider } from '../reel/engine';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
-import { GUIDE_CLIPS, GUIDE_W, type OwnClipChapter } from './clips';
+import { GUIDE_CLIPS, GUIDE_FOOTAGE, GUIDE_W, type OwnClipChapter } from './clips';
 import type { GuideChapterId } from './chapters';
 import StepClip from '../clips/StepClip';
 import { STEP_CLIPS } from '../clips';
 import type { StepClipId } from '../clips/types';
+import Footage from '../film/Footage';
+import type { Footage as FootageDef } from '../../lib/footage';
 import '../reel/reel.css';
 import './guide.css';
 
@@ -38,13 +40,65 @@ function PauseIcon() {
   );
 }
 
+/** The round button in the corner (play / pause), or «Смотреть» while motion is reduced and the clip has not been asked for. */
+function ClipButton({ allowed, playing, onToggle }: { allowed: boolean; playing: boolean; onToggle: () => void }) {
+  if (allowed) {
+    return (
+      <button type="button" className="gd-play" onClick={onToggle} aria-label={playing ? 'Пауза' : 'Смотреть'}>
+        {playing ? <PauseIcon /> : <PlayIcon />}
+      </button>
+    );
+  }
+  return (
+    <button type="button" className="gd-start" onClick={onToggle}>
+      Смотреть
+      <i>
+        <PlayIcon />
+      </i>
+    </button>
+  );
+}
+
 /**
- * One chapter's clip: its own (OwnClip), or one of its step clips (`reel`, components/clips: the picture with the line
- * of each step under it). «Тесты» has step clips only: without a reel it plays the studio's.
+ * One chapter's clip: its own (OwnClip), real footage of the app (FootageClip: «Игра в классе»), or one of its step
+ * clips (`reel`, components/clips: the picture with the line of each step under it). «Тесты» has step clips only:
+ * without a reel it plays the studio's.
  */
 export default function GuideClip({ chapter, reel = null, active }: { chapter: GuideChapterId; reel?: StepClipId | null; active: boolean }) {
   if (reel || chapter === 'tests') return <StepClip clip={STEP_CLIPS[reel ?? 'studio']} active={active} />;
+  if (chapter === 'game') return <FootageClip footage={GUIDE_FOOTAGE[chapter]} active={active} />;
   return <OwnClip chapter={chapter} active={active} />;
+}
+
+/**
+ * A chapter shown in real footage of the app (lib/footage.ts, film/Footage): the whole frame in the 4:3 box, centred,
+ * the bars above and below it in the footage's own backdrop. It loops silently while the guide is open, the tab is
+ * visible and the box is on screen, and can be paused; with reduced motion it waits on the poster until asked to play.
+ * The parts are fetched when the chapter is shown, not before. Decoration (aria-hidden): the chapter's words say it.
+ */
+function FootageClip({ footage, active }: { footage: FootageDef; active: boolean }) {
+  const reduce = usePrefersReducedMotion();
+  const tabVisible = usePageVisible();
+  const [paused, setPaused] = useState(false);
+  const [asked, setAsked] = useState(false);
+
+  const allowed = !reduce || asked;
+  const playing = active && allowed && tabVisible && !paused;
+  const toggle = () => {
+    if (!allowed) {
+      setAsked(true);
+      setPaused(false);
+      return;
+    }
+    setPaused((value) => !value);
+  };
+
+  return (
+    <div className="gd-box" data-footage="" data-playing={playing ? 'true' : 'false'} style={{ background: footage.backdrop }}>
+      <Footage footage={footage} play={active && !paused} still={!allowed} />
+      <ClipButton allowed={allowed} playing={playing} onToggle={toggle} />
+    </div>
+  );
 }
 
 /**
@@ -131,18 +185,7 @@ function OwnClip({ chapter, active }: { chapter: OwnClipChapter; active: boolean
           </div>
         </ClockProvider>
       ) : null}
-      {allowed ? (
-        <button type="button" className="gd-play" onClick={toggle} aria-label={playing ? 'Пауза' : 'Смотреть'}>
-          {playing ? <PauseIcon /> : <PlayIcon />}
-        </button>
-      ) : (
-        <button type="button" className="gd-start" onClick={toggle}>
-          Смотреть
-          <i>
-            <PlayIcon />
-          </i>
-        </button>
-      )}
+      <ClipButton allowed={allowed} playing={playing} onToggle={toggle} />
     </div>
   );
 }

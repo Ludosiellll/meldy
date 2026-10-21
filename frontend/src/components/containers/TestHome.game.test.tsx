@@ -71,8 +71,8 @@ describe('the test’s page and the game', () => {
     expect(within(card).getByRole('heading', { name: TIPS.game.title })).toBeInTheDocument();
     expect(card).toHaveTextContent(TIPS.game.text);
     expect(within(card).getByRole('link', { name: TIPS.game.action })).toHaveAttribute('href', '/live/new?c=c-1');
-    // The clip's frame is the guide's 4:3 stage.
-    expect(card.querySelector('.tp-box')).toHaveStyle({ aspectRatio: String(4 / 3) });
+    // The clip's frame is the shape of the game's footage, 16:9 (lib/footage.ts STAND_RUN).
+    expect(card.querySelector('.tp-box')).toHaveStyle({ aspectRatio: String(16 / 9) });
     // The anchor has its ring while the card is shown; the card comes right after it.
     expect(button).toHaveAttribute('data-tip-spot');
     expect(button.nextElementSibling).toBe(card);

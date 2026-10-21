@@ -3,6 +3,8 @@ import { ReelClock } from '../reel/clock';
 import { ClockProvider, SceneProvider } from '../reel/engine';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
+import Footage from '../film/Footage';
+import type { Footage as FootageDef } from '../../lib/footage';
 import '../reel/reel.css';
 import './tips.css';
 
@@ -46,6 +48,25 @@ function PauseIcon() {
       <rect x="5" y="4" width="3.6" height="12" rx="1.2" fill="currentColor" />
       <rect x="11.4" y="4" width="3.6" height="12" rx="1.2" fill="currentColor" />
     </svg>
+  );
+}
+
+/** The round button in the corner (play / pause), or «Смотреть» while motion is reduced and the clip has not been asked for. */
+function TipButton({ allowed, playing, onToggle }: { allowed: boolean; playing: boolean; onToggle: () => void }) {
+  if (allowed) {
+    return (
+      <button type="button" className="tp-play" onClick={onToggle} aria-label={playing ? 'Пауза' : 'Смотреть'}>
+        {playing ? <PauseIcon /> : <PlayIcon />}
+      </button>
+    );
+  }
+  return (
+    <button type="button" className="tp-start" onClick={onToggle}>
+      Смотреть
+      <i>
+        <PlayIcon />
+      </i>
+    </button>
   );
 }
 
@@ -163,18 +184,43 @@ export default function TipClip({ clip, active, themed = false }: { clip: TipCli
           </div>
         </ClockProvider>
       ) : null}
-      {allowed ? (
-        <button type="button" className="tp-play" onClick={toggle} aria-label={playing ? 'Пауза' : 'Смотреть'}>
-          {playing ? <PauseIcon /> : <PlayIcon />}
-        </button>
-      ) : (
-        <button type="button" className="tp-start" onClick={toggle}>
-          Смотреть
-          <i>
-            <PlayIcon />
-          </i>
-        </button>
-      )}
+      <TipButton allowed={allowed} playing={playing} onToggle={toggle} />
+    </div>
+  );
+}
+
+/**
+ * A tip shown in real footage of the app (lib/footage.ts, film/Footage) instead of a drawn clip: the frame has the
+ * footage's own shape, and the controls are TipClip's. It loops while the tip is shown, the tab is visible and the
+ * clip is in the window; with reduced motion it waits on the poster until «Смотреть». The parts are fetched when the
+ * tip is shown.
+ */
+export function TipFootage({ footage, active }: { footage: FootageDef; active: boolean }) {
+  const reduce = usePrefersReducedMotion();
+  const tabVisible = usePageVisible();
+  const [paused, setPaused] = useState(false);
+  const [asked, setAsked] = useState(false);
+
+  const allowed = !reduce || asked;
+  const playing = active && allowed && tabVisible && !paused;
+  const toggle = () => {
+    if (!allowed) {
+      setAsked(true);
+      setPaused(false);
+      return;
+    }
+    setPaused((value) => !value);
+  };
+
+  return (
+    <div
+      className="tp-box"
+      data-footage=""
+      data-playing={playing ? 'true' : 'false'}
+      style={{ aspectRatio: String(footage.width / footage.height), background: footage.backdrop }}
+    >
+      <Footage footage={footage} play={active && !paused} still={!allowed} />
+      <TipButton allowed={allowed} playing={playing} onToggle={toggle} />
     </div>
   );
 }

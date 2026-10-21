@@ -91,7 +91,7 @@ describe('«Игра в классе» (the owner, 21.10: «а где на са�
     expect(ids.indexOf('game')).toBe(ids.indexOf('tests') + 1);
     expect(game).toMatchObject({ tab: 'Игра в классе', title: 'Игра в классе', route: '/exams?view=tests', spot: 'link', text: GAME_TEXT });
     expect(routePath(game.route!)).toBe('/exams');
-    // Its own clip (scenes/game.tsx), no step clips.
+    // Its own clip (real footage of the game, clips.ts GUIDE_FOOTAGE), no step clips.
     expect(game.reels).toBeUndefined();
     // The setup and the projector are its pages; the tests' pages stay «Тесты».
     for (const path of ['/live/new', '/live/abc', '/live']) expect(game.match!.test(path)).toBe(true);
@@ -104,9 +104,10 @@ describe('«Игра в классе» (the owner, 21.10: «а где на са�
     const text = game.text;
     // Where to start.
     expect(text).toMatch(/^Откройте тест и нажмите «Провести игру»\./);
-    // The two games: buttons, and the character run to the answer.
-    expect(text).toContain('В «Битве с монстром» все отвечают кнопками.');
-    expect(text).toContain('В «Встань на ответ» каждый ведёт героя к ответу.');
+    // The two games, each named whole after «В игре»: buttons, and the character run to the answer.
+    expect(text).toContain('В игре «Битва с монстром» все отвечают кнопками.');
+    expect(text).toContain('В игре «Встань на ответ» каждый ведёт героя к ответу.');
+    expect(text).not.toMatch(/В «/);
     // A projector or a big screen.
     expect(text).toContain('Нужен проектор или большой экран.');
     // The site with the PIN or the QR code, or Telegram: the site is enough.
