@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, RotateCcw, X, XCircle } from 'lucide-react';
 import SourceReferences from './SourceReferences';
+import { clearDraftValue, useListPlace, useSessionDraft } from '../lib/urlState';
 import { pluralRu } from './conversation/visuals';
 import { stemsOf, stripSourceMarkers } from './summary/fragmentModel';
 import {
@@ -46,6 +47,11 @@ export interface QuizViewProps {
   presenting?: boolean;
   /** Leaving the full-screen mode (Escape, «Выйти», «Закрыть презентацию»). */
   onExitPresentation?: () => void;
+  /**
+   * The lecture page (its material's id): a reload keeps the question on screen (?q=, lib/urlState.ts useListPlace) and
+   * the answers chosen in this tab until «Проверить ответы» (owner, 21.10: a reload lost the place).
+   */
+  placeKey?: string;
 }
 
 interface NormalizedQuestion {
@@ -203,6 +209,20 @@ function attemptAnswers(questions: NormalizedQuestion[], answers: Record<number,
       options: q.options.length,
     };
   });
+}
+
+const NO_ANSWERS: Record<number, number> = {};
+
+/** Answers kept in the tab that fit these questions: each one a variant of its question. */
+function answersFor(questions: NormalizedQuestion[]) {
+  return (value: unknown): value is Record<number, number> =>
+    Boolean(value) &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.entries(value as Record<string, unknown>).every(([index, option]) => {
+      const question = questions[Number(index)];
+      return Boolean(question) && Number.isInteger(option) && (option as number) >= 0 && (option as number) < question.options.length;
+    });
 }
 
 interface Attempt {
@@ -383,12 +403,14 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
   );
 }
 
-export default function QuizView({ data, sources = [], materialId, topic = '', surface = 'analysis', presenting = false, onExitPresentation }: QuizViewProps) {
+export default function QuizView({ data, sources = [], materialId, topic = '', surface = 'analysis', presenting = false, onExitPresentation, placeKey }: QuizViewProps) {
   const reduceMotion = useReducedMotion();
   const quiz: unknown = data?.quiz;
   const questions = Array.isArray(quiz) ? normalizeQuestions(quiz) : [];
 
-  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const draftKey = placeKey ? `self-check:${placeKey}` : null;
+  const [answers, setAnswers] = useSessionDraft(draftKey, NO_ANSWERS, answersFor(questions));
+  const list = useListPlace<HTMLOListElement>(placeKey ? 'q' : null, questions.length);
   const [submitted, setSubmitted] = useState(false);
   const [save, setSave] = useState<SaveState>({ status: 'off' });
 
@@ -465,6 +487,8 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
   const handleSubmit = () => {
     if (submitted || answeredCount < total) return;
     setSubmitted(true);
+    // Checked: the answers stay on screen, the tab no longer keeps them.
+    if (draftKey) clearDraftValue(draftKey);
     if (!journal) return;
     const attempt: Attempt = {
       sessionId: newEventId(),
@@ -537,7 +561,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
         </motion.section>
       )}
 
-      <ol className="qz-list">
+      <ol className="qz-list" ref={list}>
         {questions.map((q, i) => {
           const selected = answers[i];
           const unscoredQuestion = q.correctIndex === null;

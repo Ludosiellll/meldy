@@ -345,7 +345,8 @@ export default function MaterialDetail() {
   const [searchParams] = useSearchParams();
   // «Прогресс» links straight to a tab of the material: ?section=quiz | flashcards | summary. The page keeps the tab on
   // screen in its address too (owner, 21.10: a reload lost the place): ?mode=express | podcast for «Выжимка» and
-  // «Подкаст», ?section= for the section of «Материал», written in place (lib/urlState.ts).
+  // «Подкаст», ?section= for the section of «Материал», written in place (lib/urlState.ts); inside «Карточки» and
+  // «Самопроверка» the card and the question on screen, ?card= and ?q= (ResultsPanel keepPlace).
   const sectionValue = searchParams.get('section');
   const sectionParam = sectionValue === 'quiz' || sectionValue === 'flashcards' || sectionValue === 'summary' ? sectionValue : undefined;
   const { user } = useAuth();
@@ -1057,6 +1058,7 @@ export default function MaterialDetail() {
             notices={recognized ? <p>{recognized}</p> : undefined}
             pageTabs={phone ? { section, onSection: chooseSection, exportItems: exportItemsRef } : undefined}
             onTabChange={phone ? undefined : chooseSection}
+            keepPlace
           />
         ) : (
           <ExpressPrepView

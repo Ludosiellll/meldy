@@ -308,3 +308,65 @@ describe('QuizView for the student (findings LIB-15, LIB-17)', () => {
     expect(letters).toEqual(['А', 'Б', 'В', 'Г']);
   });
 });
+
+describe('owner 21.10: a reload of the lecture page keeps the place in «Самопроверка»', () => {
+  const brought: string[] = [];
+  const pressed = () => Array.from(document.querySelectorAll('.qz-opt[aria-pressed="true"]')).map((option) => option.textContent?.trim());
+  beforeEach(() => {
+    brought.length = 0;
+    window.sessionStorage.clear();
+    journal.record.mockReset();
+    journal.record.mockResolvedValue(savedResult());
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement) {
+        brought.push(this.querySelector('.qz-q')?.textContent ?? '');
+      },
+    });
+  });
+  afterEach(() => {
+    cleanup();
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('the question on screen (?q=) comes back into view with the answers chosen in this tab, until they are checked', async () => {
+    window.history.replaceState(null, '', `/library/${MATERIAL_ID}?section=quiz&q=3`);
+    const first = renderQuiz({ surface: 'material', placeKey: MATERIAL_ID });
+    expect(brought).toEqual(['3. Кто ввёл понятие энтропии?']);
+    choose(1, 'Беспорядок системы');
+    choose(2, 'Да');
+    first.unmount();
+
+    const second = renderQuiz({ surface: 'material', placeKey: MATERIAL_ID });
+    expect(pressed()).toEqual(['А) Беспорядок системы', 'А) Да']);
+    expect(screen.getByText('Отвечено 2 из 3')).toBeInTheDocument();
+    choose(3, 'Ньютон');
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить ответы' }));
+    expect(await screen.findByText('Результат сохранён')).toBeInTheDocument();
+    // Checked: the answers stay on screen; the attempt is the journal's, the tab keeps nothing.
+    expect(pressed()).toHaveLength(3);
+    expect(window.sessionStorage.length).toBe(0);
+    second.unmount();
+
+    renderQuiz({ surface: 'material', placeKey: MATERIAL_ID });
+    expect(pressed()).toEqual([]);
+  });
+
+  it('answers that do not fit the questions are not brought back; elsewhere nothing is kept', () => {
+    window.sessionStorage.setItem(`meldy_draft:self-check:${MATERIAL_ID}`, JSON.stringify({ 0: 0, 7: 1 }));
+    const first = renderQuiz({ placeKey: MATERIAL_ID });
+    expect(pressed()).toEqual([]);
+    first.unmount();
+
+    window.sessionStorage.clear();
+    window.history.replaceState(null, '', '/analyze?q=2');
+    const second = renderQuiz();
+    choose(1, 'Беспорядок системы');
+    second.unmount();
+    renderQuiz();
+    expect(pressed()).toEqual([]);
+    expect(brought).toEqual([]);
+    expect(window.sessionStorage.length).toBe(0);
+  });
+});

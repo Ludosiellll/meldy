@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { addressParam, isText, paramValue, setAddressParams, useSessionDraft, useUrlState } from './urlState';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { addressParam, isText, paramValue, setAddressParams, useListPlace, useSessionDraft, useUrlState } from './urlState';
 
 /**
  * The place a page keeps across a reload (owner, 21.10): a choice in the address, a draft in the tab. A «reload» here
@@ -125,3 +125,76 @@ describe('useSessionDraft', () => {
     expect((screen.getByRole('textbox', { name: 'answer' }) as HTMLTextAreaElement).value).toBe('');
   });
 });
+
+/** Ten items 100 px tall, 10 px apart, the first at 350 px of the page scrolled by `scrolled` px; the window is 800 px tall. */
+function ListProbe({ count = 10 }: { count?: number }) {
+  const list = useListPlace<HTMLOListElement>('card', count);
+  return (
+    <ol ref={list}>
+      {Array.from({ length: count }, (_, index) => (
+        <li key={index}>{`Карточка ${index + 1}`}</li>
+      ))}
+    </ol>
+  );
+}
+
+let scrolled = 0;
+const frame = () => act(() => new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve())));
+
+describe('useListPlace', () => {
+  const brought: string[] = [];
+  beforeEach(() => {
+    scrolled = 0;
+    brought.length = 0;
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800);
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const index = Array.from(this.parentElement?.children ?? []).indexOf(this);
+      const top = 350 + index * 110 - scrolled;
+      return { top, bottom: top + 100, left: 0, right: 300, width: 300, height: 100, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+    });
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement, options?: ScrollIntoViewOptions) {
+        brought.push(`${this.textContent} ${options?.block}`);
+      },
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+  });
+
+  it('the item across the middle of the window is in the address, and a reload brings it back into view', async () => {
+    const first = openList('/library/m1?section=flashcards');
+    // Item 4 spans 680–780 px of the page: scrolled by 300 px it is across the middle of the window, 400 px.
+    scrolled = 300;
+    fireEvent.scroll(document);
+    await frame();
+    expect(window.location.search).toBe('?section=flashcards&card=4');
+    first.unmount();
+
+    openList(`${window.location.pathname}${window.location.search}`);
+    expect(brought).toEqual(['Карточка 4 center']);
+  });
+
+  it('the first item leaves the address clean; a number outside the list is ignored', async () => {
+    const first = openList('/library/m1?card=4');
+    expect(brought).toEqual(['Карточка 4 center']);
+    scrolled = 0;
+    fireEvent.scroll(document);
+    await frame();
+    expect(window.location.search).toBe('');
+    first.unmount();
+
+    brought.length = 0;
+    const second = openList('/library/m1?card=11');
+    second.unmount();
+    openList('/library/m1?card=1');
+    expect(brought).toEqual([]);
+  });
+});
+
+function openList(path: string) {
+  window.history.replaceState(null, '', path);
+  return render(<ListProbe />);
+}
