@@ -189,5 +189,8 @@ describe('a battle with movement rounds on the phone', () => {
     await until(() => ctl.getSnapshot().state?.state === 'leaderboard', 30_000);
     await until(() => !screen.queryByRole('list', { name: 'Ответы' }));
     expect(screen.queryByText('Нет связи с ареной')).toBeNull();
+    // the battle's sheet says the round did not count (the database's result), in neutral words
+    expect(document.querySelector('#lp-sheet-title')?.textContent).toBe('Мини-игра не засчитана');
+    expect(document.querySelector('.lp-sheet')?.classList.contains('lp-sheet--seen')).toBe(true);
   });
 });

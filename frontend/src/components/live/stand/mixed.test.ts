@@ -7,6 +7,7 @@ import messages from '../../../../../contracts/live/mixed_messages.json';
 import type { StandLast, StandResult, StandState } from '../../../lib/live/move/protocol';
 import type { PlayerResult, Question } from '../../../lib/live/types';
 import { MIXED, SETUP } from '../host/copy';
+import { missWords } from '../player/Battle';
 import { miniGameLine } from '../player/Lobby';
 import { arenaOn, hpBefore, lastOfResult, mixedOutcome, revealPlan, strongest, type DbView } from './mixed';
 
@@ -105,6 +106,15 @@ describe('the phone\'s own round', () => {
     expect(lastOfResult(r, null, false)).toMatchObject({ choice: null, ok: false, froze: true, fell: true, void: false });
     expect(lastOfResult({ ...r, correct: true, none: false, dmg: 141, frozen: false }, 1, false)).toMatchObject({ choice: 1, ok: true, pts: 141, froze: false });
     expect(lastOfResult({ ...r, void: true }, null, true)).toMatchObject({ void: true, fell: false, froze: false });
+  });
+});
+
+describe('the battle\'s sheet after a movement round', () => {
+  it('says «Не встали на ответ» or «Мимо» there, the battle\'s words on a button question', () => {
+    expect(missWords({ none: true, frozen: true, stand: true }, true)).toEqual({ title: 'Не встали на ответ', line: 'Вы заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.' });
+    expect(missWords({ none: false, frozen: true, stand: true }, false)).toEqual({ title: 'Мимо', line: 'Вы всё ещё заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.' });
+    expect(missWords({ none: true, frozen: true, stand: false }, true).title).toBe('Не успели');
+    expect(missWords({ none: false, frozen: false }, false)).toEqual({ title: 'Неверно', line: 'Серия начнётся заново со следующего верного ответа.' });
   });
 });
 

@@ -208,6 +208,25 @@ interface SheetProps {
   onImpact: () => void;
 }
 
+/**
+ * The sheet's words for a miss: a button question «Не успели» / «Неверно», a movement round of a mixed game «Не встали
+ * на ответ» / «Мимо» (MODE_MIXED §8), and what the freeze means for the player.
+ */
+export function missWords(r: Pick<PlayerResult, 'none' | 'frozen' | 'stand'>, newlyFrozen: boolean): { title: string; line: string } {
+  const stand = !!r.stand;
+  const title = stand ? (r.none ? 'Не встали на ответ' : 'Мимо') : r.none ? 'Не успели' : 'Неверно';
+  const line = newlyFrozen
+    ? stand
+      ? 'Вы заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.'
+      : r.none
+        ? 'Дедлайн злится и замораживает тех, кто не успел. Ответьте верно на следующий вопрос, чтобы оттаять.'
+        : 'Дедлайн заморозил вас. Ответьте верно на следующий вопрос, чтобы оттаять.'
+    : r.frozen
+      ? 'Вы всё ещё заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.'
+      : 'Серия начнётся заново со следующего верного ответа.';
+  return { title, line };
+}
+
 const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const r = p.result;
   const right = r.correct && !r.thawed;
@@ -216,7 +235,9 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const star = useRef<HTMLDivElement>(null);
   const shard = useRef<HTMLDivElement>(null);
   const seen = p.sitOut && r.none && !r.frozen;
-  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(seen ? 'idle' : r.correct ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
+  // a movement round that did not count (MODE_MIXED §6): nothing happened to anyone
+  const voided = !!(r.stand && r.void);
+  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(seen ? 'idle' : voided ? (r.frozen ? 'frozen' : 'idle') : r.correct ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
   const [ice, setIce] = useState(r.thawed || (r.frozen && !newlyFrozen));
   const [move, setMove] = useState<'idle' | 'bounce' | 'hit'>('idle');
   const { haptic, onImpact, bossEl } = p;
@@ -257,7 +278,7 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
           if (still || !from || !to) freeze();
           else fly(shard.current, from, to, 'shard', freeze);
         });
-      } else if (!r.correct && !seen) at(20, () => haptic(r.none ? 'warning' : 'error'));
+      } else if (!r.correct && !seen && !voided) at(20, () => haptic(r.none ? 'warning' : 'error'));
     }
     return () => timers.forEach(clearTimeout);
     // Once per question: the sheet is keyed by it.
@@ -267,7 +288,10 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const keyText = `${OPTION_STYLES[r.key]?.letter ?? ''}${NBSP}·${NBSP}${p.options[r.key] ?? ''}`;
   let title: string;
   let body: ReactNode;
-  if (r.thawed) {
+  if (voided) {
+    title = 'Мини-игра не засчитана';
+    body = <p>Связь с ареной пропала. Урон и лёд не изменились.</p>;
+  } else if (r.thawed) {
     title = `Верно${NBSP}— оттаяли`;
     body = (
       <>
@@ -302,26 +326,20 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
       </>
     );
   } else {
-    title = r.none ? 'Не успели' : 'Неверно';
-    const freezeLine = newlyFrozen
-      ? r.none
-        ? 'Дедлайн злится и замораживает тех, кто не успел. Ответьте верно на следующий вопрос, чтобы оттаять.'
-        : 'Дедлайн заморозил вас. Ответьте верно на следующий вопрос, чтобы оттаять.'
-      : r.frozen
-        ? 'Вы всё ещё заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.'
-        : 'Серия начнётся заново со следующего верного ответа.';
+    const miss = missWords(r, newlyFrozen);
+    title = miss.title;
     body = (
       <>
         <p>
           Верный ответ: <b>{keyText}</b>
         </p>
-        <p>{freezeLine}</p>
+        <p>{miss.line}</p>
       </>
     );
   }
   const healed = r.healed > 0;
   return (
-    <section className={`lp-sheet ${seen ? 'lp-sheet--seen' : r.correct ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
+    <section className={`lp-sheet ${seen || voided ? 'lp-sheet--seen' : r.correct ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
       <h2 id="lp-sheet-title" role="status">
         {title}
       </h2>
