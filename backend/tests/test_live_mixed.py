@@ -219,6 +219,19 @@ def test_a_movement_round_lines_up_tracks_and_stomps_and_the_floor_brings_everyo
     assert w.game.round == "tap" and w.game.res is None and not w.game.live
 
 
+def test_a_room_that_learns_of_a_round_late_still_lines_everyone_up_and_a_closed_one_moves_nobody():
+    w = World(3)
+    for i, p in enumerate(w.ps):
+        p.x, p.y = CENTRE[i]                                    # standing on zones since an earlier round
+    now = w.room.t_ms()
+    w.game.begin(2, {"text": "x", "options": ["a", "b", "c", "d"]}, now - 4000, now + 16000, now)   # found open
+    assert w.game.phase == "open" and all(w.room.map.zone_index(p.x, p.y) == 0 for p in w.ps)
+    for i, p in enumerate(w.ps):
+        p.x, p.y = CENTRE[i]
+    w.game.begin(5, {"text": "y", "options": ["a", "b"]}, now, now, now)                            # found closed
+    assert [w.room.map.zone_index(p.x, p.y) for p in w.ps] == [1, 2, 3]
+
+
 def test_a_void_round_drops_nobody():
     w = World(2)
     w.start(); w.taps({0: 1}); w.next()

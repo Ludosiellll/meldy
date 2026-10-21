@@ -168,14 +168,16 @@ class MixedGame(stand.StandGame):
     # ── the game's state (from the database) ──
 
     def begin(self, qi: int, q: dict[str, Any], opens_ms: float, closes_ms: float, now_ms: float) -> None:
-        """A movement round is announced (or found open): the arena is on; at its countdown everyone lines up."""
+        """A movement round is announced (or found running: the room learned it late): the arena is on and everyone
+        lines up, so nobody starts on a zone kept from an earlier round. A round found already closed (the reveal of a
+        room that came late) moves nobody."""
         self.round = "stand"
         self.ghosts = set()
         self.placed = set()
         super().begin(qi, q, opens_ms, closes_ms, now_ms)
         if self.room is not None:
             for p in self.room.players.values():
-                if now_ms < opens_ms:
+                if now_ms < closes_ms:
                     self._line_up(p)
                 self._ice(p)
 
