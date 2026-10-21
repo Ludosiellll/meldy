@@ -376,6 +376,29 @@ a.lvh-btn { text-decoration: none; }
 .lvs-lead { margin: 12px 0 0; font: 400 clamp(17px, 1.6vw, 21px)/1.4 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 /* The one mode, told (not a card to pick): a small picture and two lines. */
 .lvs-mode { display: flex; align-items: center; gap: 22px; margin-top: 20px; }
+.lvs-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 20px; }
+.lvs-mode--card {
+  margin: 0; padding: 14px; gap: 16px; border-radius: 26px; text-align: left; background: var(--lvh-card);
+  box-shadow: inset 0 0 0 1.5px var(--lvh-line); color: var(--lvh-ink); font: inherit;
+}
+.lvs-mode--card[aria-checked='true'] { box-shadow: inset 0 0 0 3px var(--lvh-ink); }
+.lvs-mode-art { position: absolute; inset: 0; }
+.lvs-mode--card .lvs-mode-pic { width: 160px; height: 104px; border-radius: 18px; }
+.lvs-mode--card .lvs-mode-art { width: 224px; height: 124px; transform: scale(0.714) translateY(10px); transform-origin: 0 0; }
+.lvs-mode--card .lvs-mode-body { display: flex; flex-direction: column; gap: 4px; }
+.lvs-mode--card .lvs-mode-body b { font: 700 21px/1.15 var(--ph-sans, system-ui); }
+.lvs-mode--card .lvs-mode-body span { font: 400 16px/1.35 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lvs-mode-pic.lvs-mode-pic--stand { background: #dfe6fb; display: grid; place-items: center; }
+.lvs-mode-pic--stand img { width: 96px; height: 96px; }
+.lvs-bosses button { display: inline-flex; align-items: center; gap: 8px; padding: 4px 16px 4px 6px; }
+.lvs-bosses img { width: 40px; height: 40px; }
+@media (max-width: 720px) {
+  .lvs-modes { grid-template-columns: 1fr; }
+  .lvs-mode--card { padding: 10px; gap: 12px; }
+  .lvs-mode--card .lvs-mode-pic { width: 112px; height: 80px; }
+  .lvs-mode--card .lvs-mode-art { transform: scale(0.5) translateY(14px); }
+  .lvs-mode-pic--stand img { width: 72px; height: 72px; }
+}
 .lvs-mode-pic { position: relative; flex: none; width: 224px; height: 124px; border-radius: 22px; background: #fbe3dc; overflow: hidden; }
 .lvs-mode-pic .lv-boss { position: absolute; left: 56px; top: 10px; }
 .lvs-mode-pic .lv-char { position: absolute; }

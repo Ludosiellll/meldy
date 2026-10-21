@@ -45,6 +45,7 @@ function TelegramGame({ webApp }: { webApp: GameWebApp }) {
     return {
       pin: pinOf(start) ?? (typed && /^\d{6}$/.test(typed) ? typed : null),
       reviewGame: reviewGameOf(start) ?? reviewGameOf(params.get('r') ? `r_${params.get('r')}` : null),
+      mode: params.get('mode'),
       initData: launch?.initData ?? '',
       firstName: launch?.firstName ?? null,
     };
@@ -58,7 +59,7 @@ function TelegramGame({ webApp }: { webApp: GameWebApp }) {
   useEffect(() => enterFullscreen(webApp), [webApp]);
 
   useEffect(() => {
-    void ctl.start({ pin: entry.pin, reviewGame: entry.reviewGame });
+    void ctl.start({ pin: entry.pin, reviewGame: entry.reviewGame, mode: entry.mode });
     return () => ctl.dispose();
   }, [ctl, entry]);
 

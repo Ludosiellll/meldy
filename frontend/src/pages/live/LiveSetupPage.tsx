@@ -1,16 +1,19 @@
 /**
- * /live/new?c=<test> — «Провести игру» (prototype host-01): what the game is (one mode, told, not offered as a choice),
- * time per question, speed points, who may join, and — only when a Telegram chat is bound to the exam — whether the bot
- * names the top three there; the questions that do not fit are counted, their list folded. «Открыть комнату» stays in
- * view at the bottom of the window: it creates the game (`live_create`, CONTRACT §8), keeps the host token in this tab
- * and opens /live/:id.
+ * /live/new?c=<test> — «Провести игру» (prototype host-01): which game — «Битва с монстром» (`mode: 'boss'`) or
+ * «Встань на ответ» (`mode: 'stand'`, docs/live/MODE_STAND.md §1: its boss, the alarm clock or the skeleton, and
+ * 15, 20 or 30 s), time per question, speed points, who may join, and — only when a Telegram chat is bound to the exam —
+ * whether the bot names the top three there; the questions that do not fit are counted, their list folded. «Открыть
+ * комнату» stays in view at the bottom of the window: it creates the game (`live_create`, CONTRACT §8), keeps the host
+ * token in this tab and opens /live/:id.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { liveApi, liveFakeWanted } from '../../lib/live/api';
-import { LiveError, type Settings } from '../../lib/live/types';
+import { LiveError, type BossKind, type GameMode, type Settings } from '../../lib/live/types';
+import { bossPictureUrl } from '../../lib/live/three/thumbs';
+import { BOSSES, STAND } from '../../components/live/stand/copy';
 import { loginFor } from '../../lib/returnTo';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { Boss } from '../../components/live/art/Boss';
@@ -56,14 +59,60 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 function ModePicture() {
   return (
     <div className="lvs-mode-pic" aria-hidden="true">
-      <Boss size={112} phase={0} />
-      <Character look={{ body: 'round', colour: 'blue', eyes: 'round', hat: 'none' }} size={46} style={{ left: 10, top: 74 }} />
-      <Character look={{ body: 'drop', colour: 'yellow', eyes: 'round', hat: 'antenna' }} size={46} style={{ left: 168, top: 70 }} phaseMs={300} />
+      <div className="lvs-mode-art">
+        <Boss size={112} phase={0} />
+        <Character look={{ body: 'round', colour: 'blue', eyes: 'round', hat: 'none' }} size={46} style={{ left: 10, top: 74 }} />
+        <Character look={{ body: 'drop', colour: 'yellow', eyes: 'round', hat: 'antenna' }} size={46} style={{ left: 168, top: 70 }} phaseMs={300} />
+      </div>
     </div>
   );
 }
 
-const TIMES = [10, 20, 30] as const;
+const TIMES: Record<GameMode, readonly Settings['time_s'][]> = { boss: [10, 20, 30], stand: [15, 20, 30] };
+const DEFAULT_TIME: Record<GameMode, Settings['time_s']> = { boss: 20, stand: 15 };
+
+function StandPicture() {
+  return (
+    <div className="lvs-mode-pic lvs-mode-pic--stand" aria-hidden="true">
+      <img src={bossPictureUrl('clock')} alt="" width={112} height={112} />
+    </div>
+  );
+}
+
+/** «Битва с монстром» or «Встань на ответ»: two cards, one picked. */
+function ModeChoice({ value, onChange }: { value: GameMode; onChange: (m: GameMode) => void }) {
+  const cards: Array<{ mode: GameMode; name: string; about: string; pic: ReactNode }> = [
+    { mode: 'boss', name: MODE.name, about: MODE.about, pic: <ModePicture /> },
+    { mode: 'stand', name: STAND.name, about: STAND.about, pic: <StandPicture /> },
+  ];
+  return (
+    <div className="lvs-modes" role="radiogroup" aria-label={SETUP.game}>
+      {cards.map((c) => (
+        <button key={c.mode} type="button" role="radio" aria-checked={value === c.mode} className="lvs-mode lvs-mode--card" onClick={() => onChange(c.mode)}>
+          {c.pic}
+          <span className="lvs-mode-body">
+            <b>{c.name}</b>
+            <span>{c.about}</span>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The stand game's boss, with its picture. */
+function BossChoice({ value, onChange }: { value: BossKind; onChange: (b: BossKind) => void }) {
+  return (
+    <div className="lvs-seg lvs-bosses" role="radiogroup" aria-label={SETUP.boss}>
+      {(['clock', 'skeleton'] as const).map((b) => (
+        <button key={b} type="button" role="radio" aria-checked={value === b} onClick={() => onChange(b)}>
+          <img src={bossPictureUrl(b)} alt="" width={40} height={40} />
+          {BOSSES[b].name}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function LiveSetupPage() {
   const [params] = useSearchParams();
@@ -79,7 +128,14 @@ export default function LiveSetupPage() {
 
   const [source, setSource] = useState<SourcePreview | null>(null);
   const [failed, setFailed] = useState(false);
-  const [time, setTime] = useState<Settings['time_s']>(20);
+  const [mode, setModeState] = useState<GameMode>(() => (params.get('mode') === 'stand' ? 'stand' : 'boss'));
+  const [boss, setBoss] = useState<BossKind>('clock');
+  const [time, setTime] = useState<Settings['time_s']>(() => DEFAULT_TIME[params.get('mode') === 'stand' ? 'stand' : 'boss']);
+  const setMode = useCallback((m: GameMode) => {
+    setModeState(m);
+    // each game starts from its own default (stand: 15 s, MODE_STAND §1)
+    setTime(DEFAULT_TIME[m]);
+  }, []);
   const [speed, setSpeed] = useState(true);
   const [who, setWho] = useState<Settings['who']>('pin');
   const [names, setNames] = useState(false);
@@ -124,7 +180,7 @@ export default function LiveSetupPage() {
     hostSound().unlock();
     setOpening(true);
     setError(null);
-    const settings: Settings = { mode: 'boss', time_s: time, speed, who, chat_names: hasChat && names };
+    const settings: Settings = { mode, time_s: time, speed, who, chat_names: hasChat && names, ...(mode === 'stand' ? { boss } : {}) };
     try {
       const gameSource = { container_id: source.containerId, subject_ids: source.subjectIds, count: chosen };
       const created = await api.create(gameSource, settings);
@@ -140,7 +196,7 @@ export default function LiveSetupPage() {
       setError(SETUP.error[code] ?? SETUP.error.other);
       setOpening(false);
     }
-  }, [api, source, opening, tooFew, time, speed, who, names, hasChat, chosen, search, navigate]);
+  }, [api, source, opening, tooFew, mode, boss, time, speed, who, names, hasChat, chosen, search, navigate]);
 
   if (needsSignIn) return <Navigate to={loginFor(pathname, search)} replace />;
 
@@ -169,16 +225,15 @@ export default function LiveSetupPage() {
         ) : (
           <>
             <p className="lvs-lead">{SETUP.lead(Math.min(chosen, cap))}</p>
-            <section className="lvs-mode" aria-label={MODE.name}>
-              <ModePicture />
-              <div className="lvs-mode-body">
-                <h2>{MODE.name}</h2>
-                <p>{MODE.about}</p>
-              </div>
-            </section>
+            <ModeChoice value={mode} onChange={setMode} />
             <div className="lvs-rows">
+              {mode === 'stand' ? (
+                <Row label={SETUP.boss}>
+                  <BossChoice value={boss} onChange={setBoss} />
+                </Row>
+              ) : null}
               <Row label={SETUP.time}>
-                <Seg label={SETUP.time} value={time} options={TIMES.map((t) => ({ value: t, text: SETUP.timeOption(t) }))} onChange={setTime} />
+                <Seg label={SETUP.time} value={time} options={TIMES[mode].map((t) => ({ value: t, text: SETUP.timeOption(t) }))} onChange={setTime} />
               </Row>
               <Row label={SETUP.speed}>
                 <Seg
@@ -236,7 +291,7 @@ export default function LiveSetupPage() {
                 <ul>
                   {skipped.slice(0, 30).map((q) => (
                     <li key={q.id}>
-                      {q.text} <span>— {SETUP.reason[q.skip!]}</span>
+                      {q.text} <span>{SETUP.reason[q.skip!]}</span>
                     </li>
                   ))}
                   {skipped.length > 30 ? <li>…</li> : null}

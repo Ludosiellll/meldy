@@ -18,6 +18,28 @@ export interface Point {
   y: number;
 }
 
+/**
+ * The floor grid the server drops (MODE_STAND.md §3, the `hello`'s `floor`): tiles of `tile` map units from (x, y),
+ * `cols` × `rows`. Its tile edges lie on the zones' edges.
+ */
+export interface FloorGrid {
+  x: number;
+  y: number;
+  tile: number;
+  cols: number;
+  rows: number;
+}
+
+/**
+ * What a mode tells the arena beyond the map: the floor grid that drops and the boss's stage, a solid circle of the
+ * map `[x, y, r]` the boss stands on. Without them the floor covers the whole map in tiles of ~100 and the stage is
+ * beyond the far edge.
+ */
+export interface ArenaShape {
+  floor?: FloorGrid;
+  stage?: readonly number[];
+}
+
 export interface Tile {
   col: number;
   row: number;
@@ -26,6 +48,8 @@ export interface Tile {
   y: number;
   /** Index into map.zones of the zone holding the centre, or -1. */
   zone: number;
+  /** Under the boss's stage: never drawn, never drops. */
+  under: boolean;
 }
 
 export interface TileLayout {
@@ -34,20 +58,37 @@ export interface TileLayout {
   /** Tile size along x and y, map units. */
   sx: number;
   sy: number;
+  /** The floor's top left corner, map units. */
+  x0: number;
+  y0: number;
   tiles: Tile[];
 }
 
 /** Map units per tile the layout aims at: 1600 × 900 gives 16 × 9 tiles. */
 export const TILE_TARGET = 100;
 
-/** Where the boss stands: centred above the map's top edge (y < 0 is beyond the far edge, behind the floor). */
-export function stageOf(map: MoveMap): Point {
+/**
+ * Where the boss stands: on the shape's stage when there is one (mode A: the solid circle in the middle), otherwise
+ * centred above the map's top edge (y < 0 is beyond the far edge, behind the floor).
+ */
+export function stageOf(map: MoveMap, shape?: ArenaShape): Point {
+  const st = shape?.stage;
+  if (st && st.length >= 2) return { x: st[0], y: st[1] };
   return { x: map.w / 2, y: -160 };
 }
 
-/** Where the boss's stomp lands and the collapse starts: just above the top edge, under the boss. */
-export function impactOf(map: MoveMap): Point {
+/** Where the boss's stomp lands and the collapse starts: the stage's centre, or just above the top edge under the boss. */
+export function impactOf(map: MoveMap, shape?: ArenaShape): Point {
+  const st = shape?.stage;
+  if (st && st.length >= 2) return { x: st[0], y: st[1] };
   return { x: map.w / 2, y: -25 };
+}
+
+/** The floor's outline, map units: the shape's grid, or the whole map. */
+export function floorRect(map: MoveMap, shape?: ArenaShape): { x: number; y: number; w: number; h: number } {
+  const f = shape?.floor;
+  if (f && f.cols > 0 && f.rows > 0 && f.tile > 0) return { x: f.x, y: f.y, w: f.cols * f.tile, h: f.rows * f.tile };
+  return { x: 0, y: 0, w: map.w, h: map.h };
 }
 
 /** Index of the first zone holding the point (the server's rule), or -1. */
@@ -60,26 +101,36 @@ export function zoneAt(map: MoveMap, x: number, y: number): number {
   return -1;
 }
 
-export function layoutTiles(map: MoveMap, target = TILE_TARGET): TileLayout {
-  const cols = Math.max(1, Math.round(map.w / target));
-  const rows = Math.max(1, Math.round(map.h / target));
-  const sx = map.w / cols;
-  const sy = map.h / rows;
+/**
+ * The floor's tiles: the shape's grid when it has one (the server's: every tile edge on a zone edge), otherwise the
+ * whole map in tiles of about `target`. Tiles whose centre is under the stage are marked `under`.
+ */
+export function layoutTiles(map: MoveMap, target = TILE_TARGET, shape?: ArenaShape): TileLayout {
+  const f = shape?.floor;
+  const grid = f && f.cols > 0 && f.rows > 0 && f.tile > 0;
+  const cols = grid ? f.cols : Math.max(1, Math.round(map.w / target));
+  const rows = grid ? f.rows : Math.max(1, Math.round(map.h / target));
+  const sx = grid ? f.tile : map.w / cols;
+  const sy = grid ? f.tile : map.h / rows;
+  const x0 = grid ? f.x : 0;
+  const y0 = grid ? f.y : 0;
+  const st = shape?.stage;
   const tiles: Tile[] = [];
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const x = (col + 0.5) * sx;
-      const y = (row + 0.5) * sy;
-      tiles.push({ col, row, x, y, zone: zoneAt(map, x, y) });
+      const x = x0 + (col + 0.5) * sx;
+      const y = y0 + (row + 0.5) * sy;
+      const under = !!st && st.length >= 3 && Math.hypot(x - st[0], y - st[1]) < st[2];
+      tiles.push({ col, row, x, y, zone: zoneAt(map, x, y), under });
     }
   }
-  return { cols, rows, sx, sy, tiles };
+  return { cols, rows, sx, sy, x0, y0, tiles };
 }
 
 /** Index of the tile under a map point, or -1 off the floor. */
 export function tileIndexAt(layout: TileLayout, x: number, y: number): number {
-  const col = Math.floor(x / layout.sx);
-  const row = Math.floor(y / layout.sy);
+  const col = Math.floor((x - layout.x0) / layout.sx);
+  const row = Math.floor((y - layout.y0) / layout.sy);
   if (col < 0 || row < 0 || col >= layout.cols || row >= layout.rows) return -1;
   return row * layout.cols + col;
 }
@@ -130,14 +181,14 @@ export function planCollapse(
   tStart: number,
   seed = 1,
   out: Float64Array = new Float64Array(layout.tiles.length),
+  impact: Point = impactOf(map),
 ): Float64Array {
   const correct = (map.zones ?? []).findIndex((z) => z.id === correctZoneId);
-  const impact = impactOf(map);
   const random = rng(seed);
   for (let i = 0; i < layout.tiles.length; i++) {
     const tile = layout.tiles[i];
     const j = random();
-    out[i] = correct >= 0 && tile.zone === correct ? Infinity : dropStart(tile.x, tile.y, impact, tStart, j);
+    out[i] = tile.under || (correct >= 0 && tile.zone === correct) ? Infinity : dropStart(tile.x, tile.y, impact, tStart, j);
   }
   return out;
 }

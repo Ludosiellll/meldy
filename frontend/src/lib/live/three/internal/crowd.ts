@@ -129,6 +129,8 @@ export class Crowd {
   /** Every live player (an array: iterating it each frame allocates nothing). */
   readonly players: CrowdPlayer[] = [];
   outlines = true;
+  /** How high over the feet the name tags sit, metres (ViewOptions.tagHeight). */
+  tagY = TAG_Y;
   /** Counts the kit's frames (see CrowdPlayer.stamp). */
   frame = 0;
 
@@ -232,6 +234,7 @@ export class CrowdPlayer {
   private facing = 0;
   private target = 0;
   private ghost = false;
+  private away = false;
   private time = 0;
   private disposed = false;
   /** The kit frame this player was last updated in. */
@@ -249,7 +252,8 @@ export class CrowdPlayer {
     this.color.set(hex);
     this.phase = ((seed * 0.6180339887) % 1 + 1) % 1;
     this.machine = new PoseMachine(crowd.baked.clips, this.phase);
-    this.tag = crowd.tags.add(name, hex);
+    // No name, no tag: a phone knows only its own player's name (CONTRACT §5), so the others carry none there.
+    this.tag = name.trim() ? crowd.tags.add(name, hex) : -1;
     this.attach();
     crowd.players.push(this);
   }
@@ -265,6 +269,10 @@ export class CrowdPlayer {
 
   setPose(pose: Pose): void {
     this.machine.set(pose);
+  }
+
+  setAway(on: boolean): void {
+    this.away = on;
   }
 
   setGhost(on: boolean): void {
@@ -329,7 +337,7 @@ export class CrowdPlayer {
       const floorY = this.ghost ? 0 : this.z / UNITS;
       if (!this.ghost) this.crowd.blobs.push(wx, Math.min(0, floorY) + 0.02, wz, 0.62, 1, this.color.r, this.color.g, this.color.b, 0.95);
     }
-    if (!falling || this.ghost) this.crowd.tags.push(this.tag, wx, wy + TAG_Y, wz, this.ghost);
+    if (!falling || this.ghost) this.crowd.tags.push(this.tag, wx, wy + this.crowd.tagY, wz, this.ghost || this.away);
   }
 
   private writeSlot(slot: Slot, row0: number, w: number): void {

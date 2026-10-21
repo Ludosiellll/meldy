@@ -1,0 +1,60 @@
+/**
+ * The words of the projector in «Встань на ответ» (docs/live/MODE_STAND.md §8). Plain Russian, one short sentence per
+ * thought, numbers first (the plain-words rules of 21.10). Shared words come from the battle's copy.
+ */
+import { NEXT, count, nb, plural } from '../host/copy';
+
+const NBSP = ' ';
+const QUESTIONS = ['вопрос', 'вопроса', 'вопросов'] as const;
+
+export const STAND = {
+  name: 'Встань на ответ',
+  about: 'Ученики бегут на верный ответ. Остальной пол проваливается.',
+  question: (i: number, n: number) => `Вопрос ${i} из ${n}`,
+  pin: (pin: string) => `PIN ${pin.length === 6 ? `${pin.slice(0, 3)}${NBSP}${pin.slice(3)}` : pin}`,
+  questions: (n: number) => count(n, QUESTIONS),
+  hint: 'Встаньте на верный ответ. Остальной пол провалится.',
+  right: 'Верный ответ',
+  alive: 'Живы',
+  ghosts: 'Призраки',
+  playing: 'Играют',
+  stood: (n: number, of: number) => ({ before: 'Устояли ', n: nb(n), after: ` из ${nb(of)}` }),
+  nobody: 'Никто не устоял',
+  fastest: (name: string, pts: number) => `Быстрее всех ${name}, +${nb(pts)}`,
+  top: 'Больше всех очков',
+  topAfter: (i: number, n: number) => `После ${i} ${plural(i, ['вопроса', 'вопросов', 'вопросов'])} из ${n}`,
+  up: (n: number) => `▲${NBSP}${n}`,
+  down: (n: number) => `▼${NBSP}${n}`,
+  final: 'Итог игры',
+  accuracy: (pct: number) => `Верных ответов ${pct}${NBSP}%`,
+  ended: 'Игра закончилась',
+  // the teacher's «next» reads as in the battle
+  next: NEXT.reveal,
+  nextLast: NEXT.revealLast,
+  nextQuestion: NEXT.leaderboard,
+  review: 'Разбор',
+  again: 'Ещё раз',
+  finish: 'Закончить игру',
+  start: 'Начать',
+  go: 'Заходите на',
+  camera: 'Или наведите камеру телефона на код.',
+  // short sentences, no «·» chains (the plain-words rules)
+  settings: (time: number, speed: boolean, members: boolean) =>
+    [`${time}${NBSP}с на вопрос.`, speed ? 'Быстрым больше очков.' : 'Очки только за верный ответ.', members ? 'Играют участники экзамена.' : 'Войти можно по PIN.'].join(' '),
+  lost: 'Связь с игрой пропала. Подключаемся.',
+  noWebgl: 'Этот браузер не показывает 3D. Откройте игру в Chrome, Edge или Firefox.',
+  sound: 'Звук',
+  soundOn: 'Включить звук',
+  soundOff: 'Выключить звук',
+  players: 'Игроки',
+  fullscreen: 'Во весь экран',
+  fullscreenOff: 'Выйти из полного экрана',
+  end: 'Закончить',
+  offline: 'Нет связи, пробуем снова',
+};
+
+/** The two bosses the teacher picks from (the setup page and the lobby). */
+export const BOSSES = {
+  clock: { name: 'Будильник', about: 'Будильник-громила' },
+  skeleton: { name: 'Скелет', about: 'Скелет с будильником' },
+} as const;

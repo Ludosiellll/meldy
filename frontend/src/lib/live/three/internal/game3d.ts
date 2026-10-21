@@ -6,8 +6,8 @@ import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { ANIMS_FILE, BODY_FILES, SKELETON_FILE } from '../assets.gen';
 import { MODELS, toPlayerLook, type PlayerLook } from '../look';
-import type { MoveMap } from '../arenaPlan';
-import type { Arena, Boss, BossKind, BossPhase, Kit, LoadOptions, Player, View, ViewOptions } from '../types';
+import type { ArenaShape, MoveMap } from '../arenaPlan';
+import type { Arena, Boss, BossKind, BossOptions, BossPhase, Kit, LoadOptions, Player, View, ViewOptions } from '../types';
 import { buildBodies } from './bodies';
 import { Blobs } from './blobs';
 import { BossImpl } from './boss';
@@ -83,6 +83,9 @@ class ArenaFacade implements Arena {
   }
   setZoneLabels(labels: Partial<Record<string, string>>): void {
     this.impl.setZoneLabels(labels);
+  }
+  setClosedZones(ids: readonly string[]): void {
+    this.impl.setClosedZones(ids);
   }
   collapse(correctZoneId: string, tStart?: number): void {
     this.impl.collapse(correctZoneId, tStart ?? this.kit.now());
@@ -186,7 +189,7 @@ export class KitImpl implements Kit {
     return new CrowdPlayer(this.crowd, toPlayerLook(look), name, this.seed++);
   }
 
-  createBoss(kind: BossKind): Boss {
+  createBoss(kind: BossKind, options: BossOptions = {}): Boss {
     let gltf: GLTF | null = null;
     if (kind === 'skeleton') {
       if (!this.skeletonGltf) throw new Error("the skeleton is not loaded: loadKit({ boss: 'skeleton' }) or kit.loadBoss('skeleton') first");
@@ -195,7 +198,7 @@ export class KitImpl implements Kit {
       this.skeletonGltf = null;
       this.skeleton = null;
     }
-    const impl = new BossImpl(kind, this.ramp, this.shared, gltf, kind === 'skeleton' ? 6.0 : 6.6);
+    const impl = new BossImpl(kind, this.ramp, this.shared, gltf, options.height ?? (kind === 'skeleton' ? 6.0 : 6.6));
     const arena = this.arenas[0];
     const stage = arena ? arena.stage : { x: 800, y: -160 };
     impl.setPosition(stage.x, stage.y);
@@ -207,8 +210,8 @@ export class KitImpl implements Kit {
     return boss;
   }
 
-  createArena(map: MoveMap): Arena {
-    const impl = new ArenaImpl(map, this.ramp, this.shared, (s) => this.view?.shake(s));
+  createArena(map: MoveMap, shape?: ArenaShape): Arena {
+    const impl = new ArenaImpl(map, this.ramp, this.shared, (s) => this.view?.shake(s), shape);
     impl.setOutlines(this.outlines);
     impl.effects = this.effects;
     this.scene.add(impl.group);

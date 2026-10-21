@@ -4,7 +4,8 @@
  */
 import * as THREE from 'three';
 import { QUALITY_LEVELS, QualityGovernor } from '../quality';
-import { impactOf, stageOf, type MoveMap } from '../arenaPlan';
+import type { MoveMap } from '../arenaPlan';
+import { floorRect, impactOf, stageOf } from '../arenaPlan';
 import type { CameraSpec, FrameStats, ViewOptions } from '../types';
 import type { KitImpl } from './game3d';
 import { UNITS } from './crowd';
@@ -39,7 +40,7 @@ export class ViewImpl {
   private shakeLeft = 0;
   private shakeStrength = 0;
   private readonly base = { eye: new THREE.Vector3(), target: new THREE.Vector3() };
-  private fitTo: { map: MoveMap; margins: Required<NonNullable<CameraSpec['margins']>> } | null = null;
+  private fitTo: { map: MoveMap; margins: Required<NonNullable<CameraSpec['margins']>>; tilt: number } | null = null;
   private lastCalls = 0;
   private lastTris = 0;
   private width = 1;
@@ -65,6 +66,8 @@ export class ViewImpl {
     this.renderer.setClearColor(0x000000, options.transparent ? 0 : 1);
     if (typeof options.quality === 'number') this.setQuality(options.quality);
     this.kit.tags.scale = options.tagScale ?? 1;
+    this.kit.tags.declutter = options.tagDeclutter ?? true;
+    if (options.tagHeight !== undefined) this.kit.crowd.tagY = options.tagHeight;
     this.observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.resize()) : null;
     this.observer?.observe(canvas);
     this.onVisibility = () => {
@@ -101,6 +104,7 @@ export class ViewImpl {
       this.fitTo = {
         map: spec.arena,
         margins: { top: 0, bottom: 0, left: 0, right: 0, ...(spec.margins ?? {}) },
+        tilt: spec.tilt ?? (Math.atan2(17, 33) * 180) / Math.PI,
       };
       this.camera.fov = spec.fov ?? 38;
       this.camera.updateProjectionMatrix();
@@ -108,6 +112,7 @@ export class ViewImpl {
       return;
     }
     this.fitTo = null;
+    this.camera.clearViewOffset();
     if (spec.fov) this.camera.fov = spec.fov;
     this.camera.updateProjectionMatrix();
     const eye = spec.eye ?? { x: 0, y: 1000, z: 500 };
@@ -122,36 +127,58 @@ export class ViewImpl {
     const fit = this.fitTo;
     if (!fit) return;
     const { map, margins } = fit;
-    const W = map.w / UNITS;
-    const H = map.h / UNITS;
-    const stage = stageOf(map);
-    const target = new THREE.Vector3(W / 2, 0, H / 2 - H * 0.15);
-    const dir = new THREE.Vector3(0, 17, 33).normalize();
-    // the floor's corners (the frame may be cut at the front) and the top of a boss on its stage
+    // the arena drawn for this map (its floor, its stage), or one made up from the map alone
+    const drawn = this.kit.arenas.find((a) => a.impl.map === map)?.impl;
+    const arena = drawn ?? { bounds: floorRect(map), stage: stageOf(map), impact: impactOf(map) };
+    const b = arena.bounds;
+    const X0 = b.x / UNITS;
+    const Z0 = b.y / UNITS;
+    const W = b.w / UNITS;
+    const H = b.h / UNITS;
+    const stage = arena.stage;
+    const inside = stage.y >= b.y;
+    // a stage inside the floor: aim at the floor's middle; one beyond the far edge: a little behind the middle
+    const target = new THREE.Vector3(X0 + W / 2, 0, Z0 + H / 2 - (inside ? 0 : H * 0.15));
+    const tilt = (Math.min(89, Math.max(5, fit.tilt)) * Math.PI) / 180;
+    const dir = new THREE.Vector3(0, Math.sin(tilt), Math.cos(tilt));
+    const bossTop = this.kit.bosses.length ? this.kit.bosses[0].impl.height + 0.8 : 7.4;
+    // the floor's corners (the frame may be cut at the front), the signs' tops and the top of a boss on its stage
     const points = [
-      new THREE.Vector3(0, 0, H),
-      new THREE.Vector3(W, 0, H),
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(W, 0, 0),
-      new THREE.Vector3(stage.x / UNITS, 7.4, stage.y / UNITS),
-      new THREE.Vector3(impactOf(map).x / UNITS, 0, impactOf(map).y / UNITS),
+      new THREE.Vector3(X0, 0, Z0 + H),
+      new THREE.Vector3(X0 + W, 0, Z0 + H),
+      new THREE.Vector3(X0, 0, Z0),
+      new THREE.Vector3(X0 + W, 0, Z0),
+      new THREE.Vector3(stage.x / UNITS, bossTop, stage.y / UNITS),
+      new THREE.Vector3(arena.impact.x / UNITS, 0, arena.impact.y / UNITS),
+      ...(drawn ? drawn.labelPoints() : []),
     ];
     const lim = { l: -1 + 2 * margins.left, r: 1 - 2 * margins.right, b: -1 + 2 * margins.bottom, t: 1 - 2 * margins.top };
+    // as close as the picture fits between the margins; then the lens shifts it to their middle (no tilt changes)
+    this.camera.clearViewOffset();
     let dist = Math.max(W, H) * 0.4;
+    const box = { x0: 0, x1: 0, y0: 0, y1: 0 };
     for (let k = 0; k < 300; k++) {
       this.camera.position.copy(target).addScaledVector(dir, dist);
       this.camera.lookAt(target);
       this.camera.updateMatrixWorld(true);
-      let ok = true;
+      box.x0 = box.y0 = Infinity;
+      box.x1 = box.y1 = -Infinity;
+      let behind = false;
       for (const p of points) {
         _v.copy(p).project(this.camera);
-        if (_v.x < lim.l || _v.x > lim.r || _v.y < lim.b || _v.y > lim.t || _v.z > 1) {
-          ok = false;
-          break;
-        }
+        if (_v.z > 1) behind = true;
+        box.x0 = Math.min(box.x0, _v.x);
+        box.x1 = Math.max(box.x1, _v.x);
+        box.y0 = Math.min(box.y0, _v.y);
+        box.y1 = Math.max(box.y1, _v.y);
       }
-      if (ok) break;
+      if (!behind && box.x1 - box.x0 <= lim.r - lim.l && box.y1 - box.y0 <= lim.t - lim.b) break;
       dist *= 1.02;
+    }
+    const sx = (lim.l + lim.r) / 2 - (box.x0 + box.x1) / 2;
+    const sy = (lim.b + lim.t) / 2 - (box.y0 + box.y1) / 2;
+    if (Math.abs(sx) > 1e-4 || Math.abs(sy) > 1e-4) {
+      this.camera.setViewOffset(this.width, this.height, (-sx * this.width) / 2, (sy * this.height) / 2, this.width, this.height);
     }
     this.base.eye.copy(this.camera.position);
     this.base.target.copy(target);
