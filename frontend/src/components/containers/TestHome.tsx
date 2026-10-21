@@ -13,6 +13,7 @@ import { glue, TO_EXAMS } from './copy';
 import { nb } from './copyImport';
 import { TEST_HOME } from '../test/copyTest';
 import { ENTRY as LIVE_ENTRY } from '../live/host/copy';
+import { liveGameOpen } from '../../lib/live/open';
 import './testHome.css';
 
 /**
@@ -63,8 +64,9 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
       {TEST_HOME.send}
     </Link>
   );
-  // «Провести игру» (live game «Битва с монстром», docs/live/CONTRACT.md): the setup at /live/new; shut for the same reason.
-  const game = why ? (
+  // «Провести игру» (live game «Битва с монстром», docs/live/CONTRACT.md): the setup at /live/new; shut for the same reason,
+  // and hidden until the students' side is on the site (lib/live/open).
+  const game = !liveGameOpen() ? null : why ? (
     <button type="button" className="th-send" disabled aria-describedby={whyId}>
       {LIVE_ENTRY.host}
     </button>
