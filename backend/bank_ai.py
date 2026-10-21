@@ -367,13 +367,15 @@ def build_item(question: AIQuestion, lines: dict[int, MLine], reader: Reader) ->
     if named and not question_number(first):
         first = first[named.end():]  # «Б. Какая …»: номер вопроса буквой — тот, что назвала модель
     number = question_number(first)
-    label = number[0] if number else (question.number or "")
+    # номер от модели — только если он написан в строках вопроса: в файле без номеров это часто номер строки
+    written = question.number if named else ""
+    label = number[0] if number else written
     text_lines = [number[2] if number else first] + [text.rstrip() for text in texts[1:]]
     alone = bank_parse.QUESTION_NUMBER_RE.match(first)
     if alone and len(stem_lines) > 1:
         label, text_lines = alone.group(1), [text.rstrip() for text in texts[1:]]
     first_line = stem_lines[0]
-    item = Item(label=label if label.replace(".", "").isdigit() else (question.number or ""), text="\n".join(text_lines).strip(),
+    item = Item(label=label if label.replace(".", "").isdigit() else written, text="\n".join(text_lines).strip(),
                 ref=(first_line.block, first_line.row, 0 if first_line.row >= 0 else first_line.sub), where=f"строка {first_line.n}")
     take_stem_answer(item)
     item.images = [image for line in stem_lines for image in line.images]

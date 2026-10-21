@@ -181,6 +181,17 @@ def test_a_key_is_taken_only_with_a_mark_the_server_finds_in_the_file():
     assert other_mark.correct == [] and flags == ["ai_key_rejected"]
 
 
+def test_the_model_s_number_becomes_the_label_only_when_the_question_s_lines_carry_it():
+    plain = "Сколько будет два плюс два?\nтри\nчетыре\nпять\n"
+    item, _ = build(plain, {"n": "8", "q": [1], "o": [2, 3, 4], "kind": "single"})
+    assert item.label == ""  # «8» — строка файла в ответе модели, у вопроса номера нет
+    numbered = "8. Сколько будет два плюс два?\nа) три\nб) четыре\nв) пять\n"
+    item, _ = build(numbered, {"n": "8", "q": [1], "o": [2, 3, 4], "kind": "single"})
+    assert item.label == "8" and item.text == "Сколько будет два плюс два?"
+    lettered, _ = build(LETTERED, {"n": "А", "q": [1], "o": [2, 3, 4], "kind": "single"})
+    assert lettered.label == "А"
+
+
 def test_answer_lines_in_any_language_and_inline_checkboxes_are_checked_against_the_line():
     text = "1. Колькі літар у беларускім алфавіце?\nа) 32\nб) 33\nв) 36\nАдказ: а\n"
     item, flags = build(text, {"n": "1", "q": [1], "o": [2, 3, 4], "kind": "single", "key": [0],
