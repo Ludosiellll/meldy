@@ -104,7 +104,7 @@ export default function TicketAloud() {
             </span>
             <span className="p3-tk-wave" aria-hidden="true">
               {Array.from({ length: BARS }, (_, index) => (
-                <i key={index} style={{ '--b': index } as CSSProperties} />
+                <i key={index} style={{ '--b': (index * 7) % 11 } as CSSProperties} />
               ))}
             </span>
             <Swap items={[TICKET_TALK.speaking, TICKET_TALK.asking, TICKET_TALK.done]} at={label} className="p3-tk-who" />

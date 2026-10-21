@@ -56,7 +56,7 @@
   line-height: 1.15;
 }
 .p3-p {
-  max-width: 48ch;
+  max-width: 56ch;
   margin: 8px 0 0;
   color: var(--h3-muted);
   font-size: 16px;
@@ -904,26 +904,26 @@
 }
 .p3-tk-talk {
   display: grid;
-  gap: 12px;
+  gap: 10px;
   align-content: start;
   transition: opacity 0.5s ease;
 }
 .p3-tk-lines {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 .p3-tk-line {
   justify-self: end;
-  max-width: 92%;
-  padding: 8px 13px 10px;
+  max-width: 94%;
+  padding: 7px 12px 8px;
   border-radius: 16px 16px 5px 16px;
   background: #2869dd;
   color: #fff;
   font-size: 13.5px;
-  line-height: 1.4;
+  line-height: 1.35;
   opacity: 0;
   transform: translate3d(0, 10px, 0);
   transition:
@@ -938,8 +938,8 @@
 }
 .p3-tk-line b {
   display: block;
-  margin-bottom: 2px;
-  font-size: 11.5px;
+  margin-bottom: 1px;
+  font-size: 11px;
   font-weight: 600;
   opacity: 0.72;
 }
@@ -1210,10 +1210,20 @@
 .p3-try .p3-p {
   margin-bottom: 18px;
 }
+/* the studio's place before its file arrives: the studio's own height (miniStudio.css), so nothing moves then */
 .p3-studio-wait {
-  height: clamp(480px, calc(100svh - 108px), 720px);
+  height: clamp(500px, calc(100vh - 100px), 700px);
+  height: clamp(500px, calc(100svh - 100px), 700px);
   border-radius: 32px;
   background: #ecece6;
+}
+@media (max-width: 699px) {
+  .p3-studio-wait {
+    height: min(680px, calc(100vh - 96px));
+    height: min(680px, calc(100svh - 96px));
+    min-height: 540px;
+    border-radius: 28px;
+  }
 }
 .p3-send {
   display: flex;

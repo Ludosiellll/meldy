@@ -220,3 +220,5 @@ export const FINAL = {
 } as const;
 
 export const FOOTER = 'Meldy помогает готовиться к экзамену и собирать тесты.';
+/** lib/telemetry's note in the page's words (the same facts; the profile keeps its own line). */
+export const FOOTER_NOTE = 'Meldy собирает статистику использования и отчёты об ошибках. Тексты лекций и ответы туда не попадают.';

@@ -55,6 +55,7 @@ describe('the landing v3 words (owner, 2026-10-19: plain, no AI-looking lines)',
       COPY.PICTURES,
       COPY.FINAL,
       COPY.FOOTER,
+      COPY.FOOTER_NOTE,
     ]);
     expect(page.length).toBeGreaterThan(60);
     for (const text of page) {

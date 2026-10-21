@@ -9,9 +9,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { lazyPart, useLazyPart } from '../../lib/lazyPart';
 import { prefetchLink } from '../../lib/prefetch';
-import { TELEMETRY_NOTE } from '../../lib/telemetry';
 import Builder from './Builder';
-import { CTA, FINAL, FOOTER, SAMPLE_TEST_URL, bind } from './copy3';
+import { CTA, FINAL, FOOTER, FOOTER_NOTE, SAMPLE_TEST_URL, bind } from './copy3';
 import HeroTop, { ArrowIcon } from './HeroTop';
 import { ExamSection, GroupSection, LectureSection } from './Sections';
 import './hero3.css';
@@ -128,7 +127,7 @@ export default function Landing3() {
             Meldy
           </a>
           <span>{FOOTER}</span>
-          <p className="p3-foot-note">{TELEMETRY_NOTE}</p>
+          <p className="p3-foot-note">{FOOTER_NOTE}</p>
         </footer>
       ) : null}
     </div>
