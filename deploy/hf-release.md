@@ -4,6 +4,20 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.12: «Провести игру» open to every author (from the commit of this entry)
+
+- **«Битва с монстром» is open:** «Провести игру» shows on every test's home (`lib/live/open.ts`,
+  `LIVE_OPEN_FOR_ALL = true`; false shuts it again, `?live=1` still opens it in one browser).
+- **After the second live check** (47.11, four games, 24 players, a forced Realtime drop): the teacher's ring reads 0
+  when the time runs out; «N из M ответили» and «Все ответили» count only who could answer the question (a late
+  joiner waits for the next one); a reload of the teacher's screen keeps everyone in their seat; the walk into the
+  arena without names crossing the question; the question's top three in letters the back row reads, the first
+  with its character; the Telegram note in the lobby no longer covers the QR code; a signed-out `/live/new` goes
+  straight to sign-in. On the phone: the gap to the next place reads right for every number («Даша впереди,
+  разница по урону: 2»); after an early end the review goes back to «Игра закончилась»; the guest's crown card fits
+  above the bar on 390×844 and 360×740.
+- Gate on 9bdaf08: pytest 2316, bot 387, sync ok, Vitest 370 files / 6345 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.11: the live game after its check on the real database, still closed; the Supabase route (from the commit of this entry)
 
 - **«Битва с монстром», after the live check on the real database** (4 games, a class of 23–24, Realtime, reconnects):
