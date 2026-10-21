@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.19: the movement game «Встань на ответ» (from the commit of this entry)
+
+- **«Встань на ответ»** (owner, 21.10: a game where everyone runs their own character from the phone): on `/live/new` the
+  teacher picks «Битва с монстром» or «Встань на ответ», the boss (Будильник or Скелет) and 15/20/30 s. The projector
+  (`components/live/stand/`) shows the 3D arena (KayKit players, the boss on the central stage), the question board with
+  the count per zone, the stomp and the floor dropping, ghosts, «Устояли N из M», the top five and the podium. The phone
+  (`components/live/stand/phone/`) picks a hero, then plays in its own 3D view (camera behind the player, joystick, mini-map,
+  «Вы на ответе Б»), the results over the arena; a light 2D view on phones too weak for 3D; Telegram full screen. Join
+  link and QR carry `&mode=stand`. `?fps=1` shows a frame-rate readout on both screens for a check on real devices.
+- Database: `20261023090000_live_stand_phone` applied (run 39610639368): the kit's hats, the game's mode in the bot's
+  posts. The bot is deployed with this release.
+- Gate on 98241a4 (clean worktree): pytest 2440, bot 393, sync ok, Vitest 399 files / 6557 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.18: a reload keeps the place (from the commit of this entry)
 
 - **A reload keeps the place** (owner, 21.10: «когда обновляется страница то состояние сбивается … в целом везде»): one
