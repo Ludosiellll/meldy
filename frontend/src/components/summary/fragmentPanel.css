@@ -48,6 +48,11 @@
   animation: fp-in 320ms var(--m-ease) backwards;
 }
 .fp-panel:focus { outline: none; }
+/* The panel sits in a portal, outside the page's roots: the same focus ring as on the page (paper.css). */
+.fp-layer button:focus-visible,
+.fp-layer a:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
+.fp-pill:focus-visible,
+.fp-close:focus-visible { border-radius: 999px; }
 .fp-layer[data-still] .fp-panel,
 .fp-layer[data-still] .fp-dim { animation: none; }
 
