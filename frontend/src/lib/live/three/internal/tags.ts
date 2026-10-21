@@ -7,7 +7,7 @@ import { FONT, roundRect } from './materials';
 import { uploadFirst } from './upload';
 
 const ATLAS_W = 1024;
-const ATLAS_H = 1280;
+const ATLAS_H = 1408;
 const CELL_W = 340;
 const CELL_H = 64;
 const COLS = Math.floor(ATLAS_W / CELL_W);

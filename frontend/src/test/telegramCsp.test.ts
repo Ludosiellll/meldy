@@ -23,7 +23,7 @@ function directives(policy: string): Map<string, string> {
 
 describe('the CSP of every location (nginx.conf)', () => {
   it('is one policy, sent from the server and from each location that sets headers of its own', () => {
-    expect(policies).toHaveLength(3);
+    expect(policies).toHaveLength(4);
     expect(new Set(policies).size).toBe(1);
   });
 

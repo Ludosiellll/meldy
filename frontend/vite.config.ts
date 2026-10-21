@@ -29,6 +29,10 @@ export default defineConfig({
       injectRegister: 'auto',
       injectManifest: {
         maximumFileSizeToCacheInBytes: 5000000,
+        // The 3D games' chunk (three.js and the kit, src/lib/live/three/internal/game3d.ts) loads only on the game's
+        // screens: precaching it would send it to every visitor with each release. Its hashed name keeps it in the
+        // browser's cache (nginx: /assets/ for a year), like the models in public/game (docs/live/KIT_3D.md).
+        globIgnores: ['**/game3d-*.js'],
       },
       devOptions: {
         enabled: true, // Enable for testing in dev
