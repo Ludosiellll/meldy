@@ -14,7 +14,7 @@ const files = vi.hoisted(() => {
     });
     return { promise, resolve, reject, asked: 0 };
   };
-  return { ticket: deferred(), draw: deferred(), lecture: deferred() };
+  return { ticket: deferred(), lecture: deferred() };
 });
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
@@ -27,10 +27,11 @@ vi.mock('../components/example/tryParts', async () => {
       file.asked += 1;
       return file.promise as Promise<ComponentType>;
     });
-  return { tryTicketPart: held(files.ticket), tryDrawPart: held(files.draw), tryLecturePart: held(files.lecture) };
+  return { tryTicketPart: held(files.ticket), tryLecturePart: held(files.lecture) };
 });
 
 import TryExample from './TryExample';
+import { LECTURE_RESULT_LINK, PICK_TITLE } from '../components/example/ExamplePick';
 
 class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -54,57 +55,31 @@ function renderAt(url: string) {
   );
 }
 
+const plain = (text: string) => text.replace(/\s+/g, ' ').trim();
+
+/** A new file on the way for the lecture's result (the one before failed). */
+function renewLecture() {
+  const promise = new Promise((resolve, reject) => {
+    files.lecture.resolve = resolve;
+    files.lecture.reject = reject;
+  });
+  files.lecture.promise = promise;
+}
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   window.sessionStorage.clear();
 });
 
-describe('the example’s draw and answer room are files of their own (jury QA, 2026-10-11: Slow 4G)', () => {
-  it('the sheet shows without them: neither file is asked for', () => {
+describe('the example’s answer room and the lecture’s result are files of their own (jury QA, 2026-10-11: Slow 4G)', () => {
+  it('the list of questions shows without them: neither file is asked for', () => {
     renderAt('/try');
-    expect(document.querySelector('.cs-paper')).not.toBeNull();
+    expect(screen.getByRole('heading', { level: 1, name: PICK_TITLE })).toBeInTheDocument();
     expect(files.ticket.asked).toBe(0);
-    expect(files.draw.asked).toBe(0);
-    // The lecture's result neither: its link is on the sheet, its file comes when the link is pointed at or opened.
-    expect(screen.getByRole('link', { name: /^Что\sMeldy\sсделал\sиз\sлекции\s«Спрос\sи\sпредложение»$/ })).toHaveAttribute('href', '/try/lecture');
+    // The lecture's result neither: its link is under the list, its file comes when the link is pointed at or opened.
+    expect(screen.getByRole('link', { name: (name) => plain(name) === plain(LECTURE_RESULT_LINK) })).toHaveAttribute('href', '/try/lecture');
     expect(files.lecture.asked).toBe(0);
-  });
-
-  it('the lecture’s result keeps its top line and the loader while its file comes, the way back named for the exam example', async () => {
-    renderAt('/try/lecture');
-    expect(files.lecture.asked).toBe(1);
-    expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Пример экзамена' })).toHaveAttribute('href', '/try');
-    const { default: ExampleLecture } = await import('../components/example/ExampleLecture');
-    await act(async () => {
-      files.lecture.resolve(ExampleLecture);
-      await files.lecture.promise;
-    });
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Пример экзамена' })).toHaveAttribute('href', '/try');
-    expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
-  });
-
-  it('a step whose file is still on its way keeps the top line and the page loader, then shows at once when it arrives', async () => {
-    renderAt('/try/ticket?q=q5');
-    expect(files.ticket.asked).toBe(1);
-    expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Лист примера' })).toHaveAttribute('href', '/try');
-    expect(screen.queryByRole('main')).toBeNull();
-    const { default: ExampleTicket } = await import('../components/example/ExampleTicket');
-    await act(async () => {
-      files.ticket.resolve(ExampleTicket);
-      await files.ticket.promise;
-    });
-    expect(screen.getByRole('button', { name: 'Вставить ответ примера' })).toBeInTheDocument();
-    expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
-    // Once in, the step shows on its first frame: no loader again.
-    cleanup();
-    renderAt('/try/ticket?q=q5');
-    expect(screen.getByRole('button', { name: 'Вставить ответ примера' })).toBeInTheDocument();
-    expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
-    expect(files.ticket.asked).toBe(1);
   });
 
   it('a file that did not load goes to the boundary, as a page’s does', async () => {
@@ -113,12 +88,51 @@ describe('the example’s draw and answer room are files of their own (jury QA, 
     window.addEventListener('error', quiet);
     onTestFinished(() => window.removeEventListener('error', quiet));
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    renderAt('/try/draw');
+    renderAt('/try/lecture');
     expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
     await act(async () => {
-      files.draw.reject(new Error('Failed to fetch dynamically imported module'));
-      await files.draw.promise.catch(() => undefined);
+      files.lecture.reject(new Error('Failed to fetch dynamically imported module'));
+      await files.lecture.promise.catch(() => undefined);
     });
     expect(screen.getByRole('alert').textContent).toBe('Ошибка: Failed to fetch dynamically imported module');
+    // The next time the page is wanted, its file is fetched again.
+    renewLecture();
+  });
+
+  it('the lecture’s result keeps its top line and the loader while its file comes, the way back saying where it leads', async () => {
+    const before = files.lecture.asked;
+    renderAt('/try/lecture');
+    expect(files.lecture.asked).toBe(before + 1);
+    expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Вернуться к примеру' })).toHaveAttribute('href', '/try');
+    const { default: ExampleLecture } = await import('../components/example/ExampleLecture');
+    await act(async () => {
+      files.lecture.resolve(ExampleLecture);
+      await files.lecture.promise;
+    });
+    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Вернуться к примеру' })[0]).toHaveAttribute('href', '/try');
+    expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
+  });
+
+  it('a step whose file is still on its way keeps the top line and the page loader, then shows at once when it arrives', async () => {
+    renderAt('/try/ticket?q=q5');
+    expect(files.ticket.asked).toBe(1);
+    expect(screen.getByRole('status', { name: 'Загрузка страницы' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Meldy, на главную' })).toHaveAttribute('href', '/');
+    expect(screen.queryByRole('main')).toBeNull();
+    const { default: ExampleTicket } = await import('../components/example/ExampleTicket');
+    await act(async () => {
+      files.ticket.resolve(ExampleTicket);
+      await files.ticket.promise;
+    });
+    expect(screen.getByRole('button', { name: 'Вставить готовый ответ' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
+    // Once in, the step shows on its first frame: no loader again.
+    cleanup();
+    renderAt('/try/ticket?q=q5');
+    expect(screen.getByRole('button', { name: 'Вставить готовый ответ' })).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
+    expect(files.ticket.asked).toBe(1);
   });
 });

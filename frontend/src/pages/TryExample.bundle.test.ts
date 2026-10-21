@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
  * took 12.3 s to become usable, and it brought along the Supabase client (56 KB gzip) through the sheet's journal module
  * (api/learning) and the whole answer room (the protocol, speech recognition, the AI check) which the sheet does not
  * show. The modules reached from pages/TryExample.tsx by static imports are what its chunk and the chunks it imports
- * bring before the sheet shows; an import() is a file of its own, fetched later (components/example/tryParts,
+ * bring before the list shows; an import() is a file of its own, fetched later (components/example/tryParts,
  * lib/supabaseClient). Vitest has no bundle, so the sources are read from disk and their static imports followed.
  */
 interface NodeFs {
@@ -62,17 +62,18 @@ async function staticClosure(start: string): Promise<Graph> {
 }
 
 describe('the first screen of /try (jury QA, 2026-10-11: Slow 4G)', () => {
-  it('does not carry the Supabase client: the sheet never touches an account', async () => {
+  it('does not carry the Supabase client: the list of questions never touches an account', async () => {
     const graph = await staticClosure('pages/TryExample.tsx');
-    expect(graph.modules.has('components/example/ExampleSheet.tsx')).toBe(true);
-    expect(graph.modules.has('components/exams/sheet/CheatSheet.tsx')).toBe(true);
+    expect(graph.modules.has('components/example/ExamplePick.tsx')).toBe(true);
+    // The exam's cheat sheet is not part of the example any more (owner, 21.10).
+    expect(graph.modules.has('components/exams/sheet/CheatSheet.tsx')).toBe(false);
     expect(graph.modules.has('lib/supabase.ts')).toBe(false);
     expect(graph.packages.get('@supabase/supabase-js') ?? null).toBeNull();
   });
 
-  it('does not carry the draw or the answer room: they come with their own files, after the sheet', async () => {
+  it('does not carry the answer room: it comes with its own file, after the list', async () => {
     const graph = await staticClosure('pages/TryExample.tsx');
-    const room = ['components/example/ExampleTicket.tsx', 'components/example/ExampleDraw.tsx', 'hooks/useSpeechAnswer.ts', 'components/oral/OralProtocol.tsx'];
+    const room = ['components/example/ExampleTicket.tsx', 'components/example/ExampleCheck.tsx', 'hooks/useSpeechAnswer.ts', 'components/oral/OralProtocol.tsx'];
     expect(room.filter((module) => graph.modules.has(module))).toEqual([]);
   });
 

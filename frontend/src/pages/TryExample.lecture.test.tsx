@@ -131,11 +131,11 @@ describe('/try/lecture: what Meldy made of the example’s first lecture, with n
 
     const note = document.querySelector('.tl-note');
     expect(plain(note?.textContent)).toContain(plain(LECTURE_EXAMPLE_NOTE));
-    expect(LECTURE_EXAMPLE_NOTE).toBe('Пример: так Meldy разобрал лекцию «Спрос и предложение» из примера экзамена.');
-    expect(within(note as HTMLElement).getByRole('link', { name: 'К примеру экзамена' })).toHaveAttribute('href', '/try');
+    expect(LECTURE_EXAMPLE_NOTE).toBe('Это пример. Так Meldy разобрал лекцию «Спрос и предложение».');
+    expect(within(note as HTMLElement).getByRole('link', { name: 'Вернуться к примеру' })).toHaveAttribute('href', '/try');
     // The example's top line: the way back and the way into an account, as on the sheet.
     const bar = document.querySelector('.tx-bar') as HTMLElement;
-    expect(within(bar).getByRole('link', { name: 'Пример экзамена' })).toHaveAttribute('href', '/try');
+    expect(within(bar).getByRole('link', { name: 'Вернуться к примеру' })).toHaveAttribute('href', '/try');
     expect(within(bar).getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
     expect(within(bar).getByRole('link', { name: 'Начать со своего списка' })).toHaveAttribute('href', expect.stringMatching(/^\/register/));
 
