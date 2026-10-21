@@ -18,7 +18,7 @@ import { logState, readLog, type HostInfo } from './hostSession';
 import { ARENA_MAX, CHAR_BASE, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, type LobbyLayout, type Slot } from './layout';
 import { Lobby } from './Lobby';
 import { QuestionPanel, TopFive } from './Panel';
-import { Podium, podiumTop, rankRoster, type PodiumRow } from './Podium';
+import { ClosedScreen, Podium, gameOutcome, podiumTop, rankRoster, type PodiumRow } from './Podium';
 import { EndConfirm, KickConfirm, PlayersSheet, ReviewSheet } from './Sheets';
 import { Stage, useStageFit } from './Stage';
 import { StageStore } from './stageStore';
@@ -53,6 +53,7 @@ function useReducedMotion(): boolean {
 }
 
 const BATTLE_STATES = new Set(['countdown', 'open', 'reveal', 'leaderboard']);
+const NO_ROWS: RosterRow[] = [];
 
 const at = (s: Slot, hidden = false, name = true): Place => ({ x: s.x, y: s.y, k: s.size / CHAR_BASE, hidden, name });
 
@@ -261,7 +262,9 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   }, [game]);
 
   const inBattle = BATTLE_STATES.has(s.state);
-  const atEnd = s.state === 'podium' || s.state === 'ended';
+  // Ended before any question closed: «Игра закрыта», no podium, no crowd.
+  const closed = s.state === 'ended' && gameOutcome(s) === 'closed';
+  const atEnd = (s.state === 'podium' || s.state === 'ended') && !closed;
   const enter = firstState === 'lobby';
   const lastQuestion = s.boss.defeated || s.qi >= s.q_count - 1;
   const nextSpec =
@@ -286,8 +289,8 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         title={info?.title ?? null}
         question={inBattle && s.qi >= 0 ? { i: s.qi + 1, n: s.q_count } : null}
         final={atEnd}
-        pin={s.state === 'lobby' || s.state === 'ended' ? null : s.pin}
-        players={s.state === 'lobby' ? null : s.players}
+        pin={inBattle ? s.pin : null}
+        players={inBattle ? s.players : null}
         offline={game.offline}
         full={full}
         next={nextSpec}
@@ -342,7 +345,8 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
           onFinish={next}
         />
       ) : null}
-      <Crowd view={view} rows={visible} places={crowd.places} store={store} onPick={pickId} first={top[0]?.player_id ?? null} />
+      {closed ? <ClosedScreen testHref={info?.containerId ? `/exams/c/${info.containerId}` : '/exams'} onAgain={onAgain} /> : null}
+      <Crowd view={view} rows={closed ? NO_ROWS : visible} places={crowd.places} store={store} onPick={pickId} first={top[0]?.player_id ?? null} />
       <FxDefs defsRef={defsRef} />
       {banner ? <Banner key={banner.id} banner={banner} /> : null}
       {sheet === 'players' ? <PlayersSheet roster={s.roster} onKick={pickKick} onClose={closeSheet} /> : null}

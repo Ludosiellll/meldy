@@ -152,7 +152,44 @@ describe('teacher screen against the fake server', () => {
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Закончить игру?' })).getByRole('button', { name: 'Закончить' }));
     await tick(50);
     expect((await server()).state).toBe('ended');
-    expect(view.container.querySelector('.lvh-podium')).not.toBeNull();
+    // no question closed yet: the game is simply closed
+    expect(screen.getByRole('heading', { level: 1, name: 'Игра закрыта' })).toBeInTheDocument();
+    expect(view.container.querySelector('.lvh-podium')).toBeNull();
+  });
+
+  it('ended from the lobby: a calm «Игра закрыта» with the way back, no crowd, no «Итог» or «Играют»', async () => {
+    const { view } = await start(3);
+    fireEvent.click(screen.getByRole('button', { name: 'Закончить' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Закончить игру?' })).getByRole('button', { name: 'Закончить' }));
+    await tick(50);
+    expect(screen.getByRole('heading', { level: 1, name: 'Игра закрыта' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'К тесту' })).toHaveAttribute('href', '/exams/c/c');
+    expect(view.container.querySelectorAll('.lvh-slot')).toHaveLength(0);
+    expect(view.container.querySelector('.lvh-top')?.textContent).not.toMatch(/Итог|Играют|PIN/);
+    expect(screen.queryByRole('button', { name: 'Закончить' })).toBeNull();
+  });
+
+  it('ended in the middle of a question: «Игра закончена» with the questions that closed, no winner', async () => {
+    const { view, server } = await start(6);
+    space();
+    await tick(50);
+    await playQuestion();
+    expect((await server()).state).toBe('reveal');
+    space(); // leaderboard
+    await tick(50);
+    space(); // question 2, countdown
+    await tick(50);
+    await tick(3500); // open
+    expect((await server()).state).toBe('open');
+    fireEvent.click(screen.getByRole('button', { name: 'Закончить' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Закончить игру?' })).getByRole('button', { name: 'Закончить' }));
+    await tick(50);
+    expect((await server()).state).toBe('ended');
+    expect(screen.getByRole('heading', { level: 1, name: 'Игра закончена' })).toBeInTheDocument();
+    const head = view.container.querySelector('.lvh-pod-head')!.textContent!.replace(/\u00a0/g, ' ');
+    expect(head).toMatch(/^Игра закончена1 вопрос из 6 · 6 игроков · верных ответов \d+ %$/);
+    expect(view.container.textContent).not.toMatch(/Дедлайн (победил|повержен)/);
+    expect(view.container.querySelectorAll('.lvh-pod-col')).toHaveLength(3);
   });
 
   it('a reload in the middle of a reveal draws it as it is, without replaying', async () => {

@@ -165,13 +165,23 @@ export const PODIUM = {
   won: 'Дедлайн повержен',
   lost: 'Дедлайн победил',
   ended: 'Игра закончена',
-  stats: (questions: number, players: number, pct: number | null) =>
-    [count(questions, QUESTIONS), count(players, PLAYERS), pct === null ? null : `верных ответов ${pct}${NBSP}%`].filter(Boolean).join(' · '),
+  stats: (questions: number, players: number, pct: number) => [count(questions, QUESTIONS), count(players, PLAYERS), `верных ответов ${pct}${NBSP}%`].join(' · '),
+  /** The teacher ended the game early: the questions that closed, of how many. */
+  statsStopped: (questions: number, of: number, players: number, pct: number) =>
+    [`${count(questions, QUESTIONS)} из ${nb(of)}`, count(players, PLAYERS), `верных ответов ${pct}${NBSP}%`].join(' · '),
   dmg: (n: number) => `${nb(n)} урона`,
   review: 'Разбор',
   again: 'Ещё раз',
   finish: 'Закончить игру',
   finished: 'Игра закончена. Разбор у каждого ученика в игре ещё 7 дней.',
+};
+
+/** Ended before any question closed. */
+export const CLOSED = {
+  title: 'Игра закрыта',
+  why: 'Войти в неё по этому PIN больше нельзя.',
+  back: 'К тесту',
+  again: 'Новая игра',
 };
 
 export const NEXT = {
