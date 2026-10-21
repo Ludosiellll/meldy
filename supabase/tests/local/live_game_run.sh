@@ -12,10 +12,14 @@
 # counted) → the other contracts still hold (quiz_guards, test_builder, quizzes, test_docs, doc_video, telegram_bot) →
 # real.ts end to end through PostgREST (when a postgrest binary is found: create → join ×3 → next → answer → reveal →
 # … → podium → review; LIVE_PGRST or `postgrest` on PATH) → the rollback twice (the fingerprint of the base again; the
-# contract bites) → the migration again (the same fingerprint as the first apply) → the contract and behaviour again.
+# contract bites) → the migration again (the same fingerprint as the first apply) → the contract and behaviour again →
+# the stand stage: 20261022090000_live_stand.sql (mode «Встань на ответ», docs/live/MODE_STAND.md) the same way (its
+# contract tests/live_stand.sql, live_stand_behaviour.sql, the battle still green, the points against
+# backend/live_move_stand.py, the room end to end by live_stand_e2e.sh, its rollback back to the live game's catalog).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
-# LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stage.
+# LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
+# stand stage, LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SB=$(cd "$HERE/../.." && pwd)
@@ -322,6 +326,75 @@ step "migration after the rollback" "$MIG"
 [ "$(fingerprint)" = "$FMIG" ] && ok "the same catalog as the first apply" || bad "another catalog than the first apply"
 step "contract again" "$CONTRACT"
 behave "behaviour again" "$BEHAVIOUR" 'LIVE GAME BEHAVIOUR PASSED'
+
+
+# ─── Mode «Встань на ответ» (20261022090000_live_stand.sql, docs/live/MODE_STAND.md) on top of the live game ───
+# Its contract fails before it; applied twice (the same catalog); its contract, live_game.sql and the battle's behaviour
+# still hold; live_stand_behaviour.sql (a whole stand game); the points of every millisecond of 15/20/30 s, streaks 1–5,
+# alive and ghost, with and without speed, against backend/live_move_stand.py (the room's tests use that mirror); the
+# room end to end (backend/scripts/live_stand_e2e.py: the real WebSocket room, 30 bots, PostgREST, this database) when
+# a PostgREST binary and the backend's Python are found; its rollback twice (the live game's catalog again); applied again.
+# LIVE_STAND=0 skips the stage; LIVE_PY: a Python with the backend's packages (for the end-to-end run).
+if [ "${LIVE_STAND:-1}" = 0 ]; then
+  echo "  skip  the stand stage (LIVE_STAND=0)"
+else
+  SMIG=$SB/migrations/20261022090000_live_stand.sql
+  SDOWN=$SB/rollback/20261022090000_live_stand_down.sql
+  SCONTRACT=$SB/tests/live_stand.sql
+  SBEHAVIOUR=$HERE/live_stand_behaviour.sql
+  FGAME=$(fingerprint)
+  if run "$SCONTRACT"; then bad "live_stand.sql passes before its migration (it tests nothing)"; else ok "live_stand.sql fails before its migration"; fi
+  if passes "$SBEHAVIOUR" 'LIVE STAND BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_stand_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_stand_behaviour fails before its migration"
+  fi
+  step "stand migration, first apply" "$SMIG"
+  FSTAND=$(fingerprint)
+  [ "$FSTAND" != "$FGAME" ] && ok "the stand migration changed the catalog" || bad "the stand migration changed nothing"
+  step "stand migration, second apply (re-runnable)" "$SMIG"
+  [ "$(fingerprint)" = "$FSTAND" ] && ok "a second stand apply changes nothing in the catalog" || bad "a second stand apply changed the catalog"
+  step "contract: live_stand.sql (catalog, grants, the worked numbers)" "$SCONTRACT"
+  step "contract: live_game.sql still holds" "$CONTRACT"
+  behave "stand behaviour: settings, the room's write, ghosts, revives, late joiners, the close by time, podium, review" \
+    "$SBEHAVIOUR" 'LIVE STAND BEHAVIOUR PASSED'
+  behave "the battle's behaviour unchanged after the stand migration" "$BEHAVIOUR" 'LIVE GAME BEHAVIOUR PASSED'
+  PY=${LIVE_PY:-python3}
+  PTS_PY=$(cd "$ROOT/backend" && "$PY" -c "
+import hashlib, live_move_stand as s
+out = [s.stand_points(e, t, k, sp, g) for t in (15, 20, 30) for sp in (True, False) for g in (False, True) for k in range(1, 6) for e in range(t * 1000 + 1)]
+print(str(len(out)) + ':' + hashlib.md5(','.join(map(str, out)).encode()).hexdigest())" 2>&1)
+  PTS_SQL=$(q "select count(*) || ':' || md5(string_agg(d::text, ',' order by t, sp desc, g, k, e))
+                 from (select t, sp, g, k, e, meldy_private.live_stand_points(e, t, k, sp, g) as d
+                         from unnest(array[15, 20, 30]) t, unnest(array[true, false]) sp, unnest(array[false, true]) g,
+                              generate_series(1, 5) k, lateral generate_series(0, t * 1000) e) x" 2>&1)
+  if [ -n "$PTS_PY" ] && [ "$PTS_PY" = "$PTS_SQL" ]; then ok "stand points: live_move_stand.py and the SQL agree on all ${PTS_PY%%:*} cases"
+  else bad "stand points: Python $PTS_PY, SQL $PTS_SQL"; fi
+  if [ "${LIVE_E2E:-1}" = 0 ]; then
+    echo "  skip  the room end to end (LIVE_E2E=0)"
+  elif [ -z "$PGRST" ] || [ ! -x "$PGRST" ] || ! "$PY" -c "import fastapi, uvicorn, websockets, httpx" 2>/dev/null; then
+    echo "  skip  the room end to end: needs a PostgREST binary (LIVE_PGRST) and the backend's Python (LIVE_PY)"
+  else
+    if LIVE_PY="$PY" bash "$HERE/live_stand_e2e.sh" "$PGRST" "$DB" > "$WORK/stand_e2e.log" 2>&1; then
+      ok "the room end to end: $(grep -E '^STAND E2E' "$WORK/stand_e2e.log" | tail -1)"
+    else
+      bad "the room end to end (log: $WORK/stand_e2e.log)"; grep -Ev '^\s*$' "$WORK/stand_e2e.log" | tail -8 | sed 's/^/    /'
+    fi
+  fi
+  [ "$(fingerprint)" = "$FSTAND" ] && ok "the catalog unchanged by the stand runs" || bad "the stand runs changed the catalog"
+  step "stand rollback" "$SDOWN"
+  [ "$(fingerprint)" = "$FGAME" ] && ok "after the stand rollback: the live game's catalog (fingerprint)" \
+    || bad "after the stand rollback: another catalog than the live game's"
+  step "stand rollback again (re-runnable)" "$SDOWN"
+  [ "$(fingerprint)" = "$FGAME" ] && ok "after the second stand rollback: still the live game's catalog" || bad "after the second stand rollback: another catalog"
+  if run "$SCONTRACT"; then bad "live_stand.sql passes after its rollback"; else ok "live_stand.sql fails after its rollback"; fi
+  step "contract: live_game.sql after the stand rollback" "$CONTRACT"
+  behave "the battle's behaviour after the stand rollback" "$BEHAVIOUR" 'LIVE GAME BEHAVIOUR PASSED'
+  step "stand migration after its rollback" "$SMIG"
+  [ "$(fingerprint)" = "$FSTAND" ] && ok "the same catalog as the first stand apply" || bad "another catalog than the first stand apply"
+  step "contract: live_stand.sql again" "$SCONTRACT"
+  behave "stand behaviour again" "$SBEHAVIOUR" 'LIVE STAND BEHAVIOUR PASSED'
+fi
 
 echo "ok: $OKS, failures: $FAILS"
 if [ $FAILS = 0 ]; then echo "LIVE GAME CHECKS PASSED"; fi

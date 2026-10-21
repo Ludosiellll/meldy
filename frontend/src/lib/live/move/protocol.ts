@@ -17,6 +17,8 @@ export const KIND_NPC = 1;
 export const F_AWAY = 1 << 2;
 export const F_FROZEN = 1 << 3;
 export const F_CAUGHT = 1 << 4;
+/** Mode A «Встань на ответ»: the character fell and floats as a ghost. Bits 5–7 belong to the modes. */
+export const F_GHOST = 1 << 5;
 export const ZONE_SHIFT = 8;
 
 const SNAP_HEAD = 16; // type u8, version u8, count u16, tick u32, t_ms u32, ack u32
@@ -88,6 +90,207 @@ export interface RoomStats {
   bytes_out: number;
   rooms: number;
   sockets: number;
+  /** The room's game mode ('stand'), or null for the plain room. */
+  mode?: string | null;
+}
+
+// ─────────────── Mode A «Встань на ответ» (docs/live/MODE_STAND.md) ───────────────
+
+export type BossKind = 'clock' | 'skeleton';
+export type StandPhase = 'lobby' | 'countdown' | 'open' | 'reveal' | 'leaderboard' | 'podium' | 'ended';
+
+/** Zone index = option index; these are only the labels drawn on the floor. Match zones by index, never by id. */
+export const STAND_LETTERS = ['А', 'Б', 'В', 'Г'] as const;
+
+/** The arena (the server sends the same map in its welcome): contracts/live/stand_arena.json. */
+export const STAND_ARENA: MapJson = {
+  w: 1600,
+  h: 900,
+  solids: [
+    { rect: [0, 0, 1600, 160] },
+    { rect: [0, 160, 20, 740] },
+    { rect: [1580, 160, 20, 740] },
+    { rect: [0, 880, 1600, 20] },
+    { circle: [800, 520, 80] },
+  ],
+  zones: [
+    { id: 'А', rect: [80, 220, 600, 240] },
+    { id: 'Б', rect: [920, 220, 600, 240] },
+    { id: 'В', rect: [80, 580, 600, 240] },
+    { id: 'Г', rect: [920, 580, 600, 240] },
+  ],
+  spawns: [
+    [560, 520],
+    [1040, 520],
+    [800, 360],
+    [800, 680],
+  ],
+  npc_spawns: [[800, 520]],
+};
+
+/** The floor that drops: tiles of `tile` from (x, y), `cols` × `rows`. */
+export interface StandFloor {
+  x: number;
+  y: number;
+  tile: number;
+  cols: number;
+  rows: number;
+}
+
+/** Once after every welcome (a reconnect too). */
+export interface StandHello {
+  t: 'stand';
+  k: 'hello';
+  v: number;
+  boss: BossKind;
+  q_count: number;
+  time_s: number;
+  speed: boolean;
+  /** The boss's stage: a solid circle [x, y, r] of the map. */
+  stage: [number, number, number];
+  floor: StandFloor;
+  letters: string[];
+  /** The last ms before `closes` when the alarm shakes (client only). */
+  alarm_ms: number;
+  /** How long a character falls (the server holds it still meanwhile). */
+  fall_ms: number;
+  /** How long the floor stays down after the stomp. */
+  floor_ms: number;
+}
+
+export interface StandQuestion {
+  text: string;
+  options: string[];
+}
+
+/** A closed question (only in `reveal`). Entity ids are the snapshot ids. */
+export interface StandResult {
+  qi: number;
+  /** The right option = the zone that stays. */
+  key: number;
+  /** Answers per zone (ghosts too), length = options. */
+  counts: number[];
+  /** Alive players on the right zone («Устояли N из M»). */
+  stood: number;
+  /** Players of this question. */
+  of: number;
+  /** The alive player who got onto the right zone first. */
+  fastest: { id: number | null; pts: number; ms: number | null } | null;
+  /** Characters that fall at this stomp (play the fall for each, wherever it stands). */
+  fell: number[];
+  /** Characters that come back to life when the floor returns. */
+  back: number[];
+  /** Room ms of the stomp and of the floor's return. */
+  at: number;
+  back_at: number;
+  /** Host only: [entity id, points] of every scorer. */
+  pts?: Array<[number, number]>;
+}
+
+export interface StandTopEntry {
+  /** The character's entity id when it is in the room. */
+  id: number | null;
+  name: string;
+  look: unknown;
+  pts: number;
+  move: number;
+}
+
+/** The whole picture: after `hello` and on every change. Times are room ms (the snapshot clock, `serverNow()`). */
+export interface StandState {
+  t: 'stand';
+  k: 'state';
+  phase: StandPhase;
+  qi: number;
+  q_count: number;
+  players: number;
+  q: StandQuestion | null;
+  opens: number | null;
+  closes: number | null;
+  floor: 'up' | 'down';
+  res: StandResult | null;
+  top: StandTopEntry[] | null;
+  /** Podium: right answers in % of all asked. */
+  acc: number | null;
+}
+
+export interface StandLast {
+  qi: number;
+  /** The zone (option) the player stood in, or null. */
+  choice: number | null;
+  ok: boolean;
+  pts: number;
+  ms: number | null;
+  fell: boolean;
+  revived: boolean;
+  /** Joined after the question opened: it did not count. */
+  late: boolean;
+}
+
+/** Phones only: the player's own numbers. */
+export interface StandMe {
+  t: 'stand';
+  k: 'me';
+  ghost: boolean;
+  pts: number;
+  streak: number;
+  best: number;
+  right: number;
+  place: number | null;
+  of: number;
+  last: StandLast | null;
+}
+
+export type StandMessage = StandHello | StandState | StandMe;
+
+const STAND_PHASES: ReadonlySet<string> = new Set(['lobby', 'countdown', 'open', 'reveal', 'leaderboard', 'podium', 'ended']);
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const isNumOrNull = (v: unknown): boolean => v === null || isNum(v);
+
+/** A stand message with the fields a screen relies on, or null (an unknown or broken one is ignored). */
+export function parseStand(obj: unknown): StandMessage | null {
+  if (!obj || typeof obj !== 'object') return null;
+  const m = obj as Record<string, unknown>;
+  if (m.t !== 'stand') return null;
+  if (m.k === 'hello') {
+    return isNum(m.q_count) && isNum(m.time_s) && (m.boss === 'clock' || m.boss === 'skeleton') && Array.isArray(m.stage)
+      ? (m as unknown as StandHello)
+      : null;
+  }
+  if (m.k === 'state') {
+    if (typeof m.phase !== 'string' || !STAND_PHASES.has(m.phase) || !isNum(m.qi) || !isNumOrNull(m.opens) || !isNumOrNull(m.closes))
+      return null;
+    if (m.floor !== 'up' && m.floor !== 'down') return null;
+    if (m.q !== null && (typeof m.q !== 'object' || !Array.isArray((m.q as StandQuestion).options))) return null;
+    if (m.res !== null) {
+      const r = m.res as Partial<StandResult> | undefined;
+      if (!r || !isNum(r.key) || !Array.isArray(r.fell) || !Array.isArray(r.back) || !isNum(r.back_at)) return null;
+    }
+    return m as unknown as StandState;
+  }
+  if (m.k === 'me') {
+    return isNum(m.pts) && typeof m.ghost === 'boolean' ? (m as unknown as StandMe) : null;
+  }
+  return null;
+}
+
+/** The option a character stands on (from its snapshot flags), or null in a corridor. */
+export const zoneOption = (flags: number): number | null => {
+  const z = flags >> ZONE_SHIFT;
+  return z === 0 ? null : z - 1;
+};
+export const isGhost = (flags: number): boolean => (flags & F_GHOST) !== 0;
+
+/**
+ * The points of a right answer (MODE_STAND.md §6), as the database computes them — for a preview only («до +1000»);
+ * the server's `me.last.pts` is the result.
+ */
+export function standPoints(elapsedMs: number, timeS: number, streakAfter: number, speed: boolean, ghost: boolean): number {
+  const t = timeS * 1000;
+  const early = speed ? Math.max(0, 1 - Math.min(Math.max(elapsedMs, 0), t) / t) : 1;
+  const base = 500 + 500 * early;
+  const mult = ghost ? 0.5 : 1 + 0.1 * Math.min(Math.max(streakAfter - 1, 0), 4);
+  return 10 * Math.floor((base * mult) / 10 + 0.5);
 }
 
 export type ServerEvent =
@@ -100,7 +303,8 @@ export type ServerEvent =
   | { t: 'pong'; c: number | null; tick: number; ms: number }
   | { t: 'zones'; tick: number; z: Record<string, number[]> }
   | { t: 'err'; code: string; why?: string }
-  | RoomStats;
+  | RoomStats
+  | StandMessage;
 
 /** Host commands (docs/live/MOVE.md §Host commands). */
 export type HostCommand =
@@ -112,7 +316,9 @@ export type HostCommand =
   | { op: 'say'; data: unknown }
   | { op: 'zones' }
   | { op: 'stats' }
-  | { op: 'end' };
+  | { op: 'end' }
+  /** After every live_next, live_kick and live_end: the room reads the game's state at once (MODE_STAND.md §2). */
+  | { op: 'sync' };
 
 /** Close codes of the server (live_move_api.py). */
 export const CLOSE = {

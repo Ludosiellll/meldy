@@ -55,6 +55,8 @@ KIND_NPC = 1
 F_AWAY = 1 << 2              # the player's phone is not connected
 F_FROZEN = 1 << 3            # commands are acked but do not move (mode freeze, caught)
 F_CAUGHT = 1 << 4            # touched by a monster (the default catch hook)
+F_GHOST = 1 << 5             # mode A «Встань на ответ»: fell and floats as a ghost (bits 5-7 belong to the modes)
+MODE_FLAGS = 0b111 << 5
 ZONE_SHIFT = 8
 
 _SNAP_HEAD = struct.Struct("<BBHII")   # type, version, entity count, tick, t_ms (12 bytes)
@@ -403,6 +405,7 @@ class Player:
     queue: deque = field(default_factory=deque)
     q_low: int = 0                # fewest commands left after a tick in this second (standing backlog)
     q_until: int = 0              # the tick this second ends
+    mode_flags: int = 0           # flag bits 5-7 a mode sets (F_GHOST, …)
 
     def new_connection(self) -> None:
         """A (re)connect: the phone starts its seqs again at 1, pending commands of the old socket are gone."""
@@ -648,7 +651,7 @@ class Room:
             f |= F_FROZEN
         if self.tick < p.caught_until:
             f |= F_CAUGHT
-        return f | (self.map.zone_index(p.x, p.y) << ZONE_SHIFT)
+        return f | (p.mode_flags & MODE_FLAGS) | (self.map.zone_index(p.x, p.y) << ZONE_SHIFT)
 
     def t_ms(self) -> int:
         return (self.tick * 1000 // self.tick_hz) & 0xFFFFFFFF

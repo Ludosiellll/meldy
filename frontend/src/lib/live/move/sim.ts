@@ -155,14 +155,22 @@ export function toAxes(x: number, y: number, deadZone = 0.08): [number, number] 
 }
 
 /** The id of the zone a point is in (the first one listed), or null. */
-export function zoneAt(m: GameMap, x: number, y: number): string | null {
-  for (const z of m.zones) {
-    if (z.rect && x >= z.rect.x && x <= z.rect.x + z.rect.w && y >= z.rect.y && y <= z.rect.y + z.rect.h) return z.id;
+/** 1 + the index of the first zone containing the point, or 0 (live_move.GameMap.zone_index; the snapshot's zone bits).
+ *  Mode A matches answers by this index: zone i is option i. */
+export function zoneIndexAt(m: GameMap, x: number, y: number): number {
+  for (let i = 0; i < m.zones.length; i++) {
+    const z = m.zones[i];
+    if (z.rect && x >= z.rect.x && x <= z.rect.x + z.rect.w && y >= z.rect.y && y <= z.rect.y + z.rect.h) return i + 1;
     if (z.circle) {
       const dx = x - z.circle.x;
       const dy = y - z.circle.y;
-      if (dx * dx + dy * dy <= z.circle.r * z.circle.r) return z.id;
+      if (dx * dx + dy * dy <= z.circle.r * z.circle.r) return i + 1;
     }
   }
-  return null;
+  return 0;
+}
+
+export function zoneAt(m: GameMap, x: number, y: number): string | null {
+  const i = zoneIndexAt(m, x, y);
+  return i === 0 ? null : m.zones[i - 1].id;
 }

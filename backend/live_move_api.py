@@ -34,6 +34,7 @@ from fastapi import APIRouter, WebSocket
 
 import live_move as lm
 import supabase_rest
+from live_move_modes import GameSource, Mode, make_mode
 from ratelimit import visitor_ip
 
 log = logging.getLogger("live_move")
@@ -106,6 +107,7 @@ class Identity:
     name: str
     look: Any
     state: str                 # the live game's state at the check
+    data: dict[str, Any] | None = None   # the host's whole live_host_state (the room's mode reads its settings)
 
 
 class Refused(Exception):
@@ -159,12 +161,31 @@ class SupabaseVerifier:
             raise Refused(CLOSE_UNAVAILABLE, "auth_shape")
         state = data["state"]
         if host:
-            return Identity("host", None, "", None, state)
+            return Identity("host", None, "", None, state, data)
         me = data.get("me")
         if not isinstance(me, dict) or not isinstance(me.get("player_id"), str):
             raise Refused(CLOSE_UNAVAILABLE, "auth_shape")
         name = me.get("name") if isinstance(me.get("name"), str) else ""
         return Identity("player", me["player_id"], name[:24], me.get("look"), state)
+
+    # ── the live game's database for the room's mode (live_move_modes.GameSource) ──
+
+    async def host_state(self, game_id: str, host_token: str, since_rev: int | None) -> dict[str, Any]:
+        rest, sem = self._client()
+        async with sem:
+            data = await rest.rpc("live_host_state", {"p_game": game_id, "p_host_token": host_token, "p_since_rev": since_rev})
+        if not isinstance(data, dict):
+            raise supabase_rest.SupabaseRestError(502, "unexpected_shape", "live_host_state: not an object")
+        return data
+
+    async def stand_close(self, game_id: str, host_token: str, qi: int, answers: list[dict[str, Any]]) -> dict[str, Any]:
+        rest, sem = self._client()
+        async with sem:
+            data = await rest.rpc("live_stand_close", {"p_game": game_id, "p_host_token": host_token, "p_qi": qi,
+                                                       "p_answers": answers})
+        if not isinstance(data, dict):
+            raise supabase_rest.SupabaseRestError(502, "unexpected_shape", "live_stand_close: not an object")
+        return data
 
 
 def _refusal(exc: supabase_rest.SupabaseRestError, host: bool) -> Refused:
@@ -290,10 +311,17 @@ class Conn:
 class RoomRunner:
     """A room with its connections and its tick task."""
 
-    def __init__(self, hub: "Hub", game_id: str, host_hash: str, host_token: str, now: float) -> None:
+    def __init__(self, hub: "Hub", game_id: str, host_hash: str, host_token: str, now: float,
+                 host_state: dict[str, Any] | None = None) -> None:
         self.hub = hub
-        self.room = lm.Room(game_id, max_players=hub.limits.max_players)
         self.game_id = game_id
+        # The game's mode (live_move_modes): its map, its hooks, its link to the live game. None: the plain room.
+        self.mode: Mode | None = make_mode(host_state, self, hub.source) if hub.source is not None else None
+        self.room = lm.Room(game_id, self.mode.game_map() if self.mode else None, max_players=hub.limits.max_players,
+                            hooks=self.mode.hooks if self.mode else None)
+        if self.mode is not None:
+            self.mode.attach(self.room)
+        self.tick_at = time.perf_counter()              # when the last tick started (a mode maps its clock with it)
         self.host_hash = host_hash
         self._host_token = host_token   # kept in memory only, for the periodic «has the game ended» check
         self.hosts: list[Conn] = []
@@ -321,6 +349,7 @@ class RoomRunner:
             while not self.closed:
                 start = clock()
                 self.lateness.append(start - due)
+                self.tick_at = start
                 self.tick()
                 now = clock()
                 self.work.append(now - start)
@@ -442,6 +471,8 @@ class RoomRunner:
         if self.closed:
             return
         self.closed = True
+        if self.mode is not None:
+            self.mode.stop()
         for c in list(self.conns.values()) + self.hosts:
             c.close(code, reason)
         self.hub.forget(self)
@@ -478,6 +509,7 @@ class RoomRunner:
             "dropped_cmds": sum(p.dropped for p in self.room.players.values()),
             "bytes_out": sum(c.bytes_out for c in conns),
             "rooms": len(self.hub.rooms), "sockets": self.hub.total,
+            "mode": self.mode.kind if self.mode else None,
         }
 
 
@@ -488,8 +520,10 @@ class Hub:
     """All rooms and sockets of this process."""
 
     def __init__(self, verifier: Verifier | None = None, limits: Limits | None = None,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 clock: Callable[[], float] = time.monotonic, source: GameSource | None = None) -> None:
         self.verifier: Verifier = verifier or SupabaseVerifier()
+        # The live game's database for the rooms' modes: the Supabase verifier is one; tests pass a fake.
+        self.source: GameSource | None = source or (self.verifier if hasattr(self.verifier, "stand_close") else None)  # type: ignore[assignment]
         self.limits = limits or Limits.from_env()
         self.clock = clock
         self.rooms: dict[str, RoomRunner] = {}
@@ -620,18 +654,21 @@ class Hub:
     async def _join_host(self, conn: Conn, game: str, token: str) -> None:
         thash = token_hash(token)
         runner = self.rooms.get(game)
+        ident: Identity | None = None
         if runner is None or runner.host_hash != thash:
-            await self._check(conn.ip, game, token, "host")
+            ident = await self._check(conn.ip, game, token, "host")
             runner = self.rooms.get(game)   # another host socket may have opened it meanwhile
         if runner is not None and runner.host_hash != thash:
             raise Refused(CLOSE_BAD_TOKEN, "bad_token")
         if runner is None:
             if len(self.rooms) >= self.limits.max_rooms:
                 raise Refused(CLOSE_SLOW_DOWN, "rooms_full")
-            runner = RoomRunner(self, game, thash, token, self.clock())
+            runner = RoomRunner(self, game, thash, token, self.clock(), ident.data if ident else None)
             self.rooms[game] = runner
             runner.task = asyncio.get_running_loop().create_task(runner.run())
-            log.info("live_move: room %s opened", game[:8])
+            if runner.mode is not None:
+                runner.mode.start()
+            log.info("live_move: room %s opened%s", game[:8], f" ({runner.mode.kind})" if runner.mode else "")
         if len(runner.hosts) >= self.limits.max_hosts:
             raise Refused(CLOSE_FULL, "hosts_full")
         conn.role = "host"
@@ -639,6 +676,8 @@ class Hub:
         runner.hosts.append(conn)
         runner.host_left_at = None
         conn.send_json(runner.welcome(conn))
+        if runner.mode is not None:
+            runner.mode.on_join(conn)
 
     async def _join_player(self, conn: Conn, game: str, token: str) -> None:
         runner = self.rooms.get(game)
@@ -659,6 +698,8 @@ class Hub:
         except OverflowError:
             raise Refused(CLOSE_FULL, "room_full") from None
         conn.send_json(runner.welcome(conn, resumed))
+        if runner.mode is not None:
+            runner.mode.on_join(conn)
 
     # ── after the hello ──
 
@@ -735,6 +776,8 @@ class Hub:
     def _host_cmd(self, conn: Conn, runner: RoomRunner, obj: dict[str, Any]) -> None:
         room = runner.room
         op = obj.get("op")
+        if runner.mode is not None and runner.mode.on_command(conn, op, obj):
+            return
         if op == "npc":
             room.remove_npcs()
             n = obj.get("n", 1)

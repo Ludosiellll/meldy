@@ -303,6 +303,59 @@ describe('MoveClient', () => {
   });
 });
 
+describe('MoveClient in mode A «Встань на ответ»', () => {
+  const state = (over: Record<string, unknown> = {}) => ({
+    t: 'stand', k: 'state', phase: 'open', qi: 0, q_count: 3, players: 2, q: { text: 'Вопрос', options: ['a', 'b'] },
+    opens: 5000, closes: 6000, floor: 'up', res: null, top: null, acc: null, ...over,
+  });
+
+  it('keeps the latest hello, state and me and hands them to onStand', () => {
+    const got: string[] = [];
+    const c = client({ onStand: (m) => got.push(m.k) });
+    c.connect();
+    const ws = FakeSocket.all[0];
+    ws.open();
+    ws.text(welcome());
+    ws.text({ t: 'stand', k: 'hello', v: 1, boss: 'clock', q_count: 3, time_s: 15, speed: true, stage: [800, 520, 80],
+              floor: { x: 20, y: 160, tile: 60, cols: 26, rows: 12 }, letters: ['А', 'Б', 'В', 'Г'], alarm_ms: 3000, fall_ms: 900, floor_ms: 4000 });
+    ws.text(state({ phase: 'countdown' }));
+    ws.text({ t: 'stand', k: 'me', ghost: true, pts: 0, streak: 0, best: 0, right: 0, place: 2, of: 2, last: null });
+    ws.text({ t: 'stand', k: 'state', phase: 'nonsense' }); // ignored
+    expect(got).toEqual(['hello', 'state', 'me']);
+    expect(c.stand.hello?.boss).toBe('clock');
+    expect(c.stand.state?.phase).toBe('countdown');
+    expect(c.stand.me?.ghost).toBe(true);
+  });
+
+  it('gives the room clock and lets the stick go at the question’s zero until the next state', () => {
+    const c = client();
+    c.connect();
+    const ws = FakeSocket.all[0];
+    ws.open();
+    ws.text(welcome());
+    ws.binary(snapshot(100, 0, 800, 450)); // room ms 5000 at local 0
+    expect(c.serverNow(now)).toBe(5000);
+    ws.text(state()); // closes at room ms 6000
+    c.setJoystick(1, 0);
+    advance(900);
+    expect(c.holding(now)).toBe(false);
+    const before = ws.inputs().flatMap((f) => f.cmds);
+    expect(before.every((cmd) => cmd[0] === 127)).toBe(true);
+    advance(300); // past zero: still commands only
+    expect(c.holding(now)).toBe(true);
+    const after = ws.inputs().flatMap((f) => f.cmds).slice(before.length);
+    expect(after.length).toBeGreaterThan(0);
+    expect(after.filter((cmd) => cmd[0] !== 0).length).toBeLessThanOrEqual(2); // the frame in flight at zero
+    expect(after[after.length - 1]).toEqual([0, 0]);
+    ws.text(state({ phase: 'reveal', floor: 'down', res: { qi: 0, key: 1, counts: [0, 1], stood: 1, of: 2, fastest: null,
+                                                           fell: [8], back: [], at: 6300, back_at: 10300 } }));
+    expect(c.holding(now)).toBe(false);
+    const n = ws.inputs().flatMap((f) => f.cmds).length;
+    advance(200);
+    expect(ws.inputs().flatMap((f) => f.cmds).slice(n).some((cmd) => cmd[0] === 127)).toBe(true);
+  });
+});
+
 describe('backoffMs', () => {
   it('doubles up to 8 s with jitter, waits ~2 s for the host, ≥ 3 s when busy', () => {
     expect(backoffMs(0, 1006, () => 0.5)).toBe(500);
