@@ -843,24 +843,32 @@ export function createHostSound(win: (Window & typeof globalThis) | undefined = 
       if (!k) return;
       const [c, bus] = k;
       const now = c.currentTime;
-      const osc = c.createOscillator();
+      // two sawtooths a little apart (a rough, beating growl) through a filter that opens and closes
       const f = c.createBiquadFilter();
       const g = c.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(72, now);
-      osc.frequency.linearRampToValueAtTime(52, now + 0.6);
       f.type = 'lowpass';
-      f.Q.setValueAtTime(4, now);
-      f.frequency.setValueAtTime(240, now);
-      f.frequency.linearRampToValueAtTime(1100, now + 0.15);
-      f.frequency.linearRampToValueAtTime(200, now + 0.65);
+      f.Q.setValueAtTime(1.6, now);
+      f.frequency.setValueAtTime(260, now);
+      f.frequency.linearRampToValueAtTime(1300, now + 0.15);
+      f.frequency.linearRampToValueAtTime(220, now + 0.7);
       g.gain.setValueAtTime(0.0001, now);
-      g.gain.exponentialRampToValueAtTime(1.5, now + 0.05);
-      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
-      osc.connect(f).connect(g).connect(bus.centre);
-      osc.start(now);
-      osc.stop(now + 0.75);
-      hiss(c, bus.centre, now, 0.6, 0.6, 'bandpass', 500, 1.5, 250);
+      g.gain.exponentialRampToValueAtTime(0.9, now + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.75);
+      f.connect(g).connect(bus.centre);
+      for (const [from, to] of [
+        [72, 52],
+        [77, 55],
+      ]) {
+        const osc = c.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(from, now);
+        osc.frequency.linearRampToValueAtTime(to, now + 0.65);
+        osc.connect(f);
+        osc.start(now);
+        osc.stop(now + 0.8);
+      }
+      hiss(c, bus.centre, now, 0.65, 0.6, 'bandpass', 600, 1.2, 250);
+      fx(c, 'boom', now, 0.3, 0.75);
     },
     freeze(n = 1) {
       const k = cue();

@@ -483,6 +483,17 @@ async function perf(page) {
   const per = (k) => (1000 * (b[k] - a[k])) / secs;
   const readout = () => page.evaluate(() => [...document.querySelectorAll('div[aria-hidden="true"]')].map((d) => d.textContent ?? '').find((t) => t.includes(' fps')) ?? null);
   const soundOn = await page.evaluate(() => document.querySelector('.lvst-tool[aria-pressed]')?.getAttribute('aria-pressed') ?? null);
+  // does this browser render audio at all here (a machine with no sound card may give it no output)?
+  const audio = await page.evaluate(async () => {
+    const c = new AudioContext();
+    await c.resume().catch(() => {});
+    const t0 = c.currentTime;
+    await new Promise((r) => setTimeout(r, 400));
+    const out = { state: c.state, advancedMs: Math.round((c.currentTime - t0) * 1000) };
+    await c.close();
+    return out;
+  });
+  console.log(JSON.stringify({ audio }));
   console.log(JSON.stringify({ sound: soundOn === 'true' ? 'on' : 'off', overlay: { styleMsPerS: +per('RecalcStyleDuration').toFixed(2), layoutMsPerS: +per('LayoutDuration').toFixed(2), scriptMsPerS: +per('ScriptDuration').toFixed(1), fps: st ? +st.fps.toFixed(1) : null, quality: st?.quality ?? null, readout: await readout() } }));
   // the busiest stretch for the sound: the boss's jump, the floor collapsing, the cheer, the ghosts (the same window)
   await waitPhase(page, ['reveal'], 60000);

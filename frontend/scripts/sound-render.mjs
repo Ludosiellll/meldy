@@ -3,6 +3,7 @@
  * The live games' sound rendered offline to files and measured (LOCAL ONLY), run from frontend/:
  *
  *   node scripts/sound-render.mjs cues <dir>                 every cue and every music loop to <dir>/*.wav, measured
+ *                                                            (ONLY=roar,growl: just those cues)
  *   node scripts/sound-render.mjs soundtrack <calls.json> <out.wav> [seconds] [offsetMs]
  *                                                            a game's sound calls (stand-local.mjs replay with
  *                                                            SOUNDLOG) rendered to one file, measured
@@ -211,7 +212,8 @@ async function cues(page, dir) {
     rows.push(row);
     console.log(JSON.stringify(row));
   };
-  for (const [name, seconds, script] of CUES) await one(`cue-${name}`, seconds, script);
+  for (const [name, seconds, script] of CUES) if (!process.env.ONLY || process.env.ONLY.split(',').includes(name)) await one(`cue-${name}`, seconds, script);
+  if (process.env.ONLY) return rows;
   for (const [track, loop] of Object.entries(LOOPS)) {
     // two loops after the fade-in; the question also hurried (its last seconds)
     await one(`music-${track}`, 0.1 + loop * 3, [[0, 'music', [track]]], { loop: +loop.toFixed(3) });
