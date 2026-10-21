@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { useLearnLeft } from '../../api/learnLeft';
-import { buildTopics, nextReady, readyNow, tally, type LearnLeftExam } from '../../lib/containers/topics';
+import { buildTopics, nextReady, ORAL_IN_PLAN, readyNow, tally, type LearnLeftExam } from '../../lib/containers/topics';
 
 export interface OralToday {
   exam: LearnLeftExam | null;
@@ -9,6 +9,9 @@ export interface OralToday {
   /** Questions an answer now makes learned, and the next moment one more is ready. */
   ready: number;
   next: number | null;
+  /** Oral questions learned, and those counted (in the plan). */
+  learned: number;
+  inPlan: number;
 }
 
 /**
@@ -19,9 +22,17 @@ export function useOralToday(examId: string | null): OralToday {
   const learn = useLearnLeft(examId ? null : [], Boolean(examId));
   const exam = examId ? learn.exams.find((item) => item.examId === examId) ?? null : null;
   return useMemo(() => {
-    if (!exam) return { exam: null, topics: null, ready: 0, next: null };
+    if (!exam) return { exam: null, topics: null, ready: 0, next: null, learned: 0, inPlan: 0 };
     const t = tally(buildTopics({ oral: exam }).topics);
     const now = Date.now();
-    return { exam, topics: t.total > 0 ? { left: t.left, total: t.total } : null, ready: readyNow(exam, now).length, next: nextReady(exam, now) };
+    const inPlan = exam.questions.filter((q) => ORAL_IN_PLAN.has(q.kind));
+    return {
+      exam,
+      topics: t.total > 0 ? { left: t.left, total: t.total } : null,
+      ready: readyNow(exam, now).length,
+      next: nextReady(exam, now),
+      learned: inPlan.filter((q) => q.state === 3).length,
+      inPlan: inPlan.length,
+    };
   }, [exam]);
 }

@@ -51,6 +51,7 @@ const db = vi.hoisted(() => {
     fetchQuestionEvents: vi.fn(),
     fetchSheetEvents: vi.fn(),
     fetchSheet: vi.fn(),
+    useLearnLeft: vi.fn(),
     user: { id: 'user-1', user_metadata: { full_name: 'Алина Соколова' } } as { id: string; user_metadata: Record<string, unknown> },
   };
   const from = (table: string) => {
@@ -88,6 +89,12 @@ vi.mock('../api/learning', () => ({
 }));
 // The exam's cheat sheet (GET /api/oral/sheet): empty unless a test writes one.
 vi.mock('../api/cheatSheet', () => ({ fetchSheet: (...args: unknown[]) => db.fetchSheet(...args) }));
+// «Осталось выучить» (public.learn_left): one read for every oral exam of the page; nothing unless a test says.
+vi.mock('../api/learnLeft', () => ({
+  useLearnLeft: (ids: readonly string[] | null, enabled?: boolean) => db.useLearnLeft(ids, enabled),
+  fetchLearnLeft: () => Promise.resolve([]),
+  forgetLearnLeft: () => undefined,
+}));
 // A database without the exam container's functions: today's «Сегодня» (package D1's hook; the container cases and the
 // same page with no containers are in Dashboard.containers.test.tsx).
 vi.mock('../lib/containers/hooks', () => ({
@@ -219,6 +226,72 @@ const exam = (overrides: Record<string, unknown> = {}) => {
   db.tables.exams = () => ({ data: [examRow(overrides)] });
 };
 
+type Fact = { state: 0 | 1 | 2 | 3; readyAt?: number | null };
+/** What public.learn_left says of the exam: questions 1–2 in «Денежный рынок», 3–4 in «Инфляция»; `facts` by position. */
+function learnExam(facts: Record<number, Fact> = {}, positions: number[] = [1, 2, 3, 4]) {
+  return {
+    examId: 'e-1',
+    title: 'Экзамен: цифровая экономика',
+    mappingState: 'done',
+    lectures: [
+      { id: 'm1', title: 'Денежный рынок' },
+      { id: 'm2', title: 'Инфляция' },
+    ],
+    sectionTitles: [],
+    toWrite: 0,
+    units: 0,
+    questions: positions.map((n) => {
+      const fact = facts[n] ?? { state: 0 };
+      return {
+        id: `q${n}`,
+        position: n,
+        label: String(n),
+        section: null,
+        lecture: n <= 2 ? 0 : 1,
+        kind: 'lines',
+        state: fact.state,
+        named: fact.state >= 2 ? 3 : fact.state,
+        of: 3,
+        learnedAt: fact.state === 3 ? Date.now() - 86_400_000 : null,
+        readyAt: fact.readyAt ?? null,
+        missed: false,
+      };
+    }),
+  };
+}
+const learning = (value: ReturnType<typeof learnExam>) => db.useLearnLeft.mockReturnValue({ status: 'ready', exams: [value], reload: () => undefined });
+/** The exam's answer points of questions 1–3 (GET /api/oral/sheet), which «Скопировать вопрос дня» reads itself. */
+function sheetWith(positions: number[] = [1, 2, 3]) {
+  db.fetchSheet.mockResolvedValue({
+    examId: 'e-1',
+    mappingState: 'done',
+    questions: positions.map((position) => ({
+      question_id: `q${position}`,
+      position,
+      label: String(position),
+      section: null,
+      text: `Вопрос ${position}`,
+      question_hash: hash(position),
+      coverage: 'full',
+      coverage_method: 'llm',
+      coverage_reason: '',
+      missing_note: '',
+      rebuilt: false,
+      rubric: {
+        rubric_id: `r${position}`,
+        built_at: null,
+        coverage: 'full',
+        coverage_note: '',
+        materials: [],
+        points: [1, 2, 3].map((n) => ({ id: `p${n}`, title: `Пункт ${n} вопроса ${position}`, short: '', essential: n === 1, source_quote: '', source_ids: [] })),
+      },
+    })),
+    toWrite: 0,
+    units: 0,
+    job: null,
+  });
+}
+
 let innerWidth: number;
 
 beforeEach(() => {
@@ -237,6 +310,7 @@ beforeEach(() => {
   db.fetchQuestionEvents.mockReset().mockResolvedValue(HISTORY);
   db.fetchSheet.mockReset().mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [], toWrite: 0, units: 0, job: null });
   db.fetchSheetEvents.mockReset().mockResolvedValue([]);
+  db.useLearnLeft.mockReset().mockReturnValue({ status: 'ready', exams: [], reload: () => undefined });
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
 
@@ -299,6 +373,7 @@ describe('«Сегодня»: the exam on the desk', () => {
 
   it('leads with the seeded exam: flag, heading, meta, the actions, then «9 вопросов без материала», share, ribbon, legend, answers, note', async () => {
     exam();
+    learning(learnExam({ 1: { state: 3 }, 2: { state: 3 } }));
     renderDashboard();
     const heading = await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') });
     expect(document.title).toBe('Сегодня — Meldy');
@@ -317,8 +392,9 @@ describe('«Сегодня»: the exam on the desk', () => {
     const ribbon = within(block).getByRole('img', { name: /Пометки у 40 вопросов списка/ });
     const legend = within(block).getByText(byText('24 есть в лекциях, 7 частично, 9 нет ни в одной'));
     const share = within(block).getByText(byText('35 % билетов, где оба вопроса есть в ваших лекциях'));
-    const answers = within(block).getByText(byText('Подтверждено ответами — 2 вопроса из 40.'));
-    const note = within(block).getByText(byText('Вчера: ответ на вопрос 7. Вопрос 23 подтверждён.'));
+    // What is learned is «Осталось выучить»'s («Подтверждено ответами» by grades went with it, owner 2026-10-21).
+    const answers = within(block).getByText(byText('Выучено 2 вопроса из 4.'));
+    const note = within(block).getByText(byText('Вчера: ответ на вопрос 7.'));
     const draw = within(block).getByRole('link', { name: named('Тянуть билет') });
     const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
     expect(draw).toHaveAttribute('href', '/exams/e-1/draw');
@@ -339,130 +415,56 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(db.fetchQuestionEvents).toHaveBeenCalledWith(Array.from({ length: 40 }, (_, i) => hash(i + 1)), ['exam_answer']);
   });
 
-  it('adds «Шпаргалка: N строк осталось из M» once the cheat sheet has lines, into its view', async () => {
+  it('adds «Осталось выучить 1 тему из 2» once a topic is learned, into the exam page; no sheet read', async () => {
     exam();
-    const written = (position: number) => ({
-      question_id: `q${position}`,
-      position,
-      label: String(position),
-      section: null,
-      text: `Вопрос ${position}`,
-      question_hash: hash(position),
-      coverage: 'full',
-      coverage_method: 'llm',
-      coverage_reason: '',
-      missing_note: '',
-      rebuilt: false,
-      rubric: {
-        rubric_id: `r${position}`,
-        built_at: null,
-        coverage: 'full',
-        coverage_note: '',
-        materials: [],
-        points: [1, 2, 3].map((n) => ({ id: `p${n}`, title: `Пункт ${n} вопроса ${position}`, short: '', essential: n === 1, source_quote: '', source_ids: [] })),
-      },
-    });
-    // Point 1 of question 1 named on two days: erased; one line of six is gone.
-    const named = (day: number, session: string) => ({
-      id: `${session}-p1`,
-      created_at: new Date(2026, 9, day, 10, 0).toISOString(),
-      local_date: localDateKey(new Date(2026, 9, day, 10, 0)),
-      material_id: null,
-      kind: 'oral_point',
-      item_key: 'oral:r1:p1',
-      correct: true,
-      score: null,
-      confidence: null,
-      source_ids: [],
-      session_id: session,
-      payload: { v: 1, question_hash: hash(1), rubric_id: 'r1', point_id: 'p1', title: 'Пункт 1 вопроса 1', status: 'covered' },
-    });
-    db.fetchSheet.mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [written(1), written(2)], toWrite: 0, units: 0, job: null });
-    db.fetchSheetEvents.mockResolvedValue([named(1, 's-a'), named(2, 's-b')]);
+    // «Денежный рынок» (questions 1 and 2) learned, «Инфляция» not yet.
+    learning(learnExam({ 1: { state: 3 }, 2: { state: 3 } }));
     renderDashboard();
     const heading = await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ });
     const block = heading.closest('article')!;
-    const line = await within(block).findByRole('link', { name: (name) => plain(name) === 'Шпаргалка: 5 строк осталось из 6' });
-    expect(line).toHaveAttribute('href', '/exams/e-1?view=sheet');
-    expect(db.fetchSheet).toHaveBeenCalledWith('e-1');
-    expect(db.fetchSheetEvents).toHaveBeenCalledWith([hash(1), hash(2)]);
+    const line = await within(block).findByRole('link', { name: (name) => plain(name) === 'Осталось выучить 1 тему из 2' });
+    expect(line).toHaveAttribute('href', '/exams/e-1');
+    expect(db.useLearnLeft).toHaveBeenCalledWith(null, true);
+    expect(db.fetchSheet).not.toHaveBeenCalled();
+    expect(db.fetchSheetEvents).not.toHaveBeenCalled();
     // Under the next step, which leads the card; still one tactile primary.
     const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
     expect(draw.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(plain(block.textContent)).not.toMatch(/Шпаргалк/);
   });
 
-  it('has no cheat sheet line before anything is written, or when the sheet cannot be read', async () => {
+  it('has no «Осталось выучить» line before a topic is learned, or when it cannot be read', async () => {
     exam();
+    learning(learnExam({ 1: { state: 1 } }));
     renderDashboard();
     const heading = await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ });
-    await waitFor(() => expect(db.fetchSheet).toHaveBeenCalledWith('e-1'));
-    expect(within(heading.closest('article')!).queryByRole('link', { name: /Шпаргалка/ })).toBeNull();
-    expect(db.fetchSheetEvents).not.toHaveBeenCalled();
+    // «2 темы из 2» would read as nothing done.
+    expect(within(heading.closest('article')!).queryByRole('link', { name: /Осталось выучить/ })).toBeNull();
     cleanup();
-    db.fetchSheet.mockRejectedValue(new Error('offline'));
+    db.useLearnLeft.mockReturnValue({ status: 'error', exams: [], reload: () => undefined });
     renderDashboard();
     const again = await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ });
-    await waitFor(() => expect(db.fetchSheet).toHaveBeenCalledTimes(2));
-    expect(within(again.closest('article')!).queryByRole('link', { name: /Шпаргалка/ })).toBeNull();
+    expect(within(again.closest('article')!).queryByRole('link', { name: /Осталось выучить/ })).toBeNull();
+    expect(within(again.closest('article')!).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' })).toHaveAttribute('href', '/exams/e-1/draw');
   });
 
-  describe('«Сегодня-lite»: the lines an answer can erase today, over the draw «Ждут подтверждения»', () => {
-    const written = (position: number) => ({
-      question_id: `q${position}`,
-      position,
-      label: String(position),
-      section: null,
-      text: `Вопрос ${position}`,
-      question_hash: hash(position),
-      coverage: 'full',
-      coverage_method: 'llm',
-      coverage_reason: '',
-      missing_note: '',
-      rebuilt: false,
-      rubric: {
-        rubric_id: `r${position}`,
-        built_at: null,
-        coverage: 'full',
-        coverage_note: '',
-        materials: [],
-        points: [1, 2, 3].map((n) => ({ id: `p${n}`, title: `Пункт ${n} вопроса ${position}`, short: '', essential: n === 1, source_quote: '', source_ids: [] })),
-      },
-    });
-    /** Point 1 of a question named in an answer at a local moment. */
-    const named = (position: number, at: Date) => ({
-      id: `e-${position}-${at.getTime()}`,
-      created_at: at.toISOString(),
-      local_date: localDateKey(at),
-      material_id: null,
-      kind: 'oral_point',
-      item_key: `oral:r${position}:p1`,
-      correct: true,
-      score: null,
-      confidence: null,
-      source_ids: [],
-      session_id: `s-${position}-${at.getTime()}`,
-      payload: { v: 1, question_hash: hash(position), rubric_id: `r${position}`, point_id: 'p1', title: `Пункт 1 вопроса ${position}`, status: 'covered' },
-    });
-    const sheetOf = (events: unknown[]) => {
-      db.fetchSheet.mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [written(1), written(2), written(3)], toWrite: 0, units: 0, job: null });
-      db.fetchSheetEvents.mockResolvedValue(events);
-    };
-    // 1: named yesterday — the other day and 20 hours have come; 2: named an hour ago; 3: erased in
-    // September and due for its check since.
-    const YESTERDAY = named(1, new Date(2026, 9, 2, 10, 0));
-    const HOUR_AGO = named(2, new Date(2026, 9, 3, 11, 0));
-    const DUE = [named(3, new Date(2026, 8, 20, 10, 0)), named(3, new Date(2026, 8, 21, 10, 0))];
+  describe('«Сегодня-lite»: the questions an answer now makes learned, over the draw «Можно выучить сегодня»', () => {
+    const HOUR_AGO = new Date(2026, 9, 3, 11, 0).getTime();
+    const TOMORROW_7 = new Date(2026, 9, 4, 7, 0).getTime();
+    // 1 and 2 learned («Денежный рынок»); 3 and 4 can be learned now (every main point named on another day).
+    const READY = learnExam({ 1: { state: 3 }, 2: { state: 3 }, 3: { state: 2, readyAt: HOUR_AGO }, 4: { state: 2, readyAt: HOUR_AGO } });
+    const LATER = learnExam({ 2: { state: 2, readyAt: TOMORROW_7 } });
 
-    it('counts the questions an answer can erase now by the sheet’s rules and leads to the draw from exactly them', async () => {
+    it('counts the questions an answer now makes learned and leads to the draw from exactly them', async () => {
       exam();
-      sheetOf([YESTERDAY, HOUR_AGO, ...DUE]);
+      learning(READY);
       renderDashboard();
       const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       // Audit of 2026-10-08: «Можно стереть: 4 вопроса» read as «удалить 4 вопроса», and its «Ответить» beside
       // «Тянуть билет» gave two look-alike buttons. The line says whose lines, and the card has one main action.
       const line = await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
-      expect(plain(line.textContent)).toBe('Сегодня можно стереть строки шпаргалки у 2 вопросов — назовите их пункты снова.');
+      expect(plain(line.textContent)).toBe('Сегодня можно выучить 2 вопроса.');
       const answer = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет из них' });
       expect(answer).toHaveAttribute('href', '/exams/e-1/draw?mode=awaiting');
       expect(answer).toHaveClass('sf-primary');
@@ -473,44 +475,44 @@ describe('«Сегодня»: the exam on the desk', () => {
       const any = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' });
       expect(any).toHaveAttribute('href', '/exams/e-1/draw');
       expect(any).not.toHaveClass('sf-primary');
-      // The next step under the meta, above the sheet's count; the card keeps one blue pill.
-      const sheet = within(block).getByRole('link', { name: (name) => plain(name).startsWith('Шпаргалка:') });
+      // The next step under the meta, above «Осталось выучить»; the card keeps one blue pill.
+      const left = within(block).getByRole('link', { name: (name) => plain(name).startsWith('Осталось выучить') });
       expect(line.compareDocumentPosition(answer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(answer.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(answer.compareDocumentPosition(left) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
-      expect(within(block).queryByText(/Следующие строки/)).toBeNull();
+      expect(within(block).queryByText(/Следующие вопросы/)).toBeNull();
     });
 
-    it('with nothing to erase now says when the next lines can be, and says nothing when no line waits', async () => {
+    it('with nothing to learn now says when the next questions can be, and says nothing when none waits', async () => {
       exam();
-      sheetOf([HOUR_AGO]);
+      learning(LATER);
       renderDashboard();
       const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       // Named at 11:00: from 20 hours on, the next morning.
       const next = await within(block).findByText((_, node) => node?.classList.contains('td-erase-next') === true);
-      expect(plain(next.textContent)).toBe('Следующие строки можно стереть после 4 окт., 7:00.');
+      expect(plain(next.textContent)).toBe('Следующие вопросы можно выучить после 4 окт., 7:00.');
       expect(within(block).queryByRole('link', { name: (name) => plain(name) === 'Тянуть билет из них' })).toBeNull();
       expect(within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет' })).toHaveAttribute('href', '/exams/e-1/draw');
       cleanup();
 
-      // Lines written, nothing named yet: neither line (the count of lines stays).
+      // A topic learned, nothing waits: neither line (the count of topics stays).
       exam();
-      sheetOf([]);
+      learning(learnExam({ 1: { state: 3 }, 2: { state: 3 } }));
       renderDashboard();
       const again = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
-      expect(await within(again).findByRole('link', { name: (name) => plain(name) === 'Шпаргалка: 9 строк осталось из 9' })).toBeInTheDocument();
+      expect(await within(again).findByRole('link', { name: (name) => plain(name) === 'Осталось выучить 1 тему из 2' })).toBeInTheDocument();
       expect(again.querySelector('.td-erase-t, .td-erase-next')).toBeNull();
     });
 
-    // Week 2 of the plan: the sheet erases lines only with answers on different days, so «Сегодня» offers two ways
+    // Week 2 of the plan: a question is learned only with answers on different days, so «Сегодня» offers two ways
     // back — the student's own calendar and, for the author of an open group link, «Вопрос дня» for the chat.
-    it('offers «Напоминать каждый день» under the sheet’s count, quietly: the card keeps one blue pill', async () => {
+    it('offers «Напоминать каждый день» under «Осталось выучить», quietly: the card keeps one blue pill', async () => {
       exam();
-      sheetOf([YESTERDAY, HOUR_AGO, ...DUE]);
+      learning(READY);
       renderDashboard();
       const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       await within(block).findByText((_, node) => node?.classList.contains('td-erase-t') === true);
-      const sheet = within(block).getByRole('link', { name: (name) => plain(name).startsWith('Шпаргалка:') });
+      const sheet = within(block).getByRole('link', { name: (name) => plain(name).startsWith('Осталось выучить') });
       const remind = within(block).getByRole('button', { name: 'Напоминать каждый день' });
       expect(sheet.compareDocumentPosition(remind) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       const draw = within(block).getByRole('link', { name: (name) => plain(name) === 'Тянуть билет из них' });
@@ -526,7 +528,7 @@ describe('«Сегодня»: the exam on the desk', () => {
     it('reads «Напоминание в 20:00 — изменить» once a file was downloaded on this device', async () => {
       window.localStorage.setItem('meldy_daily_reminder_user-1', JSON.stringify({ time: '20:00', exam: 'e-1', at: '2026-10-02T17:00:00.000Z' }));
       exam();
-      sheetOf([HOUR_AGO]);
+      learning(LATER);
       renderDashboard();
       const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       const change = await within(block).findByRole('button', { name: 'Изменить время напоминания' });
@@ -541,12 +543,13 @@ describe('«Сегодня»: the exam on the desk', () => {
       const writeText = vi.fn(async () => undefined);
       Object.defineProperty(window.navigator, 'clipboard', { value: { writeText }, configurable: true });
       exam();
-      sheetOf([YESTERDAY]);
+      learning(READY);
+      sheetWith();
       renderDashboard();
       const block = (await screen.findByRole('heading', { level: 2, name: /Цифровая экономика/ })).closest('article')!;
       const copy = await within(block).findByRole('button', { name: 'Скопировать вопрос дня' });
       expect(args('exam_shares', 'eq')).toEqual([['exam_id', 'e-1']]);
-      // The sheet the card has read already: not read a second time.
+      // Only for the author of an open link, the list is read for today's question.
       expect(db.fetchSheet).toHaveBeenCalledTimes(1);
       fireEvent.click(copy);
       await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
@@ -617,9 +620,10 @@ describe('«Сегодня»: the exam on the desk', () => {
 
   it('counts the share of tickets for the exam’s own layout: one per section is 36 % on the seeded list', async () => {
     exam({ ticket_layout: { mode: 'sections', per_ticket: 2, section_titles: ['Нейронные сети', 'Денежный рынок'] } });
+    learning(learnExam({ 1: { state: 3 }, 2: { state: 3 } }));
     renderDashboard();
     expect(await screen.findByText(byText('36 % билетов, где оба вопроса есть в ваших лекциях'))).toBeInTheDocument();
-    expect(screen.getByText(byText('Подтверждено ответами — 2 вопроса из 40.'))).toBeInTheDocument();
+    expect(screen.getByText(byText('Выучено 2 вопроса из 4.'))).toBeInTheDocument();
     expect(screen.getByText(byText('15 октября · 40 вопросов, в билете по вопросу из каждого раздела'))).toBeInTheDocument();
   });
 
@@ -681,10 +685,11 @@ describe('«Сегодня»: the exam on the desk', () => {
 
   it('calls a single-question ticket «Тянуть вопрос»', async () => {
     exam({ ticket_layout: { mode: 'random', per_ticket: 1 } });
+    learning(learnExam({ 1: { state: 3 }, 2: { state: 3 } }));
     renderDashboard();
     expect(await screen.findByRole('link', { name: named('Тянуть вопрос') })).toHaveAttribute('href', '/exams/e-1/draw');
     expect(screen.getByText(byText('60 % вопросов есть в ваших лекциях'))).toBeInTheDocument();
-    expect(screen.getByText(byText('Подтверждено ответами — 2 вопроса из 40.'))).toBeInTheDocument();
+    expect(screen.getByText(byText('Выучено 2 вопроса из 4.'))).toBeInTheDocument();
   });
 });
 
@@ -1264,53 +1269,9 @@ describe('«Сегодня» on a phone', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  /** Questions 1–3 of the list with three answer points each in the exam's cheat sheet. */
-  const written = (position: number) => ({
-    question_id: `q${position}`,
-    position,
-    label: String(position),
-    section: null,
-    text: `Вопрос ${position}`,
-    question_hash: hash(position),
-    coverage: 'full',
-    coverage_method: 'llm',
-    coverage_reason: '',
-    missing_note: '',
-    rebuilt: false,
-    rubric: {
-      rubric_id: `r${position}`,
-      built_at: null,
-      coverage: 'full',
-      coverage_note: '',
-      materials: [],
-      points: [1, 2, 3].map((n) => ({ id: `p${n}`, title: `Пункт ${n} вопроса ${position}`, short: '', essential: n === 1, source_quote: '', source_ids: [] })),
-    },
-  });
-  /** Point 1 of a question named in an answer at a local moment. */
-  const pointNamed = (position: number, at: Date) => ({
-    id: `e-${position}-${at.getTime()}`,
-    created_at: at.toISOString(),
-    local_date: localDateKey(at),
-    material_id: null,
-    kind: 'oral_point',
-    item_key: `oral:r${position}:p1`,
-    correct: true,
-    score: null,
-    confidence: null,
-    source_ids: [],
-    session_id: `s-${position}-${at.getTime()}`,
-    payload: { v: 1, question_hash: hash(position), rubric_id: `r${position}`, point_id: 'p1', title: `Пункт 1 вопроса ${position}`, status: 'covered' },
-  });
-  /** Two questions an answer can erase lines of now: 1 (named yesterday) and 3 (erased in September, due for its check). */
-  const twoErasable = () => {
-    db.fetchSheet.mockResolvedValue({ examId: 'e-1', mappingState: 'done', questions: [written(1), written(2), written(3)], toWrite: 0, units: 0, job: null });
-    db.fetchSheetEvents.mockResolvedValue([
-      pointNamed(1, new Date(2026, 9, 2, 10, 0)),
-      pointNamed(2, new Date(2026, 9, 3, 11, 0)),
-      pointNamed(3, new Date(2026, 8, 20, 10, 0)),
-      pointNamed(3, new Date(2026, 8, 21, 10, 0)),
-    ]);
-  };
+  /** «Денежный рынок» learned; questions 3 and 4 can be learned now (learn_left). */
+  const twoErasable = () =>
+    learning(learnExam({ 1: { state: 3 }, 2: { state: 3 }, 3: { state: 2, readyAt: Date.now() - 3_600_000 }, 4: { state: 2, readyAt: Date.now() - 3_600_000 } }));
   const examCard = async () => (await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).closest('article')!;
 
   it('gives the exam card one line of meta, one line about today, the one pill and «Лист экзамена» under it as a quiet link', async () => {
@@ -1323,7 +1284,7 @@ describe('«Сегодня» on a phone', () => {
     const meta = within(block).getByText(byText('15 октября · 40 вопросов'));
     // The tickets' layout is on the exam's sheet.
     expect(within(block).queryByText(/в билете два/)).toBeNull();
-    const today = await within(block).findByText(byText('Можно стереть строки шпаргалки у 2 вопросов.'));
+    const today = await within(block).findByText(byText('Сегодня можно выучить 2 вопроса.'));
     const draw = within(block).getByRole('link', { name: named('Тянуть билет из них') });
     expect(draw).toHaveAttribute('href', '/exams/e-1/draw?mode=awaiting');
     expect(draw).toHaveClass('sf-primary');
@@ -1345,7 +1306,7 @@ describe('«Сегодня» on a phone', () => {
     expect(document.querySelectorAll('.sf-secondary')).toHaveLength(0);
   });
 
-  it('says the share in one line, then «без материала» and the cheat sheet as quiet links; the rest stays on the exam’s sheet and in «Профиль»', async () => {
+  it('says the share in one line, then «без материала» and «Осталось выучить» as quiet links; the rest stays on the exam’s sheet and in «Профиль»', async () => {
     exam();
     twoErasable();
     renderDashboard();
@@ -1354,15 +1315,15 @@ describe('«Сегодня» on a phone', () => {
     const gap = within(block).getByRole('link', { name: named('9 вопросов без материала') });
     expect(gap).toHaveAttribute('href', '/exams/e-1?filter=cov:none');
     expect(gap.querySelector('.td-gap-dot')).toBeNull();
-    const sheet = await within(block).findByRole('link', { name: named('Шпаргалка: 8 строк осталось из 9') });
-    expect(sheet).toHaveAttribute('href', '/exams/e-1?view=sheet');
+    const sheet = await within(block).findByRole('link', { name: named('Осталось выучить 1 тему из 2') });
+    expect(sheet).toHaveAttribute('href', '/exams/e-1');
     expect(share.compareDocumentPosition(gap) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(gap.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The explanation paragraph, the dots, the legend, the answers, the note and the reminder are not on the phone.
     expect(within(block).queryByText(/Добавьте к ним лекции/)).toBeNull();
     expect(within(block).queryByRole('img', { name: /Пометки у/ })).toBeNull();
     expect(block.querySelector('.td-tally')).toBeNull();
-    expect(within(block).queryByText(/Подтверждено ответами/)).toBeNull();
+    expect(within(block).queryByText(/Подтверждено ответами|Выучено \d/)).toBeNull();
     expect(within(block).queryByText(/ответ на вопрос/)).toBeNull();
     expect(within(block).queryByRole('button', { name: 'Напоминать каждый день' })).toBeNull();
   });
@@ -1374,6 +1335,7 @@ describe('«Сегодня» on a phone', () => {
     db.tables.exam_shares = () => ({ data: [{ id: share, code_hash: sha256Hex(code), expires_at: '2027-01-05T09:00:00Z', revoked_at: null }] });
     exam();
     twoErasable();
+    sheetWith();
     renderDashboard();
     const block = await examCard();
     expect(await within(block).findByRole('button', { name: 'Скопировать вопрос дня' })).toBeInTheDocument();
