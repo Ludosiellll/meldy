@@ -12,8 +12,7 @@ import { useWide } from './useWide';
 import { glue, TO_EXAMS } from './copy';
 import { nb } from './copyImport';
 import { TEST_HOME } from '../test/copyTest';
-import { ENTRY as LIVE_ENTRY } from '../live/host/copy';
-import { liveGameOpen } from '../../lib/live/open';
+import { LIVE_ENTRY, keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../test/gameEntry';
 import './testHome.css';
 
 /**
@@ -45,11 +44,10 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
     load();
   }, [load]);
 
-  const total = summary.subjects.reduce((sum, subject) => sum + subject.keyed + subject.no_key, 0);
-  const keyed = summary.subjects.reduce((sum, subject) => sum + subject.keyed, 0);
-  const meta = TEST_HOME.meta(total, rows ? rows.length : null);
+  const counts = keyCounts(summary.subjects);
+  const meta = TEST_HOME.meta(counts.total, rows ? rows.length : null);
   const whyId = `${ids}-why`;
-  const why = keyed > 0 ? null : total > 0 ? TEST_HOME.sendWhyKey : TEST_HOME.sendWhyEmpty;
+  const why = liveGameWhy(counts);
   const studio = (
     <Link className="sf-primary th-studio" to={`/exams/c/${containerId}/studio`}>
       {TEST_HOME.studio}
@@ -71,7 +69,7 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
       {LIVE_ENTRY.host}
     </button>
   ) : (
-    <Link className="th-send" to={`/live/new?c=${containerId}`}>
+    <Link className="th-send" to={liveGamePath(containerId)}>
       {LIVE_ENTRY.host}
     </Link>
   );

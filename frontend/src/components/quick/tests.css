@@ -96,6 +96,15 @@
   .tv-pill:hover { background: var(--sf-surface-soft); }
 }
 .tv-pill:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 2px; }
+/* The test's own actions (release 47.19): «Отправить по ссылке» while nothing is sent, «Провести игру» always; shut,
+   with the test's page's reason under them. Under the контрольные they share a line with «Ещё N контрольных». */
+.tv-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tv-acts:empty { display: none; }
+.tv-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
+.tv-foot .tv-more { margin: 0; }
+.tv-foot > .tv-acts { margin-left: auto; }
+.tv-pill:disabled { background: var(--sf-surface-soft); color: var(--sf-muted); cursor: not-allowed; }
+.tv-why { flex: 1 0 100%; font-size: 14px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .tv-none { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
 .tv-none .tv-note { margin: 0; }
 .tv-note { margin: 18px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
@@ -123,6 +132,9 @@
 .sf-page[data-frame='s'] .tv-quiz-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
 .sf-page[data-frame='s'] .tv-quiz-acts .tv-pill { padding: 6px 10px; font-size: 14px; white-space: normal; text-align: center; }
 .sf-page[data-frame='s'] .tv-quiz-acts .tv-pill:only-child { grid-column: 1 / -1; }
+.sf-page[data-frame='s'] .tv-acts { width: 100%; }
+.sf-page[data-frame='s'] .tv-acts .tv-pill { flex: 1 1 0; padding: 6px 10px; font-size: 14px; white-space: normal; text-align: center; }
+.sf-page[data-frame='s'] .tv-foot > .tv-acts { margin-left: 0; }
 
 @media (prefers-reduced-motion: reduce) {
   .tv-switch-b,

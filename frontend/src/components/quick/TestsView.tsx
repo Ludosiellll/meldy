@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { listQuizzes } from '../../api/quizzes';
 import { quizStateWords } from '../../lib/quizzes/quizModel';
 import type { OverviewContainer } from '../../types/container';
 import type { QuizListRow } from '../../types/quiz';
 import { nb } from '../containers/copyImport';
+import { LIVE_ENTRY, keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../test/gameEntry';
 import { TESTS_VIEW } from './copyQuick';
 import { QUICK_PATH, quickLinkPath } from './paths';
 import './tests.css';
@@ -73,10 +74,40 @@ function QuizLine({ row, containerId }: { row: QuizListRow; containerId: string 
   );
 }
 
+/**
+ * «Провести игру» for one test, by the test's page's rule (test/gameEntry): a link to the game's setup, or shut with the
+ * page's reason under the card while no question has its key; nothing while the game is shut for everyone.
+ */
+function GameAction({ test }: { test: OverviewContainer }) {
+  const whyId = useId();
+  if (!liveGameOpen()) return null;
+  const why = liveGameWhy(keyCounts(test.subjects));
+  if (!why) {
+    return (
+      <Link className="tv-pill tv-game" to={liveGamePath(test.id)}>
+        {LIVE_ENTRY.host}
+      </Link>
+    );
+  }
+  return (
+    <>
+      <button type="button" className="tv-pill tv-game" disabled aria-describedby={whyId}>
+        {LIVE_ENTRY.host}
+      </button>
+      <span id={whyId} className="tv-why">
+        {nb(why)}
+      </span>
+    </>
+  );
+}
+
 function TestCard({ test, quizzes, onRetry }: { test: OverviewContainer; quizzes: QuizListRow[] | 'failed' | undefined; onRetry: () => void }) {
   const page = `/exams/c/${encodeURIComponent(test.id)}`;
   const rows = Array.isArray(quizzes) ? quizzes : null;
   const meta = TESTS_VIEW.meta(test.items, rows ? rows.length : null);
+  // The test's own actions: «Отправить по ссылке» while nothing is sent, and «Провести игру» (after the read, so the row
+  // does not jump when the контрольные arrive).
+  const game = quizzes === undefined ? null : <GameAction test={test} />;
   let body;
   if (quizzes === 'failed') {
     body = (
@@ -93,11 +124,14 @@ function TestCard({ test, quizzes, onRetry }: { test: OverviewContainer; quizzes
     body = (
       <div className="tv-none">
         <p className="tv-note">{TESTS_VIEW.notSent}</p>
-        {test.items > 0 ? (
-          <Link className="tv-pill" to={`${page}/quizzes/new?all=1&design=1`}>
-            {TESTS_VIEW.send}
-          </Link>
-        ) : null}
+        <div className="tv-acts">
+          {test.items > 0 ? (
+            <Link className="tv-pill" to={`${page}/quizzes/new?all=1&design=1`}>
+              {TESTS_VIEW.send}
+            </Link>
+          ) : null}
+          {game}
+        </div>
       </div>
     );
   } else {
@@ -109,13 +143,16 @@ function TestCard({ test, quizzes, onRetry }: { test: OverviewContainer; quizzes
             <QuizLine key={row.id} row={row} containerId={test.id} />
           ))}
         </ul>
-        {rows.length > shown.length ? (
-          <p className="tv-more">
-            <Link className="sf-link" to={page}>
-              {TESTS_VIEW.more(rows.length - shown.length)}
-            </Link>
-          </p>
-        ) : null}
+        <div className="tv-foot">
+          {rows.length > shown.length ? (
+            <p className="tv-more">
+              <Link className="sf-link" to={page}>
+                {TESTS_VIEW.more(rows.length - shown.length)}
+              </Link>
+            </p>
+          ) : null}
+          <div className="tv-acts">{game}</div>
+        </div>
       </>
     );
   }
@@ -132,6 +169,7 @@ function TestCard({ test, quizzes, onRetry }: { test: OverviewContainer; quizzes
         ))}
       </p>
       {body}
+      {quizzes === 'failed' ? <div className="tv-foot tv-acts">{game}</div> : null}
     </li>
   );
 }

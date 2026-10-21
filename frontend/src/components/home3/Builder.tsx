@@ -43,6 +43,7 @@ function SendCard({ Qr }: { Qr: ComponentType | null }) {
             {CTA.build}
           </a>
         </div>
+        <p className="p3-p p3-game">{bind(BUILDER_SECTION.game)}</p>
       </div>
       <div className="p3-stage">
         <div className="p3-win p3-send">

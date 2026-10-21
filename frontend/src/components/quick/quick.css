@@ -265,6 +265,11 @@
 .qk-people .qk-pill { margin-top: 18px; }
 .qk-people-none { margin: 10px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .qk-after { display: flex; flex-wrap: wrap; gap: 12px 28px; margin: 28px 0 0; font-size: 16px; }
+/* «Провести игру по этим вопросам»: the page's quiet second action, a white pill under the two cards. */
+.qk-game { margin-top: 24px; }
+.qk-game + .qk-after { margin-top: 22px; }
+.qk-game .qk-pill:disabled { background: var(--sf-surface-soft); color: var(--sf-muted); box-shadow: 0 0 0 1px var(--sf-line); cursor: not-allowed; }
+.qk-game-why { margin: 8px 0 0; font-size: 14px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .qk-wait { margin: 16px 0 0; color: var(--sf-muted); }
 
 /* A low window (the owner's 1536 × 734): the head is tighter, the field starts higher. */

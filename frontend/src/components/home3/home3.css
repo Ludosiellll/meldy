@@ -1258,6 +1258,11 @@
 .p3-build {
   padding-right: 24px;
 }
+/* one quiet line under the two pills: the test as a game in class */
+.p3-band .p3-game {
+  margin-top: 14px;
+  font-size: 15px;
+}
 .p3-stats {
   margin: 4px 0 10px !important;
   font-size: 17px;

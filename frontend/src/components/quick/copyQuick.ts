@@ -110,6 +110,8 @@ export const QUICK_LINK = {
   studio: 'Оформить в студии',
   edit: 'Изменить настройки',
   another: 'Сделать ещё одну',
+  /** The quiet second action: the live game on these questions, in class. */
+  game: 'Провести игру по этим вопросам',
   loading: 'Загружаем ссылку…',
   failed: 'Не получилось загрузить ссылку.',
   missing: 'Этой контрольной больше нет.',
