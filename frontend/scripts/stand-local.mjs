@@ -372,26 +372,39 @@ async function replay(recPath, dir, W, H) {
     let k = 0;
     if (startAt > 0) await page.clock.runFor(startAt);
     while (k < keys.length && keys[k][1] < startAt) k++;
-    for (let t = startAt, f = 0; t <= end; t += step, f++) {
-      await page.clock.runFor(step);
-      await page.evaluate((dt) => window.__standStep(dt), step / 1000);
-      const jpg = await page.screenshot({ type: 'jpeg', quality: 90 });
-      if (!ff.stdin.write(jpg)) await new Promise((r) => ff.stdin.once('drain', r));
-      while (k < keys.length && keys[k][1] <= t) {
-        await page.screenshot({ path: join(dir, `${keys[k][0]}-${W}x${H}.png`) });
-        k++;
-      }
-      if (f % 250 === 0) console.log(`${(t / 1000).toFixed(1)} s of ${(end / 1000).toFixed(0)} s, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`);
-    }
-    ff.stdin.end();
-    await new Promise((r) => ff.on('exit', r));
-    console.log('video', out);
-    if (soundLog) {
+    // the sound calls are kept even if the recording stops early
+    const saveSound = async () => {
+      if (!soundLog) return;
       // frame f shows the page at startAt + (f + 1) · step: a call at replay time T plays at T − startAt − step
       const calls = await page.evaluate(() => window.__soundLog ?? []);
       const shift = goAt + startAt + step;
       writeFileSync(soundLog, JSON.stringify({ game: recPath, video: out, calls: calls.map(([t, name, args]) => [+(t - shift).toFixed(1), name, args]) }));
       console.log('sound calls', calls.length, soundLog);
+    };
+    // a frame the browser failed to capture (a slow, crowded machine) is asked for once more
+    const frame = () =>
+      page.screenshot({ type: 'jpeg', quality: 90 }).catch(async (e) => {
+        console.log('frame retried:', String(e.message).split('\n')[0]);
+        await sleep(1000);
+        return page.screenshot({ type: 'jpeg', quality: 90 });
+      });
+    try {
+      for (let t = startAt, f = 0; t <= end; t += step, f++) {
+        await page.clock.runFor(step);
+        await page.evaluate((dt) => window.__standStep(dt), step / 1000);
+        const jpg = await frame();
+        if (!ff.stdin.write(jpg)) await new Promise((r) => ff.stdin.once('drain', r));
+        while (k < keys.length && keys[k][1] <= t) {
+          await page.screenshot({ path: join(dir, `${keys[k][0]}-${W}x${H}.png`) });
+          k++;
+        }
+        if (f % 250 === 0) console.log(`${(t / 1000).toFixed(1)} s of ${(end / 1000).toFixed(0)} s, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`);
+      }
+    } finally {
+      await saveSound().catch((e) => console.log('sound calls not saved:', e.message));
+      ff.stdin.end();
+      await new Promise((r) => ff.on('exit', r));
+      console.log('video', out);
     }
   } finally {
     await browser.close();
