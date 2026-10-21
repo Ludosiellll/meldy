@@ -357,6 +357,8 @@ export default function QuizSetupPage() {
           </p>
         ) : null}
         <h1 className="ex-h1">{pageTitle}</h1>
+        {/* «Контрольная» said once where the word first appears (UX audit 21.10). */}
+        {!editing && summary ? <p className="ex-meta qa-new-lede">{nb(QA_SETUP.newLede(ofTest))}</p> : null}
       </div>
     </header>
   );
@@ -739,9 +741,19 @@ export default function QuizSetupPage() {
         ))}
       </ul>
       {protection !== 'off' ? (
-        <p className="im-hint" data-muted="">
-          {nb(QA_SETUP.protectionLimits)}
-        </p>
+        <>
+          <p className="im-hint" data-muted="">
+            {nb(QA_SETUP.protectionLimits)}
+          </p>
+          <details className="qa-details">
+            <summary className="sf-link">{QA_SETUP.protectionMore}</summary>
+            {QA_SETUP.protectionDetails.map((line) => (
+              <p key={line} className="im-hint" data-muted="">
+                {nb(line)}
+              </p>
+            ))}
+          </details>
+        </>
       ) : null}
     </fieldset>
   );

@@ -60,7 +60,7 @@ describe('the mark and the filter', () => {
     show(attempts());
     const ivanov = rowOf('Иванов')!;
     expect(ivanov.querySelector('.qa-flag')?.textContent).toContain('3 ухода');
-    expect(within(ivanov).getByText('Покидал страницу: 3 раза')).toHaveClass('qa-sr');
+    expect(within(ivanov).getByText('Уходил со страницы 3 раза')).toHaveClass('qa-sr');
     expect(rowOf('Петя')!.querySelector('.qa-flag')?.textContent).toContain('копирование');
     expect(rowOf('Борисова')!.querySelector('.qa-flag')).toBeNull();
     expect(flagOf({ all: attempts().filter((a) => a.person === 'p2') })).toBeNull();
@@ -136,13 +136,13 @@ describe('csvOf with protection', () => {
       [{ id: 's1', title: 'Вариант 1' }],
     );
     const lines = csv.slice(1).split('\r\n');
-    expect(lines[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог;Уходы со страницы;Все записи защиты;Нарушения');
+    expect(lines[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Проходной балл;Уходы со страницы;Все записи защиты;Нарушения');
     expect(lines.find((line) => line.startsWith('Иванов'))?.endsWith(';3;5;да')).toBe(true);
     expect(lines.find((line) => line.startsWith('Чистый'))?.endsWith(';0;0;')).toBe(true);
   });
 
   it('leaves them out for a quiz without protection and without records', () => {
     const csv = csvOf({ pass_percent: null, protection: 'off' } as QuizRow, [row({})], [], items, [{ id: 's1', title: 'Вариант 1' }]);
-    expect(csv.slice(1).split('\r\n')[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог');
+    expect(csv.slice(1).split('\r\n')[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Проходной балл');
   });
 });

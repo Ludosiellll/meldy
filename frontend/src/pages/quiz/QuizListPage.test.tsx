@@ -89,12 +89,12 @@ describe('QuizListPage: the exam’s quizzes (spec 2026-10-16 §2.1)', () => {
     expect(api.listQuizzes).not.toHaveBeenCalled();
   });
 
-  it('a test’s list names the test: «Соберите контрольную из вопросов теста…» (release 47.3)', async () => {
+  it('a test’s list names the test: «Контрольная — это ваш тест по ссылке…» (release 47.3)', async () => {
     api.state.summary = examSummary({ kind: 'test' });
     api.listQuizzes.mockResolvedValue([]);
     renderAt();
     expect(await screen.findByText(QA_LIST.emptyTest)).toBeInTheDocument();
-    expect(QA_LIST.emptyTest).toContain('Соберите контрольную из вопросов теста');
+    expect(QA_LIST.emptyTest).toContain('Контрольная — это ваш тест по ссылке');
     expect(plain(document.body.textContent)).not.toContain('экзамена');
   });
 
