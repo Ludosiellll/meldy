@@ -141,7 +141,7 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     tab: 'Тесты',
     // «Новый тест» is on «Экзамены»: that page is the chapter's own, and «Экзамены» lights up in the menu.
     route: '/exams',
-    match: /^\/(?:tests\/new|exams\/c\/[^/]+\/(?:studio|build|quizzes))(?:\/|$)/,
+    match: /^\/(?:tests\/(?:new|quick)|exams\/c\/[^/]+\/(?:studio|build|quizzes))(?:\/|$)/,
     title: 'Тесты',
     text: TESTS_TEXT,
     spot: 'link',

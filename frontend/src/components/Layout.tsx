@@ -57,7 +57,8 @@ interface NavItem {
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Сегодня', match: /^\/dashboard(\/|$)/, icon: CalendarDays },
-  { to: '/exams', label: 'Экзамены', match: /^\/exams(\/|$)/, icon: GraduationCap },
+  // The tests live in «Экзамены» too («Экзамены | Тесты», /tests/new, /tests/quick).
+  { to: '/exams', label: 'Экзамены', match: /^\/(exams|tests)(\/|$)/, icon: GraduationCap },
   { to: '/library', label: 'Лекции', match: /^\/library(\/|$)/, icon: BookOpen },
   { to: '/review', label: 'Повторение', match: /^\/(review|mistakes)(\/|$)/, icon: Repeat, counter: 'due' },
   { to: '/analytics', label: 'Прогресс', match: /^\/(analytics|knowledge-map)(\/|$)/, icon: TrendingUp },
@@ -148,6 +149,9 @@ export function backLinkFor(pathname: string, search = ''): { to: string; label:
   const container = CONTAINER_PAGE.exec(pathname);
   if (container) return container[2] ? backToContainer(container[1]) : { to: '/exams', label: 'Экзамены' };
   if (/^\/exams\/import\/?$/.test(pathname)) return fromContainer(search) ?? { to: '/exams', label: 'Экзамены' };
+  if (/^\/tests\/(?:new|quick)\/?$/.test(pathname) || /^\/exams\/c\/[^/]+\/quizzes\/[^/]+\/link\/?$/.test(pathname)) {
+    return { to: '/exams?view=tests', label: 'Тесты' };
+  }
   const oral = ORAL_EXAM_PAGE.exec(pathname);
   if (oral) {
     const back = fromContainer(search) ?? attachedContainer(oral[1]);

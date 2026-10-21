@@ -70,6 +70,9 @@ const LiveRoute = lazy(() => import('./pages/live/LiveRoute'));
 const PlayPage = lazy(() => import('./pages/play/PlayPage'));
 const TgPlayPage = lazy(() => import('./pages/play/TgPlayPage'));
 const NewTestPage = lazy(() => import('./pages/test/NewTestPage'));
+// «Быстрая контрольная» (UX audit of 21.10): pasted questions to a link on one screen, and that link with its QR code.
+const QuickTestPage = lazy(() => import('./pages/test/QuickTestPage'));
+const QuickLinkPage = lazy(() => import('./pages/quiz/QuickLinkPage'));
 const BuildPage = lazy(() => import('./pages/test/BuildPage'));
 const StudioPage = lazy(() => import('./pages/test/StudioPage'));
 // Meldy as a Telegram Mini App (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md): the bot opens /tg.
@@ -227,11 +230,13 @@ export default function App() {
           <Route path="exams/c/:id/build" element={<BuildPage />} />
           <Route path="exams/c/:id/studio" element={<StudioPage />} />
           <Route path="tests/new" element={<NewTestPage />} />
+          <Route path="tests/quick" element={<QuickTestPage />} />
           {/* «Контрольная» (spec 2026-10-16 part 2): the author's list, settings and live results. */}
           <Route path="exams/c/:id/quizzes" element={<QuizListPage />} />
           <Route path="exams/c/:id/quizzes/new" element={<QuizSetupPage />} />
           <Route path="exams/c/:id/quizzes/:quizId/edit" element={<QuizSetupPage />} />
           <Route path="exams/c/:id/quizzes/:quizId" element={<QuizStatsPage />} />
+          <Route path="exams/c/:id/quizzes/:quizId/link" element={<QuickLinkPage />} />
           <Route path="exams/c/:id/settings" element={<SettingsPage />} />
           <Route path="exams/:id" element={<ExamDetail />} />
           <Route path="exams/:id/edit" element={<ExamEditor />} />

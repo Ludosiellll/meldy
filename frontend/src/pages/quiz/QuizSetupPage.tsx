@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { COVER_BUCKET, coverUrl, pictureFromFile, picturePath, uploadPicture } from '../../api/itemPictures';
 import { createQuiz, listQuizzes, updateQuiz } from '../../api/quizzes';
 import { fetchTestDoc } from '../../api/testDocs';
@@ -106,7 +106,13 @@ export default function QuizSetupPage() {
   const designAsked = allAsked && search.get('design') === '1';
   // ?all=1: five settings in view, the rest folded under «Ещё настройки».
   const compact = allAsked;
-  const [moreOpen, setMoreOpen] = useState(false);
+  // «Ещё настройки» of «Быстрая контрольная» (components/quick): its pills' choices, with the folded settings open.
+  const location = useLocation();
+  const [quick] = useState(() => {
+    const state = location.state as { preset?: Partial<QuizSettings>; more?: boolean } | null;
+    return { preset: !editing && state?.preset && typeof state.preset === 'object' ? state.preset : null, more: Boolean(state?.more) };
+  });
+  const [moreOpen, setMoreOpen] = useState(quick.more);
   const frame = useFrame<HTMLDivElement>();
   // A computer: «Ещё настройки» stands on top of the right column and the folded settings open under both cards,
   // below the window's edge at 734 px — the window moves the least to show where they begin (bringIntoView).
@@ -193,12 +199,16 @@ export default function QuizSetupPage() {
         setTouched({ count: true, time: false });
       }
       if (designAsked) start = { ...start, design: true };
+      if (quick.preset) {
+        start = { ...start, ...quick.preset };
+        if (quick.preset.time_limit_min !== undefined) setTouched((current) => ({ ...current, time: true }));
+      }
     }
     if (!start) return;
     setForm(start);
     setOpensMode(start.opens_at ? 'at' : 'now');
     setClosesMode(start.closes_at ? 'at' : 'never');
-  }, [form, owner, data.data, editing, quiz, subjects, counts, allAsked, designAsked]);
+  }, [form, owner, data.data, editing, quiz, subjects, counts, allAsked, designAsked, quick]);
 
   const pool = form ? poolOf(form.subject_ids, counts) : 0;
   const designOn = form?.design === true;

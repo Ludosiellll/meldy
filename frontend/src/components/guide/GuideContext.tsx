@@ -6,8 +6,11 @@ import { GUIDE_CHAPTERS, chapterIndexFor, mayLeave, type GuideChapter, type Guid
 import { GUIDE_SEEN_KEY, guideClipPart, guideSeenHere, isNewAccount } from './clipPart';
 import { guideDeferred } from './guideLater';
 
-/** Pages where the first run waits: loading a question file, the exam container's group link (/g/<код>) and a quiz link (/k/<код>). */
-const WAITING_PATHS: readonly RegExp[] = [/^\/exams\/(import|new)\/?$/, /^\/g\//, /^\/k\//];
+/**
+ * Pages where the first run waits: loading a question file, the exam container's group link (/g/<код>), a quiz link
+ * (/k/<код>) and «Быстрая контрольная» (a teacher signs up from the landing straight into it).
+ */
+const WAITING_PATHS: readonly RegExp[] = [/^\/exams\/(import|new)\/?$/, /^\/g\//, /^\/k\//, /^\/tests\/quick\/?$/];
 
 export { GUIDE_SEEN_KEY };
 /** The profile's `onboarding_status` key. */
