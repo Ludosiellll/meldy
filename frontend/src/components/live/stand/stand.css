@@ -88,6 +88,7 @@
 .lvst-timer[data-hot] { background: conic-gradient(#e2283d calc(var(--left) * 360deg), rgba(255, 255, 255, 0.18) 0); animation: lvst-shake 0.32s linear infinite; }
 .lvst-timer[data-hot] b { color: #e2283d; }
 
+.lvst-pills[hidden] { display: none; }
 .lvst-pills { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .lvst-pill {
   display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border-radius: 999px;

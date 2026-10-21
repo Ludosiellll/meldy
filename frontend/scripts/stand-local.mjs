@@ -85,6 +85,9 @@ async function startVite() {
       proxy: { '/api': { target: `http://127.0.0.1:${PORT}`, ws: true } },
       // node_modules may be a link to another checkout
       fs: { allow: [root, realpathSync(join(root, 'node_modules'))] },
+      // a long recording must not be reloaded by an edit meanwhile
+      hmr: env('HMR', '') === '1',
+      watch: env('HMR', '') === '1' ? {} : { ignored: ['**/*'] },
     },
   });
   await server.listen();
@@ -361,6 +364,7 @@ async function replay(recPath, dir, W, H) {
     const t0 = Date.now();
     let k = 0;
     if (startAt > 0) await page.clock.runFor(startAt);
+    while (k < keys.length && keys[k][1] < startAt) k++;
     for (let t = startAt, f = 0; t <= end; t += step, f++) {
       await page.clock.runFor(step);
       await page.evaluate((dt) => window.__standStep(dt), step / 1000);

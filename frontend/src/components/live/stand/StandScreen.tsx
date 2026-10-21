@@ -426,7 +426,7 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
               <b />
             </div>
           ) : null}
-          <div className="lvst-pills">
+          <div className="lvst-pills" hidden={phase === 'leaderboard' || phase === 'podium' || phase === 'ended'}>
             {phase === 'lobby' ? (
               <span className="lvst-pill">
                 <i className="lvst-dot" />

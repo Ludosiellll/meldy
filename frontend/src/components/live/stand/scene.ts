@@ -10,6 +10,9 @@
 import { loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type View } from '../../../lib/live/three';
 import { F_GHOST, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandState, type Welcome } from '../../../lib/live/move';
 import type { Pose } from '../../../lib/live/move';
+
+/** Positions sampled each frame, reused (MoveClient.frameInto). */
+type Poses = Map<number, Pose>;
 import { changeOf, easeOutBack, tally, timerFace, type TimerFace } from './plan';
 import type { StandRoom } from './room';
 
@@ -112,6 +115,7 @@ export class StandScene {
   private readonly sums = { counts: [0, 0, 0, 0], alive: 0, ghosts: 0 };
   private readonly shown = { counts: [-1, -1, -1, -1], alive: -1, ghosts: -1, zones: 0 };
   private readonly flagsScratch: number[] = [];
+  private readonly poses: Poses = new Map();
   private readonly hooks: Parameters<StandRoom['sceneHooks']['add']>[0];
 
   constructor(
@@ -367,7 +371,7 @@ export class StandScene {
     const arena = this.arena;
     const boss = this.boss;
     this.frameNo++;
-    const t = client.serverNow();
+    const t = client.frameInto(this.poses);
     const st = this.state;
     if (boss && st && st.phase === 'open' && st.closes !== null && t !== null) {
       const hello = this.hello;
@@ -384,10 +388,9 @@ export class StandScene {
       this.hud.cue('impact');
     }
     this.updateTimer(st, t);
-    const { others } = client.frame();
     const flags = this.flagsScratch;
     flags.length = 0;
-    for (const [id, pose] of others) {
+    for (const [id, pose] of this.poses) {
       if ((pose.flags & 3) !== KIND_PLAYER) continue;
       flags.push(pose.flags);
       let a = this.actors.get(id);

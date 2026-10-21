@@ -161,6 +161,22 @@ export class MoveClient {
     return t !== null && t >= st.closes;
   }
 
+  /**
+   * Everyone else into `out` (the host: everyone), reusing its pose objects: a render loop's allocation-free
+   * `frame()`. Returns the server time sampled at (null before the first snapshot); `out` is then emptied.
+   */
+  frameInto(out: Map<number, Pose>, nowMs: number = this.now()): number | null {
+    const t = this.clock.now(nowMs);
+    if (t === null) {
+      out.clear();
+      return null;
+    }
+    this.buffer.sampleInto(t - this.o.delayMs, out);
+    const you = this.welcome?.you;
+    if (you !== undefined) out.delete(you);
+    return t;
+  }
+
   /** What to draw now. */
   frame(nowMs: number = this.now()): RenderState {
     const t = this.clock.now(nowMs);
