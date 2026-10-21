@@ -9,7 +9,8 @@ describe('the reel v3 timeline', () => {
     expect(SCENES3[SCENES3.length - 1].to).toBe(TOTAL3);
     for (let i = 1; i < SCENES3.length; i += 1) expect(SCENES3[i].from).toBe(SCENES3[i - 1].to - OVERLAP);
     expect(TOTAL3).toBeGreaterThanOrEqual(66000);
-    expect(TOTAL3).toBeLessThanOrEqual(80000);
+    // 83 s since the game in class came in after the group (owner, 21.10); the constructor keeps the longest part.
+    expect(TOTAL3).toBeLessThanOrEqual(84000);
   });
 
   it('gives the constructor the longest chapter', () => {
@@ -36,5 +37,16 @@ describe('the reel v3 timeline', () => {
     for (const scene of SCENES3) if (scene.id !== 'end') expect(SAY[scene.id as keyof typeof SAY], scene.id).toBeTruthy();
     expect(END_CTA.wide.x + END_CTA.wide.w).toBeLessThanOrEqual(1600);
     expect(END_CTA.tall.x + END_CTA.tall.w).toBeLessThanOrEqual(400);
+  });
+
+  it('puts the game in class right after the group, 6 to 8 seconds long, with its own chapter', () => {
+    const order = SCENES3.map((scene) => scene.id);
+    expect(order.indexOf('game')).toBe(order.indexOf('group') + 1);
+    const game = scene3('game');
+    expect(game.to - game.from).toBeGreaterThanOrEqual(6000);
+    expect(game.to - game.from).toBeLessThanOrEqual(8000);
+    const chapters = CHAPTERS3.map((chapter) => chapter.id);
+    expect(chapters.indexOf('game')).toBe(chapters.indexOf('group') + 1);
+    expect(chapterAt3(game.from + 500)).toBe(chapters.indexOf('game'));
   });
 });

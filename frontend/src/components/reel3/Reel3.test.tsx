@@ -1,7 +1,8 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import Reel3, { POINTER_KEYS3, TRANSCRIPT3 } from './Reel3';
-import { SAY } from '../home3/copy3';
+import Reel3, { CAPTION, POINTER_KEYS3, TRANSCRIPT3 } from './Reel3';
+import { GAME, SAY } from '../home3/copy3';
+import { GAME_FRAMES } from '../home3/gameFrames';
 import { CHAPTERS3, scene3 } from './timeline3';
 
 type Callback = (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void;
@@ -52,7 +53,8 @@ afterEach(() => {
 describe('Reel3', () => {
   it('is a captioned figure: the stage is hidden from screen readers, the transcript says every sentence', () => {
     const { container } = render(<Reel3 />);
-    expect(screen.getByRole('figure', { name: 'Ролик о Meldy, 76 секунд, без звука.' })).toBeInTheDocument();
+    expect(CAPTION).toBe('Ролик о Meldy, 83 секунды, без звука.');
+    expect(screen.getByRole('figure', { name: CAPTION })).toBeInTheDocument();
     expect(container.querySelector('.r3-stage')).toHaveAttribute('aria-hidden', 'true');
     expect(TRANSCRIPT3).toEqual(Object.values(SAY).flatMap((lines) => lines.map((line) => `${line}.`)));
     expect(container.querySelectorAll('ol.r3-sr li')).toHaveLength(TRANSCRIPT3.length);
@@ -70,7 +72,7 @@ describe('Reel3', () => {
   it('draws every scene at its time (the frame exporter steps the clock)', async () => {
     window.__MELDY_REEL_EXPORT__ = true;
     const { container } = render(<Reel3 />);
-    for (const id of ['lecture', 'file', 'plan', 'session', 'ticket', 'learn', 'group', 'build', 'media', 'look', 'send', 'take', 'stats'] as const) {
+    for (const id of ['lecture', 'file', 'plan', 'session', 'ticket', 'learn', 'group', 'game', 'build', 'media', 'look', 'send', 'take', 'stats'] as const) {
       const window3 = scene3(id);
       await act(async () => {
         await window.__meldyReel!.seek(Math.round((window3.from + window3.to) / 2));
@@ -84,7 +86,7 @@ describe('Reel3', () => {
     window.__MELDY_REEL_EXPORT__ = true;
     const { container } = render(<Reel3 />);
     const scenes = Object.entries(POINTER_KEYS3);
-    expect(scenes.map(([id]) => id)).toEqual(['file', 'plan', 'session', 'learn', 'group', 'build', 'media', 'look', 'send', 'take']);
+    expect(scenes.map(([id]) => id)).toEqual(['file', 'plan', 'session', 'learn', 'group', 'game', 'build', 'media', 'look', 'send', 'take']);
     for (const [id, keys] of scenes) {
       const window3 = scene3(id as keyof typeof POINTER_KEYS3);
       await act(async () => {
@@ -105,11 +107,12 @@ describe('Reel3', () => {
     }
   });
 
-  it('lists the eight chapters under the frame and jumps to one', () => {
+  it('lists the nine chapters under the frame and jumps to one', () => {
     const { container } = render(<Reel3 />);
     const buttons = screen.getAllByRole('button', { name: /^Перейти:/ });
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(CHAPTERS3.map((chapter) => `Перейти: ${chapter.label}`));
-    fireEvent.click(buttons[7]);
+    expect(buttons).toHaveLength(9);
+    fireEvent.click(buttons[8]);
     expect(container.querySelector('[aria-current="step"]')).toHaveAttribute('aria-label', 'Перейти: Конструктор');
   });
 
@@ -121,5 +124,24 @@ describe('Reel3', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Смотреть ролик' }));
     expect(screen.queryByRole('button', { name: 'Смотреть ролик' })).toBeNull();
+  });
+
+  it('shows the game in class after the group: the real game on the projector, the phone in Telegram', async () => {
+    window.__MELDY_REEL_EXPORT__ = true;
+    const { container } = render(<Reel3 />);
+    const game = scene3('game');
+    expect(game.from).toBe(scene3('group').to - 400);
+    await act(async () => {
+      await window.__meldyReel!.seek(game.from + 1000);
+    });
+    const gate = container.querySelector('.r3-gate[data-scene="game"]')!;
+    // The projector's pictures are frames of the recorded game, each its own file.
+    const shots = Array.from(gate.querySelectorAll<HTMLImageElement>('.r3-proj img'));
+    expect(shots.map((img) => img.getAttribute('src'))).toEqual(['run', 'last', 'stomp', 'drop'].map((name) => GAME_FRAMES[name as keyof typeof GAME_FRAMES]));
+    for (const img of shots) expect(img).toHaveAttribute('alt', '');
+    const words = (gate.textContent ?? '').replace(/\s+/g, ' ');
+    for (const part of [GAME.mode, GAME.play, GAME.question, GAME.onAnswer, GAME.right, GAME.points]) expect(words).toContain(part);
+    expect(words).toContain('Заходите по PIN');
+    expect(CHAPTERS3.find((chapter) => chapter.id === 'game')).toMatchObject({ label: 'Игра в классе', from: game.from, to: scene3('build').from });
   });
 });

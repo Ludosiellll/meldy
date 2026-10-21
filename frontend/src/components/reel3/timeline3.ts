@@ -25,6 +25,7 @@ export type SceneId3 =
   | 'ticket'
   | 'learn'
   | 'group'
+  | 'game'
   | 'build'
   | 'media'
   | 'look'
@@ -50,16 +51,17 @@ export const SCENES3: readonly SceneWindow3[] = [
   { id: 'ticket', from: 24600, to: 32600 },
   { id: 'learn', from: 32200, to: 37800 },
   { id: 'group', from: 37400, to: 44600 },
-  { id: 'build', from: 44200, to: 51600 },
-  { id: 'media', from: 51200, to: 56600 },
-  { id: 'look', from: 56200, to: 60600 },
-  { id: 'send', from: 60200, to: 64200 },
-  { id: 'take', from: 63800, to: 68200 },
-  { id: 'stats', from: 67800, to: 72600 },
-  { id: 'end', from: 72200, to: 76000 },
+  { id: 'game', from: 44200, to: 51600 },
+  { id: 'build', from: 51200, to: 58600 },
+  { id: 'media', from: 58200, to: 63600 },
+  { id: 'look', from: 63200, to: 67600 },
+  { id: 'send', from: 67200, to: 71200 },
+  { id: 'take', from: 70800, to: 75200 },
+  { id: 'stats', from: 74800, to: 79600 },
+  { id: 'end', from: 79200, to: 83000 },
 ];
 
-export const TOTAL3 = 76000;
+export const TOTAL3 = 83000;
 
 /** A scene is mounted this long before it shows (hidden), during the calm end of the scene before it. */
 export const PREMOUNT3 = 900;
@@ -84,7 +86,7 @@ export interface Chapter3 {
   to: number;
 }
 
-/** The bar under the reel: eight chapters; the constructor runs from «Новый тест» to the end card. */
+/** The bar under the reel: nine chapters; the constructor runs from «Новый тест» to the end card. */
 export const CHAPTERS3: readonly Chapter3[] = [
   { id: 'lecture', label: CHAPTER_LABELS.lecture, from: 0, to: scene3('file').from },
   { id: 'file', label: CHAPTER_LABELS.file, from: scene3('file').from, to: scene3('plan').from },
@@ -92,7 +94,8 @@ export const CHAPTERS3: readonly Chapter3[] = [
   { id: 'session', label: CHAPTER_LABELS.session, from: scene3('session').from, to: scene3('ticket').from },
   { id: 'ticket', label: CHAPTER_LABELS.ticket, from: scene3('ticket').from, to: scene3('learn').from },
   { id: 'learn', label: CHAPTER_LABELS.learn, from: scene3('learn').from, to: scene3('group').from },
-  { id: 'group', label: CHAPTER_LABELS.group, from: scene3('group').from, to: scene3('build').from },
+  { id: 'group', label: CHAPTER_LABELS.group, from: scene3('group').from, to: scene3('game').from },
+  { id: 'game', label: CHAPTER_LABELS.game, from: scene3('game').from, to: scene3('build').from },
   { id: 'builder', label: CHAPTER_LABELS.builder, from: scene3('build').from, to: TOTAL3 },
 ];
 
@@ -106,4 +109,4 @@ export function chapterAt3(t: number): number {
  * page. A moment with no picture on the stage, so the reel's still never outgrows the headline as the largest paint
  * (phone check: the look scene's page background became the LCP at 2.35 s).
  */
-export const POSTER3 = 50500;
+export const POSTER3 = 57500;

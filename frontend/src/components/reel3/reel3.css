@@ -1157,6 +1157,324 @@
   color: #8a8f97;
 }
 
+/* ---------------------------------------------------------------- the game in class
+   The projector: the real recorded game (frames 800 × 450, drawn at --k); the phone beside it, over its corner. */
+[data-layout='wide'] .r3-scene--game .r3-say {
+  width: 450px;
+  font-size: 58px;
+}
+[data-layout='wide'] .r3-scene--game .r3-ui {
+  left: 586px;
+  top: 96px;
+  width: 472px;
+  height: 354px;
+  transform: scale(2);
+}
+[data-layout='tall'] .r3-scene--game .r3-ui {
+  top: 126px;
+  height: 360px;
+}
+.r3-proj {
+  --k: 0.5375;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 430px;
+  height: 241.875px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #262250;
+  box-shadow: 0 0 0 1px rgba(11, 18, 28, 0.1), 0 22px 44px -30px rgba(16, 41, 90, 0.6);
+}
+[data-layout='tall'] .r3-proj {
+  --k: 0.475;
+  width: 380px;
+  height: 213.75px;
+  border-radius: 10px;
+}
+.r3-proj-in {
+  width: 800px;
+  height: 450px;
+  transform: scale(var(--k));
+  transform-origin: 0 0;
+}
+.r3-proj-cam {
+  position: absolute;
+  inset: 0;
+  transform-origin: 36% 46%;
+  will-change: transform;
+}
+.r3-proj-cam img,
+.r3-gp-track img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 800px;
+  height: 450px;
+  max-width: none;
+  user-select: none;
+}
+/* the phone: the class chat in Telegram, then the game in it */
+.r3-gp {
+  position: absolute;
+  left: 322px;
+  top: 58px;
+  width: 150px;
+  height: 296px;
+  padding: 6px;
+  border-radius: 26px;
+  background: #0b121c;
+  box-shadow: 0 26px 44px -26px rgba(16, 41, 90, 0.7);
+}
+[data-layout='tall'] .r3-gp {
+  left: 226px;
+  top: 64px;
+}
+.r3-gp-in {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #dfe8d4;
+}
+.r3-gp .r3-tg-top {
+  padding: 9px 0 6px;
+  font-size: 10.5px;
+}
+.r3-gp .r3-tg-top small {
+  font-size: 8.5px;
+}
+.r3-gp-post {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+}
+.r3-gp-b {
+  display: grid;
+  margin: 0 7px !important;
+  padding: 7px 9px 8px;
+  border-radius: 13px 13px 13px 4px;
+  background: #fff;
+  font-size: 9.5px;
+  line-height: 1.36;
+}
+.r3-gp-from {
+  color: #2f7ac0;
+  font-size: 9px;
+  font-weight: 600;
+}
+.r3-gp-b b {
+  font-weight: 650;
+}
+.r3-gp-play {
+  height: 26px;
+  margin: 5px 7px 0;
+  font-size: 10px;
+}
+.r3-gp-play.is-hover {
+  background: #2f6ccf;
+}
+.r3-gp-app {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #1e1b3f;
+  color: #0b121c;
+}
+.r3-gp-view {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+/* the top under Telegram's buttons and the question stays dark (the projector's board is not the phone's) */
+.r3-gp-view::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#1e1b3f 0, #1e1b3f 22%, rgba(30, 27, 63, 0) 40%);
+}
+.r3-gp-track {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+.r3-gp-track img {
+  transform: translate(-142px, -30px) scale(0.9);
+  transform-origin: 0 0;
+}
+.r3-gp-bar {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+.r3-gp-close {
+  padding: 2px 7px 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 500;
+}
+.r3-gp-close::before {
+  content: '×';
+  margin-right: 3px;
+}
+.r3-gp-more {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 1px, transparent 1.4px) 4px 50% / 4px 4px repeat-x, rgba(255, 255, 255, 0.16);
+}
+.r3-gp-card {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 27px;
+  padding: 7px 8px 8px;
+  border-radius: 12px;
+  background: #fff;
+}
+.r3-gp-of {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #6b7079;
+  font-size: 7.5px;
+}
+.r3-gp-of b {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px #e6e6ee;
+  color: #0b121c;
+  font-size: 9.5px;
+  font-weight: 750;
+}
+.r3-gp-q {
+  margin: 2px 0 6px !important;
+  font-size: 9.5px;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+.r3-gp-opts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 6px;
+}
+.r3-gp-opts span,
+.r3-gp-on {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 7.5px;
+  font-weight: 600;
+}
+.r3-gp i[data-zone] {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 3.5px;
+  background: #ff6f61;
+  color: #fff;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 750;
+}
+.r3-gp i[data-zone='1'] {
+  background: #4d8dff;
+}
+.r3-gp i[data-zone='2'] {
+  background: #ffc531;
+}
+.r3-gp i[data-zone='3'] {
+  background: #36c47c;
+}
+.r3-gp-win {
+  padding: 8px 10px 9px;
+  background: #6cc28a;
+}
+.r3-gp-win b {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+}
+.r3-gp-win strong {
+  display: block;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.r3-gp-stick {
+  position: absolute;
+  left: 6px;
+  bottom: 12px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.07);
+}
+.r3-gp-stick i {
+  position: absolute;
+  left: 11px;
+  top: 11px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #e7e7ee;
+}
+.r3-gp-zone {
+  position: absolute;
+  right: 6px;
+  bottom: 12px;
+  display: grid;
+  align-items: center;
+  width: 80px;
+  height: 40px;
+  border-radius: 10px;
+  background: #fff;
+}
+.r3-gp-zone > span {
+  grid-area: 1 / 1;
+  padding: 0 6px;
+}
+.r3-gp-run {
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.r3-gp-on {
+  gap: 4px;
+}
+.r3-gp-on i[data-zone] {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  font-size: 10px;
+}
+.r3-gp-on > span {
+  display: grid;
+  font-size: 8.5px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.r3-gp-on small {
+  color: #6b7079;
+  font-size: 6.5px;
+  font-weight: 500;
+}
+
 /* ---------------------------------------------------------------- the constructor */
 .r3-exams {
   left: 0;

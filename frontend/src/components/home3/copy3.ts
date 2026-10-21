@@ -28,6 +28,7 @@ export const CTA = {
   signUp: 'Создать аккаунт',
   signIn: 'Войти',
   build: 'Собрать свой тест',
+  game: 'Провести игру',
 } as const;
 
 export const NAV = [
@@ -45,6 +46,7 @@ export const CHAPTER_LABELS = {
   ticket: 'Билет вслух',
   learn: 'Осталось выучить',
   group: 'Группа',
+  game: 'Игра в классе',
   builder: 'Конструктор',
 } as const;
 
@@ -60,6 +62,7 @@ export const SAY = {
   ticket: ['Билет 7 вы отвечаете вслух', 'Экзаменатор спрашивает о том, что вы пропустили'],
   learn: ['Экзамен разбит на темы', 'Ответили на последний вопрос, и тема выучена'],
   group: ['Одна ссылка, и экзамен есть у всей группы', 'В 20:00 бот присылает план на день'],
+  game: ['Класс играет на проекторе, ученики заходят из Telegram', 'Кто не успел к верному ответу, проваливается'],
   build: ['Свой тест собирается из блоков', 'Блоки перетаскиваются на страницу'],
   media: ['Можно поставить свою картинку, фон и видео'],
   look: ['Цвет, шрифт и баллы вы задаёте сами', 'Сообщение после теста зависит от баллов'],
@@ -171,6 +174,35 @@ export const TICKET_TALK = {
 export const GROUP_SECTION = {
   title: 'Группа и Telegram',
   text: 'Отправьте группе одну ссылку. У каждого будет весь экзамен и свой прогресс. Бот в Telegram присылает план на день, и вопросы можно решать прямо в чате.',
+} as const;
+
+/**
+ * «Игра в классе» (owner, 21.10: «не забудь сделать это» for the page and the reel): the live game «Встань на ответ»,
+ * shown by its real recorded frames (home3/game). The question and its options are the recorded game's; the bot's post
+ * is the stand game's group post (supabase/functions/_shared/bot/live.ts livePost); the phone's words are the phone's
+ * own (live/stand/phone/words.ts).
+ */
+export const GAME_SECTION = {
+  title: 'Игра в классе',
+  text: 'Класс играет на проекторе. Ученики бегут к ответу с телефона. Кто не успел к верному ответу, проваливается. Играть можно на сайте и в Telegram.',
+} as const;
+
+export const GAME = {
+  mode: 'Встань на ответ',
+  question: 'Какая планета ближе всего к Солнцу?',
+  options: ['Меркурий', 'Венера', 'Марс', 'Земля'],
+  of: 'Вопрос 1 из 3',
+  onAnswer: 'Вы на ответе',
+  run: 'Бегите к ответу',
+  right: 'Верно',
+  points: '+980',
+  close: 'Закрыть',
+  chat: '9 «Б» класс',
+  chatMeta: '31 участник',
+  bot: 'Meldy',
+  /** The bot's lines; a number keeps to its word and the PIN stays whole (\u00a0). */
+  post: ['Игра по тесту «Повторение». 3\u00a0вопроса.', 'Заходите по PIN\u00a0482\u00a0913.', 'Играют 30'],
+  play: 'Играть',
 } as const;
 
 export const BUILDER_SECTION = {
