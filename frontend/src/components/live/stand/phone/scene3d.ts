@@ -235,10 +235,11 @@ export class PhoneScene implements Backdrop {
   private placeCamera(x: number, y: number, snap: boolean, dt = 0): void {
     if (!this.view) return;
     const k = snap || !this.cam.ready ? 1 : 1 - Math.exp(-dt * 7);
-    // On an answer zone the camera centres the zone, so its banner stays whole on a narrow phone.
+    // On an answer zone the camera leans halfway to the zone's centre: its banner stays readable on a narrow phone,
+    // the own character stays in the picture.
     const zone = this.arena?.map.zones?.find((z) => x >= z.rect[0] && x <= z.rect[0] + z.rect[2] && y >= z.rect[1] && y <= z.rect[1] + z.rect[3]);
-    const cx = zone ? zone.rect[0] + zone.rect[2] / 2 : x;
-    this.cam.x += (cx - this.cam.x) * (zone ? k * 0.5 : k);
+    const cx = zone ? (x + zone.rect[0] + zone.rect[2] / 2) / 2 : x;
+    this.cam.x += (cx - this.cam.x) * k;
     this.cam.y += (y - this.cam.y) * k;
     this.cam.ready = true;
     this.view.setCamera({
