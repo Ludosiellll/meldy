@@ -75,7 +75,7 @@ afterEach(() => cleanup());
 describe('what a lecture row says', () => {
   it('names only what the lecture has, and says plainly when it is text only', () => {
     expect(plain(lectureMeta(toEntry(material('a', 'A', '2026-09-01', { flashcards_json: { flashcards: [{}, {}, {}, {}, {}, {}, {}, {}] }, quiz_json: { quiz: [{}] }, summary_json: { content: 'x', podcast: [{}] } }))!))).toBe(
-      'конспект · 8 карточек · тест · подкаст',
+      'конспект · 8 карточек · самопроверка · подкаст',
     );
     expect(plain(lectureMeta(toEntry(material('b', 'B', '2026-09-01', { summary_json: { text_only: true } }))!))).toBe('только текст, конспекта нет');
     expect(plain(lectureMeta(entry('c', '2026-09-01', { summary: false })))).toBe('');
@@ -90,8 +90,8 @@ describe('what a lecture row says', () => {
       }),
     )!;
     expect(all.cheatsheet).toBe(true);
-    expect(plain(lectureMeta(all))).toBe('конспект · 6 карточек · тест · выжимка · подкаст');
-    expect(plain(lectureMeta(all, 0, true))).toBe('6 карточек · тест · выжимка · подкаст');
+    expect(plain(lectureMeta(all))).toBe('конспект · 6 карточек · самопроверка · выжимка · подкаст');
+    expect(plain(lectureMeta(all, 0, true))).toBe('6 карточек · самопроверка · выжимка · подкаст');
     // An empty one is not there.
     expect(toEntry(material('b', 'B', '2026-09-01', { summary_json: { content: 'x', cheatsheet: '  ' } }))!.cheatsheet).toBe(false);
     // The light entry this device keeps says it as well.
@@ -107,7 +107,7 @@ describe('what a lecture row says', () => {
     // Through the list this device keeps, and the row says what it said before.
     const kept = toEntry(JSON.parse(JSON.stringify(recorded)))!;
     expect([kept.questions, kept.recognized]).toEqual([5, 'recording']);
-    expect(plain(lectureMeta(kept))).toBe('конспект · тест');
+    expect(plain(lectureMeta(kept))).toBe('конспект · самопроверка');
     // A typed text has no recognition; an entry this device kept before has neither.
     expect(toEntry(material('b', 'B', '2026-09-01'))!.recognized).toBeUndefined();
     const older = toEntry(entry('c', '2026-09-01', { quiz: true }))!;
@@ -116,7 +116,7 @@ describe('what a lecture row says', () => {
   });
 
   it('names the cards from ticket answers apart from the lecture’s own (finding LIB-6)', () => {
-    expect(plain(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }), 4))).toBe('конспект · 6 карточек · ещё 4 из ответов на билеты · тест');
+    expect(plain(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }), 4))).toBe('конспект · 6 карточек · ещё 4 из ответов на билеты · самопроверка');
     expect(plain(lectureMeta(entry('b', '2026-09-01', { cards: 6 }), 0))).toBe('конспект · 6 карточек');
     expect(plain(lectureMeta(entry('c', '2026-09-01', { textOnly: true, summary: false }), 2))).toBe('только текст, конспекта нет · 2 карточки из ответов на билеты');
   });
@@ -125,7 +125,7 @@ describe('what a lecture row says', () => {
     const now = new Date('2026-10-08T10:00:00Z');
     expect(shortDate('2026-10-05T10:00:00Z', now)).toBe('5\u00a0окт.');
     expect(shortDate('2025-10-05T10:00:00Z', now)).toBe('5\u00a0окт. 2025');
-    expect(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }))).toBe('конспект\u00a0· 6\u00a0карточек\u00a0· тест');
+    expect(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }))).toBe('конспект\u00a0· 6\u00a0карточек\u00a0· самопроверка');
   });
 
   it('counts the lectures of an exam: analysed and text only', () => {
@@ -221,7 +221,7 @@ describe('<Library>', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Действия: Предложение' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Удалить лекцию…' }));
     await waitFor(() => expect(data.deleteMaterial).toHaveBeenCalledWith('m2'));
-    // It names only what the lecture has: this one, its конспект (QA 2026-10-11: «карточками и тестом» for every lecture).
+    // It names only what the lecture has: this one, its конспект (QA 2026-10-11: «карточками и самопроверкой» for every lecture).
     expect(data.confirm).toHaveBeenCalledWith({
       title: 'Удалить лекцию?',
       message: '«Предложение» исчезнет из библиотеки вместе с конспектом. Это нельзя отменить.',
@@ -349,8 +349,8 @@ describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', 
     // «Экзамен · 3 лекции · 18 карточек»; the cards from ticket answers are on each lecture's «Карточки».
     await waitFor(() => expect(data.followups.size).toBe(3));
     expect(plain(document.querySelector('.lib-head .sf-lede')?.textContent ?? '')).toBe('Экзамен · 3 лекции · 18 карточек');
-    // «6 карточек · тест · <date>»: a summary goes without saying.
-    expect(plain(row.querySelector('.sf-toc-meta')?.textContent ?? '')).toMatch(/^6 карточек · тест · \d{1,2} сент\./);
+    // «6 карточек · самопроверка · <date>»: a summary goes without saying.
+    expect(plain(row.querySelector('.sf-toc-meta')?.textContent ?? '')).toMatch(/^6 карточек · самопроверка · \d{1,2} сент\./);
     expect(row.textContent).not.toMatch(/конспект|из ответов/);
   });
 
@@ -361,7 +361,7 @@ describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', 
   });
 
   it('names a missing summary, and the cards from ticket answers of a lecture with none of its own', () => {
-    expect(plain(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }), 4, true))).toBe('6 карточек · тест');
+    expect(plain(lectureMeta(entry('a', '2026-09-01', { cards: 6, quiz: true }), 4, true))).toBe('6 карточек · самопроверка');
     expect(plain(lectureMeta(entry('b', '2026-09-01', { summary: false, cards: 6 }), 0, true))).toBe('без конспекта · 6 карточек');
     expect(plain(lectureMeta(entry('c', '2026-09-01', { textOnly: true, summary: false }), 2, true))).toBe('только текст, конспекта нет · 2 карточки из ответов на билеты');
   });

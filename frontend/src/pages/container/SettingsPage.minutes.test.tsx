@@ -1,6 +1,6 @@
 /**
  * «Настройки», the line under «Время в день» of an exam whose plan holds fewer questions than the exam (usability check
- * 2026-10-10, m6: «Чтобы увидеть все 50 вопросов…» under an exam of 54). The exam's size rides on the plan input
+ * 2026-10-10, m6: «Чтобы пройти все 50 вопросов…» under an exam of 54). The exam's size rides on the plan input
  * (hooks.ts buildData sets `examQuestions`); the page's own copy of the input, with the form's dates and days, keeps it.
  */
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -97,19 +97,19 @@ const minutesLine = () => Array.from(document.querySelectorAll('.im-hint')).map(
 describe('«Настройки»: what the minutes reach names its count when the exam holds more', () => {
   it('«все 20 вопросов в плане» under an exam of 25, and still after the date changes in the form', () => {
     renderPage();
-    expect(minutesLine()).toMatch(/^Чтобы увидеть все 20 вопросов в плане к \d+ \S+, нужно около 20 минут в день\./);
+    expect(minutesLine()).toMatch(/^Чтобы пройти все 20 вопросов в плане к \d+ \S+, нужно около 20 минут в день\./);
     expect(api.feasibility).toHaveBeenLastCalledWith(expect.objectContaining({ examQuestions: 25 }));
     // A new date in the form: the page's own copy of the input keeps the exam's size (the oral subject keeps its date).
     fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '2027-01-14' } });
     const input = api.feasibility.mock.calls[api.feasibility.mock.calls.length - 1][0] as PlanInput;
     expect(input.subjects.find((subject) => subject.id === SUMMARY.subjects[0].id)?.date).toBe('2027-01-14');
     expect(input.examQuestions).toBe(25);
-    expect(minutesLine()).toMatch(/^Чтобы увидеть все 20 вопросов в плане к \d+ \S+, нужно около 20 минут в день\./);
+    expect(minutesLine()).toMatch(/^Чтобы пройти все 20 вопросов в плане к \d+ \S+, нужно около 20 минут в день\./);
   });
 
   it('every question of the exam in the plan: the words as before', () => {
     api.state.plan = { ...PLAN, examQuestions: 20 };
     renderPage();
-    expect(minutesLine()).toMatch(/^Чтобы увидеть все 20 вопросов к \d+ \S+, нужно около 20 минут в день\./);
+    expect(minutesLine()).toMatch(/^Чтобы пройти все 20 вопросов к \d+ \S+, нужно около 20 минут в день\./);
   });
 });

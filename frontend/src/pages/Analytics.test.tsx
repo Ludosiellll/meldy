@@ -208,14 +208,14 @@ describe('Progress page', () => {
   it('says what happened in the last 7 days under the title', async () => {
     setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 6 }] }));
     renderProgress();
-    expect(await screen.findByText('За 7 дней: 6 ответов на карточки и 2 теста.')).toBeInTheDocument();
+    expect(await screen.findByText('За 7 дней: 6 ответов на карточки и 2 самопроверки.')).toBeInTheDocument();
   });
 
   it('names the day of the last study when the week was empty', async () => {
     setTable('study_sessions', () => ({ data: [{ date: '2026-09-20', cards_reviewed: 4 }] }));
     setJournal([], []);
     renderProgress();
-    expect(await screen.findByText('За 7 дней занятий не было. Последние — 20 сентября.')).toBeInTheDocument();
+    expect(await screen.findByText('За 7 дней занятий не было. Последнее занятие было 20 сентября.')).toBeInTheDocument();
   });
 
   it('shows the cards by state: consolidated, learning, new', async () => {
@@ -241,7 +241,7 @@ describe('Progress page', () => {
     await screen.findByRole('heading', { name: 'Что подтянуть' });
     const few = tile('Вспомнили с 3 октября');
     expect(few.querySelector('.pg-big, .pg-state')).toBeNull();
-    expect(within(few).getByText('Пока 4 ответа на карточки — долю покажем с 10, осталось 6.')).toBeInTheDocument();
+    expect(within(few).getByText('Пока 4 ответа на карточки. Долю покажем после 10, осталось 6.')).toBeInTheDocument();
     cleanup();
 
     setJournal([]);
@@ -276,7 +276,7 @@ describe('Progress page', () => {
     expect(plain(ahead.querySelector('.pg-big')?.textContent)).toBe('1');
     expect(within(ahead).getByText('карточка ждёт сейчас')).toBeInTheDocument();
     expect(Array.from(ahead.querySelectorAll('.pg-mini-val')).map((v) => v.textContent)).toEqual(['1', '2', '3']);
-    expect(within(ahead).getByText('Завтра — 2, всего на неделю — 6.')).toBeInTheDocument();
+    expect(within(ahead).getByText('Завтра 2 карточки, всего на неделю 6.')).toBeInTheDocument();
     expect(within(ahead).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review');
     // With cards waiting, this tile comes first on a phone (LIB-25).
     expect(ahead).toHaveAttribute('data-lead');
@@ -315,11 +315,11 @@ describe('Progress page', () => {
     expect(rows.map((row) => plain(row.querySelector('.pg-todo-t')?.textContent))).toEqual([
       '«Энтропия»: вспомнили 6 из 12 ответов с 3 октября',
       '«Новая лекция»: 2 карточки не добавлены в повторение',
-      'Тесты не пройдены в 2 лекциях. Начните с «Новая лекция»',
+      'Самопроверка не пройдена в 2 лекциях. Начните с «Новая лекция»',
     ]);
     expect(within(rows[0] as HTMLElement).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review?material=m1');
     expect(within(rows[1] as HTMLElement).getByRole('button', { name: 'Добавить' })).toBeEnabled();
-    expect(within(rows[2] as HTMLElement).getByRole('link', { name: 'Пройти тест: Новая лекция' })).toHaveAttribute('href', '/library/m2?section=quiz');
+    expect(within(rows[2] as HTMLElement).getByRole('link', { name: 'Пройти самопроверку: Новая лекция' })).toHaveAttribute('href', '/library/m2?section=quiz');
   });
 
   it('adds cards that never reached review and then offers to repeat them', async () => {
@@ -350,7 +350,7 @@ describe('Progress page', () => {
     setTable('flashcard_progress', () => ({ data: demoCards.slice(0, 3) }));
     setJournal([], [...demoQuiz]);
     renderProgress();
-    expect(await screen.findByText('Пробелов не видно: карточки в повторении, тесты пройдены, открытых ошибок нет.')).toBeInTheDocument();
+    expect(await screen.findByText('Пробелов нет. Карточки в повторении, самопроверки пройдены, открытых ошибок нет.')).toBeInTheDocument();
     cleanup();
 
     setTable('mistake_diary', () => ({ data: null, error: { code: '08006', message: 'offline' } }));
@@ -397,7 +397,7 @@ describe('Lectures', () => {
   it('shows each lecture with its cards, test, recall and next step, the ones with something to do first', async () => {
     renderProgress();
     const row = await lectureRow('Энтропия');
-    expect(within(row).getByText('тест 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
+    expect(within(row).getByText('самопроверка 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
     expect(within(row).getByText('закреплено 3 из 6 · новых 1')).toBeInTheDocument();
     expect(plain(row.querySelector('.pg-lec-share')?.textContent)).toBe('вспомнили 50 %');
     expect(within(row).getByText('6 из 12 с 3 окт.')).toBeInTheDocument();
@@ -406,7 +406,7 @@ describe('Lectures', () => {
     const list = row.closest('ul') as HTMLElement;
     expect(Array.from(list.querySelectorAll('.pg-lec-t')).map((link) => link.textContent)).toEqual(['Энтропия', 'Новая лекция', 'Инфляция']);
     expect(within(await lectureRow('Новая лекция')).getByText('2 карточки не в повторении')).toBeInTheDocument();
-    expect(within(await lectureRow('Инфляция')).getByRole('link', { name: 'Пройти тест: Инфляция' })).toHaveAttribute('href', '/library/m4?section=quiz');
+    expect(within(await lectureRow('Инфляция')).getByRole('link', { name: 'Пройти самопроверку: Инфляция' })).toHaveAttribute('href', '/library/m4?section=quiz');
   });
 
   it('keeps text-only lectures apart: they have no cards or test by design', async () => {
@@ -437,7 +437,7 @@ describe('Lectures', () => {
     expect(screen.queryByText(/закреплено \d/)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /^Повторить \d/ })).not.toBeInTheDocument();
     // The tests still show: they come from another source.
-    expect(within(await lectureRow('Энтропия')).getByText('тест 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
+    expect(within(await lectureRow('Энтропия')).getByText('самопроверка 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
 
     await user.click(within(alert.closest('p')!).getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByText('закреплено 3 из 6 · новых 1')).toBeInTheDocument();
@@ -495,7 +495,7 @@ describe('Progress sources', () => {
     expect(screen.getByText(/^Ответы на карточки по дням; больше всего 7 — /)).toBeInTheDocument();
     // Today's cards (3 October) and the two demo tests (2 and 3 October): two days of study, both in a row
     // (a day with a test is a day of study for the streak too).
-    expect(screen.getByText('За 30 дней: 7 ответов на карточки, 2 теста, занятия в 2 из 30 дней, сейчас 2 дня подряд.')).toBeInTheDocument();
+    expect(screen.getByText('За 30 дней: 7 ответов на карточки, 2 самопроверки, занятия в 2 из 30 дней, сейчас 2 дня подряд.')).toBeInTheDocument();
     expect(screen.getByText('сегодня')).toBeInTheDocument();
   });
 
@@ -533,7 +533,7 @@ describe('Progress sources', () => {
     expect(await screen.findByText('За 30 дней занятий не было.')).toBeInTheDocument();
     expect(screen.getByText('Здесь будет видно, как вы запоминаете лекции. Начните с разбора первой лекции.')).toBeInTheDocument();
     const todo = screen.getByRole('heading', { name: 'Что подтянуть' }).closest('section') as HTMLElement;
-    expect(within(todo).getByText('Пока нечего подтягивать — разберите первую лекцию, и здесь появятся её пробелы.')).toBeInTheDocument();
+    expect(within(todo).getByText('Пока нечего подтягивать. Разберите первую лекцию, и здесь появятся её пробелы.')).toBeInTheDocument();
     expect(within(todo).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
     expect(within(todo).queryByText(/Пробелов не видно/)).toBeNull();
     // No big «0» in the week's tile when there are no cards at all.
@@ -581,7 +581,7 @@ describe('Progress sources', () => {
     expect(within(accr).getByRole('link', { name: 'Аккредитация' })).toHaveAttribute('href', '/exams/c/c-1');
     expect(plain(accr.querySelector('.sf-ledger-meta')?.textContent)).toBe('22 октября, через 19 дней · 4 предмета, 960 вопросов');
     expect(plain(accr.querySelector('.sf-ledger-fig')?.textContent)).toBe('143 из 960');
-    expect(plain(accr.querySelector('.sf-ledger-cap')?.textContent)).toBe('верно в два разных дня');
+    expect(plain(accr.querySelector('.sf-ledger-cap')?.textContent)).toBe('выучено');
     expect(plain(accr.querySelector('.sf-ledger-foot')?.textContent)).toBe('Видели 410');
     // Before any answer: its date and size, no 0 to start with; no link to the list in place of the figures.
     expect(within(rows[2]).getByRole('link', { name: 'Зимняя сессия' })).toHaveAttribute('href', '/exams/c/c-2');
@@ -681,7 +681,7 @@ describe('Progress sources', () => {
 
     const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li')!;
     expect(
-      within(row).getByText(/^Есть в ваших лекциях: 1 из 3 · частично 0 · нет 0 · только по словам 1 · не сверено 1\. Сверка с лекциями от 30 сентября, \d{1,2}:\d{2}\.$/),
+      within(row).getByText(/^Есть в ваших лекциях 1 из 3 · частично 0 · нет 0 · только по словам 1 · не сверено 1\. Сверка с лекциями от 30 сентября, \d{1,2}:\d{2}\.$/),
     ).toBeInTheDocument();
   });
 
@@ -713,14 +713,14 @@ describe('Progress sources', () => {
     expect(link).toHaveAttribute('href', '/exams/e1');
     const row = link.closest('li') as HTMLElement;
     expect(within(row).getByText(/ответы на билеты с 1 октября$/)).toBeInTheDocument();
-    expect(within(row).getByText('Есть в ваших лекциях: 1 из 3 · частично 1 · нет 1.')).toBeInTheDocument();
+    expect(within(row).getByText('Есть в ваших лекциях 1 из 3 · частично 1 · нет 1.')).toBeInTheDocument();
     expect(row.querySelector('.sf-ledger-fig')?.textContent).toBe('1 из 3');
-    expect(within(row).getByText('вопросов подтверждено ответами')).toBeInTheDocument();
+    expect(within(row).getByText('вопросов выучено')).toBeInTheDocument();
     // C(1, 2) / C(3, 2): no ticket has both questions confirmed yet — a small line of the foot, no big «0 %».
     expect(row.querySelectorAll('.sf-ledger-fig')).toHaveLength(1);
     expect(within(row).queryByText('билетов, где подтверждены оба вопроса')).toBeNull();
     expect((row.querySelector('.sf-ledger-foot')?.textContent ?? '').replace(/ /g, ' ')).toBe(
-      'Названо достаточно, не подтверждено — 0, названо недостаточно — 1. Билетов, где подтверждены оба вопроса, — 0 %. Самооценка против ответов: мало данных.',
+      'Ответ полный, ещё не выучено — 0, ответ неполный — 1. В 0 % билетов выучены оба вопроса. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
     );
     expect(row.textContent).not.toMatch(/зачт[её]н|засчит|вслух/i);
     expect(db.fetchQuestionEvents).toHaveBeenCalledWith([a, b, c]);
@@ -737,10 +737,10 @@ describe('Progress sources', () => {
       data: [a, b, c].map((hash, index) => ({ id: `q${index}`, exam_id: 'e1', section: null, question_hash: hash, coverage: 'full' })),
     }));
     db.fetchQuestionEvents.mockResolvedValue([
-      // 23:59 and 0:01: two days, two minutes — названо достаточно, не подтверждено.
+      // 23:59 and 0:01: two days, two minutes — ответ полный, ещё не выучено.
       examAnswer(a, '2026-10-01', true, '1', '2026-10-01T20:59:00Z'),
       examAnswer(a, '2026-10-02', true, '2', '2026-10-01T21:01:00Z'),
-      // 1:00 and 21:00 of one day — названо достаточно, не подтверждено.
+      // 1:00 and 21:00 of one day — ответ полный, ещё не выучено.
       examAnswer(b, '2026-10-02', true, '3', '2026-10-01T22:00:00Z'),
       examAnswer(b, '2026-10-02', true, '4', '2026-10-02T18:00:00Z'),
       // 10:00, 18:00 and 8:00 the next day — подтверждено.
@@ -751,21 +751,21 @@ describe('Progress sources', () => {
     renderProgress();
     const row = (await screen.findByRole('link', { name: 'Микроэкономика' })).closest('li') as HTMLElement;
     expect(row.querySelector('.sf-ledger-fig')?.textContent).toBe('1 из 3');
-    expect(row.querySelector('.sf-ledger-foot')?.textContent).toMatch(/^Названо достаточно, не подтверждено — 2, названо недостаточно — 0\. /);
+    expect(row.querySelector('.sf-ledger-foot')?.textContent).toMatch(/^Ответ полный, ещё не выучено — 2, ответ неполный — 0\. /);
   });
 
   it('words the ledger foot with «названо достаточно» and «ответили» (no «засчитано», Ф1), and the confirmed tickets as a small line', () => {
     const summary = { total: 40, confirmed: 7, once: 3, notPassed: 2, untested: 28, since: '2026-10-01', stale: 0 };
     const confidence = { ratedKnow: 18, ratedKnowAnswered: 10, ratedKnowPassed: 8, enoughData: true };
     expect(ledgerFoot({ summary, confidence, confirmedTickets: 3, perTicket: 2 }).replace(/ /g, ' ')).toBe(
-      'Названо достаточно, не подтверждено — 3, названо недостаточно — 2. Билетов, где подтверждены оба вопроса, — 3 %. Вы отметили «знаю» у 18 вопросов; из 10 таких, на которые вы ответили, в 8 названо достаточно.',
+      'Ответ полный, ещё не выучено — 3, ответ неполный — 2. В 3 % билетов выучены оба вопроса. Вы отметили «знаю» у 18 вопросов. Вы ответили на 10 из них, и в 8 ответ был полным.',
     );
     expect(ledgerFoot({ summary: { ...summary, confirmed: 0 }, confidence, confirmedTickets: 0, perTicket: 2 })).not.toContain('Билетов');
     expect(ledgerFoot({ summary, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 1 })).toBe(
-      'Названо достаточно, не подтверждено — 3, названо недостаточно — 2. Самооценка против ответов: мало данных.',
+      'Ответ полный, ещё не выучено — 3, ответ неполный — 2. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
     );
     expect(ledgerFoot({ summary: { ...summary, confirmed: 0, once: 0, notPassed: 0 }, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 2 })).toBe(
-      'Ответов по билетам ещё не было. Самооценка против ответов: мало данных.',
+      'Ответов по билетам ещё не было. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
     );
   });
 
@@ -774,7 +774,7 @@ describe('Progress sources', () => {
     renderProgress();
 
     expect(await screen.findByText(/Экзамены не загрузились/)).toBeInTheDocument();
-    expect(within(await lectureRow('Энтропия')).getByText('тест 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
+    expect(within(await lectureRow('Энтропия')).getByText('самопроверка 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
   });
 });
 
@@ -800,7 +800,7 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     expect(summary.querySelector('.pg-big')?.textContent).toBe('1');
     expect(within(summary).getByText('карточка ждёт сейчас')).toBeInTheDocument();
     expect(within(summary).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review');
-    expect(within(summary).getByText('Завтра — 2, всего на неделю — 6.')).toBeInTheDocument();
+    expect(within(summary).getByText('Завтра 2 карточки, всего на неделю 6.')).toBeInTheDocument();
     expect(within(summary).getByText('Закреплено 5 из 8 · учатся 2 · новых 1')).toBeInTheDocument();
     expect(within(summary).getByText(/^Вспомнили\s50\s%\sс\s3\sоктября:\s6\sиз\s12\sответов$/)).toBeInTheDocument();
     // No week of bars: the line says it.
@@ -841,7 +841,7 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     setTable('flashcard_progress', () => ({ data: [] }));
     setJournal([], []);
     renderProgress();
-    expect(await screen.findByText('Пока нечего подтягивать — разберите первую лекцию, и здесь появятся её пробелы.')).toBeInTheDocument();
+    expect(await screen.findByText('Пока нечего подтягивать. Разберите первую лекцию, и здесь появятся её пробелы.')).toBeInTheDocument();
     const summary = screen.getByRole('region', { name: 'Сводка' });
     expect(within(summary).getByText(/Карточек в повторении пока нет/)).toBeInTheDocument();
     // «Что подтянуть» offers the lecture under the card; the card does not offer it again.
@@ -938,9 +938,9 @@ describe('what a phone leaves out of an exam card (marked, on every size)', () =
     renderProgress();
     const row = (await screen.findByRole('link', { name: 'Макроэкономика' })).closest('li') as HTMLElement;
     expect(row.querySelector('.pg-exam-since')?.textContent).toBe(' · ответы на билеты с 1 октября');
-    expect(within(row).getByText(/^Есть в ваших лекциях: 2 из 3/)).toHaveAttribute('data-mapped');
+    expect(within(row).getByText(/^Есть в ваших лекциях 2 из 3/)).toHaveAttribute('data-mapped');
     const foot = row.querySelector('.sf-ledger-foot') as HTMLElement;
-    expect(foot.querySelector('[data-empty]')?.textContent).toBe(' Самооценка против ответов: мало данных.');
+    expect(foot.querySelector('[data-empty]')?.textContent).toBe(' Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».');
     expect(foot.textContent).toBe(ledgerFoot({ ...ledgerInput(), confirmedTickets: null, perTicket: 2 }));
   });
 
@@ -1020,7 +1020,7 @@ describe('the exam container’s answers in the week and in the days of study (u
     answerDays.fetch.mockResolvedValue(examDays);
     renderProgress();
     // 24 today and 31 on 1 October are in the week; the 40 of 25 September are not.
-    expect(await screen.findByText('За 7 дней: 6 ответов на карточки, 2 теста и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
+    expect(await screen.findByText('За 7 дней: 6 ответов на карточки, 2 самопроверки и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
   });
 
   it('a student of the exam container only: the week of answers, not «Начните с разбора первой лекции»', async () => {
@@ -1040,7 +1040,7 @@ describe('the exam container’s answers in the week and in the days of study (u
     setJournal([], []);
     answerDays.fetch.mockResolvedValue([{ local_date: '2026-09-25', answers: 40 }]);
     renderProgress();
-    expect(await screen.findByText('За 7 дней занятий не было. Последние — 25 сентября.')).toBeInTheDocument();
+    expect(await screen.findByText('За 7 дней занятий не было. Последнее занятие было 25 сентября.')).toBeInTheDocument();
   });
 
   it('counts them in «Занятия по дням»: the sentence, the days, the days in a row and the columns', async () => {
@@ -1050,7 +1050,7 @@ describe('the exam container’s answers in the week and in the days of study (u
     // 3 October has cards, a test and the exam's questions: one day. 2 October a test, 1 October the exam's questions:
     // three days in a row (two without them). 25 September is the fourth day of study.
     expect(
-      await screen.findByText('За 30 дней: 5 ответов на карточки, 95 ответов на вопросы экзаменов, 2 теста, занятия в 4 из 30 дней, сейчас 3 дня подряд.'),
+      await screen.findByText('За 30 дней: 5 ответов на карточки, 95 ответов на вопросы экзаменов, 2 самопроверки, занятия в 4 из 30 дней, сейчас 3 дня подряд.'),
     ).toBeInTheDocument();
     expect(screen.getByText('Ответы на карточки и вопросы экзаменов по дням; больше всего 40 — 25 сент.')).toBeInTheDocument();
     const days = document.querySelectorAll('.sf-bars-day');
@@ -1101,8 +1101,8 @@ describe('the exam container’s answers in the week and in the days of study (u
     setTable('study_sessions', () => ({ data: [{ date: todayKey(), cards_reviewed: 6 }] }));
     answerDays.fetch.mockRejectedValue(new ContainerApiError('unavailable', 'Не получилось.'));
     renderProgress();
-    expect(await screen.findByText('За 7 дней: 6 ответов на карточки и 2 теста.')).toBeInTheDocument();
-    expect(screen.getByText('За 30 дней: 6 ответов на карточки, 2 теста, занятия в 2 из 30 дней, сейчас 2 дня подряд.')).toBeInTheDocument();
+    expect(await screen.findByText('За 7 дней: 6 ответов на карточки и 2 самопроверки.')).toBeInTheDocument();
+    expect(screen.getByText('За 30 дней: 6 ответов на карточки, 2 самопроверки, занятия в 2 из 30 дней, сейчас 2 дня подряд.')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
@@ -1117,7 +1117,7 @@ describe('the exam container’s answers in the week and in the days of study (u
     expect(await within(section).findByText(/95 ответов на вопросы экзаменов/)).toBeInTheDocument();
     expect(within(section).queryByRole('alert')).toBeNull();
     // The week under the title counts them once they came.
-    expect(screen.getByText('За 7 дней: 2 теста и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
+    expect(screen.getByText('За 7 дней: 2 самопроверки и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
     view.unmount();
 
     layer.containers = [];
@@ -1139,7 +1139,7 @@ describe('the exam container’s answers in the week and in the days of study (u
     expect(await screen.findByText('Загружаем страницу…')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Занятия по дням' })).toBeNull();
     release();
-    expect(await screen.findByText('За 7 дней: 2 теста и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
+    expect(await screen.findByText('За 7 дней: 2 самопроверки и 55 ответов на вопросы экзаменов.')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Занятия по дням' })).toBeInTheDocument();
   });
 

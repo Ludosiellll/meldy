@@ -119,12 +119,12 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     const card = screen.getByRole('region', { name: /Сегодня 5/ });
     // The subject's share of the day in the plan's words: its session, 180 seconds read as «около 3 минут».
     expect(plain(card.textContent)).toContain('Сегодня 5 вопросов, около 3 минут');
-    expect(within(card).getByRole('link', { name: nm('Только ошибки: 2') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors&back=s`);
+    expect(within(card).getByRole('link', { name: nm('Повторить 2 ошибки') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors&back=s`);
     expect(within(card).getByRole('button', { name: 'Как на экзамене' })).toBeInTheDocument();
     expect(within(card).getByRole('link', { name: nm('Начать: 5 вопросов, около 3 минут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&back=s`);
-    const figure = screen.getByRole('region', { name: 'верно в два разных дня' });
+    const figure = screen.getByRole('region', { name: 'Выученные вопросы' });
     expect(plain(figure.textContent)).toContain('40');
-    expect(plain(figure.textContent)).toContain('из 240 верно');
+    expect(plain(figure.textContent)).toContain('40 из 240 выучено');
     const topics = screen.getByRole('list', { name: 'Темы' });
     const rows = within(topics).getAllByRole('button');
     // «Осталось выучить»: each topic with what is left of it.
@@ -135,7 +135,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     renderPage(loaded(dbData()));
     fireEvent.click(screen.getByRole('button', { name: /3\.2 Индексы/ }));
     const sheet = screen.getByRole('dialog', { name: '3.2 Индексы' });
-    expect(plain(sheet.textContent)).toContain('120 вопросов · верно в два разных дня 10 · ошибок 4');
+    expect(plain(sheet.textContent)).toContain('120 вопросов · выучено 10 · 4 ошибки');
     const start = within(sheet).getByRole('link', { name: nm('Начать 1 вопрос по теме') });
     expect(start.getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&topic=2&back=s`);
   });
@@ -145,7 +145,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     renderPage(loaded(dbData({ summary: base })));
     fireEvent.click(screen.getByRole('button', { name: 'Как на экзамене' }));
     const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
-    expect(plain(sheet.textContent)).toContain('Ответы можно менять до «Завершить»; итог покажем после.');
+    expect(plain(sheet.textContent)).toContain('Ответы можно менять до конца. Результат покажем после «Завершить».');
     expect(plain(sheet.textContent)).toContain('Прошлая попытка 5 октября: 31 из 40.');
     expect(plain(sheet.textContent)).not.toMatch(/пробн/i);
     fireEvent.click(within(sheet).getByRole('button', { name: 'Начать' }));
@@ -170,7 +170,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     data.planInput.items = data.planInput.items.filter((entry) => entry.id !== 'q-short');
     const state = loaded(data);
     renderPage(state);
-    expect(page()).toContain('Отложен 1 вопрос — вы сомневаетесь в ключе.');
+    expect(page()).toContain('1 вопрос отложен, вы сомневаетесь в ключе.');
     fireEvent.click(screen.getByRole('button', { name: 'Вернуть в занятия' }));
     await waitFor(() => expect(mocks.withdrawDoubt).toHaveBeenCalledWith('q-short'));
     await waitFor(() => expect(state.reload).toHaveBeenCalled());

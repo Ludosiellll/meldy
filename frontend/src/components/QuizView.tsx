@@ -333,7 +333,7 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
               onClick={() => (index + 1 < total ? setIndex(index + 1) : setFinished(true))}
               className="sf-primary qz-pres-next"
             >
-              {index + 1 < total ? 'Следующий вопрос' : 'Завершить тест'}
+              {index + 1 < total ? 'Следующий вопрос' : 'Завершить'}
             </button>
           )}
         </div>
@@ -441,7 +441,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
   if (questions.length === 0) {
     return (
       <div className="qz-empty">
-        <p className="qz-empty-h">Теста нет</p>
+        <p className="qz-empty-h">Самопроверки нет</p>
         <p className="qz-empty-p">В этом результате нет ни одного вопроса.</p>
       </div>
     );
@@ -488,7 +488,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
     <div className="qz">
       <div className="qz-head">
         <div>
-          <h3 className="qz-title">Проверочный тест</h3>
+          <h3 className="qz-title">Самопроверка</h3>
           <p className="qz-sub">
             {total} {pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])} по материалу
           </p>
@@ -497,7 +497,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
 
       {submitted && (
         <motion.section
-          aria-label="Результат теста"
+          aria-label="Результат самопроверки"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}

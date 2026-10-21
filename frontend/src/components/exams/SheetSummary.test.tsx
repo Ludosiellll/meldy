@@ -171,7 +171,7 @@ describe('the readiness block', () => {
         onFilter={vi.fn()}
         onRateMode={vi.fn()}
         growth="С 1 октября: 0 → 7 за 3 дня."
-        staleLine="Пора проверить: 2 — подтверждены больше 14 дней назад."
+        staleLine="2 вопроса выучены больше 14 дней назад. Пора их проверить."
         secondAnswer="Второй ответ после разбора: по 5 вопросам в первый раз раскрыто 48 % пунктов, во второй — 81 %."
         {...props}
       />,
@@ -181,18 +181,18 @@ describe('the readiness block', () => {
     const { container } = block();
     const lines = Array.from(container.querySelectorAll('.ex-blk > p')).map((item) => plain(item.textContent));
     expect(lines).toEqual([
-      'Подтверждено ответами — 7 из 40.',
+      'Выучено 7 из 40.',
       'С 1 октября: 0 → 7 за 3 дня.',
-      'Пора проверить: 2 — подтверждены больше 14 дней назад.',
-      'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.',
+      '2 вопроса выучены больше 14 дней назад. Пора их проверить.',
+      'Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно.',
       'Второй ответ после разбора: по 5 вопросам в первый раз раскрыто 48 % пунктов, во второй — 81 %.',
     ]);
     const legend = screen.getByRole('list', { name: 'Показать вопросы по ответам' });
     expect(within(legend).getAllByRole('button').map((item) => plain(item.textContent).replace(/^12/, ''))).toEqual([
-      'подтверждено 7',
-      'названо достаточно, не подтверждено 3',
-      'названо недостаточно 2',
-      'не проверялось 28',
+      'выучено 7',
+      'ответ полный, ещё не выучено 3',
+      'ответ неполный 2',
+      'ещё не отвечали 28',
     ]);
   });
 
@@ -202,7 +202,7 @@ describe('the readiness block', () => {
     expect(screen.queryByRole('button', { name: 'Самооценка' })).toBeNull();
     quiet.unmount();
     block({ selfRated: true });
-    expect(screen.getByText(/Сравнить уверенность с ответами пока нельзя/)).toBeInTheDocument();
+    expect(screen.getByText(/Пока мало ответов, чтобы сравнить их/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Самооценка' })).toBeInTheDocument();
   });
 
@@ -245,7 +245,7 @@ describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
     const { container, onToggle } = phone();
     // A sentence, then the link — no «·» glue outside a meta line.
     expect(plain(container.querySelector('.ex-psum-fig')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях. Как считается');
-    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 вопросов из 40');
+    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Выучено 7 вопросов из 40');
     expect(container.querySelector('.ex-calc')).toBeNull();
     const how = screen.getByRole('button', { name: 'Как считается' });
     expect(how).toHaveAttribute('data-muted');
@@ -266,10 +266,10 @@ describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
 
   it('what asks for an answer now stays in sight: «Пора проверить», a muted line under the count; «Второй ответ после разбора» waits in «Как считается»', () => {
     const second = 'Второй ответ после разбора: по 3 вопросам в первый раз раскрыто 40 % пунктов, во второй — 70 %.';
-    const stale = 'Пора проверить: 2 — подтверждены больше 14 дней назад.';
+    const stale = '2 вопроса выучены больше 14 дней назад. Пора их проверить.';
     const { container } = phone({ readiness: { ...answers, staleLine: stale, secondAnswer: second } });
     expect(Array.from(container.querySelectorAll('.ex-psum-line')).map((item) => plain(item.textContent))).toEqual([
-      'Подтверждено ответами — 7 вопросов из 40',
+      'Выучено 7 вопросов из 40',
       stale,
     ]);
     expect(container.querySelectorAll('.ex-psum-note')).toHaveLength(1);
@@ -293,7 +293,7 @@ describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
       'Это доля билетов, а не вероятность сдать: считаем, что билет — два случайных вопроса из 40.',
     ]);
     expect(panel.querySelector('.ex-formula')).not.toBeNull();
-    expect(plain(panel.querySelector('.ex-blk')?.textContent)).toContain('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.');
+    expect(plain(panel.querySelector('.ex-blk')?.textContent)).toContain('Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно.');
     fireEvent.click(within(panel).getByRole('button', { name: named('7 вопросов «частично»') }));
     expect(onFilter).toHaveBeenCalledWith('cov:partial');
     expect(within(panel).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
@@ -302,7 +302,7 @@ describe('the summary on a phone (Phone_Declutter_2026-10-08)', () => {
   it('only the answers while the share says nothing, only the share before the first answer, nothing with neither', () => {
     const { container } = phone({ coverage: null });
     expect(container.querySelector('.ex-psum-fig')).toBeNull();
-    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 7 вопросов из 40. Как считается');
+    expect(plain(container.querySelector('.ex-psum-line')?.textContent)).toBe('Выучено 7 вопросов из 40. Как считается');
     cleanup();
     const first = phone({ readiness: null });
     expect(first.container.querySelector('.ex-psum-line')).toBeNull();
@@ -319,15 +319,15 @@ describe('the readiness legend (the key to the number circles)', () => {
     const view = render(<ReadinessLegend counts={counts} filter="all" onFilter={onFilter} />);
     const list = screen.getByRole('list', { name: 'Показать вопросы по ответам' });
     expect(within(list).getAllByRole('button').map((item) => plain(item.textContent))).toEqual([
-      'подтверждено 7',
-      'названо достаточно, не подтверждено 3',
-      'названо недостаточно 2',
-      'не проверялось 28',
+      'выучено 7',
+      'ответ полный, ещё не выучено 3',
+      'ответ неполный 2',
+      'ещё не отвечали 28',
     ]);
-    fireEvent.click(within(list).getByRole('button', { name: /^названо недостаточно/ }));
+    fireEvent.click(within(list).getByRole('button', { name: /^ответ неполный/ }));
     expect(onFilter).toHaveBeenCalledWith('rd:not_passed');
     view.rerender(<ReadinessLegend counts={counts} filter="rd:not_passed" onFilter={onFilter} />);
-    const pressed = within(list).getByRole('button', { name: /^названо недостаточно/ });
+    const pressed = within(list).getByRole('button', { name: /^ответ неполный/ });
     expect(pressed).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(pressed);
     expect(onFilter).toHaveBeenLastCalledWith('all');
@@ -335,36 +335,36 @@ describe('the readiness legend (the key to the number circles)', () => {
 });
 
 describe('peak 3 column', () => {
-  const base: PeakView = { title: 'Подтверждено ответами', before: 6, after: 7, total: 40, statement: 'Вопрос 12 подтверждён ответом, который вы дали только что.', fine: [] };
+  const base: PeakView = { title: 'Выучено', before: 6, after: 7, total: 40, statement: 'Вопрос 12 выучен.', fine: [] };
 
   it('shows the growth from history, the days and the net change of the day', () => {
     const { container } = render(<PeakSummary peak={{ ...base, growth: { to: 7, total: 40, days: 3, today: 1 }, second: 'Второй ответ после разбора: …' }} confidence={null} onClose={vi.fn()} />);
     expect(plain(container.querySelector('.ex-peak-big .ex-now')?.textContent)).toBe('0 → 7 из 40');
     expect(plain(container.querySelector('.ex-peak-growth')?.textContent)).toBe('за 3 дня+1 сегодня');
     expect(plain(container.querySelector('.ex-peak-big .ex-sr')?.textContent)).toBe(
-      'Подтверждено ответами: 7 из 40, было 6. Подтверждено ответами: от 0 до 7 из 40 за 3 дня, плюс 1 сегодня.',
+      'Выучено: 7 из 40, было 6. Выучено: от 0 до 7 из 40 за 3 дня, плюс 1 сегодня.',
     );
     expect(Array.from(container.querySelectorAll('.ex-peak-stmt')).map((item) => plain(item.textContent))).toEqual([
-      'Вопрос 12 подтверждён ответом, который вы дали только что.',
+      'Вопрос 12 выучен.',
       'Второй ответ после разбора: …',
     ]);
   });
 
   it('keeps the count of the transition when nothing is confirmed: never «0 → 0»', () => {
-    const view = { ...base, title: 'Названо достаточно, не подтверждено', before: 2, after: 3, total: null, growth: null };
+    const view = { ...base, title: 'Ответ полный', before: 2, after: 3, total: null, growth: null };
     const { container } = render(<PeakSummary peak={view} confidence={null} onClose={vi.fn()} />);
     expect(plain(container.querySelector('.ex-now')?.textContent)).toBe('3');
     expect(plain(container.querySelector('.ex-was')?.textContent)).toBe('было 2');
     expect(container.textContent).not.toContain('→');
-    expect(peakCountLine(view)).toBe('Названо достаточно, не подтверждено: 3, было 2.');
+    expect(peakCountLine(view)).toBe('Ответ полный: 3, было 2.');
   });
 
   it('after a 3 names the transition and still shows the growth, without «+1»', () => {
-    const view = { ...base, title: 'Названо недостаточно', before: 1, after: 2, total: null, growth: { to: 7, total: 40, days: 3, today: 0 } };
+    const view = { ...base, title: 'Ответ неполный', before: 1, after: 2, total: null, growth: { to: 7, total: 40, days: 3, today: 0 } };
     const { container } = render(<PeakSummary peak={view} confidence={null} onClose={vi.fn()} />);
-    expect(screen.getByText('Названо недостаточно')).toBeInTheDocument();
+    expect(screen.getByText('Ответ неполный')).toBeInTheDocument();
     expect(plain(container.querySelector('.ex-now')?.textContent)).toBe('0 → 7 из 40');
-    expect(plain(container.querySelector('.ex-peak-growth')?.textContent)).toBe('подтвержденоза 3 дня');
+    expect(plain(container.querySelector('.ex-peak-growth')?.textContent)).toBe('выученоза 3 дня');
     expect(container.querySelector('.ex-peak-growth b')).toBeNull();
   });
 });

@@ -475,7 +475,7 @@ describe('ExamDetail: the sheet', () => {
     expect(plain(action.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     // Nothing about answers before the first one: the status at the top says what to do.
     await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalled());
-    expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность|Подтверждено ответами/);
+    expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность|Выучено/);
     expect(document.body.textContent).not.toMatch(/шанс сдать|вы выучили|ИИ понимает/i);
 
     fireEvent.click(how);
@@ -724,7 +724,7 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     const side = column();
     expect(within(side).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
-    expect(plain(document.body.textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Сравнить уверенность|Вы отметили/);
+    expect(plain(document.body.textContent)).not.toMatch(/Ответов по билетам ещё не было|Выучено|Сравнить уверенность|Вы отметили/);
     expect(within(side).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
     // The status waits for the answers too; after 300 ms one quiet line says what is going on.
     expect(statusCard()).toHaveAttribute('aria-busy', 'true');
@@ -739,7 +739,7 @@ describe('ExamDetail: the sheet', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Готово' })[0]);
     await statusSays('Можно отвечать на билеты');
     // No answers yet: no answers card at all, and the status leads to the first ticket.
-    expect(plain(column().textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Загружаем историю ответов/);
+    expect(plain(column().textContent)).not.toMatch(/Ответов по билетам ещё не было|Выучено|Загружаем историю ответов/);
     expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
   });
   it('reads the answer history next to the lecture titles, not after them', async () => {
@@ -947,7 +947,7 @@ describe('ExamDetail: the status block (owner, 2026-10-07)', () => {
     mocks.fetchQuestionEvents.mockResolvedValue([rating(2, dayKey(-2), 3), answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
     renderDetail();
     await opened();
-    expect(await within(column()).findByText(/Сравнить уверенность с ответами пока нельзя/)).toBeInTheDocument();
+    expect(await within(column()).findByText(/Пока мало ответов, чтобы сравнить их/)).toBeInTheDocument();
     expect(within(column()).getByRole('button', { name: 'Самооценка' })).toBeInTheDocument();
   });
 });
@@ -1405,7 +1405,7 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     await statusSays('4 вопроса проверены только по словам');
-    expect(statusText()).toBe('Сервис был занят, и Meldy сравнил их с лекциями только по совпадению слов. Проверьте их снова — это стоит 10 единиц ИИ.');
+    expect(statusText()).toBe('Сервис был занят, и Meldy сравнил их с лекциями только по совпадению слов. Проверьте их снова, это стоит 10 единиц ИИ.');
     // The action lives in the status; the column keeps its one figure.
     expect(within(column()).queryByRole('button', { name: 'Проверить снова' })).toBeNull();
     fireEvent.click(within(statusCard()).getByRole('button', { name: 'Проверить снова' }));

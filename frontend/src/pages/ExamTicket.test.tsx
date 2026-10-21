@@ -414,10 +414,10 @@ describe('ExamTicket: before the answer', () => {
   it('shows the lectures’ nearest fragments when the question is not in them (409)', async () => {
     seedDatabase();
     api['/api/oral/rubric'].mockImplementation(async () =>
-      json(409, { detail: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.', code: 'not_in_lectures' }),
+      json(409, { detail: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.', code: 'not_in_lectures' }),
     );
     await renderPage(`/exams/${EXAM}/ticket?q=${Q2}`);
-    expect(await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.' })).toBeInTheDocument();
     expect(screen.getByText('Функция активации определяет выход нейрона')).toBeInTheDocument();
     expect(screen.getByText('«Нейронные сети», фрагмент 7')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Лист экзамена' }));
@@ -449,7 +449,7 @@ describe('ExamTicket: before the answer', () => {
     mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     await renderPage(ticketUrl());
     // «Обновится в 3:00»: the hour without a leading zero (redesign critique 4, spec 3.10).
-    expect(await screen.findByText(/^Дневной лимит исчерпан\. Обновится в [1-9]?\d:\d\d\.$/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Дневной лимит закончился\. Снова можно в [1-9]?\d:\d\d\.$/)).toBeInTheDocument();
     expect(screen.queryByText(/Обновится в 0\d:/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Отвечать голосом' })).toBeNull();
     expect(mocks.confirm).not.toHaveBeenCalled();
@@ -470,18 +470,18 @@ describe('ExamTicket: answering without a check', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     // While answering, the reason gives way to the field.
     expect(screen.queryByRole('heading', { name: 'У лекций этого экзамена нет текста' })).toBeNull();
-    expect(screen.getByText('Ответ без проверки: после него оцените себя сами.')).toBeInTheDocument();
+    expect(screen.getByText('Ответ без проверки. После него оцените себя сами.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
-    expect(screen.getByText('Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».')).toBeInTheDocument();
+    expect(screen.getByText('Ответ пустой. Скажите или напишите ответ, потом нажмите «Готово».')).toBeInTheDocument();
     typeAnswer('Энтропия — мера неопределённости, бит — её единица.');
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
 
     expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
-    expect(screen.getByText('У лекций экзамена нет текста — сверять было не с чем.')).toBeInTheDocument();
+    expect(screen.getByText('У лекций экзамена нет текста, поэтому сверять не с чем.')).toBeInTheDocument();
     expect(screen.getByText('Энтропия — мера неопределённости, бит — её единица.')).toBeInTheDocument();
     const rate = screen.getByRole('group', { name: 'Как вы ответили?' });
     fireEvent.click(within(rate).getByRole('button', { name: 'плаваю' }));
-    await waitFor(() => expect(screen.getByText('Отмечено «плаваю» — видно на листе экзамена.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Отмечено «плаваю». Отметка видна на листе экзамена.')).toBeInTheDocument());
     expect(mocks.recordSelfRating).toHaveBeenCalledWith(
       expect.objectContaining({ questionHash: HASH, rating: 'unsure', examId: EXAM, examQuestionId: Q1, materialId: 'mat-1' }),
     );
@@ -510,17 +510,17 @@ describe('ExamTicket: answering without a check', () => {
   it('shows the lectures’ nearest fragments again after an answer to a question they do not cover (409)', async () => {
     seedDatabase();
     api['/api/oral/rubric'].mockImplementation(async () =>
-      json(409, { detail: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.', code: 'not_in_lectures' }),
+      json(409, { detail: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.', code: 'not_in_lectures' }),
     );
     await renderPage(`/exams/${EXAM}/ticket?q=${Q2}`);
-    await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.' });
+    await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.' });
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     // No crib while answering.
     expect(screen.queryByText('Функция активации определяет выход нейрона')).toBeNull();
     typeAnswer('Функция активации добавляет нелинейность.');
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
-    expect(screen.getByText('Этого вопроса нет в ваших лекциях — сверять было не с чем.')).toBeInTheDocument();
+    expect(screen.getByText('Этого вопроса нет в ваших лекциях, поэтому сверять не с чем.')).toBeInTheDocument();
     expect(screen.getByText('Функция активации определяет выход нейрона')).toBeInTheDocument();
   });
 
@@ -529,13 +529,13 @@ describe('ExamTicket: answering without a check', () => {
     seedDatabase({ rpc });
     mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     await renderPage(ticketUrl());
-    expect(await screen.findByText(/^Дневной лимит исчерпан\. Обновится в [1-9]?\d:\d\d\.$/)).toBeInTheDocument();
-    expect(screen.getByText('Можно ответить без проверки — после ответа сравните его с пунктами из лекций сами.')).toBeInTheDocument();
+    expect(await screen.findByText(/^Дневной лимит закончился\. Снова можно в [1-9]?\d:\d\d\.$/)).toBeInTheDocument();
+    expect(screen.getByText('Можно ответить без проверки. После ответа сравните его с пунктами из лекций сами.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     typeAnswer(DEMO_ANSWER);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(await screen.findByRole('heading', { name: 'Ответ не проверялся' })).toBeInTheDocument();
-    expect(screen.getByText('Проверки на сегодня закончились — сравните ответ с пунктами из лекций сами.')).toBeInTheDocument();
+    expect(screen.getByText('Проверки на сегодня закончились. Сравните ответ с пунктами из лекций сами.')).toBeInTheDocument();
     expect(screen.getByText('Пункты ответа из лекций: сравните со своим ответом')).toBeInTheDocument();
     // The titles of the reference open now, for the comparison (they stayed hidden while answering).
     expect(screen.getByText(DEMO_RUBRIC.points[3].title)).toBeInTheDocument();
@@ -607,7 +607,7 @@ describe('ExamTicket: answering by text', () => {
     expect(container.textContent).not.toMatch(/[Зз]ачтено|[Зз]асчитан|Оценка|удовлетвор|хорошо ·/);
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
     expect(container.querySelector('.or-how')?.textContent).not.toMatch(/из 100|→|оценк/);
-    expect(screen.getByText('Пропущенный пункт стал карточкой — она вернётся в повторении завтра.')).toBeInTheDocument();
+    expect(screen.getByText('Пропущенный пункт стал карточкой. Повторим её завтра.')).toBeInTheDocument();
     expect(container.querySelector('.or-extra')?.textContent).toContain('ответ: не знаю.');
 
     expect(rpc).toHaveBeenCalledTimes(1);
@@ -920,7 +920,7 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     typeAnswer(FULL_ANSWER);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
-    expect(await screen.findByText('Не удалось проверить ответ: сервис занят. Ответ сохранён на этой странице — попробуйте через минуту.')).toBeInTheDocument();
+    expect(await screen.findByText('Не удалось проверить ответ, сервис занят. Ответ сохранён на этой странице. Попробуйте через минуту.')).toBeInTheDocument();
     expect(document.querySelector('.or-sum, .or-ph-sheet')).toBeNull();
     expect(document.body.textContent).not.toMatch(/[Зз]асчитан|Оценк/);
     expect(screen.getByText('Предварительно: по ключевым словам')).toBeInTheDocument();
@@ -1168,7 +1168,7 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     typeAnswer(DEMO_ANSWER);
     expect(container.querySelectorAll('[data-named]')).toHaveLength(0);
-    expect(screen.getByText('Отметки во время ответа выключены: пункты откроются в протоколе.')).toBeInTheDocument();
+    expect(screen.getByText('Отметки во время ответа выключены. Пункты откроются в протоколе.')).toBeInTheDocument();
   });
 
   it('guards a tab close while an answer is unsaved', async () => {
@@ -1237,7 +1237,7 @@ describe('ExamTicket: answering by text', () => {
     await readyToAnswer();
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
-    expect(screen.getByText('Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».')).toBeInTheDocument();
+    expect(screen.getByText('Ответ пустой. Скажите или напишите ответ, потом нажмите «Готово».')).toBeInTheDocument();
     expect(callsTo('/api/oral/check')).toHaveLength(0);
     expect(callsTo('/api/oral/evaluate')).toHaveLength(0);
   });
@@ -1838,7 +1838,7 @@ describe('ExamTicket: a ticket of two questions', () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
     api['/api/oral/rubric'].mockImplementation(async (body) =>
       body.question_id === Q2
-        ? json(409, { detail: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.', code: 'not_in_lectures' })
+        ? json(409, { detail: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.', code: 'not_in_lectures' })
         : json(200, demoRubricResponse()),
     );
     await renderPage(ticketUrl([Q1, Q2]));
@@ -1851,7 +1851,7 @@ describe('ExamTicket: a ticket of two questions', () => {
     await screen.findByText(/Сохранено в историю и/);
     fireEvent.click(screen.getByRole('button', { name: 'Второй вопрос' }));
     expect(await screen.findByRole('article', { name: 'Билет 12, вопрос 2 из 2' })).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.' })).toBeInTheDocument();
   });
   it('keeps the question’s own number for a drawn pair: card, top line and protocol (redesign critique 8)', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
@@ -2012,7 +2012,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       const { container } = await answerAndGetAsked();
       fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
       await screen.findByText(/Сохранено в историю и/);
-      const line = screen.getByRole('button', { name: 'Пункт 4 не назван — о нём спросил экзаменатор.' });
+      const line = screen.getByRole('button', { name: 'Пункт 4 не назван, о нём спросил экзаменатор.' });
       // Right under the sheet's header, before the first point.
       expect(line.compareDocumentPosition(container.querySelector('.or-ppts') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       const row = container.querySelector('[data-point="p4"]') as HTMLElement;
@@ -2102,7 +2102,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       expect(container.textContent).not.toMatch(/В эталоне|Полный ответ — /);
       const line = container.querySelector('.or-note[data-exam]');
       expect(line?.textContent?.replace(/\u00a0/g, ' ')).toBe(EXAM_MODE_LINE);
-      expect(EXAM_MODE_LINE).toBe('Как на экзамене: пункты ответа и цитаты — только в протоколе.');
+      expect(EXAM_MODE_LINE).toBe('Как на экзамене. Пункты ответа и цитаты будут только в протоколе.');
       fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
       typeAnswer(DEMO_ANSWER);
       // The answer on a plain sheet; nothing marked, nothing counted, the one line still there.
@@ -2110,7 +2110,7 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
       expect(container.querySelectorAll('[data-named]')).toHaveLength(0);
       expect(container.querySelector('.or-count, .or-count-line, .or-strip, .or-pts')).toBeNull();
       expect(container.querySelector('.or-said .sf-under')).toBeNull();
-      expect(screen.queryByText('Отметки во время ответа выключены: пункты откроются в протоколе.')).toBeNull();
+      expect(screen.queryByText('Отметки во время ответа выключены. Пункты откроются в протоколе.')).toBeNull();
       expect(container.querySelector('.or-note[data-exam]')).not.toBeNull();
       fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
       // The examiner asks; the left side still names no point.
@@ -2247,10 +2247,10 @@ describe('ExamTicket: what «Готово» leads to, its keys, and the tab’s 
     const line = container.querySelector('.or-next')?.textContent?.replace(/ /g, ' ');
     expect(line).toBe(nextStepLine());
     expect(nextStepLine()).toBe(
-      'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа — 4 единицы дневного лимита ИИ.',
+      'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа стоит 4 единицы из дневного лимита ИИ.',
     );
-    expect(nextStepLine(1)).toMatch(/— 1 единица дневного/);
-    expect(nextStepLine(5)).toMatch(/— 5 единиц дневного/);
+    expect(nextStepLine(1)).toMatch(/стоит 1 единицу из дневного/);
+    expect(nextStepLine(5)).toMatch(/стоит 5 единиц из дневного/);
     // Above the two ways to answer, in the same column.
     expect(container.querySelector('.or-next + .or-choice')).not.toBeNull();
     // Answering, it goes: the bar is the student's now.
@@ -2262,7 +2262,7 @@ describe('ExamTicket: what «Готово» leads to, its keys, and the tab’s 
     seedDatabase();
     mocks.checkAILimit.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     const { container } = await renderPage(ticketUrl());
-    await screen.findByText(/^Дневной лимит исчерпан/);
+    await screen.findByText(/^Дневной лимит закончился/);
     expect(container.querySelector('.or-next')).toBeNull();
   });
 

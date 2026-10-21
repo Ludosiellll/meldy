@@ -9,11 +9,11 @@ const quiz = { quiz: Array.from({ length: 5 }, (_, i) => ({ id: i + 1, question:
 const result = (patch: Partial<AnalysisResults> = {}) => ({ summarizer: summary, flashcards: cards, quiz, ...patch }) as AnalysisResults;
 
 describe('resultTabs', () => {
-  it('names the sections with content and their counts: «Конспект · Карточки 6 · Тест 5»', () => {
+  it('names the sections with content and their counts: «Конспект · Карточки 6 · Самопроверка 5»', () => {
     expect(resultTabs(result())).toEqual([
       { id: 'summary', label: 'Конспект' },
       { id: 'flashcards', label: 'Карточки', count: 6 },
-      { id: 'quiz', label: 'Тест', count: 5 },
+      { id: 'quiz', label: 'Самопроверка', count: 5 },
     ]);
   });
 
@@ -29,7 +29,7 @@ describe('resultTabs', () => {
     expect(resultTabs(withBrief, { showCheatsheet: true, showConversation: true, conversationCount: 14 })).toEqual([
       { id: 'summary', label: 'Конспект' },
       { id: 'flashcards', label: 'Карточки', count: 6 },
-      { id: 'quiz', label: 'Тест', count: 5 },
+      { id: 'quiz', label: 'Самопроверка', count: 5 },
       { id: 'cheatsheet', label: 'Выжимка' },
       { id: 'podcast', label: 'Подкаст', count: 14 },
     ]);

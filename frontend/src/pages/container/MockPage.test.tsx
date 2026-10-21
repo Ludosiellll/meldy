@@ -70,7 +70,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
   it('without a size in the address opens the setup, which starts the try', () => {
     renderMock(`?s=${SUBJECT_DB}`);
     const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
-    expect(plain(sheet.textContent)).toContain('Ответы можно менять до «Завершить»; итог покажем после.');
+    expect(plain(sheet.textContent)).toContain('Ответы можно менять до конца. Результат покажем после «Завершить».');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Начать' }));
     // 240 questions in the subject: 40 by default, a minute each (the bank of this test holds three).
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -124,7 +124,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     fireEvent.click(options()[0]);
     fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Завершить' }));
     const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
-    expect(plain(sheet.textContent)).toContain('Ответили на 1 из 3. Без ответа: 2, 3 — они считаются ошибками.');
+    expect(plain(sheet.textContent)).toContain('Ответили на 1 из 3. Вопросы 2 и 3 без ответа, они будут ошибками.');
     await act(async () => {
       fireEvent.click(within(sheet).getByRole('button', { name: 'Завершить' }));
     });
@@ -137,7 +137,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     expect(run.answers[0].client_event_id).toBe(`${run.client_run_id}:01`);
     expect(page()).toMatch(/Как на экзамене · \d+ \S+/);
     expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3');
-    expect(page()).toContain('Ошибки — 2, из них без ответа 2: они вернутся завтра.');
+    expect(page()).toContain('2 ошибки, из них 2 без ответа. Повторим их завтра.');
     expect(page()).not.toMatch(/%|оценк|прогноз/i);
     expect(screen.getByRole('link', { name: 'Разобрать ошибки' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors&back=s`);
     expect(mocks.clearMock).toHaveBeenCalledWith('user-1', CONTAINER);
@@ -156,7 +156,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     });
     await waitFor(() => expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3'));
     expect(page()).toContain('Как на экзамене · 9 октября');
-    expect(page()).toContain('Ошибки — 2, из них без ответа 2: они вернутся в понедельник.');
+    expect(page()).toContain('2 ошибки, из них 2 без ответа. Повторим их в понедельник.');
   });
 
   it('without network the result is counted on the device and the answers wait in the queue', async () => {
@@ -175,7 +175,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
       fireEvent.click(within(sheet).getByRole('button', { name: 'Завершить' }));
     });
     await waitFor(() => expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('3 из 3'));
-    expect(page()).toContain('Нет сети. Итог посчитан на этом устройстве, ответы уйдут, когда сеть появится.');
+    expect(page()).toContain('Нет сети. Результат посчитан здесь. Ответы отправим, когда сеть появится.');
     expect(page()).toContain('Ошибок нет.');
     expect(screen.getByRole('link', { name: 'Готово' })).toBeInTheDocument();
   });
@@ -194,7 +194,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     } satisfies MockProgress);
     renderMock('');
     expect(plain(screen.getByRole('banner').textContent)).toContain('2 из 3 · 9:00');
-    expect(page()).toContain('Попытка продолжается: 2 из 3, осталось 9:00.');
+    expect(page()).toContain('Продолжаем с вопроса 2 из 3. Осталось 9:00.');
     fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
     expect(options()[3].getAttribute('aria-pressed')).toBe('true');
   });
@@ -212,7 +212,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
       timeLimitS: 600,
     } satisfies MockProgress);
     renderMock('');
-    await waitFor(() => expect(page()).toContain('Время вышло, пока вас не было. В итог вошли ответы, которые вы успели дать: 2 из 3.'));
+    await waitFor(() => expect(page()).toContain('Время вышло, пока вас не было. Вы успели ответить на 2 из 3.'));
     expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('2 из 3');
     expect(page()).toContain('Время: 10 минут из 10.');
   });
@@ -230,7 +230,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
   it('a subject with nothing keyed cannot start a try', () => {
     const empty = summary({ subjects: summary().subjects.map((s) => (s.id === SUBJECT_DB ? { ...s, keyed: 0 } : s)) });
     renderMock(`?s=${SUBJECT_DB}`, containerData({ summary: empty, items: [] }));
-    expect(page()).toContain('Пока не из чего собрать попытку: в предмете нет вопросов с ключом.');
+    expect(page()).toContain('В предмете пока нет вопросов с ключом.');
     expect(screen.queryByRole('button', { name: nm('Начать') })).toBeNull();
   });
 });

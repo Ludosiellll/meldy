@@ -253,7 +253,7 @@ describe('the start card', () => {
     expect(await screen.findByRole('heading', { name: 'Поговорить о лекции' })).toBeInTheDocument();
     expect(screen.getByText('Лекция «Макроэкономика»')).toBeInTheDocument();
     expect(screen.getByText('Meldy задаст 4 вопроса по карточкам этой лекции.')).toBeInTheDocument();
-    expect(screen.getByText('Включите звук. Браузер спросит про микрофон — разрешите.')).toBeInTheDocument();
+    expect(screen.getByText('Включите звук. Когда браузер спросит про микрофон, разрешите его.')).toBeInTheDocument();
     expect(screen.getByText('Микрофон слушает, только пока на кнопке написано «Готово».')).toBeInTheDocument();
     expect(
       screen.getByText('Реплики пишет ИИ только по тексту этой лекции. Слова лекции — на карточках с номером фрагмента, остальное — пояснения Meldy.'),

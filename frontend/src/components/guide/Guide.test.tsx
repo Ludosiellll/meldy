@@ -128,7 +128,7 @@ describe('the guide chapters', () => {
     expect(analyze.title).toBe('Разобрать лекцию');
     expect(analyze.text).toContain('запись части пары');
     const lectures = GUIDE_CHAPTERS.find((chapter) => chapter.route === '/library')!;
-    expect(lectures.text).toContain('во вкладке «Подкаст»');
+    expect(lectures.text).toContain('Во вкладке «Подкаст»');
     expect(GUIDE_CHAPTERS.map((chapter) => chapter.text).join(' ')).not.toMatch(/[Рр]азговор/);
     expect(limit.phone).toBe('На телефоне — кружок с числом.');
     // A phone's top line has no «+» (10_Project/Phone_Declutter_2026-10-08): its wording says where «Разобрать лекцию» is.

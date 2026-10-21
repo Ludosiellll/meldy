@@ -23,7 +23,10 @@ export const LIMITS = {
 /** §3: an option button ≤ 24, another full-width button ≤ 26; two in a row ≤ 12 each, three ≤ 8, four ≤ 5; letters up to 5 a row. */
 export const WIDTH = { option: 24, full: 26, two: 12, three: 8, four: 5, letter: 1 };
 
-/** The container's table (spec §3 of the container, §16 #45) and the bot spec's own (§8.1). */
+/**
+ * The container's table (spec §3 of the container, §16 #45) and the bot spec's own (§8.1). «выучен» left it on
+ * 2026-10-21: the owner's plain words say the result, «Выучено 143 из 960».
+ */
 export const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   ['«тест» for the exam', /(^|[^а-яё])тест(а|у|ом|е|ы|ов|ам|ами|ах)?([^а-яё]|$)/iu],
   ['контейнер', /контейнер/iu],
@@ -38,7 +41,6 @@ export const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   ['на проверку', /на проверку/iu],
   ['спорн', /спорн/iu],
   ['готов на', /готов(ы)? на/iu],
-  ['выучен', /выучен/iu],
   ['сдашь', /сдашь/iu],
   ['отстаёте', /отста[её]те/iu],
   ['сессия / тренировка (it is «занятие»)', /(^|[^а-яё])(сесси|тренировк)/iu],

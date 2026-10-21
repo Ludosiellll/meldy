@@ -158,8 +158,8 @@ test('V1 → V2 → V3 → V4: the spec\'s example, the price on the button, one
     '',
     'Вопрос 9. Взаимоблокировка: условия возникновения и способы предотвращения.',
     '',
-    'Этот вопрос может войти в счёт сегодня. Ответьте голосовым, как на экзамене.',
-    'Проверка — 4 единицы ИИ, сегодня осталось 87.',
+    'Сегодня этот вопрос можно выучить. Ответьте голосовым, как на экзамене.',
+    'Проверка стоит 4 единицы ИИ. Сегодня осталось 87.',
   ].join('\n'), 'V1 as in spec §4.9');
   const a = s.open()!;
   assert.deepEqual(rows(m1.reply_markup), [[['Не знаю', `v|${a.aid}|x`]], [['Проверить себя без Meldy', `v|${a.aid}|s`]]], 'V1: no blue');
@@ -180,7 +180,7 @@ test('V1 → V2 → V3 → V4: the spec\'s example, the price on the button, one
   assert.equal(m2.reply_parameters.message_id, first.id, 'V2 answers the voice');
   assert.equal(shown(m2.text), `Ваш ответ · голосом, 1:00\n${F.ANSWER_TEXT}\nМожно добавить ещё голосовое или начать заново.`);
   assert.ok(m2.text.includes('<blockquote expandable>'));
-  assert.deepEqual(rows(m2.reply_markup), [[['Проверить — 4 единицы', `v|${a.aid}|c`, 'primary']], [['Сначала', `v|${a.aid}|r`]]], 'the price on the button before the check');
+  assert.deepEqual(rows(m2.reply_markup), [[['Проверить за 4 единицы', `v|${a.aid}|c`, 'primary']], [['Сначала', `v|${a.aid}|r`]]], 'the price on the button before the check');
   assert.equal(s.world.used, 13, 'a voice costs no units');
 
   // A second voice edits V2: «1:42».
@@ -253,7 +253,7 @@ test('V1 → V2 → V3 → V4: the spec\'s example, the price on the button, one
   assert.equal(kept.message_id, v4Id);
   assert.deepEqual(rows(kept.reply_markup), [[['Протокол', `${F.SPACE}/exams/${F.ORAL_EXAM}/ticket?session=${done.sessionId}`]]]);
   assert.match(shown(s.sent()[4].text), /^Операционные системы · устный вопрос · 2 из 3\n\nВопрос 10\. Планирование процессов/);
-  assert.match(shown(s.sent()[4].text), /сегодня осталось 83\.$/);
+  assert.match(shown(s.sent()[4].text), /Сегодня осталось 83\.$/);
   // Pressed twice: the same question, nothing new.
   await s.tap(encodeVoice(a.aid, 'n'), v4Id);
   assert.equal(s.sent().length, 5);
@@ -355,7 +355,7 @@ test('the self-check: the points in an expandable quote, sheet_peek once, the ma
   await s.tap(encodeVoice(a.aid, 'u'), a.messages.v1);
   const folded = s.tg.of('editMessageText').at(-1)!.params;
   assert.equal(folded.message_id, a.messages.v1);
-  assert.equal(shown(folded.text), 'Операционные системы · устный вопрос · 1 из 3\n\nОтмечено: плаваю. Самопроверка в счёт не идёт: она решает, когда вопрос вернётся.');
+  assert.equal(shown(folded.text), 'Операционные системы · устный вопрос · 1 из 3\n\nОтмечено: плаваю. Отметка решает, когда повторим вопрос. Выученным он от неё не станет.');
   assert.ok(!folded.text.includes('Взаимное исключение'), 'the points do not stay in the history');
   assert.deepEqual(rows(folded.reply_markup), [[['Следующий: 2 из 3', `v|${a.aid}|n`, 'primary']]]);
   assert.deepEqual(s.world.ratings, [{ aid: a.aid, rating: 'unsure' }]);
@@ -396,8 +396,8 @@ test('refusals before the Space: forwarded, shorter than 5 s, over 20 MB, the AI
     { name: 'forwarded', extra: { forward_origin: { type: 'user', date: 1 }, forward_date: 1 }, text: V.FORWARDED, site: false },
     { name: 'shorter than 5 s', seconds: 3, text: V.TOO_SHORT, site: false },
     { name: 'over 20 MB', size: 21 * 1024 * 1024, text: V.TOO_BIG, site: false },
-    { name: 'the AI limit', o: { used: 97 }, text: 'Лимит ИИ на сегодня закончился — проверка вернётся завтра в 3:00. Проверить себя без Meldy можно сейчас.', site: false },
-    { name: 'the ceiling', o: { audioUsed: 1795 }, text: 'Лимит голосовых на сегодня — 30 минут записи. Ответить можно на сайте или завтра здесь.', site: true },
+    { name: 'the AI limit', o: { used: 97 }, text: 'Проверки ИИ на сегодня закончились. Снова можно завтра в 3:00. Проверить себя без Meldy можно сейчас.', site: false },
+    { name: 'the ceiling', o: { audioUsed: 1795 }, text: 'Голосовые на сегодня закончились, в день можно 30 минут записи. Ответить можно на сайте или завтра здесь.', site: true },
     { name: 'the shared stop', o: { audioAll: 20155 }, text: V.STOP, site: true },
   ];
   for (const c of cases) {
@@ -446,7 +446,7 @@ test('the AI limit at «Проверить», a failed check (units back), the S
   s.world.used = 97;
   await s.tap(encodeVoice(a.aid, 'c'), s.open()!.messages.v2);
   let m = s.sent().at(-1)!;
-  assert.match(shown(m.text), /^Лимит ИИ на сегодня закончился — проверка вернётся завтра в 3:00\./);
+  assert.match(shown(m.text), /^Проверки ИИ на сегодня закончились. Снова можно завтра в 3:00\./);
   assert.equal(m.reply_parameters.message_id, s.open()!.messages.v2);
   assert.equal(s.net.space.length, 1, 'only the recognition');
   s.world.used = 50;
@@ -590,12 +590,12 @@ test('snapshots of V1–V4, the self-check and every refusal; each passes T2\'s 
     assert.deepEqual(lintMessage({ text: shot.text, keyboard: shot.keyboard, chat: 'private', user: USER_TEXT, toasts: shot.toasts }), [], name);
   }
   // Spec §4.9's words where it gives them.
-  assert.equal(shown(shots.refusal_text.text), 'Здесь в счёт идёт только голосовое: набранный текст бот не отличит от вставленного. Текстом можно ответить на сайте.');
-  assert.equal(shown(shots.refusal_too_short.text), 'Слишком короткое голосовое — проверять нечего. Запишите ответ ещё раз.');
-  assert.equal(shown(shots.refusal_not_recognized.text), 'Не удалось распознать речь. Запишите ещё раз — ближе к телефону, без музыки рядом.');
-  assert.equal(shown(shots.refusal_limit.text), 'Лимит ИИ на сегодня закончился — проверка вернётся завтра в 3:00. Проверить себя без Meldy можно сейчас.');
-  assert.equal(shown(shots.refusal_limit_tonight.text), 'Лимит ИИ на сегодня закончился — проверка вернётся сегодня в 3:00. Проверить себя без Meldy можно сейчас.', 'after midnight in Minsk the reset is «сегодня»');
-  assert.equal(shown(shots.self_done.text).split('\n').at(-1), 'Отмечено: плаваю. Самопроверка в счёт не идёт: она решает, когда вопрос вернётся.');
+  assert.equal(shown(shots.refusal_text.text), 'Здесь считаем только голосовые ответы. Бот не отличит набранный текст от вставленного. Текстом можно ответить на сайте.');
+  assert.equal(shown(shots.refusal_too_short.text), 'Голосовое слишком короткое. Запишите ответ ещё раз.');
+  assert.equal(shown(shots.refusal_not_recognized.text), 'Не получилось разобрать речь. Запишите ещё раз ближе к телефону и без музыки рядом.');
+  assert.equal(shown(shots.refusal_limit.text), 'Проверки ИИ на сегодня закончились. Снова можно завтра в 3:00. Проверить себя без Meldy можно сейчас.');
+  assert.equal(shown(shots.refusal_limit_tonight.text), 'Проверки ИИ на сегодня закончились. Снова можно сегодня в 3:00. Проверить себя без Meldy можно сейчас.', 'after midnight in Minsk the reset is «сегодня»');
+  assert.equal(shown(shots.self_done.text).split('\n').at(-1), 'Отмечено: плаваю. Отметка решает, когда повторим вопрос. Выученным он от неё не станет.');
   assert.equal(shown(shots.v2.text).split('\n')[0], 'Ваш ответ · голосом, 1:42');
   assert.equal(shown(shots.v4.text), 'Сами назвали 2 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора.\nПосле ответа: 2 строки стёрлись наполовину, 1 не стёрлась.\nСписано 4 единицы, осталось 83.');
   for (const name of ['v1', 'v1_limit', 'v1_stop', 'v1_ceiling', 'v3', 'self_check']) {
@@ -713,8 +713,8 @@ test('changeSentence equals the site\'s copy.ts (its test vectors); the shared w
 
 test('limitLine: the reset on the student\'s clock, «сегодня» after local midnight', () => {
   const reset = Date.UTC(2026, 9, 17);
-  assert.equal(limitLine(reset, NOW, 'Europe/Minsk'), 'Лимит ИИ на сегодня закончился — проверка вернётся завтра в 3:00. Проверить себя без Meldy можно сейчас.');
-  assert.match(limitLine(reset, NOW, 'Asia/Vladivostok'), /вернётся сегодня в 10:00\./);
+  assert.equal(limitLine(reset, NOW, 'Europe/Minsk'), 'Проверки ИИ на сегодня закончились. Снова можно завтра в 3:00. Проверить себя без Meldy можно сейчас.');
+  assert.match(limitLine(reset, NOW, 'Asia/Vladivostok'), /Снова можно сегодня в 10:00\./);
   assert.match(limitLine(null, NOW, 'Europe/Minsk'), /завтра в 3:00/);
 });
 

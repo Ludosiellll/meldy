@@ -338,7 +338,7 @@ ${flashcardsHtml}
 </div>` : ''}
 
 ${quiz.length > 0 ? `<div class="section">
-<h2>Тест (${quiz.length})</h2>
+<h2>Самопроверка (${quiz.length})</h2>
 ${quizHtml}
 </div>` : ''}
 
@@ -351,13 +351,13 @@ type CoreSection = CoreSectionName;
 const RECREATE_LABEL: Record<CoreSection, string> = {
   summarizer: 'Создать конспект заново',
   flashcards: 'Создать карточки заново',
-  quiz: 'Создать тест заново',
+  quiz: 'Создать самопроверку заново',
 };
 
 const RECREATE_RUNNING: Record<CoreSection, string> = {
   summarizer: 'Создаём конспект…',
   flashcards: 'Создаём карточки…',
-  quiz: 'Создаём тест…',
+  quiz: 'Создаём самопроверку…',
 };
 
 /** Сервер принимает до 300 000 символов: столько же видел и сам анализ. */
@@ -385,7 +385,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 type GroundedPart = 'summary' | 'flashcards' | 'quiz';
-const GROUNDED_WORDS: Record<GroundedPart, string> = { summary: 'конспект', flashcards: 'карточки', quiz: 'тест' };
+const GROUNDED_WORDS: Record<GroundedPart, string> = { summary: 'конспект', flashcards: 'карточки', quiz: 'самопроверка' };
 
 /**
  * «Конспект, карточки и тест опираются на 4 фрагмента лекции»: only the materials the result has (QA 2026-10-11: a lone
@@ -927,7 +927,7 @@ export default function ResultsPanel({
     { key: 'copy', label: copied ? 'Скопировано' : 'Копировать', run: handleCopy },
     ...(sectionShown ? [{ key: 'print', label: 'Печать или PDF', run: handlePrintPdf }] : []),
     ...(tab === 'flashcards' && flashcardCount > 0 ? [{ key: 'anki', label: 'Файл для Anki', run: handleExportAnki }] : []),
-    ...(tab === 'quiz' && quizCount > 0 && !isFailed('quiz') ? [{ key: 'present', label: 'Показать тест на экране', run: () => setPresentingQuiz(true) }] : []),
+    ...(tab === 'quiz' && quizCount > 0 && !isFailed('quiz') ? [{ key: 'present', label: 'Показать самопроверку на экране', run: () => setPresentingQuiz(true) }] : []),
     ...(sectionShown ? [{ key: 'html', label: 'Скачать HTML', run: handleDownloadHtml }] : []),
   ];
   // The page reads them when its «⋯» opens; a text-only material offers no export.

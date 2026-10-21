@@ -92,7 +92,7 @@ function EventPreview({ time }: { time: string }) {
  * reminds and Meldy never sees it is said in the window, over «Скачать файл календаря».
  */
 export function profileReminderNote(chosen: boolean, phone: boolean): string {
-  if (chosen) return phone ? 'Каждый день — событие в календаре.' : 'Каждый день — событие в вашем календаре.';
+  if (chosen) return phone ? 'Каждый день в календаре будет событие.' : 'Каждый день в вашем календаре будет событие.';
   return phone ? 'Событие в вашем календаре.' : 'Ваш календарь будет каждый день в выбранное время напоминать ответить на билет.';
 }
 

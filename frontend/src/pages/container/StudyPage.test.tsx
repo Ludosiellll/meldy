@@ -208,7 +208,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     renderStudy(dataWith(dbItems().map((entry) => entry.id)));
     fireEvent.click(option('REPEATABLE READ'));
     // The key in the file's words (m2): the screen's letters are shuffled, the key panel and «Ключи» use the file's.
-    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Повторим через пару вопросов и завтра.');
     expect(screen.getByRole('status').closest('.ct-bar')).not.toBeNull();
     expect(plain(option('REPEATABLE READ').textContent)).toContain('Ваш ответ');
     expect(plain(option('SERIALIZABLE').textContent)).toContain('В файле');
@@ -233,7 +233,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
   it('a key the author set (a test from «Конструктор», a key ticked in «Ключи») is no file’s: «Верный ответ» (release 47, M10)', () => {
     renderStudy(dataWith(['q-plain']));
     fireEvent.click(option('Первая'));
-    expect(verdict()).toBe('Неверно. Верный ответ — Третья. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. Верный ответ — Третья. Повторим через пару вопросов и завтра.');
     expect(plain(option('Третья').textContent)).toContain('Верный ответ');
     expect(plain(option('Третья').textContent)).not.toContain('В файле');
   });
@@ -242,7 +242,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     renderStudy(dataWith(['q-iso', 'q-plain']));
     fireEvent.click(option('READ COMMITTED'));
     fireEvent.click(screen.getByRole('button', { name: 'Нажали не туда?' }));
-    expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся завтра.');
+    expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому повторим вопрос завтра.');
     expect(screen.queryByRole('button', { name: 'Нажали не туда?' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-iso', chosen: 1, misclick: true }));
@@ -253,10 +253,10 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
     expect(screen.getByRole('heading', { level: 1 })).toBeInTheDocument();
-    expect(page()).toContain('2 вопроса за 1 минуту');
+    expect(page()).toContain('1 из 2 верно за 1 минуту');
   });
 
-  it('a wrong answer comes back three questions later as «повтор, не в счёт», sent as a retry', async () => {
+  it('a wrong answer comes back three questions later as «повтор, не считается», sent as a retry', async () => {
     renderStudy(dataWith(dbItems().map((entry) => entry.id)));
     fireEvent.click(option('READ UNCOMMITTED'));
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
@@ -266,7 +266,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     }
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Какой уровень изоляции не допускает фантомного чтения?');
-    expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Базы данных · повтор, не в счёт');
+    expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Базы данных · повтор, не считается');
     // The counter stays on the planned questions.
     expect(plain(screen.getByRole('banner').textContent)).toContain('4 из 5');
     fireEvent.click(option('SERIALIZABLE'));
@@ -308,7 +308,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
   it('«Не знаю» shows the key and sends no choice', async () => {
     renderStudy(dataWith(['q-iso']));
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
-    expect(verdict()).toBe('В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('В файле — SERIALIZABLE. Повторим через пару вопросов и завтра.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-iso', chosen: null }));
   });
@@ -336,7 +336,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     });
     // Held: still on the question, with «Дальше».
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Какая нормальная форма требует отсутствия транзитивных зависимостей?');
-    expect(page()).toContain('В файле ответ не был выделен — ключ поставили вы.');
+    expect(page()).toContain('В файле ответ не был выделен. Ключ поставили вы.');
     expect(screen.getByRole('button', { name: 'Дальше' })).toBeInTheDocument();
   });
 
@@ -361,7 +361,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(Array.from(document.querySelectorAll('.ct-opt[data-multi] .ct-opt-l')).map((node) => node.textContent)).toEqual(['А', 'Б', 'В', 'Г', 'Д']);
     fireEvent.click(option('CREATE'));
     fireEvent.click(screen.getByRole('button', { name: 'Ответить' }));
-    expect(verdict()).toBe('Неверно. В файле верны: CREATE, ALTER и DROP. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле верны: CREATE, ALTER и DROP. Повторим через пару вопросов и завтра.');
   });
 
   it('a short answer: the field, «Ответить», the file’s form compared without case', async () => {
@@ -370,7 +370,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(screen.getByRole('alert').textContent).toBe('Впишите ответ.');
     fireEvent.change(screen.getByLabelText('Ваш ответ'), { target: { value: 'commit' } });
     fireEvent.click(screen.getByRole('button', { name: 'Ответить' }));
-    expect(verdict()).toBe('Неверно. В файле — ROLLBACK. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле — ROLLBACK. Повторим через пару вопросов и завтра.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-short', text: 'commit' }));
     expect(sent()[0].shown_order).toBeUndefined();
@@ -391,9 +391,9 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     renderStudy(dataWith(['q-iso', 'q-multi', 'q-plain']));
     expect(page()).toContain('1–8 — ответ · 0 — не знаю · Enter — дальше · Backspace — нажали не туда');
     fireEvent.keyDown(window, { key: '3' });
-    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Повторим через пару вопросов и завтра.');
     fireEvent.keyDown(window, { key: 'Backspace' });
-    expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся завтра.');
+    expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому повторим вопрос завтра.');
     fireEvent.keyDown(window, { key: 'Enter' });
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-iso', chosen: 2, misclick: true }));
     // Several correct: the keys tick, Enter answers.
@@ -405,7 +405,7 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     fireEvent.keyDown(window, { key: 'Enter' });
     fireEvent.keyDown(window, { key: '0' });
     // q-plain's key was set by the author (key_source 'manual'): no file says it (release 47, M10).
-    expect(verdict()).toBe('Верный ответ — Третья. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Верный ответ — Третья. Повторим через пару вопросов и завтра.');
   });
 });
 
@@ -418,9 +418,9 @@ describe('keys in doubt (decisions 14, 37)', () => {
     expect(plain(panel.textContent)).toContain('Сверьте № 37 в файле. Там другой ответ? Нажмите его.');
     fireEvent.click(within(panel).getByRole('button', { name: /REPEATABLE READ/ }));
     await waitFor(() => expect(mocks.updateItem).toHaveBeenCalledWith('q-iso', { correct: [2] }));
-    expect(within(panel).getByRole('status').textContent).toBe('Ключ изменён. Счёт по этому вопросу начнётся заново.');
+    expect(within(panel).getByRole('status').textContent).toBe('Ключ изменён. Этот вопрос нужно выучить заново.');
     // The panel says the key changed; the answer is not sent, so neither «Нажали не туда?» nor a doubt is offered for it.
-    expect(verdict()).toBe('Этот ответ в счёт не идёт.');
+    expect(verdict()).toBe('Этот ответ не считаем.');
     expect(screen.queryByRole('button', { name: 'Нажали не туда?' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Сомневаюсь в ключе' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
@@ -439,7 +439,7 @@ describe('keys in doubt (decisions 14, 37)', () => {
     fireEvent.change(within(sheet).getByRole('textbox'), { target: { value: 'В лекции сказано иначе' } });
     fireEvent.click(within(sheet).getByRole('button', { name: 'Отметить' }));
     await waitFor(() => expect(mocks.doubtKey).toHaveBeenCalledWith('q-iso', [2], 'В лекции сказано иначе'));
-    expect(within(sheet).getByRole('status').textContent).toBe('Отложено. Когда автор ответит, вопрос вернётся в занятия.');
+    expect(within(sheet).getByRole('status').textContent).toBe('Вопрос отложен. Когда автор ответит, он снова будет в занятиях.');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Дальше' }));
     expect(screen.queryByRole('button', { name: 'Сомневаюсь в ключе' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
@@ -454,7 +454,7 @@ describe('keys in doubt (decisions 14, 37)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
     // No retry of the set-aside question: the session ended after the three planned ones.
-    await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('3 вопроса за 1 минуту'));
+    await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 из 3 верно за 1 минуту'));
     expect(sent().map((answer) => answer.item_id)).toEqual(['q-iso', 'q-plain', 'q-multi']);
   });
 });
@@ -473,14 +473,13 @@ describe('the end of a session (decision 49)', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
-    await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('Теперь 144 из 960 — верно в два разных дня'));
+    await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('Выучено 144 вопроса из 960'));
     const paragraph = plain(document.querySelector('.ct-end-p')?.textContent);
-    expect(paragraph).toContain('2 вопроса и 1 повтор за 1 минуту.');
-    expect(paragraph).toContain('Верно с первого раза — 1 из 2.');
-    expect(paragraph).toContain('1 ошибка вернётся завтра.');
+    expect(paragraph).toContain('1 из 2 верно за 1 минуту.');
+    expect(paragraph).toContain('1 ошибку повторим завтра.');
     expect(page()).not.toMatch(/засчит/i);
     await waitFor(() => expect(leftLine()).toBe('Сегодня осталось 20 вопросов, около 9 минут.'));
-    expect(screen.getByRole('link', { name: nm('Дальше: Программирование на C# — 20 вопросов') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_CS}`);
+    expect(screen.getByRole('link', { name: nm('Дальше: Программирование на C#, 20 вопросов') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_CS}`);
     expect(screen.getByRole('button', { name: 'Напоминать каждый день' })).toBeInTheDocument();
     expect(mocks.track).toHaveBeenCalledWith('container.session_finished', { answered: 2, retries: 1, minutes: 1 });
     // «Готово» goes back to the exam.
@@ -492,14 +491,14 @@ describe('the end of a session (decision 49)', () => {
     serverSays(() => 'miss');
     renderStudy(dataWith(['q-iso'], { input: { studyWeekdays: 63 } })); // Пн–Сб: today is Saturday 10 October
     fireEvent.click(option('READ COMMITTED'));
-    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и в понедельник.');
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Повторим через пару вопросов и в понедельник.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     fireEvent.click(option('SERIALIZABLE'));
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
     await waitFor(() => expect(document.querySelector('.ct-end-p')).not.toBeNull());
-    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибка вернётся в понедельник.');
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибку повторим в понедельник.');
   });
 
   it('on Friday before a day off the session and its end name the next study day, not «завтра»', async () => {
@@ -512,13 +511,13 @@ describe('the end of a session (decision 49)', () => {
     const view = renderStudy(friday(['q-iso', 'q-short', 'q-plain'], 127 - 32));
     // A wrong tap, then «Нажали не туда?»: no mistake, the question still comes back.
     fireEvent.click(option('READ COMMITTED'));
-    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и в воскресенье.');
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Повторим через пару вопросов и в воскресенье.');
     fireEvent.click(screen.getByRole('button', { name: 'Нажали не туда?' }));
-    expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся в воскресенье.');
+    expect(verdict()).toBe('Ошибку не считаем. Ответ вы уже видели, поэтому повторим вопрос в воскресенье.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     // «Не знаю» on a short answer: the one mistake of the session.
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
-    expect(verdict()).toBe('В файле — ROLLBACK. Вернётся через пару вопросов и в воскресенье.');
+    expect(verdict()).toBe('В файле — ROLLBACK. Повторим через пару вопросов и в воскресенье.');
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     fireEvent.click(option('Третья'));
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
@@ -529,13 +528,13 @@ describe('the end of a session (decision 49)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
     await waitFor(() => expect(document.querySelector('.ct-end-p')).not.toBeNull());
-    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибка вернётся в воскресенье.');
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('1 ошибку повторим в воскресенье.');
     // Saturday and Sunday off: Monday.
     view.unmount();
     window.localStorage.clear();
     renderStudy(friday(['q-iso'], 31));
     fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
-    expect(verdict()).toBe('В файле — SERIALIZABLE. Вернётся через пару вопросов и в понедельник.');
+    expect(verdict()).toBe('В файле — SERIALIZABLE. Повторим через пару вопросов и в понедельник.');
   });
 
   it('what is left comes from the plan read once the session’s answers have left: held in its place till then, never changed after (M1, D2)', async () => {
@@ -573,7 +572,7 @@ describe('the end of a session (decision 49)', () => {
     expect(screen.queryByRole('link', { name: (name) => plain(name).startsWith('Дальше:') })).toBeNull();
     // It has left: the plan is read again, and its numbers appear in the same place.
     await act(async () => arrive());
-    await waitFor(() => expect(screen.getByRole('link', { name: nm('Дальше: Программирование на C# — 20 вопросов') })).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('link', { name: nm('Дальше: Программирование на C#, 20 вопросов') })).toBeInTheDocument());
     expect(reload).toHaveBeenCalledTimes(1);
     const line = document.querySelector('.ct-end-next') as HTMLElement;
     expect(line).toBe(held);
@@ -581,7 +580,7 @@ describe('the end of a session (decision 49)', () => {
     expect(line.style.visibility).toBe('');
     const first = screenNow();
     expect(first.left).toBe('Сегодня осталось 20 вопросов, около 9 минут.');
-    expect(first.pill).toBe('Дальше: Программирование на C# — 20 вопросов');
+    expect(first.pill).toBe('Дальше: Программирование на C#, 20 вопросов');
     // A later reading of the plan does not change the screen being read.
     act(() => show(loaded(refitted())));
     await act(async () => undefined);
@@ -619,7 +618,9 @@ describe('the end of a session (decision 49)', () => {
     const heading = document.querySelector('h1.ct-end-h') as HTMLElement;
     expect(heading).toHaveAttribute('aria-hidden', 'true');
     expect(heading.style.visibility).toBe('hidden');
-    expect((document.querySelector('.ct-end-p') as HTMLElement).style.visibility).toBe('hidden');
+    // The paragraph, if any yet (a session all right with the figure not moved yet has none), is held too.
+    const held = document.querySelector('.ct-end-p') as HTMLElement | null;
+    expect(held === null || held.style.visibility === 'hidden').toBe(true);
     expect(screen.queryByRole('heading', { level: 1 })).toBeNull();
     expect(document.activeElement).not.toBe(heading);
     // It comes: the headline says it the first time it is seen, and takes the focus.
@@ -628,9 +629,9 @@ describe('the end of a session (decision 49)', () => {
     });
     const shown = await screen.findByRole('heading', { level: 1 });
     expect(shown).toBe(heading);
-    expect(plain(shown.textContent)).toBe('Теперь 144 из 960 — верно в два разных дня');
+    expect(plain(shown.textContent)).toBe('Выучено 144 вопроса из 960');
     // The topic the session brought near its end says so («Осталось выучить»).
-    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe('2 вопроса за 1 минуту. Верно с первого раза — 2 из 2. В теме «3.2 Индексы» остался 1 вопрос.');
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe('2 из 2 верно за 1 минуту. В теме «3.2 Индексы» остался 1 вопрос.');
     expect(document.activeElement).toBe(shown);
   });
 
@@ -639,7 +640,7 @@ describe('the end of a session (decision 49)', () => {
     const late = lastResultLate();
     await answerBoth();
     const shown = await screen.findByRole('heading', { level: 1 });
-    expect(plain(shown.textContent)).toBe('2 вопроса за 1 минуту');
+    expect(plain(shown.textContent)).toBe('2 из 2 верно за 1 минуту');
     expect(document.activeElement).toBe(shown);
     const paragraph = plain(document.querySelector('.ct-end-p')?.textContent);
     // The last result comes now: before the fix the headline turned into «Теперь 144 из 960 …» here.
@@ -647,17 +648,17 @@ describe('the end of a session (decision 49)', () => {
       for (const go of late.splice(0)) go();
     });
     await act(async () => undefined);
-    expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 вопроса за 1 минуту');
+    expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 из 2 верно за 1 минуту');
     expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(paragraph);
   });
 
-  it('when the figure did not move, the headline is the session’s count and time', async () => {
+  it('when the figure did not move, the headline is the session’s result and time', async () => {
     renderStudy(dataWith(['q-plain']));
     fireEvent.click(option('Третья'));
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     });
-    expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('1 вопрос за 1 минуту');
+    expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('1 из 1 верно за 1 минуту');
   });
 
   it('after the first session of a student who came to load a file, «Готово» opens the guide (decision 33)', async () => {
@@ -677,7 +678,7 @@ describe('the end of a session (decision 49)', () => {
     fireEvent.click(option('SERIALIZABLE'));
     fireEvent.click(screen.getByRole('button', { name: 'Закончить' }));
     await waitFor(() => expect(sent()[0]).toMatchObject({ item_id: 'q-iso', chosen: 3 }));
-    expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('1 вопрос за 1 минуту');
+    expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('1 из 1 верно за 1 минуту');
   });
 });
 
@@ -686,7 +687,7 @@ describe('the end of a session (decision 49)', () => {
  * answers through the rule, plan_inputs with the day's start and pace, decoded as the site decodes them; the plan is
  * the real one): «Программирование на C#», 60 minutes a day; yesterday 17 mistakes and 4 series begun at 18:35, which
  * count today after 14:35. On Sunday at 10:48 the exam page says «Сегодня 86 вопросов, около 60 минут»: 82 now and
- * «Ещё 4 вопроса — после 14:35». Each answer takes 8 s.
+ * «Ещё 4 вопроса после 14:35». Each answer takes 8 s.
  */
 function liveB(o: { questions?: number; mistakes?: number } = {}) {
   const items = testItems(SUBJECT_CS, o.questions ?? 200);
@@ -803,14 +804,14 @@ describe('the end of a session says what the exam page says next (usability chec
     expect({ left: leftLine(), pill: plain(document.querySelector('.ct-bar .sf-primary')?.textContent) }).toEqual(end);
   });
 
-  it('everything ready answered, questions later today: the plan’s «Ещё 4 вопроса — после 14:35.», not the line from before the session', async () => {
+  it('everything ready answered, questions later today: the plan’s «Ещё 4 вопроса после 14:35.», not the line from before the session', async () => {
     const b = liveB({ questions: 7, mistakes: 3 });
     expect(b.pageTitle()).toBe('Сегодня 7 вопросов, около 3 минут');
     renderStudy(b.read(), `?s=${SUBJECT_CS}`, b.read);
     await answerRight(3);
     await spoken();
-    // Before the fix: «Сегодня около 3 минут: 7 знакомых», the pre-session plan's line.
-    expect(leftLine()).toBe('Ещё 4 вопроса — после 14:35.');
+    // Before the fix: «Сегодня 7 знакомых, около 3 минут», the pre-session plan's line.
+    expect(leftLine()).toBe('Ещё 4 вопроса после 14:35.');
     expect(b.pageTitle()).toBe('Сегодня осталось 4 вопроса, около 2 минут');
     expect(plain(document.querySelector('.ct-bar .sf-primary')?.textContent)).toBe('Готово');
   });
@@ -821,10 +822,10 @@ describe('the end of a session says what the exam page says next (usability chec
     await answerRight(7);
     // The page right after: its figure line (FigureBlock), the plan's first count — the 4 confirmations after 14:35.
     const pageFirst = plain(firstCountText(planDay(b.read().planInput)));
-    expect(pageFirst).toBe('Первые войдут в счёт сегодня после 14:35 — если снова ответите верно');
-    // Before the fix: «… Первые войдут в счёт завтра после 6:50 — если снова ответите верно.», from this session's
+    expect(pageFirst).toBe('Ответьте верно ещё раз сегодня после 14:35, и первые вопросы будут выучены');
+    // Before the fix: «… Ответьте верно ещё раз завтра после 6:50, и первые вопросы будут выучены.», from this session's
     // answers alone (each counts from tomorrow), though the plan's confirmations count earlier.
-    await waitFor(() => expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(`Верно с первого раза — 7 из 7. ${pageFirst}.`));
+    await waitFor(() => expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(`${pageFirst}.`));
   });
 
   it('the first count is held with what is left until the plan read after the session comes, and never changes after', async () => {
@@ -845,7 +846,7 @@ describe('the end of a session says what the exam page says next (usability chec
       for (const go of waiting.splice(0)) go();
     });
     await spoken();
-    expect(paragraph()).toBe('Верно с первого раза — 7 из 7. Первые войдут в счёт сегодня после 14:35 — если снова ответите верно.');
+    expect(paragraph()).toBe('Ответьте верно ещё раз сегодня после 14:35, и первые вопросы будут выучены.');
     expect(document.querySelector('.ct-end-p span')).not.toHaveAttribute('aria-hidden');
     expect(screen.getByRole('button', { name: 'Напоминать каждый день' })).toBeInTheDocument();
     // A later reading (here one whose first count is tomorrow) does not change it.
@@ -869,7 +870,7 @@ describe('the end of a session says what the exam page says next (usability chec
     await answerRight(7);
     await spoken();
     expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(
-      'Верно с первого раза — 7 из 7. Первые войдут в счёт завтра после 6:50 — если снова ответите верно.',
+      'Ответьте верно ещё раз завтра после 6:50, и первые вопросы будут выучены.',
     );
   });
 
@@ -879,7 +880,7 @@ describe('the end of a session says what the exam page says next (usability chec
     renderStudy(b.read(), `?s=${SUBJECT_CS}`);
     await answerRight(3);
     await spoken();
-    expect(leftLine()).toBe('Ещё 4 вопроса — после 14:35.');
+    expect(leftLine()).toBe('Ещё 4 вопроса после 14:35.');
   });
 });
 
@@ -906,7 +907,7 @@ describe('a session picked up, and blocks outside the plan', () => {
 
   it('no errors to go over: one line and the way back', () => {
     renderStudy(dataWith([]), `?s=${SUBJECT_DB}&only=errors`);
-    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Ошибок сейчас нет.');
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Ошибок нет.');
     expect(screen.getByRole('link', { name: 'Вернуться к экзамену' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}`);
   });
 
@@ -979,26 +980,26 @@ describe('an oral self-check (decisions 19, 51)', () => {
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Понятие и виды сделок.'));
     expect(plain(screen.getByRole('banner').textContent)).toContain('1 из 2');
     expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Гражданское право · устно');
-    expect(page()).toContain('Вспомните ответ — вслух или про себя.');
+    expect(page()).toContain('Вспомните ответ вслух или про себя.');
     expect(page()).not.toMatch(/проверкой Meldy/);
     fireEvent.click(screen.getByRole('button', { name: 'Показать пункты' }));
     expect(mocks.recordSheetPeek).toHaveBeenCalledTimes(2);
     expect(mocks.recordSheetPeek).toHaveBeenCalledWith(expect.objectContaining({ questionHash: 'a'.repeat(32), pointId: 'p1', examId: ORAL_EXAM }));
     const points = screen.getByRole('region', { name: 'Пункты из ваших лекций' });
     expect(within(points).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['сделка: создаёт, меняет, прекращает права', 'Виды: односторонние, двух- и многосторонние']);
-    expect(page()).toContain('Самопроверка в счёт не идёт: она решает, когда вопрос вернётся.');
+    expect(page()).toContain('Отметка решает, когда повторим вопрос. Выученным он от неё не станет.');
     fireEvent.click(screen.getByRole('button', { name: 'Знаю' }));
     await waitFor(() => expect(mocks.recordSelfRating).toHaveBeenCalledWith(expect.objectContaining({ questionHash: 'a'.repeat(32), rating: 'know', examId: ORAL_EXAM, examQuestionId: sheet.questions[0].question_id })));
     await waitFor(() => expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Форма сделки.'));
     fireEvent.click(screen.getByRole('button', { name: 'Показать пункты' }));
-    expect(page()).toContain('Пунктов пока нет: к предмету не добавлены лекции.');
+    expect(page()).toContain('Пунктов пока нет. Добавьте к предмету лекции.');
     fireEvent.click(screen.getByRole('button', { name: 'Плаваю' }));
     await waitFor(() => expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toBe('2 вопроса за 1 минуту'));
     // Each rating was saved before the next question: the headline is final as the screen opens, and has the focus.
     expect(document.activeElement).toBe(screen.getByRole('heading', { level: 1 }));
     // The plan is read again as the session ends.
     await waitFor(() => expect((mocks.state as Loadable<ContainerData>).reload).toHaveBeenCalledTimes(1));
-    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('«Знаю» — 1 · «плаваю» — 1 · «не знаю» — 0.');
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('«Знаю» — 1, «плаваю» — 1, «не знаю» — 0.');
     // Both questions were rated: nothing of this session is offered again today, the pill is «Готово».
     expect(screen.queryByRole('link', { name: (name) => plain(name).startsWith('Ещё 1 вопрос') })).toBeNull();
     expect(document.querySelector('.ct-bar .sf-primary')?.textContent).toBe('Готово');
@@ -1021,7 +1022,7 @@ describe('the author’s explanation after an answer (release 47, spec §47.3)',
     expect(block.closest('.ct-bar')).toBeNull();
     expect(block.parentElement).toBe(document.querySelector('main.ct-study'));
     expect(block.compareDocumentPosition(document.querySelector('.ct-under')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра.');
+    expect(verdict()).toBe('Неверно. В файле — SERIALIZABLE. Повторим через пару вопросов и завтра.');
   });
 
   it('after «Не знаю» too; a question without one shows none', async () => {
@@ -1075,7 +1076,7 @@ describe('owner 2026-10-20: no lit option after a move, and «Только ош�
     const input = { ...data.planInput, items: planItemsFor(dbItems(), { 'q-iso': wrongToday, 'q-plain': wrongToday, 'q-code': wrongToday }) };
     expect(errorCount(input, SUBJECT_DB)).toBe(3);
     renderStudy({ ...data, planInput: input }, `?s=${SUBJECT_DB}&only=errors`);
-    expect(page()).not.toContain('Ошибок сейчас нет.');
+    expect(page()).not.toContain('Ошибок нет.');
     expect(plain(screen.getByRole('banner').textContent)).toContain('1 из 3');
   });
 });

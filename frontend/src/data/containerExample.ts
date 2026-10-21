@@ -84,13 +84,13 @@ export function exampleWords(today: LocalDay) {
 }
 
 /** The blue pill of the day (copy.startSubject). */
-export const START_LABEL = `Начать: ${START_SUBJECT.title}${NB}— ${START_SUBJECT.today}${NB}вопроса`;
+export const START_LABEL = `Начать: ${START_SUBJECT.title}, ${START_SUBJECT.today}${NB}вопроса`;
 /** The figure (words.figureLines) and its small line. */
-export const FIGURE = { big: String(TWO_DAYS), of: `из ${QUESTIONS}`, label: 'верно в два разных дня', under: `Видели ${SEEN} · ошибок сейчас ${ERRORS}` };
+export const FIGURE = { big: String(TWO_DAYS), of: `из ${QUESTIONS}`, label: 'выучено', under: `Видели ${SEEN} · ${ERRORS} ошибок` };
 
 /** A subject's row on the exam page (copy.subjectRowTest / copy.subjectRowOral, one date for the whole exam). */
 export function subjectRow(subject: ExampleSubject): string {
-  const parts = [`видели ${subject.seen} из ${subject.questions}`, `в счёте ${subject.twoDays}`, `сегодня ${subject.today}`];
+  const parts = [`видели ${subject.seen} из ${subject.questions}`, `выучено ${subject.twoDays}`, `сегодня ${subject.today}`];
   return (subject.oral ? ['устный', ...parts] : parts).map((part) => part.replace(/ /g, NB)).join(`${NB}· `);
 }
 
@@ -99,7 +99,7 @@ export const IMPORT_WORDS = {
   title: 'Новый экзамен',
   lede: 'Один общий файл или по файлу на предмет.',
   drop: 'Загрузите вопросы',
-  dropLede: 'Перетащите сюда файлы — по одному на предмет или один на все.',
+  dropLede: 'Перетащите сюда файлы, по одному на предмет или один на все.',
   found: `Нашли ${SUBJECTS_WORD} и ${QUESTIONS_WORD}`,
   reading: `Читаем 1${NB}файл`,
   file: 'Осенняя сессия.docx',
@@ -124,7 +124,7 @@ export const SESSION = {
   key: 2,
   chosen: 1,
   /** copy.verdictWrong(['SERIALIZABLE'], true). */
-  verdict: `Неверно. В${NB}файле${NB}— SERIALIZABLE. Вернётся через пару вопросов и${NB}завтра.`,
+  verdict: `Неверно. В${NB}файле${NB}— SERIALIZABLE. Повторим через пару вопросов и${NB}завтра.`,
   yours: 'Ваш ответ',
   inFile: 'В файле',
   finish: 'Закончить',
@@ -147,7 +147,7 @@ export const INVITE_WORDS = {
 /** The Telegram card (components/telegram/TelegramCard): the plan of the day in a chat. */
 export const TELEGRAM_WORDS = {
   title: 'План на день в Telegram',
-  about: 'Раз в день — план на сегодня. Вопросы экзамена можно решать прямо в чате, по 20 за раз.',
+  about: 'Раз в день бот пришлёт план на сегодня. Вопросы экзамена можно решать прямо в чате, по 20 за раз.',
 } as const;
 
 /** The student's local day now, 'YYYY-MM-DD'. */

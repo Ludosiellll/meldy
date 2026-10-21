@@ -111,8 +111,8 @@ describe('five study days a week (Пн–Пт) to a date', () => {
     const rows = (mask?: number) => daysAhead(input(mask)).map((row) => ru(dayRowText(row)));
     // Today is the card's day: 300 new questions fill its 45 minutes; the days after take what the date needs.
     const today = (mask?: number) => `5 октября — около ${shownMinutes(planDay(input(mask)).counts.estSec)} минут`;
-    expect(rows()).toEqual([today(), '6–28 октября — около 20 минут в день', '29 октября – 1 ноября — новых нет, только знакомые, сначала ошибки', '2 ноября — экзамен']);
-    expect(rows(MON_FRI)).toEqual([today(MON_FRI), '6–26 октября — около 25 минут в день', '27–30 октября — новых нет, только знакомые, сначала ошибки', '2 ноября — экзамен']);
+    expect(rows()).toEqual([today(), '6–28 октября — около 20 минут в день', '29 октября – 1 ноября — только знакомые, сначала ошибки', '2 ноября — экзамен']);
+    expect(rows(MON_FRI)).toEqual([today(MON_FRI), '6–26 октября — около 25 минут в день', '27–30 октября — только знакомые, сначала ошибки', '2 ноября — экзамен']);
     // the exam's day has its row even when it is not a study day
     const sunday = daysAhead(makeInput({ now: at(MON, '19:00'), subjects: [{ id: 'a', date: '2026-11-01' }], items: testItems('a', 50), firstPlanDay: MON, studyWeekdays: MON_FRI }));
     expect(sunday[sunday.length - 1]).toEqual({ from: '2026-11-01', to: '2026-11-01', kind: 'exam', minutes: null, subjectIds: ['a'] });
@@ -159,7 +159,7 @@ describe('a day off', () => {
     expect(keys(plan)).not.toContain('skip');
     expect(lineOf(plan, 'day_off')).toEqual({ key: 'day_off', n: [2], day: NEXT_MON });
     expect(ru(planTitle(plan))).toBe('Сегодня выходной');
-    expect(ru(planLine(plan))).toBe('Сегодня выходной. Следующие вопросы — в понедельник.');
+    expect(ru(planLine(plan))).toBe('Сегодня выходной. Следующие вопросы в понедельник.');
     // the first count waits for a study day too
     expect(lineOf(plan, 'first_count')).toEqual({ key: 'first_count', n: [2], day: NEXT_MON });
     // studying anyway: «Ещё 20 новых»
@@ -174,7 +174,7 @@ describe('a day off', () => {
 
   it('names the next study day: tomorrow, its weekday within the week', () => {
     expect(lineOf(planDay(on(SAT, MON_FRI + 64)), 'day_off')).toEqual({ key: 'day_off', n: [1], day: '2026-10-11' }); // Sunday on
-    expect(ru(lineText({ key: 'day_off', n: [1], day: '2026-10-11' }))).toBe('Сегодня выходной. Следующие вопросы — завтра.');
+    expect(ru(lineText({ key: 'day_off', n: [1], day: '2026-10-11' }))).toBe('Сегодня выходной. Следующие вопросы завтра.');
     const tuesday = makeInput({ now: at('2026-10-06', '10:00'), subjects, items: testItems('a', 50), firstPlanDay: MON, studyWeekdays: 1 }); // Mondays only
     expect(lineOf(planDay(tuesday), 'day_off')).toEqual({ key: 'day_off', n: [6], day: NEXT_MON });
   });
@@ -199,7 +199,7 @@ describe('the last study day before the exam', () => {
     expect(friday().counts.reviews).toBe(10); // ⌈30 / 3⌉
     expect(friday(MON_FRI).counts.reviews).toBe(30); // Friday, then the weekend off, then the exam
     // the line about the date counts calendar days
-    expect(ru(lineText(lineOf(friday(MON_FRI), 'window_in')!))).toBe('До экзамена 3 дня: новых нет, только знакомые.');
+    expect(ru(lineText(lineOf(friday(MON_FRI), 'window_in')!))).toBe('До экзамена 3 дня. Новых вопросов нет, только знакомые.');
   });
 });
 
@@ -211,7 +211,7 @@ describe('days missed, the first count and «На сегодня всё» across
     const monday = (day: string, mask?: number) => planDay(makeInput({ now: at(NEXT_MON, '10:00'), subjects, items: last(day), firstPlanDay: MON, studyWeekdays: mask }));
     expect(keys(monday(FRI, MON_FRI))).not.toContain('skip');
     expect(lineOf(monday(THU, MON_FRI), 'skip')).toEqual({ key: 'skip', n: [1, 60], day: FRI });
-    expect(ru(lineText(lineOf(monday(THU, MON_FRI), 'skip')!))).toBe('1 день без занятий. Сегодня те же 60 минут — больше знакомых вопросов.');
+    expect(ru(lineText(lineOf(monday(THU, MON_FRI), 'skip')!))).toBe('1 день без занятий. Сегодня те же 60 минут, но больше знакомых вопросов.');
     // every day: as before
     expect(lineOf(monday(FRI), 'skip')).toEqual({ key: 'skip', n: [2, 60] });
   });

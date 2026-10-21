@@ -196,11 +196,11 @@ export function growthSentence(summary: { confirmed: number; since: string | nul
   return `С ${formatDay(summary.since, now)}: 0 → ${summary.confirmed} ${daysPhrase(days)}.`;
 }
 
-/** «Пора проверить: 2 — подтверждены больше 14 дней назад.» or null. */
+/** «2 вопроса выучены больше 14 дней назад. Пора их проверить.» or null. */
 export function staleSentence(stale: number): string | null {
   if (stale <= 0) return null;
-  const verb = stale % 10 === 1 && stale % 100 !== 11 ? 'подтверждён' : 'подтверждены';
-  return `Пора проверить: ${stale} — ${verb} больше 14 дней назад.`;
+  const one = stale % 10 === 1 && stale % 100 !== 11;
+  return `${stale} ${pluralRu(stale, ['вопрос', 'вопроса', 'вопросов'])} ${one ? 'выучен' : 'выучены'} больше 14 дней назад. Пора ${one ? 'его' : 'их'} проверить.`;
 }
 
 /**
@@ -224,22 +224,22 @@ export function peakText(input: {
   const when = dayWord(latestDay, today, now);
   const from = change.before.readiness;
   const to = change.after.readiness;
-  const confirmedTickets = input.confirmedTicketsPct !== null ? ` Билетов, где подтверждены оба вопроса, — ${pct(input.confirmedTicketsPct)}.` : '';
+  const confirmedTickets = input.confirmedTicketsPct !== null ? ` В ${pct(input.confirmedTicketsPct)} билетов выучены оба вопроса.` : '';
   const meaning = `${CONFIRMED_MEANING}${confirmedTickets}`;
   const growth = peakGrowth(counts, now);
-  const passed = `Вопрос ${number}: в ответе, который вы дали только что, названо достаточно пунктов.`;
-  const failed = `Вопрос ${number}: в ответе, который вы дали только что, названо недостаточно пунктов.`;
+  const passed = `Вопрос ${number}: ответ полный.`;
+  const failed = `Вопрос ${number}: ответ неполный.`;
 
   if (to === 'confirmed' && from !== 'confirmed') {
     const start = change.after.seriesStartDate;
-    const head = start && start !== latestDay ? `${capitalize(formatDay(start, now))} — названо достаточно. ` : '';
+    const head = start && start !== latestDay ? `${capitalize(formatDay(start, now))} ответ был полным. ` : '';
     return {
-      because: `${head}${capitalize(when)} снова названо достаточно: дважды, в разные дни, — вопрос подтверждён.`,
-      title: 'Подтверждено ответами',
+      because: `${head}${capitalize(when)} ответ снова полный. Два полных ответа в разные дни, и вопрос выучен.`,
+      title: 'Выучено',
       before: Math.max(0, counts.confirmed - 1),
       after: counts.confirmed,
       total: counts.total,
-      statement: `Вопрос ${number} подтверждён ответом, который вы дали только что.`,
+      statement: `Вопрос ${number} выучен.`,
       fine: [meaning],
       draws: true,
       growth,
@@ -248,12 +248,12 @@ export function peakText(input: {
   if (to === 'not_passed' && from === 'confirmed') {
     const since = change.before.confirmedOn;
     return {
-      because: `Был подтверждён${since ? ` с ${formatDay(since, now)}` : ''}, ${when} названо недостаточно. Подтверждение снято, серия начнётся заново.`,
-      title: 'Подтверждено ответами',
+      because: `Вопрос был выучен${since ? ` с ${formatDay(since, now)}` : ''}, но ${when} ответ неполный. Его нужно выучить заново.`,
+      title: 'Выучено',
       before: counts.confirmed + 1,
       after: counts.confirmed,
       total: counts.total,
-      statement: `${failed} Подтверждение снято.`,
+      statement: `${failed} Его нужно выучить заново.`,
       fine: [meaning],
       draws: true,
       growth,
@@ -261,8 +261,8 @@ export function peakText(input: {
   }
   if (to === 'not_passed') {
     return {
-      because: `${capitalize(when)} названо недостаточно пунктов. В режиме «Чаще слабые» вопрос будет выпадать чаще.`,
-      title: 'Названо недостаточно',
+      because: `${capitalize(when)} ответ неполный. В режиме «Чаще слабые» вопрос будет выпадать чаще.`,
+      title: 'Ответ неполный',
       before: from === 'not_passed' ? counts.notPassed : Math.max(0, counts.notPassed - 1),
       after: counts.notPassed,
       total: null,
@@ -275,10 +275,10 @@ export function peakText(input: {
   if (to === 'once' && from === 'once') {
     const at = formatShortMoment(change.after.confirmableFrom, now);
     return {
-      because: `Снова названо достаточно, но с первого такого ответа прошло меньше 20 часов или это тот же день.${
-        at ? ` Подтвердит такой же ответ не раньше ${at}.` : ''
+      because: `Ответ снова полный, но с первого полного ответа прошло меньше 20 часов.${
+        at ? ` Ответьте так же не раньше ${at}, и вопрос выучен.` : ''
       }`,
-      title: 'Названо достаточно, не подтверждено',
+      title: 'Ответ полный',
       before: null,
       after: counts.once,
       total: null,
@@ -292,9 +292,9 @@ export function peakText(input: {
     return {
       because:
         from === 'not_passed'
-          ? `${capitalize(when)} названо достаточно. После ответа, где названо недостаточно, серия началась заново.`
-          : `${capitalize(when)} названо достаточно. Подтвердит такой же ответ на другой день, не раньше чем через 20 часов.`,
-      title: 'Названо достаточно, не подтверждено',
+          ? `${capitalize(when)} ответ полный. Прошлый был неполным, поэтому считаем заново. Ответьте так же в другой день, и вопрос выучен.`
+          : `${capitalize(when)} ответ полный. Ответьте так же в другой день, через 20 часов или позже, и вопрос выучен.`,
+      title: 'Ответ полный',
       before: Math.max(0, counts.once - 1),
       after: counts.once,
       total: null,
@@ -306,12 +306,12 @@ export function peakText(input: {
   }
   // Still confirmed: one more answer that names enough.
   return {
-    because: `${capitalize(when)} снова названо достаточно: вопрос остаётся подтверждённым.`,
-    title: 'Подтверждено ответами',
+    because: `${capitalize(when)} ответ снова полный. Вопрос остаётся выученным.`,
+    title: 'Выучено',
     before: null,
     after: counts.confirmed,
     total: counts.total,
-    statement: `Вопрос ${number} остаётся подтверждённым.`,
+    statement: `Вопрос ${number} остаётся выученным.`,
     fine: [meaning],
     draws: false,
     growth,

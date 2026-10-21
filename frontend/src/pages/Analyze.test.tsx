@@ -331,9 +331,9 @@ describe('stream outcomes', () => {
     });
 
     sectionResponse = () => new Response(JSON.stringify({ section: 'quiz', status: 'ok', result: quiz }), { status: 200 });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    expect(await screen.findByText('Тест не получился: связь прервалась до этого раздела.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    expect(await screen.findByText('Самопроверка не получилась: связь прервалась до этого раздела.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('Тест на экране')).toBeInTheDocument();
     const sectionCall = calls.find(call => call.url === '/api/analyze/section');
     expect(JSON.parse(String(sectionCall?.init?.body))).toMatchObject({ section: 'quiz', text: TEXT.text });
@@ -435,7 +435,7 @@ describe('HTTP errors before the stream', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Выбрать другой файл' }));
     await uploadScreen();
-    expect(screen.getByText(/^Подробный конспект, 6 карточек и тест из 5 вопросов$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Подробный конспект, 6 карточек и самопроверка из 5 вопросов$/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Изменить' }));
     expect(screen.getByRole('button', { name: 'Подробный' }).className).toMatch(/font-medium/);
   });
@@ -622,7 +622,7 @@ describe('demo text', () => {
     await loadDemo();
     expect(screen.getByText('Демо-текст: лимит не списывается')).toBeInTheDocument();
     // The demo text is made with its own settings: step 2 says what, the settings close and «Изменить» waits.
-    expect(screen.getByText(/^Конспект, 6 карточек и тест из 5 вопросов$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Конспект, 6 карточек и самопроверка из 5 вопросов$/)).toBeInTheDocument();
     expect(screen.getByText('Для демо-текста настройки не меняются.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Изменить' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Подробный' })).not.toBeInTheDocument();
@@ -660,7 +660,7 @@ describe('demo text', () => {
     expect(s.activity).not.toHaveBeenCalled();
     expect(s.increment).not.toHaveBeenCalled();
     // На экране не библиотечная копия: тест этого запуска не пишется в её журнал.
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     await screen.findByText('Тест на экране');
     expect(s.quizProps).not.toBeNull();
     expect(s.quizProps?.materialId).toBeUndefined();
@@ -689,9 +689,9 @@ describe('demo text', () => {
       await screen.findByText(/Этот результат не сохранён: демо-материал уже есть в библиотеке/, undefined, { timeout: 3000 }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Изменить название' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    expect(await screen.findByText('Тест не получился: сервис ИИ был перегружен.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать тест заново' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    expect(await screen.findByText('Самопроверка не получилась: сервис ИИ был перегружен.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать самопроверку заново' })).not.toBeInTheDocument();
     expect(calls.filter(call => call.url === '/api/analyze/section')).toHaveLength(0);
     expect(s.updates).toHaveLength(0);
     expect(s.inserts).toHaveLength(0);
@@ -877,8 +877,8 @@ describe('a section re-created for an earlier run', () => {
 
     let releaseSection: (value: Response) => void = () => undefined;
     sectionResponse = () => new Promise<Response>(resolve => (releaseSection = resolve));
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     await waitFor(() => expect(calls.some(call => call.url === '/api/analyze/section')).toBe(true));
 
     // Пока тест создаётся, пользователь запускает новый анализ.
@@ -897,7 +897,7 @@ describe('a section re-created for an earlier run', () => {
     expect(screen.queryByRole('heading', { name: 'Энтропия' })).not.toBeInTheDocument();
     expect(screen.getByText('Материал обработан')).toBeInTheDocument();
     // Тест второго запуска остаётся привязан к его материалу.
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     await screen.findByText('Тест на экране');
     expect(s.quizProps?.materialId).toBe('mat-2');
   });
@@ -1015,8 +1015,8 @@ describe('scans, photos and presentations', () => {
     await waitFor(() => expect(s.inserts).toHaveLength(1));
 
     sectionResponse = () => new Response(JSON.stringify({ section: 'quiz', status: 'ok', result: quiz }), { status: 200 });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('Тест на экране')).toBeInTheDocument();
     const sectionCall = calls.find(call => call.url === '/api/analyze/section');
     expect(JSON.parse(String(sectionCall?.init?.body))).toMatchObject({ section: 'quiz', recognized: 'recording' });

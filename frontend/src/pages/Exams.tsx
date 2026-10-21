@@ -47,7 +47,7 @@ export function examCoverageLine(item: ExamListItem, confirmed: number | null, m
   if (mappingNow || item.mapping_state === 'running') line = `${questions} · идёт сверка с лекциями`;
   else if (mapped === 0) line = `${questions}, со своими лекциями ещё не сверены`;
   else line = `${item.coverage.full} из ${total} ${pluralRu(total, ['вопроса', 'вопросов', 'вопросов'])} есть в лекциях`;
-  if (confirmed !== null && confirmed > 0) line += ` · подтверждено ${confirmed}`;
+  if (confirmed !== null && confirmed > 0) line += ` · выучено ${confirmed}`;
   return line;
 }
 
@@ -70,7 +70,7 @@ export function examPhoneCountsLine(item: ExamListItem, confirmed: number | null
   const pills = examPills(item, mappingNow);
   if (pills.length === 0) return examCoverageLine(item, confirmed, mappingNow);
   const line = `В лекциях: ${pills.map((pill) => `${pill.word} ${pill.count}`).join(' · ')}`;
-  return confirmed !== null && confirmed > 0 ? `${line} · подтверждено ${confirmed}` : line;
+  return confirmed !== null && confirmed > 0 ? `${line} · выучено ${confirmed}` : line;
 }
 
 /**

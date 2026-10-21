@@ -79,7 +79,7 @@ test('/start without a code: not linked → M1; linked → the card (K1) and the
   h.linked();
   const again = privateText('/start');
   await h.post(again);
-  assert.match(words(lastSent(h).text), /^Сегодня около \d+ минут/);
+  assert.match(words(lastSent(h).text), /^Сегодня .+, около \d+ минут/);
   assert.deepEqual(h.tg.of('deleteMessage').map((c) => c.params.message_id), [again.message!.message_id]);
   assert.deepEqual(h.fdb.of('bot_card_sent').map((c) => (c.args as { event: string }).event), ['card']);
 });
@@ -161,13 +161,13 @@ test('/today, /settings, /help, /stop', async () => {
   h.linked();
   await h.post(privateText('/today'));
   const first = lastSent(h);
-  assert.match(words(first.text), /^Сегодня около/);
+  assert.match(words(first.text), /^Сегодня .+, около/);
   assert.equal(first.disable_notification, true, '/today is silent; only the tick\'s card rings');
   const firstId = h.tg.of('sendMessage').length + 999;
   await h.post(privateText('/today'));
   assert.ok(h.tg.of('deleteMessage').some((c) => c.params.message_id === firstId), 'the earlier unused card is deleted');
   await h.post(privateText('/settings'));
-  assert.equal(words(lastSent(h).text), `${W.SETTINGS_TITLE}\nПлан на день — в 20:00 по Минску.\nЭкзамен — «Осенняя сессия», 3 ноября.`);
+  assert.equal(words(lastSent(h).text), `${W.SETTINGS_TITLE}\nПлан на день — в 20:00 по Минску.\nЭкзамен «Осенняя сессия», 3 ноября.`);
   await h.post(privateText('/stop'));
   assert.equal(words(lastSent(h).text), W.UNLINKED_DONE);
   assert.equal(h.fdb.link(TG), null);
@@ -207,7 +207,7 @@ test('M2 → M3: a quick time sets it and the same message becomes M3 with «Н�
   assert.deepEqual((h.fdb.of('bot_settings')[0].args as { patch: unknown }).patch, { remind_at: '19:30' });
   const editCall = h.tg.of('editMessageText').at(-1)!.params;
   assert.equal(editCall.message_id, 777);
-  assert.match(words(editCall.text), /^Готово: план на день — в 19:30\.\nСегодня около \d+ минут: .+\n\nВремя и пауза — \/settings$/);
+  assert.match(words(editCall.text), /^Готово\. План будет приходить в 19:30\.\nСегодня .+, около \d+ минут\.\n\nВремя и пауза: \/settings$/);
   assert.equal(editCall.reply_markup.inline_keyboard[0][0].callback_data, `go|${CID}|p`);
   assert.equal(h.tg.of('answerCallbackQuery').length, 1);
 });
@@ -237,7 +237,7 @@ test('M4: «Другое время» → a ForceReply prompt kept in the databa
   await h.post(privateText('19:45', { replyTo: botMessage(rangeId, lastSent(h).text) }));
   const m3 = h.tg.of('editMessageText').at(-1)!.params;
   assert.equal(m3.message_id, 777, 'M2 is edited into M3');
-  assert.match(words(m3.text), /^Готово: план на день — в 19:45\./);
+  assert.match(words(m3.text), /^Готово. План будет приходить в 19:45\./);
   assert.equal(h.fdb.link(TG)!.prompt, null);
   assert.equal(h.fdb.link(TG)!.remindAt, 19 * 60 + 45);
 });
@@ -269,12 +269,12 @@ test('S1–S4 and K2 presses (§6.5): time, pause, a date by prompt, unpause, un
   await h.post(press('st|pause'));
   assert.equal(edits().at(-1), `${W.S3_TITLE}\n${W.S3_BODY}`);
   await h.post(press('p|1'));
-  assert.equal(edits().at(-1), `Пауза до завтра.\nЗавтра план снова придёт в 7:30. Заниматься можно и раньше — /today.`);
+  assert.equal(edits().at(-1), `Пауза до завтра.\nЗавтра план снова придёт в 7:30. Заниматься можно и раньше: /today.`);
   assert.equal(h.fdb.link(TG)!.pausedUntil, '2026-10-17');
   await h.post(press('p|mon'));
-  assert.equal(edits().at(-1), `Пауза до понедельника, 19 октября.\nВ понедельник план снова придёт в 7:30. Заниматься можно и раньше — /today.`);
+  assert.equal(edits().at(-1), `Пауза до понедельника, 19 октября.\nВ понедельник план снова придёт в 7:30. Заниматься можно и раньше: /today.`);
   await h.post(press('p|off'));
-  assert.equal(edits().at(-1), 'Пауза снята: план придёт завтра в 7:30.', '20:00 is past the 7:30 window');
+  assert.equal(edits().at(-1), 'Пауза снята. План придёт завтра в 7:30.', '20:00 is past the 7:30 window');
   await h.post(press('p|date'));
   const promptId = h.tg.of('sendMessage').length + 999;
   for (const [reply, expected] of [['32.13', W.DATE_BAD], ['10.10', W.DATE_PAST], ['20.11', W.dateAfterExam('2026-11-03')]] as const) {
@@ -285,12 +285,12 @@ test('S1–S4 and K2 presses (§6.5): time, pause, a date by prompt, unpause, un
   assert.ok(promptId > 0);
   const current = h.fdb.link(TG)!.prompt!.promptId;
   await h.post(privateText('25.10', { replyTo: botMessage(current, lastSent(h).text) }));
-  assert.equal(edits().at(-1), 'Пауза до воскресенья, 25 октября.\nВ воскресенье, 25 октября, план снова придёт в 7:30. Заниматься можно и раньше — /today.');
+  assert.equal(edits().at(-1), 'Пауза до воскресенья, 25 октября.\nВ воскресенье, 25 октября, план снова придёт в 7:30. Заниматься можно и раньше: /today.');
   assert.equal(h.fdb.link(TG)!.pausedUntil, '2026-10-25');
 
   const patch = () => (h.fdb.of('bot_settings').at(-1)!.args as { patch: unknown }).patch;
   await h.post(press('ask|y'));
-  assert.equal(edits().at(-1), 'Хорошо: план — каждый день в 7:30.');
+  assert.equal(edits().at(-1), 'Хорошо. План будет приходить каждый день в 7:30.');
   assert.deepEqual(patch(), { ask: 'yes' });
   await h.post(press('ask|p'));
   assert.equal(edits().at(-1), `${W.S3_TITLE}\n${W.S3_BODY}`);
@@ -334,7 +334,7 @@ test('«Экзамены» from S1: the list, a press takes an exam out of the p
   h.linked([AUTUMN30, WINTER]);
   h.tg.seed(TG, 777, 'S1');
   await h.post(privateText('/today'));
-  assert.ok(words(lastSent(h).text).includes('Ещё сегодня: «Зимняя сессия»'), 'both exams in the plan');
+  assert.ok(words(lastSent(h).text).includes('Ещё сегодня «Зимняя сессия»'), 'both exams in the plan');
   await h.post(press('xl|s'));
   assert.equal(words(lastEdit(h).text), 'Какие экзамены присылать\nОтметьте экзамены, по которым приходит план на день. Можно несколько.');
   assert.deepEqual(rowsOf(lastEdit(h)), [
@@ -344,7 +344,7 @@ test('«Экзамены» from S1: the list, a press takes an exam out of the p
   assert.deepEqual(h.fdb.of('bot_exam_remind').map((c) => c.args), [{ tgUserId: TG, containerId: WINTER.id, on: false }]);
   assert.deepEqual(rowsOf(lastEdit(h))[1], [['— Зимняя сессия', `xr|${WINTER.id}|1|s`]]);
   await h.post(press('st|back'));
-  assert.equal(words(lastEdit(h).text), `${W.SETTINGS_TITLE}\nПлан на день — в 20:00 по Минску.\nЭкзамен — «Осенняя сессия», 3 ноября.`);
+  assert.equal(words(lastEdit(h).text), `${W.SETTINGS_TITLE}\nПлан на день — в 20:00 по Минску.\nЭкзамен «Осенняя сессия», 3 ноября.`);
   assert.deepEqual(rowsOf(lastEdit(h)).map((r) => r.map((b) => b[1])), [['st|time', 'st|pause'], ['xl|s'], ['st|off']]);
   await h.post(privateText('/today'));
   assert.ok(!words(lastSent(h).text).includes('Зимняя сессия'), 'out of the plan: not on the card');
@@ -374,7 +374,7 @@ test('«Перенести на неделю» from K3 by a member: for themselv
   await h.post(press(`mv|${CID}|7`));
   assert.deepEqual(h.fdb.moves, [{ userId: USER, containerId: CID, date: '2026-10-23', forWhom: 'me' }]);
   assert.equal(lastEdit(h).message_id, 777);
-  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 23 октября. План пересчитан.');
+  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 23 октября. План обновлён.');
   assert.deepEqual(rowsOf(lastEdit(h)), [[['План на сегодня', 'xc']]]);
   // the owner of an exam without members: for everyone, two weeks
   const o = harness();
@@ -392,7 +392,7 @@ test('the author of an exam with members chooses «Для всех участн�
   assert.deepEqual(rowsOf(lastEdit(h)), [[['Для всех участников', `mf|${CID}|20261023|a`]], [['Только для меня', `mf|${CID}|20261023|m`]]]);
   await h.post(press(`mf|${CID}|20261023|m`));
   assert.deepEqual(h.fdb.moves, [{ userId: USER, containerId: CID, date: '2026-10-23', forWhom: 'me' }]);
-  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 23 октября. План пересчитан.');
+  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 23 октября. План обновлён.');
   const m = harness();
   m.linked([AUTUMN30]);
   await m.post(press(`mf|${CID}|20261023|a`));
@@ -436,7 +436,7 @@ test('«Другая дата»: a ForceReply kept with the exam; a past, a far 
   await h.post(privateText('25.10', { replyTo: botMessage(current, lastSent(h).text) }));
   assert.deepEqual(h.fdb.moves, [{ userId: USER, containerId: CID, date: '2026-10-25', forWhom: 'me' }]);
   assert.equal(lastEdit(h).message_id, 777);
-  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 25 октября. План пересчитан.');
+  assert.equal(words(lastEdit(h).text), 'Экзамен «Осенняя сессия» перенесён на 25 октября. План обновлён.');
   assert.equal(h.fdb.link(TG)!.prompt, null, 'the prompt is closed');
   // plain text within the hour answers it too
   await h.post(press(`mv|${CID}|d`));

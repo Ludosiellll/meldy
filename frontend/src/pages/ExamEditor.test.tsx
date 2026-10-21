@@ -324,7 +324,7 @@ describe('ExamEditor: a new exam', () => {
     expect(within(list).getByRole('checkbox', { name: /Механика/ })).not.toBeChecked();
     const scan = within(list).getByRole('checkbox', { name: /Скан лекции/ });
     expect(scan).toBeDisabled();
-    expect(within(list).getByText('нет текста — не участвует')).toBeInTheDocument();
+    expect(within(list).getByText('нет текста, не участвует')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Предмет'), { target: { value: 'История' } });
     expect(within(list).getByRole('checkbox', { name: /Лекция 3/ })).toBeChecked();

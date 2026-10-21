@@ -242,11 +242,11 @@ describe('the exam page acts in place (release 47.3)', () => {
     fireEvent.click(within(minutes).getByRole('radio', { name: nm('90 минут') }));
     await waitFor(() => expect(mocks.saveSettings).toHaveBeenCalledWith(CONTAINER, { minutes_per_day: 90, study_weekdays: 127, tempo: 'date' }));
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
-    expect(plain(within(dialog).getByRole('status').textContent)).toBe('Сохранено: 90 минут в день. План пересчитан.');
+    expect(plain(within(dialog).getByRole('status').textContent)).toBe('Сохранено. Теперь 90 минут в день.');
     fireEvent.click(within(dialog).getByRole('radio', { name: 'Как можно быстрее' }));
     await waitFor(() => expect(mocks.saveSettings).toHaveBeenLastCalledWith(CONTAINER, { minutes_per_day: 90, study_weekdays: 127, tempo: 'fast' }));
     await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
-    expect(within(dialog).getByRole('link', { name: 'Дни занятий и дата — в настройках' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#days`);
+    expect(within(dialog).getByRole('link', { name: 'Дни занятий и дату можно поменять в настройках' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/settings#days`);
     fireEvent.click(within(dialog).getByRole('button', { name: 'Готово' }));
     expect(screen.queryByRole('dialog', { name: 'Время в день' })).toBeNull();
   });
@@ -309,7 +309,7 @@ describe('the author’s own test opens as the test’s page (release 47.3)', ()
     expect(page()).not.toContain('В счёт идёт');
     expect(page()).not.toContain('На сегодня');
     expect(document.querySelector('.ct-plan')).toBeNull();
-    expect(screen.queryByRole('region', { name: 'верно в два разных дня' })).toBeNull();
+    expect(screen.queryByRole('region', { name: 'Выученные вопросы' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: TEST_HOME.menuLabel }));
     expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => node.textContent)).toEqual([
       'Настройки',

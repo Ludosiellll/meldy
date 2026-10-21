@@ -10,11 +10,11 @@ afterEach(cleanup);
 describe('what the analysis will make, in one line (finding LIB-8)', () => {
   it('names what is on, in the order of the list, with the numbers that matter', () => {
     expect(settingsSummary(settings({ enabledAgents: ['summarizer', 'flashcards', 'quiz'], flashcardCount: 6, quizCount: 5, summaryDetail: 'medium' }))).toBe(
-      'конспект, 6 карточек и тест из 5 вопросов',
+      'конспект, 6 карточек и самопроверка из 5 вопросов',
     );
     expect(
       settingsSummary(settings({ enabledAgents: ['podcast', 'quiz', 'summarizer', 'cheatsheet', 'flashcards'], summaryDetail: 'detailed', flashcardCount: 1, quizCount: 3, quizType: 'truefalse' })),
-    ).toBe('подробный конспект, 1 карточка, тест из 3 вопросов «верно или неверно», выжимка и подкаст');
+    ).toBe('подробный конспект, 1 карточка, самопроверка из 3 вопросов «верно или неверно», выжимка и подкаст');
     expect(settingsSummary(settings({ enabledAgents: ['flashcards'], flashcardCount: 12 }))).toBe('12 карточек');
     expect(settingsSummary(settings({ enabledAgents: ['summarizer'], summaryDetail: 'brief' }))).toBe('краткий конспект');
   });
@@ -25,7 +25,7 @@ describe('the settings of an analysis', () => {
     render(<SettingsPanel settings={settings()} onChange={vi.fn()} />);
     const group = screen.getByRole('group', { name: 'Что сделать из лекции' });
     const parts = within(group).getAllByRole('checkbox').map((box) => box.querySelector('.ac-mod-t')?.textContent);
-    expect(parts).toEqual(['Конспект', 'Карточки', 'Тест', 'Выжимка', 'Подкаст']);
+    expect(parts).toEqual(['Конспект', 'Карточки', 'Самопроверка', 'Выжимка', 'Подкаст']);
     expect(group.textContent).not.toMatch(/Модул|генерац|Флеш|интервальн|[Рр]азговор/);
   });
 

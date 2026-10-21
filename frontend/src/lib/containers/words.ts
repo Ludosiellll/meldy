@@ -9,10 +9,11 @@
 import type { DayPlan, LocalDay } from '../../types/container.ts';
 import { addDays, dayIndex, daysBetween, studyDayFrom, weekday } from './time.ts';
 
-export const TWO_DAYS = 'верно в два разных дня';
+/** The figure's word (the owner's plain words, 2026-10-21): «143 из 960 выучено»; the rule is behind «Как считается». */
+export const TWO_DAYS = 'выучено';
 export const NBSP = ' ';
 /** The figure card before the first counted question («Как считается» explains the rest). */
-export const RULE_LINE = 'В счёт идёт вопрос, на который вы ответили верно в два разных дня.';
+export const RULE_LINE = 'Вопрос выучен после двух верных ответов в разные дни.';
 /** «План по дням», under the rows. */
 export const SKIP_NOTE = 'Если пропустите день, его вопросы перейдут на следующие.';
 
@@ -44,7 +45,6 @@ const questions = (n: number) => glue(n, 'вопрос', 'вопроса', 'во
 const minutesGen = (n: number) => glue(n, 'минуты', 'минут', 'минут'); // «около 45 минут»
 const minutesAcc = (n: number) => glue(n, 'минуту', 'минуты', 'минут'); // «за 61 минуту»
 const minutesNom = (n: number) => glue(n, 'минута', 'минуты', 'минут'); // «те же 60 минут»
-const minutesPrep = (n: number) => glue(n, 'минуте', 'минутах', 'минутах'); // «при 45 минутах»
 /** From 3 hours a time reads in hours, to the half hour: «около 7,5 часа», «около 7 часов» («Все вопросы»). */
 const HOURS_FROM_MIN = 180;
 function hours(min: number, one: string, few: string, many: string): string {
@@ -128,56 +128,56 @@ function inPlan(line: Line, count: number, size: number): string {
   return nth(line, size) > nth(line, count) ? ' в плане' : '';
 }
 
-/** «Первые войдут в счёт завтра после 17:00 — если снова ответите верно» (decision 40). */
+/** «Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены» (decision 40). */
 export function firstCountText(when: string, time: string | null | undefined): string {
   const at = time ? ` после ${time}` : '';
-  return `Первые войдут в счёт ${when}${at} — если снова ответите верно`;
+  return `Ответьте верно ещё раз ${when}${at}, и первые вопросы будут выучены`;
 }
 
 /** One of `DayPlan.lines` as text ('' for an unknown key). */
 export function lineText(line: Line): string {
   switch (line.key as LineKey) {
     case 'later':
-      return `Ещё ${questions(nth(line, 0))} — после ${line.time ?? ''}`.trimEnd();
+      return `Ещё ${questions(nth(line, 0))} после ${line.time ?? ''}`.trimEnd();
     case 'first_count':
       return firstCountText(relDay(line.n ? line.n[0] : undefined, line.day), line.time);
     case 'skip': {
       // The study days missed; `day` (the last of them) when it was not yesterday: a day off came after it.
       const gap = nth(line, 0);
-      const head = gap <= 1 && !line.day ? 'Вчера без занятий.' : `${days(Math.max(1, gap))} без занятий.`;
-      return `${head} Сегодня те же ${minutesNom(nth(line, 1))} — больше знакомых вопросов.`;
+      const head = gap <= 1 && !line.day ? 'Вчера занятий не было.' : `${days(Math.max(1, gap))} без занятий.`;
+      return `${head} Сегодня те же ${minutesNom(nth(line, 1))}, но больше знакомых вопросов.`;
     }
     // What the minutes reach by the date counts the questions in the plan; when the screen says the exam holds more
     // (its size after the count: oral ones waiting for lectures, ones without a key), the line says «в плане».
     case 'short':
-      return `При ${minutesPrep(nth(line, 0))} к ${dayText(line.day ?? '')} вы увидите около ${nth(line, 1)} из ${nth(line, 2)}${inPlan(line, 2, 4)}. `
-        + `Чтобы увидеть все, нужно около ${durationGen(nth(line, 3))}.`;
+      return `Если заниматься ${minutesAcc(nth(line, 0))} в день, к ${dayText(line.day ?? '')} вы пройдёте около ${nth(line, 1)} из ${nth(line, 2)}${inPlan(line, 2, 4)}. `
+        + `Чтобы пройти все, нужно около ${durationGen(nth(line, 3))} в день.`;
     case 'short_max':
       // The way out is the choice after 90 (plan.ts ALL_QUESTIONS_MIN): the owner met a dead end here (2026-10-14).
-      return `Даже при ${minutesPrep(nth(line, 0))} в день к ${dayText(line.day ?? '')} вы увидите около ${nth(line, 1)} из ${nth(line, 2)}${inPlan(line, 2, 3)}. `
-        + 'Чтобы увидеть все, выберите «Все вопросы».';
+      return `Даже если заниматься ${minutesAcc(nth(line, 0))} в день, к ${dayText(line.day ?? '')} вы пройдёте около ${nth(line, 1)} из ${nth(line, 2)}${inPlan(line, 2, 3)}. `
+        + 'Чтобы пройти все, выберите «Все вопросы».';
     case 'need':
-      return `Чтобы увидеть все ${questions(nth(line, 0))}${inPlan(line, 0, 2)} к ${dayText(line.day ?? '')}, нужно около ${durationGen(nth(line, 1))} в день.`;
+      return `Чтобы пройти все ${questions(nth(line, 0))}${inPlan(line, 0, 2)} к ${dayText(line.day ?? '')}, нужно около ${durationGen(nth(line, 1))} в день.`;
     // «Все вопросы» under «Время в день»: n = [count, new a day, minutes a day, the exam's size]; `day` the last day of
     // new questions when the exam has one date. With nothing new left, only what comes back.
     case 'all': {
       const perDay = nth(line, 1);
       const time = `около ${durationGen(nth(line, 2))} в${NBSP}день`;
-      if (perDay <= 0) return `Новых вопросов не осталось: ошибки и вторая проверка, ${time}.`;
-      const by = line.day ? ` — к ${dayText(line.day)}` : '';
-      return `Все ${questions(nth(line, 0))}${inPlan(line, 0, 3)}${by}: около ${perDay} новых в${NBSP}день, ${time}.`;
+      if (perDay <= 0) return `Новых вопросов не осталось. Только ошибки и повтор, ${time}.`;
+      const by = line.day ? ` к ${dayText(line.day)}` : '';
+      return `Все ${questions(nth(line, 0))}${inPlan(line, 0, 3)}${by}. Около ${perDay} новых в${NBSP}день, ${time}.`;
     }
     // «Как можно быстрее» under «Время в день» (plan.ts fastForecast). On «Все вопросы»: n = [count, minutes, the exam's
     // size, days to that day] — everything on the first study day; with minutes: n = [minutes, count, study days, the
     // exam's size, days to that day], `day` the day the last new question comes up.
     case 'fast_all': {
       const when = relDay(nth(line, 3), line.day);
-      return `Все ${questions(nth(line, 0))}${inPlan(line, 0, 2)} — ${when}: около ${durationGen(nth(line, 1))}. `
-        + 'На следующий день — повтор тех, на которые ответили верно.';
+      return `Все ${questions(nth(line, 0))}${inPlan(line, 0, 2)} ${when}, около ${durationGen(nth(line, 1))}. `
+        + 'На следующий день повторим те, на которые вы ответили верно.';
     }
     case 'fast_days': {
-      const when = nth(line, 2) <= 1 ? relDay(nth(line, 4), line.day) : `к ${dayText(line.day ?? '')} — за ${days(nth(line, 2))} занятий`;
-      return `При ${minutesPrep(nth(line, 0))} в${NBSP}день все ${questions(nth(line, 1))}${inPlan(line, 1, 3)} вы увидите ${when}.`;
+      const when = nth(line, 2) <= 1 ? relDay(nth(line, 4), line.day) : `к ${dayText(line.day ?? '')}, за ${days(nth(line, 2))} занятий`;
+      return `Если заниматься ${minutesAcc(nth(line, 0))} в день, вы пройдёте все ${questions(nth(line, 1))}${inPlan(line, 1, 3)} ${when}.`;
     }
     case 'window_ahead':
       // The plan card's note: one line on a phone from day 1 (usability check, m9). What those days hold is the row
@@ -185,52 +185,51 @@ export function lineText(line: Line): string {
       return `С ${dayText(line.day ?? '')} новых вопросов не будет.`;
     case 'window_detail': {
       const w = nth(line, 0);
-      const last = w <= 1 ? 'последний день' : `последние ${days(w)}`;
-      return `С ${dayText(line.day ?? '')} новых вопросов не будет: ${last} — только знакомые, сначала ошибки.`;
+      const last = w <= 1 ? 'В последний день' : `В последние ${days(w)}`;
+      return `С ${dayText(line.day ?? '')} новых вопросов не будет. ${last} только знакомые, сначала ошибки.`;
     }
     case 'window_in':
-      return `До экзамена ${days(nth(line, 0))}: новых нет, только знакомые.`;
+      return `До экзамена ${days(nth(line, 0))}. Новых вопросов нет, только знакомые.`;
     case 'exam_today':
       return 'Сегодня экзамен.';
     case 'exam_errors': {
       const k = nth(line, 0);
-      return `${questions(k)}, где ${k === 1 ? 'была ошибка' : 'были ошибки'}`;
+      return `${questions(k)} с${NBSP}${k === 1 ? 'ошибкой' : 'ошибками'}`;
     }
     case 'after':
       return `Экзамен прошёл ${dayText(line.day ?? '')}.`;
     case 'no_date':
-      return `Без даты — по ${nth(line, 0)} новых в день на предмет.`;
+      return `Дата не указана. Пока по ${nth(line, 0)} новых вопросов в день на предмет.`;
     case 'first_day':
       return 'Время уточнится после первых 20 ответов.';
     case 'more_new':
       return `Ещё ${glue(nth(line, 0), 'новый', 'новых', 'новых')}`;
     case 'ai_limit':
-      return `Лимит ИИ на сегодня закончился. Проверка вернётся в ${line.time ?? '3:00'}.`;
+      return `Проверки ИИ на сегодня закончились. Снова можно в ${line.time ?? '3:00'}.`;
     case 'oral': {
       const parts: string[] = [];
       if (nth(line, 0) > 0) parts.push(`${nth(line, 0)} сверить с пунктами`);
       if (nth(line, 1) > 0) parts.push(`${nth(line, 1)} ответить вслух с проверкой`);
-      const units = nth(line, 2) > 0 ? ` — ${glue(nth(line, 2), 'единица', 'единицы', 'единиц')} ИИ` : '';
-      return `Устные: ${parts.join(', ')}${units}.`;
+      const units = nth(line, 2) > 0 ? ` Проверка стоит ${glue(nth(line, 2), 'единицу', 'единицы', 'единиц')} ИИ.` : '';
+      return `Устные: ${parts.join(', ')}.${units}`;
     }
     case 'oral_no_lectures':
-      return `Ещё ${nth(line, 0)}${NBSP}${plural(nth(line, 0), 'устный войдёт', 'устных войдут', 'устных войдут')} в план, когда к предмету будут лекции.`;
+      return `Ещё ${nth(line, 0)}${NBSP}${plural(nth(line, 0), 'устный появится', 'устных появятся', 'устных появятся')} в плане, когда вы добавите лекции.`;
     case 'done': {
       const min = nth(line, 1);
       return min > 0 ? `На сегодня всё: ${questions(nth(line, 0))} за ${durationAcc(min)}.` : `На сегодня всё: ${questions(nth(line, 0))}.`;
     }
     case 'nothing':
-      return line.day ? `На сегодня всё. Следующие вопросы — ${relDay(line.n ? line.n[0] : undefined, line.day)}.` : 'На сегодня всё.';
+      return line.day ? `На сегодня всё. Следующие вопросы ${relDay(line.n ? line.n[0] : undefined, line.day)}.` : 'На сегодня всё.';
     case 'day_off': {
       // Not one of the student's days of the week: no plan today (it can still study: «Ещё 20 новых»).
       const when = line.day ? weekDay(line.n ? line.n[0] : undefined, line.day) : '';
-      // The dash stays with the word before it: a line never starts with «—».
-      return when ? `Сегодня выходной. Следующие вопросы${NBSP}— ${when}.` : 'Сегодня выходной.';
+      return when ? `Сегодня выходной. Следующие вопросы ${when}.` : 'Сегодня выходной.';
     }
     case 'pace_faster':
-      return `Вы отвечаете быстрее, чем мы считали: хватит ${minutesGen(nth(line, 0))} в день.`;
+      return `Вы отвечаете быстрее, чем мы думали. Хватит ${minutesGen(nth(line, 0))} в день.`;
     case 'pace_slower':
-      return `Вы отвечаете медленнее, чем мы считали: нужно около ${durationGen(nth(line, 0))} в день.`;
+      return `Вы отвечаете медленнее, чем мы думали. Нужно около ${durationGen(nth(line, 0))} в день.`;
     default:
       return '';
   }
@@ -282,7 +281,7 @@ export function planTitle(plan: DayPlan): string {
   }
 }
 
-/** «Сегодня около 45 минут: 30 новых и 60 знакомых» (or the done / nothing / exam-day variants). */
+/** «Сегодня 30 новых и 60 знакомых, около 45 минут» (or the done / nothing / exam-day variants). */
 export function planLine(plan: DayPlan): string {
   switch (plan.state) {
     case 'study': {
@@ -290,7 +289,7 @@ export function planLine(plan: DayPlan): string {
       if (plan.counts.estSec > plan.counts.leftSec) {
         return `Сегодня осталось ${questions(todayCount(plan))}${left > 0 ? `, около ${durationGen(left)}` : ''}.`;
       }
-      return `Сегодня около ${durationGen(Math.max(1, left))}: ${planDetail(plan)}`;
+      return `Сегодня ${planDetail(plan)}, около ${durationGen(Math.max(1, left))}`;
     }
     case 'done': {
       const done = findLine(plan, 'done');
@@ -311,10 +310,10 @@ export function planLine(plan: DayPlan): string {
   }
 }
 
-/** The main figure: «143», «из 960», «верно в два разных дня»; while it is 0, the dated first-count line. */
+/** The main figure: «143», «из 960», «выучено»; while it is 0, the dated first-count line. */
 export function figureLines(figure: DayPlan['figure'], firstCountDay: LocalDay | null,
   options?: { today?: LocalDay; time?: string | null }): { big: string; of: string; label: string; under: string | null } {
-  const under = figure.seen > 0 ? `Видели ${figure.seen} · ошибок сейчас ${figure.errors}` : null;
+  const under = figure.seen > 0 ? `Видели ${figure.seen} · ${figure.errors} ${plural(figure.errors, 'ошибка', 'ошибки', 'ошибок')}` : null;
   if (figure.twoDays > 0) return { big: String(figure.twoDays), of: `из ${figure.inPlan}`, label: TWO_DAYS, under };
   if (figure.seen > 0 && firstCountDay) {
     const offset = options && options.today ? dayIndex(firstCountDay) - dayIndex(options.today) : undefined;
@@ -323,9 +322,9 @@ export function figureLines(figure: DayPlan['figure'], firstCountDay: LocalDay |
   return { big: '', of: '', label: RULE_LINE, under };
 }
 
-/** The list row of «Экзамены»: «Верно в два разных дня: 143 из 960». */
+/** The list row of «Экзамены»: «Выучено 143 из 960». */
 export function figureRow(figure: DayPlan['figure']): string {
-  return `Верно в два разных дня: ${figure.twoDays} из ${figure.inPlan}`;
+  return `Выучено ${figure.twoDays} из ${figure.inPlan}`;
 }
 
 /**
@@ -345,7 +344,7 @@ export function dayRowText(row: { from: LocalDay; to: LocalDay; kind: 'study' | 
   const when = rangeText(row.from, row.to);
   const oral = row.oral ? ', с устными' : '';
   if (row.kind === 'exam') return `${when} — экзамен`;
-  if (row.kind === 'window') return `${when} — новых нет, только знакомые${oral}, сначала ошибки`;
+  if (row.kind === 'window') return `${when} — только знакомые${oral}, сначала ошибки`;
   if (row.minutes === null) return `${when} — только знакомые${oral}`;
   return row.from === row.to ? `${when} — около ${durationGen(row.minutes)}${oral}` : `${when} — около ${durationGen(row.minutes)} в день${oral}`;
 }

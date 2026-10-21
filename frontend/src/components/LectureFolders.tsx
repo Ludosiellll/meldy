@@ -141,7 +141,7 @@ export interface LectureMaterials {
 const GONE_WITH: Array<[keyof LectureMaterials, string]> = [
   ['summary', 'конспектом'],
   ['cards', 'карточками'],
-  ['quiz', 'тестом'],
+  ['quiz', 'самопроверкой'],
   ['cheatsheet', 'выжимкой'],
   ['podcast', 'подкастом'],
 ];
