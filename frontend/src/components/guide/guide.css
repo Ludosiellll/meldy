@@ -81,6 +81,8 @@
   box-shadow: 0 0 0 1px rgba(11, 18, 28, .06);
 }
 .gd-stage { width: 1440px; height: 1080px; background: #fbfbf9; }
+/* Real footage (GuideClip FootageClip): the player over the whole box, the bars in the footage's own backdrop. */
+.gd-box[data-footage] > .fo { position: absolute; inset: 0; }
 
 /* A step clip (components/clips: 16:10 and the line of the step under it): the line as wide as the card, the picture as
    tall as the room lets it be — on the owner's 1532×734 laptop the card keeps «Назад / Дальше» inside with the row of

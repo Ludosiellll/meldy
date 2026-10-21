@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import TipClip from './TipClip';
-import { TG_CARD, TG_HISTORY, TG_QUESTIONS, TG_STAGE, TG_TIMES, TG_TOTAL, TG_UI, TG_WORDS, TIP_CLIPS } from './scenes';
+import { TG_CARD, TG_HISTORY, TG_QUESTIONS, TG_STAGE, TG_TIMES, TG_TOTAL, TG_UI, TG_WORDS, TIP_CLIPS, TIP_FOOTAGE } from './scenes';
 import { TIPS } from './tips';
 import { figureLines, lineText, startLabel } from '../../lib/containers/words';
 // The bot's own sources, as text: the clip says and does what they say and do.
@@ -104,8 +104,9 @@ describe('the Telegram tip’s clip', () => {
   const scaleOf = (el: HTMLElement) => Number(/scale\(([\d.]+)\)/.exec(el.style.transform)?.[1] ?? '1');
 
   it('is the tip’s own: a phone-wide chat on a square stage, as the tip’s frame says, following the site’s theme', () => {
-    // Every card tip has its clip here; the move dialog's tip plays a step clip (components/clips «move»).
-    expect(Object.keys(TIP_CLIPS).sort()).toEqual(Object.keys(TIPS).filter((id) => id !== 'move').sort());
+    // Every card tip has its clip here or its footage in TIP_FOOTAGE (the game's, GameClip.test.tsx); the move dialog's
+    // tip plays a step clip (components/clips «move»).
+    expect([...Object.keys(TIP_CLIPS), ...Object.keys(TIP_FOOTAGE)].sort()).toEqual(Object.keys(TIPS).filter((id) => id !== 'move').sort());
     const clip = TIP_CLIPS.telegram;
     expect(clip.total).toBe(TG_TOTAL);
     expect(clip.stage).toEqual(TG_STAGE);

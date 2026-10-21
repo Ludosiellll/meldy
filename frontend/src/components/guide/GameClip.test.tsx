@@ -1,138 +1,145 @@
-import { cleanup, render } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import GuideClip from './GuideClip';
-import { GUIDE_CLIPS } from './clips';
-import { PLAY_SITE } from './chapters';
-import { CLIP } from './scenes';
-import { GAME_CLIP, GAME_EXAMPLE, GAME_PLAYERS, GAME_POSTER, GAME_STAGE, GAME_STOOD, GM, playersAt } from './scenes/game';
-import { TIP_CLIPS } from '../tips/scenes';
+import { GUIDE_CLIPS, GUIDE_FOOTAGE } from './clips';
+import { STAND_RUN } from '../../lib/footage';
+import { TIP_CLIPS, TIP_FOOTAGE } from '../tips/scenes';
+import TipClipFor from '../tips/TipClipFor';
 import { TIPS } from '../tips/tips';
-import { TEST_HOME } from '../test/copyTest';
-import { ENTRY, MODE, SETUP, pinText } from '../live/host/copy';
+import { ENTRY } from '../live/host/copy';
 
-/* The guide's «Игра в классе» clip, also the test page's first-use tip: from «Провести игру» to the floor that drops. */
+/* The guide's «Игра в классе» clip, also the test page's first-use tip: real footage of the game on the projector (the
+   owner, 21.10: «тут должен быть ролик прям когда игра идет … небольшой отрезок где бегают игроки»). */
 
-const NB = ' ';
-const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
-const stage = () => document.querySelector('.gd-stage') as HTMLElement;
-const one = (name: string) => document.querySelector(`[data-a="${name}"]`) as HTMLElement;
-const all = (name: string) => Array.from(document.querySelectorAll<HTMLElement>(`[data-a="${name}"]`));
-const seen = (el: HTMLElement) => el.style.opacity === '1';
-const gone = (el: HTMLElement) => el.style.opacity === '0';
-
-function renderExport() {
-  window.__MELDY_GUIDE_EXPORT__ = true;
-  render(<GuideClip chapter="game" active />);
-  return (t: number) => {
-    void window.__meldyGuideClip?.seek(t);
-  };
+function stubReducedMotion(reduce: boolean) {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: reduce && query.includes('prefers-reduced-motion'),
+    media: query,
+    addEventListener() {},
+    removeEventListener() {},
+    addListener() {},
+    removeListener() {},
+  }));
 }
 
+const ok = () => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'application/octet-stream' }), blob: async () => new Blob(['x']) });
+let fetchMock: Mock<(url: string) => Promise<unknown>>;
+let play: Mock<() => Promise<void>>;
+const ownCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+
+const box = (cls: string) => document.querySelector(cls) as HTMLElement;
+const video = () => document.querySelector('video');
+
 beforeEach(() => {
-  vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(480);
-  vi.stubGlobal('matchMedia', (query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+  stubReducedMotion(false);
+  fetchMock = vi.fn(async () => ok());
+  vi.stubGlobal('fetch', fetchMock);
+  play = vi.fn(() => Promise.resolve());
+  vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(play);
+  vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => undefined);
+  vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
+  Object.defineProperty(URL, 'createObjectURL', { configurable: true, writable: true, value: () => 'blob:stand-run' });
 });
 afterEach(() => {
   cleanup();
-  delete window.__MELDY_GUIDE_EXPORT__;
+  if (ownCreate) Object.defineProperty(URL, 'createObjectURL', ownCreate);
+  else delete (URL as { createObjectURL?: unknown }).createObjectURL;
   vi.unstubAllGlobals();
 });
 
 describe('the «Игра в классе» clip', () => {
-  it('is the chapter’s own, longer than a usual chapter: a whole round, its still frame after the drop', () => {
-    const clip = GUIDE_CLIPS.game;
-    expect(clip.total).toBe(GAME_CLIP);
-    expect(clip.total).toBeGreaterThan(CLIP);
-    expect(clip.poster).toBe(GAME_POSTER);
-    expect(clip.poster).toBeGreaterThan(GM.result + 500);
-    expect(clip.poster).toBeLessThan(clip.total - 760);
-    // The moments in their order: the button, the setup, the game picked, the room, the phones, the question, the drop.
-    const order = [GM.focus, GM.press, GM.setup, GM.pick, GM.open, GM.lobby, GM.phones, GM.joinSite, GM.joinTg, GM.crowd, GM.question, GM.run, GM.drop, GM.result];
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  it('is the real game, not a drawn scene: the class running to the answers on the projector', () => {
+    expect(GUIDE_FOOTAGE.game).toBe(STAND_RUN);
+    expect('game' in GUIDE_CLIPS).toBe(false);
+    expect(STAND_RUN.width / STAND_RUN.height).toBe(16 / 9);
   });
 
-  it('shows the screens’ own words: the test’s page, the setup, the projector, the site and Telegram', () => {
+  it('shows the whole 16:9 frame in the 4:3 box, centred, the bars in the game’s own backdrop', async () => {
     render(<GuideClip chapter="game" active />);
-    expect(stage()).toHaveAttribute('aria-hidden', 'true');
-    expect(stage().style.transform).toBe(`scale(${480 / 1440})`);
-    const words = plain(stage().textContent);
-    for (const line of [
-      TEST_HOME.studio,
-      TEST_HOME.send,
-      ENTRY.host,
-      SETUP.top,
-      SETUP.title(GAME_EXAMPLE.test),
-      SETUP.lead(GAME_EXAMPLE.questions),
-      MODE.name,
-      'Встань на ответ',
-      SETUP.open,
-      'Заходите на',
-      PLAY_SITE,
-      `PIN ${pinText(GAME_EXAMPLE.pin)}`,
-      'Или наведите камеру телефона на код.',
-      'PIN игры',
-      'Играть',
-      'Встаньте на верный ответ. Остальной пол провалится.',
-      GAME_EXAMPLE.question,
-      ...GAME_EXAMPLE.answers,
-      'Верный ответ',
-    ]) {
-      expect(words).toContain(plain(line));
-    }
-    // No notes about the clip on screen: only what the screens say.
-    expect(words).not.toMatch(/шаг \d|нажмите сюда|здесь учитель|→|←/i);
+    const clip = box('.gd-box');
+    expect(clip).toHaveAttribute('data-footage', '');
+    expect(clip.style.background).toContain('linear-gradient');
+    expect(clip.querySelector('.gd-stage')).toBeNull();
+    const footage = box('.gd-box .fo');
+    expect(footage).toHaveAttribute('data-fit', 'contain');
+    expect(footage).toHaveAttribute('aria-hidden', 'true');
+    expect(footage.style.background).toBe(clip.style.background);
+    expect(footage.querySelector('.fo-poster')).toHaveAttribute('src', STAND_RUN.poster);
+    await waitFor(() => expect(video()).not.toBeNull());
+    // The file's first player to load it: the parts are fetched once, for the rest of the page's life.
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(STAND_RUN.parts);
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    expect(clip).toHaveAttribute('data-playing', 'true');
   });
 
-  it('goes from the button to the setup, the room, the phones and the floor that drops', () => {
-    const seek = renderExport();
-    seek(GM.press - 200);
-    expect(one('host').style.background).toBe('rgb(255, 255, 255)');
-    seek(GM.press + 200);
-    expect(one('host').style.background).toBe('rgb(11, 18, 28)');
-    // The setup: «Битва с монстром» is picked, then «Встань на ответ».
-    seek(GM.pick - 100);
-    expect(all('tick').map(seen)).toEqual([true, false]);
-    seek(GM.pick + 100);
-    expect(all('tick').map(seen)).toEqual([false, true]);
-    // The room: the PIN and the QR code, nobody yet; the site's phone comes in first, then Telegram's.
-    seek(GM.lobby + 900);
-    expect(seen(one('proj'))).toBe(true);
-    expect(seen(one('lobbyboard'))).toBe(true);
-    expect(one('count').textContent).toBe('0');
-    seek(GM.joinTg);
-    expect(one('count').textContent).toBe('1');
-    seek(GM.crowd - 10);
-    expect(one('count').textContent).toBe('2');
-    seek(GM.question - 100);
-    expect(one('count').textContent).toBe(String(GAME_PLAYERS));
-    // The question: the phones go, the answers are named on the floor.
-    seek(GM.run + 300);
-    expect(gone(one('lobbyboard'))).toBe(true);
-    expect(seen(one('qboard'))).toBe(true);
-    expect(all('answer').every(seen)).toBe(true);
-    // The drop: three zones go, the right one stays, and so do the 18 who stood on it.
-    seek(GAME_POSTER);
-    const zones = all('zone');
-    expect(zones.map(gone)).toEqual([false, true, true, true]);
-    expect(all('kid').filter(seen)).toHaveLength(GAME_STOOD);
-    expect(seen(one('rboard'))).toBe(true);
-    expect(plain(one('stood').textContent)).toBe(`Устояли ${GAME_STOOD} из ${GAME_PLAYERS}`);
+  it('pauses and plays again from the round button', async () => {
+    render(<GuideClip chapter="game" active />);
+    await waitFor(() => expect(video()).not.toBeNull());
+    const el = video()!;
+    Object.defineProperty(el, 'paused', { configurable: true, value: false });
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Пауза' }));
+    });
+    expect(box('.gd-box')).toHaveAttribute('data-playing', 'false');
+    expect(HTMLMediaElement.prototype.pause).toHaveBeenCalled();
+    const before = play.mock.calls.length;
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Смотреть' }));
+    });
+    expect(box('.gd-box')).toHaveAttribute('data-playing', 'true');
+    expect(play.mock.calls.length).toBe(before + 1);
   });
 
-  it('counts the class right: 24 come in, 18 stand on the right answer', () => {
-    expect(GAME_PLAYERS).toBe(24);
-    expect(GAME_STOOD).toBe(18);
-    expect(playersAt(GM.lobby)).toBe(0);
-    expect(playersAt(GM.question)).toBe(GAME_PLAYERS);
+  it('with reduced motion waits on the poster, fetching nothing, until «Смотреть»', async () => {
+    stubReducedMotion(true);
+    render(<GuideClip chapter="game" active />);
+    await act(async () => {});
+    expect(box('.gd-box')).toHaveAttribute('data-playing', 'false');
+    expect(box('.fo-poster')).toHaveAttribute('src', STAND_RUN.poster);
+    expect(video()).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Смотреть' }));
+    });
+    expect(box('.gd-box')).toHaveAttribute('data-playing', 'true');
+    await waitFor(() => expect(video()).not.toBeNull());
+    await waitFor(() => expect(play).toHaveBeenCalled());
+  });
+
+  it('does not play while the guide is closed (inactive)', async () => {
+    render(<GuideClip chapter="game" active={false} />);
+    await waitFor(() => expect(video()).not.toBeNull());
+    await act(async () => {});
+    expect(play).not.toHaveBeenCalled();
+    expect(box('.gd-box')).toHaveAttribute('data-playing', 'false');
   });
 });
 
 describe('the test page’s first-use tip «Игра в классе»', () => {
-  it('plays the same clip on the same 4:3 stage', () => {
-    expect(TIP_CLIPS.game).toMatchObject({ total: GAME_CLIP, poster: GAME_POSTER, stage: GAME_STAGE });
-    expect(TIP_CLIPS.game.Scene).toBe(GUIDE_CLIPS.game.Scene);
-    expect(TIPS.game.clip).toEqual({ ratio: 4 / 3, themed: false });
-    expect(GAME_STAGE.width / GAME_STAGE.height).toBe(4 / 3);
+  it('plays the same footage in a frame of its own shape, 16:9, no bars', async () => {
+    expect(TIP_FOOTAGE.game).toBe(GUIDE_FOOTAGE.game);
+    expect('game' in TIP_CLIPS).toBe(false);
+    expect(TIPS.game.clip).toEqual({ ratio: 16 / 9, themed: false });
+    render(<TipClipFor id="game" active />);
+    const clip = box('.tp-box');
+    expect(clip).toHaveAttribute('data-footage', '');
+    // The same shape as the card's frame before the clip's file arrives (TipCard, tips.ts `clip.ratio`).
+    expect(clip).toHaveStyle({ aspectRatio: String(16 / 9) });
+    expect(clip.querySelector('.fo-poster')).toHaveAttribute('src', STAND_RUN.poster);
+    expect(clip.querySelector('.tp-stage')).toBeNull();
+    await waitFor(() => expect(play).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Пауза' })).toHaveClass('tp-play');
+  });
+
+  it('with reduced motion waits on the poster until «Смотреть»', async () => {
+    stubReducedMotion(true);
+    render(<TipClipFor id="game" active />);
+    await act(async () => {});
+    expect(fetchMock).not.toHaveBeenCalled();
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Смотреть' }));
+    });
+    await waitFor(() => expect(play).toHaveBeenCalled());
   });
 
   it('says it in plain words, and its button is the page’s own', () => {

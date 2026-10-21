@@ -12,7 +12,7 @@ import { Arrow, Statement, Wordmark, pressDepth, slideIn, slideOut } from '../..
 import { dayText, figureLines, glue, lineText, startLabel } from '../../../lib/containers/words';
 import type { TipClipDef } from '../TipClip';
 import type { CardTipId } from '../tips';
-import { GAME_CLIP, GAME_POSTER, GAME_STAGE, Game } from '../../guide/scenes/game';
+import { STAND_RUN } from '../../../lib/footage';
 import './scenes.css';
 
 export const CLIP = 6400;
@@ -560,11 +560,12 @@ function Telegram() {
   );
 }
 
-/** Every tip's clip by the tip's id. Still frames (reduced motion): the talk clip's reply and the lecture's words; the
-    bot's plan for the day with its «Начать: 20 вопросов». The move dialog's tip plays a step clip (components/clips). */
-export const TIP_CLIPS: Record<CardTipId, TipClipDef> = {
+/** Every drawn tip's clip by the tip's id. Still frames (reduced motion): the talk clip's reply and the lecture's words;
+    the bot's plan for the day with its «Начать: 20 вопросов». The move dialog's tip plays a step clip (components/clips). */
+export const TIP_CLIPS: Record<Exclude<CardTipId, 'game'>, TipClipDef> = {
   talk: { total: CLIP, poster: 5300, Scene: Talk },
   telegram: { total: TG_TOTAL, poster: 3900, Scene: Telegram, stage: TG_STAGE, playAt: 'top' },
-  // The guide's «Игра в классе» clip on its own 4:3 stage (the chapter and the tip show the same).
-  game: { total: GAME_CLIP, poster: GAME_POSTER, Scene: Game, stage: GAME_STAGE },
 };
+
+/** The tips shown in real footage of the app (lib/footage.ts): «game», the same as the guide's «Игра в классе». */
+export const TIP_FOOTAGE = { game: STAND_RUN } as const;

@@ -66,6 +66,8 @@
   box-shadow: 0 0 0 1px rgba(11, 18, 28, .06);
 }
 .mr-stage.tp-stage { width: 1280px; height: 800px; background: #fbfbf9; }
+/* Real footage (TipFootage): the player over the whole frame, which has the footage's own shape. */
+.tp-box[data-footage] > .fo { position: absolute; inset: 0; }
 
 .tp-play {
   position: absolute;
