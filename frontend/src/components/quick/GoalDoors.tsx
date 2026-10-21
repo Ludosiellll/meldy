@@ -33,14 +33,12 @@ export default function GoalDoors({ id, lead }: { id?: string; lead: boolean }) 
               {goal === 'test' ? (
                 <div className="gl-step">
                   <p className="gl-step-t">{GOAL.game.title}</p>
-                  <p className="gl-step-p">
-                    {GOAL.game.text}{' '}
-                    {guide ? (
-                      <button type="button" className="sf-link" data-muted="" onClick={() => guide.start('game')}>
-                        {GOAL.game.action}
-                      </button>
-                    ) : null}
-                  </p>
+                  <p className="gl-step-p">{GOAL.game.text}</p>
+                  {guide ? (
+                    <button type="button" className="sf-link gl-step-go" data-muted="" onClick={() => guide.start('game')}>
+                      {GOAL.game.action}
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               <div className="gl-acts">
