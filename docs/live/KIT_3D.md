@@ -6,11 +6,16 @@ colour with a small accessory; the boss «Дедлайн» is the teacher's pick
 alarm clock on its chest and red eyes) or **`clock`** (our own alarm-clock brute). Code: `frontend/src/lib/live/three/`.
 Files: `frontend/public/game/` (licences there, `LICENSES.md`). The server and the wire format: `MOVE.md`.
 
-**Phones** (owner, 21.10: the phone shows its own view of the arena, as in the prototype): during a question the phone
-draws the arena with this kit, lighter than the projector (`maxPixelRatio: 1.25`, quality level 1 at best: no outlines,
-`tagHeight: 2.3`), its camera on the own character (`components/live/stand/phone/scene3d.ts`). A phone without WebGL 2,
-or one still late at the cheapest level, plays the light view: the pictures of §6 as sprites from above
-(`sprites.ts`). The hero picker shows the pictures (§6).
+**Phones** (owner, 21.10: the phone shows the projector's game, the camera on the own hero): during a question the
+phone draws the same arena with this kit (`components/live/stand/phone/scene3d.ts`): the projector's 3/4 view from the
+front at the same tilt (52°) and perspective, closer (about 40 % of the arena's width across a 390 px phone), following
+the own hero left and right; the arena's whole depth sits between the question card and the stick (`camera.ts`, a lens
+shift: `CameraSpec.shift`). The own hero wears «Вы» and a white ring (`player.setOwn`). The signs are 0.7 of the
+projector's and the tiles simpler (`createArena(map, shape, { signScale: 0.7, tileSegments: 1 })`). It draws lighter than
+the projector: no outlines, at most 1.25 pixels a point, and its own ladder (`phone/quality.ts`) lowers the glows, then
+the resolution, and at last caps it at 30 frames a second (`view.setMaxFps`): the light view is still 3D. Only a phone
+without WebGL 2 plays the flat view: the pictures of §6 as sprites from above (`sprites.ts`). The hero picker shows the
+pictures (§6).
 
 ## 1. Use
 
@@ -55,7 +60,8 @@ interface Kit {
   createPlayer(look: PlayerLook, name: string): Player
   createBoss(kind: 'skeleton' | 'clock', options?: { height?: number }): Boss   // metres; the skeleton needs loadKit({ boss: 'skeleton' }) or loadBoss first
   loadBoss(kind: BossKind): Promise<void>
-  createArena(map: MoveMap, shape?: { floor?: FloorGrid; stage?: [x, y, r] }): Arena
+  createArena(map: MoveMap, shape?: { floor?: FloorGrid; stage?: [x, y, r] }, look?: ArenaLook): Arena
+                                                      // look: { signScale?: 0.3…1 (default 1), tileSegments?: 1 | 2 (default 2) }
   mount(canvas: HTMLCanvasElement, options?: ViewOptions): View
   now(): number                                       // seconds of the kit's clock (the loop advances it)
   update(dt: number): void                            // the loop calls it; call it yourself only without view.start
@@ -65,6 +71,8 @@ interface Player {
   readonly look: PlayerLook; readonly name: string; readonly pose: Pose
   setPose(pose: 'idle' | 'run' | 'jump' | 'fall' | 'cheer' | 'hit' | 'lie' | 'wave'): void
   setGhost(on: boolean): void
+  setAway(on: boolean): void                          // the name tag fades (the phone is away)
+  setOwn(on: boolean): void                           // a white ring with a dark edge round the feet (the phone's own hero)
   setFacing(rad: number, instant?: boolean): void     // map angle: 0 faces +y (down the map, to the viewer), π/2 faces +x
   setPosition(x: number, y: number, z?: number): void // map units; z = height over the floor (negative: falling)
   update(dt: number): void                            // done by the kit each frame unless you call it first
@@ -90,10 +98,12 @@ interface Arena {
 }
 interface View {
   start(onFrame?: (dt: number, now: number) => void): void; stop(): void
-  setCamera(spec: { arena?: MoveMap; margins?: {top?, bottom?, left?, right?}; tilt?: degrees; eye?; target?; fov? }): void
+  setCamera(spec: { arena?: MoveMap; margins?: {top?, bottom?, left?, right?}; tilt?: degrees; eye?; target?; fov?;
+                    shift?: { x?, y? } }): void         // shift: moves an eye/target picture by shares of the view (a lens shift)
   shake(strength?: number): void
   warmUp(): Promise<void>
   setQuality(level: 'auto' | number): void            // 0 best … 5 cheapest
+  setMaxFps(fps: number): void                        // draw at most fps frames a second (0: every frame); also ViewOptions.maxFps
   stats(): FrameStats                                  // fps, frame time and JS time (mean, p95), draw calls, level
   resize(): void; dispose(): void
 }
@@ -156,7 +166,7 @@ the column are exactly the server's solids. The projector and the phone both cre
 see-through body for one player would need a sorted transparent pass of its own).
 
 `?fps=1` on the projector page and the phone's play page shows a corner readout: frames a second, the slowest 5 % of
-frames in ms and the 3D quality level (`2D` for the phone's light view). Never shown by default; it is how a real
+frames in ms and the 3D quality level (`2D` for the phone's flat view). Never shown by default; it is how a real
 laptop or phone is checked, since this container has no GPU.
 
 `collapse(id, t)`: every tile outside zone `id` shakes for 0.3 s, then drops with gravity (1300 units/s²) at
@@ -179,7 +189,7 @@ in ~0.5 s. The timing is pure and tested (`arenaPlan.ts`). A projector turns a s
 | name tags without layout | drawn once into a canvas atlas, all tags one instanced draw sorted far to near | — |
 | hidden tab | the loop stops on `visibilitychange` | — |
 | first frame without a hitch | `view.warmUp()`: compileAsync on every material, one render with every batch visible | — |
-| phone: light 3D, a 2D fallback | pixel ratio ≤ 1.25, no outlines, the phone's own governor; the light view with the pictures (§6) | 5 KB at most per picture (budget 15) |
+| phone: the same 3D game, lighter; flat only without WebGL | pixel ratio ≤ 1.25, no outlines, simpler tiles (a third of the floor's triangles); the phone's own ladder (`phone/quality.ts`): glows off, resolution 0.85 → 0.72 → 0.6, then 30 fps; the first 1.5 s of each question are not judged, the slowest fifth of the frames is left out, a phone far over the budget drops two levels at once | §5.3 |
 | load ≤ 2 s | 3D chunk (628 KB, 166 KB gz) only on game routes, not in the service worker's precache; models 0.43 MB gz without the skeleton, 0.59 MB with it; immutable caching | 1.1–2.3 s to the first frame locally (§5.1) |
 
 ### 5.1 Measured
@@ -213,6 +223,36 @@ check is `/scripts/game-preview.html?scene=bench&players=40&fps` in `npm run dev
 - Frame time on a real GPU: there is none in the container. Open `?scene=bench&players=40&fps` on the projector laptop.
 - The 4× CPU numbers come from Chromium's `Emulation.setCPUThrottlingRate` in headless mode on a busy machine; they
   vary by ±50 % between runs.
+
+### 5.3 The phone (21.10, owner: «чтобы лагов не было ни на телефоне»)
+
+Same scene before and after the phone's rework (2026-10-21). The phone's page replayed frame by frame from slide 12's
+recorded game (30 players, the clock boss, following Лиза; 390 × 844 at 2×, Chromium on Mesa llvmpipe; draw calls and
+triangles counted on the WebGL context; JavaScript is everything the page runs in a frame, render call included), in
+two windows: the class running (16.5–21 s) and the floor dropping with ghosts (31.2–34 s).
+
+| phone page | canvas pixels | frames a second | draw calls (mean, max) | triangles | JS ms a frame, p50 (p95) |
+|---|---|---|---|---|---|
+| before, its best level | 487 × 1055 (0.51 M) | every frame | 29.6, 32 / 28.9, 34 | 254 k / 253 k | 1.2 (3.6) / 1.5 (4.5) |
+| after, best level | 487 × 1055 (0.51 M) | every frame | 29.1, 32 / 31.8, 38 | 194 k / 194 k | 1.3 (3.9) / 1.7 (5.2) |
+| after, light level (5) | 292 × 633 (0.18 M) | 30 at most | 28.1, 31 / 29.6, 37 | 194 k / 194 k | 1.4 (3.7) / 1.7 (4.1) |
+| flat view (no WebGL) | 488 × 1055, 2D canvas | every frame | 0 | 0 | 0.4 (0.7) |
+
+The kit's bench on the server's grid, 40 players, level 1, 390 × 844 (`?scene=bench&grid&q=1`, then `&look=phone`;
+SwiftShader, 120 frames each):
+
+| boss | draw calls | triangles: before → after | JS ms a frame, p50: before → after (1× CPU / 4× slower) |
+|---|---|---|---|
+| clock | 36 | 305 k → 245 k | 0.4 → 0.4 / 2.0 → 1.0 |
+| skeleton | 39 | 306 k → 246 k | 0.4 → 0.4 / 0.7 → 1.8 |
+
+What changed: the floor's tiles draw a third of their triangles (60 k fewer, a quarter of the phone's picture), draw
+calls stay the same (the own hero's ring rides in the blobs' call; the extra calls at the drop are the falling heroes,
+who now stay solid until their tile goes, as on the projector), and the light level draws 36 % of the pixels at half
+the frames. The JavaScript numbers were taken on a machine with a load average of 5 to 30 from other jobs: before and
+after are the same within that noise (the camera adds a few multiplications a frame). Frame time on a real phone GPU is
+not measured here: open the play page with `?fps=1` on the phone (the readout shows the level: `3D 0` best … `3D 5`
+light, `2D` the flat view).
 
 ## 6. The phone's picture
 

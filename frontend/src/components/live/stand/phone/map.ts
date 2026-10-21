@@ -210,7 +210,8 @@ export class ArenaMap {
   }
 }
 
-function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
+/** A rounded rectangle's path (arcTo: older phones have no CanvasRenderingContext2D.roundRect). */
+export function roundRect(g: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
   g.beginPath();
   g.moveTo(x + r, y);
   g.arcTo(x + w, y, x + w, y + h, r);
