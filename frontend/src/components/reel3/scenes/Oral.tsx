@@ -103,7 +103,6 @@ export function SheetScene() {
       if (index % 9 === 4) flag(cell, 'is-once', l >= MONDAY && l < WEDNESDAY);
       if (index % 9 === 4) flag(cell, 'is-gone', l >= WEDNESDAY);
     });
-    flag(one('left'), 'is-later', l >= WEDNESDAY + 100);
   });
   return (
     <div ref={root} className="r3-scene is-flip">
@@ -121,10 +120,7 @@ export function SheetScene() {
             <b>
               <Count from={741} to={739} at={WEDNESDAY + 100} dur={260} />
             </b>
-            <span data-a="left" className="r3-two">
-              <span>строка осталась из 898</span>
-              <span>строк осталось из 898</span>
-            </span>
+            <span>из 898 осталось</span>
           </p>
           <span className="r3-map" aria-hidden="true">
             {MAP.map((state, index) => (

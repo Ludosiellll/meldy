@@ -57,7 +57,7 @@ export function GroupScene() {
       <div className="r3-ui">
         <div data-a="invite" data-aim="invite" className="r3-card r3-invite" style={{ opacity: 0 }}>
           <p className="r3-h">Пригласить группу</p>
-          <p className="r3-meta">По ссылке каждый получит весь экзамен: 4 предмета, 960 вопросов. Прогресс у каждого свой.</p>
+          <p className="r3-meta">По ссылке каждый получит весь экзамен, 4 предмета и 960 вопросов. Прогресс у каждого свой.</p>
           <div className="r3-linkrow">
             <span className="r3-field">…/g/k4Rm7Qx2</span>
             <span data-a="copy" data-aim="copy" data-aim-on="is-done" className="r3-copy">
@@ -84,12 +84,12 @@ export function GroupScene() {
             </p>
             <span className="r3-tg-time">20:00</span>
             <p data-a="bubble" className="r3-tg-b" style={{ opacity: 0 }}>
-              <b>Сегодня около 45 минут:</b> 60 новых и 30 знакомых.
+              <b>Сегодня около 45 минут.</b> 60 новых вопросов и 30 знакомых.
               <br />
-              Осенняя сессия · 6 ноября, через 18 дней.
+              Экзамен 6 ноября, через 18 дней.
             </p>
             <div data-a="btns" className="r3-tg-btns" style={{ opacity: 0 }}>
-              <span className="r3-tg-btn r3-tg-btn--blue">Начать: 20 вопросов</span>
+              <span className="r3-tg-btn r3-tg-btn--blue">Начать 20 вопросов</span>
               <span data-aim="open" className="r3-tg-btn">
                 Открыть Meldy
               </span>
@@ -99,7 +99,7 @@ export function GroupScene() {
                 <b>Meldy</b>
                 <small>мини-приложение</small>
               </p>
-              <p className="r3-meta">{EXAMPLE.subject} · 1 из 20</p>
+              <p className="r3-meta">{EXAMPLE.subject}, вопрос 1 из 20</p>
               <p className="r3-stem r3-stem--s">{EXAMPLE.testStem}</p>
               {EXAMPLE.testOptions.map((option, index) => (
                 <span key={option} className="r3-opt r3-opt--s">

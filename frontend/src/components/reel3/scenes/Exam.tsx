@@ -10,9 +10,9 @@ import { Count, Say, appear, ease, seg } from '../kit3';
 import { Cursor, carry, pressAt, usePointer, type CursorKey } from '../pointer3';
 
 const SUBJECTS = [
-  { title: 'Экономика', meta: '240 вопросов · ключ жирным' },
-  { title: 'Право', meta: '240 вопросов · ключ в столбце' },
-  { title: 'Базы данных', meta: '240 вопросов · ключ из разметки' },
+  { title: 'Экономика', meta: '240 вопросов с ответами' },
+  { title: 'Право', meta: '240 вопросов с ответами' },
+  { title: 'Базы данных', meta: '240 вопросов с ответами' },
   { title: 'Микроэкономика', meta: '240 устных вопросов' },
 ];
 
@@ -119,9 +119,9 @@ export function PlanScene() {
         <div data-a="card" className="r3-card r3-plan" style={{ opacity: 0 }}>
           <p className="r3-h">Осенняя сессия</p>
           <p className="r3-meta r3-swap">
-            <span data-a="was">Экзамен 6 ноября · через 18 дней</span>
+            <span data-a="was">Экзамен 6 ноября, через 18 дней</span>
             <span data-a="now" style={{ opacity: 0 }}>
-              Экзамен 20 ноября · через 32 дня
+              Экзамен 20 ноября, через 32 дня
             </span>
           </p>
           <span data-a="move" data-aim="move" className="r3-link r3-plan-move" style={{ opacity: 0 }}>
@@ -150,7 +150,7 @@ export function PlanScene() {
                 Сегодня <b>60 вопросов</b>, около 30 минут
               </span>
             </p>
-            <span className="r3-btn">Начать: 20 вопросов</span>
+            <span className="r3-btn">Начать 20 вопросов</span>
           </div>
           <div data-a="menu" className="r3-menu" style={{ opacity: 0 }}>
             <span>На неделю</span>
@@ -208,7 +208,7 @@ export function SessionScene() {
       <Say text={SAY.session[1]} at={2950} />
       <div className="r3-ui">
         <p data-a="top" className="r3-sess-top" style={{ opacity: 0 }}>
-          <span>Микроэкономика · 7 из 20</span>
+          <span>Микроэкономика, вопрос 7 из 20</span>
           <span>Закончить</span>
         </p>
         <div data-a="card" data-aim="card" className="r3-card r3-sess" style={{ opacity: 0 }}>
@@ -246,12 +246,12 @@ export function SessionScene() {
                 <b>{'АБВ'[index]}</b>
                 <span>
                   {option}
-                  {index === 0 ? <small>Ваш ответ</small> : index === 1 ? <small>В файле</small> : null}
+                  {index === 0 ? <small>Ваш ответ</small> : index === 1 ? <small>Верный ответ</small> : null}
                 </span>
               </span>
             ))}
             <p data-a="no2" className="r3-note" style={{ opacity: 0 }}>
-              Неверно. В файле — Аренда помещения. Вернётся через пару вопросов и в понедельник.
+              Неверно. Ошибку повторим через пару вопросов и в понедельник.
             </p>
           </div>
         </div>
@@ -259,7 +259,7 @@ export function SessionScene() {
           <b>
             <Count from={146} to={147} at={2500} dur={300} />
           </b>
-          <span>из 960 верно в два разных дня</span>
+          <span>из 960 выучено</span>
         </p>
         <Cursor pointer={pointer} />
       </div>

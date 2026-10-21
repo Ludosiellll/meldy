@@ -53,7 +53,7 @@ function Bar({ send }: { send?: ReactNode }) {
         <small>Сохранено</small>
       </span>
       <span data-a="send" className="r3-btn r3-btn--s">
-        Отправить по ссылке
+        Отправить ссылку
         <i>
           <Arrow />
         </i>
@@ -176,7 +176,7 @@ export function BuildScene() {
       <div className="r3-ui">
         <div data-a="exams" data-aim="exams" className="r3-card r3-exams" style={{ opacity: 0 }}>
           <p className="r3-h">Экзамены</p>
-          <p className="r3-meta">Осенняя сессия · 4 предмета · 960 вопросов</p>
+          <p className="r3-meta">Осенняя сессия. 4 предмета и 960 вопросов</p>
           <div className="r3-exams-acts">
             <span className="r3-mini">Новый экзамен</span>
             <span data-a="newtest" data-aim="newtest" className="r3-mini r3-mini--ink">
@@ -228,7 +228,7 @@ const SCROLL = 190;
 
 /**
  * The picture file comes in held from below the frame, by the top of its picture, and is let go on the cover's
- * picture, under «Отпустите — картинка загрузится» (coming from below, the file never covers those words); the page
+ * picture, under «Отпустите, и картинка загрузится» (coming from below, the file never covers those words); the page
  * scrolls, «Видео» is dragged under the question, its link typed and «Показать» pressed; then «Картинка» for the
  * page's background.
  */
@@ -300,7 +300,7 @@ export function MediaScene() {
             <div data-a="in" className="r3-page-in">
               <Cover image="appears" />
               <span data-a="dropword" className="r3-dropword" style={{ opacity: 0 }}>
-                Отпустите — картинка загрузится
+                Отпустите, и картинка загрузится
               </span>
               <div>
                 <div className="r3-blk r3-blk-h">Часть 1. Выручка</div>

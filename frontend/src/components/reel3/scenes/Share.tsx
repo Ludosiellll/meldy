@@ -21,7 +21,7 @@ export function Qr({ className }: { className?: string }) {
   );
 }
 
-/** «Отправить по ссылке», then «Скопировать»; the pointer comes from under the bar and rests in the card's corner. */
+/** «Отправить ссылку», then «Скопировать»; the pointer comes from under the bar and rests in the card's corner. */
 export const SEND_KEYS: readonly CursorKey[] = [
   { t: 200, aim: 'studio', fx: 0.45, fy: 1, dy: 26 },
   { t: 650, aim: 'send', press: true, fx: 0.42 },
@@ -53,7 +53,7 @@ export function SendScene() {
             <small>Сохранено</small>
           </span>
           <span data-a="send" data-aim="send" className="r3-btn r3-btn--s">
-            Отправить по ссылке
+            Отправить ссылку
             <i>
               <Arrow />
             </i>
@@ -128,7 +128,7 @@ export function TakeScene() {
               <div className="r3-take-cover">
                 <img src={GRAPH_URL} alt="" />
                 <p>{EXAMPLE.testTitle}</p>
-                <small>{EXAMPLE.author} · 5 вопросов</small>
+                <small>{EXAMPLE.author}, 5 вопросов</small>
               </div>
               <div className="r3-take-card">
                 <p className="r3-meta">Вопрос 1 из 5</p>
@@ -167,10 +167,10 @@ export function TakeScene() {
 }
 
 const PEOPLE = [
-  { name: 'Анна К.', status: 'пишет — 3 из 5', time: '', live: true },
-  { name: 'Дмитрий С.', guest: true, status: '5 из 5 · 100 %', time: '6 мин' },
-  { name: 'Мария Л.', status: '4 из 5 · 80 %', time: '8 мин' },
-  { name: 'Илья П.', guest: true, status: '3 из 5 · 60 %', time: '9 мин' },
+  { name: 'Анна К.', status: 'пишет, 3 из 5', time: '', live: true },
+  { name: 'Дмитрий С.', guest: true, status: '5 из 5, 100 %', time: '6 мин' },
+  { name: 'Мария Л.', status: '4 из 5, 80 %', time: '8 мин' },
+  { name: 'Илья П.', guest: true, status: '3 из 5, 60 %', time: '9 мин' },
 ];
 
 export function StatsScene() {
@@ -190,9 +190,9 @@ export function StatsScene() {
       <Say text={SAY.stats[0]} at={300} />
       <div className="r3-ui">
         <div data-a="card" className="r3-card r3-stats" style={{ opacity: 0 }}>
-          <p className="r3-meta">{EXAMPLE.testTitle} · Результаты</p>
+          <p className="r3-meta">Результаты теста</p>
           <p className="r3-stats-counts">
-            пишут <Count from={2} to={3} at={1800} dur={200} /> · сдали <Count from={18} to={23} at={600} dur={2200} /> · средний 71 %
+            <Count from={2} to={3} at={1800} dur={200} /> пишут, <Count from={18} to={23} at={600} dur={2200} /> сдали, средний балл 71 %
           </p>
           <p className="r3-side-tabs r3-side-tabs--ink">
             <span className="is-on">Участники</span>
