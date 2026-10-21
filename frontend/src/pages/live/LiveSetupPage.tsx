@@ -1,9 +1,12 @@
 /**
- * /live/new?c=<test> — «Провести игру» (prototype host-01): the mode, time per question, speed points, who may join,
- * whether the bot names the top three in the group chat; the questions that do not fit are named and left out. «Открыть
- * комнату» creates the game (`live_create`, CONTRACT §8), keeps the host token in this tab and opens /live/:id.
+ * /live/new?c=<test> — «Провести игру» (prototype host-01): what the game is (one mode, told, not offered as a choice),
+ * time per question, speed points, who may join, and — only when a Telegram chat is bound to the exam — whether the bot
+ * names the top three there; the questions that do not fit are counted, their list folded. «Открыть комнату» stays in
+ * view at the bottom of the window: it creates the game (`live_create`, CONTRACT §8), keeps the host token in this tab
+ * and opens /live/:id.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { liveApi, liveFakeWanted } from '../../lib/live/api';
@@ -15,6 +18,7 @@ import { Character } from '../../components/live/art/Character';
 import { MODE, SETUP, nb } from '../../components/live/host/copy';
 import { fakeKnobs, saveHostInfo, saveHostToken } from '../../components/live/host/hostSession';
 import { MAX_GAME_QUESTIONS, MIN_GAME_QUESTIONS, amountChoices, fakeSource, loadSource, type SourcePreview } from '../../components/live/host/source';
+import { useBoundChats } from '../../components/live/host/TelegramPost';
 import { hostSound } from '../../components/live/host/sound';
 import '../../components/live/host/host.css';
 
@@ -52,9 +56,9 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 function ModePicture() {
   return (
     <div className="lvs-mode-pic" aria-hidden="true">
-      <Boss size={156} phase={0} />
-      <Character look={{ body: 'round', colour: 'blue', eyes: 'round', hat: 'none' }} size={58} style={{ left: 18, top: 128 }} />
-      <Character look={{ body: 'drop', colour: 'yellow', eyes: 'round', hat: 'antenna' }} size={58} style={{ left: 244, top: 124 }} phaseMs={300} />
+      <Boss size={112} phase={0} />
+      <Character look={{ body: 'round', colour: 'blue', eyes: 'round', hat: 'none' }} size={46} style={{ left: 10, top: 74 }} />
+      <Character look={{ body: 'drop', colour: 'yellow', eyes: 'round', hat: 'antenna' }} size={46} style={{ left: 168, top: 70 }} phaseMs={300} />
     </div>
   );
 }
@@ -109,6 +113,9 @@ export default function LiveSetupPage() {
   const cap = Math.min(playable, MAX_GAME_QUESTIONS);
   const chosen = amount !== null && choices.includes(amount) ? amount : cap > 10 ? 10 : cap;
   const tooFew = !!source && cap < MIN_GAME_QUESTIONS;
+  // «Показывать имена тройки в чате» means something only with a chat bound to the exam
+  const { load: chatsLoad } = useBoundChats(source?.containerId ?? containerId, fake);
+  const hasChat = chatsLoad.kind === 'ready' && chatsLoad.chats.length > 0;
 
   const open = useCallback(async () => {
     if (!source || opening || tooFew) return;
@@ -116,7 +123,7 @@ export default function LiveSetupPage() {
     hostSound().unlock();
     setOpening(true);
     setError(null);
-    const settings: Settings = { mode: 'boss', time_s: time, speed, who, chat_names: names };
+    const settings: Settings = { mode: 'boss', time_s: time, speed, who, chat_names: hasChat && names };
     try {
       const gameSource = { container_id: source.containerId, subject_ids: source.subjectIds, count: chosen };
       const created = await api.create(gameSource, settings);
@@ -132,7 +139,7 @@ export default function LiveSetupPage() {
       setError(SETUP.error[code] ?? SETUP.error.other);
       setOpening(false);
     }
-  }, [api, source, opening, tooFew, time, speed, who, names, chosen, search, navigate]);
+  }, [api, source, opening, tooFew, time, speed, who, names, hasChat, chosen, search, navigate]);
 
   if (needsSignIn) return <Navigate to={loginFor(pathname, search)} replace />;
 
@@ -194,17 +201,19 @@ export default function LiveSetupPage() {
                   onChange={setWho}
                 />
               </Row>
-              <Row label={SETUP.names} hint={SETUP.namesHint}>
-                <Seg
-                  label={SETUP.names}
-                  value={names}
-                  options={[
-                    { value: false, text: SETUP.namesOff },
-                    { value: true, text: SETUP.namesOn },
-                  ]}
-                  onChange={setNames}
-                />
-              </Row>
+              {hasChat ? (
+                <Row label={SETUP.names} hint={SETUP.namesHint}>
+                  <Seg
+                    label={SETUP.names}
+                    value={names}
+                    options={[
+                      { value: false, text: SETUP.namesOff },
+                      { value: true, text: SETUP.namesOn },
+                    ]}
+                    onChange={setNames}
+                  />
+                </Row>
+              ) : null}
               {choices.length > 1 ? (
                 <Row label={SETUP.amount}>
                   <Seg
@@ -217,9 +226,12 @@ export default function LiveSetupPage() {
               ) : null}
             </div>
             {skipped.length > 0 ? (
-              <section className="lvs-skipped" aria-label={SETUP.skippedHead(skipped.length)}>
-                <h3>{SETUP.skippedHead(skipped.length)}</h3>
-                <p>{SETUP.skippedWhy}</p>
+              <details className="lvs-skipped">
+                <summary>
+                  <b>{SETUP.skippedHead(skipped.length)}</b>
+                  <span>{SETUP.skippedWhy}</span>
+                  <ChevronDown className="lvs-chev" size={20} strokeWidth={2.4} aria-hidden="true" />
+                </summary>
                 <ul>
                   {skipped.slice(0, 30).map((q) => (
                     <li key={q.id}>
@@ -228,7 +240,7 @@ export default function LiveSetupPage() {
                   ))}
                   {skipped.length > 30 ? <li>…</li> : null}
                 </ul>
-              </section>
+              </details>
             ) : null}
             {tooFew ? (
               <p className="lvs-error" role="alert">
@@ -241,10 +253,12 @@ export default function LiveSetupPage() {
               </p>
             ) : null}
             <div className="lvs-foot">
-              <p>{SETUP.foot}</p>
-              <button type="button" className="lvh-btn" onClick={() => void open()} disabled={opening || tooFew}>
-                {opening ? SETUP.opening : SETUP.open}
-              </button>
+              <div className="lvs-foot-in">
+                <p>{SETUP.foot}</p>
+                <button type="button" className="lvh-btn" onClick={() => void open()} disabled={opening || tooFew}>
+                  {opening ? SETUP.opening : SETUP.open}
+                </button>
+              </div>
             </div>
           </>
         )}
