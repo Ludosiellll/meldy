@@ -212,7 +212,7 @@ interface SheetProps {
  * The sheet's words for a miss: a button question «Не успели» / «Неверно», a movement round of a mixed game «Не встали
  * на ответ» / «Мимо» (MODE_MIXED §8), and what the freeze means for the player.
  */
-export function missWords(r: Pick<PlayerResult, 'none' | 'frozen' | 'stand'>, newlyFrozen: boolean): { title: string; line: string } {
+export function missWords(r: { none: boolean; frozen: boolean; stand?: boolean }, newlyFrozen: boolean): { title: string; line: string } {
   const stand = !!r.stand;
   const title = stand ? (r.none ? 'Не встали на ответ' : 'Мимо') : r.none ? 'Не успели' : 'Неверно';
   const line = newlyFrozen
