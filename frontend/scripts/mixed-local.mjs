@@ -160,6 +160,7 @@ const projector = (page) =>
         lobby: !!document.querySelector('.lvh-lobby'),
         podium: !!document.querySelector('.lvh-podium, .lvh-final'),
         hp,
+        hits: [...document.querySelectorAll('.lvmx-hits li')].map((li) => li.textContent),
         q: document.querySelector('.lvh-q-no')?.textContent ?? '',
         next: document.querySelector('.lvh-btn--next')?.textContent ?? null,
         players: Number(document.querySelector('.lvh-lobby-count b')?.textContent?.replace(/\s/g, '') ?? 0),
@@ -291,11 +292,19 @@ async function play(proj, phone, dir, db, started) {
         console.log('the projector never showed the reveal; the database:', JSON.stringify(await db()));
         console.log('the room said:', JSON.stringify(await proj.evaluate(() => window.__roomLog).catch(() => null), null, 1));
       });
-      await sleep(500);
+      await sleep(400);
       await shot(`q${n}-3-stomp`, true);
-      await sleep(2200);
-      await shot(`q${n}-4-hits`, true);
-      await sleep(2800);
+      // the board through the reveal, read from the page every ~0.3 s: the HP and the chips as the hits land
+      const t0 = Date.now();
+      const seen = [];
+      while (Date.now() - t0 < 5500) {
+        const p = await projector(proj);
+        const last = seen[seen.length - 1];
+        if (p && (!last || last.hp !== p.hp || last.hits.join() !== p.hits.join())) seen.push({ ms: Date.now() - t0, hp: p.hp, hits: p.hits });
+        await sleep(250);
+      }
+      notes.push({ name: `q${n}-reveal-board`, board: seen });
+      console.log(`q${n} reveal board`, JSON.stringify(seen));
       await shot(`q${n}-5-after`, true);
     } else {
       const d = await at(`question ${n} open`, (d) => d.qi === qi && (d.state === 'open' || d.state === 'reveal'), 20000);
