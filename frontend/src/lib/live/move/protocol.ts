@@ -19,6 +19,11 @@ export const F_FROZEN = 1 << 3;
 export const F_CAUGHT = 1 << 4;
 /** Mode A «Встань на ответ»: the character fell and floats as a ghost. Bits 5–7 belong to the modes. */
 export const F_GHOST = 1 << 5;
+/**
+ * A battle with movement rounds (docs/live/MODE_MIXED.md): the character is frozen in the battle (a wrong answer, or
+ * none from phase 1) — draw it with ice; standing on the right zone thaws it. Only in a mixed room.
+ */
+export const F_ICE = 1 << 6;
 export const ZONE_SHIFT = 8;
 
 const SNAP_HEAD = 16; // type u8, version u8, count u16, tick u32, t_ms u32, ack u32
@@ -90,7 +95,7 @@ export interface RoomStats {
   bytes_out: number;
   rooms: number;
   sockets: number;
-  /** The room's game mode ('stand'), or null for the plain room. */
+  /** The room's game mode ('stand', 'mixed'), or null for the plain room. */
   mode?: string | null;
 }
 
@@ -156,6 +161,8 @@ export interface StandHello {
   fall_ms: number;
   /** How long the floor stays down after the stomp. */
   floor_ms: number;
+  /** A mixed room only (MODE_MIXED.md): N and the qi of every movement round. */
+  mixed?: { every: number; rounds: number[] };
 }
 
 export interface StandQuestion {
@@ -183,8 +190,26 @@ export interface StandResult {
   /** Room ms of the stomp and of the floor's return. */
   at: number;
   back_at: number;
-  /** Host only: [entity id, points] of every scorer. */
+  /** Host only: [entity id, points] of every scorer (a mixed room: [entity id, damage] of every hit). */
   pts?: Array<[number, number]>;
+  // A mixed room only (MODE_MIXED.md §4): `fell` is everyone off the right zone and `back` the same characters (nobody
+  // stays a ghost), `stood` the right answers (hits and thaws), `of` the players of the question.
+  /** Characters whose ice broke (frozen before, on the right zone). */
+  thawed?: number[];
+  /** Characters frozen now (a wrong zone, or none). */
+  froze?: number[];
+  /** The boss after this round (the battle's HP), its phase, and whether it fell. */
+  hp?: number;
+  hp_max?: number;
+  phase?: number;
+  defeated?: boolean;
+  /** HP the boss healed back after this round (phase 2), and the phase it entered (or null). */
+  healed?: number;
+  phase_changed?: number | null;
+  /** The room never wrote this round (closed by time): nobody fell, nothing changed. */
+  void?: boolean;
+  /** Host only: [entity id, damage, the boss's HP after it] in the order the hits land. */
+  hits?: Array<[number, number, number]>;
 }
 
 export interface StandTopEntry {
@@ -212,6 +237,12 @@ export interface StandState {
   top: StandTopEntry[] | null;
   /** Podium: right answers in % of all asked. */
   acc: number | null;
+  /**
+   * A mixed room only: the kind of the current question — 'stand' (a movement round: `q`, `opens`, `closes`, `res`
+   * are its own), 'tap' (a button question: the phone reads it from live_state; `q` is null), null in the lobby. The
+   * arena is on only while `round` is 'stand' and `phase` is countdown, open or reveal (`arenaLive`).
+   */
+  round?: 'stand' | 'tap' | null;
 }
 
 export interface StandLast {
@@ -225,13 +256,24 @@ export interface StandLast {
   revived: boolean;
   /** Joined after the question opened: it did not count. */
   late: boolean;
+  /** A mixed room only: frozen before and on the right zone (no damage, the ice breaks). */
+  thawed?: boolean;
+  /** A mixed room only: frozen now (a wrong zone, or none). */
+  froze?: boolean;
+  /** A mixed room only: the room never wrote this round; nothing counted. */
+  void?: boolean;
 }
 
-/** Phones only: the player's own numbers. */
+/**
+ * Phones only: the player's own numbers. In a mixed room (after each movement round only) `pts` are the battle's
+ * points (damage), `last.pts` this round's damage, `ghost` is always false and `frozen` is the battle's freeze.
+ */
 export interface StandMe {
   t: 'stand';
   k: 'me';
   ghost: boolean;
+  /** A mixed room only: frozen in the battle after this round. */
+  frozen?: boolean;
   pts: number;
   streak: number;
   best: number;
@@ -253,6 +295,10 @@ export function parseStand(obj: unknown): StandMessage | null {
   const m = obj as Record<string, unknown>;
   if (m.t !== 'stand') return null;
   if (m.k === 'hello') {
+    if (m.mixed !== undefined) {
+      const x = m.mixed as { every?: unknown; rounds?: unknown } | null;
+      if (!x || typeof x !== 'object' || !isNum(x.every) || !Array.isArray(x.rounds) || !x.rounds.every(isNum)) return null;
+    }
     return isNum(m.q_count) && isNum(m.time_s) && (m.boss === 'clock' || m.boss === 'skeleton') && Array.isArray(m.stage)
       ? (m as unknown as StandHello)
       : null;
@@ -261,10 +307,14 @@ export function parseStand(obj: unknown): StandMessage | null {
     if (typeof m.phase !== 'string' || !STAND_PHASES.has(m.phase) || !isNum(m.qi) || !isNumOrNull(m.opens) || !isNumOrNull(m.closes))
       return null;
     if (m.floor !== 'up' && m.floor !== 'down') return null;
+    if (m.round !== undefined && m.round !== null && m.round !== 'stand' && m.round !== 'tap') return null;
     if (m.q !== null && (typeof m.q !== 'object' || !Array.isArray((m.q as StandQuestion).options))) return null;
     if (m.res !== null) {
       const r = m.res as Partial<StandResult> | undefined;
       if (!r || !isNum(r.key) || !Array.isArray(r.fell) || !Array.isArray(r.back) || !isNum(r.back_at)) return null;
+      if (r.void !== undefined && typeof r.void !== 'boolean') return null;
+      if (r.hp !== undefined && r.hp !== null && !isNum(r.hp)) return null;
+      if ((r.thawed !== undefined && !Array.isArray(r.thawed)) || (r.froze !== undefined && !Array.isArray(r.froze))) return null;
     }
     return m as unknown as StandState;
   }
@@ -280,6 +330,18 @@ export const zoneOption = (flags: number): number | null => {
   return z === 0 ? null : z - 1;
 };
 export const isGhost = (flags: number): boolean => (flags & F_GHOST) !== 0;
+/** A mixed room: the character is frozen in the battle (draw the ice). */
+export const isIced = (flags: number): boolean => (flags & F_ICE) !== 0;
+
+/**
+ * Whether the arena is on screen: a stand room always (its lobby is a run-around too); a mixed room only during a
+ * movement round's countdown, open and reveal — between them it sends no snapshots, only this state and pongs.
+ */
+export function arenaLive(state: StandState | null): boolean {
+  if (!state) return false;
+  if (state.round === undefined) return true;
+  return state.round === 'stand' && (state.phase === 'countdown' || state.phase === 'open' || state.phase === 'reveal');
+}
 
 /**
  * The points of a right answer (MODE_STAND.md §6), as the database computes them — for a preview only («до +1000»);

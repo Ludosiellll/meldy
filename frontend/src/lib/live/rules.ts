@@ -52,6 +52,20 @@ export function rightNeeded(activePlayers: number): number {
   return Math.ceil((activePlayers * 2) / 3);
 }
 
+/**
+ * The movement rounds of a battle with `stand_every` N (docs/live/MODE_MIXED.md §3, meldy_private.live_stand_round):
+ * every Nth question (qi + 1 a multiple of N), and the last one when the game has fewer than N questions. The
+ * database sends the result (`mixed.rounds`, `question.stand`); this mirror is for a preview before the game exists.
+ */
+export function standRounds(every: number, qCount: number): number[] {
+  if (!(every > 0) || !(qCount > 0)) return [];
+  const out: number[] = [];
+  for (let qi = 0; qi < qCount; qi++) {
+    if ((qi + 1) % every === 0 || (qCount < every && qi === qCount - 1)) out.push(qi);
+  }
+  return out;
+}
+
 export interface ClosePlayer {
   id: string;
   streak: number;

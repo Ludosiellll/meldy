@@ -2,6 +2,7 @@
 (live_mixed_fake.FakeMixedDb, the SQL's rules), and the mirror of the battle's numbers: which question is a movement
 round, the worked examples of docs/live/MODE_MIXED.md §5, the line-up, the stomp (who falls is where they stand),
 nobody a ghost after the floor returns, the ice, a void round, no zone checks between movement rounds, the tick's cost."""
+import json
 import math
 import sys
 import time
@@ -278,3 +279,41 @@ def test_a_tick_between_movement_rounds_is_nothing_and_in_one_stays_well_under_3
     print(f"\nmixed tick with 40 players (CPU): between rounds p50 {calm[len(calm) // 2]:.3f} ms p99 {p99_calm:.3f} ms; "
           f"in a movement round p50 {busy[len(busy) // 2]:.3f} ms p99 {p99_busy:.3f} ms")
     assert p99_busy <= 3.0 and calm[len(calm) // 2] < busy[len(busy) // 2]
+
+
+# ─────────────── the messages, shared with the browser (contracts/live/mixed_messages.json) ───────────────
+
+CASES_PATH = Path(__file__).resolve().parents[2] / "contracts" / "live" / "mixed_messages.json"
+
+
+def build_messages() -> dict:
+    """The mixed room's messages of one scripted game (deterministic: the clock moves by hand), as the phones and the
+    projector get them. Vitest parses the same file (frontend/src/lib/live/move/mixed.test.ts)."""
+    w = World()
+    w.start(); w.taps({0: 1, 1: 0, 2: 1}); w.next()
+    w.start()
+    tap = w.game.state(False)
+    w.taps({0: 2, 1: 2, 2: 0}); w.next()
+    w.start()
+    countdown = w.game.state(False)
+    w.ps[0].x, w.ps[0].y = CENTRE[1]
+    w.ps[1].x, w.ps[1].y = CENTRE[0]
+    w.ps[2].x, w.ps[2].y = CENTRE[1]
+    w.to_deadline()
+    w.close()
+    return {
+        "note": "The messages of a mixed room (docs/live/MODE_MIXED.md §4) in one scripted game: 4 players, 6 questions, "
+                "every 3rd a movement round. Written by backend/tests/test_live_mixed.py --write-cases.",
+        "hello": w.game.hello(), "tap": tap, "countdown": countdown, "reveal": w.game.state(False),
+        "reveal_host": w.game.state(True), "me_right": w.game.me_of(pid(0)), "me_none": w.game.me_of(pid(3)),
+    }
+
+
+def test_the_shared_messages_match_the_room():
+    saved = json.loads(CASES_PATH.read_text(encoding="utf-8"))
+    assert saved == json.loads(json.dumps(build_messages()))
+
+
+if __name__ == "__main__" and "--write-cases" in sys.argv:
+    CASES_PATH.write_text(json.dumps(build_messages(), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    print(f"wrote {CASES_PATH}")
