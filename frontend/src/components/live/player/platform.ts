@@ -7,7 +7,8 @@
 import { newLiveToken } from '../../../lib/live/api';
 import { LiveError, type JoinResult, type LiveApi, type Look } from '../../../lib/live/types';
 
-export type HapticKind = 'tap' | 'select' | 'go' | 'success' | 'error' | 'warning' | 'hit' | 'freeze';
+/** `tick`: a second of the last three («Встань на ответ»: the alarm before the stomp). */
+export type HapticKind = 'tap' | 'select' | 'go' | 'success' | 'error' | 'warning' | 'hit' | 'freeze' | 'tick';
 
 export interface ShareCard {
   title: string;
@@ -86,6 +87,7 @@ export const VIBRATION: Record<HapticKind, number | number[]> = {
   warning: [30, 60, 30],
   hit: 40,
   freeze: [20, 50, 90],
+  tick: 30,
 };
 
 function vibrate(kind: HapticKind): void {

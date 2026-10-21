@@ -21,6 +21,7 @@ import {
   type BodyId,
   type ColourId,
   type EyesId,
+  type GameMode,
   type HatId,
   type JoinResult,
   type LiveApi,
@@ -89,6 +90,12 @@ export interface PlayerSnapshot {
   reviewOnly: boolean;
   /** Why the game cannot go on: a heading and a line (kicked, the game gone). */
   gone: { title: string; text: string } | null;
+  /**
+   * The game's mode before the server says it: a link's `mode=stand` (the projector's QR) or a game of this PIN met
+   * before in this tab. «Встань на ответ» then shows its own character picker before the join. After the join the
+   * state's `mode` decides.
+   */
+  modeHint: GameMode | null;
 }
 
 /** A game this tab joined (sessionStorage): enough to go on after a reload. */
@@ -112,6 +119,7 @@ const GAME_KEY = (gameId: string) => `meldy.live.game.${gameId}`;
 const PIN_KEY = (pin: string) => `meldy.live.pin.${pin}`;
 const LOOK_KEY = (profile: string) => `meldy.live.look.${profile}`;
 const NAME_KEY = (profile: string) => `meldy.live.name.${profile}`;
+const MODE_KEY = (pin: string) => `meldy.live.mode.${pin}`;
 /** A join refused for the rate (ML005): tries again after ~3 s, up to 4 times. */
 const JOIN_RETRIES = 4;
 const JOIN_WAIT_MS = 3000;
@@ -150,8 +158,9 @@ export function usableLook(raw: unknown, unlocked: readonly string[], name: stri
 }
 
 /** The screen of a game that cannot go on. Kicked: CONTRACT §11 (the damage stays in the class's total). */
-export function goneOf(e: LiveError, pin: string | null): { title: string; text: string } {
+export function goneOf(e: LiveError, pin: string | null, mode: GameMode = 'boss'): { title: string; text: string } {
   if (e.code === '42501' && e.detail === 'kicked') {
+    if (mode === 'stand') return { title: 'Ведущий убрал вас из игры', text: 'В другую игру можно войти по PIN.' };
     return { title: 'Ведущий убрал вас из игры', text: 'Урон, который вы нанесли, остался в общем счёте класса. В другую игру можно войти по PIN.' };
   }
   return { title: 'Игра недоступна', text: errorText(e, pin) };
@@ -187,6 +196,8 @@ export class PlayerController {
   private relinkMs = RELINK_MS;
   /** The review of a game ended before its podium was asked for once (it shows the right answers so far). */
   private reviewAsked = false;
+  /** «Встань на ответ»: the room's socket carries the game, so the database is not read meanwhile (MODE_STAND §9). */
+  private watchPaused = false;
   private readonly onOnline = () => {
     this.kick();
     // Back online: the channel may have been given up meanwhile (or never joined): a fresh one now.
@@ -234,6 +245,7 @@ export class PlayerController {
       reviewError: null,
       reviewOnly: false,
       gone: null,
+      modeHint: null,
     };
   }
 
@@ -286,7 +298,7 @@ export class PlayerController {
    * The way in: a PIN from the address or Telegram's start parameter, or a game's review (`r_<game>` in Telegram). A
    * PIN this tab already joined goes on with the kept token.
    */
-  async start(entry: { pin?: string | null; reviewGame?: string | null }): Promise<void> {
+  async start(entry: { pin?: string | null; reviewGame?: string | null; mode?: string | null }): Promise<void> {
     // React's StrictMode starts, disposes and starts again: the second start is the one that counts.
     this.disposed = false;
     const gen = ++this.gen;
@@ -304,7 +316,8 @@ export class PlayerController {
       this.set({ step: 'pin' });
       return;
     }
-    this.set({ pin });
+    const hint = entry.mode === 'stand' || readStore('session', MODE_KEY(pin)) === 'stand' ? 'stand' : null;
+    this.set({ pin, modeHint: hint });
     if (await this.resume(pin, gen)) return;
     if (gen === this.gen) await this.checkPin(pin, gen);
   }
@@ -340,7 +353,7 @@ export class PlayerController {
       if (gen !== this.gen) return true;
       const e = error instanceof LiveError ? error : new LiveError('unknown');
       if (e.code === '42501' && e.detail === 'kicked') {
-        this.set({ step: 'gone', busy: false, gone: goneOf(e, pin) });
+        this.set({ step: 'gone', busy: false, gone: goneOf(e, pin, this.s.modeHint ?? 'boss') });
         return true;
       }
       // The same token joins again: the server gives back the same player (CONTRACT §7), or a new one in a new game.
@@ -362,7 +375,7 @@ export class PlayerController {
       this.set({ error: 'PIN\u00a0— шесть цифр с экрана ведущего.' });
       return false;
     }
-    this.set({ pin, error: null });
+    this.set({ pin, error: null, modeHint: readStore('session', MODE_KEY(pin)) === 'stand' ? 'stand' : null });
     return this.checkPin(pin, this.gen);
   }
 
@@ -396,7 +409,7 @@ export class PlayerController {
         return true;
       }
       if (e.code === '42501' && e.detail === 'kicked') {
-        this.set({ busy: false, step: 'gone', gone: goneOf(e, pin) });
+        this.set({ busy: false, step: 'gone', gone: goneOf(e, pin, this.s.modeHint ?? 'boss') });
         return false;
       }
       if (e.code === 'P0002') writeStore('session', PIN_KEY(pin), null);
@@ -447,6 +460,12 @@ export class PlayerController {
     this.set({ step: 'game', look, lockedTap: null });
   }
 
+  /** The game started while the character was being changed (the room said so): back to the game, the look as it was. */
+  leaveEdit(): void {
+    if (this.s.step !== 'builder' || this.s.builderFrom !== 'lobby') return;
+    this.set({ step: 'game', look: this.s.state?.me.look ?? this.s.look, lockedTap: null, busy: false, notice: 'Игра началась. Герой остался прежним.' });
+  }
+
   /** «Готово»: join (the look goes with it) or, from the lobby, keep the new look. */
   async confirm(): Promise<void> {
     if (this.s.busy) return;
@@ -482,7 +501,7 @@ export class PlayerController {
         }
         this.platform.haptic('error');
         if (e.code === '42501' && e.detail === 'kicked') {
-          this.set({ busy: false, notice: null, step: 'gone', gone: goneOf(e, this.s.pin) });
+          this.set({ busy: false, notice: null, step: 'gone', gone: goneOf(e, this.s.pin, this.s.modeHint ?? 'boss') });
           return;
         }
         // A locked part the cache thought open: the free look instead.
@@ -556,7 +575,7 @@ export class PlayerController {
   private watch(): void {
     const game = this.s.game;
     const token = this.token;
-    if (!game || !token) return;
+    if (!game || !token || this.watchPaused) return;
     this.stopWatch?.();
     this.linked = null;
     this.linkAt = Date.now();
@@ -597,7 +616,7 @@ export class PlayerController {
    * again; the wait doubles each time. Runs on every state read, so it needs no timer of its own.
    */
   private maybeRelink(st: PlayerState): void {
-    if (this.linked === true || !this.stopWatch || st.state === 'podium' || st.state === 'ended') return;
+    if (this.watchPaused || this.linked === true || !this.stopWatch || st.state === 'podium' || st.state === 'ended') return;
     if (Date.now() - this.linkAt < this.relinkMs) return;
     this.relinkMs = Math.min(this.relinkMs * 2, RELINK_MAX_MS);
     this.relink();
@@ -611,6 +630,27 @@ export class PlayerController {
     this.later(RELINK_GAP_MS, () => {
       if (this.s.game && this.token && !this.stopWatch && this.s.step !== 'gone') this.watch();
     });
+  }
+
+  /**
+   * «Встань на ответ»: the room's socket works, so the game is not read from the database meanwhile (MODE_STAND §9:
+   * the phone never calls the database for the game's state while the socket works). A read asked for by `kick()`
+   * still goes (the podium's opened parts).
+   */
+  pauseWatch(): void {
+    if (this.watchPaused) return;
+    this.watchPaused = true;
+    this.stopWatch?.();
+    this.stopWatch = null;
+  }
+
+  /** The room is gone or silent for long: the database tells how the game goes on (or that it ended). */
+  resumeWatch(): void {
+    if (!this.watchPaused) return;
+    this.watchPaused = false;
+    this.linked = null;
+    this.linkAt = Date.now();
+    if (this.s.step !== 'gone') this.watch();
   }
 
   /** Read the state now (back online, back to the tab, a question's end). */
@@ -639,7 +679,7 @@ export class PlayerController {
       this.stopWatch?.();
       this.stopWatch = null;
       this.platform.setPlaying(false);
-      this.set({ step: 'gone', gone: goneOf(e, this.s.pin) });
+      this.set({ step: 'gone', gone: goneOf(e, this.s.pin, this.s.state?.mode ?? this.s.modeHint ?? 'boss') });
     }
   }
 
@@ -648,6 +688,10 @@ export class PlayerController {
     if (prev && st.rev < prev.rev) return;
     const patch: Partial<PlayerSnapshot> = { state: st, link: 'ok' };
     const live = st.state === 'countdown' || st.state === 'open';
+    if (st.mode === 'stand' && this.s.modeHint !== 'stand') {
+      patch.modeHint = 'stand';
+      if (this.s.pin) writeStore('session', MODE_KEY(this.s.pin), 'stand');
+    }
     if (st.qi !== this.s.turnQi && st.qi >= 0) {
       // A new question: its own figures.
       patch.turnQi = st.qi;
@@ -671,7 +715,7 @@ export class PlayerController {
     if (this.s.step === 'builder' && this.s.builderFrom === 'lobby' && st.state !== 'lobby') {
       patch.step = 'game';
       patch.look = st.me.look;
-      patch.notice = 'Игра началась: персонаж остался прежним.';
+      patch.notice = st.mode === 'stand' ? 'Игра началась. Герой остался прежним.' : 'Игра началась: персонаж остался прежним.';
     }
     if ((st.state === 'podium' || st.state === 'ended') && (!prev || (prev.state !== 'podium' && prev.state !== 'ended'))) {
       this.platform.setPlaying(false);
@@ -689,8 +733,9 @@ export class PlayerController {
       this.reviewAsked = true;
       void this.loadReview();
     }
-    // A question that closes by time: read once just after its end (the hint may come later than the clock).
-    if (st.state === 'open' && st.question && this.closeReadFor !== st.qi) {
+    // A question that closes by time: read once just after its end (the hint may come later than the clock). Not in
+    // «Встань на ответ»: the room tells the phone, and the database is not read while it does.
+    if (st.state === 'open' && st.question && st.mode !== 'stand' && this.closeReadFor !== st.qi) {
       this.closeReadFor = st.qi;
       const end = Date.parse(st.question.closes_at) + GRACE_MS + 250 - this.serverNow();
       const qi = st.qi;
@@ -815,12 +860,13 @@ export class PlayerController {
   restart(): void {
     this.stopWatch?.();
     this.stopWatch = null;
+    this.watchPaused = false;
     this.token = null;
     this.joinedAt = null;
     this.reviewAsked = false;
     this.closeReadFor = -1;
     this.platform.setPlaying(false);
-    this.set({ step: 'pin', pin: '', game: null, state: null, pick: null, answered: null, review: null, reviewError: null, reviewOnly: false, turnQi: -1, hpFrom: null, lateQi: null, gone: null, error: null, notice: null, busy: false });
+    this.set({ step: 'pin', pin: '', game: null, state: null, pick: null, answered: null, review: null, reviewError: null, reviewOnly: false, turnQi: -1, hpFrom: null, lateQi: null, gone: null, error: null, notice: null, busy: false, modeHint: null });
   }
 
   /** The player's token (sharing asks the bot's function with it). */

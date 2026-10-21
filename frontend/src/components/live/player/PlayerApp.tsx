@@ -1,8 +1,12 @@
 /**
  * The player's screens of «Битва с монстром», the same on the site (/play) and in Telegram (/tg/play): the controller's
  * snapshot picks the screen; the page gives the platform (platform.ts, telegram.ts).
+ *
+ * A movement game «Встань на ответ» (state `mode: 'stand'`, docs/live/MODE_STAND.md) gets its own screens after the
+ * join (components/live/stand/phone, loaded only then), and its own hero picker before the join when the mode is known
+ * already (`modeHint`: the link's `mode=stand`, or this PIN met before in the tab).
  */
-import { useCallback, useEffect, useSyncExternalStore } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Battle } from './Battle';
 import { Builder } from './Builder';
 import { Ended } from './Ended';
@@ -14,6 +18,9 @@ import { LiveBoss } from './art';
 import type { PlayerController } from './controller';
 import type { HapticKind, PlayerPlatform } from './platform';
 import './player.css';
+
+const StandGame = lazy(() => import('../stand/phone/StandGame'));
+const StandBuilder = lazy(() => import('../stand/phone/StandBuilder'));
 
 export interface PlayerAppProps {
   ctl: PlayerController;
@@ -28,9 +35,12 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
   const s = useSyncExternalStore(ctl.subscribe, ctl.getSnapshot, ctl.getSnapshot);
   const haptic = useCallback((kind: HapticKind) => platform.haptic(kind), [platform]);
 
+  const st = s.state;
+  const stand = st ? st.mode === 'stand' : s.modeHint === 'stand';
+  const title = stand ? 'Встань на ответ' : 'Битва с монстром';
   useEffect(() => {
-    document.title = 'Битва с монстром — Meldy';
-  }, []);
+    document.title = `${title} — Meldy`;
+  }, [title]);
 
   // A passing line goes by itself.
   useEffect(() => {
@@ -58,10 +68,41 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
   }, [back, onBackChange, ctl]);
   useEffect(() => () => onBackChange?.(null), [onBackChange]);
 
-  const st = s.state;
-  const lost = s.link === 'lost' && s.step !== 'pin' && s.step !== 'builder';
+  // «Встань на ответ» says its own «connection lost» from the room's socket.
+  const lost = s.link === 'lost' && s.step !== 'pin' && s.step !== 'builder' && !(stand && s.step === 'game');
+  const waiting = (
+    <div className="lp-page" style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <p className="lp-sub" role="status">
+        Открываем игру…
+      </p>
+    </div>
+  );
   let screen: JSX.Element;
   if (s.step === 'pin') screen = <PinScreen ctl={ctl} error={s.error} initial={s.pin} busy={s.busy} />;
+  else if (stand && st && s.game && (s.step === 'game' || (s.step === 'builder' && s.builderFrom === 'lobby')))
+    screen = (
+      <Suspense fallback={waiting}>
+        <StandGame ctl={ctl} s={s} platform={platform} haptic={haptic} />
+      </Suspense>
+    );
+  else if (s.step === 'builder' && s.builderFrom === 'join' && s.modeHint === 'stand')
+    screen = (
+      <Suspense fallback={waiting}>
+        <StandBuilder
+          ctl={ctl}
+          name={s.name}
+          fromTelegram={platform.kind === 'telegram'}
+          look={s.look}
+          unlocked={s.unlocked}
+          lockedTap={s.lockedTap}
+          from="join"
+          busy={s.busy}
+          error={s.error}
+          guest={s.guest && platform.kind === 'web'}
+          pin={s.pin}
+        />
+      </Suspense>
+    );
   else if (s.step === 'builder')
     screen = (
       <Builder
@@ -155,7 +196,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
     );
 
   return (
-    <main className="lp" data-step={s.step} data-state={st?.state ?? 'none'} data-platform={platform.kind} aria-label="Битва с монстром">
+    <main className="lp" data-step={s.step} data-state={st?.state ?? 'none'} data-mode={stand ? 'stand' : 'boss'} data-platform={platform.kind} aria-label={title}>
       {screen}
       {/* Over the boss's row in a question (never the counter, the timer, the question or the answers). */}
       {(lost || s.notice) && (
