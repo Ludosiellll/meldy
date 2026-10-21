@@ -87,6 +87,11 @@
   text-wrap: pretty;
 }
 .ct-stem:focus { outline: none; }
+/* The heading takes the focus when a question opens (read first); it is not a control (Tab never reaches it), so no
+   ring — after a reload the browser counts that focus as «visible» until the first tap, and the paper's page-wide ring
+   (styles/paper.css) outweighed the rule above. */
+.sf-page .ct-stem:focus-visible,
+.dark .sf-page .ct-stem:focus-visible { outline: none; }
 .ct-stem-after { margin: 12px 0 0; font-size: 18px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); white-space: pre-line; overflow-wrap: anywhere; }
 
 /* Code: monospace on the soft surface with a hairline; a computer keeps the file's lines (a long one scrolls inside
@@ -318,6 +323,8 @@
   text-wrap: balance;
 }
 .ct-end-h:focus { outline: none; }
+.sf-page .ct-end-h:focus-visible,
+.dark .sf-page .ct-end-h:focus-visible { outline: none; } /* as the question's heading above */
 .ct-end-p { margin: 14px 0 0; font-size: 17px; line-height: 1.55; color: var(--sf-muted); text-wrap: pretty; }
 .ct-end-next { margin: 18px 0 0; font-size: 18px; line-height: 1.45; font-weight: 500; color: var(--sf-ink); text-wrap: pretty; }
 .ct-end-links { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; margin-top: 10px; }
