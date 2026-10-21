@@ -7,17 +7,15 @@
 import { startTransition, useEffect, useLayoutEffect, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { lazyPart, useLazyPart } from '../../lib/lazyPart';
+import { useLazyPart } from '../../lib/lazyPart';
 import { prefetchLink } from '../../lib/prefetch';
 import Builder from './Builder';
 import { CTA, FINAL, FOOTER, FOOTER_NOTE, SAMPLE_TEST_URL, bind } from './copy3';
 import HeroTop, { ArrowIcon } from './HeroTop';
+import { reelPart } from './reelPart';
 import { ExamSection, GameSection, GroupSection, LectureSection } from './Sections';
 import './hero3.css';
 import './home3.css';
-
-/** The reel: its own file, fetched once the page has loaded (the largest paint is the headline, not the reel). */
-const reelPart = lazyPart(() => import('../reel3/Reel3').then((module) => module.default));
 
 function ReelSlot({ onCta }: { onCta: () => void }) {
   useEffect(() => {
@@ -29,8 +27,8 @@ function ReelSlot({ onCta }: { onCta: () => void }) {
     window.addEventListener('load', load, { once: true });
     return () => window.removeEventListener('load', load);
   }, []);
-  const Reel = useLazyPart(reelPart, true);
-  return Reel ? <Reel onCta={onCta} /> : <div className="h3-reel-wait" aria-hidden="true" />;
+  const part = useLazyPart(reelPart, true);
+  return part ? <part.Reel onCta={onCta} /> : <div className="h3-reel-wait" aria-hidden="true" />;
 }
 
 function FinalSection() {

@@ -12,7 +12,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { glue } from '../../lib/containers/words';
 import { CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, LECTURE_SECTION, PICTURES, bind } from './copy3';
 import { GAME_FRAME, GAME_FRAMES } from './gameFrames';
-import { lazyPart, useLazyPart } from '../../lib/lazyPart';
+import { useLazyPart } from '../../lib/lazyPart';
+import { reelPart } from './reelPart';
 import { ArrowIcon } from './HeroTop';
 import Swap from './Swap';
 import TicketAloud from './TicketAloud';
@@ -417,18 +418,13 @@ export function GroupSection() {
 /** «Провести игру»: sign up, then «Тесты», where every test has «Провести игру» (Register honours ?next=). */
 export const GAME_URL = `/register?next=${encodeURIComponent('/exams?view=tests')}`;
 
-/** The footage player and the game's footage: one file of their own, fetched when the game's section comes near. */
-const footagePart = lazyPart(() =>
-  Promise.all([import('../film/Footage'), import('../../lib/footage')]).then(([player, footage]) => ({ Player: player.default, footage: footage.STAND_RUN })),
-);
-
-/** The projector's footage once its file is here (the projector's own dark until then). */
+/** The projector's footage once the player is here (it comes with the reel's file; the projector's own dark until then). */
 function GameFootage({ near }: { near: boolean }) {
   useEffect(() => {
-    if (near) void footagePart.load().catch(() => undefined);
+    if (near) void reelPart.load().catch(() => undefined);
   }, [near]);
-  const part = useLazyPart(footagePart, near);
-  return part ? <part.Player footage={part.footage} fit="cover" /> : null;
+  const part = useLazyPart(reelPart, near);
+  return part ? <part.Footage footage={part.footage} fit="cover" /> : null;
 }
 
 /** What the projector's picture shows, for those who do not see it. */
@@ -438,9 +434,9 @@ export const GAME_ALT = 'Игра «Встань на ответ» на прое
  * «Игра в классе» (owner, 21.10: the real game running, not a drawing): the recorded game on the projector, the class
  * running to the answers and the floor dropping (lib/footage STAND_RUN, a silent loop while on screen; its poster with
  * reduced motion), the bot's post in the class chat with «Играть», and a student's phone in Telegram, «Верно +980».
- * Nothing moves on a press, and its one link is the only thing to press. The player is its own file, fetched as the
- * section comes near (then its poster and its parts); the phone's still loads lazily: the page's first load carries none
- * of it.
+ * Nothing moves on a press, and its one link is the only thing to press. The player comes with the reel's file (fetched
+ * after the page has loaded, or as the section comes near), then its poster and its parts as the section comes near;
+ * the phone's still loads lazily: the page's first load carries none of it.
  */
 export function GameSection() {
   const stage = useRef<HTMLDivElement>(null);

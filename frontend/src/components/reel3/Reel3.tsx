@@ -20,6 +20,10 @@ import { TicketScene } from './scenes/Oral';
 import { LEARN_KEYS, LearnScene } from './scenes/Learn';
 import './reel3.css';
 
+/** The game's footage and its player, for the page's section «Игра в классе» (home3/reelPart: one late file for both). */
+export { default as Footage } from '../film/Footage';
+export const GAME_FOOTAGE = STAND_RUN;
+
 declare global {
   interface Window {
     /** Set by the frame exporter before the page loads: no autoplay, and `__meldyReel` to step frames. */

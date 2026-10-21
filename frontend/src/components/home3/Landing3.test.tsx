@@ -102,12 +102,12 @@ describe('the landing v3', () => {
     expect(within(section).getByRole('heading', { level: 2 })).toHaveTextContent(GAME_SECTION.title);
     expect(section.querySelector('.p3-text')!.textContent).toBe(bind(GAME_SECTION.text));
     for (const line of ['на проекторе', 'с телефона', 'проваливается', 'в Telegram']) expect(GAME_SECTION.text).toContain(line);
-    // The projector is the recorded game, said in words: its player is a file of its own, fetched only as the section
-    // comes near (nothing of it on the page's first load). The post and the phone are pictures beside it; the phone's
-    // still loads lazily.
+    // The projector is the recorded game, said in words: its player comes with the reel's late file, and fetches its
+    // poster and its parts only as the section comes near (no video here, a poster only lazily). The post and the phone
+    // are pictures beside it; the phone's still loads lazily.
     const projector = within(section).getByRole('img', { name: GAME_ALT });
     expect(projector).toHaveClass('p3-proj');
-    expect(projector.querySelector('video, img')).toBeNull();
+    expect(projector.querySelector('video')).toBeNull();
     expect(STAND_RUN.parts.every((part) => part.startsWith('/game/footage/'))).toBe(true);
     for (const img of section.querySelectorAll('img')) expect(img).toHaveAttribute('loading', 'lazy');
     const still = section.querySelector('.p3-gphone img')!;
