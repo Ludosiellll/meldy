@@ -28,7 +28,6 @@
 import { pickGroupQuestion, type GroupInput, type GroupItemCounts } from '../plan/group.ts';
 import { optionOrder, pinnedLast } from '../plan/session.ts';
 import { stemParts } from '../plan/stemCode.ts';
-import { TWO_DAYS } from '../plan/words.ts';
 import { dayCard } from './card.ts';
 import { encode } from './codec.ts';
 import type { BotDb, Who } from './db.ts';
@@ -46,10 +45,10 @@ import * as W from './words.ts';
 export const GW = {
   // G0 lives on the site (GroupBotInvite); G1 goes to the group once, silent, without buttons.
   g1Title: (exam: string) => `Вопрос дня из экзамена «${exam}»`,
-  g1Body: (time: string) => `Раз в день, в ${time}, без звука — один вопрос. Что вы нажали и ответ из файла видите только вы.`,
-  g1Note: 'Переписку бот не читает. Убрать вопрос дня — удалить бота из беседы.',
+  g1Body: (time: string) => `Раз в день, в ${time}, без звука придёт один вопрос. Ваш ответ и ответ из файла видите только вы.`,
+  g1Note: 'Переписку бот не читает. Чтобы убрать вопрос дня, удалите бота из беседы.',
   ownerBound: (chat: string | null, time: string) =>
-    `${chat ? `Беседа «${chat}»` : 'Беседа'} подключена: вопрос дня — каждый день в ${time}. Час и отключение — на сайте, в «Пригласить группу».`,
+    `${chat ? `Беседа «${chat}»` : 'Беседа'} подключена. Вопрос дня будет приходить каждый день в ${time}. Изменить время или отключить можно на сайте, в «Пригласить группу».`,
   onlyAuthor: 'Подключить беседу может только автор экзамена.',
   codeExpired: 'Ссылка устарела. На сайте нажмите «Подключить беседу» ещё раз.',
   // G2
@@ -60,18 +59,18 @@ export const GW = {
   closedAnswered: (n: number) => `Вопрос закрыт. Ответили ${n}.`,
   // G3: lines and windows to the one who pressed
   right: 'Верно.',
-  rightTwoDays: (n: number, of: number) => `Верно. Теперь ${n} из ${of} — ${TWO_DAYS}.`,
+  rightTwoDays: (n: number, of: number) => `Верно. Выучено ${n} из ${of}.`,
   // «завтра» even before the member's day off: bot_group_answer gives no member's days of the week.
-  wrongMember: (key: string) => `Неверно. В файле — ${key}. Вопрос вернётся в ваших занятиях завтра.`,
-  wrongUnlinked: (key: string) => `Неверно. В файле — ${key}. Чтобы такие ответы шли в план Meldy, подключите Telegram в профиле.`,
+  wrongMember: (key: string) => `Неверно. В файле — ${key}. Повторим вопрос в ваших занятиях завтра.`,
+  wrongUnlinked: (key: string) => `Неверно. В файле — ${key}. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.`,
   wrongOther: (key: string) => `Неверно. В файле — ${key}.`,
   again: (mine: string, key: string) => `Вы уже ответили: ${mine}. В файле — ${key}.`,
   // «Заниматься в Meldy» for someone linked but not in the exam
   notMemberTitle: (exam: string) => `Экзамен «${exam}»`,
-  notMemberBody: 'Он приходит по ссылке группы — её даёт автор экзамена. Войдите по ней на сайте, и план появится здесь.',
+  notMemberBody: 'Войти в него можно по ссылке группы, её даёт автор экзамена. Откройте ссылку на сайте, и план появится здесь.',
   // G4
   stopped: (chat: string | null) =>
-    `${chat ? `В беседе «${chat}»` : 'В беседе'} пять дней подряд никто не ответил на вопрос дня — бот перестал его присылать. Включить снова можно на сайте, в «Пригласить группу».`,
+    `${chat ? `В беседе «${chat}»` : 'В беседе'} пять дней подряд никто не ответил на вопрос дня, поэтому бот перестал его присылать. Включить снова можно на сайте, в «Пригласить группу».`,
 };
 
 /** The site's «Пригласить группу» of an exam (SettingsPage: `?invite=1` opens it). */

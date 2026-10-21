@@ -35,9 +35,9 @@ export interface SessionCounts {
   dontKnow: number;
   /** «Нажали не туда?»: neither right nor a mistake. */
   misclicks: number;
-  /** Answers to the session's own retries of mistakes («повтор — не в счёт»). */
+  /** Answers to the session's own retries of mistakes («повтор, не считается»). */
   retries: number;
-  /** Questions that reached «верно в два разных дня» (step `two_days`). */
+  /** Questions that reached «выучено» (step `two_days`). */
   gained: number;
   /** Questions in the figure that a mistake took out of it. */
   dropped: number;
@@ -90,7 +90,7 @@ export interface SummaryInput {
   end: 'done' | 'stopped';
   /** The figure after the session: «теперь 147 из 960». */
   figure: { twoDays: number; inPlan: number } | null;
-  /** While the figure is 0: the plan's line «Первые войдут в счёт завтра после 17:00 — если снова ответите верно». */
+  /** While the figure is 0: the plan's line «Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены». */
   firstCount: string | null;
   /** When the too-early ones can count today («19:00»), or null for `back`. */
   tooEarlyAt: string | null;
@@ -112,42 +112,42 @@ export function timeLine(questions: number, retries: number, minutes: number): s
   return `${what} за ${glue(Math.max(1, Math.round(minutes)), 'минуту', 'минуты', 'минут')}`;
 }
 
-/** «Верно 13 · неверно 5 · не знали 2» (parts that are 0 are left out). */
+/** «13 верно, 5 неверно, 2 не знали» (parts that are 0 are left out; the number first, the owner's plain words). */
 export function scoreLine(c: SessionCounts): string | null {
   const parts = [[c.right, 'верно'], [c.wrong, 'неверно'], [c.dontKnow, 'не знали']]
     .filter(([n]) => (n as number) > 0)
-    .map(([n, word]) => `${word} ${n}`);
+    .map(([n, word]) => `${n} ${word}`);
   if (parts.length === 0) return null;
-  const line = parts.join(' · ');
-  return line.charAt(0).toUpperCase() + line.slice(1);
+  return parts.join(', ');
 }
 
 /** The mistakes of the session: repeated in it (I1) or not yet (I2); they come back `when` (SummaryInput `back`). */
 export function errorsLine(c: SessionCounts, end: SummaryInput['end'], when = 'завтра'): string | null {
   if (c.wrong + c.dontKnow === 0) return null;
-  return end === 'done' && c.retries > 0 ? `Ошибки повторили — ${when} они вернутся.` : `Ошибки вернутся ${when}.`;
+  return end === 'done' && c.retries > 0 ? `Ошибки повторили. ${when.charAt(0).toUpperCase()}${when.slice(1)} повторим их ещё раз.` : `Ошибки повторим ${when}.`;
 }
 
-/** «В счёт вошли 4 вопроса: теперь 147 из 960.» — the figure in the plan's words (words.ts figureLines). */
+/** «Выучено ещё 4 вопроса. Всего 147 из 960.» — the figure in the plan's words (words.ts figureLines). */
 export function gainedLine(gained: number, figure: { twoDays: number; inPlan: number }): string {
   const words = figureLines({ inPlan: figure.inPlan, twoDays: figure.twoDays, seen: 0, errors: 0, selfKnow: 0 }, null);
-  return `В счёт ${plural(gained, 'вошёл', 'вошли', 'вошли')} ${glue(gained, 'вопрос', 'вопроса', 'вопросов')}: теперь ${words.big} ${words.of}.`;
+  return `${plural(gained, 'Выучен', 'Выучено', 'Выучено')} ещё ${glue(gained, 'вопрос', 'вопроса', 'вопросов')}. Всего ${words.big} ${words.of}.`;
 }
 
-export const NEW_LATER = 'Новые войдут в счёт, если ответите на них верно и в другой день.';
+export const NEW_LATER = 'Новые вопросы будут выучены, если ответите на них верно ещё раз в другой день.';
 
+/** Questions that counted and got a mistake today (as the site's end screen says it). */
 export function droppedLine(n: number): string {
-  return `${glue(n, 'вопрос', 'вопроса', 'вопросов')} ${plural(n, 'выпал', 'выпали', 'выпали')} из счёта: в ${plural(n, 'нём', 'них', 'них')} сегодня ошибка.`;
+  return `${glue(n, 'выученный вопрос', 'выученных вопроса', 'выученных вопросов')} снова с ошибкой. ${plural(n, 'Его', 'Их', 'Их')} нужно выучить заново.`;
 }
 
-/** «…войдут в счёт, если ответите после 19:00» today, else on the day they come back (`day`, as the site's end screen). */
+/** Right again, but sooner than 20 hours: answer after 19:00 today, else on the day they come back (as the site). */
 export function tooEarlyLine(n: number, at: string | null, day = 'завтра'): string {
   const when = at ? `после ${at}` : day;
-  return `${glue(n, 'вопрос', 'вопроса', 'вопросов')} — снова верно, но меньше чем через 20 часов: ${plural(n, 'войдёт', 'войдут', 'войдут')} в счёт, если ответите ${when}.`;
+  return `${glue(n, 'вопрос', 'вопроса', 'вопросов')} ещё не ${plural(n, 'выучен', 'выучены', 'выучены')}, с прошлого верного ответа не прошло 20 часов. Ответьте ещё раз ${when}.`;
 }
 
 export function skippedLine(n: number): string {
-  return `${glue(n, 'вопрос', 'вопроса', 'вопросов')} — только на сайте: ${plural(n, 'он не помещается', 'они не помещаются', 'они не помещаются')} в сообщение Telegram.`;
+  return `${glue(n, 'вопрос', 'вопроса', 'вопросов')} можно решить только на сайте, ${plural(n, 'он не помещается', 'они не помещаются', 'они не помещаются')} в сообщение Telegram.`;
 }
 
 /** The count lines between the score and the rest of the day. */

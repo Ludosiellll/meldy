@@ -117,7 +117,7 @@ describe('the student critic\'s bus pattern (decision 32)', () => {
       expect(later, seed).toBeDefined();
       expect((later?.n ?? [0])[0]).toBeGreaterThan(10);
       expect(later?.time).toMatch(/^17:/);
-      expect(lineText(later as DayPlan['lines'][number])).toMatch(/^Ещё \d+\s(вопрос|вопроса|вопросов) — после 17:\d\d$/);
+      expect(lineText(later as DayPlan['lines'][number])).toMatch(/^Ещё \d+\s(вопрос|вопроса|вопросов) после 17:\d\d$/);
       expect(morning.lines.find((l) => l.key === 'first_count')?.n).toEqual([0]);
       expect(morning.next).not.toBeNull();
       expect(localDay(morning.next as number, TZ)).toBe(day2);
@@ -250,7 +250,7 @@ describe('the engineer\'s edge cases', () => {
     expect(p.figure).toEqual({ inPlan: 5, twoDays: 0, seen: 1, errors: 1, selfKnow: 0 });
   });
 
-  it('D = 0: no plan, «Сегодня экзамен.» and quietly «20 вопросов, где были ошибки»', () => {
+  it('D = 0: no plan, «Сегодня экзамен.» and quietly «20 вопросов с ошибками»', () => {
     const items = withStates(testItems('a', 40), (_, i) => (i < 25 ? stateAfter([{ at: at('2026-10-18', '10:00'), correct: false }]) : undefined));
     const p = planDay(makeInput({ now, subjects: [{ id: 'a', date: '2026-10-20' }], items, firstPlanDay: '2026-10-01' }));
     expect(p.state).toBe('exam_today');
@@ -299,7 +299,7 @@ describe('the engineer\'s edge cases', () => {
     expect(keysOf(p)).not.toContain('more_new');
   });
 
-  it('all at «два разных дня», nothing due: «На сегодня всё. Следующие вопросы — …» with the moment', () => {
+  it('all at «два разных дня», nothing due: «На сегодня всё. Следующие вопросы …» with the moment', () => {
     const items = withStates(testItems('a', 20), (_, i) => stateAfter([
       { at: at('2026-10-17', '09:00') + i * 60_000, correct: true }, { at: at('2026-10-18', '09:00') + i * 60_000, correct: true },
     ]));
@@ -499,7 +499,7 @@ describe('oral questions', () => {
 describe('first count, next, lines', () => {
   const subjects = [{ id: 'a', date: addDays(DAY1, 20) }];
 
-  it('after the first evening: «Первые войдут в счёт завтра после 17:00»; the next morning «сегодня после 17:00»; at 18:00 «сегодня»', () => {
+  it('after the first evening: «Ответьте верно ещё раз завтра после 17:00…»; the next morning «сегодня после 17:00»; at 18:00 «сегодня»', () => {
     const items = withStates(testItems('a', 30), (_, i) => (i < 20 ? stateAfter([{ at: at(DAY1, '21:00') + i * 30_000, correct: true }]) : undefined));
     const evening = planDay(makeInput({ now: at(DAY1, '21:30'), firstAt: at(DAY1, '21:00'), doneSec: 700, subjects, items, firstPlanDay: DAY1 }));
     expect(evening.firstCountDay).toBe(addDays(DAY1, 1));
@@ -522,7 +522,7 @@ describe('first count, next, lines', () => {
     expect(planDay(makeInput({ now: at(DAY1, '09:00'), subjects, items: moved })).firstCountDay).toBeNull();
   });
 
-  it('a skipped day: «Вчера без занятий. Сегодня те же 60 минут — больше знакомых вопросов.»', () => {
+  it('a skipped day: «Вчера занятий не было. Сегодня те же 60 минут, но больше знакомых вопросов.»', () => {
     // The exam was made before those answers (its first plan day): a question is answered only once its exam exists.
     const made = addDays(DAY1, -6);
     const items = withStates(testItems('a', 30), (_, i) => (i < 10 ? stateAfter([{ at: at(addDays(DAY1, -2), '20:00'), correct: i % 2 === 0 }]) : undefined));

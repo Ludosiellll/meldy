@@ -113,7 +113,7 @@ test('the rest of the day when it is done: «На сегодня всё…» wit
   assert.equal(r.next, null);
   assert.equal(r.moreNew!.label.replace(/\u00a0/g, ' '), 'Ещё 20 новых');
   assert.deepEqual(decode(r.moreNew!.data), { kind: 'go', cid: CID, mode: 'x' });
-  assert.match(r.line.replace(/\u00a0/g, ' '), /^На сегодня всё.* Ещё 20 новых сейчас — завтра их будет меньше\.$/);
+  assert.match(r.line.replace(/\u00a0/g, ' '), /^На сегодня всё.* Ещё 20 новых можно пройти сейчас\. Тогда завтра их будет меньше\.$/);
 });
 
 test('the rest of a day off after «Ещё 20 новых»: «На сегодня всё…», «Ещё 20 новых» again, no «завтра» when tomorrow is off too', () => {
@@ -147,7 +147,7 @@ test('an exam that is not the user\'s any more: no plan lines; examOf goes throu
 
 test('while the figure is 0, the plan\'s own «Первые войдут в счёт…» line', () => {
   const zero = examOf(todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', started: 60, errors: 5 }]), CID)!;
-  assert.match((firstCountText(zero) ?? '').replace(/\u00a0/g, ' '), /^Первые войдут в счёт /);
+  assert.match((firstCountText(zero) ?? '').replace(/\u00a0/g, ' '), /^Ответьте верно ещё раз /);
   assert.equal(firstCountText(examOf(todayOf([AUTUMN]), CID)), null, 'the figure is not 0');
 });
 

@@ -46,7 +46,7 @@ test('K1 at the chosen time: with sound, protect_content, the card of the copied
   assert.equal(p.chat_id, row.chatId);
   assert.equal(p.disable_notification, false, 'the day card is the one sound');
   assert.equal(p.protect_content, true);
-  assert.match(words(p.text), /^Сегодня около \d+ минут: .+\nОсенняя сессия · 3 ноября, через 18 дней\n143 из 960 — верно в два разных дня$/);
+  assert.match(words(p.text), /^Сегодня .+, около \d+ минут\.\nОсенняя сессия · 3 ноября, через 18 дней\nВыучено 143 из 960$/);
   assert.equal(p.reply_markup.inline_keyboard[0][0].callback_data, `go|${CID}|p`);
   assert.equal(h.fdb.deliveries[0].status, 'sent');
   assert.equal(h.fdb.days.get(`${row.id}|2026-10-16`)!.cardMessageId, 1000);
@@ -88,7 +88,7 @@ test('release 47: the exam day alone goes out once, «Сегодня экзам�
   assert.equal(stats.rem_sent, 1);
   const card = h.tg.of('sendMessage')[0].params;
   assert.equal(words(card.text).split('\n')[0], 'Сегодня экзамен.');
-  assert.deepEqual(card.reply_markup.inline_keyboard.flat().map((b: { text: string }) => b.text), ['Пройтись по ошибкам: 20', 'Перенести экзамен']);
+  assert.deepEqual(card.reply_markup.inline_keyboard.flat().map((b: { text: string }) => b.text), ['Повторить 20 ошибок', 'Перенести экзамен']);
   assert.equal(card.disable_notification, false);
   h.advance(60_000);
   await tickNow(h);
@@ -137,7 +137,7 @@ test('K3 with the move (release 47): «Если экзамен перенесл�
   h.fdb.addAfterDate(row.id, CID, { title: 'Осенняя сессия', examDate: '2026-11-03', lastDate: '2026-11-03', firstPlanDay: '2026-10-09', activeDays: 21, answers: 6480, twoDays: 902, keyed: 960, role: 'owner', members: 0 });
   await tickNow(h);
   const k3 = h.tg.of('sendMessage').map((c) => c.params).find((p) => words(p.text).startsWith('Экзамен прошёл'))!;
-  assert.equal(words(k3.text), 'Экзамен прошёл 3 ноября.\nЗа 26 дней — 21 с занятиями, 6 480 ответов.\n902 из 960 — верно в два разных дня.\n\nЕсли экзамен перенесли — нажмите, план пересчитается.');
+  assert.equal(words(k3.text), 'Экзамен прошёл 3 ноября.\nЗа 26 дней вы занимались 21 день и дали 6 480 ответов.\nВыучено 902 вопроса из 960.\n\nЭкзамен перенесли? Нажмите «Перенести экзамен», и план обновится.');
   assert.deepEqual(k3.reply_markup.inline_keyboard.map((r: Array<{ callback_data: string }>) => r.map((b) => b.callback_data)),
     [[`mv|${CID}|7`], [`mv|${CID}|14`, `mv|${CID}|d`]]);
   assert.equal(k3.disable_notification, true);
@@ -383,7 +383,7 @@ test('K3 after the date: silent, the last word about that exam, once', async () 
   await tickNow(h);
   const k3 = h.tg.of('sendMessage').map((c) => c.params).find((p) => words(p.text).startsWith('Экзамен прошёл'))!;
   assert.equal(k3.disable_notification, true);
-  assert.equal(words(k3.text), 'Экзамен прошёл 3 ноября.\nЗа 26 дней — 21 с занятиями, 6 480 ответов.\n902 из 960 — верно в два разных дня.\n\nПо этому экзамену бот больше не напишет. Экзамен и счёт остаются в Meldy.');
+  assert.equal(words(k3.text), 'Экзамен прошёл 3 ноября.\nЗа 26 дней вы занимались 21 день и дали 6 480 ответов.\nВыучено 902 вопроса из 960.\n\nПо этому экзамену бот больше не напишет. Экзамен и ваши результаты остаются в Meldy.');
   h.advance(60_000);
   await tickNow(h);
   assert.equal(h.tg.of('sendMessage').filter((c) => words(c.params.text).startsWith('Экзамен прошёл')).length, 1);

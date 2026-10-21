@@ -84,13 +84,13 @@ export function exampleWords(today: LocalDay) {
 }
 
 /** The blue pill of the day (copy.startSubject). */
-export const START_LABEL = `Начать: ${START_SUBJECT.title}${NB}— ${START_SUBJECT.today}${NB}вопроса`;
+export const START_LABEL = `Начать: ${START_SUBJECT.title}, ${START_SUBJECT.today}${NB}вопроса`;
 /** The figure (words.figureLines) and its small line. */
-export const FIGURE = { big: String(TWO_DAYS), of: `из ${QUESTIONS}`, label: 'верно в два разных дня', under: `Видели ${SEEN} · ошибок сейчас ${ERRORS}` };
+export const FIGURE = { big: String(TWO_DAYS), of: `из ${QUESTIONS}`, label: 'выучено', under: `Видели ${SEEN} · ${ERRORS} ошибок` };
 
 /** A subject's row on the exam page (copy.subjectRowTest / copy.subjectRowOral, one date for the whole exam). */
 export function subjectRow(subject: ExampleSubject): string {
-  const parts = [`видели ${subject.seen} из ${subject.questions}`, `в счёте ${subject.twoDays}`, `сегодня ${subject.today}`];
+  const parts = [`видели ${subject.seen} из ${subject.questions}`, `выучено ${subject.twoDays}`, `сегодня ${subject.today}`];
   return (subject.oral ? ['устный', ...parts] : parts).map((part) => part.replace(/ /g, NB)).join(`${NB}· `);
 }
 
@@ -127,7 +127,7 @@ export const SESSION = {
   key: 2,
   chosen: 1,
   /** copy.verdictWrong(['SERIALIZABLE'], true). */
-  verdict: `Неверно. В${NB}файле${NB}— SERIALIZABLE. Вернётся через пару вопросов и${NB}завтра.`,
+  verdict: `Неверно. В${NB}файле${NB}— SERIALIZABLE. Повторим через пару вопросов и${NB}завтра.`,
   yours: 'Ваш ответ',
   inFile: 'В файле',
   finish: 'Закончить',

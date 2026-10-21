@@ -100,9 +100,9 @@ describe('«Своя дата»', () => {
     fireEvent.change(field, { target: { value: '2026-10-17' } });
     expect(screen.queryByRole('alert')).toBeNull();
     save();
-    expect(await screen.findByRole('alert')).toHaveTextContent('Нужна дата не раньше сегодняшней.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Выберите сегодня или дату позже.');
     expect(field).toHaveAttribute('aria-invalid', 'true');
-    expect(field).toHaveAccessibleDescription('Нужна дата не раньше сегодняшней.');
+    expect(field).toHaveAccessibleDescription('Выберите сегодня или дату позже.');
     fireEvent.change(field, { target: { value: '2028-10-18' } });
     save();
     expect(await screen.findByRole('alert')).toHaveTextContent('Можно перенести не дальше чем на два года.');

@@ -1,6 +1,6 @@
 import type { DayPlan, LocalDay, PlanInput } from '../../types/container';
 import { NO_DATE_NEW_PER_DAY, allQuestions, feasibility } from '../../lib/containers/plan';
-import { figureLines, lineText, planDetail, planLine, planTitle, startLabel } from '../../lib/containers/words';
+import { RULE_LINE, figureLines, lineText, planDetail, planLine, planTitle, startLabel } from '../../lib/containers/words';
 import { dayDiff } from './model';
 import { glue, q } from './copy';
 
@@ -8,7 +8,7 @@ import { glue, q } from './copy';
  * The plan's own lines (lib/containers/words.ts renders them) on the exam's pages; the lines the plan does not make
  * (`oral_no_lectures`, `need`, `pace_faster`, `pace_slower`) are built by the screens and rendered the same way:
  * - the lines of the day's state («На сегодня всё…», «Сегодня выходной…», «Сегодня экзамен.», «Экзамен прошёл…») are
- *   the card's title, not a note; «Первые войдут в счёт завтра после 17:00 — если снова ответите верно» is the
+ *   the card's title, not a note; «Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены» is the
  *   figure's line (decision 40);
  * - a line may carry one link: the minutes that fall short → «Изменить время»; no date → «Указать дату»; oral questions
  *   without lectures → «Добавить лекции»; «Ещё 20 новых» and «20 вопросов, где были ошибки» are links themselves.
@@ -142,11 +142,11 @@ export function figureWords(
   }
 }
 
-/** While the figure is 0: «Первые войдут в счёт завтра после 17:00 — если снова ответите верно» (decision 40). */
+/** While the figure is 0: «Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены» (decision 40). */
 export function firstCountText(plan: DayPlan | null): string | null {
   if (!plan || plan.figure.twoDays > 0 || plan.figure.seen === 0) return null;
   const words = figureWords({ twoDays: 0, total: plan.figure.inPlan, seen: plan.figure.seen, errors: plan.figure.errors }, plan, plan.day);
-  return words && words.label.startsWith('Первые') ? words.label : null;
+  return words && !words.big && words.label && words.label !== RULE_LINE ? words.label : null;
 }
 
 /** The options of «Время в день». */

@@ -19,7 +19,6 @@ const BANNED: Array<[string, RegExp]> = [
   ['засчит', /засчит/i],
   ['сгорел / сгорит', /сгор(ел|ит|ело)/i],
   ['готов на', /готов на/i],
-  ['выучен', /выучен/i],
   ['сдашь', /сдашь/i],
   ['отстаёте', /отста[её]те/i],
   ['преподавател', /преподавател/i],
@@ -31,6 +30,19 @@ const BANNED: Array<[string, RegExp]> = [
   ['вернулись по сроку', /по сроку/i],
   ['правильный ответ', /правильный ответ/i],
   ['сессия / тренировка', /(^|[^а-яё])(сесси|тренировк)/i],
+];
+
+/**
+ * The owner's plain words (2026-10-21, Decision Log): the screens say the result («выучено»), never the counting rule
+ * or our own terms. «выучен» left the banned list that day; these joined it, for every rendered line.
+ */
+const PLAIN_WORDS: Array<[string, RegExp]> = [
+  ['в счёт / в счёте', /в счёт/i],
+  ['вернётся / вернутся', /вернётся|вернутся/i],
+  ['верно с первого раза', /с первого раза/i],
+  ['ошибок сейчас', /ошибок сейчас/i],
+  ['подсмотр', /подсмотр/i],
+  ['по правилу', /по правилу/i],
 ];
 
 const ru = (s: string) => s.replace(/ /g, ' ');
@@ -133,63 +145,63 @@ describe('lineText', () => {
 
   it('says exactly what the spec says', () => {
     const t = (line: DayPlan['lines'][number]) => ru(lineText(line));
-    expect(t({ key: 'later', n: [12], time: '17:00' })).toBe('Ещё 12 вопросов — после 17:00'); // #32
-    expect(t({ key: 'first_count', n: [1], day: '2026-10-11', time: '17:00' })).toBe('Первые войдут в счёт завтра после 17:00 — если снова ответите верно'); // #40
-    expect(t({ key: 'first_count', n: [0], day: '2026-10-10', time: '19:00' })).toBe('Первые войдут в счёт сегодня после 19:00 — если снова ответите верно');
-    expect(t({ key: 'first_count', n: [4], day: '2026-10-14' })).toBe('Первые войдут в счёт 14 октября — если снова ответите верно');
-    expect(t({ key: 'skip', n: [1, 60] })).toBe('Вчера без занятий. Сегодня те же 60 минут — больше знакомых вопросов.'); // #39, #55
-    expect(t({ key: 'skip', n: [2, 45] })).toBe('2 дня без занятий. Сегодня те же 45 минут — больше знакомых вопросов.');
+    expect(t({ key: 'later', n: [12], time: '17:00' })).toBe('Ещё 12 вопросов после 17:00'); // #32
+    expect(t({ key: 'first_count', n: [1], day: '2026-10-11', time: '17:00' })).toBe('Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены'); // #40
+    expect(t({ key: 'first_count', n: [0], day: '2026-10-10', time: '19:00' })).toBe('Ответьте верно ещё раз сегодня после 19:00, и первые вопросы будут выучены');
+    expect(t({ key: 'first_count', n: [4], day: '2026-10-14' })).toBe('Ответьте верно ещё раз 14 октября, и первые вопросы будут выучены');
+    expect(t({ key: 'skip', n: [1, 60] })).toBe('Вчера занятий не было. Сегодня те же 60 минут, но больше знакомых вопросов.'); // #39, #55
+    expect(t({ key: 'skip', n: [2, 45] })).toBe('2 дня без занятий. Сегодня те же 45 минут, но больше знакомых вопросов.');
     // a study day missed before days off: not «Вчера» (yesterday was a day off)
-    expect(t({ key: 'skip', n: [1, 45], day: '2026-10-16' })).toBe('1 день без занятий. Сегодня те же 45 минут — больше знакомых вопросов.');
+    expect(t({ key: 'skip', n: [1, 45], day: '2026-10-16' })).toBe('1 день без занятий. Сегодня те же 45 минут, но больше знакомых вопросов.');
     // a day off (not one of the student's days of the week): the next study day, by name within the week
-    expect(t({ key: 'day_off', n: [2], day: '2026-10-19' })).toBe('Сегодня выходной. Следующие вопросы — в понедельник.');
-    expect(t({ key: 'day_off', n: [1], day: '2026-10-18' })).toBe('Сегодня выходной. Следующие вопросы — завтра.');
-    expect(t({ key: 'day_off', n: [9], day: '2026-10-26' })).toBe('Сегодня выходной. Следующие вопросы — 26 октября.');
+    expect(t({ key: 'day_off', n: [2], day: '2026-10-19' })).toBe('Сегодня выходной. Следующие вопросы в понедельник.');
+    expect(t({ key: 'day_off', n: [1], day: '2026-10-18' })).toBe('Сегодня выходной. Следующие вопросы завтра.');
+    expect(t({ key: 'day_off', n: [9], day: '2026-10-26' })).toBe('Сегодня выходной. Следующие вопросы 26 октября.');
     expect(t({ key: 'day_off' })).toBe('Сегодня выходной.');
-    expect(t({ key: 'oral_no_lectures', n: [60] })).toBe('Ещё 60 устных войдут в план, когда к предмету будут лекции.'); // #35
+    expect(t({ key: 'oral_no_lectures', n: [60] })).toBe('Ещё 60 устных появятся в плане, когда вы добавите лекции.'); // #35
     expect(t({ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }))
-      .toBe('При 45 минутах к 28 октября вы увидите около 700 из 960. Чтобы увидеть все, нужно около 75 минут.');
+      .toBe('Если заниматься 45 минут в день, к 28 октября вы пройдёте около 700 из 960. Чтобы пройти все, нужно около 75 минут в день.');
     expect(t({ key: 'short_max', n: [90, 820, 960], day: '2026-10-28' }))
-      .toBe('Даже при 90 минутах в день к 28 октября вы увидите около 820 из 960. Чтобы увидеть все, выберите «Все вопросы».');
+      .toBe('Даже если заниматься 90 минут в день, к 28 октября вы пройдёте около 820 из 960. Чтобы пройти все, выберите «Все вопросы».');
     // the plan card's note is one line from day 1 (m9); «Время в день» says it in full
     expect(t({ key: 'window_ahead', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет.');
-    expect(t({ key: 'window_detail', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
-    expect(t({ key: 'window_in', n: [3] })).toBe('До экзамена 3 дня: новых нет, только знакомые.');
+    expect(t({ key: 'window_detail', n: [4], day: '2026-10-24' })).toBe('С 24 октября новых вопросов не будет. В последние 4 дня только знакомые, сначала ошибки.');
+    expect(t({ key: 'window_in', n: [3] })).toBe('До экзамена 3 дня. Новых вопросов нет, только знакомые.');
     expect(t({ key: 'exam_today', n: [37] })).toBe('Сегодня экзамен.');
-    expect(t({ key: 'exam_errors', n: [20] })).toBe('20 вопросов, где были ошибки');
+    expect(t({ key: 'exam_errors', n: [20] })).toBe('20 вопросов с ошибками');
     expect(t({ key: 'after', day: '2026-10-28' })).toBe('Экзамен прошёл 28 октября.');
-    expect(t({ key: 'no_date', n: [15] })).toBe('Без даты — по 15 новых в день на предмет.');
+    expect(t({ key: 'no_date', n: [15] })).toBe('Дата не указана. Пока по 15 новых вопросов в день на предмет.');
     expect(t({ key: 'more_new', n: [20] })).toBe('Ещё 20 новых');
-    expect(t({ key: 'ai_limit', time: '3:00' })).toBe('Лимит ИИ на сегодня закончился. Проверка вернётся в 3:00.');
-    expect(t({ key: 'oral', n: [9, 3, 12] })).toBe('Устные: 9 сверить с пунктами, 3 ответить вслух с проверкой — 12 единиц ИИ.');
+    expect(t({ key: 'ai_limit', time: '3:00' })).toBe('Проверки ИИ на сегодня закончились. Снова можно в 3:00.');
+    expect(t({ key: 'oral', n: [9, 3, 12] })).toBe('Устные: 9 сверить с пунктами, 3 ответить вслух с проверкой. Проверка стоит 12 единиц ИИ.');
     expect(t({ key: 'done', n: [128, 61] })).toBe('На сегодня всё: 128 вопросов за 61 минуту.');
-    expect(t({ key: 'nothing', n: [4], day: '2026-10-14' })).toBe('На сегодня всё. Следующие вопросы — 14 октября.');
-    expect(t({ key: 'nothing', n: [1], day: '2026-10-11' })).toBe('На сегодня всё. Следующие вопросы — завтра.');
+    expect(t({ key: 'nothing', n: [4], day: '2026-10-14' })).toBe('На сегодня всё. Следующие вопросы 14 октября.');
+    expect(t({ key: 'nothing', n: [1], day: '2026-10-11' })).toBe('На сегодня всё. Следующие вопросы завтра.');
     expect(t({ key: 'first_day' })).toBe('Время уточнится после первых 20 ответов.');
-    expect(t({ key: 'need', n: [960, 70], day: '2026-10-28' })).toBe('Чтобы увидеть все 960 вопросов к 28 октября, нужно около 70 минут в день.');
-    expect(t({ key: 'pace_faster', n: [45] })).toBe('Вы отвечаете быстрее, чем мы считали: хватит 45 минут в день.');
-    expect(t({ key: 'pace_slower', n: [80] })).toBe('Вы отвечаете медленнее, чем мы считали: нужно около 80 минут в день.');
+    expect(t({ key: 'need', n: [960, 70], day: '2026-10-28' })).toBe('Чтобы пройти все 960 вопросов к 28 октября, нужно около 70 минут в день.');
+    expect(t({ key: 'pace_faster', n: [45] })).toBe('Вы отвечаете быстрее, чем мы думали. Хватит 45 минут в день.');
+    expect(t({ key: 'pace_slower', n: [80] })).toBe('Вы отвечаете медленнее, чем мы думали. Нужно около 80 минут в день.');
   });
 
   it('declines with the number', () => {
-    expect(ru(lineText({ key: 'later', n: [1], time: '8:05' }))).toBe('Ещё 1 вопрос — после 8:05');
-    expect(ru(lineText({ key: 'later', n: [22], time: '19:30' }))).toBe('Ещё 22 вопроса — после 19:30');
-    expect(ru(lineText({ key: 'window_detail', n: [1], day: '2026-10-26' }))).toContain('последний день — только знакомые');
-    expect(ru(lineText({ key: 'exam_errors', n: [1] }))).toBe('1 вопрос, где была ошибка');
-    expect(ru(lineText({ key: 'oral_no_lectures', n: [21] }))).toBe('Ещё 21 устный войдёт в план, когда к предмету будут лекции.');
+    expect(ru(lineText({ key: 'later', n: [1], time: '8:05' }))).toBe('Ещё 1 вопрос после 8:05');
+    expect(ru(lineText({ key: 'later', n: [22], time: '19:30' }))).toBe('Ещё 22 вопроса после 19:30');
+    expect(ru(lineText({ key: 'window_detail', n: [1], day: '2026-10-26' }))).toContain('В последний день только знакомые');
+    expect(ru(lineText({ key: 'exam_errors', n: [1] }))).toBe('1 вопрос с ошибкой');
+    expect(ru(lineText({ key: 'oral_no_lectures', n: [21] }))).toBe('Ещё 21 устный появится в плане, когда вы добавите лекции.');
     expect(ru(lineText({ key: 'done', n: [3, 0] }))).toBe('На сегодня всё: 3 вопроса.');
-    expect(ru(lineText({ key: 'short', n: [21, 410, 960, 121], day: '2026-10-28' }))).toBe('При 21 минуте к 28 октября вы увидите около 410 из 960. Чтобы увидеть все, нужно около 121 минуты.');
-    expect(ru(lineText({ key: 'oral', n: [4, 0, 1] }))).toBe('Устные: 4 сверить с пунктами — 1 единица ИИ.');
+    expect(ru(lineText({ key: 'short', n: [21, 410, 960, 121], day: '2026-10-28' }))).toBe('Если заниматься 21 минуту в день, к 28 октября вы пройдёте около 410 из 960. Чтобы пройти все, нужно около 121 минуты в день.');
+    expect(ru(lineText({ key: 'oral', n: [4, 0, 1] }))).toBe('Устные: 4 сверить с пунктами. Проверка стоит 1 единицу ИИ.');
   });
 
   it('what the minutes reach names its count «в плане» when the exam holds more (usability check 2026-10-10, m6)', () => {
     const t = (line: DayPlan['lines'][number]) => ru(lineText(line));
     // The QA's exam: 54 questions, 50 of them in the plan (4 oral wait for lectures).
-    expect(t({ key: 'need', n: [50, 20, 54], day: '2026-10-21' })).toBe('Чтобы увидеть все 50 вопросов в плане к 21 октября, нужно около 20 минут в день.');
+    expect(t({ key: 'need', n: [50, 20, 54], day: '2026-10-21' })).toBe('Чтобы пройти все 50 вопросов в плане к 21 октября, нужно около 20 минут в день.');
     expect(t({ key: 'short', n: [30, 40, 50, 35, 54], day: '2026-10-21' }))
-      .toBe('При 30 минутах к 21 октября вы увидите около 40 из 50 в плане. Чтобы увидеть все, нужно около 35 минут.');
+      .toBe('Если заниматься 30 минут в день, к 21 октября вы пройдёте около 40 из 50 в плане. Чтобы пройти все, нужно около 35 минут в день.');
     expect(t({ key: 'short_max', n: [90, 700, 900, 960], day: '2026-10-28' }))
-      .toBe('Даже при 90 минутах в день к 28 октября вы увидите около 700 из 900 в плане. Чтобы увидеть все, выберите «Все вопросы».');
+      .toBe('Даже если заниматься 90 минут в день, к 28 октября вы пройдёте около 700 из 900 в плане. Чтобы пройти все, выберите «Все вопросы».');
     // every question in the plan, or no size given (the plan's own lines, the bot): the words as before
     expect(t({ key: 'need', n: [960, 70, 960], day: '2026-10-28' })).toBe(t({ key: 'need', n: [960, 70], day: '2026-10-28' }));
     expect(t({ key: 'short', n: [45, 700, 960, 75, 960], day: '2026-10-28' })).toBe(t({ key: 'short', n: [45, 700, 960, 75], day: '2026-10-28' }));
@@ -209,7 +221,7 @@ describe('banned words', () => {
       dayRowText({ from: '2026-10-24', to: '2026-10-27', kind: 'window', minutes: null }),
       dayRowText({ from: '2026-10-28', to: '2026-10-28', kind: 'exam', minutes: null }),
     ];
-    for (const text of texts) for (const [name, re] of BANNED) expect(re.test(text), `${name} in «${text}»`).toBe(false);
+    for (const text of texts) for (const [name, re] of [...BANNED, ...PLAIN_WORDS]) expect(re.test(text), `${name} in «${text}»`).toBe(false);
   });
 });
 
@@ -217,12 +229,12 @@ describe('the plan line, title and detail', () => {
   const now = at('2026-10-10', '09:00');
   const subjects = [{ id: 'a', date: '2026-10-30' }];
 
-  it('before the first answer: «Сегодня около 45 минут: 30 новых и 60 знакомых» and the card title', () => {
+  it('before the first answer: «Сегодня 30 новых и 60 знакомых, около 45 минут» and the card title', () => {
     const plan = planDay(makeInput({ now, subjects, items: testItems('a', 200), budgetMin: 30 }));
     expect(plan.state).toBe('study');
     const min = shownMinutes(plan.counts.leftSec);
     expect(min).toBeLessThanOrEqual(30);
-    expect(ru(planLine(plan))).toBe(`Сегодня около ${min} минут: ${plan.counts.newItems} новых`);
+    expect(ru(planLine(plan))).toBe(`Сегодня ${plan.counts.newItems} новых, около ${min} минут`);
     expect(ru(planTitle(plan))).toBe(`Сегодня ${plan.counts.newItems} вопросов, около ${min} минут`);
     const mixed: DayPlan = { ...plan, counts: { ...plan.counts, newItems: 41, reviews: 101, oral: 12 } };
     expect(ru(planDetail(mixed))).toBe('41 новый, 101 знакомый и 12 устных');
@@ -242,7 +254,7 @@ describe('the plan line, title and detail', () => {
     expect(ru(planLine(done))).toBe('На сегодня всё: 128 вопросов за 61 минуту.');
     expect(ru(planTitle(done))).toBe('На сегодня всё: 128 вопросов за 61 минуту');
     const nothing: DayPlan = { ...plan, state: 'nothing', lines: [{ key: 'nothing', n: [4], day: '2026-10-14' }] };
-    expect(ru(planLine(nothing))).toBe('На сегодня всё. Следующие вопросы — 14 октября.');
+    expect(ru(planLine(nothing))).toBe('На сегодня всё. Следующие вопросы 14 октября.');
     expect(planLine({ ...plan, state: 'exam_today', lines: [] })).toBe('Сегодня экзамен.');
     expect(ru(planLine({ ...plan, state: 'after', lines: [{ key: 'after', day: '2026-10-28' }] }))).toBe('Экзамен прошёл 28 октября.');
     expect(planLine({ ...plan, state: 'empty' })).toBe('');
@@ -258,20 +270,20 @@ describe('the plan line, title and detail', () => {
 });
 
 describe('figure lines', () => {
-  it('N ≥ 1: the number, «из M», the caption and «Видели · ошибок сейчас»', () => {
+  it('N ≥ 1: the number, «из M», the caption and «Видели · N ошибок»', () => {
     expect(figureLines({ inPlan: 960, twoDays: 143, seen: 410, errors: 37, selfKnow: 0 }, null)).toEqual({
-      big: '143', of: 'из 960', label: TWO_DAYS, under: 'Видели 410 · ошибок сейчас 37',
+      big: '143', of: 'из 960', label: TWO_DAYS, under: 'Видели 410 · 37 ошибок',
     });
-    expect(figureRow({ inPlan: 960, twoDays: 143, seen: 410, errors: 37, selfKnow: 0 })).toBe('Верно в два разных дня: 143 из 960');
+    expect(figureRow({ inPlan: 960, twoDays: 143, seen: 410, errors: 37, selfKnow: 0 })).toBe('Выучено 143 из 960');
   });
 
   it('N = 0 after answers: no big zero; the dated first-count line (decision 40)', () => {
     const f = { inPlan: 960, twoDays: 0, seen: 60, errors: 9, selfKnow: 0 };
     expect(figureLines(f, '2026-10-11', { today: '2026-10-10', time: '17:00' })).toEqual({
-      big: '', of: '', label: 'Первые войдут в счёт завтра после 17:00 — если снова ответите верно', under: 'Видели 60 · ошибок сейчас 9',
+      big: '', of: '', label: 'Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены', under: 'Видели 60 · 9 ошибок',
     });
-    expect(ru(figureLines(f, '2026-10-11').label)).toBe('Первые войдут в счёт 11 октября — если снова ответите верно');
-    expect(figureLines(f, '2026-10-10', { today: '2026-10-10' }).label).toBe('Первые войдут в счёт сегодня — если снова ответите верно');
+    expect(ru(figureLines(f, '2026-10-11').label)).toBe('Ответьте верно ещё раз 11 октября, и первые вопросы будут выучены');
+    expect(figureLines(f, '2026-10-10', { today: '2026-10-10' }).label).toBe('Ответьте верно ещё раз сегодня, и первые вопросы будут выучены');
     expect(figureLines(f, null).label).toBe(RULE_LINE);
   });
 
@@ -295,9 +307,9 @@ describe('«Все вопросы» (the choice after 90 minutes, 2026-10-14)', 
 
   it('says the count, the new ones a day and the hours a day', () => {
     expect(t({ key: 'all', n: [1120, 560, 455, 1120], day: '2026-10-15' }))
-      .toBe('Все 1120 вопросов — к 15 октября: около 560 новых в день, около 7,5 часа в день.');
-    expect(t({ key: 'all', n: [1120, 560, 420, 1124] })).toBe('Все 1120 вопросов в плане: около 560 новых в день, около 7 часов в день.');
-    expect(t({ key: 'all', n: [480, 0, 50, 480] })).toBe('Новых вопросов не осталось: ошибки и вторая проверка, около 50 минут в день.');
+      .toBe('Все 1120 вопросов к 15 октября. Около 560 новых в день, около 7,5 часа в день.');
+    expect(t({ key: 'all', n: [1120, 560, 420, 1124] })).toBe('Все 1120 вопросов в плане. Около 560 новых в день, около 7 часов в день.');
+    expect(t({ key: 'all', n: [480, 0, 50, 480] })).toBe('Новых вопросов не осталось. Только ошибки и повтор, около 50 минут в день.');
   });
 
   it('reads 3 hours and more in hours, to the half hour; below that in minutes', () => {
@@ -307,7 +319,7 @@ describe('«Все вопросы» (the choice after 90 minutes, 2026-10-14)', 
     expect(t({ key: 'done', n: [560, 430] })).toBe('На сегодня всё: 560 вопросов за 7 часов.');
     expect(t({ key: 'done', n: [560, 455] })).toBe('На сегодня всё: 560 вопросов за 7,5 часа.');
     expect(t({ key: 'short', n: [45, 150, 1120, 610], day: '2026-10-17' }))
-      .toBe('При 45 минутах к 17 октября вы увидите около 150 из 1120. Чтобы увидеть все, нужно около 10 часов.');
+      .toBe('Если заниматься 45 минут в день, к 17 октября вы пройдёте около 150 из 1120. Чтобы пройти все, нужно около 10 часов в день.');
   });
 });
 
@@ -315,7 +327,7 @@ describe('«План по дням» rows', () => {
   it('groups equal days and promises no minutes in the final window', () => {
     expect(ru(dayRowText({ from: '2026-10-10', to: '2026-10-23', kind: 'study', minutes: 45 }))).toBe('10–23 октября — около 45 минут в день');
     expect(ru(dayRowText({ from: '2026-10-10', to: '2026-10-10', kind: 'study', minutes: 45 }))).toBe('10 октября — около 45 минут');
-    expect(ru(dayRowText({ from: '2026-10-24', to: '2026-10-27', kind: 'window', minutes: null }))).toBe('24–27 октября — новых нет, только знакомые, сначала ошибки');
+    expect(ru(dayRowText({ from: '2026-10-24', to: '2026-10-27', kind: 'window', minutes: null }))).toBe('24–27 октября — только знакомые, сначала ошибки');
     expect(ru(dayRowText({ from: '2026-10-28', to: '2026-10-28', kind: 'exam', minutes: null }))).toBe('28 октября — экзамен');
     expect(ru(dayRowText({ from: '2026-10-10', to: '2026-10-12', kind: 'study', minutes: null }))).toBe('10–12 октября — только знакомые');
     expect(SKIP_NOTE).toBe('Если пропустите день, его вопросы перейдут на следующие.');
@@ -325,7 +337,7 @@ describe('«План по дням» rows', () => {
     expect(ru(dayRowText({ from: '2026-10-10', to: '2026-10-10', kind: 'study', minutes: 30, oral: true }))).toBe('10 октября — около 30 минут, с устными');
     expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-17', kind: 'study', minutes: 20, oral: true }))).toBe('11–17 октября — около 20 минут в день, с устными');
     expect(ru(dayRowText({ from: '2026-10-18', to: '2026-10-20', kind: 'window', minutes: null, oral: true })))
-      .toBe('18–20 октября — новых нет, только знакомые, с устными, сначала ошибки');
+      .toBe('18–20 октября — только знакомые, с устными, сначала ошибки');
     expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-12', kind: 'study', minutes: null, oral: true }))).toBe('11–12 октября — только знакомые, с устными');
     expect(ru(dayRowText({ from: '2026-10-21', to: '2026-10-21', kind: 'exam', minutes: null, oral: true }))).toBe('21 октября — экзамен');
     expect(ru(dayRowText({ from: '2026-10-11', to: '2026-10-17', kind: 'study', minutes: 20, oral: false }))).toBe('11–17 октября — около 20 минут в день');
@@ -337,16 +349,16 @@ describe('«Как можно быстрее» (owner, 2026-10-14: «выучи�
 
   it('on «Все вопросы»: the day everything is seen and how long it takes', () => {
     expect(t({ key: 'fast_all', n: [960, 970, 960, 0], day: '2026-10-14' }))
-      .toBe('Все 960 вопросов — сегодня: около 16 часов. На следующий день — повтор тех, на которые ответили верно.');
+      .toBe('Все 960 вопросов сегодня, около 16 часов. На следующий день повторим те, на которые вы ответили верно.');
     expect(t({ key: 'fast_all', n: [160, 140, 164, 1], day: '2026-10-15' }))
-      .toBe('Все 160 вопросов в плане — завтра: около 140 минут. На следующий день — повтор тех, на которые ответили верно.');
+      .toBe('Все 160 вопросов в плане завтра, около 140 минут. На следующий день повторим те, на которые вы ответили верно.');
   });
 
   it('with minutes: the day all are seen and how many study days it takes', () => {
     expect(t({ key: 'fast_days', n: [60, 960, 9, 960, 9], day: '2026-10-23' }))
-      .toBe('При 60 минутах в день все 960 вопросов вы увидите к 23 октября — за 9 дней занятий.');
-    expect(t({ key: 'fast_days', n: [90, 40, 1, 44, 0], day: '2026-10-14' })).toBe('При 90 минутах в день все 40 вопросов в плане вы увидите сегодня.');
+      .toBe('Если заниматься 60 минут в день, вы пройдёте все 960 вопросов к 23 октября, за 9 дней занятий.');
+    expect(t({ key: 'fast_days', n: [90, 40, 1, 44, 0], day: '2026-10-14' })).toBe('Если заниматься 90 минут в день, вы пройдёте все 40 вопросов в плане сегодня.');
     expect(t({ key: 'fast_days', n: [45, 160, 2, 160, 2], day: '2026-10-16' }))
-      .toBe('При 45 минутах в день все 160 вопросов вы увидите к 16 октября — за 2 дня занятий.');
+      .toBe('Если заниматься 45 минут в день, вы пройдёте все 160 вопросов к 16 октября, за 2 дня занятий.');
   });
 });

@@ -237,10 +237,10 @@ describe('ImportPage: one door for every file', () => {
     upload(['Тесты_две_дисциплины.docx']);
     expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 18\sвопросов/ })).toBeInTheDocument();
     expect(screen.getByText(/Без даты|Дату можно не указывать/)).toBeInTheDocument();
-    expect(screen.queryByText(/вы увидите/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/вы пройдёте/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('combobox', { name: 'Новые вопросы' }));
     fireEvent.click(await screen.findByRole('option', { name: 'Как можно быстрее' }));
-    expect(screen.getByText(/^При 60\sминутах в\sдень все 18\sвопросов вы увидите (сегодня|завтра)\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Если заниматься 60\sминут в\sдень, вы пройдёте все 18\sвопросов (сегодня|завтра)\./)).toBeInTheDocument();
     expect(screen.queryByText(/Дату можно не указывать/)).not.toBeInTheDocument();
     fireEvent.click(saveButton());
     await waitFor(() => expect(where).toBe('/exams/c/c-1'));
@@ -581,18 +581,18 @@ describe('ImportPage: one door for every file', () => {
       renderAt();
       upload(['Две.docx']);
       await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
-      expect(screen.queryByText(/Чтобы увидеть все/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Чтобы пройти все/)).not.toBeInTheDocument();
       fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '2026-10-28' } });
       // With a date the minutes start at the smallest option that is enough.
-      expect(await screen.findByText(/^Чтобы увидеть все 18\sвопросов к 28\sоктября, нужно около 75\sминут в день\./)).toBeInTheDocument();
+      expect(await screen.findByText(/^Чтобы пройти все 18\sвопросов к 28\sоктября, нужно около 75\sминут в день\./)).toBeInTheDocument();
       expect(screen.getByRole('combobox', { name: 'Время в день' })).toHaveTextContent(/90\sминут/);
       fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
       fireEvent.click(await screen.findByRole('option', { name: /^45\sминут$/ }));
       expect(
-        await screen.findByText(/При 45\sминутах к 28\sоктября вы увидите около 14 из 18\. Чтобы увидеть все, нужно около 75\sминут\./),
+        await screen.findByText(/Если заниматься 45\sминут в день, к 28\sоктября вы пройдёте около 14 из 18\. Чтобы пройти все, нужно около 75\sминут в день\./),
       ).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
-      expect(screen.getByText(/С 24\sоктября новых вопросов не будет: последние 4\sдня — только знакомые, сначала ошибки\./)).toBeInTheDocument();
+      expect(screen.getByText(/С 24\sоктября новых вопросов не будет\. В последние 4\sдня только знакомые, сначала ошибки\./)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -782,7 +782,7 @@ describe('ImportPage: an oral exam the student has joins an exam (usability chec
       expect(minutesLine()).toBeNull();
       act(() => read([oralPart(16)]));
       // 18 from the file and 16 of its 20 in the plan; the exam will hold 38.
-      await waitFor(() => expect(minutesLine()).toMatch(/^Чтобы увидеть все 34 вопроса в плане к 21 октября, нужно около 20 минут в день\./));
+      await waitFor(() => expect(minutesLine()).toMatch(/^Чтобы пройти все 34 вопроса в плане к 21 октября, нужно около 20 минут в день\./));
       fireEvent.click(saveButton());
       await waitFor(() => expect(api.createContainer).toHaveBeenCalled());
       expect(api.createContainer).toHaveBeenCalledWith('Базы данных', '2026-10-21', [

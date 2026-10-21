@@ -41,7 +41,10 @@ const minAcc = (n: number) => `${n} ${pl(n, 'минуту', 'минуты', 'м�
 /** «45 минут в день», «34 минуты». */
 export const minNom = (n: number) => `${n} ${pl(n, 'минута', 'минуты', 'минут')}`;
 
-export const TWO_DAYS = 'верно в два разных дня';
+/** The figure's word (the owner's plain words, 2026-10-21): «143 из 960 выучено»; the rule is behind «Как считается». */
+export const TWO_DAYS = 'выучено';
+/** The figure's region, as a screen reader names it. */
+export const FIGURE_LABEL = 'Выученные вопросы';
 /** « · » between parts of a line: the dot stays with the word before it when the line wraps. */
 export const SEP = `${NBSP}· `;
 
@@ -51,7 +54,7 @@ export const LOADING = 'Загружаем экзамен…';
 export const LOAD_FAILED = 'Не удалось загрузить экзамен';
 export const RETRY = 'Повторить';
 export const UNAVAILABLE_TITLE = 'Экзамен пока не открывается';
-export const UNAVAILABLE_TEXT = 'Эта часть Meldy ещё обновляется. Загляните чуть позже.';
+export const UNAVAILABLE_TEXT = 'Мы обновляем эту часть Meldy. Зайдите чуть позже.';
 export const TO_EXAMS = 'Экзамены';
 export const SUBJECT_MISSING = 'Такого предмета в экзамене нет.';
 
@@ -84,9 +87,11 @@ export function metaLine(day: string, questions: number, subjects: number | null
 
 // The plan card (decision 46): the title and the lines are the plan's words (lib/containers/words.ts).
 export const PLAN_BY_DAYS = 'План по дням';
-export const ONLY_ERRORS = (n: number) => glue(`Только ошибки: ${n}`);
+/** «Повторить 3 ошибки»: the button says what it does (the owner's plain words, 2026-10-21). */
+export const errorsN = (n: number) => `${n} ${pl(n, 'ошибку', 'ошибки', 'ошибок')}`;
+export const ONLY_ERRORS = (n: number) => glue(`Повторить ${errorsN(n)}`);
 export const MOCK_LINK = 'Как на экзамене';
-export const SUBJECT_DONE = 'На сегодня здесь всё.';
+export const SUBJECT_DONE = 'На сегодня всё.';
 export const EXAM_TODAY = 'Сегодня экзамен.';
 export const SET_NEW_DATE = 'Поставить новую дату';
 export const DELETE_EXAM_LINK = 'Удалить экзамен';
@@ -99,21 +104,21 @@ export const HOW_COUNTED = 'Как считается';
 export function howCounted(dueDays: readonly number[]): string[] {
   const days = dueDays.length > 1 ? `${dueDays.slice(0, -1).join(', ')} и ${dueDays[dueDays.length - 1]}` : String(dueDays[0] ?? 5);
   return [
-    'В счёт идёт вопрос, на который вы ответили верно в два разных дня — между ответами не меньше 20 часов. Ошибка начинает счёт заново.',
-    'С вариантами — верно, если выбран ответ из файла. Устный — если в проверенных ответах в два разных дня вы назвали все главные пункты из своих лекций; самопроверка в счёт не идёт.',
-    `Вопросы в счёте возвращаются через ${days} дней, а в последние дни перед экзаменом — все.`,
-    'Видели — был хотя бы один ответ. Ошибки сейчас — последний ответ неверный.',
+    'Вопрос выучен, когда вы ответили на него верно в два разных дня. Между ответами должно пройти 20 часов. После ошибки вопрос учим заново.',
+    'В вопросе с вариантами верен ответ из файла. Устный вопрос выучен, когда в двух проверках в разные дни вы назвали все главные пункты из лекций. Самопроверку не считаем.',
+    `Выученные вопросы повторяем через ${days} дней. В последние дни перед экзаменом повторяем все.`,
+    '«Видели» — вы ответили хотя бы раз. «Ошибки» — последний ответ был неверным.',
   ].map(glue);
 }
 
 // Subject and topic rows (rows of one card, phone rule 8).
 /**
- * «видели 40 из 373», then «в счёте 12» once a question counts. A bare «0 из 373» after 40 answers read as «nothing
+ * «видели 40 из 373», then «выучено 12» once a question counts. A bare «0 из 373» after 40 answers read as «nothing
  * seen» (the owner, 2026-10-14): the row names both numbers, as the figure's small line does.
  */
 function progress(seen: number, total: number, twoDays: number): string[] {
   const shown = [`видели ${Math.min(seen, total)} из ${total}`];
-  if (twoDays > 0) shown.push(`в счёте ${twoDays}`);
+  if (twoDays > 0) shown.push(`выучено ${twoDays}`);
   return shown;
 }
 /** A row's parts never break inside («сегодня / 22» on a phone): the line wraps only after « · ». */
@@ -143,7 +148,7 @@ export function subjectRowOral(p: { twoDays: number; seen: number; inPlan: numbe
 export const subjectRowEmpty = 'вопросов пока нет';
 export function topicRow(p: { twoDays: number; keyed: number; seen: number; errors: number }): string {
   if (p.seen === 0) return 'не начинали';
-  return rowLine([...progress(p.seen, p.keyed, p.twoDays), ...(p.errors > 0 ? [`ошибок ${p.errors}`] : [])]);
+  return rowLine([...progress(p.seen, p.keyed, p.twoDays), ...(p.errors > 0 ? [`${p.errors} ${pl(p.errors, 'ошибка', 'ошибки', 'ошибок')}`] : [])]);
 }
 export const oralSheetRow = (n: number) => glue(`Шпаргалка к ${n} ${pl(n, 'устному вопросу', 'устным вопросам', 'устным вопросам')}`);
 export const TOPICS_LABEL = 'Темы';
@@ -151,22 +156,22 @@ export const SUBJECTS_LABEL = 'Предметы';
 
 // Notes under the rows and in the card (each one line, phone rule 5).
 export function noKeyLine(n: number): string {
-  return glue(`${q(n)} без ключа ${pl(n, 'не идёт', 'не идут', 'не идут')} в занятия.`);
+  return glue(`${q(n)} без ключа ${pl(n, 'не попадёт', 'не попадут', 'не попадут')} в занятия.`);
 }
 export const MARK_ANSWERS = 'Отметить ответы';
-export const doubtsLine = (n: number) => glue(`Сомневаются в ключе: ${q(n)}.`);
+export const doubtsLine = (n: number) => glue(`В ${n} ${pl(n, 'вопросе', 'вопросах', 'вопросах')} сомневаются в ключе.`);
 export const LOOK = 'Посмотреть';
-export const setAsideLine = (n: number) => glue(`${pl(n, 'Отложен', 'Отложено', 'Отложено')} ${q(n)} — вы сомневаетесь в ключе.`);
+export const setAsideLine = (n: number) => glue(`${q(n)} ${pl(n, 'отложен', 'отложено', 'отложено')}, вы сомневаетесь в ключе.`);
 export const RETURN_TO_PLAN = 'Вернуть в занятия';
 export function keyFixedLine(n: number): string {
-  return glue(`Автор исправил ключ в ${n} ${pl(n, 'вопросе', 'вопросах', 'вопросах')} — счёт по ${pl(n, 'нему', 'ним', 'ним')} начнётся заново.`);
+  return glue(`Автор исправил ключ в ${n} ${pl(n, 'вопросе', 'вопросах', 'вопросах')}. ${pl(n, 'Его', 'Их', 'Их')} нужно выучить заново.`);
 }
 export const OFFLINE_PAGE = 'Нет сети. Вопросы на сегодня сохранены, заниматься можно.';
 export const ADD_LECTURES = 'Добавить лекции';
 /** The re-estimate of the pace (Concept 2 §3.6): «Поставить 45» / «Оставить 60». */
 export const paceSet = (minutes: number) => `Поставить ${minutes}`;
 export const paceKeep = (minutes: number) => `Оставить ${minutes}`;
-export const SAVE_FAILED = 'Не сохранилось. Проверьте связь и повторите.';
+export const SAVE_FAILED = 'Не сохранилось. Проверьте интернет и попробуйте ещё раз.';
 
 // «⋯» of the exam and of a subject (decision 44, the critique's I9: one «Настройки»).
 export const MENU_LABEL_EXAM = 'Ещё: экзамен';
@@ -192,10 +197,10 @@ export const MEMBERS_WHO = 'Кто вошёл';
 export const MINUTES_TITLE = 'Время в день';
 export const MINUTES_SAVING = 'Сохраняем…';
 export const minutesSaved = (minutes: number) =>
-  glue(minutes >= ALL_QUESTIONS_MIN ? 'Сохранено: все вопросы в день. План пересчитан.' : `Сохранено: ${minNom(minutes)} в день. План пересчитан.`);
-export const TEMPO_SAVED = 'Сохранено. План пересчитан.';
+  glue(minutes >= ALL_QUESTIONS_MIN ? 'Сохранено. Теперь все вопросы в день.' : `Сохранено. Теперь ${minNom(minutes)} в день.`);
+export const TEMPO_SAVED = 'Сохранено. План обновлён.';
 export const MINUTES_DONE = 'Готово';
-export const MINUTES_MORE = 'Дни занятий и дата — в настройках';
+export const MINUTES_MORE = 'Дни занятий и дату можно поменять в настройках';
 export const CANCEL = 'Отмена';
 export const removeSubjectTitle = (title: string) => `Убрать предмет «${title}»?`;
 export const REMOVE_SUBJECT_TEXT = 'Его вопросы и ответы по ним пропадут.';
@@ -232,10 +237,10 @@ export const CHANGE = 'Изменить';
 
 // The topic sheet (Concept 1 §3.4).
 export function topicSheetMeta(p: { keyed: number; twoDays: number; errors: number }): string {
-  return glue([q(p.keyed), `${TWO_DAYS} ${p.twoDays}`, ...(p.errors > 0 ? [`ошибок ${p.errors}`] : [])].join(SEP));
+  return glue([q(p.keyed), `${TWO_DAYS} ${p.twoDays}`, ...(p.errors > 0 ? [`${p.errors} ${pl(p.errors, 'ошибка', 'ошибки', 'ошибок')}`] : [])].join(SEP));
 }
 export const topicStart = (n: number) => glue(`Начать ${q(n)} по теме`);
-export const TOPIC_EMPTY = 'Вопросы этой темы сегодня уже были — они вернутся завтра.';
+export const TOPIC_EMPTY = 'Эту тему сегодня уже прошли. Продолжим завтра.';
 
 // ─────────────────────────────────────────────── the «занятие»
 
@@ -243,7 +248,7 @@ export const FINISH = 'Закончить';
 export const NEXT = 'Дальше';
 export const ANSWER = 'Ответить';
 export const DONT_KNOW = 'Не знаю';
-export const RETRY_TAG = 'повтор, не в счёт';
+export const RETRY_TAG = 'повтор, не считается';
 export const ORAL_TAG = 'устно';
 export const counter = (pos: number, total: number) => glue(`${pos} из ${total}`);
 export const fileNo = (no: string) => glue(`№ ${no}`);
@@ -263,7 +268,7 @@ export const verdictRightAll = (n: number) => glue(`Верно: ${n === 2 ? 'о�
  * The return, after a wrong answer or «Не знаю»: in this session and on `when`, or on `when` only. `when` is «завтра»,
  * or the next study day when tomorrow is a day off («в понедельник», model.ts comesBackWhen).
  */
-export const comesBack = (again: boolean, when = 'завтра') => (again ? `Вернётся через пару вопросов и ${when}.` : `Вернётся ${when}.`);
+export const comesBack = (again: boolean, when = 'завтра') => (again ? `Повторим через пару вопросов и ${when}.` : `Повторим ${when}.`);
 /** Several keys are named while their words fit this; past it the verdict points to the options marked above. */
 const KEY_NAMES_MAX = 90;
 /** A name that ends a sentence itself («…», «?», «;») takes no period after it. */
@@ -289,8 +294,8 @@ function inFile(names: string[], source?: string | null): string {
   const n = names.length;
   if (list.length > KEY_NAMES_MAX) {
     return file
-      ? `В файле верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')} — они отмечены выше.`
-      : `Верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')} — они отмечены выше.`;
+      ? `В файле верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')}, они отмечены выше.`
+      : `Верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')}, они отмечены выше.`;
   }
   return sentence(file ? `В файле верны: ${list}` : `Верные ответы: ${list}`);
 }
@@ -306,23 +311,23 @@ export function verdictShortWrong(answer: string, again: boolean, when?: string,
 }
 export const shortDontKnow = (answer: string, again: boolean, when?: string, source?: string | null) => glue(`${inFile([answer], source)} ${comesBack(again, when)}`);
 /** After the author changed the key in place (decision 14): the panel says what changed; this answer is not sent. */
-export const VERDICT_KEY_FIXED = 'Этот ответ в счёт не идёт.';
+export const VERDICT_KEY_FIXED = 'Этот ответ не считаем.';
 /** «Нажали не туда?»: no mistake, but the answer was seen, so the question comes back on `when` (as comesBack). */
-export const misclickLine = (when = 'завтра') => `Ошибку не считаем. Ответ вы уже видели, поэтому вопрос вернётся ${glue(when)}.`;
+export const misclickLine = (when = 'завтра') => `Ошибку не считаем. Ответ вы уже видели, поэтому повторим вопрос ${glue(when)}.`;
 function listLetters(names: string[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}` : names.join('');
 }
 export const MISCLICK = 'Нажали не туда?';
 export const DOUBT = 'Сомневаюсь в ключе';
 export const KEY_WRONG = 'Ключ неверный?';
-export const NOTE_MANUAL_AUTHOR = glue('В файле ответ не был выделен — ключ поставил автор.');
-export const NOTE_MANUAL_OWN = glue('В файле ответ не был выделен — ключ поставили вы.');
-export const noteKeyFixed = (dayText: string) => glue(`Ключ исправлен автором ${dayText}.`);
-export const OFFLINE_STUDY = 'Нет сети. Ответы сохранятся на этом устройстве и уйдут, когда сеть появится.';
+export const NOTE_MANUAL_AUTHOR = glue('В файле ответ не был выделен. Ключ поставил автор.');
+export const NOTE_MANUAL_OWN = glue('В файле ответ не был выделен. Ключ поставили вы.');
+export const noteKeyFixed = (dayText: string) => glue(`Автор исправил ключ ${dayText}.`);
+export const OFFLINE_STUDY = 'Нет сети. Ответы сохраним здесь и отправим, когда сеть появится.';
 export const KEYS_HINT = glue('1–8 — ответ · 0 — не знаю · Enter — дальше · Backspace — нажали не туда');
-export const SESSION_LOADING = 'Собираем занятие…';
-export const SESSION_EMPTY = 'На сегодня здесь всё.';
-export const ERRORS_EMPTY = 'Ошибок сейчас нет.';
+export const SESSION_LOADING = 'Загружаем вопросы…';
+export const SESSION_EMPTY = 'На сегодня всё.';
+export const ERRORS_EMPTY = 'Ошибок нет.';
 export const BACK_TO_EXAM = 'Вернуться к экзамену';
 export const OPTION_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З'] as const;
 export const PICTURE_FAILED = 'Картинка не загрузилась.';
@@ -337,31 +342,31 @@ export const keyFixPromptShort = (no: string) => glue(`Сверьте № ${no} 
 export const ADD_YOUR_ANSWER = 'Добавить ваш ответ к ключу';
 export const SAVE_KEY = 'Сохранить ключ';
 export const keyChanged = (group: boolean) =>
-  group ? 'Ключ изменён. Счёт по этому вопросу начнётся заново, у вас и у группы.' : 'Ключ изменён. Счёт по этому вопросу начнётся заново.';
+  group ? 'Ключ изменён. Вам и группе нужно выучить этот вопрос заново.' : 'Ключ изменён. Этот вопрос нужно выучить заново.';
 export const KEY_SAME = 'Это и есть ключ из файла.';
 export const doubtTitle = (no: string) => glue(`Сомневаюсь в ключе · № ${no}`);
 export const DOUBT_MEMBER_TEXT = 'Автор увидит число отметок и комментарии, но не имена.';
-export const DOUBT_OWN_TEXT = 'Вопрос отложится: в занятия он не придёт, пока вы не решите в «Вопросах и ключах».';
+export const DOUBT_OWN_TEXT = 'Вопроса не будет в занятиях, пока вы не решите в «Вопросах и ключах».';
 export const DOUBT_NOTE_LABEL = 'Комментарий';
 export const DOUBT_PLACEHOLDER = 'Например: в лекции сказано иначе';
 export const DOUBT_SEND = 'Отметить';
-export const DOUBT_DONE_MEMBER = 'Отложено. Когда автор ответит, вопрос вернётся в занятия.';
-export const DOUBT_DONE_OWN = 'Отложено: вопрос не придёт в занятия, пока вы не решите. Он в «Вопросах и ключах».';
+export const DOUBT_DONE_MEMBER = 'Вопрос отложен. Когда автор ответит, он снова будет в занятиях.';
+export const DOUBT_DONE_OWN = 'Вопрос отложен, пока вы не решите. Он в «Вопросах и ключах».';
 
 // The oral turn: a free self-check (decisions 19, 51; Concept 1 §3.8 with the critique's lines).
 export const oralNumber = (label: string) => `Вопрос ${label}`;
-export const RECALL = glue('Вспомните ответ — вслух или про себя.');
+export const RECALL = glue('Вспомните ответ вслух или про себя.');
 export const SHOW_POINTS = 'Показать пункты';
 export const POINTS_TITLE = 'Пункты из ваших лекций';
-export const NO_POINTS = 'Пунктов пока нет: к предмету не добавлены лекции.';
+export const NO_POINTS = 'Пунктов пока нет. Добавьте к предмету лекции.';
 export const HOW_ANSWERED = 'Как вы ответили?';
 export const RATE_KNOW = 'Знаю';
 export const RATE_UNSURE = 'Плаваю';
 export const RATE_DONT_KNOW = 'Не знаю';
-export const SELF_CHECK_NOTE = 'Самопроверка в счёт не идёт: она решает, когда вопрос вернётся.';
-export const ORAL_OFFLINE = 'Устные — когда появится сеть: их пункты не сохранены на этом устройстве.';
+export const SELF_CHECK_NOTE = 'Отметка решает, когда повторим вопрос. Выученным он от неё не станет.';
+export const ORAL_OFFLINE = 'Для устных вопросов нужна сеть.';
 export const ORAL_LOADING = 'Загружаем пункты…';
-export const RATING_FAILED = 'Отметка не сохранена. Повторите.';
+export const RATING_FAILED = 'Отметка не сохранилась. Нажмите ещё раз.';
 
 // ─────────────────────────────────────────────── the end of a session (decision 49)
 
@@ -370,39 +375,48 @@ export function sessionTime(questions: number, retries: number, minutes: number)
   const what = retries > 0 ? `${q(questions)} и ${retries} ${pl(retries, 'повтор', 'повтора', 'повторов')}` : q(questions);
   return glue(`${what} за ${minAcc(m)}`);
 }
-export const nowFigure = (n: number, total: number) => glue(`Теперь ${n} из ${total} — ${TWO_DAYS}`);
-/** The headline in three parts, the figure marked: [«Теперь », «147 из 960», « — верно в два разных дня»]. */
-export const nowFigureParts = (n: number, total: number): [string, string, string] => ['Теперь ', glue(`${n} из ${total}`), glue(` — ${TWO_DAYS}`)];
-export const firstRight = (n: number, of: number) => glue(`Верно с первого раза — ${n} из ${of}.`);
+/** The headline when the figure moved: «Выучено 46 вопросов из 240» (the result, not the rule; the owner, 2026-10-21). */
+export const nowFigure = (n: number, total: number) => glue(`${pl(n, 'Выучен', 'Выучено', 'Выучено')} ${q(n)} из ${total}`);
+/** The headline in three parts, the figure marked: [«Выучено », «147 вопросов из 960», «»]. */
+export const nowFigureParts = (n: number, total: number): [string, string, string] => [`${pl(n, 'Выучен', 'Выучено', 'Выучено')} `, glue(`${q(n)} из ${total}`), ''];
+/** «17 из 20 верно.»: the answers right the first time in this session (a retry does not count). */
+export const firstRight = (n: number, of: number) => glue(`${n} из ${of} верно.`);
+/** «17 из 20 верно за 11 минут»: the session's result and its time in one line. */
+export function rightIn(n: number, of: number, minutes: number): string {
+  return glue(`${n} из ${of} верно за ${minAcc(Math.max(1, minutes))}`);
+}
 /**
  * `when` on the lines below: «завтра», or the next study day («в понедельник», model.ts comesBackWhen) when tomorrow
  * is not one of the student's days of the week — the plan brings nothing back on a day off.
  */
-export const errorsBack = (n: number, when = 'завтра') => glue(`${n} ${pl(n, 'ошибка вернётся', 'ошибки вернутся', 'ошибок вернутся')} ${when}.`);
+export const errorsBack = (n: number, when = 'завтра') => glue(`${errorsN(n)} повторим ${when}.`);
+/** Questions that counted and got a mistake today: they are learned again from the start. */
 export function droppedLine(n: number): string {
   return glue(
-    `В ${n} ${pl(n, 'вопросе, который был', 'вопросах, которые были', 'вопросах, которые были')} в счёте, сегодня ошибка: счёт по ${pl(n, 'нему', 'ним', 'ним')} начнётся заново.`,
+    `${n} ${pl(n, 'выученный вопрос', 'выученных вопроса', 'выученных вопросов')} снова с ошибкой. ${pl(n, 'Его', 'Их', 'Их')} нужно выучить заново.`,
   );
 }
+/** Right again, but sooner than 20 hours after the last right answer: the short reason and when to answer. */
 export function tooEarlyLine(n: number, time: string | null, day = 'завтра'): string {
   const when = time ? `после ${time}` : day;
   return glue(
-    `На ${q(n)} вы снова ответили верно, но раньше чем через 20 часов: ${pl(n, 'он войдёт', 'они войдут', 'они войдут')} в счёт, если ответите ${when}.`,
+    `${q(n)} ещё не ${pl(n, 'выучен', 'выучены', 'выучены')}, с прошлого верного ответа не прошло 20 часов. Ответьте ещё раз ${when}.`,
   );
 }
+/** While nothing counts yet (decision 40): what to do, and when, for the first questions to be learned. */
 export const firstCountLine = (time: string | null, when = 'завтра') =>
-  glue(time ? `Первые войдут в счёт ${when} после ${time} — если снова ответите верно.` : `Первые войдут в счёт ${when} — если снова ответите верно.`);
+  glue(`Ответьте верно ещё раз ${when}${time ? ` после ${time}` : ''}, и первые вопросы будут выучены.`);
 export function selfCheckLine(know: number, unsure: number, dontKnow: number): string {
-  return glue(`«Знаю» — ${know}${SEP}«плаваю» — ${unsure}${SEP}«не знаю» — ${dontKnow}. ${SELF_CHECK_NOTE}`);
+  return glue(`«Знаю» — ${know}, «плаваю» — ${unsure}, «не знаю» — ${dontKnow}. ${SELF_CHECK_NOTE}`);
 }
 export function leftToday(questions: number, minutes: number): string {
   return glue(`Сегодня ${pl(questions, 'остался', 'осталось', 'осталось')} ${q(questions)}, около ${minGen(Math.max(1, minutes))}.`);
 }
 export const moreQuestions = (n: number) => glue(`Ещё ${q(n)}`);
-export const nextSubject = (subject: string, n: number) => glue(`Дальше: ${subject} — ${q(n)}`);
+export const nextSubject = (subject: string, n: number) => glue(`Дальше: ${subject}, ${q(n)}`);
 /** The exam page's pill when more than one subject has work today: the subject named, as the end screen names it. */
-export const startSubject = (subject: string, n: number) => glue(`Начать: ${subject} — ${q(n)}`);
-export const aloudSubject = (subject: string, n: number) => glue(`Ответить вслух: ${subject} — ${q(n)}`);
+export const startSubject = (subject: string, n: number) => glue(`Начать: ${subject}, ${q(n)}`);
+export const aloudSubject = (subject: string, n: number) => glue(`Ответить вслух: ${subject}, ${q(n)}`);
 export const DONE = 'Готово';
 
 // ─────────────────────────────────────────────── «Как на экзамене» (decisions 20, 36, 53)
@@ -411,10 +425,10 @@ export const MOCK_TITLE = 'Как на экзамене';
 export const MOCK_COUNT = 'Вопросов';
 export const MOCK_MINUTES = 'Минут';
 export const MOCK_NO_LIMIT = 'без времени';
-export const MOCK_RULE = 'Ответы можно менять до «Завершить»; итог покажем после.';
+export const MOCK_RULE = 'Ответы можно менять до конца. Результат покажем после «Завершить».';
 export const mockLast = (dayText: string, correct: number, items: number) => glue(`Прошлая попытка ${dayText}: ${correct} из ${items}.`);
 export const MOCK_START = 'Начать';
-export const MOCK_EMPTY = 'Пока не из чего собрать попытку: в предмете нет вопросов с ключом.';
+export const MOCK_EMPTY = 'В предмете пока нет вопросов с ключом.';
 export const mockBar = (pos: number, total: number, clock: string | null) => glue(clock ? `${pos} из ${total} · ${clock}` : `${pos} из ${total}`);
 export const MOCK_FINISH = 'Завершить';
 export const MOCK_BACK = 'Назад';
@@ -422,15 +436,15 @@ export const MOCK_ALL = 'Все вопросы';
 export const mockAllCell = (n: number, answered: boolean) => `Вопрос ${n}${answered ? ', есть ответ' : ', без ответа'}`;
 export function mockFinishLine(answered: number, total: number, missing: number[]): string {
   if (missing.length === 0) return glue(`Ответили на все ${q(total)}.`);
-  const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')}, ${missing[missing.length - 1]}` : String(missing[0]);
-  const tail = missing.length > 1 ? 'они считаются ошибками' : 'он считается ошибкой';
-  return glue(`Ответили на ${answered} из ${total}. Без ответа: ${list} — ${tail}.`);
+  const list = missing.length > 1 ? `${missing.slice(0, -1).join(', ')} и ${missing[missing.length - 1]}` : String(missing[0]);
+  const tail = missing.length > 1 ? `Вопросы ${list} без ответа, они будут ошибками.` : `Вопрос ${list} без ответа, он будет ошибкой.`;
+  return glue(`Ответили на ${answered} из ${total}. ${tail}`);
 }
 export const MOCK_BACK_TO_QUESTIONS = 'Вернуться к вопросам';
 export const mockResumed = (pos: number, total: number, left: string | null) =>
-  glue(left ? `Попытка продолжается: ${pos} из ${total}, осталось ${left}.` : `Попытка продолжается: ${pos} из ${total}.`);
+  glue(left ? `Продолжаем с вопроса ${pos} из ${total}. Осталось ${left}.` : `Продолжаем с вопроса ${pos} из ${total}.`);
 export const mockTimeOut = (answered: number, total: number) =>
-  glue(`Время вышло, пока вас не было. В итог вошли ответы, которые вы успели дать: ${answered} из ${total}.`);
+  glue(`Время вышло, пока вас не было. Вы успели ответить на ${answered} из ${total}.`);
 export const mockResultHead = (dayText: string) => glue(`${MOCK_TITLE} · ${dayText}`);
 export const mockScore = (correct: number, total: number) => glue(`${correct} из ${total}`);
 export const mockTime = (minutes: number, limit: number | null) =>
@@ -438,13 +452,14 @@ export const mockTime = (minutes: number, limit: number | null) =>
 /** The errors of a try; they come back on `when`, as after a «занятие» (errorsBack). */
 export function mockErrors(errors: number, unanswered: number, when = 'завтра'): string {
   if (errors === 0) return 'Ошибок нет.';
-  const of = unanswered > 0 ? `, из них без ответа ${unanswered}` : '';
-  return glue(errors === 1 ? `Одна ошибка${of}: она вернётся ${when}.` : `Ошибки — ${errors}${of}: они вернутся ${when}.`);
+  if (errors === 1) return glue(unanswered > 0 ? `1 ошибка, вопрос без ответа. Повторим его ${when}.` : `1 ошибка. Повторим её ${when}.`);
+  const of = unanswered > 0 ? `, из них ${unanswered} без ответа` : '';
+  return glue(`${errors} ${pl(errors, 'ошибка', 'ошибки', 'ошибок')}${of}. Повторим их ${when}.`);
 }
 export const MOCK_REVIEW = 'Разобрать ошибки';
-export const MOCK_OFFLINE = 'Нет сети. Итог посчитан на этом устройстве, ответы уйдут, когда сеть появится.';
-export const MOCK_SENDING = 'Отправляем итог…';
-export const MOCK_LOADING = 'Собираем попытку…';
+export const MOCK_OFFLINE = 'Нет сети. Результат посчитан здесь. Ответы отправим, когда сеть появится.';
+export const MOCK_SENDING = 'Отправляем результат…';
+export const MOCK_LOADING = 'Загружаем вопросы…';
 
 // ─────────────────────────────────────────────── «Сегодня» (decision 47)
 
@@ -456,7 +471,7 @@ export function todayFlag(days: number): string {
 /** «28 октября · 960 вопросов»; the date alone while the size is not known (model.ts overviewQuestions). */
 export const todayMeta = (dayText: string | null, questions: number | null) =>
   glue([dayText, questions === null ? null : q(questions)].filter(Boolean).join(SEP));
-export const TODAY_LOADING = 'Считаем план на сегодня…';
+export const TODAY_LOADING = 'Загружаем план на сегодня…';
 
 // ─────────────────────────────────────────────── «Перенести экзамен» (release 47, 2026-10-18)
 
@@ -478,10 +493,10 @@ export const moveMemberNote = (authorDay: string | null) =>
 export const MOVE_SAVE = 'Перенести';
 export const MOVE_SAVING = 'Переносим…';
 export const MOVE_PICK = 'Выберите дату.';
-export const MOVE_PAST = 'Нужна дата не раньше сегодняшней.';
+export const MOVE_PAST = 'Выберите сегодня или дату позже.';
 export const MOVE_FAR = 'Можно перенести не дальше чем на два года.';
 export const MOVE_LOADING = 'Загружаем экзамен…';
 /** Said on the page once the move is saved and the plan is read again. */
 export const moved = (day: string) => glue(`Экзамен перенесён на ${day}.`);
 /** The exam day's pill: the questions with errors, as the plan counts them (≤ 20). */
-export const walkErrors = (n: number) => glue(`Пройтись по ошибкам: ${n}`);
+export const walkErrors = (n: number) => glue(`Повторить ${errorsN(n)}`);

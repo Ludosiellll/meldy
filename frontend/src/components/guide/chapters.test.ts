@@ -4,7 +4,7 @@ import { GUIDE_CHAPTERS } from './chapters';
 const text = (id: string) => GUIDE_CHAPTERS.find((chapter) => chapter.id === id)!.text;
 
 /** Words the exam container's copy never uses (spec decision 45, the words table of spec §3). */
-const BANNED = /контейнер|(^|[^а-яё])тест|повторени|на проверку|спорн|пробн|засчитан|сгорел|готов на|выучен|сдашь|отстаёте|преподавател|колледж|аккредитац/i;
+const BANNED = /контейнер|(^|[^а-яё])тест|повторени|на проверку|спорн|пробн|засчитан|сгорел|готов на|сдашь|отстаёте|преподавател|колледж|аккредитац/i;
 
 describe('the guide on «Сегодня» and «Экзамены» (Concept 1 §3.10)', () => {
   it('says «Сегодня» leads with the nearest exam of either kind and its plan, and keeps the first steps for an empty account', () => {

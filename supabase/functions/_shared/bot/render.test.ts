@@ -195,7 +195,7 @@ test('Z7: the question loses its bold, the answer from the file takes it; «В �
   assert.equal(words, [
     'Базы данных · 7 из 20', '', 'Что гарантирует изолированность — буква I в ACID?', '',
     'В файле — Б', 'Параллельные транзакции не видят промежуточных изменений друг друга', 'Ваш ответ — В',
-    'Транзакция выполняется целиком или не выполняется совсем', '', 'Неверно. Вернётся через пару вопросов и завтра.', '№ 57 · Тема 3. Транзакции',
+    'Транзакция выполняется целиком или не выполняется совсем', '', 'Неверно. Повторим через пару вопросов и завтра.', '№ 57 · Тема 3. Транзакции',
   ].join('\n'));
   assert.ok(!out.text.includes('<b>Что гарантирует'), 'the question is no longer bold');
   assert.ok(out.text.includes('<b>Параллельные транзакции'));
@@ -212,10 +212,10 @@ test('Z8, Z9, Z11, Z12: «Не знаю» has no «Ваш ответ» nor «Н�
   const v = view(ACID, DB, 7);
   const z8 = words(reviewOut(v, shown({ dontKnow: true, key: [1] }), 'review', { site: SITE }).text);
   assert.ok(!z8.includes('Ваш ответ') && !z8.includes('Неверно'));
-  assert.ok(z8.includes('Вернётся через пару вопросов и завтра.'));
+  assert.ok(z8.includes('Повторим через пару вопросов и завтра.'));
   const z9 = reviewOut(v, shown({ key: [1], chosen: [2] }), 'misclick', { site: SITE });
   assert.ok(!visibleText(z9.text).includes('Ваш ответ'));
-  assert.ok(visibleText(z9.text).replace(/\u00a0/g, ' ').includes('Отменили: ошибку не считаем. Ответ вы уже видели — вопрос вернётся завтра.'));
+  assert.ok(visibleText(z9.text).replace(/\u00a0/g, ' ').includes('Ошибку не считаем. Ответ вы уже видели, поэтому повторим вопрос завтра.'));
   assert.deepEqual(z9.keyboard!.map((r) => r.map((b) => b.text)), [['Дальше']]);
   const z11 = reviewOut(v, shown({ key: [1], chosen: [2] }), 'doubt', { site: SITE });
   assert.deepEqual(z11.keyboard!.map((r) => r.map((b) => [b.text, b.data])), [[['Отметить', `s|${SID}|6|D`]], [['Отмена', `s|${SID}|6|b`]]]);
@@ -230,7 +230,7 @@ test('Z8, Z9, Z11, Z12: «Не знаю» has no «Ваш ответ» nor «Н�
 
 test('Z6: «Верно.»; on the step two_days the figure in the plan\'s words; several: «Верно: все 3.» / «Верно: оба.»', () => {
   assert.equal(rightToast('single', 1, null), 'Верно.');
-  assert.equal(rightToast('single', 1, { twoDays: 144, inPlan: 960 }), 'Верно. Теперь 144 из 960 — верно в два разных дня.');
+  assert.equal(rightToast('single', 1, { twoDays: 144, inPlan: 960 }), 'Верно. Выучено 144 из 960.');
   assert.equal(rightToast('multiple', 3, null), 'Верно: все 3.');
   assert.equal(rightToast('multiple', 2, null), 'Верно: оба.');
   assert.equal(visibleText(shortRightOut(view(IPV4_BITS, NETS, 11), 'тридцать два').text).split('\n')[4], 'Верно: тридцать два.');
@@ -253,5 +253,5 @@ test('§4.8: «Повторить» repeats the press\'s own data; the exam gone
   assert.deepEqual(out.keyboard, [[{ text: W.RETRY, data: `s|${SID}|7|1`, style: 'primary' }]]);
   assert.equal(visibleText(out.text).replace(/\u00a0/g, ' '), `Базы данных · 8 из 20\n${W.DB_DOWN_AGAIN}`);
   assert.equal(visibleText(retryOut(null, 'x').text).replace(/\u00a0/g, ' '), W.DB_DOWN_AGAIN);
-  assert.equal(words(examGoneOut(TITLE).text), 'Экзамен «Осенняя сессия» больше недоступен — занятие закрыто.');
+  assert.equal(words(examGoneOut(TITLE).text), 'Экзамен «Осенняя сессия» больше недоступен. Занятие закрыто.');
 });

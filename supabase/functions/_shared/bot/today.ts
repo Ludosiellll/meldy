@@ -173,7 +173,7 @@ export function restOfDay(exam: ExamDay | null, finished: { subjectId: string; k
   return rest;
 }
 
-/** While the figure is 0: the plan's own «Первые войдут в счёт завтра после 17:00 — если снова ответите верно». */
+/** While the figure is 0: the plan's own «Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены». */
 export function firstCountText(exam: ExamDay | null): string | null {
   if (!exam || exam.plan.figure.twoDays > 0) return null;
   const line = exam.plan.lines.find((l) => l.key === 'first_count');

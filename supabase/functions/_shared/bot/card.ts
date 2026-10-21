@@ -162,7 +162,7 @@ export const isDayOff = (plan: DayPlan) => plan.lines.some((line) => line.key ==
 /** Tomorrow is one of the exam's study days (the «завтра их будет меньше» of «Ещё 20 новых» is true only then). */
 const studiesTomorrow = (exam: ExamDay) => isStudyDay(addDays(exam.plan.day, 1), studyMask(exam.input.studyWeekdays));
 
-/** «Сегодня около 45 минут: 30 новых и 60 знакомых.» with the skip and eve forms of the table. */
+/** «Сегодня 30 новых и 60 знакомых, около 45 минут.» with the skip and eve forms of the table. */
 export function planSentence(exam: ExamDay): string {
   const plan = exam.plan;
   if (plan.state !== 'study') return sentence(planLine(plan));
@@ -173,11 +173,11 @@ export function planSentence(exam: ExamDay): string {
   return line;
 }
 
-/** «143 из 960 — верно в два разных дня»; while it is 0, the dated first-count line; before any answer, the rule. */
+/** «Выучено 143 из 960»; while it is 0, the dated first-count line; before any answer, the rule. */
 export function figureLine(plan: DayPlan): { line: string; under: string | null } {
   const first = plan.lines.find((l) => l.key === 'first_count');
   const words = figureLines(plan.figure, plan.firstCountDay ?? first?.day ?? null, { today: plan.day, time: first?.time ?? null });
-  if (plan.figure.twoDays > 0) return { line: `${words.big} ${words.of} — ${words.label}`, under: words.under };
+  if (plan.figure.twoDays > 0) return { line: `Выучено ${words.big} ${words.of}`, under: words.under };
   return { line: plan.figure.seen > 0 ? words.label : RULE_LINE, under: words.under };
 }
 

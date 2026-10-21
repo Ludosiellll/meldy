@@ -77,7 +77,7 @@ test('the move: for everyone or only for me (two rows: each label is wider than 
     [{ kind: 'moveFor', cid: CID, date: '2026-11-10', who: 'me' }],
   ]);
   const moved = movedScreen(TITLE, '2026-11-10');
-  assert.equal(visibleText(moved.text).replace(/ /g, ' '), 'Экзамен «Осенняя сессия» перенесён на 10 ноября. План пересчитан.');
+  assert.equal(visibleText(moved.text).replace(/ /g, ' '), 'Экзамен «Осенняя сессия» перенесён на 10 ноября. План обновлён.');
   assert.deepEqual(moved.keyboard, [[{ text: 'План на сегодня', data: 'xc' }]]);
 });
 

@@ -60,10 +60,10 @@ describe('the example exam of the landing and the sign-in reels', () => {
     expect(words.todayMeta).toBe(copy.todayMeta(dayText(words.exam), QUESTIONS));
     expect(words.planTitle).toBe(planTitle(plan));
     expect(words.planDetail).toBe(planDetail(plan));
-    expect(words.need).toBe(`Чтобы увидеть все 960 вопросов к 28 октября, нужно около 45 минут в день.`);
+    expect(words.need).toBe(`Чтобы пройти все 960 вопросов к 28 октября, нужно около 45 минут в день.`);
     expect(words.days).toEqual([
       '10–24 октября — около 45 минут в день, с устными',
-      '25–27 октября — новых нет, только знакомые, с устными, сначала ошибки',
+      '25–27 октября — только знакомые, с устными, сначала ошибки',
       '28 октября — экзамен',
     ]);
     expect(START_LABEL).toBe(copy.startSubject(START_SUBJECT.title, START_SUBJECT.today));

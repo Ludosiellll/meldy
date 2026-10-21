@@ -99,10 +99,10 @@ test('K1: the first line is the plan\'s own line (words.ts), the figure line is 
   const card = dayCard(today, 'reminder', SITE);
   const first = visibleText(card.out.text.split('\n')[0]).replace(/ /g, ' ');
   assert.equal(first, `${planLine(main.plan).replace(/ /g, ' ')}.`);
-  assert.match(first, /^Сегодня около \d+ минут: /);
+  assert.match(first, /^Сегодня .+, около \d+ минут\./);
   assert.ok(card.out.text.startsWith('<b>'));
   assert.equal(visibleText(card.out.text.split('\n')[1]).replace(/ /g, ' '), 'Осенняя сессия · 3 ноября, через 18 дней');
-  assert.equal(figureLine(main.plan).line.replace(/ /g, ' '), '143 из 960 — верно в два разных дня');
+  assert.equal(figureLine(main.plan).line.replace(/ /g, ' '), 'Выучено 143 из 960');
   assert.equal(card.send, true);
   assert.equal(card.state, 'study');
   const blue = card.out.keyboard!.flat().filter((b) => b.style === 'primary');
@@ -126,7 +126,7 @@ test('release 47: the nearest exam with work leads; an exam on its exam day is a
   const alone = variants().k1_exam_today_reminder;
   assert.equal(words(alone).split('\n')[0], 'Сегодня экзамен.');
   const buttons = alone.out.keyboard!.flat();
-  assert.deepEqual(buttons.map((b) => b.text), ['Пройтись по ошибкам: 20', 'Перенести экзамен']);
+  assert.deepEqual(buttons.map((b) => b.text), ['Повторить 20 ошибок', 'Перенести экзамен']);
   assert.deepEqual(decode(buttons[1].data), { kind: 'move', cid: CID, act: 'open' });
   // Without the list (a server before release 47) no move is offered.
   assert.ok(!dayCard(todayOf([AUTUMN], { botExams: [] }, at(2026, 11, 3)), 'reminder', SITE).out.keyboard!.flat().some((b) => b.text === 'Перенести экзамен'));
@@ -149,7 +149,7 @@ test('«Экзамены»: an exam out of the plan leaves the card, «Друг�
   assert.deepEqual(two.slice(-2), ['Другой экзамен', 'Экзамены']);
   // every exam out: nothing goes; /today says so with «Экзамены» (the one blue)
   const off = variants().k1_exams_off;
-  assert.equal(visibleText(off.out.text).replace(/ /g, ' '), 'Ни один экзамен не выбран — план не приходит.');
+  assert.equal(visibleText(off.out.text).replace(/ /g, ' '), 'Ни один экзамен не выбран, поэтому план не приходит.');
   assert.deepEqual(off.out.keyboard, [[{ text: 'Экзамены', data: 'xl|c', style: 'primary' }]]);
   assert.equal(planNow(todayOf([{ ...AUTUMN, on: false }])).exam, null);
 });
@@ -157,14 +157,14 @@ test('«Экзамены»: an exam out of the plan leaves the card, «Друг�
 test('K3 and the /today card of a passed exam offer the move; K3 drops «бот больше не напишет»', () => {
   const k3 = afterDateCard({ deliveryId: 1, chatId: TG, localDay: '2026-11-04', containerId: CID, exam: { ...K3_EXAM, role: 'owner', members: 2 } }, SITE);
   const text = visibleText(k3.out.text).replace(/ /g, ' ');
-  assert.ok(text.endsWith('\n\nЕсли экзамен перенесли — нажмите, план пересчитается.'), text);
+  assert.ok(text.endsWith('\n\nЭкзамен перенесли? Нажмите «Перенести экзамен», и план обновится.'), text);
   assert.ok(!text.includes('больше не напишет'));
   assert.deepEqual(k3.out.keyboard!.map((r) => r.map((b) => [b.text, b.data])), [
     [['Перенести на неделю', `mv|${CID}|7`]],
     [['На 2 недели', `mv|${CID}|14`], ['Другая дата', `mv|${CID}|d`]],
   ]);
   const after = variants().k1_after_date;
-  assert.equal(visibleText(after.out.text).replace(/ /g, ' '), 'Экзамен прошёл 3 ноября.\nЕсли экзамен перенесли — нажмите, план пересчитается.');
+  assert.equal(visibleText(after.out.text).replace(/ /g, ' '), 'Экзамен прошёл 3 ноября.\nЭкзамен перенесли? Нажмите «Перенести экзамен», и план обновится.');
   assert.deepEqual(after.out.keyboard, moveKeyboard(CID, false));
   for (const row of moveKeyboard(CID, true)) for (const b of row) assert.ok(new TextEncoder().encode(b.data!).length <= 64);
 });
@@ -175,7 +175,7 @@ test('a day off (settings.study_weekdays): no reminder while every exam is off; 
   const off = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF }]), 'reminder', SITE);
   assert.equal(off.send, false);
   assert.equal(off.state, 'day_off');
-  assert.equal(words(off).split('\n')[0], 'Сегодня выходной. Следующие вопросы — в понедельник.');
+  assert.equal(words(off).split('\n')[0], 'Сегодня выходной. Следующие вопросы в понедельник.');
   // the card: «Ещё 20 новых» for who studies anyway, no blue, and no «завтра их будет меньше» (Saturday is off too)
   const today = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF }]), 'today', SITE);
   assert.ok(today.out.keyboard!.flat().some((b) => b.text.replace(/\u00a0/g, ' ') === 'Ещё 20 новых'));
@@ -183,8 +183,8 @@ test('a day off (settings.study_weekdays): no reminder while every exam is off; 
   assert.ok(!words(today).includes('завтра их будет меньше'));
   // Saturday on: «завтра» is true again
   const saturday = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF + 32 }]), 'today', SITE);
-  assert.equal(words(saturday).split('\n')[0], 'Сегодня выходной. Следующие вопросы — завтра.');
-  assert.ok(words(saturday).includes('Ещё 20 новых сейчас — завтра их будет меньше.'));
+  assert.equal(words(saturday).split('\n')[0], 'Сегодня выходной. Следующие вопросы завтра.');
+  assert.ok(words(saturday).includes('Ещё 20 новых можно пройти сейчас. Тогда завтра их будет меньше.'));
   // two exams, both off: still no reminder
   const both = dayCard(todayOf([{ ...AUTUMN, weekdays: OFF }, { id: CID2, title: TITLE2, date: '2027-01-12', started: 30, weekdays: OFF }]), 'reminder', SITE);
   assert.equal(both.send, false);
@@ -200,7 +200,7 @@ test('the eve of the final days is the last study day before them: with Пн–�
   const words = (card: CardResult) => visibleText(card.out.text).replace(/\u00a0/g, ' ');
   const friday = at(2026, 10, 30);
   const spec = { ...AUTUMN, date: '2026-11-06' }; // the final days: Monday 2 – Thursday 5 November
-  const eve = 'С 2 ноября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.';
+  const eve = 'С 2 ноября новых вопросов не будет. В последние 4 дня только знакомые, сначала ошибки.';
   assert.ok(words(dayCard(todayOf([{ ...spec, weekdays: 31 }], {}, friday), 'reminder', SITE)).includes(eve));
   assert.ok(!words(dayCard(todayOf([spec], {}, friday), 'reminder', SITE)).includes(eve)); // every day: the eve is Sunday
   assert.ok(words(dayCard(todayOf([spec], {}, at(2026, 11, 1)), 'reminder', SITE)).includes(eve));
@@ -210,13 +210,13 @@ test('/today adds «Видели · ошибок сейчас» and «Тольк
   const reminder = dayCard(todayOf([AUTUMN]), 'reminder', SITE);
   const today = dayCard(todayOf([AUTUMN]), 'today', SITE);
   assert.ok(!visibleText(reminder.out.text).includes('Видели'));
-  assert.ok(visibleText(today.out.text).replace(/ /g, ' ').includes('Видели 410 · ошибок сейчас 37'));
+  assert.ok(visibleText(today.out.text).replace(/ /g, ' ').includes('Видели 410 · 37 ошибок'));
   // The reminder: the one blue «Начать» in the chat, and the same day in the Mini App under it (not blue).
   assert.equal(reminder.out.keyboard!.length, 2);
   assert.equal(reminder.out.keyboard![0][0].style, 'primary');
   assert.deepEqual(reminder.out.keyboard![1], [{ text: 'Открыть занятие', webApp: `${SITE}/tg?c=${CID}` }]);
   const labels = today.out.keyboard!.flat().map((b) => b.text);
-  assert.deepEqual(labels.slice(1), ['Открыть занятие', 'Только ошибки: 37']);
+  assert.deepEqual(labels.slice(1), ['Открыть занятие', 'Повторить 37 ошибок']);
   assert.equal(today.out.keyboard![1][0].webApp, `${SITE}/tg?c=${CID}`);
   assert.deepEqual(decode(today.out.keyboard![2][0].data), { kind: 'go', cid: CID, mode: 'e' });
   // The Mini App takes the place of the URL to the exam's page on a day with work.
@@ -245,10 +245,10 @@ test('the Mini App button never goes to a group: the linter refuses it there', (
 test('the window line shows only on the eve of the final days and inside them', () => {
   const words = (card: CardResult) => visibleText(card.out.text).replace(/ /g, ' ');
   assert.ok(!words(variants().k1_reminder).includes('новых вопросов не будет'));
-  assert.ok(words(variants().k1_eve_of_window).includes('С 30 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.'));
-  assert.ok(words(variants().k1_in_window).includes('До экзамена 3 дня: новых нет, только знакомые.'));
-  assert.ok(words(variants().k1_exam_eve).startsWith('Завтра экзамен. Сегодня около'));
-  assert.ok(words(variants().k1_skipped_yesterday).startsWith('Вчера без занятий. Сегодня те же 45 минут — больше знакомых вопросов.'));
+  assert.ok(words(variants().k1_eve_of_window).includes('С 30 октября новых вопросов не будет. В последние 4 дня только знакомые, сначала ошибки.'));
+  assert.ok(words(variants().k1_in_window).includes('До экзамена 3 дня. Новых вопросов нет, только знакомые.'));
+  assert.ok(words(variants().k1_exam_eve).startsWith('Завтра экзамен. Сегодня '));
+  assert.ok(words(variants().k1_skipped_yesterday).startsWith('Вчера занятий не было. Сегодня те же 45 минут, но больше знакомых вопросов.'));
   for (const card of Object.values(variants())) assert.ok(!/вместо|сгор|повторени/i.test(words(card)));
 });
 
@@ -300,9 +300,9 @@ test('M3\'s plan line and K2 use the same plan; K2 is silent and has one blue', 
   const now = planNow(todayOf([AUTUMN]));
   assert.equal(now.exam!.id, CID);
   assert.equal(now.line, planSentence(now.exam!));
-  assert.deepEqual(planNow(todayOf(null)), { exam: null, line: 'В Meldy пока нет экзамена с планом на день. Загрузите вопросы — файл на каждый предмет или один на все.' });
+  assert.deepEqual(planNow(todayOf(null)), { exam: null, line: 'В Meldy пока нет экзамена с планом на день. Загрузите файлы с вопросами, по одному на предмет или один на все.' });
   const k2 = askCard(todayOf([AUTUMN]), linkOf({ remindAt: 19 * 60 }));
-  assert.match(visibleText(k2.out.text).replace(/ /g, ' ').split('\n')[1], /^Три дня он оставался без ответа\. До экзамена 18 дней, сегодня около \d+ минут\.$/);
+  assert.match(visibleText(k2.out.text).replace(/ /g, ' ').split('\n')[1], /^Вы не открывали план три дня\. До экзамена 18 дней, сегодня около \d+ минут\.$/);
   assert.equal(k2.out.keyboard![0][0].text, 'Да, в 19:00');
   assert.deepEqual(k2.out.keyboard!.flat().map((b) => b.data), ['ask|y', 'ask|p', 'ask|n']);
   assert.equal(timeText(450), '7:30');
@@ -315,8 +315,8 @@ test('K3: «За N дней» counts from the first plan day to the last date, a
   }, SITE);
   const lines = visibleText(k3.out.text).split('\n');
   assert.equal(lines[0], 'Экзамен прошёл 3 ноября.');
-  assert.equal(lines[1].replace(/ /g, ' '), 'За 26 дней — 21 с занятиями, 6 480 ответов.');
-  assert.equal(lines[2].replace(/ /g, ' '), '902 из 960 — верно в два разных дня.');
+  assert.equal(lines[1].replace(/ /g, ' '), 'За 26 дней вы занимались 21 день и дали 6 480 ответов.');
+  assert.equal(lines[2].replace(/ /g, ' '), 'Выучено 902 вопроса из 960.');
   assert.equal(k3.out.keyboard![0][0].url, `${SITE}/exams/c/${CID}/settings`);
 });
 

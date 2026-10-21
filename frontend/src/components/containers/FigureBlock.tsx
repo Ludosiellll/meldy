@@ -7,11 +7,11 @@ import * as copy from './copy';
 import type { Figure } from './model';
 
 /**
- * The one figure (decision 8, 46) in the plan's words (lib/containers/words.ts figureLines): «143» large with «из 960
- * верно / в два разных дня» in two lines beside it, and «Видели 410 · ошибок сейчас 37 · Как считается» under it.
+ * The one figure (decision 8, 46) in the plan's words (lib/containers/words.ts figureLines): «143» large with «из 960 /
+ * выучено» in two lines beside it, and «Видели 410 · 37 ошибок · Как считается» under it.
  * - Before any answer: no zeros — the rule in one line (phone rule 9).
- * - Answered, nothing counts yet: no big zero — the dated line («Первые войдут в счёт завтра после 17:00 — если снова
- *   ответите верно», decision 40, its time from the plan's `first_count` line) in ink, and the seen line.
+ * - Answered, nothing counts yet: no big zero — the dated line («Ответьте верно ещё раз завтра после 17:00, и первые
+ *   вопросы будут выучены», decision 40, its time from the plan's `first_count` line) in ink, and the seen line.
  */
 export default function FigureBlock({ figure, plan, today }: { figure: Figure; plan: DayPlan | null; today: LocalDay }) {
   const [open, setOpen] = useState(false);
@@ -32,7 +32,7 @@ export default function FigureBlock({ figure, plan, today }: { figure: Figure; p
 
   if (figure.seen === 0 || !words || (!words.big && !words.under)) {
     return (
-      <section className="ct-figure" aria-label={copy.TWO_DAYS}>
+      <section className="ct-figure" aria-label={copy.FIGURE_LABEL}>
         <p className="ct-fig-rule">
           {words?.label || RULE_LINE} {how}
         </p>
@@ -44,7 +44,7 @@ export default function FigureBlock({ figure, plan, today }: { figure: Figure; p
   const under = (words.under ?? '').replace(/ · /g, copy.SEP).replace(/ (?=\d)/g, copy.NBSP).replace('ошибок сейчас', `ошибок${copy.NBSP}сейчас`);
   if (!words.big) {
     return (
-      <section className="ct-figure" aria-label={copy.TWO_DAYS}>
+      <section className="ct-figure" aria-label={copy.FIGURE_LABEL}>
         <p className="ct-fig-first">{copy.glue(words.label)}</p>
         <p className="ct-fig-sub">
           {under}
@@ -60,7 +60,7 @@ export default function FigureBlock({ figure, plan, today }: { figure: Figure; p
   const first = cut > 0 ? `${words.of} ${words.label.slice(0, cut)}` : words.of;
   const second = cut > 0 ? words.label.slice(cut + 1) : words.label;
   return (
-    <section className="ct-figure" aria-label={copy.TWO_DAYS}>
+    <section className="ct-figure" aria-label={copy.FIGURE_LABEL}>
       <p className="ct-fig">
         <span className="ct-fig-n" aria-hidden="true">
           {words.big}
@@ -69,7 +69,7 @@ export default function FigureBlock({ figure, plan, today }: { figure: Figure; p
           <span>{copy.glue(first)}</span>
           <span>{second}</span>
         </span>
-        <span className="sr-only">{copy.glue(`${words.big} ${words.of} — ${words.label}`)}</span>
+        <span className="sr-only">{copy.glue(`${words.big} ${words.of} ${words.label}`)}</span>
       </p>
       <p className="ct-fig-sub">
         {under}
