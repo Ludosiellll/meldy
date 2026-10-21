@@ -67,6 +67,7 @@ function renderAt(path: string) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(NOW);
   api.state.summary = examSummary();
@@ -138,6 +139,24 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
     pick(QA_SETUP.opens, QA_SETUP.opensAt);
     fireEvent.change(screen.getByLabelText(QA_SETUP.opensField), { target: { value: '2026-10-30T10:00' } });
     expect(screen.getByText(QA_SETUP.problems.window)).toBeInTheDocument();
+  });
+
+  it('owner 21.10: a reload keeps what was set and not saved; «Создать» forgets it', async () => {
+    const first = renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    fireEvent.change(screen.getByLabelText(QA_SETUP.name), { target: { value: 'Пробная 9 Б' } });
+    pick(QA_SETUP.pass, '60 %');
+    pick(QA_SETUP.closes, QA_SETUP.closesNever);
+    first.unmount();
+
+    const second = renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Пробная 9 Б');
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
+    await waitFor(() => expect(api.createQuiz).toHaveBeenCalledTimes(1));
+    expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ title: 'Пробная 9 Б', closes_at: null, pass_percent: 60 }));
+    second.unmount();
+
+    renderAt(`/exams/c/${EXAM}/quizzes/new`);
+    expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Контрольная · 16.10');
   });
 
   it('«Создать» sends the settings and opens the quiz’s stats', async () => {

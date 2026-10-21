@@ -46,6 +46,7 @@ function renderWith(state: unknown) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(NOW);
   api.state.summary = examSummary();
