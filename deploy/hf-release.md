@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.15: plain words, «Осталось выучить», the quick test, the new landing and /try (from the commit of this entry)
+
+- **Plain words** (owner, 21.10: «ты когда их читаешь нихуя не понятно»): the test side rewritten (305 strings: tests,
+  контрольные, the studio, the guest pages), the landing, the reel and /try; rules in meldy-notes Decision_Log 21.10.
+- **«Осталось выучить»** instead of the cheat sheet: the exam's topics close when learned (exam page card, «Тема
+  выучена» at a session's end, «Сегодня», the bot). Migration `20261021140000_learn_left` applied (rehearsal 19/19).
+- **Контрольная:** the right answers show at the end by default; «После сдачи ученик видит» is in view.
+- **The quick test** `/tests/quick`: paste questions as in Word, see them, get the link and the QR at once;
+  «Экзамены | Тесты»; a goal choice in «Первые шаги»; the first run can be skipped; the studio turns Word text into
+  questions and says why sending waits; the landing's «Собрать свой тест».
+- **The landing:** nothing moves on a press, new cards, «Билет вслух» animated, the studio fits a laptop window; the
+  reel's pointer lands on every button, «Осталось выучить» replaces the cheat sheet. **/try** in three steps with ready
+  answers.
+- **Movement mode «Встань на ответ»:** the room server and the database (`20261022090000_live_stand` applied, rehearsal
+  62/62); no screen opens it yet.
+- Gate on e4b6fd0: pytest 2391, bot 389, sync ok, Vitest 374 files / 6338 tests, Docker-layout build ok; on the head
+  after the quick test and the mode server: pytest 2440, bot 389, sync ok, `tsc -b` ok, build ok (the full Vitest runs
+  in this workflow).
+
 ## 2026-10-21 — Release 47.14: the study and quiz bar is a card too; the movement games' server (from the commit of this entry)
 
 - **The bar in a study session and a quiz** (owner, 21.10: «в пробной контрольной тоже блок нижний привязан»): on a
