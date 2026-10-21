@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import base64
 import contextlib
 import hashlib
@@ -347,6 +348,11 @@ async def scheduled_reminders():
 async def startup_event():
     scheduler.add_job(scheduled_reminders, 'interval', hours=24) # Daily reminders
     scheduler.start()
+    # The ~150 000 objects of the imports live as long as the process; a full garbage collection walking them took
+    # ~115 ms (measured 2026-10-21) and stalled the movement rooms' 50 ms ticks (live_move_api.py). Frozen, the
+    # collector skips them.
+    gc.collect()
+    gc.freeze()
 
 @app.on_event("shutdown")
 async def shutdown_event():
