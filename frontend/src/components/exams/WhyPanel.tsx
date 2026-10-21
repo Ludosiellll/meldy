@@ -43,6 +43,11 @@ export interface WhyPanelProps {
   /** exam_answer events of this question (by question hash), oldest first. */
   answers: LearningEvent[];
   answersError: string | null;
+  /**
+   * Where the question stands, said by «Осталось выучить» (the oral page, decision 2026-10-21): «Выучен.», «В ответе 2
+   * главных пункта из 5.». Null says nothing; left out, the line is read from the answers' grades.
+   */
+  stateLine?: string | null;
   variant: 'column' | 'sheet';
   frameBox?: FrameBox;
   headingId: string;
@@ -399,7 +404,8 @@ export default function WhyPanel(props: WhyPanelProps) {
 
   const verdict = verdictOf(question, coverage, props.lectureCount);
   const now = props.now ?? new Date();
-  const ready = props.answersError ? null : readinessLine(questionState(props.answers, [], now), props.answers, now);
+  const ready =
+    props.stateLine !== undefined ? props.stateLine : props.answersError ? null : readinessLine(questionState(props.answers, [], now), props.answers, now);
   const evidence = coverage === 'full' || coverage === 'partial' ? question.evidence : [];
   const nearest = coverage === 'none' || coverage === 'unverified' ? question.nearest : [];
   const answers = [...props.answers].reverse();

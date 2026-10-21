@@ -992,6 +992,9 @@
 /* The readiness legend: rows with the number circle of the sheet, the word and the count; the pressed
    one stands out white on the blue-tinted panel. */
 .sf-page .ex-rl { display: grid; gap: 2px; margin: 14px -10px 0; padding: 0; list-style: none; }
+/* The oral page's key to the dots as a block of its own (it lost «Подтверждено ответами» to «Осталось выучить»). */
+.sf-page .ex-dots > .ex-rl:first-child { margin-top: -6px; margin-bottom: -6px; }
+.sf-page .ex-dots > .ex-rl + .ex-dots-sure { margin-top: 18px; }
 .sf-page .ex-rl button {
   display: flex;
   align-items: center;

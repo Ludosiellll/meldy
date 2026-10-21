@@ -13,7 +13,7 @@ import {
   type ExamQuestion,
   type TicketLayout,
 } from '../api/exams';
-import { fetchQuestionEvents, fetchSessionPoints, localDate, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
+import { fetchQuestionEvents, fetchSessionPoints, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
 import { checkAILimit, FREE_DAILY_LIMIT, formatLimitReset, nextLimitReset } from '../api/limits';
 import { examMappingCost } from '../lib/plans';
@@ -36,22 +36,18 @@ import {
   PhoneSummary,
   peakCountLine,
   RateSummary,
-  ReadinessBlock,
   ReadinessLegend,
-  readinessCounts,
   useShownAfter,
   type PeakView,
 } from '../components/exams/SheetSummary';
 import { checkedCount, getMapJob, MAPPING_COST, mappingTargets, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../components/exams/marks';
 import {
-  growthSentence,
   peakChange,
   peakText,
   secondAnswerAfterReview,
   secondAnswerSentence,
   secondAnswerSessions,
-  staleSentence,
   takePeakFlags,
   type PeakFlag,
 } from '../components/exams/peak';
@@ -85,7 +81,7 @@ import DrawModeMenu, { DRAW_CAPTIONS } from '../components/exams/DrawModeMenu';
 import LearnLeft from '../components/learnLeft/LearnLeft';
 import PrepareLine from '../components/learnLeft/PrepareLine';
 import { useLearnLeft } from '../api/learnLeft';
-import { buildTopics, nextReady, readyNow, type LearnLeftQuestion } from '../lib/containers/topics';
+import { buildTopics, nextReady, ORAL_IN_PLAN, oralQuestion, oralStateLine, readyNow, type LearnLeftQuestion } from '../lib/containers/topics';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import InviteGroup, { InviteGroupDialog } from '../components/exams/share/InviteGroup';
 import MoreMenu, { type MoreMenuItem } from '../components/ui/MoreMenu';
@@ -465,7 +461,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const learnNow = useMemo(() => Date.now(), [learnExam]);
   const learnFacts = useMemo(() => {
     if (!learnExam) return null;
-    const inPlan = learnExam.questions.filter((q) => q.kind === 'lines' || q.kind === 'unwritten' || q.kind === 'rebuilt');
+    const inPlan = learnExam.questions.filter((q) => ORAL_IN_PLAN.has(q.kind));
     return {
       byId: new Map(learnExam.questions.map((q) => [q.id, q])),
       ready: readyNow(learnExam, learnNow),
@@ -474,6 +470,13 @@ function ExamSheetPage({ examId }: { examId: string }) {
       inPlan: inPlan.length,
     };
   }, [learnExam, learnNow]);
+
+  // «почему» says where the question stands by the same rule as its dot (nothing for a question not counted).
+  const whyStateLine = (id: string): string | null | undefined => {
+    const fact = learnFacts?.byId.get(id);
+    if (!fact) return undefined;
+    return ORAL_IN_PLAN.has(fact.kind) ? oralStateLine(oralQuestion(fact), learnNow) || null : null;
+  };
 
   // ------------------------------------------------------------------ rows
   // This tab's run is going on, or ended during this visit.
@@ -553,12 +556,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const closed = useMemo(() => closedPartialShares(shareSubjects, layout), [shareSubjects, layout]);
   const hashes = useMemo(() => questions.map(hashKey), [questions]);
   const summary = useMemo(() => examSummary(hashes, states), [hashes, states]);
-  const today = localDate(now);
-  // Confirmed by the same rule before today: «+1 сегодня» is the net change of the day.
-  const confirmedBeforeToday = useMemo(
-    () => examSummary(hashes, statesByHash(events.filter((event) => event.local_date && event.local_date < today), now)).confirmed,
-    [hashes, events, today, now],
-  );
   const examAnswers = useMemo(() => {
     const own = new Set(hashes.map((hash) => `q:${hash}`));
     return events.filter((event) => event.kind === 'exam_answer' && own.has(event.item_key));
@@ -674,7 +671,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
           limit: limit ? { remaining: limit.remaining, resetAt: formatClock(new Date(limit.resetAt).toISOString()) } : null,
         },
         learn: {
-          state: learn.status === 'error' ? 'error' : learnFacts ? 'ready' : 'loading',
+          state: learn.status === 'error' ? 'error' : learnFacts || learn.status === 'ready' ? 'ready' : 'loading',
           ready: learnFacts?.ready.length ?? 0,
           nextReady: learnFacts ? nextReadyWhen(learnFacts.next, learnNow) : null,
           learned: learnFacts?.learned ?? 0,
@@ -923,7 +920,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   // The column: nothing that says nothing (owner, 2026-10-07). The ticket share only once something is found; the
   // answers only once there are answers; confidence vs answers only after «Самооценка».
   const showCoverage = !pageStatus.hideCoverage;
-  const showReadiness = eventsState === 'ready' && answered > 0;
   // The key to the dots counts them as the list shows them («Осталось выучить»'s rule).
   const dotCounts: Record<Readiness, number> = { confirmed: 0, once: 0, not_passed: 0, untested: 0 };
   for (const row of allRows) dotCounts[row.readiness] += 1;
@@ -931,23 +927,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const selfRated = ratings.know + ratings.unsure + ratings.dont_know > 0;
   const closeLine = showCoverage ? closePartialLine(counts.partial, shares, closed) : null;
 
-  const readinessProps = {
-    summary,
-    confidence,
-    selfRated,
-    answers: eventsState,
-    answersError: eventsState === 'error' ? eventsError : null,
-    filter,
-    onFilter: setFilter,
-    onRateMode: () => {
-      setSelectedId(null);
-      setRateMode(true);
-    },
-    growth: growthSentence(summary, now),
-    staleLine: staleSentence(summary.stale),
-    secondAnswer,
-  };
-  const readiness = (part: 'all' | 'head' | 'rest') => <ReadinessBlock part={part} {...readinessProps} />;
   const coverage = (part: 'all' | 'head' | 'rest') => (
     <CoverageSummary
       part={part}
@@ -995,11 +974,46 @@ function ExamSheetPage({ examId }: { examId: string }) {
         onRetry={learnReload}
       />
     ) : null;
+  // The key to the dots, once answers marked them: its rows filter the list. After «Самооценка», how sure you were
+  // against your answers. A phone opens the key from «Обозначения» over the list instead.
+  const dotsBlock =
+    !phone && (dotsShown || (eventsState === 'ready' && selfRated)) ? (
+      <div className="ex-blk ex-dots">
+        {dotsShown && (
+          <ReadinessLegend
+            counts={dotCounts}
+            labels={LEARN_LABELS}
+            filter={filter}
+            onFilter={(next) => {
+              setRateMode(false);
+              setFilter(next);
+            }}
+          />
+        )}
+        {eventsState === 'ready' && selfRated && (
+          <p className="ex-fine ex-dots-sure">
+            {glue(confidenceSentence(confidence))}{' '}
+            <button
+              type="button"
+              className="sf-link"
+              data-stage-hide=""
+              onClick={() => {
+                setSelectedId(null);
+                setRateMode(true);
+              }}
+            >
+              Самооценка
+            </button>
+          </p>
+        )}
+      </div>
+    ) : null;
   const summaryColumn =
-    learnCard || showCoverage ? (
+    learnCard || showCoverage || dotsBlock ? (
       <>
         {learnCard}
         {showCoverage && coverage('all')}
+        {dotsBlock}
       </>
     ) : null;
   // Phones and tablets: the figure with «Как считается» and «Подтверждено ответами» above the sheet, so the
@@ -1059,6 +1073,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         examMaterialIds={current}
         answers={answersByHash.get(selectedRow.question.question_hash ?? '') ?? []}
         answersError={eventsState === 'error' ? eventsError : null}
+        stateLine={whyStateLine(selectedRow.question.id)}
         now={now}
         variant={variant}
         frameBox={frame.box}
@@ -1232,7 +1247,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
   // Phones and tablets under the sheet: the action line of the share and the readiness legend, when there are any.
   // A phone has them behind «Как считается» (PhoneSummary) and «Обозначения».
-  const answersBelow = !frame.side && !phone && !rateMode && !showPeak && Boolean(closeLine);
+  const answersBelow = !frame.side && !phone && !rateMode && !showPeak && (Boolean(closeLine) || Boolean(dotsBlock));
   // Phones and tablets: the topics card (rows folded on a phone) over the list, then the share.
   const topColumn = rateMode ? rateColumn : showPeak ? peakColumn : learnCard || compactColumn ? (
     <>
@@ -1420,6 +1435,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       {answersBelow && (
         <section className="ex-col ex-col-after" aria-label="Ответы по билетам">
           {closeLine && coverage('rest')}
+          {dotsBlock}
         </section>
       )}
 
