@@ -4,6 +4,21 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.23: the landing's phone moves with the projector; the cheat sheet's last traces gone (from the commit of this entry)
+
+- **The phone in «Игра в классе» and in the reel's game scene plays a real /play recording** of the same game, frame for
+  frame with the projector (owner: «в телефоне тупо картинка, нет движения синхронного с экраном главным»):
+  `STAND_RUN_PHONE` (360×780, four parts under 96 KB + poster), `lib/footageSync.ts` (the phone follows the projector;
+  a gap over 20 ms is closed by a small rate change), the reel drives both on its clock; the drawn «Верно +980» and «Вы
+  на ответе» overlays are gone (the recording shows them). Measured gap 2–14 ms.
+- **The cheat sheet's last traces** (owner: «ты ведь убрал это из проекта?»): the sign-in and sign-up reels show the oral
+  answer's result and «Осталось выучить» instead of the sheet; messages that named the sheet are plain now (oral load
+  error, `oral_sheet.py`), dead sheet code removed, README and the Space card updated. The bot was deployed with this
+  change (`/setup` ok), the invite email applied.
+- Gate on 6284a8b (clean worktree): pytest 2474 (one wall-clock budget test, «a tick … stays well under 3 ms», failed in
+  the full run with three agents busy; it passes alone 3/3), bot 393, sync ok, Vitest 412 files / 6625 tests,
+  Docker-layout build ok. The commit of this entry differs from 6284a8b only in `deck/`.
+
 ## 2026-10-21 — Release 47.22: the mini-game every N questions, music and sounds, the landing studio's block names (from the commit of this entry)
 
 - **«Мини-игра с движением»** in «Битва с монстром» (owner: «каждые три вопроса например, или каждые 10 вопросов включалась
