@@ -319,12 +319,12 @@ describe('startSheetWrite', () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ detail: 'Идёт сверка.' }), { status: 409, headers: { 'content-type': 'application/json' } })));
     await startSheetWrite(EXAM);
     expect(getSheetWrite(EXAM).phase).toBe('failed');
-    expect(getSheetWrite(EXAM).message).toBe('Сейчас идёт сверка списка с лекциями. Шпаргалку можно будет написать, когда сверка закончится.');
+    expect(getSheetWrite(EXAM).message).toBe('Сейчас идёт сверка с лекциями. Пункты ответа можно будет подготовить после неё.');
 
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
     await startSheetWrite(EXAM);
     expect(getSheetWrite(EXAM).phase).toBe('interrupted');
-    expect(getSheetWrite(EXAM).message).toMatch(/дописывается на сервере/);
+    expect(getSheetWrite(EXAM).message).toMatch(/готовятся на сервере/);
 
     vi.stubGlobal('fetch', vi.fn(async () => sseResponse([ev({ type: 'progress', done: 0, total: 3 })])));
     await startSheetWrite(EXAM);

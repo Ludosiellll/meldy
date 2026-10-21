@@ -254,7 +254,7 @@ describe('poolLine: what a draw takes its questions from', () => {
     );
     const one = forty((index) => ({ attempts: index === 3 ? 2 : 0, awaiting: index === 3 }));
     expect(poolLine({ mode: 'answered', layout: { mode: 'random', perTicket: 2 }, questions: one })).toBe('Единственный вопрос, на который вы уже отвечали.');
-    expect(poolLine({ mode: 'awaiting', layout: { mode: 'random', perTicket: 2 }, questions: one })).toBe('Единственный вопрос, который ждёт подтверждения.');
+    expect(poolLine({ mode: 'awaiting', layout: { mode: 'random', perTicket: 2 }, questions: one })).toBe('Единственный вопрос, который можно выучить сегодня.');
     // Nothing to draw from: the failure message speaks instead.
     expect(poolLine({ mode: 'answered', layout: { mode: 'random', perTicket: 2 }, questions: forty() })).toBeNull();
     expect(poolLine({ mode: 'exam', layout: { mode: 'random', perTicket: 2 }, questions: [] })).toBeNull();

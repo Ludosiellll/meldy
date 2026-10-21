@@ -327,7 +327,7 @@ describe('«Попробовать на примере» (/try)', () => {
     expect(document.querySelector('.or-stamp, svg[data-mark="oval"]')).toBeNull();
     expect(document.body.textContent).not.toMatch(/[Зз]асчитан|Оценка|удовлетвор|отлично/);
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(plain(document.querySelector('.or-how')?.textContent)).toContain('строку шпаргалки такой пункт не стирает');
+    expect(plain(document.querySelector('.or-how')?.textContent)).toContain('Такой пункт не считаем.');
     expect(document.querySelector('.or-how')?.textContent).not.toMatch(/из 100|→/);
     expect(screen.getByRole('link', { name: 'Создать свой экзамен' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
     expectAccessibleScreen();
@@ -761,7 +761,7 @@ describe('the AI check of the example (/api/try/evaluate)', () => {
     const rows = within(screen.getByRole('list', { name: 'Пункты ответа' })).getAllByRole('listitem');
     expect(plain(rows[2].querySelector('.or-ppt-st')?.textContent)).toBe('главный пункт · назван только после вопроса экзаменатора');
     expect(plain(document.querySelector('.or-extra')?.textContent)).toBe(
-      `Дополнительный вопрос: «Куда сдвигается кривая спроса, если спрос на товар вырос?» — ответ: «${reply.slice(0, -1)}». Пункт назван после вопроса — строку шпаргалки это не стирает.`,
+      `Дополнительный вопрос: «Куда сдвигается кривая спроса, если спрос на товар вырос?» — ответ: «${reply.slice(0, -1)}». Пункт назван после вопроса, его не считаем.`,
     );
     // Two requests: the answer, then the reply with the point's id — no question, no expected answer.
     expect(tryRequests.map((request) => request.body)).toEqual([

@@ -286,7 +286,7 @@ export function poolLine(input: { mode: DrawMode; layout: DrawLayout; questions:
         : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, на которые вы уже отвечали.`;
     }
     return pool.length === 1
-      ? 'Единственный вопрос, который ждёт подтверждения.'
+      ? 'Единственный вопрос, который можно выучить сегодня.'
       : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, которые можно выучить сегодня.`;
   }
   if (mode === 'weak') {

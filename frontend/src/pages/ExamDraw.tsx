@@ -361,7 +361,7 @@ export default function ExamDraw() {
         )}
         {historyFailed && <p className="dw-note">История ответов не загрузилась: тянем без неё.</p>}
         {mode === 'awaiting' && erasableIds === 'failed' && (
-          <p className="dw-note">Не получилось узнать, что можно выучить сегодня. Тянем вопросы, где раньше названо достаточно.</p>
+          <p className="dw-note">Не получилось узнать, что можно выучить сегодня. Тянем вопросы, на которые вы уже хорошо отвечали.</p>
         )}
         </section>
         </div>
