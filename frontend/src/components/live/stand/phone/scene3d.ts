@@ -10,8 +10,8 @@
  * Nothing here makes React render. `frame()` is called by the view's own loop (one requestAnimationFrame for the
  * whole screen): positions go straight into the kit's instance buffers.
  */
-import type { Arena, Boss, BossKind, Kit, MoveMap, Player, View } from '../../../../lib/live/three';
-import { loadKit, toPlayerLook } from '../../../../lib/live/three';
+import type { Arena, ArenaShape, Boss, BossKind, Kit, MoveMap, Player, View } from '../../../../lib/live/three';
+import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook } from '../../../../lib/live/three';
 import { QUALITY_LEVELS, QualityGovernor } from '../../../../lib/live/three/quality';
 import type { Pose as Sample } from '../../../../lib/live/move/interp';
 import { F_AWAY, isGhost, kindOf, KIND_PLAYER, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
@@ -83,12 +83,15 @@ export class PhoneScene implements Backdrop {
     }
   }
 
-  /** The room's map (the welcome's): the floor, its zones and the boss. Once. */
-  setMap(map: MapJson): void {
+  /**
+   * The room's map (the welcome's) and the hello's floor grid and stage: the floor laid on the server's grid, the
+   * boss on the stage in the middle, as on the projector (KIT_3D.md §4). Once.
+   */
+  setMap(map: MapJson, shape?: ArenaShape): void {
     if (this.arena) return;
     // The stand arena's zones are rectangles (MODE_STAND §3), the kit's MoveMap shape.
-    this.arena = this.kit.createArena(map as unknown as MoveMap);
-    this.boss = this.kit.createBoss(this.bossKind);
+    this.arena = this.kit.createArena(map as unknown as MoveMap, shape);
+    this.boss = this.kit.createBoss(this.bossKind, shape?.stage ? { height: STAGE_BOSS_HEIGHT[this.bossKind] } : {});
     this.placeCamera(800, 520, true);
   }
 

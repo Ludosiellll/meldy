@@ -19,6 +19,7 @@ import { useStandRoom } from './room';
 import { StandScene, type StandCue, type StandHud } from './scene';
 import { STAND } from './copy';
 import { Thumb } from './Thumb';
+import { FpsReadout, fpsWanted } from './FpsReadout';
 import { Stage, useStageFit } from '../host/Stage';
 import { STAGE_H } from '../host/layout';
 import { EndConfirm, KickConfirm, PlayersSheet, ReviewSheet } from '../host/Sheets';
@@ -328,6 +329,8 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
   const site = shortLink(joinUrl.replace(/\?.*$/, ''));
   const roomLost = !!view && view.status !== 'open' && view.status !== 'closed' && !!view.welcome;
   const accuracy = rs?.acc ?? s.final?.accuracy_pct ?? null;
+  // ?fps=1: a corner readout for checking the projector laptop (never by default)
+  const showFps = useMemo(() => fpsWanted(), []);
   const counts = res?.counts;
 
   return (
@@ -339,9 +342,14 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
             Meldy<i />
           </span>
           <b>{STAND.name}</b>
-          <span>
-            {inQuestion || phase === 'leaderboard' ? `${STAND.question(qi + 1, qCount)} · ${STAND.pin(s.pin)}` : info?.title ? info.title : STAND.questions(qCount)}
-          </span>
+          {inQuestion || phase === 'leaderboard' ? (
+            <>
+              <span>{STAND.question(qi + 1, qCount)}</span>
+              <span>{STAND.pin(s.pin)}</span>
+            </>
+          ) : phase === 'lobby' ? (
+            <span>{info?.title ? info.title : STAND.questions(qCount)}</span>
+          ) : null}
         </div>
 
         <div className="lvst-head" style={{ width: Math.min(1100, width - 660) }}>
@@ -533,6 +541,7 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
         {sheet === 'end' ? <EndConfirm onYes={() => void doEnd()} onNo={() => setSheet(null)} busy={acting} /> : null}
         {kickRow ? <KickConfirm row={kickRow} onYes={() => void doKick()} onNo={() => setKickRow(null)} busy={acting} /> : null}
       </Stage>
+      {showFps ? <FpsReadout quality={() => sceneRef.current?.stats()?.quality ?? null} /> : null}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 /**
  * «Провести игру» (/live/new): «Битва с монстром» or «Встань на ответ» (its boss and 15/20/30 s); «Открыть комнату» in a
- * footer that stays in view; the skipped questions folded with plain reasons; «Показывать имена тройки в чате» only with
+ * footer that stays in view; the skipped questions folded with plain reasons; «Назвать в чате трёх лучших» only with
  * a chat bound to the exam.
  */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
@@ -124,12 +124,14 @@ describe('«Провести игру»', () => {
     expect(create.mock.calls[0][1]).not.toHaveProperty('boss');
   });
 
-  it('a skipped numeric or text answer says «ответ вводят сами»; the list is folded', async () => {
+  it('a skipped numeric or text answer says «Ответ вводят сами.»; the list is folded', async () => {
     const view = await open('/live/new?c=c1');
     const folded = view.container.querySelector('details.lvs-skipped')!;
     expect(folded).not.toHaveAttribute('open');
-    expect(folded.querySelector('summary')?.textContent).toMatch(/Не войдут в игру: 1\s+вопрос/);
-    expect(folded.textContent).toMatch(/Сколько байт в килобайте\? — ответ вводят сами/);
+    expect(folded.querySelector('summary')?.textContent).toMatch(/1\s+вопрос не войдёт в игру/);
+    expect(folded.textContent).toMatch(/Сколько байт в килобайте\? Ответ вводят сами\./);
+    // plain words: no dash chains in the list (the 21.10 rules)
+    expect(folded.textContent).not.toMatch(/ — /);
     expect(view.container.textContent).not.toMatch(/пишут словами/);
   });
 
@@ -140,14 +142,14 @@ describe('«Провести игру»', () => {
     expect(fetchTelegramGroups).not.toHaveBeenCalled();
   });
 
-  it('«Показывать имена тройки в чате» only when a chat is bound to the exam', async () => {
+  it('«Назвать в чате трёх лучших» only when a chat is bound to the exam', async () => {
     await open('/live/new?c=c1');
-    expect(screen.queryByText('Показывать имена тройки в чате')).toBeNull();
+    expect(screen.queryByText('Назвать в чате трёх лучших')).toBeNull();
     cleanup();
     groups.list = [{ chatId: -1, title: '3-ПО' }];
     await open('/live/new?c=c1');
-    expect(screen.getByText('Показывать имена тройки в чате')).toBeInTheDocument();
-    const names = screen.getByRole('radiogroup', { name: 'Показывать имена тройки в чате' });
+    expect(screen.getByText('Назвать в чате трёх лучших')).toBeInTheDocument();
+    const names = screen.getByRole('radiogroup', { name: 'Назвать в чате трёх лучших' });
     fireEvent.click(within(names).getByRole('radio', { name: 'Да' }));
     expect(within(names).getByRole('radio', { name: 'Да' })).toHaveAttribute('aria-checked', 'true');
   });

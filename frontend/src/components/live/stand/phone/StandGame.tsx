@@ -11,6 +11,7 @@ import type { PlayerController, PlayerSnapshot } from '../../player/controller';
 import { NBSP, plural } from '../../player/copy';
 import { readStore, type HapticKind, type PlayerPlatform } from '../../player/platform';
 import { mapFromJson } from '../../../../lib/live/move/sim';
+import { FpsReadout, fpsWanted } from '../FpsReadout';
 import { PhoneScene } from './scene3d';
 import { SpriteView } from './sprites';
 import { StandSession } from './session';
@@ -58,6 +59,9 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   const [sprites, setSprites] = useState<SpriteView | null>(null);
   const bossKind = v.hello?.boss ?? null;
   const roomMap = v.ready ? session.client.welcome?.map ?? null : null;
+  // the hello's floor grid and stage: the 3D floor is the server's, the boss on the stage in the middle
+  const helloRef = useRef(v.hello);
+  helloRef.current = v.hello;
   useEffect(() => {
     if (!bossKind || !roomMap || pinned === 'light') return undefined;
     if (typeof WebGL2RenderingContext === 'undefined') {
@@ -76,7 +80,8 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
           if (alive) setNo3d(true);
           return;
         }
-        sc.setMap(roomMap);
+        const hello = helloRef.current;
+        sc.setMap(roomMap, hello ? { floor: hello.floor, stage: hello.stage } : undefined);
         await sc.warmUp();
         if (alive) setScene(sc);
       })
@@ -216,6 +221,8 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   }
 
   const backdrop = light ? sprites : scene;
+  // ?fps=1: a corner readout for checking a real phone (never by default)
+  const showFps = fpsWanted();
   const question = phase === 'countdown' || phase === 'open' || phase === 'reveal';
   return (
     <>
@@ -240,6 +247,7 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
           Связь пропала. Подключаемся
         </div>
       )}
+      {showFps ? <FpsReadout quality={() => (!light && scene ? (scene.stats()?.quality ?? null) : null)} /> : null}
     </>
   );
 }

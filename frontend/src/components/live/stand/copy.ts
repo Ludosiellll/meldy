@@ -38,8 +38,9 @@ export const STAND = {
   start: 'Начать',
   go: 'Заходите на',
   camera: 'Или наведите камеру телефона на код.',
+  // short sentences, no «·» chains (the plain-words rules)
   settings: (time: number, speed: boolean, members: boolean) =>
-    [`${time}${NBSP}с на вопрос`, speed ? 'очки за скорость' : 'только верность', members ? 'только участники экзамена' : 'все по PIN'].join(' · '),
+    [`${time}${NBSP}с на вопрос.`, speed ? 'Быстрым больше очков.' : 'Очки только за верный ответ.', members ? 'Играют участники экзамена.' : 'Войти можно по PIN.'].join(' '),
   lost: 'Связь с игрой пропала. Подключаемся.',
   noWebgl: 'Этот браузер не показывает 3D. Откройте игру в Chrome, Edge или Firefox.',
   sound: 'Звук',

@@ -234,6 +234,7 @@ export class CrowdPlayer {
   private facing = 0;
   private target = 0;
   private ghost = false;
+  private away = false;
   private time = 0;
   private disposed = false;
   /** The kit frame this player was last updated in. */
@@ -268,6 +269,10 @@ export class CrowdPlayer {
 
   setPose(pose: Pose): void {
     this.machine.set(pose);
+  }
+
+  setAway(on: boolean): void {
+    this.away = on;
   }
 
   setGhost(on: boolean): void {
@@ -332,7 +337,7 @@ export class CrowdPlayer {
       const floorY = this.ghost ? 0 : this.z / UNITS;
       if (!this.ghost) this.crowd.blobs.push(wx, Math.min(0, floorY) + 0.02, wz, 0.62, 1, this.color.r, this.color.g, this.color.b, 0.95);
     }
-    if (!falling || this.ghost) this.crowd.tags.push(this.tag, wx, wy + this.crowd.tagY, wz, this.ghost);
+    if (!falling || this.ghost) this.crowd.tags.push(this.tag, wx, wy + this.crowd.tagY, wz, this.ghost || this.away);
   }
 
   private writeSlot(slot: Slot, row0: number, w: number): void {

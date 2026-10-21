@@ -7,8 +7,8 @@
  * (the timer's second, the zone counts, alive and ghosts) through `StandHud`, and passes each room `state` in
  * (about seven a question). Meshes are made on the welcome and on `add`, never per frame.
  */
-import { loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type View } from '../../../lib/live/three';
-import { F_GHOST, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandState, type Welcome } from '../../../lib/live/move';
+import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type View } from '../../../lib/live/three';
+import { F_AWAY, F_GHOST, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandState, type Welcome } from '../../../lib/live/move';
 import type { Pose } from '../../../lib/live/move';
 
 /** Positions sampled each frame, reused (MoveClient.frameInto). */
@@ -32,8 +32,6 @@ export interface SceneOptions {
   view?: { quality?: 'auto' | number; antialias?: boolean; maxPixelRatio?: number; preserveDrawingBuffer?: boolean };
 }
 
-/** Height of the boss on its stage, metres: the stage is the server's solid circle (r 80 = 1.6 m). */
-const BOSS_HEIGHT: Record<BossKind, number> = { clock: 4.6, skeleton: 4.4 };
 /** How steeply the camera looks down at the arena, degrees: steep enough that the boss hides little behind it. */
 const TILT = 52;
 /** Map units a second under which a character stands. */
@@ -276,7 +274,7 @@ export class StandScene {
     this.map = kitMap(w.map);
     this.arena = kit.createArena(this.map, { floor: h.floor, stage: h.stage });
     this.zoneIds = (this.map.zones ?? []).map((z) => z.id);
-    this.boss = kit.createBoss(this.bossKind, { height: BOSS_HEIGHT[this.bossKind] });
+    this.boss = kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] });
     this.frameCamera();
     for (const e of w.roster) if (e[1] === KIND_PLAYER) this.addActor(e);
     const st = this.state ?? this.room.client.stand.state;
@@ -497,6 +495,7 @@ export class StandScene {
     a.y = pose.y;
     const ghost = (pose.flags & F_GHOST) !== 0;
     p.setGhost(ghost);
+    p.setAway((pose.flags & F_AWAY) !== 0);
     const z = ghost ? 0 : arena.floorAt(a.x, a.y);
     p.setPosition(a.x, a.y, z);
     if (!ghost && z < -4) p.setPose('fall');

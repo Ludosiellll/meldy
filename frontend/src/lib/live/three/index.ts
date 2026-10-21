@@ -32,7 +32,7 @@ export {
   toPlayerLook,
 } from './look';
 export { POSES, type Pose } from './pose';
-export { BOSS_KINDS, BOSS_PHASES, ZONE_COLOURS } from './constants';
+export { BOSS_KINDS, BOSS_PHASES, STAGE_BOSS_HEIGHT, ZONE_COLOURS } from './constants';
 export type { ArenaShape, FloorGrid, MoveMap } from './arenaPlan';
 export { thumbUrl, paintThumb, bossPictureUrl } from './thumbs';
 

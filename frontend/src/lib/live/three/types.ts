@@ -22,6 +22,11 @@ export interface Player {
   setPose(pose: Pose): void;
   /** A see-through blue ghost that floats; its name tag fades. */
   setGhost(on: boolean): void;
+  /**
+   * The player's phone is away (the room's F_AWAY): the name tag fades as a ghost's does. The body is drawn as usual: a
+   * see-through body for one player would need a sorted transparent pass of its own.
+   */
+  setAway(on: boolean): void;
   /** Map angle: 0 faces +y (down the map, towards the viewer), π/2 faces +x. Turns smoothly unless `instant`. */
   setFacing(rad: number, instant?: boolean): void;
   /** Map units; `z` is the height over the floor (negative while falling: see Arena.floorAt). */

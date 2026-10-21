@@ -291,7 +291,7 @@ export default function LiveSetupPage() {
                 <ul>
                   {skipped.slice(0, 30).map((q) => (
                     <li key={q.id}>
-                      {q.text} <span>— {SETUP.reason[q.skip!]}</span>
+                      {q.text} <span>{SETUP.reason[q.skip!]}</span>
                     </li>
                   ))}
                   {skipped.length > 30 ? <li>…</li> : null}
