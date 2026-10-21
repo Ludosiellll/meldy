@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import nginxConf from '../../../nginx.conf?raw';
-import { STAND_RUN, canPlayFootage, loadFootage, type Footage } from './footage';
+import { STAND_RUN, STAND_RUN_PHONE, canPlayFootage, loadFootage, type Footage } from './footage';
 
 /* Real footage in parts (lib/footage.ts): the files on disk, and the loader that joins them into one video. */
 
@@ -74,21 +74,50 @@ describe('STAND_RUN, the class running to the answers on the projector', () => {
 
   it('is on disk: joined, the parts are the video the hash names, each under the Space’s 100 KB', async () => {
     const fs = (await import(/* @vite-ignore */ NODE_FS)) as NodeFs;
-    const crypto = (await import(/* @vite-ignore */ NODE_CRYPTO)) as NodeCrypto;
     const files = fs.readdirSync(`${PUBLIC}/game/footage`).sort();
-    expect(files).toEqual([...STAND_RUN.parts, STAND_RUN.poster].map((name) => name.split('/').pop()).sort());
-    const parts = STAND_RUN.parts.map((name) => fs.readFileSync(`${PUBLIC}${name}`));
-    for (const part of parts) expect(part.length).toBeLessThanOrEqual(100 * 1024);
-    const whole = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
-    parts.reduce((at, part) => {
-      whole.set(part, at);
-      return at + part.length;
-    }, 0);
-    expect(crypto.createHash('sha256').update(whole).digest('hex').slice(0, 10)).toBe('46f8c5a7ae');
-    // An MP4 whose index comes first (faststart): it can play as soon as it is whole.
-    expect(new TextDecoder().decode(whole.slice(4, 8))).toBe('ftyp');
-    expect(new TextDecoder().decode(whole.slice(0, 4096))).toContain('moov');
-    expect(fs.readFileSync(`${PUBLIC}${STAND_RUN.poster}`).length).toBeLessThanOrEqual(100 * 1024);
+    // Only the two cuts in use are shipped: the projector's and its phone's.
+    expect(files).toEqual([STAND_RUN, STAND_RUN_PHONE].flatMap((cut) => [...cut.parts, cut.poster]).map((name) => name.split('/').pop()).sort());
+    await expectOnDisk(STAND_RUN, '46f8c5a7ae');
+  });
+});
+
+/** The cut's parts on disk: each under the Space's 100 KB, joined the faststart MP4 its names' hash names. */
+async function expectOnDisk(cut: Footage, hash: string) {
+  const fs = (await import(/* @vite-ignore */ NODE_FS)) as NodeFs;
+  const crypto = (await import(/* @vite-ignore */ NODE_CRYPTO)) as NodeCrypto;
+  const parts = cut.parts.map((name) => fs.readFileSync(`${PUBLIC}${name}`));
+  for (const part of parts) expect(part.length).toBeLessThanOrEqual(100 * 1024);
+  const whole = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+  parts.reduce((at, part) => {
+    whole.set(part, at);
+    return at + part.length;
+  }, 0);
+  expect(crypto.createHash('sha256').update(whole).digest('hex').slice(0, 10)).toBe(hash);
+  // An MP4 whose index comes first (faststart): it can play as soon as it is whole.
+  expect(new TextDecoder().decode(whole.slice(4, 8))).toBe('ftyp');
+  expect(new TextDecoder().decode(whole.slice(0, 4096))).toContain('moov');
+  expect(fs.readFileSync(`${PUBLIC}${cut.poster}`).length).toBeLessThanOrEqual(100 * 1024);
+  return whole.length;
+}
+
+describe('STAND_RUN_PHONE, the same game on a student’s phone', () => {
+  it('is four parts and a poster under /game/footage/ that nginx serves as the projector’s', () => {
+    expect(STAND_RUN_PHONE.parts).toEqual([1, 2, 3, 4].map((n) => `/game/footage/stand-run-phone-1897562cbf-${n}.bin`));
+    expect(STAND_RUN_PHONE.poster).toBe('/game/footage/stand-run-phone-1897562cbf-poster.webp');
+    const served = new RegExp(/location ~ "(\^\/game\/[^"]+)" \{/.exec(nginxConf)![1]);
+    for (const name of [...STAND_RUN_PHONE.parts, STAND_RUN_PHONE.poster]) expect(name).toMatch(served);
+  });
+
+  it('is the projector’s cut frame for frame: the same length, the same codecs, a portrait phone screen', () => {
+    expect(STAND_RUN_PHONE.duration).toBe(STAND_RUN.duration);
+    expect(STAND_RUN_PHONE.type).toBe(STAND_RUN.type);
+    expect(STAND_RUN_PHONE).toMatchObject({ width: 360, height: 780 });
+    // The phone page is 390 × 844: the frame keeps its proportions.
+    expect(STAND_RUN_PHONE.width / STAND_RUN_PHONE.height).toBeCloseTo(390 / 844, 2);
+  });
+
+  it('is on disk: joined, the parts are the video the hash names, each under the Space’s 100 KB', async () => {
+    expect(await expectOnDisk(STAND_RUN_PHONE, '1897562cbf')).toBeLessThan(400 * 1024);
   });
 });
 

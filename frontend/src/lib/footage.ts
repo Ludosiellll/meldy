@@ -50,6 +50,30 @@ export const STAND_RUN: Footage = {
   backdrop: 'linear-gradient(#2a2356 50%, #28224e 50%)',
 };
 
+/**
+ * The same 10.8 s on one student's phone: the real phone page (/play, 390 × 844, the 3D view) drawn frame by frame from
+ * the same recorded game (deck/cf11/media/product/masters/12-game-rec.json, the recording STAND_RUN's projector was
+ * drawn from), following Лёва, who runs from the far right across the floor to «А Меркурий» and stands («Вы на ответе»),
+ * then the stomp, the floor falling under the others and his «Верно +980». The same two spans of the recording at the
+ * same 25 fps, so frame k here is the moment of STAND_RUN's frame k: a page plays the two in step (lib/footageSync).
+ * 360 × 780, 370 KB in four parts; the poster is the moment of STAND_RUN's poster. The backdrop is the page's own top
+ * and bottom.
+ *
+ * STAND_RUN's frame k is the projector replay's frame 315 + k (k < 165) or 595 + k, which shows the recording's ms
+ * (frame + 1) × 40: 12 640–19 200 and 30 440–34 600. The phone's frames are those ms of
+ * `deck/cf11/tools/record/stand_phone_replay.mjs 12-game-rec.json <dir> --follow 12 --end 34600
+ * --windows 12640-19200,30440-34600`, in the cut's order, encoded with x264 (High 4.0, CRF 31, a key frame every 4 s,
+ * yuv420p, BT.709, faststart, no sound).
+ */
+export const STAND_RUN_PHONE: Footage = {
+  ...files('stand-run-phone', '1897562cbf', 4),
+  width: 360,
+  height: 780,
+  duration: 10.8,
+  type: 'video/mp4; codecs="avc1.640028"',
+  backdrop: 'linear-gradient(#2a2456 50%, #151535 50%)',
+};
+
 /** Whether this browser says it can play the footage (asked before anything is fetched). */
 export function canPlayFootage(footage: Footage): boolean {
   if (typeof document === 'undefined') return false;
