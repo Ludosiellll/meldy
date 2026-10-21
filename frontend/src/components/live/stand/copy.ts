@@ -2,7 +2,7 @@
  * The words of the projector in «Встань на ответ» (docs/live/MODE_STAND.md §8). Plain Russian, one short sentence per
  * thought, numbers first (the plain-words rules of 21.10). Shared words come from the battle's copy.
  */
-import { count, nb, plural } from '../host/copy';
+import { NEXT, count, nb, plural } from '../host/copy';
 
 const NBSP = ' ';
 const QUESTIONS = ['вопрос', 'вопроса', 'вопросов'] as const;
@@ -21,31 +21,26 @@ export const STAND = {
   stood: (n: number, of: number) => ({ before: 'Устояли ', n: nb(n), after: ` из ${nb(of)}` }),
   nobody: 'Никто не устоял',
   fastest: (name: string, pts: number) => `Быстрее всех ${name}, +${nb(pts)}`,
-  back: (n: number) => `${nb(n)} ${plural(n, ['призрак вернулся', 'призрака вернулись', 'призраков вернулись'])} в игру`,
   top: 'Больше всех очков',
   topAfter: (i: number, n: number) => `После ${i} ${plural(i, ['вопроса', 'вопросов', 'вопросов'])} из ${n}`,
-  points: (n: number) => nb(n),
   up: (n: number) => `▲${NBSP}${n}`,
   down: (n: number) => `▼${NBSP}${n}`,
   final: 'Итог игры',
   accuracy: (pct: number) => `Верных ответов ${pct}${NBSP}%`,
   ended: 'Игра закончилась',
-  next: 'Дальше',
-  nextLast: 'К итогам',
-  nextQuestion: 'Следующий вопрос',
+  // the teacher's «next» reads as in the battle
+  next: NEXT.reveal,
+  nextLast: NEXT.revealLast,
+  nextQuestion: NEXT.leaderboard,
   review: 'Разбор',
-  again: 'Ещё игра',
+  again: 'Ещё раз',
   finish: 'Закончить игру',
   start: 'Начать',
   go: 'Заходите на',
   camera: 'Или наведите камеру телефона на код.',
-  waiting: 'Ждём игроков',
-  joined: (n: number) => `${nb(n)} ${plural(n, ['игрок', 'игрока', 'игроков'])} в игре`,
   settings: (time: number, speed: boolean, members: boolean) =>
     [`${time}${NBSP}с на вопрос`, speed ? 'очки за скорость' : 'только верность', members ? 'только участники экзамена' : 'все по PIN'].join(' · '),
   lost: 'Связь с игрой пропала. Подключаемся.',
-  closed: 'Комната игры закрыта.',
-  loading: 'Загружаем игру…',
   noWebgl: 'Этот браузер не показывает 3D. Откройте игру в Chrome, Edge или Firefox.',
   sound: 'Звук',
   soundOn: 'Включить звук',
