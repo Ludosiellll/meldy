@@ -43,6 +43,8 @@ vi.mock('../../lib/containers/hooks', () => ({
   }),
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: api.user, session: null, loading: false }) }));
+// The tour asks the profile whether it was seen (UX audit of 21.10): not yet.
+vi.mock('../../api/social', () => ({ getProfile: vi.fn(async () => ({ onboarding_status: {} })), markOnboardingTourSeen: vi.fn(async () => undefined) }));
 
 import StudioPage from './StudioPage';
 import { item, subject, summary } from '../../components/containers/testkit/fixtures';
@@ -682,13 +684,15 @@ describe('StudioPage: the views and the participant', () => {
     expect(screen.getAllByRole('article')).toHaveLength(3);
   }, 20000);
 
-  it('the first visit’s tour: four steps, «Пропустить» ends it and it is not shown again', async () => {
+  it('the first visit’s tour: three steps on a computer, «Пропустить» ends it and it is not shown again', async () => {
     api.user = { id: 'user-7' };
     await openStored();
     const tour = await screen.findByRole('dialog', { name: STUDIO.tourLabel });
-    expect(within(tour).getByText(STUDIO.tour[0].title)).toBeInTheDocument();
-    fireEvent.click(within(tour).getByRole('button', { name: STUDIO.tourNext }));
+    // «Блоки» is left out on a computer: the palette's own line says it (UX audit of 21.10).
     expect(within(tour).getByText(STUDIO.tour[1].title)).toBeInTheDocument();
+    expect(within(tour).getByText(STUDIO.tourStep(1, 3))).toBeInTheDocument();
+    fireEvent.click(within(tour).getByRole('button', { name: STUDIO.tourNext }));
+    expect(within(tour).getByText(STUDIO.tour[2].title)).toBeInTheDocument();
     // It never takes the focus from the page.
     expect(tour.contains(document.activeElement)).toBe(false);
     fireEvent.click(within(tour).getByRole('button', { name: STUDIO.tourSkip }));

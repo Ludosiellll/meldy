@@ -5,7 +5,7 @@ import type { ComponentType } from 'react';
  * видео»): Meldy's own screens on a 1440 × 900 stage, step by step, each step with a short line under the picture.
  * The guide plays them in its chapters, the studio's tour and the move dialog as first-use tips.
  */
-export type StepClipId = 'studio' | 'quizLink' | 'move' | 'botExams';
+export type StepClipId = 'studio' | 'quizLink' | 'move' | 'botExams' | 'quick' | 'studioTour';
 
 export interface ClipStep {
   /** Scene time (ms) the step begins: its line comes under the picture. */

@@ -13,6 +13,7 @@ import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
 import { plural } from '../pro/planCopy';
 import type { StepClipId } from '../clips/types';
+import { GUIDE_START } from '../quick/copyQuick';
 
 export type GuideChapterId = 'today' | 'add' | 'library' | 'exams' | 'tests' | 'review' | 'progress' | 'limit';
 
@@ -146,10 +147,12 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     text: TESTS_TEXT,
     spot: 'link',
     reels: [
-      { clip: 'studio', label: 'Свой тест', title: 'Тесты', text: TESTS_TEXT },
+      // «Быстрая контрольная» first (UX audit of 21.10): pasted questions to a link, the shortest way.
+      { clip: 'quick', label: 'Контрольная', title: GUIDE_START.test[0].title, text: GUIDE_START.test[0].text },
+      { clip: 'studio', label: 'Студия', title: 'Тесты', text: TESTS_TEXT },
       {
         clip: 'quizLink',
-        label: 'Как это видит ученик',
+        label: 'Глазами ученика',
         title: 'Тест по ссылке',
         // Release 47: a participant without an account (/k/<код>), the result after «Завершить», the author's table.
         text: 'Ученик открывает ссылку или QR-код, пишет имя и нажимает «Начать»: аккаунт не нужен. После «Завершить» он видит результат, а вы — его строку в таблице.',

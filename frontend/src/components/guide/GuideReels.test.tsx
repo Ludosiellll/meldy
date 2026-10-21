@@ -92,18 +92,24 @@ describe('the chapters’ clips', () => {
     expect(panel().textContent).toContain('/settings');
   });
 
-  it('«Тесты» comes after «Экзамены»: the studio first, «Как это видит ученик» the test by its link; another chapter starts on its first clip', async () => {
+  it('«Тесты» comes after «Экзамены»: «Быстрая контрольная» first, then the studio and the test by its link; another chapter starts on its first clip', async () => {
     open('exams');
     await waitFor(() => expect(panel()).not.toBeNull());
     fireEvent.click(reel('Перенести'));
     fireEvent.click(within(panel()).getByRole('button', { name: /Дальше/ }));
+    expect(heading()).toBe('Быстрая контрольная');
+    expect(within(reels()).getAllByRole('button').map((button) => button.textContent)).toEqual(['Контрольная', 'Студия', 'Глазами ученика']);
+    // «Быстрая контрольная» first (UX audit of 21.10).
+    expect(reel('Контрольная')).toHaveAttribute('aria-pressed', 'true');
+    await waitFor(() => expect(caption()).toBe(STEP_CLIPS.quick.steps[0].caption));
+    expect(panel().textContent).toContain('«Быстрая контрольная»');
+
+    fireEvent.click(reel('Студия'));
     expect(heading()).toBe('Тесты');
-    expect(within(reels()).getAllByRole('button').map((button) => button.textContent)).toEqual(['Свой тест', 'Как это видит ученик']);
-    expect(reel('Свой тест')).toHaveAttribute('aria-pressed', 'true');
     await waitFor(() => expect(caption()).toBe(STEP_CLIPS.studio.steps[0].caption));
     expect(panel().textContent).toContain('«Новый тест»');
 
-    fireEvent.click(reel('Как это видит ученик'));
+    fireEvent.click(reel('Глазами ученика'));
     expect(heading()).toBe('Тест по ссылке');
     await waitFor(() => expect(caption()).toBe(STEP_CLIPS.quizLink.steps[0].caption));
 
@@ -115,13 +121,13 @@ describe('the chapters’ clips', () => {
 
   it('is all in reach of the keyboard: the clips’ buttons, «Следующий шаг», «Пауза», «Дальше»', async () => {
     open('tests');
-    await waitFor(() => expect(caption()).toBe(STEP_CLIPS.studio.steps[0].caption));
+    await waitFor(() => expect(caption()).toBe(STEP_CLIPS.quick.steps[0].caption));
     const names = Array.from(panel().querySelectorAll<HTMLElement>('button, a[href]')).map((el) => el.getAttribute('aria-label') ?? el.textContent);
-    expect(names).toEqual(expect.arrayContaining(['Закрыть', 'Следующий шаг', 'Пауза', 'Свой тест', 'Как это видит ученик', 'Назад']));
+    expect(names).toEqual(expect.arrayContaining(['Закрыть', 'Следующий шаг', 'Пауза', 'Контрольная', 'Студия', 'Глазами ученика', 'Назад']));
     expect(names.some((name) => /Дальше/.test(name ?? ''))).toBe(true);
     for (const button of Array.from(panel().querySelectorAll('button'))) expect(button).toHaveAttribute('type', 'button');
     fireEvent.click(screen.getByRole('button', { name: 'Следующий шаг' }));
-    expect(caption()).toBe(STEP_CLIPS.studio.steps[1].caption);
+    expect(caption()).toBe(STEP_CLIPS.quick.steps[1].caption);
     fireEvent.click(screen.getByRole('button', { name: 'Пауза' }));
     expect(panel().querySelector('.sc')).toHaveAttribute('data-playing', 'false');
   });
@@ -129,7 +135,7 @@ describe('the chapters’ clips', () => {
   it('with reduced motion the chapter’s clip stands on its first step with its line until «Смотреть»', async () => {
     stubReducedMotion(true);
     open('tests');
-    await waitFor(() => expect(caption()).toBe(STEP_CLIPS.studio.steps[0].caption));
+    await waitFor(() => expect(caption()).toBe(STEP_CLIPS.quick.steps[0].caption));
     expect(panel().querySelector('.sc')).toHaveAttribute('data-playing', 'false');
     expect(within(panel()).getByRole('button', { name: /Смотреть/ })).toBeInTheDocument();
   });
