@@ -4,6 +4,17 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.13: the computer bar is a card, not a band (from the commit of this entry)
+
+- **The bar on a computer** (owner, 21.10: «почему блок снизу всегда прикреплен?»): «Отмена» and «Создать»,
+  «Сохранить», «Проверить», «Новая контрольная» were a see-through band edge to edge over the form's last rows. They
+  stay in reach on a long form, now as one card at the bottom right that comes to rest under the form at its end; a
+  lone button floats without the card. The quiz's settings, «Вопросы и ключи», import, the exam editor, the
+  constructor. Phones keep their bar on the tab bar.
+- **Telegram:** the Mini App `t.me/Meldyteach_bot/play` exists (@BotFather, 21.10) and `bot.config.flags.live_direct`
+  is on: «Играть» under the game's post opens the game in Telegram straight away.
+- Gate on 7a83df0: pytest 2316, bot 387, sync ok, Vitest 370 files / 6346 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.12: «Провести игру» open to every author (from the commit of this entry)
 
 - **«Битва с монстром» is open:** «Провести игру» shows on every test's home (`lib/live/open.ts`,
