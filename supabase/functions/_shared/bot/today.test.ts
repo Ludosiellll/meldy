@@ -52,6 +52,19 @@ test('«Только ошибки» (go|<cid>|e): open errors of the first subje
   assert.equal(pickBlock(none, 'e', '7k2pm9qa'), null, 'no errors: nothing to start');
 });
 
+test('«Только ошибки: N» opens the N when every mistake was made today (the site\'s 20.10 fix: older first, today\'s too)', () => {
+  const exam = examOf(todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', subjects: 1, started: 30, errors: 10, lastDay: 0 }]), CID)!;
+  assert.equal(exam.plan.figure.errors, 10, 'the card counts the ten');
+  const block = pickBlock(exam, 'e', '7k2pm9qa');
+  assert.ok(block, 'and the button opens them, not «nothing to start»');
+  assert.equal(block!.queue.length, 10);
+  const items = new Map(exam.input.items.map((i) => [i.id, i]));
+  assert.ok(block!.queue.every((e) => items.get(e.id)!.u!.wrong > 0));
+  const r = restOfDay(exam, { subjectId: block!.subjectId, kind: 'errors' }, SITE);
+  const next = r.next ? decode(r.next.data) : null;
+  assert.ok(!(next?.kind === 'go' && next.mode === 'e'), 'after them, the same mistakes are not offered again the same day (the plan goes on)');
+});
+
 test('«Ещё 20 новых» (go|<cid>|x): the copied extraNew past today\'s plan, in a seeded order; class «new_fill»', () => {
   const done = todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', perSubject: 60, answeredToday: 20, today: { firstAt: Math.floor((NOW - 3 * H) / 1000), doneSec: 2700 } }]);
   const exam = examOf(done, CID)!;

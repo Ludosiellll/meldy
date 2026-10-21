@@ -7,7 +7,8 @@
  * - «Начать» / «Ещё 20 вопросов» / «Дальше: …» (`go|<cid>|p`): the next block of the plan — the copied `buildSession` on
  *   the plan's first block with options (20 questions of one subject), seeded by the session id.
  * - «Только ошибки» / «Пройтись по ошибкам» (`go|<cid>|e`): the copied `freeSession` with `onlyErrors`, on the first
- *   subject (the exam day's subjects first) that has errors not answered today.
+ *   subject (the exam day's subjects first) that has errors not answered today, else the first with any; today's
+ *   mistakes are in the session too, after the older ones (as the site's studySetup).
  * - «Ещё 20 новых» (`go|<cid>|x`): the copied `extraNew` past today's plan, in a seeded order.
  *
  * `answeredToday` and `clsOf` mirror the site's components/containers/model.ts (they are not in the copied modules).
@@ -92,8 +93,10 @@ export function pickBlock(exam: ExamDay, mode: GoMode, sid: string): Block | nul
       const inWindow = Boolean(plan.window.inWindow);
       cls = (id) => clsOf(units.get(id), inWindow);
     } else if (kind === 'errors') {
-      subjectId = errorsSubject(exam, done);
-      if (subjectId) queue = freeSession(input, { subjectId, onlyErrors: true }, [...done], sid);
+      // As on the site (studySetup, 20.10): «Только ошибки: N» counts today's mistakes too, so it opens them too — a
+      // subject with mistakes not touched today first, else any; freeSession puts the older ones first.
+      subjectId = errorsSubject(exam, done) ?? errorsSubject(exam, new Set());
+      if (subjectId) queue = freeSession(input, { subjectId, onlyErrors: true }, [], sid);
       cls = () => 'free';
     } else {
       const more = extraNew(input, SESSION_SIZE.answer, plan);
@@ -138,7 +141,7 @@ export function restOfDay(exam: ExamDay | null, finished: { subjectId: string; k
   try {
     if (finished.kind === 'errors' || plan.state === 'exam_today') {
       const subjectId = errorsSubject(exam, done);
-      const count = subjectId ? freeSession(input, { subjectId, onlyErrors: true }, [...done], 'count').length : 0;
+      const count = subjectId ? freeSession(input, { subjectId, onlyErrors: true }, [], 'count').length : 0;
       if (subjectId && count > 0) offer(subjectId, count, 'e');
     }
     if (!rest.next && plan.state === 'study') {
