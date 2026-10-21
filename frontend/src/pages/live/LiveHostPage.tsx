@@ -52,8 +52,10 @@ export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) 
     const p = new URLSearchParams(search);
     if (info?.containerId) p.set('c', info.containerId);
     if (info?.quizId) p.set('quiz', info.quizId);
+    // the same game again: «Встань на ответ» opens its own setup
+    if (game.state?.mode === 'stand' || game.state?.settings?.mode === 'stand') p.set('mode', 'stand');
     navigate(`/live/new?${p.toString()}`);
-  }, [info, navigate, search]);
+  }, [info, navigate, search, game.state]);
   const s = game.state;
   if (game.status === 'notoken') return <Message title={SCREEN.notoken} why={SCREEN.notokenWhy} />;
   if (game.status === 'notfound') return <Message title={SCREEN.notfound} why={SCREEN.notfoundWhy} />;

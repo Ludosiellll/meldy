@@ -102,6 +102,12 @@ describe('«Провести игру»', () => {
     expect(create.mock.calls[0][1]).toMatchObject({ mode: 'stand', boss: 'skeleton', time_s: 15 });
   });
 
+  it('«Ещё раз» after a stand game opens the setup with «Встань на ответ» picked', async () => {
+    await open('/live/new?c=c1&mode=stand');
+    expect(within(screen.getByRole('radiogroup', { name: 'Какая игра' })).getByRole('radio', { name: /Встань на ответ/ })).toHaveAttribute('aria-checked', 'true');
+    expect(within(screen.getByRole('radiogroup', { name: 'Время на вопрос' })).getByRole('radio', { name: /^15\sс$/ })).toHaveAttribute('aria-checked', 'true');
+  });
+
   it('back to the battle: its own times again, no boss in the settings', async () => {
     const create = vi.spyOn(server, 'create');
     await open('/live/new?c=c1');
