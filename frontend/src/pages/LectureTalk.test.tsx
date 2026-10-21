@@ -381,7 +381,7 @@ describe('a turn aloud', () => {
     fireEvent.click(more);
     const panel = screen.getByRole('dialog', { name: 'Фрагмент 3 лекции' });
     expect(panel.querySelector('.fp-slip')?.textContent).toContain('Конец фрагмента.');
-    expect(within(panel).getByText('Ответ Meldy взят из этого места лекции.')).toBeInTheDocument();
+    expect(panel.querySelector('.fp-note')).toBeNull();
     // Whole at once: no second «Показать целиком» in the panel; the desk does not grow.
     expect(within(panel).queryByRole('button', { name: 'Показать целиком' })).toBeNull();
     expect(desk().querySelector('.lt-slip-text')?.textContent?.endsWith('…')).toBe(true);
