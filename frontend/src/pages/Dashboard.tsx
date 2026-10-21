@@ -22,10 +22,9 @@ import './Dashboard.css';
 import { displayMaterialTitle } from '../utils/materialTitle';
 import { analysisCards } from '../utils/lectureCards';
 import { countBucket, track } from '../lib/telemetry';
-import { useSheetToday } from '../components/exams/sheet/sheetCount';
-import { mostlyNone } from '../components/exams/examStatus';
-import { counterLabel, erasableLine, nextErasableLine } from '../components/exams/sheet/copy';
-import type { ErasableNow } from '../lib/exams/cheatSheet';
+import { mostlyNone, nextReadyWhen } from '../components/exams/examStatus';
+import { useOralToday } from '../components/learnLeft/useOralToday';
+import { learnLeftLine, readyTodayLine } from '../lib/containers/topics';
 import DailyReminder from '../components/reminders/DailyReminder';
 import QuestionOfDay from '../components/exams/share/QuestionOfDay';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -38,6 +37,8 @@ import MoveExamDialog from '../components/containers/MoveExamDialog';
 import { MOVE_SHORT, moved as movedWords } from '../components/containers/copy';
 import { isDayOff } from '../components/containers/planLines';
 import { examQuestions, isOwnTest, overviewQuestions } from '../components/containers/model';
+import { examTopicCounts, oralExamIds } from '../components/containers/topicsOf';
+import { useLearnLeft } from '../api/learnLeft';
 import type { DayPlan, OverviewContainer } from '../types/container';
 import { containerDays, layerKey, QuietBoundary, useContainerLayer, type ContainerLayer } from './containerLayer';
 import './containerScreens.css';
@@ -570,12 +571,11 @@ export function examMetaShort(exam: Pick<TodayExam, 'examDate'> & { total: numbe
 }
 
 /**
- * «Можно стереть строки шпаргалки у 4 вопросов.»: the exam card's next step on a phone, over «Тянуть билет из них»
- * (the computer says it in full: erasableLine). «шпаргалки» stays even if it takes two lines at 360 px: without it a
- * newcomer read «стереть строки у 4 вопросов» as deleting questions (audit 2026-10-08, critics of release 34).
+ * «Сегодня можно выучить 4 вопроса.»: the exam card's next step over «Тянуть билет из них» — the oral questions whose
+ * main points were all named on another day, ready now (public.learn_left, the same draw).
  */
-export function erasableShort(count: number): string {
-  return glue(`Можно стереть строки шпаргалки у ${count} ${pluralRu(count, ['вопроса', 'вопросов', 'вопросов'])}.`);
+export function readyShort(count: number): string {
+  return glue(readyTodayLine(count));
 }
 
 export interface CoverageTally {
@@ -1136,6 +1136,7 @@ export default function Dashboard() {
                 container={layout.main.item.container}
                 plan={layout.main.item.plan.status === 'ready' ? layout.main.item.plan.plan : null}
                 questions={layout.main.item.plan.status === 'ready' ? layout.main.item.plan.questions ?? null : null}
+                topics={layout.main.item.plan.status === 'ready' ? layout.main.item.plan.topics ?? null : null}
                 offline={(on?.offline ?? false) || (layout.main.item.plan.status === 'ready' && layout.main.item.plan.offline)}
                 lead={layout.mainLeads}
                 onMove={() => {
@@ -1206,6 +1207,7 @@ export default function Dashboard() {
                   container={alone.main.item.container}
                   plan={alone.main.item.plan.status === 'ready' ? alone.main.item.plan.plan : null}
                   questions={alone.main.item.plan.status === 'ready' ? alone.main.item.plan.questions ?? null : null}
+                  topics={alone.main.item.plan.status === 'ready' ? alone.main.item.plan.topics ?? null : null}
                   offline={on.offline || (alone.main.item.plan.status === 'ready' && alone.main.item.plan.offline)}
                   lead={alone.mainLeads}
                 />
@@ -1648,7 +1650,10 @@ function Desk({
 export const PLAN_WAIT = { ms: 3000 };
 
 /** A container's plan for today; with it, the exam's size as its page says it (`questions`, oral questions included). */
-export type PlanResult = { status: 'loading' } | { status: 'ready'; plan: DayPlan; offline: boolean; questions?: number } | { status: 'failed' };
+export type PlanResult =
+  | { status: 'loading' }
+  | { status: 'ready'; plan: DayPlan; offline: boolean; questions?: number; topics?: { left: number; total: number } | null }
+  | { status: 'failed' };
 const PLAN_LOADING: PlanResult = { status: 'loading' };
 const PLAN_FAILED: PlanResult = { status: 'failed' };
 const NO_CONTAINERS: OverviewContainer[] = [];
@@ -1661,7 +1666,13 @@ const PLAN_STATES = new Set(['study', 'done', 'nothing', 'exam_today', 'after', 
 function samePlanResult(a: PlanResult | undefined, b: PlanResult): boolean {
   if (!a || a.status !== b.status) return false;
   if (a.status === 'ready' && b.status === 'ready') {
-    return a.offline === b.offline && a.questions === b.questions && (a.plan === b.plan || JSON.stringify(a.plan) === JSON.stringify(b.plan));
+    return (
+      a.offline === b.offline &&
+      a.questions === b.questions &&
+      a.topics?.left === b.topics?.left &&
+      a.topics?.total === b.topics?.total &&
+      (a.plan === b.plan || JSON.stringify(a.plan) === JSON.stringify(b.plan))
+    );
   }
   return true;
 }
@@ -1682,6 +1693,18 @@ function PlanSource({ id, onPlan, round = 0 }: { id: string; onPlan: (id: string
   }, [round, reload]);
   const planInput = data?.planInput;
   const summary = data?.summary;
+  // «Осталось выучить» of the exam: its test topics from the plan's input, its oral parts' from the page's one
+  // learn_left read (every oral exam of the user at once, shared with the oral cards).
+  const hasOral = Boolean(summary && oralExamIds(summary.subjects).length > 0);
+  const learn = useLearnLeft(hasOral ? null : [], hasOral);
+  const topics = useMemo(() => {
+    if (!summary || !planInput || (hasOral && learn.status === 'loading')) return null;
+    try {
+      return examTopicCounts(summary.subjects, planInput, new Map(learn.exams.map((exam) => [exam.examId, exam])));
+    } catch {
+      return null;
+    }
+  }, [summary, planInput, hasOral, learn.status, learn.exams]);
   useEffect(() => {
     if (!planInput) {
       onPlan(id, loading && !unavailable ? PLAN_LOADING : PLAN_FAILED);
@@ -1703,10 +1726,10 @@ function PlanSource({ id, onPlan, round = 0 }: { id: string; onPlan: (id: string
     onPlan(
       id,
       plan && typeof plan === 'object' && PLAN_STATES.has(plan.state)
-        ? { status: 'ready', plan, offline: Boolean(offline), ...(questions === undefined ? {} : { questions }) }
+        ? { status: 'ready', plan, offline: Boolean(offline), topics, ...(questions === undefined ? {} : { questions }) }
         : PLAN_FAILED,
     );
-  }, [id, planInput, summary, loading, offline, unavailable, onPlan]);
+  }, [id, planInput, summary, loading, offline, unavailable, onPlan, topics]);
   return null;
 }
 
@@ -1834,11 +1857,11 @@ export function containerRowMeta(item: TodayContainer, today: string, now: Date 
 function OralTodayRow({ exam }: { exam: TodayExam }) {
   const tally = coverageTally(exam.questions);
   const mapped = tally.total > 0 && tally.unmapped < tally.total;
-  const sheet = useSheetToday(mapped ? exam.id : null, exam.examDate);
-  const erasable = sheet?.erasable.questions.length ?? 0;
+  const oral = useOralToday(mapped ? exam.id : null);
+  const erasable = oral.ready;
   const step =
     erasable > 0
-      ? `можно стереть строки у ${erasable} ${pluralRu(erasable, ['вопроса', 'вопросов', 'вопросов'])}`
+      ? `можно выучить ${erasable} ${pluralRu(erasable, ['вопрос', 'вопроса', 'вопросов'])}`
       : tally.total > 0
         ? `${tally.total} ${pluralRu(tally.total, QUESTION_FORMS)}`
         : '';
@@ -1921,10 +1944,10 @@ function TodayRows({
  * «Тянуть билет из них» into the draw «Ждут подтверждения» — audit of 2026-10-08: «Можно стереть: 4 вопроса ·
  * Ответить» beside «Тянуть билет» read as «удалить 4 вопроса» and gave two look-alike buttons.
  */
-function NextEraseLine({ erasable }: { erasable: ErasableNow }) {
-  if (erasable.questions.length > 0) return null;
-  const next = nextErasableLine(erasable.next);
-  return next ? <p className="td-note td-erase-next">{glue(next)}</p> : null;
+function NextEraseLine({ ready, next }: { ready: number; next: number | null }) {
+  if (ready > 0) return null;
+  const when = nextReadyWhen(next);
+  return when ? <p className="td-note td-erase-next">{glue(`Следующие вопросы можно выучить ${when}.`)}</p> : null;
 }
 
 function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boolean; phone: boolean; lead: boolean }) {
@@ -1950,29 +1973,30 @@ function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boo
   // «Шпаргалка: 39 строк осталось из 47» once the exam's cheat sheet has lines (sheet spec 4.4), under it when the next
   // lines can be erased (Сегодня-lite), then the two ways back on another day: the student's own calendar
   // («Напоминать каждый день») and, for the author of an open group link, «Скопировать вопрос дня».
-  const sheet = useSheetToday(mapped ? exam.id : null, exam.examDate);
-  const sheetCounts = sheet?.counts ?? null;
-  // Questions whose cheat-sheet lines an answer erases now: then the draw from exactly them is the next step.
+  // «Осталось выучить 9 тем из 12» (one learn_left read for every oral exam of «Сегодня»), under it when the next
+  // questions can be learned, then the two ways back on another day: «Напоминать каждый день» and, for the author of an
+  // open group link, «Скопировать вопрос дня» (it reads the list itself, only then).
+  const oral = useOralToday(mapped ? exam.id : null);
+  // Once a topic is learned (as the exam page's rows): before, «12 из 12» would read as nothing done.
+  const sheetCounts = oral.topics && oral.topics.left < oral.topics.total ? oral.topics : null;
+  // Questions an answer now makes learned: then the draw from exactly them is the next step.
   const canDraw = total > 0 && !neverMapped && !nothingFound;
-  const erasable = canDraw ? sheet?.erasable.questions.length ?? 0 : 0;
+  const erasable = canDraw ? oral.ready : 0;
   const sheetLine = sheetCounts ? (
     <p className="td-sheet">
-      <Link className="td-sheet-link" to={`/exams/${exam.id}?view=sheet`}>
-        {/* The count holds together: a narrow card breaks after «Шпаргалка:», not inside «осталось из 47». */}
-        <span>
-          Шпаргалка: <span className="td-nowrap">{glue(`${sheetCounts.left} ${counterLabel(sheetCounts)}`)}</span>
-        </span>
+      <Link className="td-sheet-link" to={`/exams/${exam.id}`}>
+        <span>{glue(learnLeftLine(sheetCounts.left, sheetCounts.total))}</span>
         <ArrowIcon className="td-arrow" />
       </Link>
     </p>
   ) : null;
-  const sheetLines = sheet ? (
+  const sheetLines = oral.exam ? (
     <>
       {sheetLine}
-      <NextEraseLine erasable={sheet.erasable} />
+      <NextEraseLine ready={oral.ready} next={oral.next} />
       <div className="td-back">
         <DailyReminder variant="today" examId={exam.id} />
-        <QuestionOfDay examId={exam.id} examTitle={exam.title} questions={sheet.questions} from="today" />
+        <QuestionOfDay examId={exam.id} examTitle={exam.title} from="today" />
       </div>
     </>
   ) : null;
@@ -2033,15 +2057,14 @@ function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boo
     // sheet's count as lines. The dots, the legend, the answers and the note are on the exam's sheet; the next erase
     // time in its status; «Напоминать каждый день» in «Профиль».
     const metaShort = examMetaShort({ examDate: exam.examDate, total });
-    const today = erasable > 0 ? erasableShort(erasable) : neverMapped ? shareSentence(exam.questions, exam.layout) : '';
+    const today = erasable > 0 ? readyShort(erasable) : neverMapped ? shareSentence(exam.questions, exam.layout) : '';
     const rows = figure || gap || sheetCounts;
-    // The arrow holds on to the count, so a line that has to wrap breaks after «Шпаргалка:» with the arrow at its end.
+    // The arrow holds on to the count: a line that has to wrap keeps the arrow at its end.
     const sheetRow = sheetCounts ? (
       <p className="td-sheet">
-        <Link className="td-sheet-link" to={`/exams/${exam.id}?view=sheet`}>
-          Шпаргалка:{' '}
+        <Link className="td-sheet-link" to={`/exams/${exam.id}`}>
           <span className="td-nowrap">
-            {glue(`${sheetCounts.left} ${counterLabel(sheetCounts)}`)}
+            {glue(learnLeftLine(sheetCounts.left, sheetCounts.total))}
             <ArrowIcon className="td-arrow" />
           </span>
         </Link>
@@ -2091,7 +2114,7 @@ function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boo
           </div>
         ) : null}
         {/* The author of an open group link keeps «Скопировать вопрос дня» (nothing at all for anyone else). */}
-        {sheet ? <QuestionOfDay examId={exam.id} examTitle={exam.title} questions={sheet.questions} from="today" /> : null}
+        {oral.exam ? <QuestionOfDay examId={exam.id} examTitle={exam.title} from="today" /> : null}
       </article>
     );
   }
@@ -2100,7 +2123,7 @@ function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boo
     <div className="td-next">
       {erasable > 0 ? (
         <p className="td-erase-t" id={eraseId}>
-          {glue(erasableLine(erasable))}
+          {readyShort(erasable)}
         </p>
       ) : null}
       <div className="td-actions">

@@ -10,7 +10,7 @@ import Dashboard, {
   cardsMissingFromReview,
   dueLecturesText,
   dueLine,
-  erasableShort,
+  readyShort,
   examFlag,
   examHeading,
   examHeadingParts,
@@ -1495,9 +1495,9 @@ describe('«Сегодня» on a phone', () => {
     expect(examMetaShort({ examDate: '2026-10-15', total: 40 })).toBe('15 октября · 40 вопросов');
     expect(examMetaShort({ examDate: null, total: 21 })).toBe('21 вопрос');
     expect(examMetaShort({ examDate: '2026-10-15', total: 0 })).toBe('15 октября');
-    expect(plain(erasableShort(1))).toBe('Можно стереть строки шпаргалки у 1 вопроса.');
-    expect(plain(erasableShort(4))).toBe('Можно стереть строки шпаргалки у 4 вопросов.');
-    expect(plain(erasableShort(21))).toBe('Можно стереть строки шпаргалки у 21 вопроса.');
+    expect(plain(readyShort(1))).toBe('Сегодня можно выучить 1 вопрос.');
+    expect(plain(readyShort(4))).toBe('Сегодня можно выучить 4 вопроса.');
+    expect(plain(readyShort(21))).toBe('Сегодня можно выучить 21 вопрос.');
     expect(dueLine(26)).toBe('26 карточек · около 13 минут');
     expect(dueLine(1)).toBe('1 карточка · около минуты');
     expect(dueLine(41)).toBe('41 карточка · около 21 минуты');

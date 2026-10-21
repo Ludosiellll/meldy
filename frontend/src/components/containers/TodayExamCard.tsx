@@ -17,6 +17,7 @@ import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { DayPlan, LocalDay, OverviewContainer } from '../../types/container';
 import { RULE_LINE, dayText } from '../../lib/containers/words';
+import { learnLeftLine } from '../../lib/containers/topics';
 import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
 import { figureWords, planText, safeStart, titleText } from './planLines';
@@ -36,6 +37,8 @@ export interface TodayExamCardProps {
   lead: boolean;
   /** On the exam's own day: «Перенести» opens «Перенести экзамен» («Сегодня» holds the dialog). */
   onMove?: () => void;
+  /** «Осталось выучить 9 тем из 12» (topicsOf.ts examTopicCounts over the plan's input and learn_left), once known. */
+  topics?: { left: number; total: number } | null;
 }
 
 function ArrowIcon() {
@@ -70,7 +73,7 @@ export function nearestDate(container: OverviewContainer, today: LocalDay): Loca
   return dates.find((date) => (dayDiff(today, date) ?? -1) >= 0) ?? dates[dates.length - 1] ?? null;
 }
 
-export default function TodayExamCard({ container, plan, questions = null, offline = false, lead, onMove }: TodayExamCardProps) {
+export default function TodayExamCard({ container, plan, questions = null, offline = false, lead, onMove, topics = null }: TodayExamCardProps) {
   const titleId = useId();
   const phone = usePhone();
   const wide = useWide();
@@ -200,7 +203,18 @@ export default function TodayExamCard({ container, plan, questions = null, offli
         ) : null}
       </div>
       {offline ? <p className="tc-note">{copy.OFFLINE_PAGE}</p> : null}
-      <div className="td-ready">{figureRow}</div>
+      <div className="td-ready">
+        {figureRow}
+        {/* Once a topic is learned, as the exam page's rows say it: before, «48 из 48» would read as nothing done. */}
+        {topics && topics.total > 0 && topics.left < topics.total ? (
+          <p className="td-sheet tc-topics">
+            <Link className="tc-rule-link" to={page}>
+              {copy.glue(learnLeftLine(topics.left, topics.total))}
+              <ArrowIcon />
+            </Link>
+          </p>
+        ) : null}
+      </div>
     </article>
   );
 }
