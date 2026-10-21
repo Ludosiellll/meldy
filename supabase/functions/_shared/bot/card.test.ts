@@ -2,7 +2,7 @@
 // behind them (the lead exam as «Сегодня» picks it, the plan's own words, the window line only on its eve).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, moveKeyboard, planInputOf, planNow, planSentence, timeText } from './card.ts';
+import { afterDateCard, askCard, dayCard, dayView, examList, figureLine, moveKeyboard, planInputOf, planNow, planSentence, timeText, topicsLeft } from './card.ts';
 import { decode } from './codec.ts';
 import { lintMessage } from './lint.ts';
 import { visibleText } from './html.ts';
@@ -344,4 +344,19 @@ test('«Все вопросы» (minutes_per_day 300, the owner, 2026-10-14): a 
   assert.match(text, /около \d+(,5)? час/);
   assert.doesNotMatch(text, /300 минут/);
   assert.equal(card.send, true);
+});
+
+test('«Осталось выучить»: the day card says the topics left once one is learned, as the site counts them', () => {
+  // One subject of 6 questions in the file's 3 topics (1, 2, 3, 1, 2, 3): 4 learned close topic 1 only.
+  const spec = { ...AUTUMN, subjects: 1, perSubject: 6, twoDays: 4, errors: 0, started: 0 };
+  const card = dayCard(todayOf([spec]), 'today', SITE);
+  lintCard('topics', card);
+  assert.match(visibleText(card.out.text).replace(/\u00a0/g, ' '), /\nОсталось выучить 2 темы из 3\./);
+  // None learned yet: no line («3 из 3» would read as nothing done).
+  const none = dayCard(todayOf([{ ...spec, twoDays: 2 }]), 'today', SITE);
+  assert.doesNotMatch(visibleText(none.out.text), /Осталось выучить/);
+  // An exam with an oral part whose topics were not read: no line rather than a count without them.
+  const main = dayView(todayOf([spec])).main!;
+  assert.deepEqual(topicsLeft(todayOf([spec]), main), { left: 2, total: 3 });
+  assert.equal(topicsLeft(todayOf([spec]), { ...main, hasOral: true }), null);
 });
