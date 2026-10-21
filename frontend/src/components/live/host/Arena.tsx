@@ -6,10 +6,11 @@
 import { memo, useLayoutEffect, useRef, type RefObject } from 'react';
 import type { RosterRow } from '../../../lib/live/types';
 import { Boss } from '../art/Boss';
+import { Character } from '../art/Character';
 import { Burst, Debris, Shard, Star } from '../art/Fx';
 import { BATTLE, nb } from './copy';
 import { FX_COLOURS } from './director';
-import { bossBox, crowdPoint, hpBox } from './layout';
+import { UNDER_BAR_Y, bossBox, crowdPoint, hpBox } from './layout';
 import { useBossView, useHpView, useStrike, type StageStore } from './stageStore';
 
 export function HpBar({ store, width, enter }: { store: StageStore; width: number; enter: boolean }) {
@@ -17,11 +18,9 @@ export function HpBar({ store, width, enter }: { store: StageStore; width: numbe
   const k = max > 0 ? Math.max(0, Math.min(1, hp / max)) : 1;
   const box = hpBox(width);
   return (
-    <div className={`lvh-hp${enter ? ' lvh-hp--enter' : ''}`} style={{ left: box.x, top: box.y, width: box.width }}>
-      <div className="lvh-hp-row">
-        <b>{BATTLE.boss}</b>
-        <span className="lvh-hp-num">{BATTLE.hp(hp, max)}</span>
-      </div>
+    <div className={`lvh-hp${enter ? ' lvh-hp--enter' : ''}`} style={{ left: box.x, top: box.y, width: box.width, height: box.h }}>
+      <b className="lvh-hp-name">{BATTLE.boss}</b>
+      <span className="lvh-hp-num">{BATTLE.hp(hp, max)}</span>
       <div
         className="lvh-hp-bar"
         role="meter"
@@ -46,12 +45,17 @@ export function UnderBar({ store, width }: { store: StageStore; width: number })
   const { phase, fallen } = useBossView(store);
   const strike = useStrike(store);
   const box = hpBox(width);
-  const style = { left: box.x - 120, width: box.width + 240, top: box.y + 76 };
+  const style = { left: box.x - 220, width: box.width + 440, top: UNDER_BAR_Y };
   if (strike && strike.top.length) {
     return (
       <ol className="lvh-strike" style={style} aria-label={BATTLE.strikeLabel}>
         {strike.top.map((r, i) => (
           <li key={r.id} style={{ ['--i' as string]: i }}>
+            {i === 0 ? (
+              <span className="lvh-strike-face">
+                <Character look={r.look} size={50} face="happy" move="none" />
+              </span>
+            ) : null}
             <span className="lvh-strike-name" title={r.name}>
               {r.name}
             </span>

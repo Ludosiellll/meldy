@@ -87,14 +87,17 @@ export function strikeOf(s: Pick<HostState, 'result' | 'roster'>): StrikeView | 
   if (!r) return null;
   const hits = countedHits(r.hits);
   if (!hits.length) return null;
-  const names = new Map(s.roster.map((p) => [p.player_id, p.name]));
+  const names = new Map(s.roster.map((p) => [p.player_id, p]));
   const total = hits.reduce((sum, h) => sum + h.dmg, 0);
   const top = hits
     .map((h, i) => ({ h, i }))
     .filter(({ h }) => h.dmg > 0 && names.has(h.player_id))
     .sort((a, b) => b.h.dmg - a.h.dmg || a.i - b.i)
     .slice(0, 3)
-    .map(({ h }) => ({ id: h.player_id, name: names.get(h.player_id)!, dmg: h.dmg }));
+    .map(({ h }) => {
+      const p = names.get(h.player_id)!;
+      return { id: h.player_id, name: p.name, dmg: h.dmg, look: p.look };
+    });
   return { total, top };
 }
 
@@ -354,7 +357,7 @@ export class Director {
       show(total);
       const bar = hpBox(this.env.width());
       const max = store.getHp().max || s.boss.hp_max || 1;
-      const to = { x: bar.x + bar.width * Math.max(0, Math.min(1, hpAfter / max)), y: bar.y + 51 };
+      const to = { x: bar.x + bar.width * Math.max(0, Math.min(1, hpAfter / max)), y: bar.cy };
       this.animate(
         label,
         [
@@ -371,7 +374,7 @@ export class Director {
       store.setHp(hpAfter);
       const bar = hpBox(this.env.width());
       const max = store.getHp().max || 1;
-      const at = { x: bar.x + bar.width * Math.max(0, Math.min(1, hpAfter / max)), y: bar.y + 51 };
+      const at = { x: bar.x + bar.width * Math.max(0, Math.min(1, hpAfter / max)), y: bar.cy };
       const b = this.spawn('burst');
       const hb = BURST / 2;
       this.animate(
@@ -438,8 +441,9 @@ export class Director {
     store.setHp(store.getHp().hp + amount);
     const bar = hpBox(this.env.width());
     const label = this.spawn('lvh-heal', `+${nb(amount)}`);
-    const x = bar.x + bar.width + 18;
-    const y = bar.y + 30;
+    // right of the HP number, on the bar's line
+    const x = bar.x + bar.width + 262;
+    const y = bar.cy - 24;
     this.animate(
       label,
       [

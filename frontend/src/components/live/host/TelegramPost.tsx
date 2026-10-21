@@ -19,6 +19,19 @@ export interface Chat {
 }
 
 export const FAKE_CHATS: readonly Chat[] = [{ chatId: -1001234567890, title: '3-ПО' }];
+const MORE_FAKE_CHATS: readonly Chat[] = [...FAKE_CHATS, { chatId: -1001234567891, title: '4-ИС' }, { chatId: -1001234567892, title: null }];
+
+/** With the fake server: one chat, or `?chats=0…3` in the address (to see the list and the note in the browser). */
+function fakeChats(): Chat[] {
+  let n = 1;
+  try {
+    const asked = new URLSearchParams(window.location.search).get('chats');
+    if (asked !== null && /^[0-3]$/.test(asked)) n = Number(asked);
+  } catch {
+    /* no address: one chat */
+  }
+  return MORE_FAKE_CHATS.slice(0, n);
+}
 
 const KEY = (game: string) => `meldy.live.hostpost.${game}`;
 
@@ -53,7 +66,7 @@ export function useBoundChats(containerId: string | null, fake: boolean): { load
   const [load, setLoad] = useState<Load>({ kind: 'loading' });
   const reload = useCallback(() => {
     if (fake) {
-      setLoad({ kind: 'ready', chats: [...FAKE_CHATS] });
+      setLoad({ kind: 'ready', chats: fakeChats() });
       return;
     }
     if (!containerId) {

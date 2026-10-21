@@ -6,7 +6,7 @@
  * too: the director animates them directly, with no render at all.
  */
 import { useCallback, useSyncExternalStore } from 'react';
-import type { BossPhase, Expression } from '../../../lib/live/types';
+import type { BossPhase, Expression, Look } from '../../../lib/live/types';
 
 export interface CharView {
   face: Expression;
@@ -27,6 +27,7 @@ export interface StrikeRow {
   id: string;
   name: string;
   dmg: number;
+  look: Look;
 }
 
 /** The question's blow: the class's total and the three who hit hardest (shown under the HP bar after the hit). */

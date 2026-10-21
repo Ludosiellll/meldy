@@ -155,9 +155,12 @@ a.lvh-btn { text-decoration: none; }
 /* ───────── arena ───────── */
 .lvh-battle { position: absolute; inset: 0; }
 .lvh-hp { position: absolute; z-index: 2; }
-.lvh-hp-row { display: flex; justify-content: space-between; align-items: baseline; font: 600 26px/1 var(--ph-sans, system-ui); margin-bottom: 10px; font-variant-numeric: tabular-nums; }
-.lvh-hp-row b { font-weight: 800; }
-.lvh-hp-bar { position: relative; height: 30px; border-radius: 16px; background: #ecdcd6; overflow: hidden; }
+/* «Дедлайн» left of the bar, the HP right of it, on the bar's line. */
+.lvh-hp-name,
+.lvh-hp-num { position: absolute; top: 50%; font: 600 27px/1 var(--ph-sans, system-ui); white-space: nowrap; font-variant-numeric: tabular-nums; transform: translateY(-50%); }
+.lvh-hp-name { right: calc(100% + 18px); font-weight: 800; }
+.lvh-hp-num { left: calc(100% + 18px); }
+.lvh-hp-bar { position: relative; height: 100%; border-radius: 16px; background: #ecdcd6; overflow: hidden; }
 .lvh-hp-bar::after { content: ''; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 3px var(--lvh-outline); pointer-events: none; }
 .lvh-hp-bar i { position: absolute; inset: 0; transform-origin: 0 50%; }
 .lvh-hp-lag { background: #f7b9a8; transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1) 0.42s; }
@@ -168,8 +171,10 @@ a.lvh-btn { text-decoration: none; }
 .lvh-phase-note { padding: 9px 22px 10px; border-radius: 999px; background: #fff1cf; box-shadow: inset 0 0 0 2px #f0d290; font: 600 23px/1.15 var(--ph-sans, system-ui); color: var(--lvh-ink); white-space: nowrap; animation: lvh-fade 0.4s backwards; }
 .lvh-phase-note[data-phase='2'] { background: #fde2da; box-shadow: inset 0 0 0 2px #f2b3a3; }
 .lvh-strike { position: absolute; z-index: 6; display: flex; justify-content: center; gap: 12px; margin: 0; padding: 0; list-style: none; pointer-events: none; }
-.lvh-strike li { display: flex; align-items: baseline; gap: 10px; max-width: 290px; padding: 8px 18px 9px; border-radius: 999px; background: var(--lvh-card); box-shadow: inset 0 0 0 2px var(--lvh-line); font: 600 24px/1.1 var(--ph-sans, system-ui); animation: lvh-chip-in 0.36s calc(var(--i, 0) * 90ms) var(--lvh-pop) backwards; }
-.lvh-strike li:first-child { background: var(--lvh-yellow); box-shadow: none; }
+/* 30 units (3.3 % of the screen's height): read from the back row; the first with its character. */
+.lvh-strike li { display: flex; align-items: center; gap: 12px; max-width: 360px; min-height: 60px; padding: 6px 24px 7px; border-radius: 999px; background: var(--lvh-card); box-shadow: inset 0 0 0 2px var(--lvh-line); font: 700 30px/1.1 var(--ph-sans, system-ui); animation: lvh-chip-in 0.36s calc(var(--i, 0) * 90ms) var(--lvh-pop) backwards; }
+.lvh-strike li:first-child { padding-left: 10px; background: var(--lvh-yellow); box-shadow: none; }
+.lvh-strike-face { flex: none; width: 50px; height: 50px; }
 .lvh-strike-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lvh-strike b { flex: none; font-weight: 800; font-variant-numeric: tabular-nums; }
 
@@ -325,8 +330,10 @@ a.lvh-btn { text-decoration: none; }
   60% { opacity: 1; transform: translateY(4px) scale(1.12); }
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
+/* From just above its place, appearing as it falls: it never crosses the bar's text on the way. */
 @keyframes lvh-boss-drop {
-  0% { transform: translateY(-640px); animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0); }
+  0% { transform: translateY(-220px); opacity: 0; animation-timing-function: cubic-bezier(0.5, 0, 0.75, 0); }
+  30% { opacity: 1; }
   55% { transform: translateY(0); }
   70% { transform: translateY(0) scale(1.12, 0.86); }
   85% { transform: translateY(-26px) scale(0.96, 1.04); }

@@ -37,6 +37,13 @@ describe('host.css', () => {
     expect(css).toMatch(/\.lvh-panel--late \{ animation-delay: 0\.6s; \}/);
   });
 
+  it('the question’s three are big enough for the back row (≥ 2.5 % of 900 units)', async () => {
+    const css = await read('host.css');
+    const size = Number(/\.lvh-strike li \{[^}]*font: \d+ (\d+)px/.exec(css)![1]);
+    expect(size).toBeGreaterThanOrEqual(0.025 * 900);
+    expect(size).toBeGreaterThanOrEqual(30);
+  });
+
   it('the lobby’s post list opens at --tg-pop-x (over the panel), not over the QR code', async () => {
     const css = await read('host.css');
     expect(css).toMatch(/\.lvh-lobby-foot \.lvh-tg \{ position: static; \}/);

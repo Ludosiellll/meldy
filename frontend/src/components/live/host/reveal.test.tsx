@@ -189,6 +189,10 @@ describe('the reveal, one moment at a time', () => {
     expect(fx.current!.querySelectorAll('.lvh-total')).toHaveLength(0);
     const named = screen.getByRole('list', { name: 'Больше всех урона за вопрос' });
     expect(named.textContent?.replace(/ /g, ' ')).toBe('Лена−98Артём−95Катя−92');
+    // the first with its character's head; the others by name (live check r2)
+    const chips = named.querySelectorAll('li');
+    expect(chips[0].querySelector('.lv-char')).not.toBeNull();
+    expect(chips[1].querySelector('.lv-char')).toBeNull();
     expect(cues.find((c) => c.cue === 'impact')!.at).toBe(plan.impact);
     // then the ice, then the banner — after the last shard
     await advance(plan.end - plan.impact! + 50);

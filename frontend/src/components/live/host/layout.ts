@@ -67,11 +67,18 @@ export function bossBox(width: number) {
   return { x, y: BOSS_TOP, size: BOSS_SIZE, center: { x: width / 2, y: BOSS_TOP + BOSS_SIZE * 0.55 } };
 }
 
-/** The HP bar over the monster. */
+/**
+ * The HP bar over the monster: the bar itself (30 units high), «Дедлайн» to its left and the HP to its right on the same
+ * line, so the room under it is free for the question's three who hit hardest.
+ */
+export const HP_BAR_H = 30;
 export function hpBox(width: number) {
   const w = 560;
-  return { x: width / 2 - w / 2, y: 84, width: w };
+  return { x: width / 2 - w / 2, y: 90, width: w, h: HP_BAR_H, cy: 90 + HP_BAR_H / 2 };
 }
+
+/** Under the bar: the question's three who hit hardest, or the phase's rule. */
+export const UNDER_BAR_Y = 90 + HP_BAR_H + 12;
 
 /** Where the hits of players who are not drawn come from (under the crowd's count). */
 export function crowdPoint(width: number): Point {
