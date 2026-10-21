@@ -562,6 +562,37 @@ describe('mode switcher', () => {
   });
 });
 
+describe('owner 21.10: a reload keeps the tab on screen', () => {
+  const at = () => `${window.location.pathname}${window.location.search}`;
+  beforeEach(() => window.history.replaceState(null, '', '/library/m1'));
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('the section of «Материал» (?section=) and the page’s own tab (?mode=) come back from the address', async () => {
+    state.material = {
+      ...makeMaterial({ cheatsheet: '# Выжимка', podcast: legacyLines }),
+      flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
+    };
+    renderPage('/library/m1');
+    fireEvent.click(await screen.findByRole('button', { name: /^Карточки/ }));
+    expect(screen.getByRole('button', { name: /^Карточки/ })).toHaveAttribute('aria-current', 'page');
+    expect(at()).toBe('/library/m1?section=flashcards');
+    cleanup();
+
+    renderPage(at());
+    expect(await screen.findByRole('button', { name: /^Карточки/ })).toHaveAttribute('aria-current', 'page');
+    fireEvent.click(screen.getByRole('tab', { name: /Подкаст/ }));
+    expect(new URLSearchParams(window.location.search).get('mode')).toBe('podcast');
+    cleanup();
+
+    renderPage(at());
+    expect(await screen.findByRole('tab', { name: /Подкаст/ })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: /Материал/ }));
+    // «Материал» is where a lecture opens: the address no longer names a mode.
+    expect(new URLSearchParams(window.location.search).get('mode')).toBeNull();
+    expect(await screen.findByRole('button', { name: /^Карточки/ })).toHaveAttribute('aria-current', 'page');
+  });
+});
+
 describe('«Выжимка»: one name for the tab and its card, as in the picker and on the result screen (QA 2026-10-11)', () => {
   it('says «Выжимка» once, hides the old heading of a saved text and does not rewrite the text', async () => {
     const saved = '# Экспресс-шпаргалка\n\n## Суть в 3 словах\n\nЭнтропия не убывает.';

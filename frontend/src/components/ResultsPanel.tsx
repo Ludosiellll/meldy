@@ -548,6 +548,7 @@ export default function ResultsPanel({
   initialTab,
   followupCards = 0,
   pageTabs,
+  onTabChange,
 }: {
   results: AnalysisResults;
   /** «Новый анализ» на странице анализа; без него кнопки нет (пример результата /try/lecture). */
@@ -601,6 +602,8 @@ export default function ResultsPanel({
     onSection: (section: ResultTab) => void;
     exportItems: MutableRefObject<ResultExportItem[]>;
   };
+  /** The section the student chose in the panel's own row: the lecture page keeps it in its address (?section=). */
+  onTabChange?: (section: ResultTab) => void;
 }) {
   const { user } = useAuth();
   // В режиме просмотра у результата нет материала, в который можно писать.
@@ -695,6 +698,7 @@ export default function ResultsPanel({
   const tab: Tab = pageSection && tabs.some(t => t.id === pageSection) ? pageSection : ownTab;
   const setTab = (next: Tab) => {
     setOwnTab(next);
+    if (next !== ownTab) onTabChange?.(next);
     if (pageTabs && next !== pageSection) pageTabs.onSection(next);
   };
 

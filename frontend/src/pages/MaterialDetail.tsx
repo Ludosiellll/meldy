@@ -31,6 +31,7 @@ import {
 import { followupCardsOf } from '../lib/followupCards';
 import { recognizedNotice, recognizedSource } from '../lib/lectureFormats';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { setAddressParams } from '../lib/urlState';
 import { usePhone } from '../lib/usePhone';
 import { stripScrollFor, useStripEdges } from '../components/ui/scrollStrip';
 import { openingResultTab, resultTabs, type ResultExportItem, type ResultTab } from '../components/resultSections';
@@ -342,7 +343,9 @@ export default function MaterialDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  // «Прогресс» links straight to a tab of the material: ?section=quiz | flashcards | summary.
+  // «Прогресс» links straight to a tab of the material: ?section=quiz | flashcards | summary. The page keeps the tab on
+  // screen in its address too (owner, 21.10: a reload lost the place): ?mode=express | podcast for «Выжимка» and
+  // «Подкаст», ?section= for the section of «Материал», written in place (lib/urlState.ts).
   const sectionValue = searchParams.get('section');
   const sectionParam = sectionValue === 'quiz' || sectionValue === 'flashcards' || sectionValue === 'summary' ? sectionValue : undefined;
   const { user } = useAuth();
@@ -365,10 +368,16 @@ export default function MaterialDetail() {
   const [titleInput, setTitleInput] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [mode, setMode] = useState<Mode>(
-    searchParams.get('mode') === 'express'
-      ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
-      : 'full'
+    searchParams.get('mode') === 'podcast'
+      ? 'podcast'
+      : searchParams.get('mode') === 'express'
+        ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
+        : 'full'
   );
+  const chooseSection = useCallback((next: ResultTab) => {
+    setSectionChoice(next);
+    setAddressParams({ section: next });
+  }, []);
   // Ссылки «Повторить за 5 минут» ведут сюда и без выжимки: тогда вкладка «Выжимка»
   // остаётся видна, чтобы выжимку можно было создать.
   const [expressRequested] = useState(() => searchParams.get('mode') === 'express' && searchParams.get('tab') !== 'podcast');
@@ -739,6 +748,7 @@ export default function MaterialDetail() {
   const selectMode = (next: Mode) => {
     setRevealPlayer(false);
     setMode(next);
+    if (next !== mode) setAddressParams({ mode: next === 'full' ? null : next, tab: null });
   };
 
   // Вкладки по образцу WAI-ARIA: стрелки, Home и End переключают и переносят фокус.
@@ -772,7 +782,7 @@ export default function MaterialDetail() {
   const lectureTab = mode === 'full' && sectionTabs.length > 0 ? section : mode;
   const selectLectureTab = (item: LectureTab) => {
     selectMode(item.mode);
-    if (item.section) setSectionChoice(item.section);
+    if (item.section) chooseSection(item.section);
   };
   const handleLectureTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const count = lectureTabs.length;
@@ -1045,7 +1055,8 @@ export default function MaterialDetail() {
             initialTab={sectionParam}
             followupCards={followups}
             notices={recognized ? <p>{recognized}</p> : undefined}
-            pageTabs={phone ? { section, onSection: setSectionChoice, exportItems: exportItemsRef } : undefined}
+            pageTabs={phone ? { section, onSection: chooseSection, exportItems: exportItemsRef } : undefined}
+            onTabChange={phone ? undefined : chooseSection}
           />
         ) : (
           <ExpressPrepView
