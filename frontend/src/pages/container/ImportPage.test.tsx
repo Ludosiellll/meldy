@@ -630,6 +630,136 @@ describe('ImportPage: one door for every file', () => {
   });
 });
 
+describe('ImportPage: owner 21.10, a reload keeps the import in this tab until it is saved', () => {
+  const LIST = '1. Вопрос?\nа) да\nб) нет';
+  const pasteList = (text = LIST) => {
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить список текстом' }));
+    fireEvent.change(screen.getByLabelText('Список вопросов'), { target: { value: text } });
+  };
+
+  it('the list being pasted, then the list read with the name typed; a saved exam leaves nothing behind', async () => {
+    api.parseBank.mockResolvedValue(TWO);
+    renderAt();
+    pasteList();
+    cleanup();
+
+    renderAt();
+    expect(screen.getByLabelText('Список вопросов')).toHaveValue(LIST);
+    fireEvent.click(screen.getByRole('button', { name: 'Разобрать' }));
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Зимняя сессия' } });
+    cleanup();
+
+    // What was read comes back as it was: no second request.
+    renderAt();
+    expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ })).toBeInTheDocument();
+    expect(screen.getByLabelText('Название')).toHaveValue('Зимняя сессия');
+    expect(api.parseBank).toHaveBeenCalledTimes(1);
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    expect(api.createContainer).toHaveBeenCalledWith('Зимняя сессия', null, expect.any(Array));
+    cleanup();
+
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Список вопросов')).not.toBeInTheDocument();
+  });
+
+  it('keeps the fixes and a removed subject of a pasted list', async () => {
+    api.parseBank.mockResolvedValue(TWO);
+    renderAt();
+    pasteList();
+    fireEvent.click(screen.getByRole('button', { name: 'Разобрать' }));
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
+    fireEvent.click(screen.getByRole('button', { name: /История Беларуси/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Убрать предмет' }));
+    await screen.findByRole('heading', { name: /Нашли 12\sвопросов/ });
+    cleanup();
+
+    renderAt();
+    expect(await screen.findByRole('heading', { name: /Нашли 12\sвопросов/ })).toBeInTheDocument();
+    expect(screen.getByText(/Убрано: 1\sпредмет/)).toBeInTheDocument();
+  });
+
+  it('a save that stopped half-way goes on from there after a reload, not again from the start', async () => {
+    api.parseBank.mockResolvedValue(TWO);
+    api.addItems.mockRejectedValueOnce(new api.ContainerApiError('network', 'Failed to fetch')).mockResolvedValue([]);
+    renderAt();
+    pasteList();
+    fireEvent.click(screen.getByRole('button', { name: 'Разобрать' }));
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
+    fireEvent.click(saveButton());
+    expect(await screen.findByText(IMPORT.saveRetry)).toBeInTheDocument();
+    cleanup();
+
+    renderAt();
+    expect(await screen.findByText(IMPORT.saveRetry)).toBeInTheDocument();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    expect(api.createContainer).toHaveBeenCalledTimes(1);
+    expect(api.addItems).toHaveBeenCalledTimes(3);
+  });
+
+  it('a list caught while it was being read is read again', async () => {
+    api.parseBank.mockReturnValueOnce(new Promise(() => undefined)).mockResolvedValue(TWO);
+    renderAt();
+    pasteList();
+    fireEvent.click(screen.getByRole('button', { name: 'Разобрать' }));
+    await screen.findByText('читаем…');
+    cleanup();
+
+    renderAt();
+    expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ })).toBeInTheDocument();
+    expect(api.parseBank).toHaveBeenCalledTimes(2);
+    expect(api.parseBank).toHaveBeenLastCalledWith(expect.objectContaining({ text: LIST, file: undefined }));
+  });
+
+  it('a file next to a pasted list is to be chosen again; chosen, it takes its row’s place', async () => {
+    api.parseBank.mockImplementation(async ({ file }: { file?: File }) => (file ? bank([item(1), item(2), item(3)], 'Право') : bank([item(1)], 'Сети')));
+    renderAt();
+    pasteList();
+    fireEvent.click(screen.getByRole('button', { name: 'Разобрать' }));
+    await screen.findByRole('heading', { name: /Нашли 1\sвопрос/ });
+    // «Добавить ещё файл» of the preview.
+    upload(['Право.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 4\sвопроса/ });
+    cleanup();
+
+    renderAt();
+    expect(await screen.findByRole('heading', { name: /Нашли 1\sвопрос/ })).toBeInTheDocument();
+    expect(screen.getByText('Право.docx', { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(IMPORT.fileAgain)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Попробовать ещё раз' })).not.toBeInTheDocument();
+    upload(['Право.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 4\sвопроса/ });
+    expect(screen.queryByText(IMPORT.fileAgain)).not.toBeInTheDocument();
+  });
+
+  it('with files only the page opens at its first step, the form as it was', async () => {
+    api.parseBank.mockResolvedValue(TWO);
+    renderAt();
+    upload(['Две.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Зимняя сессия' } });
+    cleanup();
+
+    renderAt();
+    expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeInTheDocument();
+    upload(['Две.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ });
+    expect(screen.getByLabelText('Название')).toHaveValue('Зимняя сессия');
+  });
+
+  it('each door keeps its own: a new exam’s list is not offered in «Добавить предмет»', async () => {
+    renderAt();
+    pasteList();
+    cleanup();
+    renderAt('/exams/import?from=c:c-9');
+    fireEvent.click(screen.getByRole('button', { name: 'Вставить список текстом' }));
+    expect(screen.getByLabelText('Список вопросов')).toHaveValue('');
+  });
+});
+
 describe('ImportPage: «Обновить из файла» of one subject (?from=c:<id>&subject=<id>, Concept 1 §3.4)', () => {
   const SUMMARY = summaryJson as unknown as ContainerSummary;
   const CID = SUMMARY.id;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { useLocation } from 'react-router-dom';
 
 /**
@@ -8,7 +8,8 @@ import { useLocation } from 'react-router-dom';
  *   ?key=value: useUrlState, or setAddressParams for a page that keeps the value itself. The entry is changed in place
  *   (history.replaceState): no new step for «Назад», no navigation, so the page neither scrolls to the top nor starts
  *   again (the rooms StudyPage and MockPage are keyed by location.key). The address is read when the page opens —
- *   a reload, «Назад» to it, a link to it. The default value leaves the address clean.
+ *   a reload, «Назад» to it, a link to it. The default value leaves the address clean. useListPlace keeps the item of
+ *   a long list on screen the same way.
  * - this tab (sessionStorage) — what was typed and not sent yet: useSessionDraft, under the item's own key, until it
  *   is sent (clear). Never in the address.
  * The server keeps what is already its own (a quiz attempt's answers and clock, a study session's answers): a page
@@ -81,6 +82,45 @@ export function useUrlState<T extends string>(key: string, fallback: T, allowed?
     [key, fallback],
   );
   return [value, set];
+}
+
+/**
+ * The item of a long list on screen — the one across the middle of the window — kept in the address as ?key=N (1-based;
+ * the first item leaves the address clean) as the list is scrolled. A list opened with ?key=N (a reload, its tab opened
+ * again) brings item N to the middle of the window once; N outside the list is ignored. `key` null: nothing is kept.
+ * Returns the ref for the list's element, whose children are the items.
+ */
+export function useListPlace<E extends HTMLElement>(key: string | null, count: number): RefObject<E> {
+  const list = useRef<E>(null);
+  const countRef = useRef(count);
+  countRef.current = count;
+  useEffect(() => {
+    if (!key) return undefined;
+    const kept = Number(addressParam(key));
+    if (Number.isInteger(kept) && kept > 1 && kept <= countRef.current) {
+      list.current?.children[kept - 1]?.scrollIntoView?.({ block: 'center' });
+    }
+    let frame = 0;
+    const onScroll = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        const items = list.current ? Array.from(list.current.children) : [];
+        if (items.length === 0) return;
+        const middle = window.innerHeight / 2;
+        const across = items.findIndex((item) => item.getBoundingClientRect().bottom >= middle);
+        const index = across < 0 ? items.length - 1 : across;
+        setAddressParams({ [key]: index === 0 ? null : String(index + 1) });
+      });
+    };
+    // Any scroll, the window's or a box's: the capture phase sees them all.
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    return () => {
+      document.removeEventListener('scroll', onScroll, { capture: true });
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [key]);
+  return list;
 }
 
 const DRAFT_PREFIX = 'meldy_draft:';

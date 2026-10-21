@@ -549,6 +549,7 @@ export default function ResultsPanel({
   followupCards = 0,
   pageTabs,
   onTabChange,
+  keepPlace = false,
 }: {
   results: AnalysisResults;
   /** «Новый анализ» на странице анализа; без него кнопки нет (пример результата /try/lecture). */
@@ -604,6 +605,8 @@ export default function ResultsPanel({
   };
   /** The section the student chose in the panel's own row: the lecture page keeps it in its address (?section=). */
   onTabChange?: (section: ResultTab) => void;
+  /** The lecture page: a reload keeps the card and the question on screen and what was opened or chosen in them. */
+  keepPlace?: boolean;
 }) {
   const { user } = useAuth();
   // В режиме просмотра у результата нет материала, в который можно писать.
@@ -1153,7 +1156,13 @@ export default function ResultsPanel({
                       </button>
                     </p>
                   )}
-                  <FlashcardsView data={view.flashcards} sources={view.grounding?.sources} reviewHref={reviewHref} followups={followupCards} />
+                  <FlashcardsView
+                    data={view.flashcards}
+                    sources={view.grounding?.sources}
+                    reviewHref={reviewHref}
+                    followups={followupCards}
+                    placeKey={keepPlace ? materialId : undefined}
+                  />
                 </>
               )
             )}
@@ -1167,6 +1176,7 @@ export default function ResultsPanel({
                   {...quizJournal}
                   presenting={presentingQuiz}
                   onExitPresentation={() => setPresentingQuiz(false)}
+                  placeKey={keepPlace ? materialId : undefined}
                 />
               )
             )}

@@ -591,6 +591,43 @@ describe('owner 21.10: a reload keeps the tab on screen', () => {
     expect(new URLSearchParams(window.location.search).get('mode')).toBeNull();
     expect(await screen.findByRole('button', { name: /^Карточки/ })).toHaveAttribute('aria-current', 'page');
   });
+
+  it('inside «Карточки» and «Самопроверка» the card and the question on screen (?card=, ?q=) come back into view', async () => {
+    const brought: string[] = [];
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement) {
+        brought.push((this.querySelector('.fc-q, .qz-q')?.textContent ?? '').trim());
+      },
+    });
+    state.material = {
+      ...makeMaterial(),
+      flashcards_json: {
+        flashcards: [
+          { id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' },
+          { id: 2, question: 'Убывает ли энтропия?', answer: 'Нет' },
+          { id: 3, question: 'Кто ввёл энтропию?', answer: 'Клаузиус' },
+        ],
+      },
+      quiz_json: {
+        quiz: [
+          { id: 1, question: 'Убывает ли энтропия изолированной системы?', options: ['A) Нет', 'B) Да'], correct: 'A', explanation: '', source_ids: [] },
+          { id: 2, question: 'Кто ввёл понятие энтропии?', options: ['A) Ньютон', 'B) Клаузиус'], correct: 'B', explanation: '', source_ids: [] },
+        ],
+      },
+    };
+    try {
+      window.history.replaceState(null, '', '/library/m1?section=flashcards&card=3&q=2');
+      renderPage(at());
+      await screen.findByText('Кто ввёл энтропию?');
+      await waitFor(() => expect(brought).toEqual(['3. Кто ввёл энтропию?']));
+      fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+      await screen.findByText(/^2\. Кто ввёл понятие энтропии\?/);
+      await waitFor(() => expect(brought).toEqual(['3. Кто ввёл энтропию?', '2. Кто ввёл понятие энтропии?']));
+    } finally {
+      delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    }
+  });
 });
 
 describe('«Выжимка»: one name for the tab and its card, as in the picker and on the result screen (QA 2026-10-11)', () => {

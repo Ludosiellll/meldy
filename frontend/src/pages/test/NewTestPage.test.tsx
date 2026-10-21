@@ -27,6 +27,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   api.createContainer.mockReset().mockResolvedValue({ container_id: 'c-new', subjects: [{ id: 's-new', position: 1, title: 'Вопросы' }] });
   api.setContainerKind.mockReset().mockResolvedValue(undefined);
 });
@@ -69,6 +70,21 @@ describe('NewTestPage: «Новый тест» (spec 2026-10-18 §47.2)', () => 
     expect(field).toHaveAttribute('maxLength', '120');
     fireEvent.change(field, { target: { value: 'а'.repeat(110) } });
     expect(screen.getByText('110 / 120')).toBeInTheDocument();
+  });
+
+  it('owner 21.10: a reload keeps the name typed in this tab; a made test leaves nothing behind', async () => {
+    const first = renderPage();
+    fireEvent.change(screen.getByLabelText(NEW_TEST.name), { target: { value: 'Химия, 9 класс' } });
+    first.unmount();
+
+    const second = renderPage();
+    expect(screen.getByLabelText(NEW_TEST.name)).toHaveValue('Химия, 9 класс');
+    fireEvent.click(screen.getByRole('button', { name: NEW_TEST.create }));
+    expect(await screen.findByRole('heading', { name: 'Студия c-new' })).toBeInTheDocument();
+    second.unmount();
+
+    renderPage();
+    expect(screen.getByLabelText(NEW_TEST.name)).toHaveValue('');
   });
 
   it('says in place why it failed and lets the author try again', async () => {

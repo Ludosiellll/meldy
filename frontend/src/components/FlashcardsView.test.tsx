@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import FlashcardsView from './FlashcardsView';
@@ -97,5 +97,50 @@ describe('the cards of a lecture', () => {
     fireEvent.click(document.querySelector('.fp-dim') as HTMLElement);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(card).not.toHaveAttribute('data-open');
+  });
+});
+
+describe('owner 21.10: a reload of the lecture page keeps the place in «Карточки»', () => {
+  const brought: string[] = [];
+  const opened = () => Array.from(document.querySelectorAll('.fc-card')).map((card) => card.hasAttribute('data-open'));
+  beforeEach(() => {
+    brought.length = 0;
+    window.sessionStorage.clear();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+      configurable: true,
+      value(this: HTMLElement) {
+        brought.push(this.querySelector('.fc-n')?.textContent ?? '');
+      },
+    });
+  });
+  afterEach(() => {
+    delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+    window.history.replaceState(null, '', '/');
+  });
+
+  it('the card on screen (?card=) comes back into view and the answers opened in this tab stay open', () => {
+    window.history.replaceState(null, '', '/library/m1?section=flashcards&card=2');
+    const first = renderCards({ reviewHref: '/review?material=m1', placeKey: 'm1' });
+    expect(brought).toEqual(['2.']);
+    fireEvent.click(document.querySelectorAll('.fc-q')[0]);
+    expect(opened()).toEqual([true, false]);
+    first.unmount();
+
+    renderCards({ reviewHref: '/review?material=m1', placeKey: 'm1' });
+    expect(brought).toEqual(['2.', '2.']);
+    expect(opened()).toEqual([true, false]);
+    fireEvent.click(button('Скрыть все') as HTMLButtonElement);
+    expect(window.sessionStorage.length).toBe(0);
+  });
+
+  it('elsewhere (a result not on the lecture page) nothing is kept', () => {
+    window.history.replaceState(null, '', '/analyze?card=2');
+    const first = renderCards({ reviewHref: '/review?material=m1' });
+    fireEvent.click(document.querySelectorAll('.fc-q')[0]);
+    first.unmount();
+    renderCards({ reviewHref: '/review?material=m1' });
+    expect(brought).toEqual([]);
+    expect(opened()).toEqual([false, false]);
+    expect(window.sessionStorage.length).toBe(0);
   });
 });

@@ -10,6 +10,7 @@ import SourceReferences from './SourceReferences';
 import { stemsOf, stripSourceMarkers } from './summary/fragmentModel';
 import { repairMathEscapes } from '../lib/mathEscapes';
 import { cardsLine } from '../lib/followupCards';
+import { useListPlace, useSessionDraft } from '../lib/urlState';
 import 'katex/dist/katex.min.css';
 import './FlashcardsView.css';
 
@@ -45,6 +46,17 @@ interface FlashcardsViewProps {
   reviewHref?: string;
   /** Cards this lecture got from ticket answers: reviewed together with its own (lib/followupCards). */
   followups?: number;
+  /**
+   * The lecture page (its material's id): a reload keeps the card on screen (?card=, lib/urlState.ts useListPlace) and
+   * the answers opened in this tab (owner, 21.10: a reload lost the place).
+   */
+  placeKey?: string;
+}
+
+const NONE_OPEN: Record<number, boolean> = {};
+
+function isOpenCards(value: unknown): value is Record<number, boolean> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value) && Object.values(value as object).every((open) => typeof open === 'boolean');
 }
 
 /**
@@ -53,7 +65,7 @@ interface FlashcardsViewProps {
  * «Начать обучение» here was a deck that saved nothing beside the real review). A result that is not in the
  * library yet has only that deck, named for what it is: «Пролистать без записи».
  */
-export default function FlashcardsView({ data, sources = [], reviewHref, followups = 0 }: FlashcardsViewProps) {
+export default function FlashcardsView({ data, sources = [], reviewHref, followups = 0, placeKey }: FlashcardsViewProps) {
   // Без меток фрагментов «[S02]», которые модель иногда копирует из входа; формулы — с обратной чертой (LIB-2).
   const cards = data?.flashcards?.map((card) => ({
     ...card,
@@ -61,7 +73,8 @@ export default function FlashcardsView({ data, sources = [], reviewHref, followu
     answer: typeof card.answer === 'string' ? repairMathEscapes(stripSourceMarkers(card.answer)) : card.answer,
   }));
 
-  const [revealed, setRevealed] = useState<Record<number, boolean>>({});
+  const [revealed, setRevealed] = useSessionDraft(placeKey ? `cards-open:${placeKey}` : null, NONE_OPEN, isOpenCards);
+  const list = useListPlace<HTMLOListElement>(placeKey ? 'card' : null, cards?.length ?? 0);
   const [studyMode, setStudyMode] = useState(false);
   const [studyIdx, setStudyIdx] = useState(0);
   const [studyRevealed, setStudyRevealed] = useState(false);
@@ -253,7 +266,7 @@ export default function FlashcardsView({ data, sources = [], reviewHref, followu
         <p className="fc-note">Ответы здесь не сохраняются и не двигают повторение.</p>
       ) : null}
 
-      <ol className="fc-list">
+      <ol className="fc-list" ref={list}>
         {cards.map((c: Flashcard, i: number) => (
           <li
             key={i}
