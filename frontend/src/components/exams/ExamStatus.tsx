@@ -48,7 +48,7 @@ const ExamStatusCard = forwardRef<HTMLHeadingElement, ExamStatusCardProps>(funct
       {loading ? (
         <>
           <p className="ex-st-wait" role="status">
-            {showLoading ? 'Загружаем шпаргалку и ответы…' : ''}
+            {showLoading ? 'Загружаем темы и ответы…' : ''}
           </p>
           {actions ? <div className="ex-st-acts">{actions}</div> : null}
         </>

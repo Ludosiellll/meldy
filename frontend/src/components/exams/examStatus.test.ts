@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { allDrawLabel, awaitingDrawLabel, examStatus, isNothingFound, mappingLimitLine, statusTitleText, type ExamStatus, type ExamStatusInput } from './examStatus';
 import type { CoverageCounts } from './sheetModel';
 
-type Overrides = Partial<Omit<ExamStatusInput, 'mapping' | 'sheet' | 'answers' | 'coverage'>> & {
+type Overrides = Partial<Omit<ExamStatusInput, 'mapping' | 'learn' | 'answers' | 'coverage'>> & {
   coverage?: Partial<CoverageCounts>;
   mapping?: Partial<ExamStatusInput['mapping']>;
-  sheet?: Partial<ExamStatusInput['sheet']>;
+  learn?: Partial<ExamStatusInput['learn']>;
   answers?: Partial<ExamStatusInput['answers']>;
 };
 
@@ -20,19 +20,7 @@ function input(overrides: Overrides = {}): ExamStatusInput {
     copy: overrides.copy ?? false,
     coverage,
     mapping: { phase: 'idle', progress: null, message: null, added: 0, removed: 0, cost: 10, limit: null, ...overrides.mapping },
-    sheet: {
-      state: 'ready',
-      written: 0,
-      toWrite: 0,
-      units: 0,
-      writing: null,
-      unitsLeft: 100,
-      resetAt: '3:00',
-      lines: { left: 0, total: 0 },
-      erasable: 0,
-      nextErasable: null,
-      ...overrides.sheet,
-    },
+    learn: { state: 'ready', ready: 0, nextReady: null, learned: 0, inPlan: 14, ...overrides.learn },
     answers: { state: 'ready', answered: 0, untested: total, confirmed: 0, ...overrides.answers },
     drawLabel: overrides.drawLabel ?? 'Тянуть билет',
     lectureFit: overrides.lectureFit,
@@ -86,7 +74,7 @@ describe('examStatus: the owner’s exam (one unrelated lecture, every question 
     expect(isNothingFound(input({ coverage: { full: 5, none: 13 } }))).toBe(true); // 72 %
     expect(isNothingFound(input({ lectures: [] }))).toBe(false);
     expect(isNothingFound(input({ coverage: { none: 17, unmapped: 1 } }))).toBe(false);
-    expect(examStatus(input({ coverage: { full: 6, none: 12 }, sheet: { toWrite: 6, units: 6 } })).key).toBe('write-sheet');
+    expect(examStatus(input({ coverage: { full: 6, none: 12 } })).key).toBe('ready');
   });
 
   it('says it the member’s way on a copy from a group link: the author chose the lecture; add your own or ask for a new link', () => {
@@ -247,94 +235,54 @@ describe('examStatus: before and during the mapping', () => {
   });
 });
 
-describe('examStatus: the cheat sheet and the answers', () => {
-  it('found but not written: what was found and «Написать шпаргалку» with its price', () => {
-    const status = examStatus(input({ coverage: MAPPED, sheet: { toWrite: 14, units: 14 } }));
-    expect(status.key).toBe('write-sheet');
-    expect(title(status)).toBe('В лекциях есть ответы на 14 вопросов из 18');
-    expect(status.text).toBe('Теперь Meldy выпишет из лекций пункты ответа — получится шпаргалка, строки которой стирают ваши ответы. Это стоит 14 единиц ИИ.');
-    expect(status.action).toEqual({ kind: 'write', label: 'Написать шпаргалку', count: null });
-    expect(title(examStatus(input({ coverage: { full: 18 }, sheet: { toWrite: 18, units: 18 } })))).toBe('В лекциях есть ответы на все 18 вопросов');
+describe('examStatus: what is left to learn and the answers', () => {
+  it('writing the points is no step of the page: found questions lead to «Тянуть билет»', () => {
+    const status = examStatus(input({ coverage: MAPPED }));
+    expect(status.key).toBe('ready');
+    expect(status.action).toEqual({ kind: 'draw', label: 'Тянуть билет' });
+    expect(`${title(status)} ${status.text}`).not.toMatch(/шпаргал|строк|стер/i);
   });
 
-  it('the units left decide how much is written now; none left — the action waits for the limit', () => {
-    const some = examStatus(input({ coverage: MAPPED, sheet: { toWrite: 14, units: 14, unitsLeft: 6 } }));
-    expect(some.action).toEqual({ kind: 'write', label: 'Написать 6 вопросов', count: 6 });
-    expect(some.text).toMatch(/Сегодня хватит на 6 вопросов, остальные — после 3:00\.$/);
-    const none = examStatus(input({ coverage: MAPPED, sheet: { toWrite: 14, units: 14, unitsLeft: 0 } }));
-    expect(none.blocked).toBe('Дневной лимит ИИ на сегодня кончился. Написать шпаргалку можно после 3:00.');
-  });
-
-  it('written in part, before the first answer: «Дописать шпаргалку»; once answering, the answers lead', () => {
-    const status = examStatus(input({ coverage: MAPPED, sheet: { written: 10, toWrite: 4, units: 4, lines: { left: 30, total: 30 } } }));
-    expect(title(status)).toBe('Шпаргалка написана не полностью');
-    expect(status.text).toBe('У 4 вопросов ещё нет пунктов ответа. Допишите их. Это стоит 4 единицы ИИ.');
-    // The phone's brief stands under the title alone, so it names the questions instead of «его»/«их».
-    expect(status.brief).toBe('Допишите 4 вопроса. Это стоит 4 единицы ИИ.');
-    const one = examStatus(input({ coverage: MAPPED, sheet: { written: 10, toWrite: 1, units: 1, lines: { left: 30, total: 30 } } }));
-    expect(one.brief).toBe('Допишите 1 вопрос. Это стоит 1 единицу ИИ.');
-    expect(status.action).toEqual({ kind: 'write', label: 'Дописать шпаргалку', count: null });
-    expect(examStatus(input({ coverage: MAPPED, sheet: { written: 10, toWrite: 4, units: 4 }, answers: { answered: 3 } })).key).toBe('answering');
-  });
-
-  it('while the sheet is written: progress, no action', () => {
-    const status = examStatus(input({ coverage: MAPPED, sheet: { toWrite: 14, writing: { done: 5, total: 14 } } }));
-    expect(status.key).toBe('writing');
-    expect(title(status)).toBe('Meldy пишет шпаргалку');
-    expect(status.text).toBe('Готово 5 из 14. Страницу можно закрыть — шпаргалка допишется.');
-    expect(status.action).toBeNull();
-  });
-
-  it('while the sheet or the answers are read: no words yet, «Тянуть билет» in its place', () => {
-    for (const status of [examStatus(input({ coverage: MAPPED, sheet: { state: 'loading' } })), examStatus(input({ coverage: MAPPED, answers: { state: 'loading' } }))]) {
+  it('while what is left or the answers are read: no words yet, «Тянуть билет» in its place', () => {
+    for (const status of [examStatus(input({ coverage: MAPPED, learn: { state: 'loading' } })), examStatus(input({ coverage: MAPPED, answers: { state: 'loading' } }))]) {
       expect(status.key).toBe('loading');
-      expect(status.action).toEqual({ kind: 'draw', label: 'Тянуть билет' });
       expect(status.text).toBeNull();
+      expect(status.action).toEqual({ kind: 'draw', label: 'Тянуть билет' });
     }
   });
 
-  it('ready, no answers yet: «Тянуть билет» and how the lines are erased (answers on different days)', () => {
-    const status = examStatus(input({ coverage: MAPPED, sheet: { written: 14, lines: { left: 42, total: 42 } } }));
-    expect(status.key).toBe('ready');
-    expect(title(status)).toBe('Шпаргалка готова — можно отвечать');
-    expect(status.text).toBe('Тяните билет и отвечайте вслух: названный пункт стирает строку наполовину, названный снова в другой день — совсем.');
-    expect(status.action).toEqual({ kind: 'draw', label: 'Тянуть билет' });
-    expect(status.hideCoverage).toBe(false);
-    const single = examStatus(input({ coverage: MAPPED, drawLabel: 'Тянуть вопрос', sheet: { written: 14, lines: { left: 42, total: 42 } } }));
-    expect(single.text).toMatch(/^Тяните вопрос и отвечайте вслух/);
-    const noSheet = examStatus(input({ coverage: MAPPED, sheet: { state: 'error' } }));
-    expect(title(noSheet)).toBe('Можно отвечать на билеты');
-    expect(noSheet.text).toBe('Тяните билет и отвечайте вслух — Meldy проверит ответ по вашим лекциям.');
+  it('ready, no answers yet: «Тянуть билет» and the check by the lectures', () => {
+    const status = examStatus(input({ coverage: MAPPED }));
+    expect(title(status)).toBe('Можно отвечать на билеты');
+    expect(status.text).toBe('Тяните билет и отвечайте вслух. Meldy проверит ответ по вашим лекциям.');
+    const single = examStatus(input({ coverage: MAPPED, drawLabel: 'Тянуть вопрос' }));
+    expect(single.text).toBe('Тяните вопрос и отвечайте вслух. Meldy проверит ответ по вашим лекциям.');
+    expect(examStatus(input({ coverage: MAPPED, learn: { state: 'error' } })).key).toBe('ready');
   });
 
   it('a copy from a group link, ready: its own words, no mapping and no units', () => {
-    const status = examStatus(input({ copy: true, coverage: MAPPED, sheet: { written: 14, lines: { left: 42, total: 42 } } }));
+    const status = examStatus(input({ copy: true, coverage: MAPPED }));
     expect(status.key).toBe('ready');
-    expect(status.flag).toBe('Из ссылки группы');
     expect(title(status)).toBe('Экзамен из ссылки группы готов');
-    expect(status.text).toBe(
-      'Вопросы уже сверены с лекциями автора, шпаргалка написана. Тяните билет и отвечайте вслух: названный пункт стирает строку наполовину, названный снова в другой день — совсем.',
-    );
-    expect(`${title(status)} ${status.text}`).not.toMatch(/единиц|сверьте|Сверить/);
+    expect(status.text).toBe('Вопросы уже сверены с лекциями автора. Тяните билет и отвечайте вслух.');
   });
 
-  it('answering: what can be erased today, else when the next lines can be, else how many lines are left', () => {
-    const erase = examStatus(input({ coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, erasable: 3 }, answers: { answered: 3, untested: 15 } }));
-    expect(erase.key).toBe('answering');
-    expect(title(erase)).toBe('Сегодня можно стереть строки шпаргалки у 3 вопросов');
-    expect(erase.text).toBe('Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.');
-    // The bar at the bottom of a phone stands far from the headline: it names the questions itself.
-    expect(erase.action).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 3 вопросов' });
-    const later = examStatus(
-      input({ coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, nextErasable: 'Следующие строки можно стереть после 9 окт., 15:40.' }, answers: { answered: 3, untested: 15 } }),
-    );
-    expect(title(later)).toBe('Следующие строки можно стереть после 9 окт., 15:40');
-    expect(later.text).toBe('А пока отвечайте на вопросы, которых ещё не было: их 15.');
-    expect(later.action).toEqual({ kind: 'draw', label: 'Тянуть билет' });
-    const left = examStatus(input({ coverage: MAPPED, sheet: { written: 14, lines: { left: 21, total: 42 } }, answers: { answered: 18, untested: 0 } }));
-    expect(title(left)).toBe('На шпаргалке осталась 21 строка из 42');
-    const bare = examStatus(input({ coverage: MAPPED, sheet: { state: 'error' }, answers: { answered: 5, confirmed: 2 } }));
-    expect(title(bare)).toBe('Подтверждено ответами: 2 из 18');
+  it('answering: what can be learned today, else when the next can be, else how many are learned', () => {
+    const today = examStatus(input({ coverage: MAPPED, learn: { ready: 3, learned: 2 }, answers: { answered: 3, untested: 15 } }));
+    expect(today.key).toBe('answering');
+    expect(title(today)).toBe('Сегодня можно выучить 3 вопроса');
+    expect(today.text).toBe('Вы уже отвечали на них полностью в другой день. Ответьте снова, и они будут выучены.');
+    expect(today.action).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 3 вопросов' });
+    const one = examStatus(input({ coverage: MAPPED, learn: { ready: 1 }, answers: { answered: 3 } }));
+    expect(one.text).toBe('Вы уже отвечали на него полностью в другой день. Ответьте снова, и он будет выучен.');
+    const later = examStatus(input({ coverage: MAPPED, learn: { nextReady: 'после 9 окт., 15:40' }, answers: { answered: 3, untested: 15 } }));
+    expect(title(later)).toBe('Следующие вопросы можно выучить после 9 окт., 15:40');
+    expect(later.text).toBe('А пока отвечайте на вопросы, которых ещё не было. Их 15.');
+    const learned = examStatus(input({ coverage: MAPPED, learn: { learned: 6, inPlan: 18 }, answers: { answered: 18, untested: 0 } }));
+    expect(title(learned)).toBe('Выучено 6 вопросов из 18');
+    expect(title(examStatus(input({ coverage: MAPPED, learn: { learned: 1, inPlan: 18 }, answers: { answered: 2 } })))).toBe('Выучен 1 вопрос из 18');
+    const bare = examStatus(input({ coverage: MAPPED, learn: { state: 'error' }, answers: { answered: 5, confirmed: 2 } }));
+    expect(title(bare)).toBe('Отвечайте дальше');
   });
 
   it('never puts a percentage in the status block', () => {
@@ -342,9 +290,8 @@ describe('examStatus: the cheat sheet and the answers', () => {
       {},
       { copy: true },
       { coverage: { unmapped: 18 } },
-      { coverage: MAPPED, sheet: { toWrite: 14, units: 14 } },
-      { coverage: MAPPED, sheet: { written: 14, lines: { left: 42, total: 42 } } },
-      { coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, erasable: 2 }, answers: { answered: 2 } },
+      { coverage: MAPPED },
+      { coverage: MAPPED, learn: { ready: 2 }, answers: { answered: 2 } },
       { coverage: { full: 3, none: 15 } },
     ];
     for (const overrides of inputs) {
@@ -368,14 +315,9 @@ describe('examStatus: a phone’s one line (Phone_Declutter_2026-10-08)', () => 
     expect(brief({ coverage: MAPPED, mapping: { added: 2 } })).toBe('Сверьте заново — это стоит 10 единиц ИИ.');
     expect(brief({ coverage: { ...MAPPED, none: 1, unmapped: 3 } })).toBe('Meldy проверит только их — это стоит 10 единиц ИИ.');
     expect(brief({ coverage: { ...MAPPED, none: 0, unverified: 4 } })).toBe('Проверьте их снова — это стоит 10 единиц ИИ.');
-    expect(brief({ coverage: MAPPED, sheet: { toWrite: 14, units: 14 } })).toBe('Meldy выпишет из них пункты ответа. Это стоит 14 единиц ИИ.');
-    expect(brief({ coverage: MAPPED, sheet: { toWrite: 14, units: 14, unitsLeft: 5 } })).toBe(
-      'Meldy выпишет из них пункты ответа. Это стоит 14 единиц ИИ. Сегодня хватит на 5 вопросов, остальные — после 3:00.',
-    );
-    expect(brief({ coverage: MAPPED, sheet: { writing: { done: 5, total: 14 } } })).toBe('Готово 5 из 14. Страницу можно закрыть.');
-    expect(brief({ coverage: MAPPED, sheet: { lines: { left: 40, total: 40 } } })).toBe('Тяните билет и отвечайте вслух.');
-    expect(brief({ coverage: MAPPED, sheet: { lines: { left: 40, total: 40 }, erasable: 4 }, answers: { answered: 6 } })).toBe('Назовите их пункты снова в ответе.');
-    expect(brief({ coverage: MAPPED, sheet: { lines: { left: 30, total: 40 } }, answers: { answered: 6 } })).toBe('Отвечайте дальше: ответы стирают строки.');
+    expect(brief({ coverage: MAPPED })).toBe('Тяните билет и отвечайте вслух.');
+    expect(brief({ coverage: MAPPED, learn: { ready: 4 }, answers: { answered: 6 } })).toBe('Ответьте на них снова.');
+    expect(brief({ coverage: MAPPED, learn: { learned: 10, inPlan: 14 }, answers: { answered: 6 } })).toBe('Отвечайте дальше.');
   });
 
   it('a server’s message: its first sentence after the headline; nothing found: only the way out', () => {
@@ -391,13 +333,11 @@ describe('examStatus: a phone’s one line (Phone_Declutter_2026-10-08)', () => 
     expect(brief({ lectureFit: { state: 'some', titles: ['Деньги и банки'] } })).toBe('Подходит ваша лекция «Деньги и банки».');
     expect(brief({ lectureFit: { state: 'some', titles: ['Деньги', 'Банки', 'Кредит'] } })).toBe('Подходят ваши лекции «Деньги» и «Банки» и ещё 1.');
     expect(brief({ copy: true })).toBe('Добавьте свои лекции или попросите у автора новую ссылку.');
-    // Answered, the next lines erasable later.
-    expect(
-      brief({ coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, nextErasable: 'Следующие строки можно стереть после 9 окт., 15:40.' }, answers: { answered: 3 } }),
-    ).toBe('А пока отвечайте на другие вопросы.');
+    // Answered, the next ones can be learned later.
+    expect(brief({ coverage: MAPPED, learn: { nextReady: 'после 9 окт., 15:40' }, answers: { answered: 3 } })).toBe('А пока отвечайте на другие вопросы.');
     // The full text stays the computer's.
-    expect(examStatus(input({ coverage: MAPPED, sheet: { lines: { left: 40, total: 40 }, erasable: 4 }, answers: { answered: 6 } })).text).toBe(
-      'Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.',
+    expect(examStatus(input({ coverage: MAPPED, learn: { ready: 4 }, answers: { answered: 6 } })).text).toBe(
+      'Вы уже отвечали на них полностью в другой день. Ответьте снова, и они будут выучены.',
     );
   });
 
@@ -419,16 +359,12 @@ describe('examStatus: a phone’s one line (Phone_Declutter_2026-10-08)', () => 
       { copy: true },
       { coverage: { full: 2, none: 16 }, lectureFit: { state: 'some', titles: ['Деньги'] } },
       { coverage: { ...MAPPED, none: 0, unverified: 4 } },
-      { coverage: MAPPED, sheet: { writing: { done: 5, total: 14 } } },
-      { coverage: MAPPED, sheet: { toWrite: 14, units: 14 } },
-      { coverage: MAPPED, sheet: { written: 4, toWrite: 10, units: 10 } },
-      { coverage: MAPPED, sheet: { lines: { left: 40, total: 40 } } },
-      { coverage: MAPPED, sheet: { state: 'error' } },
-      { copy: true, coverage: MAPPED, sheet: { written: 14, lines: { left: 42, total: 42 } } },
-      { coverage: MAPPED, sheet: { lines: { left: 40, total: 40 }, erasable: 4 }, answers: { answered: 6 } },
-      { coverage: MAPPED, sheet: { lines: { left: 40, total: 42 }, nextErasable: 'Следующие строки можно стереть после 9 окт., 15:40.' }, answers: { answered: 3, untested: 15 } },
-      { coverage: MAPPED, sheet: { lines: { left: 30, total: 40 } }, answers: { answered: 6 } },
-      { coverage: MAPPED, sheet: { state: 'error' }, answers: { answered: 5, confirmed: 2 } },
+      { coverage: MAPPED },
+      { coverage: MAPPED, learn: { state: 'error' } },
+      { copy: true, coverage: MAPPED },
+      { coverage: MAPPED, learn: { ready: 4 }, answers: { answered: 6 } },
+      { coverage: MAPPED, learn: { nextReady: 'после 9 окт., 15:40' }, answers: { answered: 3, untested: 15 } },
+      { coverage: MAPPED, learn: { learned: 6 }, answers: { answered: 6 } },
     ];
     const keys = new Set<string>();
     for (const overrides of states) {
@@ -441,19 +377,19 @@ describe('examStatus: a phone’s one line (Phone_Declutter_2026-10-08)', () => 
     }
     // Every state but the moment of loading (no words at all) is here.
     expect([...keys].sort()).toEqual(
-      ['answering', 'empty', 'failed', 'interrupted', 'lectures-changed', 'mapping', 'no-lectures', 'nothing-found', 'ready', 'some-unmapped', 'unmapped', 'unverified', 'waiting', 'write-sheet', 'writing'].sort(),
+      ['answering', 'empty', 'failed', 'interrupted', 'lectures-changed', 'mapping', 'no-lectures', 'nothing-found', 'ready', 'some-unmapped', 'unmapped', 'unverified', 'waiting'].sort(),
     );
-    const loading = examStatus(input({ coverage: MAPPED, sheet: { state: 'loading' } }));
+    const loading = examStatus(input({ coverage: MAPPED, learn: { state: 'loading' } }));
     expect(loading.key).toBe('loading');
     expect(loading.text).toBeNull();
     expect(loading.brief).toBeNull();
   });
 });
 
-describe('examStatus: the draw from what an answer erases today', () => {
+describe('examStatus: the draw from what an answer makes learned today', () => {
   it('names the questions in the genitive after «из»: 1, 21, 31 — «вопроса», the rest «вопросов»', () => {
-    const label = (erasable: number, drawLabel = 'Тянуть билет') =>
-      examStatus(input({ drawLabel, coverage: MAPPED, sheet: { written: 14, lines: { left: 40, total: 42 }, erasable }, answers: { answered: 3 } })).action;
+    const label = (ready: number, drawLabel = 'Тянуть билет') =>
+      examStatus(input({ drawLabel, coverage: MAPPED, learn: { ready }, answers: { answered: 3 } })).action;
     expect(label(1)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 1 вопроса' });
     expect(label(2)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 2 вопросов' });
     expect(label(4)).toEqual({ kind: 'awaiting', label: 'Тянуть билет из 4 вопросов' });
