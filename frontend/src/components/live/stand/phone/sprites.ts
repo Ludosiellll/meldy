@@ -9,7 +9,7 @@
  * allocation of its own.
  */
 import type { Pose as Sample } from '../../../../lib/live/move/interp';
-import { F_AWAY, isGhost, kindOf, KIND_PLAYER, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, isIced, kindOf, KIND_PLAYER, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
 import type { GameMap } from '../../../../lib/live/move/sim';
 import { toPlayerLook, type PlayerLook } from '../../../../lib/live/three/look';
 import { paintThumb, thumbUrl } from '../../../../lib/live/three/thumbs';
@@ -223,6 +223,18 @@ export class SpriteView implements Backdrop {
       g.fill();
     }
     g.globalAlpha = 1;
+    if (!ghost && isIced(flags)) {
+      // the battle's ice (a mixed game): a pale block over the character
+      const w = size * 0.5;
+      const h = size * 0.78;
+      g.fillStyle = 'rgba(191, 232, 255, 0.5)';
+      g.strokeStyle = 'rgba(74, 166, 216, 0.9)';
+      g.lineWidth = 2 * this.dpr;
+      g.beginPath();
+      g.roundRect?.(x - w / 2, y - h, w, h, 8 * s);
+      g.fill();
+      g.stroke();
+    }
     if (mine) {
       const ty = y - size * 0.86 - 6 * this.dpr;
       g.font = `700 ${Math.round(13 * this.dpr)}px Onest, system-ui, sans-serif`;

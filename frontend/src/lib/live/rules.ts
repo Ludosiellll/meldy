@@ -62,6 +62,33 @@ export function rightNeeded(activePlayers: number): number {
 }
 
 /**
+ * The place numbers shown beside a ranked list (the server's order, CONTRACT §3, kept as it is): equal points share
+ * the place of the first of them and the next place counts everyone above it — «1, 2, 2, 4». The server breaks ties by
+ * right answers, best streak and joining time; the screens do not show a tie broken by those as two places.
+ */
+export function sharedPlaces(points: readonly number[]): number[] {
+  const out: number[] = [];
+  points.forEach((p, i) => out.push(i > 0 && p === points[i - 1] ? out[i - 1] : i + 1));
+  return out;
+}
+
+/**
+ * A player's own place to show, from the ranked list a screen has (the top five, with points): the shared place of
+ * its row there, or of the last row when the player has as many points (a tie that goes on past the list); otherwise
+ * the server's place (`place`: a tie further down cannot be seen from here).
+ */
+export function shownPlace(top: readonly { id: string | number | null; points: number }[] | null, me: { id: string | number | null; points: number; place: number }): number {
+  if (!top || top.length === 0) return me.place;
+  const places = sharedPlaces(top.map((r) => r.points));
+  const at = me.id === null ? -1 : top.findIndex((r) => r.id === me.id);
+  if (at >= 0) return places[at];
+  const last = top.length - 1;
+  // a full list (the five) whose last row has as many points: the tie goes on past it
+  if (top.length >= 5 && me.points === top[last].points && me.place > top.length) return places[last];
+  return me.place;
+}
+
+/**
  * The movement rounds of a battle with `stand_every` N (docs/live/MODE_MIXED.md §3, meldy_private.live_stand_round):
  * every Nth question (qi + 1 a multiple of N), and the last one when the game has fewer than N questions. The
  * database sends the result (`mixed.rounds`, `question.stand`); this mirror is for a preview before the game exists.

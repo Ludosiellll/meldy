@@ -4,6 +4,7 @@
  * transform: two half rings rotate on the compositor; only the number changes, once a second.
  */
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { sharedPlaces } from '../../../lib/live/rules';
 import type { HostResult, Question, TopRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
 import { BATTLE, BOARD, LETTERS, nb } from './copy';
@@ -216,6 +217,8 @@ export function TopFive({ rows, width }: { rows: TopRow[]; width: number }) {
   const inner = width - 72 - 60;
   const gap = 16;
   const card = (inner - gap * 4) / 5;
+  // equal damage, the same place («1, 2, 2, 4»)
+  const places = sharedPlaces(rows.slice(0, 5).map((r) => r.dmg));
   return (
     <section className="lvh-panel lvh-board" aria-label={BOARD.title}>
       <div className="lvh-board-head">
@@ -236,7 +239,7 @@ export function TopFive({ rows, width }: { rows: TopRow[]; width: number }) {
               <div className="lvh-card-char">
                 <BoardChar row={r} first={i === 0} />
               </div>
-              <div className="lvh-card-place">{i + 1}</div>
+              <div className="lvh-card-place">{places[i]}</div>
               <div className="lvh-card-name">{r.name}</div>
               <div className="lvh-card-foot">
                 <span>{nb(r.dmg)}</span>

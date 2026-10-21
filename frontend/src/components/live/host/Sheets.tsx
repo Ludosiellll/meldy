@@ -3,6 +3,7 @@
  * (remove a player) and the confirmations. Plain dialogs: the first button takes the focus, Esc closes.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { sharedPlaces } from '../../../lib/live/rules';
 import type { RosterRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
 import { END, LETTERS, PLAYERS_SHEET, REVIEW, nb } from './copy';
@@ -116,6 +117,7 @@ export function PlayersSheet({ roster, onKick, onClose }: { roster: RosterRow[];
 export function ReviewSheet({ log, roster, asked, onClose }: { log: LoggedQuestion[]; roster: RosterRow[]; asked: number; onClose: () => void }) {
   const [tab, setTab] = useState<'questions' | 'students'>('questions');
   const rows = rankRoster(roster);
+  const places = sharedPlaces(rows.map((r) => r.dmg));
   const played = Array.from({ length: Math.max(0, asked) }, (_, qi) => log.find((q) => q.qi === qi) ?? null);
   return (
     <Dialog label={REVIEW.title} onClose={onClose} wide>
@@ -179,7 +181,7 @@ export function ReviewSheet({ log, roster, asked, onClose }: { log: LoggedQuesti
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={r.player_id}>
-                    <td>{i + 1}</td>
+                    <td>{places[i]}</td>
                     <td>
                       <span className="lvh-table-who">
                         <Character look={r.look} size={34} move="none" />

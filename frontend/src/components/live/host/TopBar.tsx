@@ -19,9 +19,11 @@ export interface TopBarProps {
   onEnd: (() => void) | null;
   /** The sound's switch (remembered in this browser). */
   sound?: { muted: boolean; onToggle: () => void } | null;
+  /** A short note beside the question's number (a battle's next movement round: «Мини-игра через 2 вопроса»). */
+  note?: string | null;
 }
 
-export function TopBar({ title, question, final, pin, players, offline, full, next, onPlayers, onFull, onEnd, sound = null }: TopBarProps) {
+export function TopBar({ title, question, final, pin, players, offline, full, next, onPlayers, onFull, onEnd, sound = null, note = null }: TopBarProps) {
   const q = question ? TOP.question(question.i, question.n) : null;
   return (
     <header className="lvh-top">
@@ -43,6 +45,7 @@ export function TopBar({ title, question, final, pin, players, offline, full, ne
           {TOP.offline}
         </span>
       ) : null}
+      {note ? <span className="lvh-note">{note}</span> : null}
       {q ? (
         <span className="lvh-q-no">
           {q.before}

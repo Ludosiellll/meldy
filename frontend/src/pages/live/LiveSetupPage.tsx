@@ -1,17 +1,19 @@
 /**
- * /live/new?c=<test> — «Провести игру» (prototype host-01): which game — «Битва с монстром» (`mode: 'boss'`) or
- * «Встань на ответ» (`mode: 'stand'`, docs/live/MODE_STAND.md §1: its boss, the alarm clock or the skeleton, and
- * 15, 20 or 30 s), time per question, speed points, who may join, and — only when a Telegram chat is bound to the exam —
- * whether the bot names the top three there; the questions that do not fit are counted, their list folded. «Открыть
- * комнату» stays in view at the bottom of the window: it creates the game (`live_create`, CONTRACT §8), keeps the host
- * token in this tab and opens /live/:id.
+ * /live/new?c=<test> — «Провести игру» (prototype host-01): the game — «Битва с монстром» with or without its
+ * «Мини-игра с движением» every 3, 5 or 10 questions, or every question as «Встань на ответ» (the one picker of
+ * docs/live/MODE_MIXED.md §1 and §8: `miniGameSettings`; the stand game's boss and 15, 20 or 30 s, the battle's 10, 20 or
+ * 30 s, the boss again whenever there is an arena), speed points, who may join, and — only when a Telegram chat is bound
+ * to the exam — whether the bot names the top three there; the questions that do not fit are counted, their list
+ * folded. «Открыть комнату» stays in view at the bottom of the window: it creates the game (`live_create`, CONTRACT §8),
+ * keeps the host token in this tab and opens /live/:id.
  */
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { liveApi, liveFakeWanted } from '../../lib/live/api';
-import { LiveError, type BossKind, type GameMode, type Settings } from '../../lib/live/types';
+import { DEFAULT_STAND_EVERY, LiveError, MINI_GAMES, miniGameSettings, type BossKind, type GameMode, type MiniGame, type Settings } from '../../lib/live/types';
+import { standRounds } from '../../lib/live/rules';
 import { bossPictureUrl } from '../../lib/live/three/thumbs';
 import { BOSSES, STAND } from '../../components/live/stand/copy';
 import { loginFor } from '../../lib/returnTo';
@@ -56,7 +58,8 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
   );
 }
 
-function ModePicture() {
+/** The battle's picture; with an arena (a mini-game) the arena boss's picture in its corner. */
+function ModePicture({ arena = null }: { arena?: BossKind | null }) {
   return (
     <div className="lvs-mode-pic" aria-hidden="true">
       <div className="lvs-mode-art">
@@ -64,6 +67,7 @@ function ModePicture() {
         <Character look={{ body: 'round', colour: 'blue', eyes: 'round', hat: 'none' }} size={46} style={{ left: 10, top: 74 }} />
         <Character look={{ body: 'drop', colour: 'yellow', eyes: 'round', hat: 'antenna' }} size={46} style={{ left: 168, top: 70 }} phaseMs={300} />
       </div>
+      {arena ? <img className="lvs-mode-sticker" src={bossPictureUrl(arena)} alt="" width={56} height={56} /> : null}
     </div>
   );
 }
@@ -71,32 +75,43 @@ function ModePicture() {
 const TIMES: Record<GameMode, readonly Settings['time_s'][]> = { boss: [10, 20, 30], stand: [15, 20, 30] };
 const DEFAULT_TIME: Record<GameMode, Settings['time_s']> = { boss: 20, stand: 15 };
 
-function StandPicture() {
+function StandPicture({ boss }: { boss: BossKind }) {
   return (
     <div className="lvs-mode-pic lvs-mode-pic--stand" aria-hidden="true">
-      <img src={bossPictureUrl('clock')} alt="" width={112} height={112} />
+      <img src={bossPictureUrl(boss)} alt="" width={112} height={112} />
     </div>
   );
 }
 
-/** «Битва с монстром» or «Встань на ответ»: two cards, one picked. */
-function ModeChoice({ value, onChange }: { value: GameMode; onChange: (m: GameMode) => void }) {
-  const cards: Array<{ mode: GameMode; name: string; about: string; pic: ReactNode }> = [
-    { mode: 'boss', name: MODE.name, about: MODE.about, pic: <ModePicture /> },
-    { mode: 'stand', name: STAND.name, about: STAND.about, pic: <StandPicture /> },
-  ];
+/** The pick of the address: `mode=stand` (a stand game's «Ещё раз»), `mini=none|3|5|10|all`, else every 5th question. */
+export function pickOf(params: URLSearchParams): MiniGame {
+  if (params.get('mode') === 'stand') return 'all';
+  const m = params.get('mini');
+  const found = MINI_GAMES.find((g) => String(g) === m);
+  return found ?? (DEFAULT_STAND_EVERY === 0 ? 'none' : DEFAULT_STAND_EVERY);
+}
+
+/**
+ * The game, told and picked in one place: its picture, name and one line (which questions are the mini-game), and the
+ * picker «Мини-игра с движением». «Все вопросы» is «Встань на ответ»; «Нет» the plain battle.
+ */
+function GameChoice({ pick, count, boss, onChange }: { pick: MiniGame; count: number; boss: BossKind; onChange: (p: MiniGame) => void }) {
+  const stand = pick === 'all';
+  const about = stand ? STAND.about : pick === 'none' ? MODE.about : SETUP.mixedAbout(pick, standRounds(pick, count));
   return (
-    <div className="lvs-modes" role="radiogroup" aria-label={SETUP.game}>
-      {cards.map((c) => (
-        <button key={c.mode} type="button" role="radio" aria-checked={value === c.mode} className="lvs-mode lvs-mode--card" onClick={() => onChange(c.mode)}>
-          {c.pic}
-          <span className="lvs-mode-body">
-            <b>{c.name}</b>
-            <span>{c.about}</span>
-          </span>
-        </button>
-      ))}
-    </div>
+    <section className="lvs-game" aria-labelledby="lvs-game-name" data-pick={String(pick)}>
+      {stand ? <StandPicture boss={boss} /> : <ModePicture arena={pick === 'none' ? null : boss} />}
+      <div className="lvs-game-text">
+        <h2 id="lvs-game-name">{stand ? STAND.name : MODE.name}</h2>
+        <p>{about}</p>
+      </div>
+      <div className="lvs-game-pick">
+        <span className="lvs-game-label" aria-hidden="true">
+          {SETUP.mini}
+        </span>
+        <Seg label={SETUP.mini} value={pick} options={MINI_GAMES.map((g) => ({ value: g, text: SETUP.miniOption[String(g)] }))} onChange={onChange} />
+      </div>
+    </section>
   );
 }
 
@@ -128,14 +143,18 @@ export default function LiveSetupPage() {
 
   const [source, setSource] = useState<SourcePreview | null>(null);
   const [failed, setFailed] = useState(false);
-  const [mode, setModeState] = useState<GameMode>(() => (params.get('mode') === 'stand' ? 'stand' : 'boss'));
+  const [pick, setPickState] = useState<MiniGame>(() => pickOf(params));
+  const mode: GameMode = pick === 'all' ? 'stand' : 'boss';
   const [boss, setBoss] = useState<BossKind>('clock');
-  const [time, setTime] = useState<Settings['time_s']>(() => DEFAULT_TIME[params.get('mode') === 'stand' ? 'stand' : 'boss']);
-  const setMode = useCallback((m: GameMode) => {
-    setModeState(m);
-    // each game starts from its own default (stand: 15 s, MODE_STAND §1)
-    setTime(DEFAULT_TIME[m]);
-  }, []);
+  const [time, setTime] = useState<Settings['time_s']>(() => DEFAULT_TIME[pickOf(params) === 'all' ? 'stand' : 'boss']);
+  const setPick = useCallback(
+    (p: MiniGame) => {
+      // each game starts from its own times (stand: 15 s, MODE_STAND §1); the battle's picks share theirs
+      if ((pick === 'all') !== (p === 'all')) setTime(DEFAULT_TIME[p === 'all' ? 'stand' : 'boss']);
+      setPickState(p);
+    },
+    [pick],
+  );
   const [speed, setSpeed] = useState(true);
   const [who, setWho] = useState<Settings['who']>('pin');
   const [names, setNames] = useState(false);
@@ -180,7 +199,8 @@ export default function LiveSetupPage() {
     hostSound().unlock();
     setOpening(true);
     setError(null);
-    const settings: Settings = { mode, time_s: time, speed, who, chat_names: hasChat && names, ...(mode === 'stand' ? { boss } : {}) };
+    // the arena's boss whenever there is an arena (a stand game, or a battle's mini-games)
+    const settings: Settings = { ...miniGameSettings(pick), time_s: time, speed, who, chat_names: hasChat && names, ...(pick !== 'none' ? { boss } : {}) };
     try {
       const gameSource = { container_id: source.containerId, subject_ids: source.subjectIds, count: chosen };
       const created = await api.create(gameSource, settings);
@@ -196,7 +216,7 @@ export default function LiveSetupPage() {
       setError(SETUP.error[code] ?? SETUP.error.other);
       setOpening(false);
     }
-  }, [api, source, opening, tooFew, mode, boss, time, speed, who, names, hasChat, chosen, search, navigate]);
+  }, [api, source, opening, tooFew, pick, boss, time, speed, who, names, hasChat, chosen, search, navigate]);
 
   if (needsSignIn) return <Navigate to={loginFor(pathname, search)} replace />;
 
@@ -225,9 +245,9 @@ export default function LiveSetupPage() {
         ) : (
           <>
             <p className="lvs-lead">{SETUP.lead(Math.min(chosen, cap))}</p>
-            <ModeChoice value={mode} onChange={setMode} />
+            <GameChoice pick={pick} count={Math.min(chosen, cap)} boss={boss} onChange={setPick} />
             <div className="lvs-rows">
-              {mode === 'stand' ? (
+              {pick !== 'none' ? (
                 <Row label={SETUP.boss}>
                   <BossChoice value={boss} onChange={setBoss} />
                 </Row>

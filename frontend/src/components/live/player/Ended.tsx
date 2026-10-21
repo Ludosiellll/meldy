@@ -4,6 +4,7 @@
  * what the player did so far — damage, place, right answers of the closed questions (from `live_review`) — and offers
  * «Разбор» when at least one question closed, and «Войти по PIN». The same in Telegram (PlayerApp is shared).
  */
+import { shownPlace } from '../../../lib/live/rules';
 import type { Look, PlayerState, Review } from '../../../lib/live/types';
 import { LiveChar } from './art';
 import { closedOf, type PlayerController } from './controller';
@@ -42,7 +43,7 @@ export function Ended({ ctl, st, look, review, reviewFailed }: EndedProps) {
             {st.me.place > 0 && (
               <div>
                 <dt>место из {st.players}</dt>
-                <dd>{st.me.place}-е</dd>
+                <dd>{shownPlace(st.top ? st.top.map((r) => ({ id: r.player_id, points: r.dmg })) : null, { id: st.me.player_id, points: st.me.dmg, place: st.me.place })}-е</dd>
               </div>
             )}
             {!(right === null && reviewFailed) && (

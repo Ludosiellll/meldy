@@ -187,6 +187,32 @@
   background: #fff; color: #1d1b2e; font: 600 22px/1.35 var(--ph-sans, system-ui); text-align: center;
 }
 
+/* ───────── a battle's movement round (MixedHost.tsx): the board on the battle's stage, under its bar ───────── */
+.lvmx-backdrop { position: absolute; inset: 0; background: #171a3a; }
+.lvmx { position: absolute; inset: 0; color: #fff; pointer-events: none; }
+.lvmx .lvh-hp-name,
+.lvmx .lvh-hp-num { color: #fff; text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.lvmx-head { top: 132px; }
+.lvmx-side { top: 92px; }
+.lvmx-result { top: 92px; }
+.lvmx-result ~ .lvmx-side { top: 270px; }
+.lvst-dot--ice { background: #9fdcff; box-shadow: inset 0 0 0 2px #4aa6d8; }
+/* the hits on the boss, one chip each as they land; then the round's three who hit hardest */
+.lvmx-hits { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; max-width: 100%; }
+.lvmx-hits li {
+  display: inline-flex; align-items: center; gap: 10px; max-width: 280px; padding: 8px 16px; border-radius: 999px;
+  background: #fff; color: #1d1b2e; box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22); font: 700 21px/1.1 var(--ph-sans, system-ui);
+  animation: lvst-pop 0.32s var(--lvh-pop, ease-out) both;
+}
+.lvmx-hit-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvmx-hits b { flex: none; color: #c2381f; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lvmx-note {
+  position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 12px 22px; border-radius: 999px;
+  background: rgba(20, 22, 54, 0.82); color: #fff; font: 600 20px/1 var(--ph-sans, system-ui); white-space: nowrap;
+}
+.lvmx-note--warn { background: #fff3d6; color: #6b4300; }
+.lvmx .lvst-fail { pointer-events: auto; }
+
 @keyframes lvst-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes lvst-pop { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: none; } }
 @keyframes lvst-rise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }

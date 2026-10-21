@@ -10,6 +10,7 @@ import type { ArenaShape, MoveMap } from '../arenaPlan';
 import type { Arena, ArenaLook, Boss, BossKind, BossOptions, BossPhase, Kit, LoadOptions, Player, View, ViewOptions } from '../types';
 import { buildBodies } from './bodies';
 import { Blobs } from './blobs';
+import { Ice } from './ice';
 import { BossImpl } from './boss';
 import { Crowd, CrowdPlayer, MAX_PLAYERS, UNITS } from './crowd';
 import { makeRamp, sharedUniforms, canvasTexture, FONT, type SharedUniforms } from './materials';
@@ -116,6 +117,7 @@ export class KitImpl implements Kit {
   readonly crowd: Crowd;
   readonly tags: Tags;
   readonly blobs: Blobs;
+  readonly ice: Ice;
   readonly bosses: BossFacade[] = [];
   readonly arenas: ArenaFacade[] = [];
   private skeleton: Promise<GLTF> | null = null;
@@ -138,8 +140,10 @@ export class KitImpl implements Kit {
     this.shared.kitBones.value = baked.bones;
     this.tags = new Tags();
     this.blobs = new Blobs(MAX_PLAYERS + 8);
-    this.crowd = new Crowd(baked, this.shared, this.ramp, this.tags, this.blobs);
-    this.scene.add(this.crowd.group, this.blobs.mesh, this.tags.mesh);
+    // a block per player, and the chips of the blocks breaking at once
+    this.ice = new Ice(MAX_PLAYERS * 7);
+    this.crowd = new Crowd(baked, this.shared, this.ramp, this.tags, this.blobs, this.ice);
+    this.scene.add(this.crowd.group, this.blobs.mesh, this.ice.mesh, this.tags.mesh);
     this.scene.add(new THREE.HemisphereLight('#ffffff', '#5a4a7a', 1.25));
     const sun = new THREE.DirectionalLight('#fff1dc', 2.2);
     sun.position.set(-12, 30, 16);
@@ -241,6 +245,7 @@ export class KitImpl implements Kit {
     this.shared.kitTime.value = this.time;
     this.tags.begin();
     this.blobs.begin();
+    this.ice.begin();
     const players = this.crowd.players;
     for (let i = 0; i < players.length; i++) {
       const p = players[i];
@@ -262,6 +267,7 @@ export class KitImpl implements Kit {
     }
     this.crowd.finish();
     this.blobs.end();
+    this.ice.end();
     this.crowd.frame = frame + 1;
   }
 
@@ -300,6 +306,7 @@ export class KitImpl implements Kit {
     this.crowd.dispose();
     this.tags.dispose();
     this.blobs.dispose();
+    this.ice.dispose();
     this.ramp.dispose();
     this.background.dispose();
     this.scene.clear();

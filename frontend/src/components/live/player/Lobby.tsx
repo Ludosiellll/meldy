@@ -36,9 +36,18 @@ export interface LobbyProps {
   pin: string;
   crowd: readonly Look[];
   canEdit: boolean;
+  /** A battle with movement rounds: the qi of its mini-games (docs/live/MODE_MIXED.md), told in the card. */
+  rounds?: readonly number[] | null;
 }
 
-export function Lobby({ ctl, look, name, players, pin, crowd, canEdit }: LobbyProps) {
+/** «На вопросах 3 и 6 будет мини-игра. Там вы бегаете по арене.» (one round: «На вопросе 6 …»). */
+export function miniGameLine(rounds: readonly number[]): string {
+  const n = rounds.map((qi) => qi + 1);
+  const where = n.length === 1 ? `На вопросе ${n[0]}` : n.length > 4 ? `На каждом ${n[0]}-м вопросе` : `На вопросах ${n.slice(0, -1).join(', ')} и ${n[n.length - 1]}`;
+  return `${where} будет мини-игра. Там вы бегаете по арене.`;
+}
+
+export function Lobby({ ctl, look, name, players, pin, crowd, canEdit, rounds = null }: LobbyProps) {
   return (
     <>
       <div className="lp-page">
@@ -50,6 +59,7 @@ export function Lobby({ ctl, look, name, players, pin, crowd, canEdit }: LobbyPr
         </div>
         <div className="lp-card">
           <b>Битва с монстром.</b> Весь класс против Дедлайна: верный ответ&nbsp;— удар, ошибка&nbsp;— заморозка до следующего верного.
+          {rounds && rounds.length > 0 ? <span className="lp-card-more">{miniGameLine(rounds)}</span> : null}
         </div>
         <div className="lp-row">
           <span aria-live="polite">Играют {players}</span>

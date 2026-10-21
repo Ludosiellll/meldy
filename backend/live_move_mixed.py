@@ -386,7 +386,8 @@ class MixedMode(stand.StandMode):
                 g.set_phase("lobby")
                 changed = True
         elif state in ("countdown", "open") and movement:
-            if (g.qi != qi or g.round != "stand" or g.phase not in ("countdown", "open")) and self.clock.ready:
+            # a stale poll (sent before the room's write, answered after it) never opens the shown round again
+            if (g.qi != qi or g.round != "stand" or g.phase not in ("countdown", "open")) and g.applied_qi != qi and self.clock.ready:
                 opens, closes = stand.iso_ms(q.get("opens_at")), stand.iso_ms(q.get("closes_at"))
                 if opens is not None and closes is not None:
                     g.begin(qi, q, self.clock.to_room(opens), self.clock.to_room(closes), self.room_now())

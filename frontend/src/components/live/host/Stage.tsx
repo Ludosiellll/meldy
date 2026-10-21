@@ -35,9 +35,15 @@ const WidthContext = createContext(1600);
 /** The stage's width in units. */
 export const useStageWidth = () => useContext(WidthContext);
 
-export function Stage({ fit, children, label }: { fit: StageFit; children: ReactNode; label: string }) {
+/**
+ * `backdrop`: a layer under the stage over the whole window (a mixed game's 3D arena, MODE_MIXED §8); the stage's own
+ * light background is then a veil over it that fades out while `arena` is on.
+ */
+export function Stage({ fit, children, label, backdrop, arena = false }: { fit: StageFit; children: ReactNode; label: string; backdrop?: ReactNode; arena?: boolean }) {
   return (
-    <div className="lvh lvh-viewport">
+    <div className="lvh lvh-viewport" data-mixed={backdrop ? '' : undefined} data-arena={backdrop && arena ? '' : undefined}>
+      {backdrop}
+      {backdrop ? <div className="lvh-veil" aria-hidden="true" /> : null}
       <main
         className="lvh-stage"
         aria-label={label}

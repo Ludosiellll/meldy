@@ -106,6 +106,38 @@ describe('StandSession: the room for the phone (MODE_STAND §4, §9)', () => {
     expect(session.getSnapshot().lost).toBe(false);
   });
 
+  it('a mixed room: no «lost» between movement rounds (no snapshots due), counted from the moment the arena comes on', () => {
+    session.connect();
+    sock().open();
+    sock().text(welcome);
+    const state = (phase: string, round: 'stand' | 'tap' | null, qi = 2) => ({ t: 'stand', k: 'state', phase, qi, q_count: 6, players: 4, q: null, opens: null, closes: null, floor: 'up', res: null, top: null, acc: null, round });
+    // time passes with only pongs on the socket (the client's stale check stays quiet)
+    const quiet = (ms: number) => {
+      now += ms;
+      sock().text({ t: 'pong', c: null, tick: 1, ms: 1 });
+      vi.advanceTimersByTime(200);
+    };
+    sock().text(state('lobby', null, -1));
+    quiet(3000);
+    expect(session.getSnapshot().lost).toBe(false);
+    sock().text(state('open', 'tap', 1));
+    quiet(3000);
+    expect(session.getSnapshot().lost).toBe(false);
+    // a movement round: snapshots are due from now on
+    sock().text(state('countdown', 'stand'));
+    quiet(LOST_MS / 2);
+    expect(session.getSnapshot().lost).toBe(false);
+    quiet(LOST_MS);
+    expect(session.getSnapshot().lost).toBe(true);
+    sock().snap(200);
+    vi.advanceTimersByTime(200);
+    expect(session.getSnapshot().lost).toBe(false);
+    // the round is over: none due again
+    sock().text(state('leaderboard', 'stand'));
+    quiet(3000);
+    expect(session.getSnapshot().lost).toBe(false);
+  });
+
   it('tells a final close apart from a drop it will come back from', () => {
     session.connect();
     sock().open();

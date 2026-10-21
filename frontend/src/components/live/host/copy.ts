@@ -28,9 +28,11 @@ export const pinText = (pin: string) => (pin.length === 6 ? `${pin.slice(0, 3)}$
 /** The letters on the projector are the letters on the phones (CONTRACT §4). */
 export const LETTERS = ['А', 'Б', 'В', 'Г'] as const;
 
+const BATTLE_LEAD = 'Весь класс бьёт монстра верными ответами.';
+
 export const MODE = {
   name: 'Битва с монстром',
-  about: 'Весь класс бьёт монстра верными ответами. За ошибку игрок замерзает.',
+  about: `${BATTLE_LEAD} За ошибку игрок замерзает.`,
 };
 
 export const SETUP = {
@@ -43,6 +45,20 @@ export const SETUP = {
   failed: 'Не получилось загрузить вопросы.',
   retry: 'Повторить',
   game: 'Какая игра',
+  /** The setup's one choice of the game (docs/live/MODE_MIXED.md §1): none, every Nth question, or all of them. */
+  mini: 'Мини-игра с движением',
+  miniOption: { none: 'Нет', 3: 'Каждые 3 вопроса', 5: 'Каждые 5 вопросов', 10: 'Каждые 10 вопросов', all: 'Все вопросы' } as Record<string, string>,
+  /**
+   * The battle with movement rounds, told by its questions (`standRounds`): «На вопросах 3 и 6 ученики бегут на
+   * верный ответ.»; more than four rounds by the rule instead.
+   */
+  mixedAbout: (every: number, rounds: readonly number[]) => {
+    const run = 'ученики бегут на верный ответ.';
+    if (rounds.length === 0 || rounds.length > 4) return `${BATTLE_LEAD} На каждом ${every}-м вопросе ${run}`;
+    const n = rounds.map((qi) => qi + 1);
+    const list = n.length === 1 ? `вопросе ${n[0]}` : `вопросах ${n.slice(0, -1).join(', ')} и ${n[n.length - 1]}`;
+    return `${BATTLE_LEAD} На ${list} ${run}`;
+  },
   boss: 'Босс',
   time: 'Время на вопрос',
   timeOption: (s: number) => `${s}${NBSP}с`,
@@ -114,8 +130,14 @@ export const LOBBY = {
   waitingHint: 'Они появятся здесь, как только войдут.',
   more: (n: number) => `и ещё ${nb(n)}`,
   start: 'Начать',
-  settings: (time: number, speed: boolean, members: boolean) =>
-    [`${time}${NBSP}с на вопрос`, speed ? 'очки за скорость' : 'только верность', members ? 'только участники экзамена' : 'все по PIN'].join(' · '),
+  /** `rounds`: a battle's movement rounds (qi), told at the end («мини-игра на вопросах 3 и 6»). */
+  settings: (time: number, speed: boolean, members: boolean, rounds?: readonly number[]) =>
+    [
+      `${time}${NBSP}с на вопрос`,
+      speed ? 'очки за скорость' : 'только верность',
+      members ? 'только участники экзамена' : 'все по PIN',
+      ...(rounds && rounds.length ? [MIXED.rounds(rounds)] : []),
+    ].join(' · '),
 };
 
 const chatName = (title: string | null) => (title ? `«${title}»` : 'без названия');
@@ -160,6 +182,35 @@ export const BATTLE = {
   timeUp: 'Время вышло',
   allIn: 'Все ответили',
   more: (n: number) => `+${nb(n)}`,
+};
+
+/**
+ * A battle's movement rounds on the projector (docs/live/MODE_MIXED.md §8): the arena over the battle, its board, the
+ * hits on the boss after the stomp, and when the next one comes.
+ */
+export const MIXED = {
+  /** The board's line over a movement round's question. */
+  hint: 'Мини-игра. Встаньте на верный ответ.',
+  /** In the bar during the battle's questions: when the next movement round comes (k button questions before it). */
+  soon: (k: number) => (k === 0 ? 'Следующий вопрос с мини-игрой' : `Мини-игра через ${count(k, QUESTIONS)}`),
+  /** The lobby's settings line: which questions are movement rounds. */
+  rounds: (rounds: readonly number[]) => {
+    const n = rounds.map((qi) => qi + 1);
+    if (n.length === 0) return '';
+    if (n.length === 1) return `мини-игра на вопросе ${n[0]}`;
+    if (n.length > 4) return `мини-игра на каждом ${n[0]}-м вопросе`;
+    return `мини-игра на вопросах ${n.slice(0, -1).join(', ')} и ${n[n.length - 1]}`;
+  },
+  stood: (n: number, of: number) => ({ before: 'Попали ', n: nb(n), after: ` из ${nb(of)}` }),
+  nobody: 'Никто не попал',
+  fastest: (name: string, dmg: number) => `Быстрее всех ${name}, −${nb(dmg)}`,
+  playing: 'Играют',
+  frozen: 'Заморожены',
+  /** Under the bar after the hits: the round's three who hit hardest (the battle's own line). */
+  strikeLabel: 'Больше всех урона за мини-игру',
+  void: { title: 'Мини-игра не засчитана', sub: 'Связь с игрой пропала. Урон и лёд не изменились.' },
+  loading: 'Загружаем арену…',
+  lost: 'Связь с ареной пропала. Подключаемся.',
 };
 
 export const BANNER = {

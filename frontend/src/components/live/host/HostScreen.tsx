@@ -7,11 +7,11 @@
  * directly and touches the stage store per hit; when it ends, the store takes the server's state as it is then.
  * A reload, or a state the screen did not see coming, is drawn still, as it is.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import type { ColourId, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { isStandRound, mixedOf, untilStandRound, type ColourId, type HostState, type LiveApi, type RosterRow } from '../../../lib/live/types';
 import { TelegramPost, type Chat } from './TelegramPost';
 import { BossView, CrowdCount, FxDefs, HpBar, UnderBar, byJoin } from './Arena';
-import { BANNER, MODE, NEXT } from './copy';
+import { BANNER, MIXED, MODE, NEXT } from './copy';
 import { Crowd, type CrowdView, type Place } from './Crowd';
 import { Director, strikeOf, type BannerSpec, type Cue } from './director';
 import { logState, readLog, readSeats, saveSeats, type HostInfo } from './hostSession';
@@ -128,6 +128,16 @@ function Banner({ banner }: { banner: BannerState }) {
   );
 }
 
+/** A battle with movement rounds (docs/live/MODE_MIXED.md §8): its 3D arena under the stage, and its board. */
+export interface MixedView {
+  /** The arena's layer (the canvas), under the stage for the whole game. */
+  backdrop: ReactNode;
+  /** While a movement round is on screen: the arena's board, in place of the battle's stage (else null). */
+  board: ReactNode | null;
+  /** A kick reaches the room too (the database's live_kick is the other half). */
+  onKick?: (playerId: string) => void;
+}
+
 export interface HostScreenProps {
   gameId: string;
   api: LiveApi;
@@ -136,9 +146,15 @@ export interface HostScreenProps {
   info: HostInfo | null;
   joinUrl: string;
   onAgain: (() => void) | null;
+  mixed?: MixedView | null;
 }
 
-export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain }: HostScreenProps) {
+/** A movement round's question on the database's word (its countdown, open or reveal): the arena plays it. */
+export function inStandRound(s: Pick<HostState, 'state' | 'question'>): boolean {
+  return isStandRound(s) && (s.state === 'countdown' || s.state === 'open' || s.state === 'reveal');
+}
+
+export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain, mixed = null }: HostScreenProps) {
   const fit = useStageFit();
   const width = fit.width;
   const reduced = useReducedMotion();
@@ -274,6 +290,17 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     prevRef.current = s;
     setLog((l) => logState(gameId, l, s));
     const moved = !prev || prev.state !== s.state || prev.qi !== s.qi;
+    if (inStandRound(s)) {
+      // a movement round: the arena plays it (the stomp, the hits, the ice); the battle's stage only keeps the numbers
+      director.cancel();
+      clearBeatTimer();
+      if (beatRef.current !== null) setBeat(null);
+      if (moved) setBanner(null);
+      syncRest(store, s);
+      // the arena's reveal plays the boss's fall with its fanfare: the podium does not play it again
+      if (s.state === 'reveal' && s.boss.defeated) fanfared.current = true;
+      return;
+    }
     const closing = s.state === 'reveal' && !!s.result && !!prev && prev.qi === s.qi && (prev.state === 'open' || prev.state === 'countdown');
     if (closing) {
       setBanner(null);
@@ -369,10 +396,11 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   const doKick = useCallback(async () => {
     if (!kickRow) return;
     setActing(true);
+    mixed?.onKick?.(kickRow.player_id);
     await game.kick(kickRow.player_id);
     setActing(false);
     setKickRow(null);
-  }, [game, kickRow]);
+  }, [game, kickRow, mixed]);
   const doEnd = useCallback(async () => {
     setActing(true);
     await game.end();
@@ -403,8 +431,8 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   }, [q?.opens_at, q?.closes_at, offset]); // eslint-disable-line react-hooks/exhaustive-deps
   const closesAtRef = useRef(closesAt);
   closesAtRef.current = closesAt;
-  // The timer's 0 during the answers: «Время вышло» until the reveal comes.
-  const open = s.state === 'open';
+  // The timer's 0 during the answers: «Время вышло» until the reveal comes. (A movement round has the arena's own.)
+  const open = s.state === 'open' && !isStandRound(s);
   useEffect(() => {
     if (!open || !closesAt) return undefined;
     const t = setTimeout(() => {
@@ -466,9 +494,16 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     return () => clearTimeout(party);
   }, [ending, sound]);
 
+  // A battle with movement rounds: the arena's board in place of the battle's while a movement round is on screen, and
+  // in the bar, before the next question, when the next movement round comes.
+  const arena = mixed?.board ?? null;
+  const plan = mixed ? mixedOf(s) : null;
+  const soon = plan && !arena && (s.state === 'reveal' || s.state === 'leaderboard') && !s.boss.defeated && s.qi < s.q_count - 1 ? untilStandRound(plan, s.qi + 1) : null;
+
   return (
-    <Stage fit={fit} label={MODE.name}>
+    <Stage fit={fit} label={MODE.name} backdrop={mixed?.backdrop} arena={!!arena}>
       <TopBar
+        note={soon === null ? null : MIXED.soon(soon)}
         title={info?.title ?? null}
         question={inBattle && s.qi >= 0 ? { i: s.qi + 1, n: s.q_count } : null}
         final={atEnd}
@@ -482,7 +517,8 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         onEnd={s.state === 'ended' ? null : () => setSheet('end')}
         sound={closed ? null : soundSwitch}
       />
-      {s.state === 'lobby' ? (
+      {arena}
+      {!arena && s.state === 'lobby' ? (
         <Lobby
           state={s}
           players={joined.length}
@@ -498,6 +534,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         />
       ) : null}
       {inBattle ? (
+        // hidden, not unmounted, while the arena shows: the bar, the boss and the class come back as they were
         <div className="lvh-battle">
           <HpBar store={store} width={width} enter={enter} />
           <UnderBar store={store} width={width} />
@@ -505,7 +542,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
           <CrowdCount hidden={joined.length - visible.length} width={width} />
           {s.state === 'leaderboard' ? (
             <TopFive rows={s.top ?? []} width={width} />
-          ) : q ? (
+          ) : q && !isStandRound(s) ? (
             <QuestionPanel
               key={q.qi}
               late={enter && q.qi === 0}

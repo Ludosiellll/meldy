@@ -13,7 +13,7 @@
  */
 import type { Arena, ArenaShape, Boss, BossKind, Kit, MoveMap, Player, View } from '../../../../lib/live/three';
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook } from '../../../../lib/live/three';
-import { F_AWAY, isGhost, kindOf, KIND_PLAYER, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, isIced, kindOf, KIND_PLAYER, type StandState } from '../../../../lib/live/move/protocol';
 import type { MapJson } from '../../../../lib/live/move/sim';
 import { easeOutBack } from '../plan';
 import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
@@ -46,10 +46,14 @@ interface Tracked {
   riseAt: number;
   fx: number;
   fy: number;
+  /** The battle's ice drawn now (a mixed game's F_ICE; it forms only in sight, so the fallen get it when back). */
+  iced: boolean;
+  /** Not drawn yet: its ice is shown as it is, without growing. */
+  fresh: boolean;
 }
 
 function tracked(player: Player, x: number, y: number, seen: number): Tracked {
-  return { player, x, y, seen, fallAt: Infinity, riseAt: Infinity, fx: x, fy: y };
+  return { player, x, y, seen, fallAt: Infinity, riseAt: Infinity, fx: x, fy: y, iced: false, fresh: true };
 }
 
 export class PhoneScene implements Backdrop {
@@ -81,6 +85,8 @@ export class PhoneScene implements Backdrop {
   };
   /** Kept for callers of the old screen: the phone no longer leaves 3D for being slow (only without WebGL). */
   readonly slow = false;
+  /** kit.now() of the loop's last start (a mixed game's arena coming back after the button questions). */
+  private startedAt = -Infinity;
 
   private constructor(
     private readonly kit: Kit,
@@ -146,6 +152,7 @@ export class PhoneScene implements Backdrop {
   }
 
   start(onFrame: (dt: number) => void): void {
+    this.startedAt = this.kit.now();
     this.governor.begin();
     this.view?.start((dt) => onFrame(dt));
   }
@@ -311,6 +318,17 @@ export class PhoneScene implements Backdrop {
     t.x = x;
     t.y = y;
     const p = t.player;
+    // The battle's ice (a mixed game): it breaks on the right zone at the boss's blow, not before it (no blow yet: at
+    // once); it forms only in sight, never on one falling or rising from the pit.
+    const ice = isIced(flags);
+    const away = t.fallAt !== Infinity && now < t.riseAt + RISE_S;
+    const breaks = !ice && (this.impactAt === Infinity || now >= this.impactAt + 0.25);
+    if (ice !== t.iced && (breaks || (ice && !away && !isGhost(flags)))) {
+      t.iced = ice;
+      // drawn as it is when first seen or right after the loop started again (ice changed in the button questions)
+      p.setIce(ice, t.fresh || now - this.startedAt < 0.3);
+    }
+    t.fresh = false;
     if (t.fallAt !== Infinity) {
       if (now < t.riseAt) {
         // held where it stood until its tile goes, then down with it (or by itself where the tile stays)
@@ -336,7 +354,8 @@ export class PhoneScene implements Backdrop {
     }
     p.setGhost(isGhost(flags));
     p.setAway((flags & F_AWAY) !== 0);
-    p.setPose(speed > RUN_SPEED ? 'run' : 'idle');
+    // in ice a character slides, it does not run
+    p.setPose(speed > RUN_SPEED && !t.iced ? 'run' : 'idle');
     if (speed > RUN_SPEED) p.setFacing(Math.atan2(dx, dy));
     p.setPosition(x, y, isGhost(flags) ? 0 : Math.min(0, arena.floorAt(x, y)));
   }

@@ -219,6 +219,45 @@ def test_a_movement_round_lines_up_tracks_and_stomps_and_the_floor_brings_everyo
     assert w.game.round == "tap" and w.game.res is None and not w.game.live
 
 
+class StubRunner:
+    """What the glue (MixedMode / StandMode) reads of its room runner, with nobody connected."""
+
+    game_id = GAME
+    _host_token = HOST
+    hosts: list = []
+    conns: dict = {}
+
+    def __init__(self, room: lm.Room) -> None:
+        self.room = room
+        self.tick_at = time.perf_counter()
+
+
+def test_a_poll_answered_after_the_rooms_write_does_not_open_the_round_again():
+    """The poll went out while the round was open and came back after the room's write and reveal (seen on a loaded
+    machine, 21.10): the reveal stays, nobody is lined up again and the room does not decide a second time."""
+    w = World()
+    w.start(); w.taps({0: 1, 1: 1, 2: 1, 3: 1}); w.next()
+    w.start(); w.taps({0: 2, 1: 2, 2: 2, 3: 2}); w.next()
+    w.start()
+    mode = mixed.MixedMode(StubRunner(w.room), w.db.host_state_sync(), w.db)
+    mode.game = mode.hooks = w.game
+    mode.clock.sample(0.0, 0.0, 0.0)
+    w.t[0] = w.db.questions[2]["opens"] + 1
+    stale = w.db.host_state_sync()
+    assert stale["state"] == "open" and stale["question"]["stand"]
+    for p in w.ps:
+        p.x, p.y = CENTRE[1]
+    w.to_deadline()
+    w.close()
+    assert w.game.phase == "reveal" and w.game.res is not None and w.game.floor == "down"
+    mode.apply_state(stale)
+    assert w.game.phase == "reveal" and w.game.res is not None and w.game.floor == "down"
+    assert all(w.room.map.zone_index(p.x, p.y) == 2 for p in w.ps)          # still on Б, not lined up
+    n = len(w.decided)
+    w.run_ms(3000)
+    assert len(w.decided) == n
+
+
 def test_a_room_that_learns_of_a_round_late_still_lines_everyone_up_and_a_closed_one_moves_nobody():
     w = World(3)
     for i, p in enumerate(w.ps):

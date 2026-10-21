@@ -12,6 +12,7 @@
  * seconds counter writes a text node, not React state.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { sharedPlaces, shownPlace } from '../../../lib/live/rules';
 import type { BossPhase, Look, Me, PlayerResult, PlayerState, Question, TopRow } from '../../../lib/live/types';
 import { Shard, Star } from '../art/Fx';
 import { LiveBoss, LiveChar, reducedMotion } from './art';
@@ -167,6 +168,7 @@ function fly(el: HTMLDivElement | null, from: { x: number; y: number }, to: { x:
  * The gap to the next place up (Kahoot's «150 points behind»), from the top five of the leaderboard: the name above
  * when this player is 2nd to 6th, the lead when 1st; null further down (the state has no one else's damage there).
  * The number always comes after a colon («разница по урону: 21»), so no noun has to agree with it (1, 2, 5, 21, 150).
+ * Equal damage is the same place on every list («1, 2, 2, 4»): the one beside says it shares the place.
  */
 export function gapLine(top: readonly TopRow[] | null, me: Pick2<Me, 'player_id' | 'place' | 'dmg'>): string | null {
   if (!top || top.length === 0 || me.place < 1) return null;
@@ -174,12 +176,12 @@ export function gapLine(top: readonly TopRow[] | null, me: Pick2<Me, 'player_id'
     const next = top[1];
     if (!next || top[0]?.player_id !== me.player_id) return null;
     const lead = me.dmg - next.dmg;
-    return lead > 0 ? `Отрыв по урону:${NBSP}${nb(lead)}` : 'У второго места столько же урона';
+    return lead > 0 ? `Отрыв по урону:${NBSP}${nb(lead)}` : `${next.name} делит с вами первое место`;
   }
   const above = top[me.place - 2];
   if (!above || above.player_id === me.player_id) return null;
   const gap = above.dmg - me.dmg;
-  return gap > 0 ? `${above.name} впереди, разница по урону:${NBSP}${nb(gap)}` : `${above.name} впереди при равном уроне`;
+  return gap > 0 ? `${above.name} впереди, разница по урону:${NBSP}${nb(gap)}` : `${above.name} делит с вами место`;
 }
 type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
 
@@ -206,6 +208,25 @@ interface SheetProps {
   onImpact: () => void;
 }
 
+/**
+ * The sheet's words for a miss: a button question «Не успели» / «Неверно», a movement round of a mixed game «Не встали
+ * на ответ» / «Мимо» (MODE_MIXED §8), and what the freeze means for the player.
+ */
+export function missWords(r: { none: boolean; frozen: boolean; stand?: boolean }, newlyFrozen: boolean): { title: string; line: string } {
+  const stand = !!r.stand;
+  const title = stand ? (r.none ? 'Не встали на ответ' : 'Мимо') : r.none ? 'Не успели' : 'Неверно';
+  const line = newlyFrozen
+    ? stand
+      ? 'Вы заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.'
+      : r.none
+        ? 'Дедлайн злится и замораживает тех, кто не успел. Ответьте верно на следующий вопрос, чтобы оттаять.'
+        : 'Дедлайн заморозил вас. Ответьте верно на следующий вопрос, чтобы оттаять.'
+    : r.frozen
+      ? 'Вы всё ещё заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.'
+      : 'Серия начнётся заново со следующего верного ответа.';
+  return { title, line };
+}
+
 const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const r = p.result;
   const right = r.correct && !r.thawed;
@@ -214,7 +235,9 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const star = useRef<HTMLDivElement>(null);
   const shard = useRef<HTMLDivElement>(null);
   const seen = p.sitOut && r.none && !r.frozen;
-  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(seen ? 'idle' : r.correct ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
+  // a movement round that did not count (MODE_MIXED §6): nothing happened to anyone
+  const voided = !!(r.stand && r.void);
+  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(seen ? 'idle' : voided ? (r.frozen ? 'frozen' : 'idle') : r.correct ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
   const [ice, setIce] = useState(r.thawed || (r.frozen && !newlyFrozen));
   const [move, setMove] = useState<'idle' | 'bounce' | 'hit'>('idle');
   const { haptic, onImpact, bossEl } = p;
@@ -255,7 +278,7 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
           if (still || !from || !to) freeze();
           else fly(shard.current, from, to, 'shard', freeze);
         });
-      } else if (!r.correct && !seen) at(20, () => haptic(r.none ? 'warning' : 'error'));
+      } else if (!r.correct && !seen && !voided) at(20, () => haptic(r.none ? 'warning' : 'error'));
     }
     return () => timers.forEach(clearTimeout);
     // Once per question: the sheet is keyed by it.
@@ -265,7 +288,10 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const keyText = `${OPTION_STYLES[r.key]?.letter ?? ''}${NBSP}·${NBSP}${p.options[r.key] ?? ''}`;
   let title: string;
   let body: ReactNode;
-  if (r.thawed) {
+  if (voided) {
+    title = 'Мини-игра не засчитана';
+    body = <p>Связь с ареной пропала. Урон и лёд не изменились.</p>;
+  } else if (r.thawed) {
     title = `Верно${NBSP}— оттаяли`;
     body = (
       <>
@@ -300,26 +326,20 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
       </>
     );
   } else {
-    title = r.none ? 'Не успели' : 'Неверно';
-    const freezeLine = newlyFrozen
-      ? r.none
-        ? 'Дедлайн злится и замораживает тех, кто не успел. Ответьте верно на следующий вопрос, чтобы оттаять.'
-        : 'Дедлайн заморозил вас. Ответьте верно на следующий вопрос, чтобы оттаять.'
-      : r.frozen
-        ? 'Вы всё ещё заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.'
-        : 'Серия начнётся заново со следующего верного ответа.';
+    const miss = missWords(r, newlyFrozen);
+    title = miss.title;
     body = (
       <>
         <p>
           Верный ответ: <b>{keyText}</b>
         </p>
-        <p>{freezeLine}</p>
+        <p>{miss.line}</p>
       </>
     );
   }
   const healed = r.healed > 0;
   return (
-    <section className={`lp-sheet ${seen ? 'lp-sheet--seen' : r.correct ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
+    <section className={`lp-sheet ${seen || voided ? 'lp-sheet--seen' : r.correct ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
       <h2 id="lp-sheet-title" role="status">
         {title}
       </h2>
@@ -348,13 +368,15 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
 // ─────────────────────────────────────────── the top five ───────────────────────────────────────────
 
 const Top5 = memo(function Top5({ top, meId }: { top: TopRow[]; meId: string }) {
+  // equal damage, the same place («1, 2, 2, 4»)
+  const places = sharedPlaces(top.map((r) => r.dmg));
   return (
     <div className="lp-top5">
       <h3>Больше всех урона</h3>
       <ol>
         {top.map((row, i) => (
           <li key={row.player_id} data-me={row.player_id === meId ? 'true' : 'false'}>
-            <span className="lp-n">{i + 1}</span>
+            <span className="lp-n">{places[i]}</span>
             <LiveChar look={row.look} size={30} move="none" />
             <span className="lp-who">{row.player_id === meId ? `${row.name} (вы)` : row.name}</span>
             <span>{nb(row.dmg)}</span>
@@ -679,7 +701,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           speed={st.speed}
           streak={st.me.streak}
           showPlace={st.state === 'leaderboard'}
-          place={st.me.place}
+          place={shownPlace(st.top ? st.top.map((r) => ({ id: r.player_id, points: r.dmg })) : null, { id: st.me.player_id, points: st.me.dmg, place: st.me.place })}
           players={st.players}
           dmgTotal={st.me.dmg}
           gap={gap}

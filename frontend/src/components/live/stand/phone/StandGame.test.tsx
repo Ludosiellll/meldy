@@ -162,7 +162,8 @@ describe('«Встань на ответ» on the phone', () => {
     expect(rec.haptics).toContain('success');
 
     // The leaderboard: the own place among everyone.
-    await room(state({ phase: 'leaderboard', qi: 0, top: [{ id: 7, name: 'Дима', look: { body: 'drop', colour: 'blue', hat: 'cap' }, pts: 620, move: 0 }] }));
+    const row = (id: number, name: string, pts: number) => ({ id, name, look: { body: 'drop', colour: 'blue', hat: 'cap' }, pts, move: 0 });
+    await room(state({ phase: 'leaderboard', qi: 0, top: [row(11, 'Аня', 900), row(12, 'Лена', 800), row(13, 'Боря', 700), row(7, 'Дима', 620), row(14, 'Оля', 500)] }));
     expect(screen.getByText('4 место из 24')).toBeInTheDocument();
 
     // The connection drops: after a second without snapshots the phone says so and keeps the picture.

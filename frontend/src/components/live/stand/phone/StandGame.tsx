@@ -9,24 +9,16 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PlayerController, PlayerSnapshot } from '../../player/controller';
 import { NBSP, plural } from '../../player/copy';
-import { readStore, type HapticKind, type PlayerPlatform } from '../../player/platform';
-import { mapFromJson } from '../../../../lib/live/move/sim';
+import type { HapticKind, PlayerPlatform } from '../../player/platform';
 import { FpsReadout, fpsWanted } from '../FpsReadout';
-import { PhoneScene } from './scene3d';
-import { SpriteView } from './sprites';
+import { usePhoneArena } from './arena';
 import { StandSession } from './session';
 import StandBuilder from './StandBuilder';
 import { StandPlay } from './StandPlay';
 import { Thumb } from './Thumb';
 import { OPENED, placeLine, points } from './words';
+import { shownPlace } from '../../../../lib/live/rules';
 import './stand.css';
-
-/**
- * A device can pin the arena's view (QA on a real phone, a recording): localStorage `meldy.live.view` = `3d` (the best
- * 3D level, never lowered), `light` (the cheapest 3D level: lower resolution, 30 frames a second) or `2d` (the flat
- * view of a phone without WebGL). Unset: 3D, lowered step by step while frames run late; flat only without WebGL.
- */
-const VIEW_KEY = 'meldy.live.view';
 
 /** The room silent this long (a dead Space, a phone between networks): the database tells how the game goes on. */
 const DB_AFTER_MS = 8000;
@@ -50,63 +42,8 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
 
   // The 3D arena: loaded and warmed up while the player waits in the lobby, so the first question does not stall.
   // A weak phone draws it lighter (scene3d.ts, quality.ts); only a phone without WebGL 2 plays the flat view.
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [scene, setScene] = useState<PhoneScene | null>(null);
-  const [pinned] = useState(() => readStore('local', VIEW_KEY));
-  /** No 3D here at all (no WebGL 2, the models did not come, or the device pinned the flat view). */
-  const [no3d, setNo3d] = useState(pinned === '2d');
-  const spritesRef = useRef<HTMLCanvasElement>(null);
-  const [sprites, setSprites] = useState<SpriteView | null>(null);
-  const bossKind = v.hello?.boss ?? null;
-  const roomMap = v.ready ? session.client.welcome?.map ?? null : null;
-  // the hello's floor grid and stage: the 3D floor is the server's, the boss on the stage in the middle
-  const helloRef = useRef(v.hello);
-  helloRef.current = v.hello;
-  useEffect(() => {
-    if (!bossKind || !roomMap || pinned === '2d') return undefined;
-    if (typeof WebGL2RenderingContext === 'undefined') {
-      setNo3d(true);
-      return undefined;
-    }
-    let alive = true;
-    let made: PhoneScene | null = null;
-    PhoneScene.load(bossKind, pinned === '3d' || pinned === 'light' ? pinned : 'auto')
-      .then(async (sc) => {
-        made = sc;
-        const canvas = canvasRef.current;
-        if (!alive || !canvas || !sc.mount(canvas)) {
-          sc.dispose();
-          made = null;
-          if (alive) setNo3d(true);
-          return;
-        }
-        const hello = helloRef.current;
-        sc.setMap(roomMap, hello ? { floor: hello.floor, stage: hello.stage } : undefined);
-        await sc.warmUp();
-        if (alive) setScene(sc);
-      })
-      .catch(() => {
-        // No 3D on this phone (no WebGL 2, the models did not come): the flat view plays.
-        if (alive) setNo3d(true);
-      });
-    return () => {
-      alive = false;
-      made?.dispose();
-      setScene(null);
-    };
-  }, [bossKind, roomMap, pinned]);
-  // The flat view: only on a phone with no 3D at all.
-  const flat = no3d;
-  useEffect(() => {
-    const canvas = spritesRef.current;
-    if (!flat || !roomMap || !canvas) return undefined;
-    const view = new SpriteView(canvas, mapFromJson(roomMap));
-    setSprites(view);
-    return () => {
-      view.dispose();
-      setSprites(null);
-    };
-  }, [flat, roomMap]);
+  const { canvasRef, spritesRef, scene, sprites, flat } = usePhoneArena(session, v);
+
   // The database's watch: off while the room works, on again when the room is gone or silent for long.
   useEffect(() => {
     if (v.status === 'open' && v.ready && !v.lost) {
@@ -160,7 +97,10 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   if (over) {
     const final = st?.final ?? null;
     const me = v.me;
-    const place = me?.place ?? final?.place ?? null;
+    const serverPlace = me?.place ?? final?.place ?? null;
+    // the own place as the lists show it: a tie in the five shares its place
+    const top = v.state?.top ?? null;
+    const place = serverPlace === null ? null : shownPlace(top ? top.map((r) => ({ id: r.id, points: r.pts })) : null, { id: v.you, points: me?.pts ?? final?.dmg ?? 0, place: serverPlace });
     const of = me?.of ?? st?.players ?? 0;
     const pts = me?.pts ?? final?.dmg ?? 0;
     const best = me?.best ?? final?.best ?? 0;

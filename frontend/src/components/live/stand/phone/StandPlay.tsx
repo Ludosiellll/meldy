@@ -9,6 +9,9 @@
  * the results over the arena; the arena fills the band between them (setBand). Elsewhere, or while the 3D is still
  * loading, the 2D screen with the bigger map.
  *
+ * In a battle's movement round (docs/live/MODE_MIXED.md §8, `mixed`) the same screen with the battle's words: the
+ * own result as a hit, a thaw or a freeze, the battle's ice instead of ghosts, no «Вы снова в игре».
+ *
  * Smoothness (owner, 21.10: no lag on the phone): React renders only when the room's phase, the question or the
  * player's numbers change (about seven times a question). Everything that moves runs in one requestAnimationFrame loop
  * through refs: the map's dots (the own one predicted, the others 150 ms behind), the stick, the zone line, the option
@@ -16,6 +19,7 @@
  */
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { zoneIndexAt } from '../../../../lib/live/move/sim';
+import { sharedPlaces, shownPlace } from '../../../../lib/live/rules';
 import type { StandState, StandTopEntry } from '../../../../lib/live/move/protocol';
 import { clothesHex, toPlayerLook } from '../../../../lib/live/three/look';
 import type { Look } from '../../../../lib/live/types';
@@ -28,6 +32,7 @@ import { FloatingStick } from './stick';
 import { Thumb } from './Thumb';
 import { LETTERS, lastFor, outcomeOf, placeLine, playersLine, points, secondsLeft, streakLine, zoneLine, ZONE_COLOURS, type Outcome } from './words';
 import { pinText } from '../../player/copy';
+import type { MixedOutcome } from '../mixed';
 
 export interface StandPlayProps {
   session: StandSession;
@@ -43,6 +48,13 @@ export interface StandPlayProps {
   haptic: (kind: HapticKind) => void;
   /** The arena behind a question: the 3D scene, or the flat view on a phone without WebGL (null: the 2D screen only). */
   scene?: Backdrop | null;
+  /**
+   * A battle's movement round: the player is frozen in the battle now (the ice), and the own result in the battle's
+   * words once the round closed (null before).
+   */
+  mixed?: { frozen: boolean; outcome: MixedOutcome | null } | null;
+  /** The clock of the state's times (`opens`, `closes`); the room's by default. */
+  clock?: () => number | null;
 }
 
 const PHASES: readonly StandState['phase'][] = ['lobby', 'countdown', 'open', 'reveal', 'leaderboard', 'podium', 'ended'];
@@ -107,13 +119,15 @@ const Options = memo(function Options({
 });
 
 function Board({ top, you }: { top: readonly StandTopEntry[]; you: number | null }) {
+  // equal points, the same place («1, 2, 2, 4»)
+  const places = sharedPlaces(top.map((r) => r.pts));
   return (
     <ol className="sp-board" aria-label="Первая пятёрка">
       {top.map((row, i) => {
         const l = toPlayerLook(row.look);
         return (
           <li key={i} className="sp-board__row" data-me={row.id !== null && row.id === you ? 'true' : undefined}>
-            <span className="sp-board__n">{i + 1}</span>
+            <span className="sp-board__n">{places[i]}</span>
             <Thumb body={l.body} colour={l.colour} hat={l.hat} size={34} />
             <span className="sp-board__name">{row.name}</span>
             <span className="sp-board__pts">{points(row.pts)}</span>
@@ -124,7 +138,10 @@ function Board({ top, you }: { top: readonly StandTopEntry[]; you: number | null
   );
 }
 
-function OutcomeCard({ outcome, look, fell }: { outcome: Outcome; look: Look; fell: boolean }) {
+/** A mixed round's tones in the card's colours: a thaw is good news, a void round a neutral note. */
+const MIXED_TONE: Record<MixedOutcome['tone'], Outcome['tone']> = { ok: 'ok', thaw: 'ok', frozen: 'fell', seen: 'seen', void: 'seen' };
+
+function OutcomeCard({ outcome, look, fell, ice = false }: { outcome: Outcome; look: Look; fell: boolean; ice?: boolean }) {
   return (
     <section className="sp-card sp-out" data-tone={outcome.tone} role="status" aria-live="polite">
       <div className="sp-out__text">
@@ -136,12 +153,12 @@ function OutcomeCard({ outcome, look, fell }: { outcome: Outcome; look: Look; fe
           </p>
         ))}
       </div>
-      <Thumb body={look.body} colour={look.colour} hat={look.hat} size={92} className={fell || outcome.tone === 'ghost' ? 'sp-thumb--ghost' : 'sp-thumb--joy'} />
+      <Thumb body={look.body} colour={look.colour} hat={look.hat} size={92} className={ice ? 'sp-thumb--ice' : fell || outcome.tone === 'ghost' ? 'sp-thumb--ghost' : 'sp-thumb--joy'} />
     </section>
   );
 }
 
-export function StandPlay({ session, view, fallbackPhase, look, name, pin, players, canEdit, onEdit, haptic, scene = null }: StandPlayProps) {
+export function StandPlay({ session, view, fallbackPhase, look, name, pin, players, canEdit, onEdit, haptic, scene = null, mixed = null, clock }: StandPlayProps) {
   const st = view.state;
   const phase = st?.phase ?? fallbackPhase;
   const use3d = !!scene && (phase === 'countdown' || phase === 'open' || phase === 'reveal');
@@ -176,16 +193,17 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   const [arena, setArena] = useState<ArenaMap | null>(null);
 
   // What the loop needs from the last render (read each frame, never a reason to restart it).
-  const now = { phase, options: options.length, texts: options, closes: st?.closes ?? null, timeS: view.hello?.time_s ?? 15, myColour: clothesHex(look.colour), haptic, ghost, scene: use3d ? scene : null };
+  const roomClock = useMemo(() => () => session.client.serverNow(), [session]);
+  const now = { phase, options: options.length, texts: options, closes: st?.closes ?? null, timeS: view.hello?.time_s ?? 15, myColour: clothesHex(look.colour), haptic, ghost, scene: use3d ? scene : null, clock: clock ?? roomClock };
   const live = useRef(now);
   live.current = now;
 
   // The 3D arena follows the room: the stomp, the floor, the answers on the banners.
   useEffect(() => {
     if (!scene || !st) return;
-    scene.setState(st, session.client.serverNow());
+    scene.setState(st, (clock ?? roomClock)());
     scene.setOptions(st.q ? st.q.options : null);
-  }, [scene, st, session]);
+  }, [scene, st, session, clock, roomClock]);
 
   // The floor picture follows the question and the stomp.
   useEffect(() => {
@@ -331,7 +349,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
       }
       // The big timer from the room's clock: the full time until the question opens, then down to zero.
       if (L.phase === 'countdown' || L.phase === 'open') {
-        const sec = secondsLeft(L.closes, client.serverNow(), L.timeS);
+        const sec = secondsLeft(L.closes, L.clock(), L.timeS);
         if (sec !== secShown) {
           if (secShown !== -1 && L.phase === 'open' && sec >= 1 && sec <= 3) L.haptic('tick');
           secShown = sec;
@@ -376,8 +394,13 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
     haptic(last.late ? 'select' : last.ok ? 'success' : 'error');
   }, [last, haptic]);
 
-  const back = res && st?.floor === 'up' && you !== null && res.back.includes(you);
-  const outcome = useMemo(() => (last ? outcomeOf(last, view.me?.streak ?? 0) : null), [last, view.me?.streak]);
+  // a movement round brings everyone back with the floor (a miss is not a revival): no «Вы снова в игре» there
+  const back = !mixed && res && st?.floor === 'up' && you !== null && res.back.includes(you);
+  const standOutcome = useMemo(() => (last ? outcomeOf(last, view.me?.streak ?? 0) : null), [last, view.me?.streak]);
+  const mixedOutcome = mixed?.outcome ?? null;
+  const outcome: Outcome | null = mixed
+    ? mixedOutcome && { tone: MIXED_TONE[mixedOutcome.tone], title: mixedOutcome.title, big: mixedOutcome.big, lines: mixedOutcome.lines }
+    : standOutcome;
   const me = view.me;
   const fell = !!(res && you !== null && res.fell.includes(you));
 
@@ -404,12 +427,12 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   } else if (phase === 'reveal' && back) {
     head = <OutcomeCard outcome={{ tone: 'ok', title: 'Вы снова в игре', big: null, lines: ['Бегите к следующему ответу.'] }} look={look} fell={false} />;
   } else if (phase === 'reveal' && outcome) {
-    head = <OutcomeCard outcome={outcome} look={look} fell={fell || ghost} />;
+    head = <OutcomeCard outcome={outcome} look={look} fell={!mixed && (fell || ghost)} ice={!!mixed?.frozen} />;
   } else if (phase === 'leaderboard' && me) {
     head = (
       <section className="sp-card sp-place">
         <div>
-          <p className="sp-place__big">{me.place !== null ? placeLine(me.place, me.of) : points(me.pts)}</p>
+          <p className="sp-place__big">{me.place !== null ? placeLine(shownPlace(st?.top ? st.top.map((r) => ({ id: r.id, points: r.pts })) : null, { id: you, points: me.pts, place: me.place }), me.of) : points(me.pts)}</p>
           <p className="sp-sub">{points(me.pts)}</p>
           {me.streak >= 2 && <p className="sp-sub">{streakLine(me.streak)}</p>}
         </div>
@@ -449,11 +472,12 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   }
 
   return (
-    <div className="sp sp-play" ref={playRef} data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
+    <div className="sp sp-play" ref={playRef} data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-ice={mixed?.frozen ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
       {head}
       {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? res.key : null} choice={last?.choice ?? null} rows={rows} />}
       {phase === 'leaderboard' && st?.top && st.top.length > 0 && <Board top={st.top} you={you} />}
       {ghost && (phase === 'countdown' || phase === 'open') && <p className="sp-ghostline">Вы призрак. Верный ответ вернёт вас в игру.</p>}
+      {mixed?.frozen && (phase === 'countdown' || phase === 'open') && <p className="sp-iceline">Вы заморожены. Встаньте на верный ответ, и лёд растает.</p>}
       <div className="sp-field" ref={fieldRef} data-ready={view.ready ? 'true' : undefined}>
         <p className="sp-status" ref={statusRef} aria-live="polite">
           Подключаемся

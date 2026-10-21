@@ -4,6 +4,11 @@
  * contract's rules — the key leaves only after a question closes, states move by the server's clock — and fills the game
  * with bots. `autoHost` makes it run the game by itself, so a player screen works alone. Port of the prototype's engine
  * (meldy-notes 10_Project/Telegram_Live_Game_Spec_2026-10-20.md).
+ *
+ * A battle with movement rounds (`stand_every`, docs/live/MODE_MIXED.md) is played as far as a database without its
+ * room goes: `mixed` and `question.stand` as the server gives them, taps refused on a movement round (`ML004 stand`, the
+ * bots do not tap it), and the round closed by time 8 s after its deadline as void (nobody hits, freezes or heals),
+ * as the database closes a round its room never wrote.
  */
 import {
   AUTO_ADVANCE_MS,
@@ -18,6 +23,7 @@ import {
   defaultLook,
   hpFor,
   rank,
+  standRounds,
   unlocksAfter,
   HP_PER_ANSWER,
 } from './rules';
@@ -148,7 +154,9 @@ interface GameQuestion {
   opensAt: number;
   closesAt: number;
   answers: Map<Uuid, { choice: number; elapsedMs: number }>;
-  closed: (CloseOutput & { rankBefore: Uuid[] }) | null;
+  closed: (CloseOutput & { rankBefore: Uuid[]; void?: boolean }) | null;
+  /** A mixed game's movement round: answered in the arena (here: nobody; closed by time as void). */
+  stand: boolean;
 }
 
 interface FakeGame {
@@ -205,6 +213,8 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
   /** game → when its last Telegram post went (tgPost). */
   const posts = new Map<Uuid, number>();
   const POST_EVERY_MS = 60_000;
+  /** A movement round the room never wrote closes by time this long after its deadline (MODE_MIXED §6). */
+  const ROOM_GRACE_MS = 8000;
   let ids = 0;
 
   const token = () => {
@@ -257,6 +267,14 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
     return { options: order.map((i) => q.options[i]), key: order.indexOf(q.key) };
   }
 
+  /** A mixed game: the qi of its movement rounds (the database's rule, `standRounds`); null for other games. */
+  function roundsOf(g: FakeGame): number[] | null {
+    const every = g.settings.stand_every ?? 0;
+    return g.settings.mode === 'boss' && every > 0 ? standRounds(every, g.bank.length) : null;
+  }
+  /** How long after the deadline a question closes by time: a movement round waits for its room (8 s). */
+  const graceOf = (q: GameQuestion) => (q.stand ? ROOM_GRACE_MS : GRACE_MS);
+
   function startQuestion(g: FakeGame, qi: number) {
     const now = clock.now();
     if (qi === 0) {
@@ -264,14 +282,16 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       g.hp = g.hpMax;
     }
     const { options: shownOptions, key } = shuffled(g.bank[qi]);
-    const q: GameQuestion = { text: g.bank[qi].text, options: shownOptions, key, phase: g.phase, opensAt: now + COUNTDOWN_MS, closesAt: now + COUNTDOWN_MS + g.settings.time_s * 1000, answers: new Map(), closed: null };
+    const stand = roundsOf(g)?.includes(qi) ?? false;
+    const q: GameQuestion = { text: g.bank[qi].text, options: shownOptions, key, phase: g.phase, opensAt: now + COUNTDOWN_MS, closesAt: now + COUNTDOWN_MS + g.settings.time_s * 1000, answers: new Map(), closed: null, stand };
     g.questions[qi] = q;
     g.qi = qi;
     setState(g, 'countdown');
     later(g, COUNTDOWN_MS, () => settle(g));
-    later(g, COUNTDOWN_MS + g.settings.time_s * 1000 + GRACE_MS + 1, () => settle(g));
-    // bots
+    later(g, COUNTDOWN_MS + g.settings.time_s * 1000 + graceOf(q) + 1, () => settle(g));
+    // bots (a movement round is the room's: nobody taps it)
     for (const p of g.players.values()) {
+      if (stand) break;
       if (!p.bot || p.kicked) continue;
       const right = random() < p.bot.skill;
       const T = g.settings.time_s * 1000;
@@ -297,7 +317,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
     const now = clock.now();
     const q = g.questions[g.qi];
     if (g.state === 'countdown' && q && now >= q.opensAt) setState(g, 'open');
-    if (g.state === 'open' && q && now > q.closesAt + GRACE_MS) closeNow(g);
+    if (g.state === 'open' && q && now > q.closesAt + graceOf(q)) closeNow(g);
     if ((g.state === 'reveal' || g.state === 'leaderboard') && now - g.stateAt >= AUTO_ADVANCE_MS) advance(g);
     if (g.state !== 'ended' && now - g.createdAt >= GAME_TTL_MS) setState(g, 'ended');
   }
@@ -306,6 +326,14 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
     const q = g.questions[g.qi];
     if (!q || q.closed) return;
     const ranked = rankIds(g);
+    if (q.stand) {
+      // no room here: the round is void (MODE_MIXED §6): nobody hits, freezes, thaws or loses a streak; no heal
+      const none = activePlayers(g, Number.POSITIVE_INFINITY).map((p) => ({ id: p.id, streak: p.streak, best: p.best, frozen: p.frozen, dmg: p.dmg, right: p.right, thaws: p.thaws, active: true }));
+      const outcomes = new Map(none.map((p) => [p.id, { correct: false, none: true, dmg: 0, thawed: false, frozen: p.frozen }]));
+      q.closed = { players: none, outcomes, hits: [], frozenNow: [], thawed: [], counts: q.options.map(() => 0), right: 0, hp: g.hp, healed: 0, phase: g.phase, phaseChanged: null, defeated: false, rankBefore: ranked, void: true };
+      setState(g, 'reveal');
+      return;
+    }
     const players = activePlayers(g, Number.POSITIVE_INFINITY).map((p) => ({ id: p.id, streak: p.streak, best: p.best, frozen: p.frozen, dmg: p.dmg, right: p.right, thaws: p.thaws, active: p.joinedAt <= q.opensAt }));
     const out = closeQuestion({
       players,
@@ -369,6 +397,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
     const q = g.questions[qi];
     if (p.kicked) throw new LiveError('42501', 'kicked', 403);
     if (!q || qi !== g.qi) throw new LiveError('ML004', 'bad_qi');
+    if (q.stand) throw new LiveError('ML004', 'stand');
     const now = clock.now();
     if (g.state === 'countdown' || now < q.opensAt) throw new LiveError('ML004', 'early');
     if (g.state !== 'open') throw new LiveError('ML004', now > q.closesAt ? 'late' : 'not_open');
@@ -455,7 +484,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
   function questionView(g: FakeGame) {
     const q = g.questions[g.qi];
     if (!q || g.state === 'lobby' || g.state === 'podium' || g.state === 'ended') return null;
-    return { qi: g.qi, text: q.text, options: q.options, opens_at: iso(q.opensAt), closes_at: iso(q.closesAt), phase: q.phase, picture: null };
+    return { qi: g.qi, text: q.text, options: q.options, opens_at: iso(q.opensAt), closes_at: iso(q.closesAt), phase: q.phase, picture: null, ...(roundsOf(g) ? { stand: q.stand } : {}) };
   }
 
   function base(g: FakeGame) {
@@ -475,6 +504,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       question: questionView(g),
       boss: { hp: g.hp, hp_max: g.hpMax, phase: g.phase, defeated: g.hp === 0 && g.hpMax > 0 },
       top: shown ? top(g) : null,
+      ...(roundsOf(g) ? { mixed: { every: g.settings.stand_every as 3 | 5 | 10, rounds: roundsOf(g)! } } : {}),
     };
   }
 
@@ -504,6 +534,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
             right: cp.c.right,
             healed: cp.c.healed,
             phase_changed: cp.c.phaseChanged,
+            ...(roundsOf(g) ? { stand: cp.q.stand, void: cp.c.void === true } : {}),
             correct: outcome?.correct ?? false,
             none: outcome?.none ?? true,
             dmg: outcome?.dmg ?? 0,
@@ -543,7 +574,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
         .map((p) => ({ player_id: p.id, name: p.name, look: p.look, dmg: p.dmg, right: p.right, streak: p.streak, frozen: p.frozen, joined_at: iso(p.joinedAt), answered: !!q?.answers.has(p.id) })),
       answered_ids: g.state === 'open' && q ? [...q.answers.keys()] : [],
       result: cp
-        ? { qi: g.qi, key: cp.q.key, counts: cp.c.counts, right: cp.c.right, healed: cp.c.healed, phase_changed: cp.c.phaseChanged, hits: cp.c.hits, frozen_now: cp.c.frozenNow, thawed: cp.c.thawed }
+        ? { qi: g.qi, key: cp.q.key, counts: cp.c.counts, right: cp.c.right, healed: cp.c.healed, phase_changed: cp.c.phaseChanged, hits: cp.c.hits, frozen_now: cp.c.frozenNow, thawed: cp.c.thawed, ...(roundsOf(g) ? { stand: cp.q.stand, void: cp.c.void === true } : {}) }
         : null,
       final: (g.state === 'podium' || g.state === 'ended') && g.won !== null ? { won: g.won, accuracy_pct: accuracyPct(everyone.reduce((s, x) => s + x.right, 0), everyone.length, g.qi + 1) } : null,
     };
@@ -703,7 +734,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
           .filter(({ q }) => q?.closed)
           .map(({ q, qi }) => {
             const choice = q.answers.get(p.id)?.choice ?? null;
-            return { qi, text: q.text, options: q.options, key: q.key, choice, correct: choice === q.key };
+            return { qi, text: q.text, options: q.options, key: q.key, choice, correct: choice === q.key, ...(q.stand ? { stand: true } : {}) };
           });
         return reply({ items });
       } catch (e) {

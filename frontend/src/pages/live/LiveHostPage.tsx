@@ -2,12 +2,13 @@
  * /live/:id — the teacher's screen of a game (CONTRACT §6–§8). The host token is this tab's (sessionStorage, from
  * «Открыть комнату»); a reload reads it again and the screen picks the game up as it is. `?fake=1` (or VITE_LIVE_FAKE)
  * plays against the in-memory server; the switch to the real one is that flag only. A game whose settings say
- * `mode: "stand"` gets the 3D projector of «Встань на ответ» (components/live/stand, its own chunk).
+ * `mode: "stand"` gets the 3D projector of «Встань на ответ» (components/live/stand, its own chunk); a battle with
+ * movement rounds (`mixed` in its state, docs/live/MODE_MIXED.md) the battle's screen with the arena for those rounds.
  */
 import { lazy, Suspense, useCallback, useMemo, useRef } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { liveApi, liveFakeWanted } from '../../lib/live/api';
-import type { LiveApi } from '../../lib/live/types';
+import { miniGameOf, mixedOf, type LiveApi } from '../../lib/live/types';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { MODE, SCREEN } from '../../components/live/host/copy';
 import { HostScreen } from '../../components/live/host/HostScreen';
@@ -16,6 +17,7 @@ import { useHostGame } from '../../components/live/host/useHostGame';
 import '../../components/live/host/host.css';
 
 const StandScreen = lazy(() => import('../../components/live/stand/StandScreen'));
+const MixedHost = lazy(() => import('../../components/live/stand/MixedHost'));
 
 /** The join link with `mode` set (kept once, whatever else it carries). */
 export function withMode(url: string, mode: string): string {
@@ -52,7 +54,8 @@ function Message({ title, why, onRetry }: { title: string; why?: string; onRetry
 }
 
 export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) {
-  // A movement game's room hears each of the teacher's moves at once (MODE_STAND.md §2): the stand screen sets this.
+  // A movement game's room hears each of the teacher's moves at once (MODE_STAND.md §2): the stand screen (or a mixed
+  // game's) sets this.
   const syncRef = useRef<(() => void) | null>(null);
   const onMoved = useCallback(() => syncRef.current?.(), []);
   const game = useHostGame(gameId, api, { onMoved });
@@ -63,8 +66,10 @@ export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) 
     const p = new URLSearchParams(search);
     if (info?.containerId) p.set('c', info.containerId);
     if (info?.quizId) p.set('quiz', info.quizId);
-    // the same game again: «Встань на ответ» opens its own setup
-    if (game.state?.mode === 'stand' || game.state?.settings?.mode === 'stand') p.set('mode', 'stand');
+    // the same game again: «Встань на ответ» opens its own setup, a battle its own mini-games (or none)
+    const settings = game.state?.settings;
+    if (game.state?.mode === 'stand' || settings?.mode === 'stand') p.set('mode', 'stand');
+    else if (settings) p.set('mini', String(miniGameOf(settings)));
     navigate(`/live/new?${p.toString()}`);
   }, [info, navigate, search, game.state]);
   const s = game.state;
@@ -82,6 +87,13 @@ export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) 
     return (
       <Suspense fallback={<Message title={SCREEN.loading} />}>
         <StandScreen gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} syncRef={syncRef} />
+      </Suspense>
+    );
+  }
+  if (mixedOf(s) || (s.settings?.stand_every ?? 0) > 0) {
+    return (
+      <Suspense fallback={<Message title={SCREEN.loading} />}>
+        <MixedHost gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} syncRef={syncRef} />
       </Suspense>
     );
   }

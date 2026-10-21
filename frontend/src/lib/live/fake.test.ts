@@ -198,3 +198,49 @@ describe('fake live server: refusals and polling', () => {
     expect(s.top).toHaveLength(5);
   });
 });
+
+describe('fake live server: a battle with movement rounds (MODE_MIXED §8, no room here)', () => {
+  it('says the plan and which question is a movement round; a tap there is refused and the round closes void by time', async () => {
+    const clock = manualClock();
+    const api = createFakeServer({ clock, latencyMs: 0, bots: 0, demoPin: null, autoHost: false, seed: 3 });
+    const g = await api.create({ quiz_id: 'q' }, { ...SETTINGS, stand_every: 3, boss: 'skeleton' });
+    await api.join(g.pin, 'Дима', T1, null);
+    const host = async () => (await api.hostState(g.game_id, g.host_token)) as HostState;
+    const me = async () => (await api.state(g.game_id, T1)) as PlayerState;
+    expect((await host()).mixed).toEqual({ every: 3, rounds: [2, 5] });
+    // two button questions, the first right
+    for (const qi of [0, 1]) {
+      await api.next(g.game_id, g.host_token, qi === 0 ? 'lobby' : 'leaderboard');
+      expect((await me()).question?.stand).toBe(false);
+      clock.advance(COUNTDOWN_MS);
+      const key = api.peek(g.game_id)!.questions[qi].key;
+      await api.answer(g.game_id, T1, qi, key);
+      await api.next(g.game_id, g.host_token, 'reveal');
+    }
+    const before = await me();
+    await api.next(g.game_id, g.host_token, 'leaderboard');
+    const round = await me();
+    expect(round.question?.stand).toBe(true);
+    clock.advance(COUNTDOWN_MS);
+    expect((await err(api.answer(g.game_id, T1, 2, 0))).detail).toBe('stand');
+    // the room never writes it: 8 s after the deadline the database closes it as void
+    clock.advance(20_000 + GRACE_MS + 10);
+    expect((await me()).state).toBe('open');
+    clock.advance(8000);
+    const after = await me();
+    expect(after.state).toBe('reveal');
+    expect(after.result).toMatchObject({ stand: true, void: true, counts: [0, 0, 0, 0], healed: 0, none: true, frozen: false });
+    expect(after.me.streak).toBe(before.me.streak);
+    expect(after.boss.hp).toBe(before.boss.hp);
+    await api.next(g.game_id, g.host_token, 'reveal');
+    await api.end(g.game_id, g.host_token);
+    const review = await api.review(g.game_id, T1);
+    expect(review.items.map((i) => i.stand === true)).toEqual([false, false, true]);
+  });
+
+  it('a plain battle and a stand game carry no plan', async () => {
+    const { host } = await setup();
+    expect((await host()).mixed).toBeUndefined();
+    expect((await host()).question).toBeNull();
+  });
+});

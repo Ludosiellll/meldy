@@ -28,6 +28,12 @@ export interface Player {
    */
   setAway(on: boolean): void;
   /**
+   * The battle's freeze (a mixed game's movement round, docs/live/MODE_MIXED.md): a block of ice grows round the
+   * character; off, it breaks into chips. `instant` shows it as it is now (a state seen late), with no growing or
+   * breaking. Hidden while the character is a ghost or falls.
+   */
+  setIce(on: boolean, instant?: boolean): void;
+  /**
    * The phone's own character: a white ring with a dark edge round its feet, bigger than everyone's colour ring, shown
    * on any tile and while it is a ghost, so the player finds themselves at a glance.
    */

@@ -512,7 +512,9 @@ class StandMode(Mode):
                 g.set_phase("lobby")
                 changed = True
         elif state in ("countdown", "open"):
-            if (g.qi != qi or g.phase not in ("countdown", "open")) and self.clock.ready:
+            # A poll sent before the room's own write can come back after it: an «open» of the question whose result
+            # is already on screen is stale (the database never opens a question again), never a new round.
+            if (g.qi != qi or g.phase not in ("countdown", "open")) and g.applied_qi != qi and self.clock.ready:
                 q = st.get("question") or {}
                 opens, closes = iso_ms(q.get("opens_at")), iso_ms(q.get("closes_at"))
                 if opens is not None and closes is not None:

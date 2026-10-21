@@ -758,6 +758,8 @@ export class PlayerController {
     const st = this.s.state;
     const q = st?.question;
     if (!st || !q || !this.isOpenNow() || !this.s.game || !this.token) return;
+    // a movement round is answered by standing in the arena (the room writes it), never by a tap
+    if (q.stand) return;
     if (this.s.lateQi === q.qi) return;
     if (this.s.pick && this.s.pick.qi === q.qi) return;
     if (choice < 0 || choice >= q.options.length) return;
