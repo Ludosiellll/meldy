@@ -6,10 +6,12 @@
  */
 import type { FakeOptions } from '../../../lib/live/fake';
 import type { GameSource, HostState, Settings } from '../../../lib/live/types';
+import type { Seats } from './layout';
 
 const TOKEN = (id: string) => `meldy.live.host.${id}`;
 const INFO = (id: string) => `meldy.live.hostinfo.${id}`;
 const LOG = (id: string) => `meldy.live.hostlog.${id}`;
+const SEATS = (id: string) => `meldy.live.hostseats.${id}`;
 
 function read(key: string): string | null {
   try {
@@ -112,6 +114,27 @@ export function logState(gameId: string, log: LoggedQuestion[], s: HostState): L
   out.sort((a, b) => a.qi - b.qi);
   write(LOG(gameId), JSON.stringify(out));
   return out;
+}
+
+/** The arena's seats as they were (a reload keeps everyone where they sat; layout.ts seats()). */
+export function readSeats(gameId: string): Seats | null {
+  const raw = read(SEATS(gameId));
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as { of?: unknown; count?: unknown };
+    if (!Array.isArray(v.of) || typeof v.count !== 'number') return null;
+    const of = new Map<string, number>();
+    for (const pair of v.of) {
+      if (Array.isArray(pair) && typeof pair[0] === 'string' && Number.isInteger(pair[1]) && pair[1] >= 0) of.set(pair[0], pair[1]);
+    }
+    return { of, count: Math.max(v.count, ...[...of.values()].map((x) => x + 1), 0) };
+  } catch {
+    return null;
+  }
+}
+
+export function saveSeats(gameId: string, seats: Seats): void {
+  write(SEATS(gameId), JSON.stringify({ of: [...seats.of], count: seats.count }));
 }
 
 /**

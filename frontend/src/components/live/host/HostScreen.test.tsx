@@ -239,6 +239,26 @@ describe('teacher screen against the fake server', () => {
     for (const [id, t] of after) expect(t, id).toBe(before.get(id));
   });
 
+  it('a reload keeps everyone in their seat, the empty one too (live check r2, N3)', async () => {
+    const { view, ui, server } = await start(8);
+    space();
+    await tick(50);
+    await tick(1500);
+    fireEvent.click(screen.getByRole('button', { name: 'Игроки' }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Игроки · 8' })).getAllByRole('button', { name: 'Убрать' })[2]);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Убрать' }));
+    await tick(50);
+    expect((await server()).players).toBe(7);
+    const where = (c: HTMLElement) => new Map([...c.querySelectorAll<HTMLElement>('.lvh-slot')].map((el) => [el.dataset.player!, el.style.transform]));
+    const before = where(view.container);
+    view.unmount();
+    const again = render(ui());
+    await tick(50);
+    const after = where(again.container);
+    expect(after.size).toBe(7);
+    for (const [id, t] of after) expect(t, id).toBe(before.get(id));
+  });
+
   it('names: one line at their place’s width, the full name kept; they step out while the class walks', async () => {
     const api = createFakeServer({ bots: 3, latencyMs: 0, demoPin: null, autoHost: false, fastBots: true, seed: 11 });
     const g = await api.create({ container_id: 'c', subject_ids: ['s'], count: 6 }, SETTINGS);

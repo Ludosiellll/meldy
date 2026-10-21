@@ -14,7 +14,7 @@ import { BossView, CrowdCount, FxDefs, HpBar, UnderBar, byJoin } from './Arena';
 import { BANNER, MODE, NEXT } from './copy';
 import { Crowd, type CrowdView, type Place } from './Crowd';
 import { Director, strikeOf, type BannerSpec, type Cue } from './director';
-import { logState, readLog, type HostInfo } from './hostSession';
+import { logState, readLog, readSeats, saveSeats, type HostInfo } from './hostSession';
 import { NO_SEATS, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, seats as seatsFor, type LobbyLayout, type Seats, type Slot } from './layout';
 import { Lobby } from './Lobby';
 import { QuestionPanel, TopFive, type Closing } from './Panel';
@@ -175,9 +175,10 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
 
   const joined = useMemo(() => byJoin(s.roster), [s.roster]);
   // Seats in the arena: by joining order in the lobby; from the first question on, everyone keeps theirs — a player who
-  // leaves leaves an empty seat, nobody else moves.
+  // leaves leaves an empty seat, nobody else moves — and a reload finds them where they sat (this tab's storage).
   const inLobby = s.state === 'lobby';
-  const seatsRef = useRef<Seats>(NO_SEATS);
+  const [storedSeats] = useState(() => readSeats(gameId));
+  const seatsRef = useRef<Seats>(storedSeats ?? NO_SEATS);
   const seats = useMemo(() => {
     const next = seatsFor(
       joined.map((r) => r.player_id),
@@ -186,6 +187,9 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     seatsRef.current = next;
     return next;
   }, [joined, inLobby]);
+  useEffect(() => {
+    if (!inLobby) saveSeats(gameId, seats);
+  }, [gameId, seats, inLobby]);
   const visible = useMemo(() => joined.filter((r) => seats.of.has(r.player_id)), [joined, seats]);
   const slots = useMemo(() => arenaSlots(seats.count, width), [seats.count, width]);
   const slotMap = useMemo(() => new Map(visible.map((r) => [r.player_id, slots[seats.of.get(r.player_id) ?? 0]])), [visible, slots, seats]);
