@@ -247,7 +247,7 @@ node deck/cf11/motion/telegram.mjs                   # needs the app harness (Vi
 python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/lecture-master.json --box 1152 568 --radius 22 --bg '#0b121c'
 python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/07-master.json --box 1152 568 --radius 22 --bg '#0b121c'
 python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/09-master.json --box 1152 568 --radius 22 --bg '#0b121c' --start 13.2
-python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/08-master.json --box 392 848 --radius 36 --bg '#0b121c' --start 16.2
+python3 -I deck/cf11/tools/record/fit.py deck/cf11/media/product/masters/08-master.json --box 406 880 --scale 1.5   # deck v2 slide 10, take of 21.10
 ```
 
 `fit.py` renders at ×1.2 of the box (never above the master) and paints the corners in the bezel's ink (`--bg`).

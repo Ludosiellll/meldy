@@ -1,6 +1,6 @@
 {
  "clip": "08",
- "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/rec/takes/08-i",
+ "take": "/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/deck-d9-work/takes/08-k",
  "size": [
   780,
   1688
@@ -12,74 +12,75 @@
  "capture_scale": 2.0,
  "device_scale": 2,
  "fps": 30,
- "frames": 769,
- "seconds": 25.633,
+ "frames": 772,
+ "seconds": 25.733,
  "loop_fade_frames": 15,
  "stretches": [
   {
    "from": "@1.0",
-   "to": "@14.9",
+   "to": "@15.0",
    "clip_from": 0.0,
-   "clip_to": 13.9,
+   "clip_to": 14.0,
    "take_from": 1.0,
-   "take_to": 14.9,
+   "take_to": 15.0,
    "hold": 0,
    "fade": 0
   },
   {
-   "from": "@16.3",
-   "to": "@17.4",
-   "clip_from": 13.9,
+   "from": "@16.0",
+   "to": "@17.0",
+   "clip_from": 14.0,
    "clip_to": 15.0,
-   "take_from": 16.3,
-   "take_to": 17.4,
+   "take_from": 16.0,
+   "take_to": 17.0,
    "hold": 0,
    "fade": 0.4
   },
   {
    "from": "asked+0.3",
-   "to": "@24.5",
+   "to": "@24.0",
    "clip_from": 15.0,
-   "clip_to": 19.933,
-   "take_from": 19.571,
-   "take_to": 24.5,
+   "clip_to": 19.833,
+   "take_from": 19.169,
+   "take_to": 24.0,
    "hold": 0,
    "fade": 0.45
   },
   {
-   "from": "@25.5",
-   "to": "@31.2",
-   "clip_from": 19.933,
-   "clip_to": 25.633,
-   "take_from": 25.5,
-   "take_to": 31.2,
+   "from": "@25.1",
+   "to": "@31.0",
+   "clip_from": 19.833,
+   "clip_to": 25.733,
+   "take_from": 25.1,
+   "take_to": 31.0,
    "hold": 0,
    "fade": 0.4
   }
  ],
  "swaps": [],
  "moments": {
-  "speak": 1.006,
-  "done": 14.351,
-  "dontknow": 17.419,
-  "protocol": 17.656,
-  "scroll": 20.077,
-  "points": 23.088,
-  "still_points": 23.789
+  "speak": 1.01,
+  "spoken": 13.961,
+  "done": 14.274,
+  "dontknow": 17.409,
+  "protocol": 17.689,
+  "scroll": 20.008,
+  "points": 23.04,
+  "still_points": 23.741
  },
  "clicks": [
   {
-   "clip": 1.146,
+   "clip": 1.168,
    "x": 268.5,
    "y": 806
   },
   {
-   "clip": 14.491,
+   "clip": 14.424,
    "x": 312.5,
    "y": 806
   },
   {
-   "clip": 17.576,
+   "clip": 17.586,
    "x": 125.7,
    "y": 806
   }
@@ -94,16 +95,16 @@
  "window": {
   "name": "08-oral-answer",
   "box": [
-   392,
-   848
+   406,
+   880
   ],
-  "radius": 36,
-  "bg": "#0b121c"
+  "radius": 50,
+  "bg": "#000000"
  },
  "poster": {
-  "clip": 23.7,
+  "clip": 16.7,
   "file": "08-poster.png",
-  "still": "points",
-  "scale": 3.0
+  "still": null,
+  "scale": 2.0
  }
 }

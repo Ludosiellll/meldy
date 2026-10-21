@@ -4,7 +4,8 @@
 
 An offline TTS voice (any Russian .onnx voice of that package) reads each answer with a pause after every sentence
 (the app's recognition writes the speech down after each pause); ffmpeg makes it 48 kHz mono 16-bit with 0.6 s of
-quiet before and 2 s after.
+quiet before and 2 s after. The take of 21.10.2026 used ru_RU-denis-medium: with ru_RU-irina-medium the app's
+recognition wrote «эс кью эль» as «SQ-VIL»; denis and dmitri were written down as «SQL».
 """
 import json
 import subprocess

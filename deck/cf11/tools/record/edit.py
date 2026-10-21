@@ -22,7 +22,8 @@ Writes, in the masters folder (default $MELDY_MASTERS, else <takes>/../masters):
   <clip>-master.mp4   the whole window at the recording's device pixels (laptop 1024 × 800 CSS at 1.75 → 1792 × 1400,
                       phone 390 × 844 at 2 → 780 × 1688), 30 fps, H.264 4:4:4, full range, BT.709, CRF 18
   <clip>-master.json  the stretches; the moments, presses and camera beats in clip seconds; the poster
-  <clip>-poster.png   the poster's still: the page re-rendered by Chromium at 3×
+  <clip>-poster.png   the poster's still: the page re-rendered by Chromium at 3× (`poster.still`); without a still,
+                      the take's own frame of `poster.at` at the device's pixels
 """
 import bisect
 import json
@@ -280,15 +281,20 @@ def main():
         meta['mask'] = {'rects': mask_rects, 'color': mask_color}
     poster = cut.get('poster')
     if poster:
-        src = take_dir / 'stills' / f"{poster['still']}.png"
         dst = masters / f'{cut["clip"]}-poster.png'
-        if mask_rects:
-            still = Image.open(src)
-            masked(still, still.size[0] / take['viewport']['width']).save(dst)
+        if poster.get('still'):
+            src = take_dir / 'stills' / f"{poster['still']}.png"
+            if mask_rects:
+                still = Image.open(src)
+                masked(still, still.size[0] / take['viewport']['width']).save(dst)
+            else:
+                shutil.copyfile(src, dst)
+            poster_scale = Image.open(src).size[0] / take['viewport']['width']
         else:
-            shutil.copyfile(src, dst)
-        meta['poster'] = {'clip': clip_time(poster['at']), 'file': dst.name, 'still': poster['still'],
-                          'scale': Image.open(src).size[0] / take['viewport']['width']}
+            # No still of that moment: the page's own frame, at the take's device pixels (keep it out of a crossfade).
+            masked(load(frame_file(moment(poster['at'], marks))), scale).save(dst)
+            poster_scale = scale
+        meta['poster'] = {'clip': clip_time(poster['at']), 'file': dst.name, 'still': poster.get('still'), 'scale': poster_scale}
     (masters / f'{cut["clip"]}-master.json').write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'  {out} ({out.stat().st_size / 1e6:.1f} MB)')
     for s in stretches:
@@ -297,7 +303,7 @@ def main():
         print(f'  camera {k["clip"]:6.2f} s → {k["beat"]} {[round(v) for v in k["rect"]]}')
     print('  moments: ' + ', '.join(f'{n} {t:.2f}' for n, t in moments.items()))
     if poster:
-        print(f'  poster at {meta["poster"]["clip"]:.2f} s ({poster["still"]})')
+        print(f'  poster at {meta["poster"]["clip"]:.2f} s ({poster.get("still") or "the take frame"})')
 
 
 if __name__ == '__main__':

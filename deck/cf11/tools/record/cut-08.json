@@ -1,16 +1,16 @@
 {
   "clip": "08",
-  "take": "08-i",
+  "take": "08-k",
   "fps": 30,
   "fade": 0.45,
   "segments": [
-    { "from": "@1.0", "to": "@14.9" },
-    { "from": "@16.3", "to": "@17.4", "fade": 0.4 },
-    { "from": "asked+0.3", "to": "@24.5" },
-    { "from": "@25.5", "to": "@31.2", "fade": 0.4 }
+    { "from": "@1.0", "to": "@15.0" },
+    { "from": "@16.0", "to": "@17.0", "fade": 0.4 },
+    { "from": "asked+0.3", "to": "@24.0" },
+    { "from": "@25.1", "to": "@31.0", "fade": 0.4 }
   ],
   "loop": { "fade": 0.5 },
   "camera": { "keys": [] },
-  "poster": { "at": "points+0.6", "still": "points" },
-  "window": { "name": "08-oral-answer", "box": [392, 848], "radius": 36, "bg": "#0b121c" }
+  "poster": { "at": "asked+2.0" },
+  "window": { "name": "08-oral-answer", "box": [406, 880], "radius": 50, "bg": "#000000" }
 }
