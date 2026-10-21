@@ -22,9 +22,9 @@ import { CID, NOW, TG, TZ, USER } from './fixtures/scenario.ts';
 import { message, press } from './fixtures/updates.ts';
 import * as F from './fixtures/voice/fake_voice.ts';
 import {
-  attemptPayload, bridgeRefusal, changeSentence, createVoice, dbRefusal, decodeVoice, DONT_KNOW_VERDICT, encodeVoice, fragmentNumber,
+  attemptPayload, bridgeRefusal, createVoice, dbRefusal, decodeVoice, DONT_KNOW_VERDICT, encodeVoice, fragmentNumber,
   fragmentsLabel, gradeAnswer, limitLine, pointSource, refusal, selfCheck, selfDone, splitSourceId, startVoice, summaryLine, toAttempt,
-  toAudio, toUnits, V, v1, v2, v3, v4, type Attempt, type ChangeSummary, type Refusal, type VoiceDeps,
+  toAudio, toUnits, V, v1, v2, v3, v4, type Attempt, type Refusal,
 } from './voice.ts';
 import * as siteGrade from '../../../../frontend/src/lib/oral/oralGrade.ts';
 import * as siteSummary from '../../../../frontend/src/lib/oral/answerSummary.ts';
@@ -46,7 +46,7 @@ const USER_TEXT = [
 
 const DBS: FakeDb[] = [];
 
-function setup(o: Partial<F.VoiceWorldOptions> & { sheetChange?: VoiceDeps['sheetChange'] } = {}) {
+function setup(o: Partial<F.VoiceWorldOptions> = {}) {
   let t = NOW;
   const now = () => t;
   const tg = fakeTelegram({ now });
@@ -56,7 +56,7 @@ function setup(o: Partial<F.VoiceWorldOptions> & { sheetChange?: VoiceDeps['shee
   const world = F.voiceWorld(fdb, { now, ...o });
   const net = F.fakeVoiceNet(world, TEST_TOKEN);
   tg.result('getFile', (p) => ({ file_id: p.file_id, file_unique_id: `u-${p.file_id}`, file_size: 4096, file_path: `voice/file_${p.file_id}.oga` }));
-  const voice = createVoice({ token: TEST_TOKEN, fetch: net.fetch, sheetChange: o.sheetChange });
+  const voice = createVoice({ token: TEST_TOKEN, fetch: net.fetch });
   const api = createTelegram({ token: TEST_TOKEN, fetch: tg.fetch, sleep: async () => {}, random: () => 0.5 });
   const ctx: Ctx = { tg: api, db: fdb.db, site: F.SPACE, botUsername: W.BOT_USERNAME, now, hourly: () => true };
   const app = createApp({
@@ -149,7 +149,7 @@ test('switch on but no open oral question: a voice and a text are not the stage\
 // ─────────────────────────────────────────── the whole answer ───────────────────────────────────────────
 
 test('V1 → V2 → V3 → V4: the spec\'s example, the price on the button, one charge, the site\'s save', async () => {
-  const s = setup({ sheetChange: async () => ({ erased: 0, rubbed: 2, checked: 0, returned: 0, stayed: 1 }) });
+  const s = setup();
   assert.equal(await s.start(), 'sent');
   const m1 = s.sent()[0];
   assert.equal(m1.reply_parameters, undefined, 'V1 is a new message');
@@ -232,7 +232,6 @@ test('V1 → V2 → V3 → V4: the spec\'s example, the price on the button, one
   assert.equal(m4.reply_parameters, undefined, 'V4 is a new message');
   assert.equal(shown(m4.text), [
     'Сами назвали 2 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора.',
-    'После ответа: 2 строки стёрлись наполовину, 1 не стёрлась.',
     'Списано 4 единицы, осталось 83.',
   ].join('\n'), 'V4 as in spec §4.9');
   const done = s.world.attemptOf(a.aid)!;
@@ -567,7 +566,7 @@ test('snapshots of V1–V4, the self-check and every refusal; each passes T2\'s 
   const audio = toAudio({ left_s: 1800, day_s: 1800, stop: false });
   const o = { site: F.SPACE, units, audio, now: NOW, tz: TZ };
   const sessionId = 'f4f4c3d4-0000-4000-8000-000000000001';
-  const result = { summary: 'Сами назвали 2 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора', changes: { erased: 0, rubbed: 2, checked: 0, returned: 0, stayed: 1 }, charged: 4, unitsLeft: 83, sessionId };
+  const result = { summary: 'Сами назвали 2 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора', charged: 4, unitsLeft: 83, sessionId };
   const shots: Record<string, Shot> = {
     v1: v1(a, units, audio, NOW, TZ) as Shot,
     v1_limit: v1(a, toUnits({ left: 3, price: 4, resets_at: '2026-10-17T00:00:00Z' }), audio, NOW, TZ) as Shot,
@@ -576,8 +575,8 @@ test('snapshots of V1–V4, the self-check and every refusal; each passes T2\'s 
     v2: v2(a, 4) as Shot,
     v3: v3(attempt({ phase: 'followup' })) as Shot,
     v4: v4(a, result, F.SPACE) as Shot,
-    v4_last_no_sheet: v4(attempt({ has_next: false, n: 3 }), { ...result, changes: null, summary: 'Сами назвали 3 из 3 главных пунктов. Ошибка в 1 пункте' }, F.SPACE) as Shot,
-    v4_dont_know: v4(a, { summary: 'Сами назвали 0 из 3 главных пунктов', changes: null, charged: 0, unitsLeft: 87, sessionId }, F.SPACE) as Shot,
+    v4_last: v4(attempt({ has_next: false, n: 3 }), { ...result, summary: 'Сами назвали 3 из 3 главных пунктов. Ошибка в 1 пункте' }, F.SPACE) as Shot,
+    v4_dont_know: v4(a, { summary: 'Сами назвали 0 из 3 главных пунктов', charged: 0, unitsLeft: 87, sessionId }, F.SPACE) as Shot,
     self_check: selfCheck(a) as Shot,
     self_done: selfDone(a, 'unsure') as Shot,
     self_done_last: selfDone(attempt({ has_next: false, n: 3 }), 'know') as Shot,
@@ -597,7 +596,7 @@ test('snapshots of V1–V4, the self-check and every refusal; each passes T2\'s 
   assert.equal(shown(shots.refusal_limit_tonight.text), 'Проверки ИИ на сегодня закончились. Снова можно сегодня в 3:00. Проверить себя без Meldy можно сейчас.', 'after midnight in Minsk the reset is «сегодня»');
   assert.equal(shown(shots.self_done.text).split('\n').at(-1), 'Отмечено: плаваю. Отметка решает, когда повторим вопрос. Выученным он от неё не станет.');
   assert.equal(shown(shots.v2.text).split('\n')[0], 'Ваш ответ · голосом, 1:42');
-  assert.equal(shown(shots.v4.text), 'Сами назвали 2 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора.\nПосле ответа: 2 строки стёрлись наполовину, 1 не стёрлась.\nСписано 4 единицы, осталось 83.');
+  assert.equal(shown(shots.v4.text), 'Сами назвали 2 из 3 главных пунктов, ещё 1 — после вопроса экзаменатора.\nСписано 4 единицы, осталось 83.');
   for (const name of ['v1', 'v1_limit', 'v1_stop', 'v1_ceiling', 'v3', 'self_check']) {
     assert.ok(!(shots[name].keyboard ?? []).flat().some((b) => b.style === 'primary'), `${name}: no blue`);
   }
@@ -687,23 +686,7 @@ test('the save payload follows oralPersistence.ts buildAttemptPayload (the site\
   assert.equal(attemptPayload(a, { points: [], errors: [], verdict: '' }, null), null);
 });
 
-test('changeSentence equals the site\'s copy.ts (its test vectors); the shared words equal the site\'s', () => {
-  const none: ChangeSummary = { erased: 0, rubbed: 0, checked: 0, returned: 0, stayed: 0 };
-  const vectors: Array<[ChangeSummary, string]> = [
-    [{ ...none, erased: 2, rubbed: 3, returned: 1 }, 'После ответа: 2 строки стёрлись, 3 — наполовину, 1 вернулась.'],
-    [{ ...none, rubbed: 3, stayed: 2 }, 'После ответа: 3 строки стёрлись наполовину, 2 не стёрлись.'],
-    [{ ...none, rubbed: 1, stayed: 1 }, 'После ответа: 1 строка стёрлась наполовину, 1 не стёрлась.'],
-    [{ ...none, erased: 21 }, 'После ответа: 21 строка стёрлась.'],
-    [{ ...none, erased: 1, checked: 2 }, 'После ответа: 1 строка стёрлась, 2 прошли проверку.'],
-    [{ ...none, checked: 1 }, 'После ответа: 1 строка прошла проверку.'],
-    [none, 'После ответа строки не изменились.'],
-  ];
-  for (const [summary, expected] of vectors) assert.equal(plain(changeSentence(summary)), expected);
-  assert.ok(changeSentence({ ...none, erased: 1, rubbed: 1 }).includes('1\u00a0—\u00a0наполовину'));
-  // The site's test file holds the same vectors (a change there shows here).
-  const siteTest = read('frontend/src/components/exams/sheet/copy.test.ts');
-  for (const [, expected] of vectors) assert.ok(siteTest.includes(`'${expected}'`), expected);
-  // The words this module shares with the site and the Space.
+test('the words this module shares with the site and the Space equal theirs', () => {
   const backend = read('backend/oral_api.py');
   assert.ok(backend.includes(`DONT_KNOW_VERDICT = "${DONT_KNOW_VERDICT}"`), 'oral_api.DONT_KNOW_VERDICT');
   assert.ok(read('frontend/src/lib/oral/oralApi.ts').includes(`'${DONT_KNOW_VERDICT}'`), 'oralApi.ts DONT_KNOW_VERDICT');
