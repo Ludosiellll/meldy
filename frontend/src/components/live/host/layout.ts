@@ -172,7 +172,7 @@ export function seats(ids: readonly string[], keep: Seats | null, max = ARENA_MA
 /** The podium's crowd: everyone but the three on the podium, in two groups at the sides (up to `max`). */
 export function podiumSlots(count: number, width: number, max = 32): Slot[] {
   const size = 62;
-  const stepY = 118;
+  const stepY = 124;
   const rows = 4;
   const inner = width / 2 - 360;
   const room = inner - 40 - SIDE_PAD - size - 30;
@@ -188,7 +188,7 @@ export function podiumSlots(count: number, width: number, max = 32): Slot[] {
     const col = Math.floor(k / rows);
     const out = col * stepX + (row % 2) * 30;
     const x = side < 0 ? inner - size - 40 - out : width - inner + 40 + out;
-    const y = 284 + row * stepY;
+    const y = 272 + row * stepY;
     slots.push({ x, y, size, cx: x + size / 2, cy: y + size * 0.45, side, nameW });
   }
   return slots;
