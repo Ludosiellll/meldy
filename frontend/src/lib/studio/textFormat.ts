@@ -123,6 +123,15 @@ function questionText(question: QuestionText): string[] {
   return lines;
 }
 
+/**
+ * One question in the marks of «Текст» (UX audit of 21.10: the studio's «Сделать вопросами» writes the questions it
+ * found in pasted Word text this way, so «Применить» reads them back).
+ */
+export function questionMarkup(question: { stem: string; options: string[]; correct: number[]; forms: string[] }): string {
+  const short = question.options.length === 0;
+  return questionText({ ...question, short, correct: sortedSet(question.correct), explanation: '' }).join('\n');
+}
+
 function blockText(block: DocBlock, rows: ReadonlyMap<string, TestItem>): string | null {
   switch (block.type) {
     case 'cover':

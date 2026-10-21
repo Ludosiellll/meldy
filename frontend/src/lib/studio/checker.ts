@@ -14,6 +14,7 @@ import { optionName, shortNorm } from '../../components/containers/model';
 import { letter, plural } from '../../components/containers/copyImport';
 import { contrast, readableAccent } from './contrast';
 import { BLOCK_WORDS, DEFAULT_TITLE, chars, removeBlock } from './doc';
+import { STUDIO_PASTE } from '../../components/quick/copyQuick';
 
 export type Fix =
   /** The options are shown in the file's order (container_item_update keep_order). */
@@ -302,6 +303,13 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
 
   const firstByStem = new Map<string, OnPage>();
   for (const entry of questions) questionHints(entry, firstByStem, found);
+
+  // A page with blocks but no question cannot be sent: the check says so first (UX audit of 21.10: Word text pasted as
+  // paragraphs left no question, and the check said «ничего не нашла»). Questions without their answer have their own
+  // hints above.
+  if (doc.blocks.length > 0 && !doc.blocks.some((block) => block.type === 'question')) {
+    found.push({ id: 'no_keyed', level: 'fix', at: -2, message: STUDIO_PASTE.checkNoKeyed });
+  }
 
   if (doc.layout === 'pages') {
     doc.blocks.forEach((block, at) => {

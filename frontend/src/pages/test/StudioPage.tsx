@@ -27,6 +27,8 @@ import type { Uuid } from '../../types/container';
 import type { TestDoc } from '../../types/testDoc';
 import '../../components/exams/exams.css';
 import '../../components/studio/studio.css';
+import { STUDIO_PASTE } from '../../components/quick/copyQuick';
+import '../../components/quick/studioPaste.css';
 
 /**
  * /exams/c/:id/studio — «Студия теста» (spec meldy-notes 10_Project/Test_Builder_Spec_2026-10-18.md §47.6; plan
@@ -438,9 +440,10 @@ export default function StudioPage() {
         </p>
       ) : null}
       {studio.overflow > 0 ? <p className="st-line">{STUDIO.cap}</p> : null}
+      {/* Why «Отправить по ссылке» waits, said on the page (UX audit of 21.10: it was a tooltip, and a phone hid the button). */}
       {keyed === 0 ? (
-        <p id="st-send-why" className="sr-only">
-          {STUDIO.sendWhy}
+        <p id="st-send-why" className="st-line st-send-why">
+          {items.length === 0 ? STUDIO_PASTE.sendWaitsEmpty : STUDIO_PASTE.sendWaitsKey}
         </p>
       ) : null}
       {sendNote ? (
@@ -501,7 +504,7 @@ export default function StudioPage() {
               </button>
             </>
           ) : null}
-          {keyed > 0 || !phone ? sendButton : null}
+          {sendButton}
         </div>
       ) : null}
 

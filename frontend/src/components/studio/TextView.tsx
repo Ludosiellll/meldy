@@ -3,6 +3,8 @@ import { fromText, TEXT_SYNTAX, toText, type TextResult } from '../../lib/studio
 import type { TestItem } from '../../types/container';
 import { errorText } from '../containers/copyImport';
 import { STUDIO } from './copyStudio';
+import StudioPasteNote from '../quick/StudioPasteNote';
+import { questionParagraphs } from '../quick/studioPaste';
 import type { Studio } from './useStudio';
 
 /**
@@ -21,6 +23,8 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
   const [confirm, setConfirm] = useState<TextResult | null>(null);
   const [status, setStatus] = useState<{ text: string; bad: boolean } | null>(null);
   const [working, setWorking] = useState(false);
+  /** Paragraphs about to be added that read like questions from Word (UX audit of 21.10): asked before applying. */
+  const [rescue, setRescue] = useState<string[] | null>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
   // The canvas changed (Ctrl+Z, another view): the text follows while it holds nothing of its own.
@@ -44,11 +48,18 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
     }
   };
 
-  const apply = () => {
-    const result = fromText(text, studio.doc, items);
+  /** `ask` false: no question about Word paragraphs (they were made questions, or kept as text on purpose). */
+  const apply = (value: string = text, ask = true) => {
+    const result = fromText(value, studio.doc, items);
     setChecked(result);
     setStatus(null);
+    setRescue(null);
     if (result.problems.length > 0) return;
+    const paragraphs = ask ? questionParagraphs(studio.doc, result.doc) : [];
+    if (paragraphs.length > 0) {
+      setRescue(paragraphs);
+      return;
+    }
     const nothing = result.doc === studio.doc && result.adds.length === 0 && result.updates.length === 0 && result.removes.length === 0;
     if (nothing) {
       setHeld(false);
@@ -95,6 +106,7 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
             setText(event.target.value);
             setHeld(true);
             setStatus(null);
+            setRescue(null);
             if (checked) setChecked(null);
           }}
           onKeyDown={(event) => {
@@ -110,7 +122,7 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
           {STUDIO.textLead}
         </p>
         <div className="st-text-acts">
-          <button type="button" className="sf-primary st-apply" disabled={working} aria-busy={working || undefined} onClick={apply}>
+          <button type="button" className="sf-primary st-apply" disabled={working} aria-busy={working || undefined} onClick={() => apply()}>
             {STUDIO.textApply}
           </button>
           {held ? (
@@ -124,12 +136,26 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
                 setChecked(null);
                 setConfirm(null);
                 setStatus(null);
+                setRescue(null);
               }}
             >
               {STUDIO.textReset}
             </button>
           ) : null}
         </div>
+        {rescue ? (
+          <StudioPasteNote
+            text={text}
+            paragraphs={rescue}
+            onKeep={() => apply(text, false)}
+            onMade={(next) => {
+              // Questions without a marked answer are listed by the text's own problems («отметьте его «+»»).
+              setText(next);
+              setHeld(true);
+              apply(next, false);
+            }}
+          />
+        ) : null}
         {confirm ? (
           <div className="st-confirm st-text-confirm" role="alertdialog" aria-label={STUDIO.textRemoves(confirm.removes.length)}>
             <p>{STUDIO.textRemoves(confirm.removes.length)}</p>
