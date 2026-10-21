@@ -1216,21 +1216,22 @@
   max-width: none;
   user-select: none;
 }
-/* the phone: the class chat in Telegram, then the game in it */
+/* the phone: the class chat in Telegram, then the game in it; its screen (134 × 290) has the phone page's proportions,
+   so the page's footage fills it whole */
 .r3-gp {
   position: absolute;
-  left: 322px;
-  top: 58px;
-  width: 150px;
-  height: 296px;
+  left: 326px;
+  top: 55px;
+  width: 146px;
+  height: 302px;
   padding: 6px;
   border-radius: 26px;
   background: #0b121c;
   box-shadow: 0 26px 44px -26px rgba(16, 41, 90, 0.7);
 }
 [data-layout='tall'] .r3-gp {
-  left: 226px;
-  top: 64px;
+  left: 230px;
+  top: 58px;
 }
 .r3-gp-in {
   position: relative;
@@ -1284,10 +1285,22 @@
   background: #1e1b3f;
   color: #0b121c;
 }
+/* the game on the phone: the real page's footage, over the drawn view that shows until it has a frame */
+.r3-gp-drawn,
 .r3-gp-view {
   position: absolute;
   inset: 0;
   overflow: hidden;
+}
+.r3-gp-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  user-select: none;
 }
 /* the top under Telegram's buttons and the question stays dark (the projector's board is not the phone's) */
 .r3-gp-view::after {

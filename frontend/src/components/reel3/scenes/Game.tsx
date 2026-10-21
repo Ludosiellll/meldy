@@ -10,11 +10,19 @@
  * reel's clock: it plays while the reel plays, stops when it stops, and in the frame exporter it is sought to every
  * frame's time. Under it lie stills of the same moments, each coming in over the one before: what shows until the video
  * has its first frame, or if this browser cannot play it. A slow push of the camera and a short shake at the stomp
- * (transform and opacity only). The phone's view is the same moment, nearer (a still).
+ * (transform and opacity only).
+ *
+ * Once «Играть» is pressed the phone shows the same game on the student's phone (owner, 21.10: «в телефоне тупо
+ * картинка, нет движения синхронного с экраном главным»): the real phone page drawn from the same recording
+ * (STAND_RUN_PHONE, frame for frame the projector's moments), steered by the same clock to the same time as the
+ * projector's (lib/footageSync), so the timer, the stomp and the falling floor are one moment on both screens however
+ * the reel is played, paused, sought or exported. Under it, until both videos have a frame or where they cannot play,
+ * the phone's drawn view (the projector's stills, nearer) with its cards.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { opacity, text, useClock, useEls, useFrame } from '../../reel/engine';
-import { STAND_RUN, canPlayFootage, loadFootage } from '../../../lib/footage';
+import { STAND_RUN, STAND_RUN_PHONE, canPlayFootage, loadFootage, type Footage } from '../../../lib/footage';
+import { steer } from '../../../lib/footageSync';
 import { GAME, SAY } from '../../home3/copy3';
 import { GAME_FRAMES, type GameFrame } from '../../home3/gameFrames';
 import { Say, appear, clamp, ease, mix, move, seg } from '../kit3';
@@ -61,8 +69,6 @@ const LETTERS = ['А', 'Б', 'В', 'Г'] as const;
 /** The recorded cut is played from here (s) at the scene's first moment, at 1×, until the scene leaves. */
 export const FOOTAGE_FROM = 3.8;
 const FOOTAGE_UNTIL = 7000;
-/** A playing video further than this from the reel's time is sought back to it (s). */
-const DRIFT = 0.25;
 
 /** The cut's time at scene ms `l`: still before the scene and after it (no seeking while hidden). */
 export function footageAt(l: number): number {
@@ -79,17 +85,13 @@ export function timerAt(s: number): number {
   return 0;
 }
 
-export function GameScene() {
-  const root = useRef<HTMLDivElement>(null);
-  const { one, all } = useEls(root);
-  const pointer = usePointer(GAME_KEYS);
-  const clock = useClock();
-  const video = useRef<HTMLVideoElement | null>(null);
+/** The footage as an object URL once it has loaded (null before, and where this browser cannot play it). */
+function useFootageUrl(footage: Footage): string | null {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
-    if (!canPlayFootage(STAND_RUN)) return undefined;
+    if (!canPlayFootage(footage)) return undefined;
     let alive = true;
-    loadFootage(STAND_RUN).then(
+    loadFootage(footage).then(
       (url) => {
         if (alive) setSrc(url);
       },
@@ -98,39 +100,71 @@ export function GameScene() {
     return () => {
       alive = false;
     };
-  }, []);
-  // The reel stopped (its pause, the page scrolled away, the tab hidden): so does the footage.
-  useEffect(
-    () =>
-      clock.watch(() => {
-        const v = video.current;
-        if (v && !clock.isPlaying && !v.paused) v.pause();
-      }),
-    [clock],
-  );
+  }, [footage]);
+  return src;
+}
+
+/** The videos that have had a frame: one stays on show while it seeks (the frame exporter seeks it every frame). */
+const framed = new WeakSet<HTMLVideoElement>();
+
+/** Whether the video has a frame to show: its first one has come, and it has not lost its source since. */
+function hasFrame(video: HTMLVideoElement | null): video is HTMLVideoElement {
+  if (!video) return false;
+  if (video.readyState >= 2) framed.add(video);
+  return video.readyState >= 1 && framed.has(video);
+}
+
+/** A silent video's ref callback, and the video. */
+function useMutedVideo() {
+  const video = useRef<HTMLVideoElement | null>(null);
   const attach = useCallback((el: HTMLVideoElement | null) => {
     // As properties too: React does not always write `muted`, and only a muted video may start by itself.
     if (el) {
       el.muted = true;
       el.defaultMuted = true;
+      el.addEventListener('loadeddata', () => framed.add(el), { once: true });
     }
     video.current = el;
   }, []);
+  return [video, attach] as const;
+}
+
+export function GameScene() {
+  const root = useRef<HTMLDivElement>(null);
+  const { one, all } = useEls(root);
+  const pointer = usePointer(GAME_KEYS);
+  const clock = useClock();
+  const src = useFootageUrl(STAND_RUN);
+  const phoneSrc = useFootageUrl(STAND_RUN_PHONE);
+  const [video, attach] = useMutedVideo();
+  const [phoneVideo, attachPhone] = useMutedVideo();
+  // The reel stopped (its pause, the page scrolled away, the tab hidden): so do both footages.
+  useEffect(
+    () =>
+      clock.watch(() => {
+        if (clock.isPlaying) return;
+        for (const v of [video.current, phoneVideo.current]) if (v && !v.paused) v.pause();
+      }),
+    [clock, video, phoneVideo],
+  );
   useFrame((l) => {
-    // The footage follows the reel: it plays while the reel plays and the scene is on, else it waits on the frame.
+    // Both footages follow the reel to one time: they play while the reel plays and the scene is on, else they wait on
+    // that frame (the exporter's every frame). While they play the phone follows the projector's own time, so a gap
+    // between the reel's clock and the projector's never shows as a gap between the two screens.
+    const want = footageAt(l);
+    const playing = clock.isPlaying && l >= 0 && l < FOOTAGE_UNTIL && window.__MELDY_REEL_EXPORT__ !== true;
     const v = video.current;
-    const live = !!v && v.readyState >= 2;
-    if (v && live) {
-      const want = footageAt(l);
-      if (clock.isPlaying && l >= 0 && l < FOOTAGE_UNTIL && window.__MELDY_REEL_EXPORT__ !== true) {
-        if (v.paused) v.play()?.catch(() => undefined);
-        if (Math.abs(v.currentTime - want) > DRIFT) v.currentTime = want;
-      } else {
-        if (!v.paused) v.pause();
-        if (Math.abs(v.currentTime - want) > 0.02) v.currentTime = want;
-      }
-    }
+    const pv = phoneVideo.current;
+    // A video that has had a frame stays on show while it seeks: the exporter's screenshot waits for the new one.
+    const live = hasFrame(v);
+    if (v) steer(v, want, playing);
+    const leading = playing && live && !v.paused;
+    if (pv) steer(pv, leading ? v.currentTime : want, playing, 0, leading ? v.playbackRate : 1);
+    // The phone's footage shows only beside the projector's, so the two screens never show two different moments.
+    const phoneLive = live && hasFrame(pv);
     opacity(v, live ? 1 : 0);
+    opacity(pv, phoneLive ? 1 : 0);
+    opacity(one('drawn'), phoneLive ? 0 : 1);
 
     // The projector: in first, the camera pushing in all the way; a shake as the boss stomps.
     appear(one('proj'), l, 120, 480, 18);
@@ -199,51 +233,67 @@ export function GameScene() {
               </span>
             </div>
             <div data-a="app" className="r3-gp-app" style={{ opacity: 0 }}>
-              <div className="r3-gp-view">
-                <div data-a="track" className="r3-gp-track">
-                  {VIEWS.map((view) => (
-                    <img key={view.frame} data-a="view" src={GAME_FRAMES[view.frame]} width={800} height={450} alt="" decoding="async" draggable={false} />
-                  ))}
+              <div data-a="drawn" className="r3-gp-drawn">
+                <div className="r3-gp-view">
+                  <div data-a="track" className="r3-gp-track">
+                    {VIEWS.map((view) => (
+                      <img key={view.frame} data-a="view" src={GAME_FRAMES[view.frame]} width={800} height={450} alt="" decoding="async" draggable={false} />
+                    ))}
+                  </div>
+                </div>
+                <p className="r3-gp-bar">
+                  <span className="r3-gp-close">{GAME.close}</span>
+                  <span className="r3-gp-more" aria-hidden="true" />
+                </p>
+                <div data-a="qcard" className="r3-gp-card">
+                  <p className="r3-gp-of">
+                    <span>{GAME.of}</span>
+                    <b data-a="sec">14</b>
+                  </p>
+                  <p className="r3-gp-q">{GAME.question}</p>
+                  <p className="r3-gp-opts">
+                    {GAME.options.map((option, index) => (
+                      <span key={option}>
+                        <i data-zone={index}>{LETTERS[index]}</i>
+                        {option}
+                      </span>
+                    ))}
+                  </p>
+                </div>
+                <div data-a="win" className="r3-gp-card r3-gp-win" style={{ opacity: 0 }}>
+                  <b>{GAME.right}</b>
+                  <strong>{GAME.points}</strong>
+                </div>
+                <span className="r3-gp-stick" aria-hidden="true">
+                  <i data-a="knob" />
+                </span>
+                <div className="r3-gp-zone">
+                  <span data-a="running" className="r3-gp-run" style={{ opacity: 0 }}>
+                    {GAME.run}
+                  </span>
+                  <span data-a="stand" className="r3-gp-on" style={{ opacity: 0 }}>
+                    <i data-zone={0}>{LETTERS[0]}</i>
+                    <span>
+                      <small>{GAME.onAnswer}</small>
+                      {GAME.options[0]}
+                    </span>
+                  </span>
                 </div>
               </div>
-              <p className="r3-gp-bar">
-                <span className="r3-gp-close">{GAME.close}</span>
-                <span className="r3-gp-more" aria-hidden="true" />
-              </p>
-              <div data-a="qcard" className="r3-gp-card">
-                <p className="r3-gp-of">
-                  <span>{GAME.of}</span>
-                  <b data-a="sec">14</b>
-                </p>
-                <p className="r3-gp-q">{GAME.question}</p>
-                <p className="r3-gp-opts">
-                  {GAME.options.map((option, index) => (
-                    <span key={option}>
-                      <i data-zone={index}>{LETTERS[index]}</i>
-                      {option}
-                    </span>
-                  ))}
-                </p>
-              </div>
-              <div data-a="win" className="r3-gp-card r3-gp-win" style={{ opacity: 0 }}>
-                <b>{GAME.right}</b>
-                <strong>{GAME.points}</strong>
-              </div>
-              <span className="r3-gp-stick" aria-hidden="true">
-                <i data-a="knob" />
-              </span>
-              <div className="r3-gp-zone">
-                <span data-a="running" className="r3-gp-run" style={{ opacity: 0 }}>
-                  {GAME.run}
-                </span>
-                <span data-a="stand" className="r3-gp-on" style={{ opacity: 0 }}>
-                  <i data-zone={0}>{LETTERS[0]}</i>
-                  <span>
-                    <small>{GAME.onAnswer}</small>
-                    {GAME.options[0]}
-                  </span>
-                </span>
-              </div>
+              {phoneSrc ? (
+                <video
+                  ref={attachPhone}
+                  className="r3-gp-video"
+                  src={phoneSrc}
+                  width={STAND_RUN_PHONE.width}
+                  height={STAND_RUN_PHONE.height}
+                  muted
+                  playsInline
+                  preload="auto"
+                  disablePictureInPicture
+                  style={{ opacity: 0 }}
+                />
+              ) : null}
             </div>
           </div>
         </div>

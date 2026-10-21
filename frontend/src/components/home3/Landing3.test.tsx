@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Landing3 from './Landing3';
 import { BUILD_URL } from './Builder';
 import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, PICTURES, SAMPLE_TEST_URL, bind } from './copy3';
 import { GAME_ALT, GAME_URL } from './Sections';
-import { GAME_FRAMES } from './gameFrames';
-import { STAND_RUN } from '../../lib/footage';
+import { STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
+import { reelPart } from './reelPart';
 import { returnToFromSearch } from '../../lib/returnTo';
 
 const auth = vi.hoisted(() => ({ requestSession: vi.fn() }));
@@ -103,19 +103,16 @@ describe('the landing v3', () => {
     expect(section.querySelector('.p3-text')!.textContent).toBe(bind(GAME_SECTION.text));
     for (const line of ['на проекторе', 'с телефона', 'проваливается', 'в Telegram']) expect(GAME_SECTION.text).toContain(line);
     // The projector is the recorded game, said in words: its player comes with the reel's late file, and fetches its
-    // poster and its parts only as the section comes near (no video here, a poster only lazily). The post and the phone
-    // are pictures beside it; the phone's still loads lazily.
+    // poster and its parts only as the section comes near (no video here, no picture before the player). The post and
+    // the phone are pictures beside it; the phone's screen is its own footage, so nothing on it is drawn over it.
     const projector = within(section).getByRole('img', { name: GAME_ALT });
     expect(projector).toHaveClass('p3-proj');
     expect(projector.querySelector('video')).toBeNull();
     expect(STAND_RUN.parts.every((part) => part.startsWith('/game/footage/'))).toBe(true);
     for (const img of section.querySelectorAll('img')) expect(img).toHaveAttribute('loading', 'lazy');
-    const still = section.querySelector('.p3-gphone img')!;
-    expect(still).toHaveAttribute('src', GAME_FRAMES.drop);
-    expect(still).toHaveAttribute('loading', 'lazy');
     for (const picture of section.querySelectorAll('.p3-gpost, .p3-gphone')) expect(picture).toHaveAttribute('aria-hidden', 'true');
     expect(section.querySelector('.p3-gpost')).toHaveTextContent(GAME.play);
-    expect(section.querySelector('.p3-gphone')).toHaveTextContent(`${GAME.right}${GAME.points}`);
+    expect(section.querySelector('.p3-gphone')!.textContent).toBe('');
     // Nothing to press but its one link: sign up, then «Тесты», where every test has «Провести игру».
     expect(section.querySelectorAll('button')).toHaveLength(0);
     const links = within(section).getAllByRole('link');
@@ -125,6 +122,24 @@ describe('the landing v3', () => {
     expect(returnToFromSearch(GAME_URL.slice(GAME_URL.indexOf('?')))).toBe('/exams?view=tests');
     fireEvent.click(links[0]);
     expect(screen.getByText('Адрес: /register')).toBeInTheDocument();
+  });
+
+  it('puts the projector’s footage and the phone’s in the game once the player has come, posters only until near (owner, 21.10)', async () => {
+    renderLanding();
+    await act(async () => {
+      await reelPart.load();
+    });
+    const section = document.getElementById('game')!;
+    // Two players of one moment: the projector's cut and the phone's, frame for frame the same game.
+    const projector = section.querySelector('.p3-proj .fo-poster')!;
+    const phone = section.querySelector('.p3-gphone .fo-poster')!;
+    expect(projector).toHaveAttribute('src', STAND_RUN.poster);
+    expect(phone).toHaveAttribute('src', STAND_RUN_PHONE.poster);
+    for (const poster of [projector, phone]) expect(poster).toHaveAttribute('loading', 'lazy');
+    // Not near yet (the observer has not said so): nothing is fetched, no video, and no words drawn over the phone.
+    expect(section.querySelectorAll('video')).toHaveLength(0);
+    expect(section.querySelector('.p3-gphone')!.textContent).toBe('');
+    expect(reelPart.current()?.phone).toBe(STAND_RUN_PHONE);
   });
 
   it('offers «Собрать свой тест» beside the sample test: sign up, then the quick test (UX audit 21.10)', () => {

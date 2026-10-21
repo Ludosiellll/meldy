@@ -1,8 +1,8 @@
 /**
  * «Встань на ответ» as the class saw it: frames of the real recorded game on the projector (the stand game's 1920 × 1080
  * recording, at the moments of its 10.8 s cut: 12.6–19.2 s and 30.4–34.6 s), 800 × 450 WebP, each under 96 KB (the
- * Space refuses larger files). The reel's chapter «Игра в классе» and the page's section «Игра в классе» show them; a
- * file is fetched only when one of them is about to be seen.
+ * Space refuses larger files). The reel's chapter «Игра в классе» shows them under its footage (until the video has a
+ * frame, or where it cannot play); a file is fetched only when the chapter is about to be seen.
  */
 import run from './game/run.webp';
 import last from './game/last.webp';
