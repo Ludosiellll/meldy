@@ -13,11 +13,12 @@ import {
 import { setTTSVoiceFiles, type TTSVoiceFile } from '../../utils/tts';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import '../exams/exams.css';
 import '../../pages/Analyze.css';
 import './exampleLecture.css';
 
 /** What the page is, on top of it. */
-export const LECTURE_EXAMPLE_NOTE = `Пример: так Meldy разобрал лекцию «${EXAMPLE_LECTURE_SOURCE.title}» из примера экзамена.`;
+export const LECTURE_EXAMPLE_NOTE = `Это пример. Так Meldy разобрал лекцию «${EXAMPLE_LECTURE_SOURCE.title}».`;
 
 /** The podcast's voice: each line's own file, with the text and the host's voice the player gives it. */
 export function exampleLectureVoice(): TTSVoiceFile[] {
@@ -51,7 +52,7 @@ export default function ExampleLecture() {
           {glue(LECTURE_EXAMPLE_NOTE)}{' '}
           {/* On a computer the top line has the way back. */}
           <Link className="sf-link tx-narrow-only" to="/try">
-            К примеру экзамена
+            Вернуться к примеру
           </Link>
         </p>
         <ResultsPanel
