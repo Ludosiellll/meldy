@@ -4,6 +4,7 @@ phone, ghosts, revives, half points, the streak, a late joiner, the floor, the m
 import json
 import math
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -348,6 +349,41 @@ def test_a_tick_with_40_players_running_in_a_question_stays_well_under_3_ms():
     p50, p99 = cost[len(cost) // 2], cost[int(len(cost) * 0.99)]
     print(f"\nstand tick with 40 players (CPU): p50 {p50:.3f} ms, p99 {p99:.3f} ms, max {cost[-1]:.3f} ms")
     assert p99 <= 3.0
+
+
+class StubRunner:
+    """What StandMode reads of its room runner, with nobody connected."""
+
+    game_id = GAME
+    _host_token = HOST
+    hosts: list = []
+    conns: dict = {}
+
+    def __init__(self, room: lm.Room) -> None:
+        self.room = room
+        self.tick_at = time.perf_counter()
+
+
+def test_a_poll_answered_after_the_rooms_write_does_not_open_the_question_again():
+    """A poll sent while the question was open, answered after the room's write and reveal: the reveal stays."""
+    w = World()
+    w.start()
+    mode = stand.StandMode(StubRunner(w.room), w.db.host_state_sync(), w.db)
+    mode.game = mode.hooks = w.game
+    mode.clock.sample(0.0, 0.0, 0.0)
+    w.t[0] = w.db.questions[0]["opens"] + 1
+    stale = w.db.host_state_sync()
+    assert stale["state"] == "open"
+    for p in w.ps:
+        w.put(p, 1)
+    w.to_deadline()
+    w.close()
+    assert w.game.phase == "reveal" and w.game.res is not None
+    mode.apply_state(stale)
+    assert w.game.phase == "reveal" and w.game.res is not None
+    n = len(w.decided)
+    w.run(3000)
+    assert len(w.decided) == n
 
 
 def test_leaderboard_and_podium_clear_the_floor_and_the_holds():

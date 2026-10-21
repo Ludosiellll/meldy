@@ -57,7 +57,9 @@ p_since_rev)` once a second with the host token it already holds (outside `lobby
 and `live_end`; the room then polls at once. So a phase reaches the phones ~0.2–0.5 s after the click, and within ~1 s
 when the poke is lost. Countdown → open needs no poll: the room switches at `opens` by its own clock. Polls and the
 answer write are asyncio tasks off the tick; a slow or failed call never delays a tick. A room restart (release, Space
-sleep) loses only the question in flight.
+sleep) loses only the question in flight. A poll sent while the question was open can come back after the room's own
+write and reveal: an `open` (or `countdown`) of the question the room already shows the result of is stale and ignored,
+never a new round (the database never opens a question again; a mixed room the same).
 
 ## 3. The arena
 
