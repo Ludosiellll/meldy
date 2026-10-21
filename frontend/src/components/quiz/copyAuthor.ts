@@ -297,7 +297,8 @@ export const QA_PEOPLE = {
       paste: 'Вставка текста в ответ',
       reload: 'Страница открыта заново',
     })[kind],
-  eventQ: (n: number) => `вопрос ${n}`,
+  /** «вопрос 2» with a no-break space: on a phone the number never wraps alone. */
+  eventQ: (n: number) => `вопрос ${n}`,
   eventMs: (ms: number) => {
     const s = Math.max(1, Math.round(ms / 1000));
     return s < 60 ? `${s} с` : `${Math.floor(s / 60)} мин ${s % 60} с`;

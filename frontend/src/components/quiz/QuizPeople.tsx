@@ -461,7 +461,7 @@ function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset }
                   <span className="qa-event-at">{eventTime(event.at)}</span>
                   <span className="qa-event-what">
                     {QA_PEOPLE.eventKind(event.kind)}
-                    {event.q !== null ? <span className="qa-event-meta">{` · ${QA_PEOPLE.eventQ(event.q)}`}</span> : null}
+                    {event.q !== null ? <span className="qa-event-meta">{nb(` · ${QA_PEOPLE.eventQ(event.q)}`)}</span> : null}
                     {event.ms !== null ? <span className="qa-event-meta">{nb(` · ${QA_PEOPLE.eventMs(event.ms)}`)}</span> : null}
                   </span>
                 </li>

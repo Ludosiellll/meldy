@@ -99,6 +99,9 @@ describe('the record of an attempt', () => {
     expect(plain(items[0].textContent)).toContain(`${QA_PEOPLE.eventKind('blur')} · вопрос 2 · 4 с`);
     expect(plain(items[1].textContent)).toContain(`${QA_PEOPLE.eventKind('hidden')} · вопрос 3 · 1 мин 15 с`);
     expect(plain(items[2].textContent)).toContain(QA_PEOPLE.eventKind('reload'));
+    // on a phone the line wraps: «вопрос 2» and «4 с» never part, and a «·» stays with the words before it
+    expect(items[0].textContent).toContain(`${NB}· вопрос${NB}2${NB}· 4${NB}с`);
+    expect(items[1].textContent).toContain(`вопрос${NB}3${NB}· 1${NB}мин 15${NB}с`);
     expect(record).toHaveTextContent(QA_PEOPLE.eventsLimits);
   });
 
