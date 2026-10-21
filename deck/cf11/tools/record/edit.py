@@ -16,13 +16,20 @@ frames it for a screen of any size and draws a ring where the hand pressed (`cli
 
 `mask` (optional): rectangles of the window, in CSS px, that the master and the poster must not keep — the site's top
 line with the account's avatar and limit — painted over in one colour (`{"rects": [[x0, y0, x1, y1]], "color": …}`).
-The camera never frames them (`camera.y_min`), so the fitted clip is the same with or without the mask.
+The camera never frames them (`camera.y_min`), so the fitted clip is the same with or without the mask. `mask.off`
+(optional): stretches of the take, as pairs of moments, where the mask is not painted (a full-window dialog of the app
+over the top line, such as the studio's preview; the camera may frame the top line there: fit.py's key `y_min`).
+
+`pointer` (optional, true): the mouse's place in every frame of the master (`pointer` in the json: [x, y, pressed] in
+the window's CSS px, or null while hidden), from the take's logged moves and presses; across a cut's crossfade it
+glides from where it was to where it is. fit.py draws it.
 
 Writes, in the masters folder (default $MELDY_MASTERS, else <takes>/../masters):
   <clip>-master.mp4   the whole window at the recording's device pixels (laptop 1024 × 800 CSS at 1.75 → 1792 × 1400,
                       phone 390 × 844 at 2 → 780 × 1688), 30 fps, H.264 4:4:4, full range, BT.709, CRF 18
   <clip>-master.json  the stretches; the moments, presses and camera beats in clip seconds; the poster
-  <clip>-poster.png   the poster's still: the page re-rendered by Chromium at 3×
+  <clip>-poster.png   the poster's still: the page re-rendered by Chromium at 3× (`poster.still`); without a still,
+                      the take's own frame of `poster.at` at the device's pixels
 """
 import bisect
 import json
@@ -121,6 +128,7 @@ def main():
     mask = cut.get('mask') or {}
     mask_rects = mask.get('rects', [])
     mask_color = mask.get('color', '#f3f3f0')
+    mask_off = [(moment(a, marks), moment(b, marks)) for a, b in mask.get('off', [])]
 
     def masked(im, k):
         """The window with the mask's rectangles painted over (k: image pixels per CSS px)."""
@@ -201,22 +209,73 @@ def main():
             cache[name] = Image.open(take_dir / 'raw' / name).convert('RGB')
         return cache[name]
 
+    # The mouse: its logged places (moves, presses), hidden and shown again; a press lasts from down to up.
+    hand = sorted((e['t'], e['x'], e['y']) for e in take['events'] if e['kind'] in ('pointer', 'move', 'down', 'up'))
+    hand_t = [h[0] for h in hand]
+    switches = sorted((e['t'], e['kind'] == 'show') for e in take['events'] if e['kind'] in ('hide', 'show'))
+    downs = sorted(e['t'] for e in take['events'] if e['kind'] == 'down')
+    ups = sorted(e['t'] for e in take['events'] if e['kind'] == 'up')
+
+    def hand_at(t):
+        i = bisect.bisect_right(hand_t, t) - 1
+        if i < 0:
+            return None
+        t0, x0, y0 = hand[i]
+        if i + 1 < len(hand):
+            t1, x1, y1 = hand[i + 1]
+            if 0 < t1 - t0 < 0.1:
+                q = (t - t0) / (t1 - t0)
+                return x0 + (x1 - x0) * q, y0 + (y1 - y0) * q
+        return x0, y0
+
+    def hand_shown(t):
+        state = True
+        for ts, show in switches:
+            if ts <= t:
+                state = show
+        return state
+
+    def hand_pressed(t):
+        for td in downs:
+            tu = next((u for u in ups if u >= td), td + 0.1)
+            if td <= t <= max(tu, td + 0.08):
+                return True
+        return False
+
+    pointer = []
     first = None
+    def page(t):
+        """The take's frame at t, with the mask painted unless t lies in one of the mask's off-stretches (each frame
+        is masked by its own moment, so a crossfade into an off-stretch never shows what the mask hides)."""
+        im = load(frame_file(t))
+        return im if any(a <= t <= b for a, b in mask_off) else masked(im, scale)
+
     for k in range(total):
         t = plan[k]
-        im = load(frame_file(t))
+        im = page(t)
         seg = stretches[owner[k]]
         # A cut: the stretch before dissolves into this one (its last frame held while this one already runs).
         n_fade = round(seg['fade'] * fps)
         if n_fade and k - seg['start'] < n_fade:
-            old = load(frame_file(plan[seg['start'] - 1]))
+            old = page(plan[seg['start'] - 1])
             im = Image.blend(old, im, smooth((k - seg['start'] + 1) / (n_fade + 1)))
+        if cut.get('pointer'):
+            pos = hand_at(t) if hand_shown(t) else None
+            if pos and n_fade and k - seg['start'] < n_fade:
+                was = hand_at(plan[seg['start'] - 1])
+                if was:
+                    e = smooth((k - seg['start'] + 1) / (n_fade + 1))
+                    pos = (was[0] + (pos[0] - was[0]) * e, was[1] + (pos[1] - was[1]) * e)
+            if pos and loop_fade and k >= total - loop_fade and pointer and pointer[0]:
+                e = smooth((k - (total - loop_fade) + 1) / (loop_fade + 1))
+                pos = (pos[0] + (pointer[0][0] - pos[0]) * e, pos[1] + (pointer[0][1] - pos[1]) * e)
+            pointer.append([round(pos[0], 1), round(pos[1], 1), 1 if hand_pressed(t) else 0] if pos else None)
         # A page swap inside the stretch: the page before it dissolves into the new one.
         for sw in swaps:
             age = t - sw['t']
             if 0 <= age < swap_fade and plan[seg['start']] <= sw['t']:
-                im = Image.blend(load(sw['pre']), im, smooth((age + 1 / fps) / (swap_fade + 1 / fps)))
-        im = masked(im, scale)
+                pre = load(sw['pre'])
+                im = Image.blend(pre if any(a <= t <= b for a, b in mask_off) else masked(pre, scale), im, smooth((age + 1 / fps) / (swap_fade + 1 / fps)))
         if k == 0:
             first = im.copy()
         if loop_fade and k >= total - loop_fade:
@@ -259,7 +318,7 @@ def main():
     keys = []
     for key in cam.get('keys', []):
         k = {'clip': clip_time(key['at']) if not isinstance(key['at'], (int, float)) else key['at'], 'rect': rect_of(key['box'])}
-        for field in ('move', 'pad', 'min_w', 'hop', 'anchor'):
+        for field in ('move', 'pad', 'min_w', 'hop', 'anchor', 'y_min'):
             if field in key:
                 k[field] = key[field]
         k['beat'] = key.get('beat', key['box'] if isinstance(key['box'], str) else '+'.join(key['box']) if isinstance(key['box'], list) and isinstance(key['box'][0], str) else 'rect')
@@ -268,7 +327,8 @@ def main():
 
     moments = {name: clip_of(marks[name]) for name in marks if name != '@' and clip_of(marks[name]) is not None}
     meta = {
-        'clip': cut['clip'], 'take': str(take_dir), 'size': [W, H], 'viewport': take['viewport'], 'capture_scale': scale,
+        'clip': cut['clip'], 'take': cut['take'],  # as the cut names it: a take in the takes folder
+        'size': [W, H], 'viewport': take['viewport'], 'capture_scale': scale,
         'device_scale': take.get('dpr'), 'fps': fps, 'frames': total, 'seconds': round(total / fps, 3), 'loop_fade_frames': loop_fade,
         'stretches': [{k: v for k, v in s.items() if k != 'start'} for s in stretches],
         'swaps': [{'after': s['spec'], 'clip': clip_of(s['t'])} for s in swaps],
@@ -278,17 +338,24 @@ def main():
     }
     if mask_rects:
         meta['mask'] = {'rects': mask_rects, 'color': mask_color}
+    if cut.get('pointer'):
+        meta['pointer'] = pointer
     poster = cut.get('poster')
     if poster:
-        src = take_dir / 'stills' / f"{poster['still']}.png"
         dst = masters / f'{cut["clip"]}-poster.png'
-        if mask_rects:
-            still = Image.open(src)
-            masked(still, still.size[0] / take['viewport']['width']).save(dst)
+        if poster.get('still'):
+            src = take_dir / 'stills' / f"{poster['still']}.png"
+            if mask_rects:
+                still = Image.open(src)
+                masked(still, still.size[0] / take['viewport']['width']).save(dst)
+            else:
+                shutil.copyfile(src, dst)
+            poster_scale = Image.open(src).size[0] / take['viewport']['width']
         else:
-            shutil.copyfile(src, dst)
-        meta['poster'] = {'clip': clip_time(poster['at']), 'file': dst.name, 'still': poster['still'],
-                          'scale': Image.open(src).size[0] / take['viewport']['width']}
+            # No still of that moment: the page's own frame, at the take's device pixels (keep it out of a crossfade).
+            masked(load(frame_file(moment(poster['at'], marks))), scale).save(dst)
+            poster_scale = scale
+        meta['poster'] = {'clip': clip_time(poster['at']), 'file': dst.name, 'still': poster.get('still'), 'scale': poster_scale}
     (masters / f'{cut["clip"]}-master.json').write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'  {out} ({out.stat().st_size / 1e6:.1f} MB)')
     for s in stretches:
@@ -297,7 +364,7 @@ def main():
         print(f'  camera {k["clip"]:6.2f} s → {k["beat"]} {[round(v) for v in k["rect"]]}')
     print('  moments: ' + ', '.join(f'{n} {t:.2f}' for n, t in moments.items()))
     if poster:
-        print(f'  poster at {meta["poster"]["clip"]:.2f} s ({poster["still"]})')
+        print(f'  poster at {meta["poster"]["clip"]:.2f} s ({poster.get("still") or "the take frame"})')
 
 
 if __name__ == '__main__':
