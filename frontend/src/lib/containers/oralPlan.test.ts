@@ -231,7 +231,7 @@ describe('loadOralPlanItems', () => {
   });
 
   it('a sheet that could not be fetched is the network; another failure is not', async () => {
-    reads.fetchSheet.mockRejectedValue(new SheetError('Шпаргалка не загрузилась.'));
+    reads.fetchSheet.mockRejectedValue(new SheetError('Не получилось загрузить устные вопросы.'));
     await expect(loadOralPlanItems([{ examId: EXAM, subjectId: SUBJECT }], NOW, 'Europe/Minsk')).rejects.toMatchObject({ code: 'network' });
     reads.fetchSheet.mockResolvedValue(sheetResponse(QUESTIONS));
     reads.fetchSheetEvents.mockRejectedValue(new LearningLoadError('Не удалось загрузить историю ответов.', null));
