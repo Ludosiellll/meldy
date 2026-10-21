@@ -1,8 +1,8 @@
 /**
  * The bar over the stage: Meldy, the mode and the test's name; the question's number, PIN and players; the teacher's
- * tools (players, full screen, end) and the one blue «Дальше» when the game waits for the teacher.
+ * tools (sound, players, full screen, end) and the one blue «Дальше» when the game waits for the teacher.
  */
-import { Maximize, Minimize, Users } from 'lucide-react';
+import { Maximize, Minimize, Users, Volume2, VolumeX } from 'lucide-react';
 import { NEXT, TOP } from './copy';
 
 export interface TopBarProps {
@@ -17,9 +17,11 @@ export interface TopBarProps {
   onPlayers: (() => void) | null;
   onFull: () => void;
   onEnd: (() => void) | null;
+  /** The sound's switch (remembered in this browser). */
+  sound?: { muted: boolean; onToggle: () => void } | null;
 }
 
-export function TopBar({ title, question, final, pin, players, offline, full, next, onPlayers, onFull, onEnd }: TopBarProps) {
+export function TopBar({ title, question, final, pin, players, offline, full, next, onPlayers, onFull, onEnd, sound = null }: TopBarProps) {
   const q = question ? TOP.question(question.i, question.n) : null;
   return (
     <header className="lvh-top">
@@ -52,6 +54,19 @@ export function TopBar({ title, question, final, pin, players, offline, full, ne
       {pin ? <span className="lvh-pill">{TOP.pin(pin)}</span> : null}
       {players !== null ? <span className="lvh-pill">{TOP.playing(players)}</span> : null}
       <span className="lvh-tools">
+        {sound ? (
+          <button
+            type="button"
+            className="lvh-tool"
+            onClick={sound.onToggle}
+            aria-label={TOP.sound}
+            aria-pressed={!sound.muted}
+            title={sound.muted ? TOP.soundOn : TOP.soundOff}
+            data-muted={sound.muted ? '' : undefined}
+          >
+            {sound.muted ? <VolumeX size={22} strokeWidth={2.2} aria-hidden="true" /> : <Volume2 size={22} strokeWidth={2.2} aria-hidden="true" />}
+          </button>
+        ) : null}
         {onPlayers ? (
           <button type="button" className="lvh-tool" onClick={onPlayers} aria-label={TOP.players} title={TOP.players}>
             <Users size={22} strokeWidth={2.2} aria-hidden="true" />

@@ -65,6 +65,19 @@ describe('teacher screen against the fake server', () => {
     expect(screen.getByText('Базы данных')).toBeInTheDocument();
   });
 
+  it('the sound’s switch in the bar: on by default, remembered when turned off', async () => {
+    window.localStorage.removeItem('meldy.live.sound');
+    await start(3);
+    const button = screen.getByRole('button', { name: 'Звук' });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(button).toHaveAttribute('title', 'Выключить звук');
+    fireEvent.click(button);
+    expect(screen.getByRole('button', { name: 'Звук' })).toHaveAttribute('aria-pressed', 'false');
+    expect(window.localStorage.getItem('meldy.live.sound')).toBe('off');
+    fireEvent.click(screen.getByRole('button', { name: 'Звук' }));
+    expect(window.localStorage.getItem('meldy.live.sound')).toBeNull();
+  });
+
   it('a whole game: countdown, open, reveal with the key, top five, … podium, review, end', async () => {
     const { view, server } = await start();
     space();

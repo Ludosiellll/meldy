@@ -15,6 +15,7 @@ import { Character } from '../../components/live/art/Character';
 import { MODE, SETUP, nb } from '../../components/live/host/copy';
 import { fakeKnobs, saveHostInfo, saveHostToken } from '../../components/live/host/hostSession';
 import { MAX_GAME_QUESTIONS, MIN_GAME_QUESTIONS, amountChoices, fakeSource, loadSource, type SourcePreview } from '../../components/live/host/source';
+import { hostSound } from '../../components/live/host/sound';
 import '../../components/live/host/host.css';
 
 interface SegProps<T extends string | number | boolean> {
@@ -111,6 +112,8 @@ export default function LiveSetupPage() {
 
   const open = useCallback(async () => {
     if (!source || opening || tooFew) return;
+    // this click is the gesture that lets the game's screen make sound (the room's loop is there as it opens)
+    hostSound().unlock();
     setOpening(true);
     setError(null);
     const settings: Settings = { mode: 'boss', time_s: time, speed, who, chat_names: names };

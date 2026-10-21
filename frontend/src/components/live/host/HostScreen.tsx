@@ -7,19 +7,20 @@
  * directly and touches the stage store per hit; when it ends, the store takes the server's state as it is then.
  * A reload, or a state the screen did not see coming, is drawn still, as it is.
  */
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ColourId, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
 import { TelegramPost } from './TelegramPost';
 import { BossView, CrowdCount, FxDefs, HpBar, UnderBar, byJoin } from './Arena';
 import { BANNER, MODE, NEXT } from './copy';
 import { Crowd, type CrowdView, type Place } from './Crowd';
-import { Director, strikeOf, type BannerSpec } from './director';
+import { Director, strikeOf, type BannerSpec, type Cue } from './director';
 import { logState, readLog, type HostInfo } from './hostSession';
 import { NO_SEATS, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, seats as seatsFor, type LobbyLayout, type Seats, type Slot } from './layout';
 import { Lobby } from './Lobby';
 import { QuestionPanel, TopFive, type Closing } from './Panel';
 import { ClosedScreen, Podium, gameOutcome, podiumTop, rankRoster, type PodiumRow } from './Podium';
 import { EndConfirm, KickConfirm, PlayersSheet, ReviewSheet } from './Sheets';
+import { hostSound } from './sound';
 import { Stage, useStageFit } from './Stage';
 import { StageStore } from './stageStore';
 import { TopBar } from './TopBar';
@@ -184,6 +185,37 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
 
   const env = useRef({ slotMap, colours, width });
   env.current = { slotMap, colours, width };
+
+  // Sound (D4): made on the device; it starts at the first gesture on this screen (or «Открыть комнату» before it).
+  const sound = useMemo(() => hostSound(), []);
+  const muted = useSyncExternalStore(sound.subscribe, sound.isMuted, sound.isMuted);
+  const soundSwitch = useMemo(() => ({ muted, onToggle: () => sound.setMuted(!sound.isMuted()) }), [muted, sound]);
+  useEffect(() => {
+    const unlock = () => sound.unlock();
+    window.addEventListener('pointerdown', unlock, true);
+    window.addEventListener('keydown', unlock, true);
+    return () => {
+      window.removeEventListener('pointerdown', unlock, true);
+      window.removeEventListener('keydown', unlock, true);
+      sound.lobby(false);
+      sound.roll(false);
+    };
+  }, [sound]);
+  const fanfared = useRef(false);
+  const onCue = useCallback(
+    (cue: Cue, n?: number) => {
+      if (cue === 'land') sound.land(n ?? 0);
+      else if (cue === 'impact') sound.hit();
+      else if (cue === 'freeze') sound.freeze();
+      else if (cue === 'heal') sound.heal();
+      else if (cue === 'phase') sound.growl();
+      else if (cue === 'defeat') {
+        fanfared.current = true;
+        sound.fanfare();
+      }
+    },
+    [sound],
+  );
   const bannerId = useRef(0);
   const showBanner = useCallback((b: BannerSpec, still = false) => {
     bannerId.current += 1;
@@ -199,8 +231,9 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         colourOf: (id) => env.current.colours.get(id) ?? 'blue',
         width: () => env.current.width,
         banner: (b) => showBanner(b),
+        cue: onCue,
       }),
-    [store, showBanner],
+    [store, showBanner, onCue],
   );
   useEffect(() => () => director.cancel(), [director]);
 
@@ -349,8 +382,31 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     const t = setTimeout(() => {
       if (beatRef.current === null) setBeat('time');
     }, Math.max(0, closesAt - Date.now()));
-    return () => clearTimeout(t);
-  }, [open, closesAt, setBeat]);
+    // the last five seconds tick
+    const ticks = [5, 4, 3, 2, 1]
+      .map((k) => ({ k, ms: closesAt - k * 1000 - Date.now() }))
+      .filter((x) => x.ms >= 0)
+      .map((x) => setTimeout(() => sound.tick(x.k === 1), x.ms));
+    return () => {
+      clearTimeout(t);
+      ticks.forEach(clearTimeout);
+    };
+  }, [open, closesAt, setBeat, sound]);
+  // the drum roll of the beat; the lobby's loop and a pop for each newcomer
+  useEffect(() => sound.roll(beat !== null), [beat, sound]);
+  useEffect(() => sound.lobby(inLobby), [inLobby, sound]);
+  const joinedCount = useRef(joined.length);
+  useEffect(() => {
+    if (inLobby && joined.length > joinedCount.current) sound.join();
+    joinedCount.current = joined.length;
+  }, [inLobby, joined.length, sound]);
+  // the end: a fanfare when the monster fell (unless its fall just had one), a low sting when it won
+  const ending = s.state === 'podium' ? gameOutcome(s) : null;
+  useEffect(() => {
+    if (ending === 'won' && !fanfared.current) sound.fanfare();
+    if (ending === 'lost') sound.sting();
+    if (ending) fanfared.current = true;
+  }, [ending, sound]);
 
   return (
     <Stage fit={fit} label={MODE.name}>
@@ -366,6 +422,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         onPlayers={s.state === 'ended' ? null : () => setSheet('players')}
         onFull={toggleFull}
         onEnd={s.state === 'ended' ? null : () => setSheet('end')}
+        sound={closed ? null : soundSwitch}
       />
       {s.state === 'lobby' ? (
         <Lobby
