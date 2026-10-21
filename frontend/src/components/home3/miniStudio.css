@@ -39,7 +39,7 @@
     --ms-pad: 18px;
     --ms-phone-w: min(300px, calc((var(--ms-h) - 2 * var(--ms-pad) - 30px) / 2));
     gap: 14px;
-    grid-template-columns: 148px minmax(0, 1fr) var(--ms-phone-w);
+    grid-template-columns: 168px minmax(0, 1fr) var(--ms-phone-w);
     grid-template-rows: minmax(0, 1fr);
     grid-template-areas: 'pal work take';
   }
@@ -143,6 +143,9 @@
   border-radius: 10px;
   background: #f7f7f3;
   font-size: 13.5px;
+  /* one line, read from the left: «Один ответ» wrapped onto two centred lines in the 148 px column */
+  white-space: nowrap;
+  text-align: left;
 }
 .ms-pal-i:hover,
 .ms-pal-i:focus-visible {
