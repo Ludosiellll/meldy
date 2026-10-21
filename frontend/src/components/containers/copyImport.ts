@@ -167,6 +167,7 @@ export const IMPORT = {
   readingWait: 'читаем…',
   readFailed: 'не открылся',
   removeFile: 'Убрать файл',
+  fileAgain: 'После обновления страницы файл нужно выбрать снова.',
   retryFile: 'Попробовать ещё раз',
   addFile: 'Добавить ещё файл',
   fileFound: (n: number) => questions(n),

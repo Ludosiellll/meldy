@@ -1,4 +1,5 @@
 import { useId, useRef, useState, type DragEvent } from 'react';
+import { useSessionDraft } from '../../../lib/urlState';
 import { IMPORT, nb } from '../copyImport';
 import { ACCEPT } from './readFiles';
 
@@ -24,6 +25,18 @@ export function telegramHint(platform: Platform): string | null {
 
 const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
 
+/** «Вставить список текстом» as it is: the field open, what is in it. */
+interface Paste {
+  open: boolean;
+  text: string;
+}
+const NO_PASTE: Paste = { open: false, text: '' };
+
+function isPaste(value: unknown): value is Paste {
+  const paste = value as Paste | null;
+  return Boolean(paste && typeof paste === 'object' && typeof paste.open === 'boolean' && typeof paste.text === 'string');
+}
+
 interface Props {
   phone: boolean;
   side: boolean;
@@ -33,13 +46,17 @@ interface Props {
   /** «Обновить из файла»: its own heading and line instead of the new exam's. */
   title?: string;
   lede?: string;
+  /** The list being pasted is kept in this tab under this key until «Разобрать» (lib/urlState.ts drafts). */
+  draftKey?: string;
 }
 
-export default function FilePick({ phone, side, platform, onFiles, onText, title = IMPORT.dropTitle, lede }: Props) {
+export default function FilePick({ phone, side, platform, onFiles, onText, title = IMPORT.dropTitle, lede, draftKey }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const pasteRef = useRef<HTMLTextAreaElement>(null);
-  const [pasting, setPasting] = useState(false);
-  const [text, setText] = useState('');
+  const [paste, setPaste, forgetPaste] = useSessionDraft(draftKey ?? null, NO_PASTE, isPaste);
+  const { open: pasting, text } = paste;
+  const setPasting = (open: boolean) => setPaste((current) => ({ ...current, open }));
+  const setText = (next: string) => setPaste((current) => ({ ...current, text: next }));
   const [emptyTried, setEmptyTried] = useState(false);
   const [dragging, setDragging] = useState(false);
   const pasteId = useId();
@@ -105,6 +122,7 @@ export default function FilePick({ phone, side, platform, onFiles, onText, title
                     return;
                   }
                   onText(text);
+                  forgetPaste();
                 }}
               >
                 {IMPORT.pasteGo}

@@ -7,6 +7,7 @@ import { loadOralPlanItems } from '../../lib/containers/oralPlan';
 import { addSubject } from '../../api/containers';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { clearDraftValue, readDraftValue, writeDraftValue } from '../../lib/urlState';
 import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
@@ -74,6 +75,11 @@ import './ImportPage.css';
  *
  * The mandatory first run of the guide waits here (decision 25): deferGuideOnce() runs when this file loads on this
  * address and again as the page first renders, before the guide can open over a student who came to load a file.
+ *
+ * A reload keeps the import in this tab until it is saved (owner, 21.10: a reload lost the pasted list; lib/urlState.ts
+ * drafts): each pasted list with what was read from it, the form, the fixes and the problem queue; the view is in the
+ * address's #…. A file itself cannot be kept: next to a pasted list it stays in the list as a file to choose again, and
+ * with files only the page opens at its first step with the form as it was.
  */
 
 const IMPORT_PATH = /^\/exams\/(?:import|new)\/?$/;
@@ -112,6 +118,97 @@ interface FormState {
   perSubject: boolean;
   minutes: number | null;
   tempo: Tempo;
+}
+
+const NEW_FORM: FormState = {
+  target: 'new',
+  title: '',
+  titleTouched: false,
+  date: '',
+  dateTouched: false,
+  perSubject: false,
+  minutes: null,
+  tempo: 'date',
+};
+
+/** One entry as a reload keeps it: a pasted list with what was read from it, or only a file's name. */
+interface KeptEntry {
+  id: string;
+  name: string;
+  /** The pasted list; null for a file. */
+  text: string | null;
+  format: FileFormat;
+  keyText: string;
+  importId: string;
+  result: BankParseResult | null;
+}
+
+interface ImportDraft {
+  entries: KeptEntry[];
+  form: FormState;
+  edits: ImportEdits;
+  queue: { uids: string[]; index: number } | null;
+  /** What a save that stopped half-way wrote already: pressed again after a reload, it goes on from there. */
+  save: SaveState;
+}
+
+const isObject = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+function isKeptEntry(value: unknown): value is KeptEntry {
+  return (
+    isObject(value) &&
+    typeof value.id === 'string' &&
+    typeof value.name === 'string' &&
+    (value.text === null || typeof value.text === 'string') &&
+    typeof value.format === 'string' &&
+    typeof value.keyText === 'string' &&
+    typeof value.importId === 'string' &&
+    (value.result === null || isObject(value.result))
+  );
+}
+
+function isImportDraft(value: unknown): value is ImportDraft {
+  if (!isObject(value) || !Array.isArray(value.entries) || !value.entries.every(isKeptEntry) || !isObject(value.form)) return false;
+  const { edits, queue } = value;
+  return (
+    isObject(edits) &&
+    isObject(edits.items) &&
+    isObject(edits.subjects) &&
+    isObject(edits.files) &&
+    (queue === null || (isObject(queue) && Array.isArray(queue.uids) && typeof queue.index === 'number')) &&
+    isObject(value.save)
+  );
+}
+
+/** A file of the import before a reload: chosen again, it takes this row's place. */
+const FILE_AGAIN = 'choose_again';
+
+/** The import a reload brings back: with a pasted list, every entry (a file as one to choose again); else none. */
+function keptEntries(kept: ImportDraft | null): Entry[] {
+  if (!kept || !kept.entries.some((entry) => entry.text !== null)) return [];
+  const entries = kept.entries.map(
+    (entry): Entry => ({
+      id: entry.id,
+      name: entry.name,
+      file: null,
+      text: entry.text,
+      source: entry.text === null ? 'file' : 'paste',
+      format: entry.format,
+      keyText: entry.keyText,
+      keyFile: null,
+      keySection: null,
+      importId: entry.importId,
+      // A list caught before it was read is read again as the page opens.
+      status: entry.text === null ? 'failed' : entry.result ? 'done' : 'reading',
+      result: entry.text === null ? null : entry.result,
+      pdf: false,
+      error: entry.text === null ? IMPORT.fileAgain : null,
+      errorCode: entry.text === null ? FILE_AGAIN : null,
+    }),
+  );
+  // The next entry's id comes after the kept ones (the fixes are kept by id).
+  entrySeq = Math.max(entrySeq, ...entries.map((entry) => Number(entry.id.slice(1)) || 0));
+  return entries;
 }
 
 type View =
@@ -186,28 +283,22 @@ export default function ImportPage() {
   );
   useDocumentTitle(updateId ? IMPORT.titleUpdate : fromId ? IMPORT.titleAdd : IMPORT.docTitle);
 
-  const [entries, setEntries] = useState<Entry[]>([]);
-  const [edits, setEdits] = useState<ImportEdits>(NO_EDITS);
-  const [form, setForm] = useState<FormState>({
-    target: 'new',
-    title: '',
-    titleTouched: false,
-    date: '',
-    dateTouched: false,
-    perSubject: false,
-    minutes: null,
-    tempo: 'date',
-  });
+  // Kept in this tab per door: a new exam, «Добавить предмет» of an exam, «Обновить из файла» of a subject.
+  const draftKey = `import:${updateId ? `${fromId}:${updateId}` : fromId ?? 'new'}`;
+  const [kept] = useState(() => readDraftValue(draftKey, isImportDraft));
+  const [entries, setEntries] = useState<Entry[]>(() => keptEntries(kept));
+  const [edits, setEdits] = useState<ImportEdits>(() => (kept && entries.length > 0 ? kept.edits : NO_EDITS));
+  const [form, setForm] = useState<FormState>(() => (kept ? { ...NEW_FORM, ...kept.form } : NEW_FORM));
   const [nameTried, setNameTried] = useState(false);
   const [spotOpen, setSpotOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
-  const [queue, setQueue] = useState<{ uids: string[]; index: number } | null>(null);
-  const [saving, setSaving] = useState<{ status: 'idle' | 'saving' | 'failed' | 'done'; error: string | null; progress: SaveProgress | null }>({
-    status: 'idle',
-    error: null,
-    progress: null,
-  });
-  const saveState = useRef<SaveState>(freshSaveState());
+  const [queue, setQueue] = useState<{ uids: string[]; index: number } | null>(() => (kept && entries.length > 0 ? kept.queue : null));
+  // A save a reload stopped half-way goes on from there when pressed again, as after a failed one.
+  const [keptSave] = useState<SaveState | null>(() => (kept && entries.length > 0 ? { ...freshSaveState(), ...kept.save } : null));
+  const [saving, setSaving] = useState<{ status: 'idle' | 'saving' | 'failed' | 'done'; error: string | null; progress: SaveProgress | null }>(() =>
+    keptSave && saveStarted(keptSave) ? { status: 'failed', error: IMPORT.saveRetry, progress: null } : { status: 'idle', error: null, progress: null },
+  );
+  const saveState = useRef<SaveState>(keptSave ?? freshSaveState());
   // Every oral exam of the student with its number of questions (targets.ts fetchOldExams).
   const [exams, setExams] = useState<OldExam[]>([]);
   // «Добавить предмет»: the oral exam being added as it is, and why it was not.
@@ -303,7 +394,8 @@ export default function ImportPage() {
         error: null,
         errorCode: null,
       }));
-      setEntries((list) => [...list, ...fresh]);
+      const names = new Set(files.map((file) => file.name));
+      setEntries((list) => [...list.filter((entry) => !(entry.errorCode === FILE_AGAIN && names.has(entry.name))), ...fresh]);
       fresh.forEach(read);
     },
     [read],
@@ -365,6 +457,48 @@ export default function ImportPage() {
       reread(entry.id, { keyFile, keySection: null });
     }
   }, [entries, reread]);
+
+  // A pasted list a reload caught before it was read: read now, once.
+  const resumed = useRef(false);
+  useEffect(() => {
+    if (resumed.current) return;
+    resumed.current = true;
+    entries.filter((entry) => entry.status === 'reading').forEach(read);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // What a reload keeps, until the import is saved.
+  const sent = useRef(false);
+  useEffect(() => {
+    if (sent.current) return;
+    const pasted = entries.some((entry) => entry.text !== null);
+    if (!pasted && JSON.stringify(form) === JSON.stringify(NEW_FORM)) {
+      clearDraftValue(draftKey);
+      return;
+    }
+    writeDraftValue(draftKey, {
+      entries: entries.map((entry) => ({
+        id: entry.id,
+        name: entry.name,
+        text: entry.text,
+        format: entry.format,
+        keyText: entry.keyText,
+        importId: entry.importId,
+        // What is being read again is read again after a reload.
+        result: entry.text !== null && entry.status === 'done' ? entry.result : null,
+      })),
+      form,
+      edits,
+      queue,
+      save: saveState.current,
+    } satisfies ImportDraft);
+    // `saving` too: a save writes as it goes (saveState), and a reload must not save it all again.
+  }, [draftKey, entries, form, edits, queue, saving]);
+  const forgetDraft = () => {
+    sent.current = true;
+    clearDraftValue(draftKey);
+    clearDraftValue(`${draftKey}:paste`);
+  };
 
   // ───────────────────────────── what the files make ─────────────────────────────
 
@@ -584,6 +718,7 @@ export default function ImportPage() {
     if (saving.status === 'saving' || updateMissing || !updatePlan || !updateId) return;
     if (updatePlan.add.length === 0) {
       // Nothing new: a differing key is the next thing to look at, in «Ключи».
+      forgetDraft();
       navigate(firstDiffer ? keysHref : subjectHref, { replace: true });
       return;
     }
@@ -608,6 +743,7 @@ export default function ImportPage() {
         topics_added: updatePlan.topics ? updatePlan.topics.length - (updateSubject?.topic_titles.length ?? 0) : 0,
       });
       setSaving({ status: 'done', error: null, progress: null });
+      forgetDraft();
       navigate(subjectHref, { replace: true });
     } catch (error) {
       setSaving({ status: 'failed', error: saveStarted(saveState.current) ? IMPORT.saveRetry : errorText(error, {}, IMPORT.saveFailed), progress: null });
@@ -660,6 +796,7 @@ export default function ImportPage() {
         single_oral: singleOral,
       });
       setSaving({ status: 'done', error: null, progress: null });
+      forgetDraft();
       navigate(path, { replace: true });
     } catch (error) {
       const partial = saveStarted(saveState.current);
@@ -788,6 +925,7 @@ export default function ImportPage() {
             onText={addText}
             title={updateId ? IMPORT.updateDropTitle : undefined}
             lede={updateId && updateSubject ? IMPORT.updateLede(updateSubject.title) : undefined}
+            draftKey={`${draftKey}:paste`}
           />
         )}
         {oralOffer}
