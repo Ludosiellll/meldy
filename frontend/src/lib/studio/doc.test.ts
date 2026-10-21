@@ -271,7 +271,7 @@ describe('ruleMessage', () => {
     ['blocks', 'больше 400'],
     ['results', 'Экран результата'],
     ['size', '200 КБ'],
-    ['something', 'обновите страницу'],
+    ['something', 'Обновите страницу'],
     ['block:2:type', 'Блок 3: сломан'],
     ['block:2:id', 'Блок 3: сломан'],
     ['block:0:text', 'Блок 1: текст пустой'],
@@ -291,13 +291,13 @@ describe('ruleMessage', () => {
 
   it('with the document: a repeated block or question has its own words', () => {
     const repeatedId = withField(['blocks', 5, 'id'], 'cover0000001');
-    expect(ruleMessage('block:5:id', repeatedId)).toBe('Блок 6: копия другого блока — удалите её и добавьте блок заново.');
-    expect(ruleMessage('block:5:id', withField(['blocks', 5, 'id'], 'BAD'))).toBe('Блок 6: сломан — удалите его и добавьте заново.');
+    expect(ruleMessage('block:5:id', repeatedId)).toBe('Блок 6: копия другого блока. Удалите её и добавьте блок заново.');
+    expect(ruleMessage('block:5:id', withField(['blocks', 5, 'id'], 'BAD'))).toBe('Блок 6: сломан. Удалите его и добавьте заново.');
     const repeatedItem = withField(['blocks', 8, 'item_id'], ITEM_A.toUpperCase());
-    expect(ruleMessage('block:8:item_id', repeatedItem)).toBe('Блок 9: этот вопрос уже есть на странице — уберите копию.');
-    expect(ruleMessage('block:7:item_id', repeatedItem)).toBe('Блок 8: этого вопроса больше нет — уберите блок.');
-    expect(ruleMessage('block:0:item_id', { blocks: ['x'] })).toBe('Блок 1: этого вопроса больше нет — уберите блок.');
-    expect(ruleMessage('block:0:item_id', null)).toBe('Блок 1: этого вопроса больше нет — уберите блок.');
+    expect(ruleMessage('block:8:item_id', repeatedItem)).toBe('Блок 9: этот вопрос уже есть на странице. Уберите копию.');
+    expect(ruleMessage('block:7:item_id', repeatedItem)).toBe('Блок 8: этого вопроса больше нет. Уберите блок.');
+    expect(ruleMessage('block:0:item_id', { blocks: ['x'] })).toBe('Блок 1: этого вопроса больше нет. Уберите блок.');
+    expect(ruleMessage('block:0:item_id', null)).toBe('Блок 1: этого вопроса больше нет. Уберите блок.');
   });
 });
 

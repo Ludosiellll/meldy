@@ -335,7 +335,7 @@ function parse(text: string): { blocks: Parsed[]; problems: TextProblem[] } {
       }
       case 'explain':
         if (current?.type !== 'question') {
-          problems.push(say(line, 'пояснение «>» ставят сразу после вариантов вопроса — перенесите его или уберите «>».'));
+          problems.push(say(line, 'пояснение «>» ставят сразу после вариантов вопроса. Перенесите его или уберите «>».'));
           return;
         }
         current.explanation.push(kind.text);
@@ -541,16 +541,16 @@ function alignGap(olds: readonly Content[], news: readonly Content[], oldGap: nu
 // ─────────────────────────────────────────────── checks and changes of one question
 
 const DRAFT_WORDS: Record<DraftProblem, string> = {
-  stem: 'у вопроса нет текста — напишите его перед вариантами.',
-  stem_long: 'вопрос длиннее 4000 знаков — сократите его.',
-  option_empty: 'пустой вариант — напишите его или удалите строку.',
-  option_long: 'вариант длиннее 600 знаков — сократите его.',
-  options_few: 'у вопроса один вариант — добавьте ещё хотя бы один.',
-  options_many: 'вариантов больше 8 — оставьте не больше восьми.',
-  options_size: 'варианты вместе слишком длинные — сократите их.',
+  stem: 'у вопроса нет текста. Напишите его перед вариантами.',
+  stem_long: 'вопрос длиннее 4000 знаков. Сократите его.',
+  option_empty: 'пустой вариант. Напишите его или удалите строку.',
+  option_long: 'вариант длиннее 600 знаков. Сократите его.',
+  options_few: 'у вопроса один вариант. Добавьте ещё хотя бы один.',
+  options_many: 'вариантов больше 8. Оставьте не больше восьми.',
+  options_size: 'варианты вместе слишком длинные. Сократите их.',
   forms: 'после «=» напишите верный ответ.',
-  form_long: 'ответ длиннее 200 знаков — сократите его.',
-  explanation_long: 'пояснение длиннее 2000 знаков — сократите его.',
+  form_long: 'ответ длиннее 200 знаков. Сократите его.',
+  explanation_long: 'пояснение длиннее 2000 знаков. Сократите его.',
 };
 
 function questionProblems(draft: Draft, question: QuestionText, lines: Lines): TextProblem[] {
@@ -558,7 +558,7 @@ function questionProblems(draft: Draft, question: QuestionText, lines: Lines): T
   // A question with an option problem has options (one without them is a short answer, with forms).
   const optionLine = (test: (option: string) => boolean) => lines.options[Math.max(0, question.options.findIndex(test))];
   if (lines.options.length > 0 && lines.forms.length > 0) {
-    out.push(say(lines.forms[0], 'у вопроса и варианты, и ответ «=» — оставьте что-то одно.'));
+    out.push(say(lines.forms[0], 'у вопроса и варианты, и ответ «=». Оставьте что-то одно.'));
   }
   for (const problem of draftProblems(draft)) {
     let line = lines.first;
@@ -569,12 +569,12 @@ function questionProblems(draft: Draft, question: QuestionText, lines: Lines): T
     else if (problem === 'options_few' || problem === 'options_size') line = optionLine(() => true);
     else if (problem === 'forms' || problem === 'form_long') {
       line = lines.forms[0];
-      if (question.forms.length > LIMITS.forms) words = 'верных ответов больше 10 — оставьте не больше десяти.';
+      if (question.forms.length > LIMITS.forms) words = 'верных ответов больше 10. Оставьте не больше десяти.';
     } else if (problem === 'explanation_long') line = lines.explanation[0];
     out.push(say(line, words));
   }
   if (!question.short && question.options.length > 0 && question.correct.length === 0) {
-    out.push(say(lines.options[0], 'у вопроса нет верного варианта — отметьте его «+».'));
+    out.push(say(lines.options[0], 'у вопроса нет верного варианта. Отметьте его «+».'));
   }
   return out;
 }
@@ -608,32 +608,32 @@ function blockProblems(parsed: Exclude<Parsed, { type: 'question' }>): TextProbl
   const at = parsed.line;
   switch (parsed.type) {
     case 'heading':
-      if (!hasWords(parsed.text)) return [say(at, 'пустой заголовок — допишите его или удалите строку.')];
-      return long(parsed.text, DOC_TITLE_MAX) ? [say(at, 'заголовок длиннее 200 знаков — сократите его.')] : [];
+      if (!hasWords(parsed.text)) return [say(at, 'пустой заголовок. Допишите его или удалите строку.')];
+      return long(parsed.text, DOC_TITLE_MAX) ? [say(at, 'заголовок длиннее 200 знаков. Сократите его.')] : [];
     case 'text':
-      if (!hasWords(parsed.text)) return [say(at, 'пустой текст — удалите эту строку.')];
-      return long(parsed.text, DOC_TEXT_MAX) ? [say(at, 'текст длиннее 4000 знаков — разделите его пустой строкой.')] : [];
+      if (!hasWords(parsed.text)) return [say(at, 'пустой текст. Удалите эту строку.')];
+      return long(parsed.text, DOC_TEXT_MAX) ? [say(at, 'текст длиннее 4000 знаков. Разделите его пустой строкой.')] : [];
     case 'note':
-      if (!hasWords(parsed.text)) return [say(at, 'пустая заметка — допишите её или удалите строку.')];
-      return long(parsed.text, DOC_TEXT_MAX) ? [say(at, 'заметка длиннее 4000 знаков — сократите её.')] : [];
+      if (!hasWords(parsed.text)) return [say(at, 'пустая заметка. Допишите её или удалите строку.')];
+      return long(parsed.text, DOC_TEXT_MAX) ? [say(at, 'заметка длиннее 4000 знаков. Сократите её.')] : [];
     case 'cover': {
       const out: TextProblem[] = [];
-      if (!hasWords(parsed.title)) out.push(say(at, 'у обложки нет названия — напишите его после «[обложка]».'));
-      else if (long(parsed.title, DOC_TITLE_MAX)) out.push(say(at, 'название на обложке длиннее 200 знаков — сократите его.'));
-      if (long(parsed.subtitle, DOC_CAPTION_MAX)) out.push(say(at + 1, 'подзаголовок обложки длиннее 300 знаков — сократите его.'));
+      if (!hasWords(parsed.title)) out.push(say(at, 'у обложки нет названия. Напишите его после «[обложка]».'));
+      else if (long(parsed.title, DOC_TITLE_MAX)) out.push(say(at, 'название на обложке длиннее 200 знаков. Сократите его.'));
+      if (long(parsed.subtitle, DOC_CAPTION_MAX)) out.push(say(at + 1, 'подзаголовок обложки длиннее 300 знаков. Сократите его.'));
       return out;
     }
     case 'image':
-      return long(parsed.caption, DOC_CAPTION_MAX) ? [say(at, 'подпись картинки длиннее 300 знаков — сократите её.')] : [];
+      return long(parsed.caption, DOC_CAPTION_MAX) ? [say(at, 'подпись картинки длиннее 300 знаков. Сократите её.')] : [];
     case 'video': {
       const out: TextProblem[] = [];
       if (parsed.url === null) out.push(say(at, 'ссылку на видео пишут в скобках сразу после метки: [видео](https://…).'));
-      else if (!videoUrlOk(parsed.url)) out.push(say(at, 'это не ссылка на видео YouTube, RuTube или VK Видео — проверьте адрес.'));
-      if (long(parsed.caption, DOC_CAPTION_MAX)) out.push(say(at, 'подпись видео длиннее 300 знаков — сократите её.'));
+      else if (!videoUrlOk(parsed.url)) out.push(say(at, 'это не ссылка на видео YouTube, RuTube или VK Видео. Проверьте адрес.'));
+      if (long(parsed.caption, DOC_CAPTION_MAX)) out.push(say(at, 'подпись видео длиннее 300 знаков. Сократите её.'));
       return out;
     }
     case 'page':
-      return long(parsed.title, DOC_TITLE_MAX) ? [say(at, 'название страницы длиннее 200 знаков — сократите его.')] : [];
+      return long(parsed.title, DOC_TITLE_MAX) ? [say(at, 'название страницы длиннее 200 знаков. Сократите его.')] : [];
     case 'divider':
       return [];
   }
@@ -741,7 +741,7 @@ export function fromText(text: string, doc: TestDoc, items: readonly TestItem[],
     problems.push(...blockProblems(entry));
     if (entry.type === 'image') {
       if (old?.block.type === 'image') put({ ...old.block, caption: entry.caption }, entry.line);
-      else problems.push(say(entry.line, 'новую картинку добавьте на холсте — в тексте её можно только подписать или переставить.'));
+      else problems.push(say(entry.line, 'новую картинку добавьте на холсте. В тексте её можно только подписать или переставить.'));
       return;
     }
     put(blockFrom(entry, old ? old.block.id : freshId(ids, random), old?.block ?? null), entry.line);
@@ -749,7 +749,7 @@ export function fromText(text: string, doc: TestDoc, items: readonly TestItem[],
 
   const kept = new Set(toOld);
   const removes = olds.flatMap((entry, at) => (!kept.has(at) && entry.block.type === 'question' ? [entry.block.item_id] : []));
-  if (blocks.length > DOC_MAX_BLOCKS) problems.push(say(blockLines[DOC_MAX_BLOCKS], 'блоков больше 400 — уберите лишние.'));
+  if (blocks.length > DOC_MAX_BLOCKS) problems.push(say(blockLines[DOC_MAX_BLOCKS], 'блоков больше 400. Уберите лишние.'));
   problems.sort((a, b) => a.line - b.line);
 
   const next: TestDoc = { ...doc, blocks };
