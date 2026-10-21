@@ -5,13 +5,14 @@
  * The render loop is the kit's requestAnimationFrame. Each frame it reads the room's interpolated positions straight
  * from the MoveClient and writes them into the scene: no React state per frame. The screen hears only what changes
  * (the timer's second, the zone counts, alive and ghosts) through `StandHud`, and passes each room `state` in
- * (about seven a question). Meshes are made on the welcome and on `add`, never per frame.
+ * (about seven a question). A character's model is made the first time the room places it (the room sends no
+ * positions outside the rounds: nobody is drawn where nobody stands), never per frame.
  *
  * The kit's clock is real time, however slow the frames (a projector without a GPU draws 1–2 a second). The room's
  * `floor: up` waits for a frame that has shown the floor down (FloorShow), and every fallen character is drawn in its
  * fall at least once (fallFrame): on any frame rate the drop is on screen between the stomp and the floor's return.
  */
-import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type View } from '../../../lib/live/three';
+import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type PlayerLook, type View } from '../../../lib/live/three';
 import { collapseDownAfter } from '../../../lib/live/three/arenaPlan';
 import { F_AWAY, F_GHOST, F_ICE, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandResult, type StandState, type Welcome } from '../../../lib/live/move';
 import type { Pose } from '../../../lib/live/move';
@@ -86,11 +87,13 @@ interface Fall extends FallPlan {
 
 interface Actor {
   id: number;
-  /** live_players.id (the host's roster has it), and the look drawn now as JSON. */
+  /** live_players.id (the host's roster has it), the look to draw and it as JSON. */
   pid: string | null;
+  look: PlayerLook;
   lookKey: string;
   name: string;
-  player: Player;
+  /** Its model: made when the room first places it (null: not drawn yet). */
+  player: Player | null;
   x: number;
   y: number;
   flags: number;
@@ -354,28 +357,30 @@ export class StandScene {
       const look = toPlayerLook(looks.get(a.pid));
       const key = JSON.stringify(look);
       if (key === a.lookKey) continue;
+      a.look = look;
+      a.lookKey = key;
+      if (!a.player) continue;
       a.player.dispose();
       a.player = kit.createPlayer(look, a.name);
-      a.lookKey = key;
       a.player.setPosition(a.x, a.y, 0);
       if (a.iced) a.player.setIce(true, true);
     }
   }
 
+  /** A character of the roster: its model waits for the room's first position of it (place). */
   private addActor(e: RosterEntry): void {
     const kit = this.kit;
     if (!kit || e[1] !== KIND_PLAYER || this.actors.has(e[0])) return;
     const pid = e[2];
     const look = toPlayerLook(pid && this.looks.has(pid) ? this.looks.get(pid) : e[4]);
     const name = e[3] || '';
-    const player = kit.createPlayer(look, name);
-    this.actors.set(e[0], { id: e[0], pid, lookKey: JSON.stringify(look), name, player, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0, iced: false });
+    this.actors.set(e[0], { id: e[0], pid, look, lookKey: JSON.stringify(look), name, player: null, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0, iced: false });
   }
 
   private removeActor(id: number): void {
     const a = this.actors.get(id);
     if (!a) return;
-    a.player.dispose();
+    a.player?.dispose();
     this.actors.delete(id);
   }
 
@@ -422,6 +427,8 @@ export class StandScene {
       let cheer = Infinity;
       for (const a of this.actors.values()) {
         if (fell.has(a.id)) {
+          // one never drawn (no position yet) has no fall to show
+          if (!a.player) continue;
           const drops = arena.fallsAt(a.x, a.y);
           const start = Number.isFinite(drops) ? drops : impact + 0.35;
           a.fall = { x: a.x, y: a.y, start, rise: start + FALL_S, tile: Number.isFinite(drops), drawn: false };
@@ -579,11 +586,21 @@ export class StandScene {
     this.hud.cue('stomp');
   }
 
-  /** One character in this frame (kit seconds: `now` before the kit's update, `at` when it is drawn). */
+  /**
+   * One character in this frame (kit seconds: `now` before the kit's update, `at` when it is drawn); its model is made
+   * here the first time the room places it.
+   */
   private place(a: Actor, pose: Pose, dt: number, now: number, at: number, arena: Arena): void {
     a.seen = this.frameNo;
     a.flags = pose.flags;
-    const p = a.player;
+    let p = a.player;
+    if (!p) {
+      if (!this.kit) return;
+      p = a.player = this.kit.createPlayer(a.look, a.name);
+      a.x = pose.x;
+      a.y = pose.y;
+      p.setPosition(pose.x, pose.y, 0);
+    }
     const f = a.fall;
     if (this.options.mixed) this.ice(a, p, pose.flags, now, at, !f && (pose.flags & F_GHOST) === 0);
     if (f) {

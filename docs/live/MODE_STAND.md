@@ -255,6 +255,8 @@ this game, with its boss and time, `MODE_MIXED.md` §8):
   itself, and the next frame raises the floor; meanwhile those standing stay where they stood. Each fallen character
   is drawn in its fall at least once (a frame that would skip it shows it ~70 units down, its climb starts after).
   Checked at 2, 0.22 and 0.15 frames a second and with the loop stopped through the reveal (scratch probe, 21.10).
+- A character is drawn from the room's first position of it (the model is made then): a mixed game's lobby sends no
+  positions, and a character drawn before them stood in the arena's corner for the first second of a round.
 - Per frame: positions straight into the scene in the kit's requestAnimationFrame; the timer's second, the zone counts
   and alive/ghosts are written into their elements only when they change; React renders on the room's `state` (about
   seven a question) and the database's polls.
