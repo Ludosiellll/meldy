@@ -107,7 +107,7 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
     // «Засчитать» only matters with more than one attempt.
     expect(screen.queryByRole('combobox', { name: QA_SETUP.grading })).toBeNull();
     expect(combo(QA_SETUP.pass)).toHaveTextContent(QA_SETUP.passNone);
-    expect(combo(QA_SETUP.review)).toHaveTextContent(QA_SETUP.reviewOption('mistakes_then_answers'));
+    expect(combo(QA_SETUP.review)).toHaveTextContent(QA_SETUP.reviewOption('answers'));
     expect(combo(QA_SETUP.who)).toHaveTextContent(QA_SETUP.whoOption('guests'));
     expect(screen.getByText(QA_SETUP.whoHint('guests'))).toBeInTheDocument();
     expect(screen.getByRole('checkbox', { name: QA_SETUP.practice })).not.toBeChecked();
@@ -160,7 +160,7 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
       grading: 'best',
       allow_back: true,
       pass_percent: 60,
-      review: 'mistakes_then_answers',
+      review: 'answers',
       members_only: false,
       guests: true,
       cover_path: null,
@@ -237,9 +237,7 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     expect(QA_SETUP.reviewGuests).toBe(HINT);
     expect(QA_SETUP.reviewGuests).toContain(`«${QA_SETUP.reviewOption('mistakes_then_answers')}»`);
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
-    // The defaults (guests, answers after the closing): no hint.
-    expect(screen.queryByText(HINT)).toBeNull();
-    pick(QA_SETUP.review, QA_SETUP.reviewOption('answers'));
+    // The defaults (guests, the right answers at once, owner 21.10): the hint names the safer choice.
     const hint = screen.getByText(HINT);
     expect(hint).toHaveClass('im-hint');
     expect(hint.closest('.qa-field')?.textContent).toContain(QA_SETUP.review);
@@ -397,7 +395,7 @@ describe('QuizSetupPage: all the questions (?all=1, the constructor’s «Отп
     );
   });
 
-  it('named as the test; five settings in view, the rest under «Ещё настройки», folded', () => {
+  it('named as the test; six settings in view (what the taker sees after: owner 21.10), the rest under «Ещё настройки», folded', () => {
     renderAt(`/exams/c/${EXAM}/quizzes/new?all=1`);
     expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Зимняя сессия');
     const main = screen.getByRole('region', { name: QA_SETUP.partMain });
@@ -405,12 +403,13 @@ describe('QuizSetupPage: all the questions (?all=1, the constructor’s «Отп
     expect(within(main).getByRole('combobox', { name: QA_SETUP.time })).toBeInTheDocument();
     expect(within(main).getByRole('combobox', { name: QA_SETUP.closes })).toBeInTheDocument();
     expect(within(main).getByRole('combobox', { name: QA_SETUP.who })).toBeInTheDocument();
+    expect(within(main).getByRole('combobox', { name: QA_SETUP.review })).toHaveTextContent(QA_SETUP.reviewOption('answers'));
     expect(screen.getByRole('region', { name: QA_SETUP.partLook })).toBeInTheDocument();
     const button = more();
     expect(button).toHaveAttribute('aria-expanded', 'false');
     const folded = document.getElementById(button.getAttribute('aria-controls') ?? '')!;
     expect(folded).not.toBeVisible();
-    for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order, QA_SETUP.options, QA_SETUP.opens, QA_SETUP.attempts, QA_SETUP.pass, QA_SETUP.review]) {
+    for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order, QA_SETUP.options, QA_SETUP.opens, QA_SETUP.attempts, QA_SETUP.pass]) {
       expect(screen.queryByRole('combobox', { name })).toBeNull();
     }
     expect(screen.queryByRole('group', { name: QA_SETUP.subjects })).toBeNull();
@@ -418,7 +417,7 @@ describe('QuizSetupPage: all the questions (?all=1, the constructor’s «Отп
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
     expect(folded).toBeVisible();
-    for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order, QA_SETUP.options, QA_SETUP.opens, QA_SETUP.attempts, QA_SETUP.pass, QA_SETUP.review]) {
+    for (const name of [QA_SETUP.count, QA_SETUP.set, QA_SETUP.order, QA_SETUP.options, QA_SETUP.opens, QA_SETUP.attempts, QA_SETUP.pass]) {
       expect(within(folded).getByRole('combobox', { name })).toBeInTheDocument();
     }
     expect(within(folded).getByRole('group', { name: QA_SETUP.subjects })).toBeInTheDocument();
@@ -549,10 +548,10 @@ describe('QuizSetupPage: one subject, the date in words, the explanations (relea
     expect(screen.queryByText(/^до /)).toBeNull();
   });
 
-  it('the review’s option for the safe default fits its words; no explanations in the set — no line', () => {
+  it('the review shows the right answers at once by default (owner 21.10); no explanations in the set — no line', () => {
     expect(QA_SETUP.reviewOption('mistakes_then_answers')).toBe('балл и ошибки сразу, ответы и пояснения после закрытия');
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
-    expect(combo(QA_SETUP.review)).toHaveTextContent(QA_SETUP.reviewOption('mistakes_then_answers'));
+    expect(combo(QA_SETUP.review)).toHaveTextContent(QA_SETUP.reviewOption('answers'));
     expect(screen.queryByText(/Пояснения ученики увидят/)).toBeNull();
   });
 
@@ -562,9 +561,9 @@ describe('QuizSetupPage: one subject, the date in words, the explanations (relea
     api.state.items = items;
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     const review = combo(QA_SETUP.review).closest('.qa-field')!;
-    expect(plain(review.textContent)).toContain('Пояснения ученики увидят после закрытия, вместе с верными ответами.');
-    pick(QA_SETUP.review, QA_SETUP.reviewOption('answers'));
     expect(plain(review.textContent)).toContain('Пояснения ученики увидят сразу, вместе с верными ответами.');
+    pick(QA_SETUP.review, QA_SETUP.reviewOption('mistakes_then_answers'));
+    expect(plain(review.textContent)).toContain('Пояснения ученики увидят после закрытия, вместе с верными ответами.');
     pick(QA_SETUP.review, QA_SETUP.reviewOption('score'));
     expect(plain(review.textContent)).toContain('При этой настройке пояснения не видны.');
     // The subject with the explanation unticked: no longer in the set, no line.

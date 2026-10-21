@@ -884,6 +884,8 @@ export default function QuizSetupPage() {
             {timeField}
             {closesField}
             {whoField}
+            {/* In view, not folded (owner 21.10: the right answers at the end, «как функцию … на выбор»). */}
+            {reviewField}
           </>,
         )}
         {/* A computer: on top of the right column, above «Оформление» — in view at 734 px, not behind the bar; a phone:
@@ -914,7 +916,6 @@ export default function QuizSetupPage() {
             {gradingField}
             {backField}
             {passField}
-            {reviewField}
             {practiceField}
             {protectionField}
             {protectionLimitField}

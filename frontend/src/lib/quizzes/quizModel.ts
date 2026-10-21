@@ -53,7 +53,8 @@ export function defaultSettings(subjectIds: string[], pool: number, now: Date): 
     grading: 'best',
     allow_back: true,
     pass_percent: null,
-    review: 'mistakes_then_answers',
+    // Owner, 21.10: «нужно чтобы в конце показывало не только где ты ошибся, а еще и какой правильный ответ».
+    review: 'answers',
     members_only: false,
     guests: true,
     cover_path: null,
