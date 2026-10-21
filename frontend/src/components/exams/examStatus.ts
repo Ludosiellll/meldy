@@ -2,16 +2,17 @@
  * The status at the top of the exam page (owner, 2026-10-07: «вот я попал на этот экран и вообще не ебу что от
  * меня требуется или что мне донести пытаются»). One block says what Meldy did with this exam, what it found and
  * the one thing to do next; the rest of the page only details it. Pure: the page passes what it knows (rows,
- * the mapping run, the cheat sheet, the answers) and gets one state with its words, its action and what the
+ * the mapping run, what is left to learn, the answers) and gets one state with its words, its action and what the
  * page should hide or step down. Nothing here reads the network.
  *
  * The states, first match wins:
  *  empty → mapping → waiting → failed → interrupted → no-lectures → unmapped → lectures-changed → some-unmapped
- *  → nothing-found → unverified → writing → loading → write-sheet → ready → answering.
+ *  → nothing-found → unverified → loading → ready → answering.
  * No percentages here: the shares of tickets stay in the column and in «Как считается».
  */
 import { examMappingCost } from '../../lib/plans';
-import { shortTitle } from '../../lib/exams/format';
+import { formatShortDay, formatShortMoment, shortTitle } from '../../lib/exams/format';
+import { localDayOf } from '../../lib/exams/cheatSheet';
 import { pluralRu } from '../conversation/visuals';
 import type { CoverageCounts } from './sheetModel';
 
@@ -39,9 +40,7 @@ export type ExamStatusKey =
   | 'some-unmapped'
   | 'nothing-found'
   | 'unverified'
-  | 'writing'
   | 'loading'
-  | 'write-sheet'
   | 'ready'
   | 'answering';
 
@@ -54,8 +53,6 @@ export type ExamStatusAction =
   | { kind: 'lectures'; label: string }
   /** The list of questions in the editor. */
   | { kind: 'list'; label: string }
-  /** Write the cheat sheet (`count` questions when the units left do not cover all). */
-  | { kind: 'write'; label: string; count: number | null }
   /** Draw a ticket in the chosen way. */
   | { kind: 'draw'; label: string }
   /** Draw from the questions whose lines an answer erases now (/draw?mode=awaiting). */
@@ -67,7 +64,7 @@ export type ExamStatusTone = 'you' | 'meldy' | 'ready';
 export interface ExamStatus {
   key: ExamStatusKey;
   tone: ExamStatusTone;
-  /** The flag over the headline: the step of the way (lectures → mapping → cheat sheet → answers). */
+  /** The flag over the headline: the step of the way (lectures → mapping → answers). */
   flag: string;
   /** The headline in three parts: the middle one, its key words, stays on one line (empty: none). */
   title: { lead: string; mark: string; tail: string };
@@ -94,7 +91,7 @@ export interface ExamStatusInput {
   total: number;
   /** The exam's lectures now. */
   lectures: ReadonlyArray<{ id: string; title: string }>;
-  /** The exam is a copy from a classmate's group link: the author chose the lectures and wrote the sheet. */
+  /** The exam is a copy from a classmate's group link: the author chose the lectures. */
   copy: boolean;
   /** Coverage of the rows as the page shows them (a run going on included). */
   coverage: CoverageCounts;
@@ -112,24 +109,16 @@ export interface ExamStatusInput {
     /** The daily limit does not cover a run: what is left and when it renews. */
     limit: { remaining: number; resetAt: string } | null;
   };
-  sheet: {
+  /** What is left to learn (public.learn_left, the topics card): read, or not yet. */
+  learn: {
     state: 'loading' | 'ready' | 'error';
-    /** Questions with their points written, questions that can still be written and their price. */
-    written: number;
-    toWrite: number;
-    units: number;
-    /** The sheet is being written now. */
-    writing: { done: number; total: number } | null;
-    /** Units left today (null: unknown). */
-    unitsLeft: number | null;
-    /** «3:00»: when the daily limit renews. */
-    resetAt: string;
-    /** Lines on the sheet and lines still there. */
-    lines: { left: number; total: number };
-    /** Questions whose line an answer erases now. */
-    erasable: number;
-    /** «Следующие строки можно стереть после 9 окт., 15:40.» (copy.nextErasableLine), or null. */
-    nextErasable: string | null;
+    /** Oral questions an answer now makes learned (every main point named on another day, its moment has come). */
+    ready: number;
+    /** «после 9 окт., 15:40»: when the next one can be learned (nextReadyWhen), or null. */
+    nextReady: string | null;
+    /** Questions learned, and questions counted (in the plan). */
+    learned: number;
+    inPlan: number;
   };
   answers: {
     state: 'loading' | 'ready' | 'error';
@@ -162,6 +151,17 @@ function ofQuestions(count: number): string {
 export function awaitingDrawLabel(drawLabel: string, count: number): string {
   if (drawLabel === 'Тянуть вопрос' && count > 1) return `Тянуть один из ${ofQuestions(count)}`;
   return `${drawLabel} из ${ofQuestions(count)}`;
+}
+
+/**
+ * When the next oral question can be learned, while that moment is ahead: «после 9 окт., 15:40», or «с 8 окт.» when it
+ * is a local midnight (a day boundary, not a time anyone picked). Null when it is past or unknown.
+ */
+export function nextReadyWhen(at: number | null, now: number = Date.now()): string | null {
+  if (at === null || !Number.isFinite(at) || at <= now) return null;
+  const local = new Date(at);
+  if (local.getHours() === 0 && local.getMinutes() === 0) return `с ${formatShortDay(localDayOf(at))}`;
+  return `после ${formatShortMoment(new Date(at).toISOString())}`;
 }
 
 /** The plain draw beside it (a phone's «⋯»): «Тянуть билет из всех вопросов», «Тянуть вопрос из всего списка». */
@@ -221,8 +221,6 @@ function firstSentence(text: string): string {
   return /^(.+?[.!?])\s/.exec(text)?.[1] ?? text;
 }
 
-const ERASE_RULE = 'названный пункт стирает строку наполовину, названный снова в другой день — совсем';
-
 function plain(text: string): ExamStatus['title'] {
   return { lead: text, mark: '', tail: '' };
 }
@@ -267,7 +265,7 @@ export function examStatus(input: ExamStatusInput): ExamStatus {
 }
 
 function pickStatus(input: ExamStatusInput): ExamStatus {
-  const { total, coverage, mapping, sheet, answers } = input;
+  const { total, coverage, mapping, learn, answers } = input;
   const lectureCount = input.lectures.length;
   const mapped = coverage.full + coverage.partial + coverage.none + coverage.unverified;
   const unmapped = coverage.unmapped + coverage.checking;
@@ -454,22 +452,8 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
     };
   }
 
-  if (sheet.writing) {
-    const { done, total: all } = sheet.writing;
-    return {
-      ...BASE,
-      key: 'writing',
-      tone: 'meldy',
-      flag: 'Шпаргалка',
-      title: plain('Meldy пишет шпаргалку'),
-      text: `${all > 0 ? `Готово ${done} из ${all}. ` : ''}Страницу можно закрыть — шпаргалка допишется.`,
-      brief: `${all > 0 ? `Готово ${done} из ${all}. ` : ''}Страницу можно закрыть.`,
-      action: null,
-    };
-  }
-
-  if (sheet.state === 'loading' || answers.state === 'loading') {
-    // A moment while the sheet and the answers are read: «Тянуть билет» already stands where it most likely stays.
+  if (learn.state === 'loading' || answers.state === 'loading') {
+    // A moment while what is left and the answers are read: «Тянуть билет» already stands where it most likely stays.
     return {
       ...BASE,
       key: 'loading',
@@ -480,8 +464,6 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       action: { kind: 'draw', label: input.drawLabel },
     };
   }
-
-  if (sheet.state === 'ready' && sheet.toWrite > 0 && (sheet.written === 0 || !answering)) return writeSheet(input);
 
   if (!answering) return ready(input);
   return answeringStatus(input);
@@ -550,52 +532,8 @@ function nothingFound(input: ExamStatusInput): ExamStatus {
   };
 }
 
-function writeSheet(input: ExamStatusInput): ExamStatus {
-  const { sheet, coverage, total } = input;
-  const found = foundCount(coverage);
-  const affordable = sheet.unitsLeft === null ? sheet.toWrite : Math.min(sheet.toWrite, sheet.unitsLeft);
-  const first = sheet.written === 0;
-  let blocked: string | null = null;
-  let count: number | null = null;
-  let label = first ? 'Написать шпаргалку' : 'Дописать шпаргалку';
-  let tail = '';
-  if (affordable <= 0) {
-    blocked = `Дневной лимит ИИ на сегодня кончился. Написать шпаргалку можно после ${sheet.resetAt}.`;
-  } else if (affordable < sheet.toWrite) {
-    count = affordable;
-    label = `Написать ${questions(affordable)}`;
-    tail = ` Сегодня хватит на ${questions(affordable)}, остальные — после ${sheet.resetAt}.`;
-  }
-  const price = sheet.units > 0 ? ` Это стоит ${unitsAcc(sheet.units)}.` : '';
-  if (first) {
-    return {
-      ...BASE,
-      key: 'write-sheet',
-      tone: 'you',
-      flag: 'Шпаргалка',
-      title: found >= total ? marked('В лекциях ', 'есть ответы', ` на все ${questions(total)}`) : marked('В лекциях ', 'есть ответы', ` на ${questions(found)} из ${total}`),
-      text: `Теперь Meldy выпишет из лекций пункты ответа — получится шпаргалка, строки которой стирают ваши ответы.${price}${tail}`,
-      brief: `Meldy выпишет из них пункты ответа.${price}${tail}`,
-      action: { kind: 'write', label, count },
-      blocked,
-    };
-  }
-  return {
-    ...BASE,
-    key: 'write-sheet',
-    tone: 'you',
-    flag: 'Шпаргалка',
-    title: marked('Шпаргалка написана ', 'не полностью'),
-    text: `У ${ofQuestions(sheet.toWrite)} ещё нет пунктов ответа. Допишите ${sheet.toWrite === 1 ? 'его' : 'их'}.${price}${tail}`,
-    // The phone shows the brief under the title alone: it names what to write, not «его» after «Шпаргалка».
-    brief: `Допишите ${questions(sheet.toWrite)}.${price}${tail}`,
-    action: { kind: 'write', label, count },
-    blocked,
-  };
-}
-
 function ready(input: ExamStatusInput): ExamStatus {
-  const { sheet, copy } = input;
+  const { copy } = input;
   const draw: ExamStatusAction = { kind: 'draw', label: input.drawLabel };
   const ticket = input.drawLabel === 'Тянуть вопрос' ? 'вопрос' : 'билет';
   if (copy) {
@@ -605,19 +543,7 @@ function ready(input: ExamStatusInput): ExamStatus {
       tone: 'ready',
       flag: 'Из ссылки группы',
       title: marked('Экзамен из ссылки группы ', 'готов'),
-      text: `Вопросы уже сверены с лекциями автора, шпаргалка написана. Тяните ${ticket} и отвечайте вслух: ${ERASE_RULE}.`,
-      brief: `Тяните ${ticket} и отвечайте вслух.`,
-      action: draw,
-    };
-  }
-  if (sheet.state === 'ready' && sheet.lines.total > 0) {
-    return {
-      ...BASE,
-      key: 'ready',
-      tone: 'ready',
-      flag: 'Ответы',
-      title: marked('Шпаргалка ', 'готова', ' — можно отвечать'),
-      text: `Тяните ${ticket} и отвечайте вслух: ${ERASE_RULE}.`,
+      text: `Вопросы уже сверены с лекциями автора. Тяните ${ticket} и отвечайте вслух.`,
       brief: `Тяните ${ticket} и отвечайте вслух.`,
       action: draw,
     };
@@ -628,53 +554,49 @@ function ready(input: ExamStatusInput): ExamStatus {
     tone: 'ready',
     flag: 'Ответы',
     title: marked('Можно ', 'отвечать', ' на билеты'),
-    text: `Тяните ${ticket} и отвечайте вслух — Meldy проверит ответ по вашим лекциям.`,
+    text: `Тяните ${ticket} и отвечайте вслух. Meldy проверит ответ по вашим лекциям.`,
     brief: `Тяните ${ticket} и отвечайте вслух.`,
     action: draw,
   };
 }
 
 function answeringStatus(input: ExamStatusInput): ExamStatus {
-  const { sheet, answers } = input;
+  const { learn, answers } = input;
   const draw: ExamStatusAction = { kind: 'draw', label: input.drawLabel };
   const base = { ...BASE, key: 'answering' as const, tone: 'ready' as const, flag: 'Ответы' };
-  if (sheet.state === 'ready' && sheet.erasable > 0) {
-    const count = sheet.erasable;
+  if (learn.state === 'ready' && learn.ready > 0) {
+    const count = learn.ready;
     return {
       ...base,
-      // «строки шпаргалки»: on «Вопросы» the sheet is not on screen, and «стереть строки» alone said nothing (audit
-      // 2026-10-08). The marked words never wrap: two of them fit a 320 px phone.
-      title: marked('Сегодня можно стереть ', 'строки шпаргалки', ` у ${ofQuestions(count)}`),
-      text: `Их пункты вы уже называли в другой день. Назовёте снова — строки сотрутся совсем.`,
-      brief: 'Назовите их пункты снова в ответе.',
+      title: marked('Сегодня можно ', 'выучить', ` ${questions(count)}`),
+      text: `Вы уже отвечали на ${count === 1 ? 'него' : 'них'} полностью в другой день. Ответьте снова, и ${count === 1 ? 'он будет выучен' : 'они будут выучены'}.`,
+      brief: `Ответьте на ${count === 1 ? 'него' : 'них'} снова.`,
       action: { kind: 'awaiting', label: awaitingDrawLabel(input.drawLabel, count) },
     };
   }
-  if (sheet.state === 'ready' && sheet.nextErasable) {
+  if (learn.state === 'ready' && learn.nextReady) {
     return {
       ...base,
-      title: plain(sheet.nextErasable.replace(/\.$/, '')),
-      text: answers.untested > 0 ? `А пока отвечайте на вопросы, которых ещё не было: их ${answers.untested}.` : 'А пока можно повторить другие вопросы.',
+      title: plain(`Следующие вопросы можно выучить ${learn.nextReady}`),
+      text: answers.untested > 0 ? `А пока отвечайте на вопросы, которых ещё не было. Их ${answers.untested}.` : 'А пока можно ответить на другие вопросы.',
       brief: 'А пока отвечайте на другие вопросы.',
       action: draw,
     };
   }
-  if (sheet.state === 'ready' && sheet.lines.total > 0) {
-    const { left, total } = sheet.lines;
-    const verb = left % 10 === 1 && left % 100 !== 11 ? 'осталась' : 'осталось';
+  if (learn.state === 'ready' && learn.inPlan > 0) {
     return {
       ...base,
-      title: plain(`На шпаргалке ${verb} ${left} ${pluralRu(left, ['строка', 'строки', 'строк'])} из ${total}`),
-      text: `Отвечайте дальше: ${ERASE_RULE}.`,
-      brief: 'Отвечайте дальше: ответы стирают строки.',
+      title: plain(`${pluralRu(learn.learned, ['Выучен', 'Выучено', 'Выучено'])} ${questions(learn.learned)} из ${learn.inPlan}`),
+      text: `Тяните ${input.drawLabel === 'Тянуть вопрос' ? 'вопрос' : 'билет'} и отвечайте вслух.`,
+      brief: 'Отвечайте дальше.',
       action: draw,
     };
   }
   return {
     ...base,
-    title: plain(`Подтверждено ответами: ${answers.confirmed} из ${input.total}`),
-    text: 'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.',
-    brief: 'Отвечайте дальше.',
+    title: plain('Отвечайте дальше'),
+    text: `Тяните ${input.drawLabel === 'Тянуть вопрос' ? 'вопрос' : 'билет'} и отвечайте вслух.`,
+    brief: null,
     action: draw,
   };
 }

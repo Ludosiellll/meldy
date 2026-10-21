@@ -87,9 +87,13 @@ export function afterAnswer(queue: QueueEntry[], pos: number, answer: { id: stri
  * What a finished session did to the figure, for the end-of-session headline (spec #49: «Теперь 147 из 960 — верно в
  * два разных дня», or the plain count when nothing moved): from the server's results and the states the plan had
  * before the session. `gained` questions reached «верно в два разных дня»; `dropped` left it after a mistake;
- * `tooEarly` were right again but before their moment (another day and 20 hours). Each question counts once.
+ * `tooEarly` were right again but before their moment (another day and 20 hours). Each question counts once; the ids of
+ * the first two come with them.
  */
-export function figureChange(before: ReadonlyMap<string, UnitState | undefined>, results: readonly AnswerResult[]): { gained: number; dropped: number; tooEarly: number } {
+export function figureChange(
+  before: ReadonlyMap<string, UnitState | undefined>,
+  results: readonly AnswerResult[],
+): { gained: number; dropped: number; tooEarly: number; gainedIds: string[]; droppedIds: string[] } {
   const gained = new Set<string>();
   const dropped = new Set<string>();
   const tooEarly = new Set<string>();
@@ -103,7 +107,8 @@ export function figureChange(before: ReadonlyMap<string, UnitState | undefined>,
     }
   }
   for (const id of gained) tooEarly.delete(id);
-  return { gained: gained.size, dropped: dropped.size, tooEarly: tooEarly.size };
+  // The ids too: the end of a session tells which topics they closed (topics.ts withResults).
+  return { gained: gained.size, dropped: dropped.size, tooEarly: tooEarly.size, gainedIds: [...gained], droppedIds: [...dropped] };
 }
 
 /** «7 из 20»: the planned question being shown (retries do not advance it) and how many the session plans. */

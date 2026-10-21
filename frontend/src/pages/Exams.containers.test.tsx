@@ -488,7 +488,7 @@ describe('«Экзамены» empty, with the exam container in the database (C
 
   it('one door: «Выбрать файлы» and «Вставить список текстом» into the import page, the example one link away', async () => {
     await renderEmpty();
-    expect(screen.getByText('Один общий файл или по файлу на предмет. С вариантами ответов Meldy возьмёт ключ из файла, а без вариантов напишет шпаргалку по вашим лекциям.')).toBeInTheDocument();
+    expect(screen.getByText('Один общий файл или по файлу на предмет. С вариантами ответов Meldy возьмёт ключ из файла, а устные ответы проверит по вашим лекциям.')).toBeInTheDocument();
     const files = screen.getByRole('link', { name: 'Выбрать файлы' });
     expect(files).toHaveAttribute('href', '/exams/import');
     expect(files).toHaveClass('sf-primary');

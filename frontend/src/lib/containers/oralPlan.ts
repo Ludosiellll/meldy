@@ -3,7 +3,7 @@
  * exam), its questions as plan items with their deciding lines' states. The reads live here: the cheat sheet
  * (api/cheatSheet.ts fetchSheet), its journal events (api/learning.ts fetchSheetEvents / fetchQuestionEvents) and the
  * oral exams' dates — read only, no oral file changes, the same reads the oral page and «Сегодня» make
- * (components/exams/sheet/sheetCount.ts), so a line here is in the state the sheet shows. What is in the plan and how a
+ * (the oral page made them before learn_left), so a line here is in the state the sheet shows. What is in the plan and how a
  * line becomes a `UnitState` is the pure core, oralParts.ts (package T11), which the Telegram bot runs over the same
  * reads in SQL (`bot_oral_inputs`); its names are re-exported here, so every import from this file keeps working.
  */

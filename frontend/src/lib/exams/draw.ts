@@ -10,11 +10,10 @@
  *   passed but not confirmed 2, confirmed 1, confirmed but «пора проверить» 2. Questions that are not in the
  *   lectures (coverage none) never come out.
  * - «Из уже отвеченных» (answered): only questions with at least one answer, uniform.
- * - «Ждут подтверждения» (awaiting): questions with a cheat-sheet line an answer erases now — a rubbed
- *   line named on another day and at least 20 hours ago, or an erased line due for its check
- *   (lib/exams/cheatSheet.erasableNow, the questions «Сегодня» counts in «…можно стереть строки шпаргалки»);
- *   uniform. The page passes them as `awaiting`; without the sheet, the readiness rule's own
- *   QuestionState.awaiting.
+ * - «Можно выучить сегодня» (awaiting): questions an answer now makes learned — every main point named on
+ *   another day, at least 20 hours ago (public.learn_left, the questions «Сегодня» counts in «Сегодня можно
+ *   выучить N вопросов»); uniform. The page passes them as `awaiting`; when learn_left cannot be read, the
+ *   readiness rule's own QuestionState.awaiting.
  * Every mode says what it draws from (poolLine), so a drawn question never looks picked by hand.
  *
  * The last three tickets are not repeated (sessionStorage meldy_exam_last_tickets_<examId>).
@@ -32,7 +31,7 @@ export const DRAW_MODE_LABELS: Record<DrawMode, string> = {
   exam: 'Как на экзамене',
   weak: 'Чаще слабые',
   answered: 'Из уже отвеченных',
-  awaiting: 'Ждут подтверждения',
+  awaiting: 'Можно выучить сегодня',
 };
 
 /** Weights of «Чаще слабые». */
@@ -92,7 +91,7 @@ export const DRAW_FAILURE_MESSAGES: Record<DrawFailureCode, string> = {
   no_weak: 'Тянуть не из чего: всех вопросов этого экзамена нет в ваших лекциях.',
   // A typed answer counts as much as a spoken one: «отвечали», not «отвечали вслух» (Jury_Check 11).
   no_answered: 'Вы ещё не отвечали ни на один вопрос этого экзамена. Выберите «Как на экзамене».',
-  no_awaiting: 'Сейчас нет вопросов, которые ждут подтверждения. Выберите «Как на экзамене».',
+  no_awaiting: 'Сегодня нет вопросов, которые можно выучить. Выберите «Как на экзамене».',
 };
 
 /** A uniform number in [0, 1) from crypto.getRandomValues (Math.random only without crypto). */
@@ -286,8 +285,8 @@ export function poolLine(input: { mode: DrawMode; layout: DrawLayout; questions:
         : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, на которые вы уже отвечали.`;
     }
     return pool.length === 1
-      ? 'Единственный вопрос, который ждёт подтверждения.'
-      : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, которые ждут подтверждения.`;
+      ? 'Единственный вопрос, который можно выучить сегодня.'
+      : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, которые можно выучить сегодня.`;
   }
   if (mode === 'weak') {
     const pool = questions.filter((question) => question.coverage !== 'none');

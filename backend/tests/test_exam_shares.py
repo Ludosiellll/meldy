@@ -481,7 +481,7 @@ def test_a_link_waits_for_the_sheet_then_takes_a_question_whose_points_failed(sh
     refused = share.post("/api/exam-shares", json={"exam_id": exam["exam"], "consent": True})
     body = assert_refusal(refused, 409, "not_ready")
     assert body["reason"] == "needs_sheet" and body["questions"] == 1
-    assert body["detail"] == "Сначала допишите шпаргалку: у 1 вопроса ещё нет пунктов ответа."
+    assert body["detail"] == "У 1 вопроса ещё нет пунктов ответа. Подготовьте их на странице экзамена."
     state = share.get(f"/api/exam-shares?exam_id={exam['exam']}").json()
     assert state["ready"] is False and state["reason"]["reason"] == "needs_sheet"
     assert share.fake.tables["exam_shares"] == []

@@ -1,0 +1,152 @@
+/* «Осталось выучить» (design learn-left, mocks exam-1536 / exam-390): a white card of the exam's column. */
+.ll {
+  --ll-seg-empty: #e3e3dd;
+  --ll-seg-done: var(--sf-accent);
+  --ll-seg-half: var(--m-yellow);
+  padding: 28px 28px 22px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  color: var(--sf-ink);
+  /* A narrow card (a tablet's column) puts «Ответить» under the question: beside it the words broke word by word. */
+  container-type: inline-size;
+}
+.dark .ll {
+  --ll-seg-empty: #313b4b;
+  --ll-seg-done: #4f8bf0;
+  --ll-seg-half: #e2b450;
+  box-shadow: var(--m-card-shadow);
+}
+.ll-h { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; letter-spacing: -.012em; }
+.ll-n { margin: 6px 0 0; display: flex; align-items: baseline; gap: 12px; }
+.ll-n b { font-size: 60px; line-height: 1; font-weight: 500; letter-spacing: -.03em; }
+.ll-n span { font-size: 20px; font-weight: 500; letter-spacing: -.01em; }
+.ll-all { margin: 10px 0 0; font-size: 17px; line-height: 1.45; }
+
+.ll-list { margin: 18px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--sf-line); }
+.ll-row { border-bottom: 1px solid var(--sf-line); }
+.ll-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20px;
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  padding: 16px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ll-head[data-static] { cursor: default; grid-template-columns: minmax(0, 1fr); }
+.ll-head:focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 4px; border-radius: 12px; }
+.dark .ll-head:focus-visible { outline-color: var(--sf-accent-fg); }
+.ll-main { display: block; min-width: 0; }
+.ll-t { display: block; font-size: 17px; line-height: 1.3; font-weight: 500; letter-spacing: -.008em; overflow-wrap: anywhere; }
+.ll-m { display: block; margin-top: 4px; font-size: 15px; line-height: 1.4; color: var(--sf-muted); }
+.ll-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--sf-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  font-size: 13px;
+  line-height: 20px;
+  vertical-align: 1px;
+}
+.ll-chev { width: 18px; height: 18px; margin-top: 3px; fill: none; stroke: var(--sf-muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s var(--m-ease); }
+.ll-chev[data-open] { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .ll-chev { transition: none; } }
+
+/* One segment per question, at most 28 px each: a wide card keeps short bars short. */
+.ll-segs { display: flex; gap: 3px; margin-top: 10px; max-width: min(100%, calc(var(--ll-n, 12) * 28px)); }
+.ll-segs i { flex: 1; min-width: 2px; height: 6px; border-radius: 3px; background: var(--ll-seg-empty); }
+.ll-segs i[data-s='done'] { background: var(--ll-seg-done); }
+.ll-segs i[data-s='started'] { background: var(--ll-seg-half); }
+
+/* An oral topic open in place: its questions left, each with its state and «Ответить». */
+.ll-qs { margin: 0 0 14px; padding: 0; list-style: none; display: grid; gap: 4px; }
+.ll-qs li { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 10px 12px; border-radius: 18px; background: var(--sf-surface-soft); }
+.ll-qn { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 600; background: var(--sf-surface); box-shadow: inset 0 0 0 1px var(--sf-line); }
+.ll-qn[data-s='started'] { background: var(--ll-seg-half); color: #0b121c; box-shadow: none; }
+.ll-qt { min-width: 0; }
+.ll-qtext { display: block; font-size: 15px; line-height: 1.4; overflow-wrap: anywhere; }
+.ll-qw { display: block; margin-top: 2px; font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
+.ll-go { padding-top: 4px; font-size: 15px; font-weight: 500; color: var(--sf-accent-fg); text-decoration: none; white-space: nowrap; }
+.ll-go:hover { text-decoration: underline; text-underline-offset: 4px; }
+
+/* The closed topics, folded. */
+.ll-fold-head { grid-template-columns: 26px minmax(0, 1fr) 20px; align-items: center; gap: 12px; }
+.ll-fold-t { font-size: 17px; font-weight: 500; }
+.ll-tick { width: 26px; height: 26px; border-radius: 50%; background: var(--ll-seg-done); display: grid; place-items: center; }
+.ll-tick svg { width: 14px; height: 14px; fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.ll-closed { margin: 0 0 14px; padding: 0 0 0 38px; list-style: none; display: grid; gap: 12px; }
+
+.ll-note { margin: 16px 0 0; font-size: 15px; line-height: 1.5; }
+.ll-note .sf-link { white-space: nowrap; }
+.ll-how-link { display: inline-block; margin-top: 12px; font-size: 14px; }
+.ll-how { margin-top: 8px; }
+.ll-how p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; color: var(--sf-muted); }
+
+/* The quiet card while it loads: the frame of a card with three rows, nothing to read. */
+.ll-skel { min-height: 268px; }
+.ll-skel span { display: block; border-radius: 8px; background: var(--sf-surface-soft); }
+.ll-skel-n { width: 120px; height: 52px; margin-top: 10px; }
+.ll-skel-row { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--sf-line); background: none !important; border-radius: 0 !important; }
+.ll-skel-t { width: 72%; height: 18px; }
+.ll-skel-m { width: 40%; height: 14px; margin-top: 8px; }
+.ll-skel-bar { width: 100%; max-width: 360px; height: 6px; margin-top: 12px; }
+.ll[data-loading] .ll-list { opacity: .72; }
+
+@container (max-width: 400px) {
+  .ll-qs li { grid-template-columns: 30px minmax(0, 1fr); }
+  .ll-go { grid-column: 2; padding-top: 0; }
+}
+
+@media (max-width: 639px) {
+  .ll { padding: 20px 20px 16px; border-radius: 28px; }
+  .ll-n b { font-size: 48px; }
+  .ll-n span { font-size: 18px; }
+  .ll-head { padding: 14px 0; }
+  .ll-t, .ll-fold-t { font-size: 16px; }
+  .ll-m { font-size: 14px; }
+  .ll-note { font-size: 14px; }
+  .ll-qs li { grid-template-columns: 30px minmax(0, 1fr); }
+  .ll-go { grid-column: 2; padding-top: 0; }
+  .ll-skel { min-height: 236px; }
+}
+.ll-prep { margin: 0; }
+.ll-prep-err { color: var(--sf-muted); }
+
+/* The end of a session that closed a topic (mock end-1536): a white card under the headline. */
+.ll-won {
+  margin-top: 26px;
+  padding: 26px 30px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+  --ll-seg-done: var(--sf-accent);
+}
+.dark .ll-won { --ll-seg-done: #4f8bf0; box-shadow: var(--m-card-shadow); }
+.ll-ribbon {
+  display: inline-block;
+  padding: 3px 18px 3px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #0b121c;
+  background: var(--m-green);
+  clip-path: polygon(0 0, 100% 0, calc(100% - 9px) 50%, 100% 100%, 0 100%);
+}
+.ll-won-t { margin: 14px 0 0; font-size: 26px; line-height: 1.2; font-weight: 500; letter-spacing: -.022em; overflow-wrap: anywhere; }
+.ll-won-t + .ll-won-t { margin-top: 6px; }
+.ll-won-segs { margin-top: 16px; max-width: none; }
+.ll-won-segs i { height: 8px; border-radius: 4px; }
+.ll-won-w1 { margin: 12px 0 0; font-size: 16px; color: var(--sf-muted); }
+.ll-won-w2 { margin: 18px 0 0; padding-top: 16px; border-top: 1px solid var(--sf-line); font-size: 16px; line-height: 1.5; }
+@media (max-width: 639px) {
+  .ll-won { margin-top: 18px; padding: 18px 20px 20px; border-radius: 28px; }
+  .ll-won-t { font-size: 21px; margin-top: 12px; }
+  .ll-won-w1, .ll-won-w2 { font-size: 15px; }
+}

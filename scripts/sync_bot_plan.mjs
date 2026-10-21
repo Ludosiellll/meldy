@@ -41,6 +41,9 @@ export const SOURCES = [
   // the group's «Вопрос дня» show the same code block.
   ['frontend/src/lib/containers/codeLines.ts', 'codeLines.ts'],
   ['frontend/src/lib/containers/stemCode.ts', 'stemCode.ts'],
+  // «Осталось выучить» (2026-10-21): the topics of an exam, grouped and worded as on the site (the day card's line and
+  // the end of a session in chat).
+  ['frontend/src/lib/containers/topics.ts', 'topics.ts'],
 ];
 
 const IMPORT_RE = /(\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)(['"])([^'"]+)\2/g;

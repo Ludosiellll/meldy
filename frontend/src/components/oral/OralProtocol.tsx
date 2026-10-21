@@ -166,7 +166,7 @@ function replyQuote(answer: string): string {
 
 /**
  * Under «Дополнительный вопрос: «…» —»: the reply and what it did, in a sentence of its own. «ответ: не знаю.»,
- * «ответа не прозвучало.», «ответ: «…». Пункт назван после вопроса — строку шпаргалки это не стирает.»,
+ * «ответа не прозвучало.», «ответ: «…». Пункт назван после вопроса, его не считаем.»,
  * «ответ: «…». По ключевым словам пункт упомянут.» `status` is the asked point's status in the answer: a
  * point the answer had already named says nothing about the sheet.
  */
@@ -176,7 +176,7 @@ export function extraLine(followup: ProtocolFollowup, status: PointStatus): stri
   const said = `ответ: «${replyQuote(followup.answer)}».`;
   const word = REPLY_WORDS[followup.status];
   if (followup.judgedBy === 'keywords') return `${said} По ключевым словам пункт ${word}.`;
-  if (namedAfterQuestion(status, followup)) return `${said} Пункт назван после вопроса — строку шпаргалки это не стирает.`;
+  if (namedAfterQuestion(status, followup)) return `${said} Пункт назван после вопроса, его не считаем.`;
   if (followup.status === 'wrong') return `${said} Сказано неверно.`;
   return `${said} Пункт ${word}.`;
 }
@@ -424,9 +424,9 @@ interface ProtocolSheetProps {
   points: ProtocolPoint[];
   followup: ProtocolFollowup | null;
   /**
-   * What the answer did to the cheat sheet, under the heading where the «Засчитано» stamp used to be
-   * (Ф1): «На шпаргалке: 2 строки стёрлись наполовину, 1 вернулась». Null when the protocol does not
-   * know it (not saved yet, a saved protocol read later, the journal not read): then nothing is there.
+   * What the answer did to its topic, under the heading where the «Засчитано» stamp used to be (Ф1):
+   * «Тема «…» выучена.» or «В теме «…» осталось 2 вопроса из 6.» Null when the protocol does not know it
+   * (not saved yet, a saved protocol read later, learn_left not read): then nothing is there.
    */
   sheetNote?: ReactNode;
   /**
@@ -506,8 +506,8 @@ export function HowCounted() {
     <div className="or-how">
       <p className="or-how-text">
         {glue(
-          'Сами — пункт назван в ответе, до вопроса экзаменатора. После вопроса — пункт назван только в ответ на вопрос экзаменатора: ' +
-            'строку шпаргалки такой пункт не стирает. Ошибка — пункт назван неверно.',
+          'Сами — пункт назван в ответе, до вопроса экзаменатора. После вопроса — пункт назван только в ответ на вопрос экзаменатора. ' +
+            'Такой пункт не считаем. Ошибка — пункт назван неверно.',
         )}
       </p>
       <p className="or-how-text">

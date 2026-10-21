@@ -214,7 +214,7 @@ def _needs_mapping(count: int) -> ShareError:
 def _needs_sheet(count: int) -> ShareError:
     word = _form(count, "вопроса", "вопросов", "вопросов")
     return _not_ready(
-        "needs_sheet", f"Сначала допишите шпаргалку: у {count} {word} ещё нет пунктов ответа.", questions=count
+        "needs_sheet", f"У {count} {word} ещё нет пунктов ответа. Подготовьте их на странице экзамена.", questions=count
     )
 
 

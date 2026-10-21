@@ -11,7 +11,7 @@ export const PASTE_WORD_LIMIT = 8;
 
 /** Under the field, when a paste was refused. */
 export const PASTE_REFUSED =
-  'Готовый текст вставить нельзя: ответ нужно сказать или набрать самому — так шпаргалка стирается честно.';
+  'Готовый текст вставить нельзя. Скажите ответ или наберите его сами, тогда он считается честно.';
 
 /** Letters or digits, with inner hyphens and apostrophes («кто-то», «O’Neil» are one word each). */
 const WORD = /[\p{L}\p{N}]+(?:[-'’][\p{L}\p{N}]+)*/gu;

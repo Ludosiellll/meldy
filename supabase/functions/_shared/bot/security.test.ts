@@ -56,6 +56,8 @@ const RPC_ALLOWED = new Set([
   'bot_exams', 'bot_exam_remind', 'bot_exam_move',
   // The live game «Битва с монстром» (game.ts, setup.ts; migration 20261021090000_live_game.sql).
   'bot_live_join', 'bot_live_post', 'bot_live_posted', 'bot_live_sync', 'bot_live_setup',
+  // «Осталось выучить» (card.ts, session.ts; migration 20261021140000_learn_left.sql).
+  'bot_learn_left',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {

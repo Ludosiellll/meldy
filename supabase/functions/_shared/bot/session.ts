@@ -39,6 +39,7 @@ import {
   shortRightOut, type QuestionView, type Shown,
 } from './render.ts';
 import { summaryOut, type RestOfDay, type SessionCounts } from './summary.ts';
+import { buildTopics, closedSince, topicClosedLine } from '../plan/topics.ts';
 import { comesBackOn, comesBackText, examOf, firstCountText, pickBlock, restOfDay, type Block, type SessionKind } from './today.ts';
 
 // ─────────────────────────────────────────── T5's functions: shapes ───────────────────────────────────────────
@@ -569,8 +570,21 @@ export function createSession(options: SessionOptions = {}): SessionPort {
       back: comesBackText(sameDay ? exam : null),
       rest,
       resume: end === 'stopped' && row.status === 'open' && row.position < row.queue.length ? resumeCounter(row) : null,
+      topics: sameDay && exam && end !== 'closed' ? closedTopicsLine(row, exam.input) : null,
     });
     return end === 'closed' ? { text: out.text, keyboard: null } : out;
+  }
+
+  /** «Тема «…» выучена.»: the topics of the session's subject it closed, read from the plan after it (topics.ts). */
+  function closedTopicsLine(row: SessionRow, input: PlanInput): string | null {
+    if (row.createdAt === null) return null;
+    try {
+      const topics = buildTopics({ subjectId: row.subjectId, items: input.items, titles: null }).topics;
+      const closed = closedSince(topics, new Set(row.queue.map((entry) => entry.id)), row.createdAt);
+      return closed.length > 0 ? closed.map((topic) => topicClosedLine(topic)).join(' ') : null;
+    } catch {
+      return null;
+    }
   }
 
   /** When the session's «right again, too early» can count: «19:00» today, or null for «завтра» (rule.ts countableFrom). */

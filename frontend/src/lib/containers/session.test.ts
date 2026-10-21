@@ -176,8 +176,8 @@ describe('figureChange (the end-of-session headline, spec #49)', () => {
     const r = (item_id: string, step: AnswerResult['step'], status: AnswerResult['status'] = 'saved'): AnswerResult => ({ client_event_id: `x-${item_id}-${step}`, item_id, status, step });
     expect(figureChange(before, [
       r('a', 'two_days'), r('b', 'miss'), r('b', 'miss'), r('c', 'too_early'), r('d', 'miss'), r('e', 'two_days', 'duplicate'), r('e', 'too_early', 'late'),
-    ])).toEqual({ gained: 1, dropped: 1, tooEarly: 1 });
-    expect(figureChange(before, [])).toEqual({ gained: 0, dropped: 0, tooEarly: 0 });
+    ])).toEqual({ gained: 1, dropped: 1, tooEarly: 1, gainedIds: ['a'], droppedIds: ['b'] });
+    expect(figureChange(before, [])).toEqual({ gained: 0, dropped: 0, tooEarly: 0, gainedIds: [], droppedIds: [] });
   });
 });
 

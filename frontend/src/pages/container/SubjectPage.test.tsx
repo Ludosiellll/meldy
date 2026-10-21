@@ -127,7 +127,8 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     expect(plain(figure.textContent)).toContain('из 240 верно');
     const topics = screen.getByRole('list', { name: 'Темы' });
     const rows = within(topics).getAllByRole('button');
-    expect(rows.map((row) => plain(row.textContent))).toEqual(['3.1 Модель данныхвидели 90 из 120 · в счёте 30 · ошибок 5', '3.2 Индексывидели 60 из 120 · в счёте 10 · ошибок 4']);
+    // «Осталось выучить»: each topic with what is left of it.
+    expect(rows.map((row) => plain(row.textContent))).toEqual(['3.1 Модель данныхОсталось 4 вопроса из 4', '3.2 Индексы1 вопрос, ещё не начинали']);
   });
 
   it('a topic opens its sheet with «Начать N вопросов по теме»', () => {
@@ -175,12 +176,12 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     await waitFor(() => expect(state.reload).toHaveBeenCalled());
   });
 
-  it('a mixed subject starts its rows with the oral part’s cheat sheet', () => {
+  it('a mixed subject: one quiet line leads to its oral part’s page, no sheet row', () => {
     const base = summary({ subjects: summary().subjects.map((s) => (s.id === SUBJECT_DB ? { ...s, oral: { exam_id: ORAL_EXAM, questions: 40 } } : s)) });
     renderPage(loaded(dbData({ summary: base })));
-    const first = within(screen.getByRole('list', { name: 'Темы' })).getAllByRole('link')[0];
-    expect(plain(first.textContent)).toContain('Шпаргалка к 40 устным вопросам');
-    expect(first.getAttribute('href')).toBe(`/exams/${ORAL_EXAM}?from=c:${CONTAINER}`);
+    expect(page()).not.toMatch(/Шпаргалк/);
+    expect(page()).toContain('В предмете есть 40 устных вопросов.');
+    expect(screen.getByRole('link', { name: 'Открыть' }).getAttribute('href')).toBe(`/exams/${ORAL_EXAM}?from=c:${CONTAINER}`);
   });
 
   it('an oral subject is today’s oral page, reached with the way back', () => {

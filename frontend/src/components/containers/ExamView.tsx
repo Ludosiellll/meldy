@@ -15,6 +15,9 @@ import { NoteLine } from './ui';
 import { examLinks, startTarget, useExamActions } from './actions';
 import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
+import { useLearnLeft } from '../../api/learnLeft';
+import { tally } from '../../lib/containers/topics';
+import { oralExamIds, subjectTopics } from './topicsOf';
 import { detailText, isDayOff, noDateText, paceNote, planLineViews, planText, text as lineWords, titleText, type LineView, type PaceNote } from './planLines';
 import * as copy from './copy';
 import {
@@ -185,6 +188,11 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
   const [daysOpen, setDaysOpen] = useState(false);
   const [returning, setReturning] = useState(false);
   const [paceTold, setPaceTold] = useState(() => paceToldAt(containerId));
+  // «осталось 9 тем из 12» in each subject's row: the test topics from the plan's input, the oral parts' from one
+  // learn_left read for all of them.
+  const oralIds = useMemo(() => oralExamIds(summary.subjects), [summary.subjects]);
+  const learn = useLearnLeft(oralIds, oralIds.length > 0);
+  const oralById = useMemo(() => new Map(learn.exams.map((exam) => [exam.examId, exam])), [learn.exams]);
   const today = plan?.day ?? summary.day;
   const author = isAuthor(summary.role);
   const dates = examDates(summary);
@@ -304,20 +312,23 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
     const ownDate = dates.length > 1 && subject.exam_date ? dayText(subject.exam_date) : null;
     const passed = subject.exam_date ? (dayDiff(today, subject.exam_date) ?? 0) < 0 : false;
     const f = subjectFigure(subject, plan);
+    const examOral = subject.oral?.exam_id ? oralById.get(subject.oral.exam_id) ?? null : null;
+    const t = tally(subjectTopics(subject, planInput, examOral).topics);
+    const topics = t.total > 0 ? { left: t.left, total: t.total, closed: t.closed.length } : null;
     if (kind === 'oral') {
       const examId = subject.oral?.exam_id ?? null;
       const inPlan = (planInput?.items ?? []).filter((item) => item.f === 'o' && item.s === subject.id).length;
       return {
         key: subject.id,
         title: subject.title,
-        meta: copy.subjectRowOral({ twoDays: f.twoDays, seen: f.seen, inPlan, questions: oralCount(subject), today: share?.items ?? 0, dateText: ownDate }),
+        meta: copy.subjectRowOral({ twoDays: f.twoDays, seen: f.seen, inPlan, questions: oralCount(subject), today: share?.items ?? 0, dateText: ownDate, topics }),
         to: examId ? `/exams/${examId}?from=c:${containerId}` : `/exams/c/${containerId}/s/${subject.id}`,
       };
     }
     return {
       key: subject.id,
       title: subject.title,
-      meta: kind === 'empty' ? copy.subjectRowEmpty : copy.subjectRowTest({ twoDays: f.twoDays, keyed: subject.keyed, seen: f.seen, today: share?.items ?? 0, dateText: ownDate, passed }),
+      meta: kind === 'empty' ? copy.subjectRowEmpty : copy.subjectRowTest({ twoDays: f.twoDays, keyed: subject.keyed, seen: f.seen, today: share?.items ?? 0, dateText: ownDate, passed, topics }),
       to: `/exams/c/${containerId}/s/${subject.id}`,
     };
   });

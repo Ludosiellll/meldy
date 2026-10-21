@@ -629,7 +629,8 @@ describe('the end of a session (decision 49)', () => {
     const shown = await screen.findByRole('heading', { level: 1 });
     expect(shown).toBe(heading);
     expect(plain(shown.textContent)).toBe('Теперь 144 из 960 — верно в два разных дня');
-    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe('2 вопроса за 1 минуту. Верно с первого раза — 2 из 2.');
+    // The topic the session brought near its end says so («Осталось выучить»).
+    expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe('2 вопроса за 1 минуту. Верно с первого раза — 2 из 2. В теме «3.2 Индексы» остался 1 вопрос.');
     expect(document.activeElement).toBe(shown);
   });
 

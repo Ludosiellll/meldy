@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   fetchQuestionEvents: vi.fn(),
   fetchSheet: vi.fn(),
   fetchSheetEvents: vi.fn(),
+  fetchLearnLeft: vi.fn(),
 }));
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }));
@@ -23,6 +24,8 @@ vi.mock('../api/learning', async (importOriginal) => {
 });
 // The exam's cheat sheet (GET /api/oral/sheet): «Ждут подтверждения» draws from what an answer erases on it.
 vi.mock('../api/cheatSheet', () => ({ fetchSheet: mocks.fetchSheet }));
+// «Можно выучить сегодня» draws from what public.learn_left says an answer now makes learned.
+vi.mock('../api/learnLeft', () => ({ fetchLearnLeft: mocks.fetchLearnLeft }));
 
 import ExamDraw, { NO_ANSWERABLE_TICKET, answerHrefOf, skippedNote } from './ExamDraw';
 
@@ -114,6 +117,7 @@ beforeEach(() => {
   mocks.prefetchRubric.mockReset();
   mocks.fetchQuestionEvents.mockReset().mockResolvedValue([]);
   mocks.fetchSheet.mockReset().mockResolvedValue({ examId: 'exam-1', mappingState: 'done', questions: [], toWrite: 0, units: 0, job: null });
+  mocks.fetchLearnLeft.mockReset().mockResolvedValue([]);
   mocks.fetchSheetEvents.mockReset().mockResolvedValue([]);
 });
 
@@ -321,90 +325,72 @@ describe('ExamDraw', () => {
     expect(screen.queryByRole('button', { name: 'Тянуть ещё' })).toBeNull();
   });
 
-  describe('«Ждут подтверждения»: the questions an answer can erase a cheat-sheet line of now (Сегодня-lite)', () => {
+  describe('«Можно выучить сегодня»: the questions an answer now makes learned (learn_left)', () => {
     const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000);
     const dayOf = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    const sheetQuestion = (n: number) => ({
-      question_id: `q${n}`,
-      position: n,
-      label: String(n),
-      section: null,
-      text: `Вопрос номер ${n} о рынке`,
-      question_hash: hash(n),
-      coverage: 'full',
-      coverage_method: 'llm',
-      coverage_reason: '',
-      missing_note: '',
-      rebuilt: false,
-      rubric: {
-        rubric_id: `r${n}`,
-        built_at: null,
-        coverage: 'full',
-        coverage_note: '',
-        materials: [],
-        points: [{ id: 'p1', title: `Пункт вопроса ${n}`, short: '', essential: true, source_quote: '', source_ids: [] }],
-      },
+    /** learn_left's exam: `ready` can be learned now, `later` after another day. */
+    const learnExam = (ready: number[], later: number[] = []) => ({
+      examId: 'exam-1',
+      title: 'Экзамен',
+      mappingState: 'done',
+      lectures: [],
+      sectionTitles: [],
+      toWrite: 0,
+      units: 0,
+      questions: [1, 2, 3].map((n) => ({
+        id: `q${n}`,
+        position: n,
+        label: String(n),
+        section: null,
+        lecture: 0,
+        kind: 'lines' as const,
+        state: ready.includes(n) || later.includes(n) ? (2 as const) : (0 as const),
+        named: 1,
+        of: 1,
+        learnedAt: null,
+        readyAt: ready.includes(n) ? Date.now() - 60_000 : later.includes(n) ? Date.now() + 3_600_000 : null,
+        missed: false,
+      })),
     });
-    /** Point 1 of question n named in an answer two days ago: its line is rubbed and can be erased now. */
-    const namedPoint = (n: number): LearningEvent => ({
-      id: `p-${n}`,
-      created_at: twoDaysAgo.toISOString(),
-      local_date: dayOf(twoDaysAgo),
-      material_id: null,
-      kind: 'oral_point',
-      item_key: `oral:r${n}:p1`,
-      correct: true,
-      score: null,
-      confidence: null,
-      source_ids: [],
-      session_id: `s${n}`,
-      payload: { v: 1, question_hash: hash(n), rubric_id: `r${n}`, point_id: 'p1', title: `Пункт вопроса ${n}`, status: 'covered' },
-    });
-    const sheet = (questions: number[]) =>
-      mocks.fetchSheet.mockResolvedValue({ examId: 'exam-1', mappingState: 'done', questions: questions.map(sheetQuestion), toWrite: 0, units: 0, job: null });
 
-    it('draws from the questions whose line an answer erases now, by the sheet — whatever the last grade was', async () => {
+    it('draws from the questions an answer now makes learned, whatever the last grade was', async () => {
       mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)], { mode: 'random', per_ticket: 1 }));
-      // Question 2's last answer named too little (readiness: not passed), but it named point 1 alone two
-      // days ago: that line is rubbed, and an answer now erases it.
+      // Question 2's last answer was graded low, but every main point of it was named on another day.
       mocks.fetchQuestionEvents.mockResolvedValue([{ ...answer(2, dayOf(twoDaysAgo), false), created_at: twoDaysAgo.toISOString() }]);
-      sheet([1, 2]);
-      mocks.fetchSheetEvents.mockResolvedValue([namedPoint(2)]);
+      mocks.fetchLearnLeft.mockResolvedValue([learnExam([2])]);
       renderDraw('/exams/exam-1/draw?mode=awaiting');
       expect(await screen.findByRole('article', { name: 'Вопрос 2' })).toBeInTheDocument();
-      expect(mocks.fetchSheet).toHaveBeenCalledWith('exam-1');
-      expect(mocks.fetchSheetEvents).toHaveBeenCalledWith([hash(1), hash(2)]);
-      expect(document.querySelector('.dw-pool')?.textContent).toBe('Единственный вопрос, который ждёт подтверждения.');
-      expect(screen.getByText('Из вопросов, которые ждут подтверждения')).toBeInTheDocument();
+      expect(mocks.fetchLearnLeft).toHaveBeenCalledWith(['exam-1'], { fresh: true });
+      expect(mocks.fetchSheetEvents).not.toHaveBeenCalled();
+      expect(document.querySelector('.dw-pool')?.textContent).toBe('Единственный вопрос, который можно выучить сегодня.');
+      expect(screen.getByText('Из вопросов, которые можно выучить сегодня')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
       expect(location).toBe('/exams/exam-1/ticket?q=q2');
     });
 
-    it('says there are none when no line can be erased now, even after a good answer today', async () => {
+    it('says there are none when nothing can be learned now, even after a good answer today', async () => {
       mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)], { mode: 'random', per_ticket: 1 }));
-      // The readiness rule would wait for question 2; its sheet line was named an hour ago and erases tomorrow.
-      const hourAgo = new Date(Date.now() - 3_600_000);
+      // The grades would wait for question 2; its points were named an hour ago and count tomorrow.
       mocks.fetchQuestionEvents.mockResolvedValue([{ ...answer(2, dayOf(twoDaysAgo)), created_at: twoDaysAgo.toISOString() }]);
-      sheet([1, 2]);
-      mocks.fetchSheetEvents.mockResolvedValue([{ ...namedPoint(2), created_at: hourAgo.toISOString(), local_date: dayOf(hourAgo) }]);
+      mocks.fetchLearnLeft.mockResolvedValue([learnExam([], [2])]);
       renderDraw('/exams/exam-1/draw?mode=awaiting');
-      expect(await screen.findByText('Сейчас нет вопросов, которые ждут подтверждения. Выберите «Как на экзамене».')).toBeInTheDocument();
+      expect(await screen.findByText('Сегодня нет вопросов, которые можно выучить. Выберите «Как на экзамене».')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Тянуть как на экзамене' })).toBeInTheDocument();
     });
 
-    it('waits for the sheet before drawing, and falls back to the readiness rule when the sheet cannot be read', async () => {
+    it('waits for learn_left before drawing, and falls back to the answers when it cannot be read', async () => {
       mocks.loadExamBundle.mockResolvedValue(bundle([question(1), question(2), question(3)], { mode: 'random', per_ticket: 1 }));
       mocks.fetchQuestionEvents.mockResolvedValue([{ ...answer(3, dayOf(twoDaysAgo)), created_at: twoDaysAgo.toISOString() }]);
       let fail: (error: Error) => void = () => {};
-      mocks.fetchSheet.mockReturnValue(new Promise((_, reject) => (fail = reject)));
+      mocks.fetchLearnLeft.mockReturnValue(new Promise((_, reject) => (fail = reject)));
       renderDraw('/exams/exam-1/draw?mode=awaiting');
-      expect(await screen.findByText('Смотрим, какие строки шпаргалки можно стереть…')).toBeInTheDocument();
+      expect(await screen.findByText('Смотрим, какие вопросы можно выучить сегодня…')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Отвечать|Тянуть/ })).toBeNull();
       expect(screen.queryByRole('article', { name: /Вопрос/ })).toBeNull();
       fail(new Error('offline'));
-      // Question 3 passed two days ago: the readiness rule waits for it.
+      // Question 3 was answered well two days ago: the answers' rule waits for it.
       expect(await screen.findByRole('article', { name: 'Вопрос 3' })).toBeInTheDocument();
-      expect(screen.getByText('Шпаргалка не загрузилась: тянем вопросы, где раньше названо достаточно.')).toBeInTheDocument();
+      expect(screen.getByText('Не получилось узнать, что можно выучить сегодня. Тянем вопросы, на которые вы уже хорошо отвечали.')).toBeInTheDocument();
     });
   });
 

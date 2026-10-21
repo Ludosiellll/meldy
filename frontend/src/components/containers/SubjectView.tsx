@@ -9,7 +9,10 @@ import { useAuth } from '../../hooks/useAuth';
 import PageHead from './PageHead';
 import PlanCard from './PlanCard';
 import FigureBlock from './FigureBlock';
-import Rows, { type RowView } from './Rows';
+import LearnLeft from '../learnLeft/LearnLeft';
+import { useLearnLeft } from '../../api/learnLeft';
+import { deviceZone } from '../../lib/containers/hooks';
+import { subjectTopics } from './topicsOf';
 import { PlanByDaysSheet, TopicSheet } from './Sheets';
 import MockSetup from './MockSetup';
 import { NoteLine } from './ui';
@@ -40,8 +43,8 @@ import { loadSession, resumable } from './sessionStore';
 
 /**
  * A subject with variants (Concept 1 §3.4, decisions 44, 46): the plan card with «Только ошибки: N» and «Как на
- * экзамене», the figure, the topics as rows (a tap opens the topic's sheet with «Начать 20 вопросов по теме»), the
- * oral part's row first for a mixed subject. A one-subject exam is this page with the exam's name and the exam's «⋯»
+ * экзамене», the figure, «Осталось выучить» (owner, 2026-10-21: the topics, the open ones first; a tap on a test topic
+ * opens its sheet with «Начать 20 вопросов по теме»; a mixed subject's oral topics in the same list, from learn_left). A one-subject exam is this page with the exam's name and the exam's «⋯»
  * (`solo`).
  */
 export default function SubjectView({ containerId, data, plan, offline, reload, subject, solo, planTip }: ViewProps & { subject: SummarySubject; solo: boolean }) {
@@ -51,6 +54,12 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   const navigate = useNavigate();
   const { user } = useAuth();
   const [topicOpen, setTopicOpen] = useState<number | null>(null);
+  // «Осталось выучить»: the test topics from the plan's input (no read of their own), the oral part's from learn_left.
+  const oralExamId = subject.oral?.exam_id ?? null;
+  const learn = useLearnLeft(oralExamId ? [oralExamId] : [], Boolean(oralExamId));
+  const oralFacts = oralExamId ? learn.exams.find((exam) => exam.examId === oralExamId) ?? null : null;
+  const topicList = useMemo(() => subjectTopics(subject, planInput, oralFacts), [subject, planInput, oralFacts]);
+  const learnNow = useMemo(() => Date.now(), [topicList]);
   const [mockOpen, setMockOpen] = useState(false);
   const [daysOpen, setDaysOpen] = useState(false);
   const [returning, setReturning] = useState(false);
@@ -161,22 +170,6 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
     ));
   }
 
-  // ── the rows: the oral part first (a mixed subject), then the topics
-  const rows: RowView[] = [];
-  if (subjectKind(subject) === 'mixed' && subject.oral?.exam_id) {
-    rows.push({ key: 'oral', title: copy.oralSheetRow(oralCount(subject)), meta: copy.ORAL_TAG, to: `/exams/${subject.oral.exam_id}?from=c:${containerId}` });
-  }
-  for (const topic of subject.topics) {
-    const name = subject.topic_titles[topic.topic - 1];
-    if (!name || topic.keyed === 0) continue;
-    rows.push({
-      key: `topic-${topic.topic}`,
-      title: name,
-      meta: copy.topicRow({ twoDays: topic.two_days, keyed: topic.keyed, seen: topic.seen, errors: topic.open_errors }),
-      onOpen: () => setTopicOpen(topic.topic),
-    });
-  }
-
   // ── quiet lines
   const notes: ReactNode[] = [];
   if (subject.no_key > 0) {
@@ -231,6 +224,20 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
     );
   }
   if (!author && summary.key_changes_unseen > 0) notes.push(<NoteLine key="fixed" text={copy.keyFixedLine(summary.key_changes_unseen)} />);
+  // A mixed subject: its oral part's own page (the list, «Тянуть билет»), one quiet line.
+  if (subjectKind(subject) === 'mixed' && oralExamId) {
+    notes.push(
+      <NoteLine
+        key="oral"
+        text={copy.oralPartLine(oralCount(subject))}
+        action={
+          <Link className="sf-link" to={`/exams/${oralExamId}?from=c:${containerId}`}>
+            {copy.OPEN_ORAL}
+          </Link>
+        }
+      />,
+    );
+  }
 
   const topic = topicOpen !== null ? subject.topics.find((entry) => entry.topic === topicOpen) ?? null : null;
   // «Начать N вопросов по теме»: the block the study engine takes now (lib/containers/session.ts freeSession, ≤ 20).
@@ -276,7 +283,17 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
       <div className="ct-body">
         <FigureBlock figure={figure} plan={plan} today={today} />
         <div className="ct-main">
-          <Rows rows={rows} label={copy.TOPICS_LABEL} />
+          <LearnLeft
+            list={topicList}
+            status={oralExamId && !oralFacts ? learn.status : 'ready'}
+            now={learnNow}
+            tz={planInput?.tz ?? deviceZone()}
+            phone={phone}
+            onOpenTopic={(entry) => setTopicOpen(entry.testTopic)}
+            answerHref={(q) => (q.kind === 'o' && oralExamId ? `/exams/${oralExamId}/ticket?q=${encodeURIComponent(q.id)}` : null)}
+            lecturesHref={oralExamId ? `/exams/${oralExamId}/edit?from=c:${containerId}#lectures` : null}
+            onRetry={learn.reload}
+          />
           {notes.length > 0 ? <div className="ct-notes">{notes}</div> : null}
         </div>
       </div>
