@@ -1249,8 +1249,14 @@
   font-size: 14px;
   font-weight: 500;
 }
-.p3-test {
+.p3-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
   margin-top: 18px;
+}
+.p3-build {
+  padding-right: 24px;
 }
 .p3-stats {
   margin: 4px 0 10px !important;

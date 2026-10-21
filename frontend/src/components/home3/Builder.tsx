@@ -10,6 +10,9 @@ import { ArrowIcon } from './HeroTop';
 import { SectionHead } from './Sections';
 import Swap from './Swap';
 
+/** «Собрать свой тест»: sign up, then straight into the quick test (Register honours ?next=). */
+export const BUILD_URL = '/register?next=/tests/quick';
+
 /** The small studio and the QR code: one file, fetched when the section comes near (the QR library goes with it). */
 const partsPart = lazyPart(() => import('./MiniStudio').then((module) => ({ MiniStudio: module.default, Qr: module.TestQr })));
 
@@ -28,12 +31,18 @@ function SendCard({ Qr }: { Qr: ComponentType | null }) {
       <div className="p3-card-text">
         <h3 className="p3-h3">{BUILDER_SECTION.sendTitle}</h3>
         <p className="p3-p">{bind(BUILDER_SECTION.sendText)}</p>
-        <a className="h3-pill h3-pill--blue p3-test" href={SAMPLE_TEST_URL}>
-          {CTA.test}
-          <i>
-            <ArrowIcon />
-          </i>
-        </a>
+        <div className="p3-ctas">
+          <a className="h3-pill h3-pill--blue p3-test" href={SAMPLE_TEST_URL}>
+            {CTA.test}
+            <i>
+              <ArrowIcon />
+            </i>
+          </a>
+          {/* The quick test after sign-up (the UX audit 21.10: the landing showed the builder, with no way into it). */}
+          <a className="h3-pill h3-pill--white p3-build" href={BUILD_URL}>
+            {CTA.build}
+          </a>
+        </div>
       </div>
       <div className="p3-stage">
         <div className="p3-win p3-send">

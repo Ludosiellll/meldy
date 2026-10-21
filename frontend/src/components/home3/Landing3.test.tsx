@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Landing3 from './Landing3';
+import { BUILD_URL } from './Builder';
 import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, PICTURES, SAMPLE_TEST_URL, bind } from './copy3';
 
 const auth = vi.hoisted(() => ({ requestSession: vi.fn() }));
@@ -89,6 +90,12 @@ describe('the landing v3', () => {
     renderLanding();
     const titles = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
     expect(titles.slice(0, 4)).toEqual([LECTURE_SECTION.title, EXAM_SECTION.title, GROUP_SECTION.title, BUILDER_SECTION.title].map(bind));
+  });
+
+  it('offers «Собрать свой тест» beside the sample test: sign up, then the quick test (UX audit 21.10)', () => {
+    renderLanding();
+    expect(BUILD_URL).toBe('/register?next=/tests/quick');
+    expect(screen.getByRole('link', { name: CTA.build })).toHaveAttribute('href', BUILD_URL);
   });
 
   it('switches the lecture’s materials', () => {
