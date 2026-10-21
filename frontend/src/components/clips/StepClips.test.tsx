@@ -320,9 +320,9 @@ describe('«Тест по ссылке»: the link, the student without an accou
     ]) {
       expect(all).toContain(plain(line));
     }
-    expect(RESULT.tagMissed).toBe('Верный — вы не отметили');
+    expect(RESULT.tagMissed).toBe('Верный, но вы его не отметили');
     expect(plain(QUIZ_WORDS.score)).toBe('7 из 12 · 58 %');
-    expect(plain(QUIZ_WORDS.pass)).toBe('Проходной балл 60 % — не сдано');
+    expect(plain(QUIZ_WORDS.pass)).toBe('Не сдано. Проходной балл 60 %');
     // 7 of 12 is 58 %; the average of 10 of 12 and 7 of 12 is 71 %.
     expect(Math.round((QUIZ_EXAMPLE.correct / QUIZ_EXAMPLE.items) * 100)).toBe(QUIZ_EXAMPLE.percent);
     expect(Math.round(((10 + 7) / 24) * 100)).toBe(71);

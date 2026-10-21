@@ -597,7 +597,7 @@ describe('StudioPage: the views and the participant', () => {
     const text = area.value;
     fireEvent.change(area, { target: { value: `${text}\n# \n` } });
     fireEvent.click(screen.getByRole('button', { name: STUDIO.textApply }));
-    expect(screen.getByText(/^1\sошибка — исправьте, и текст применится\.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^1\sошибка\. Исправьте, чтобы применить текст\.$/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /пустой заголовок/ })).toHaveTextContent(/^Строка \d+:/);
     expect(api.addItems).not.toHaveBeenCalled();
 

@@ -117,8 +117,8 @@ describe('QuizStatsPage: the head (spec 2026-10-16 §2.3)', () => {
   it('the totals leave the author’s own try out (review focus 5)', async () => {
     renderPage();
     // Иванов counts with 67 %; the author's 0 % would make the average 33 %.
-    expect(await screen.findByText(/Пишут сейчас/)).toBeInTheDocument();
-    expect(page()).toContain('Пишут сейчас: 1 · Сдали: 1 · Средний результат: 67 % · Прошли порог: 1 из 1');
+    expect(await screen.findByText(/Пишут 1/)).toBeInTheDocument();
+    expect(page()).toContain('Пишут 1 · Сдали 1 · Средний результат 67 % · Набрали проходной балл 1 из 1');
   });
 
   it('with the author’s own try only, says so instead of «никто не писал»', async () => {
@@ -149,10 +149,10 @@ describe('QuizStatsPage: the head (spec 2026-10-16 §2.3)', () => {
     expect(screen.getByText(QA_STATS.created)).toBeInTheDocument();
   });
 
-  it('«Закрыть сейчас» after asking; the state says «Закрыта»', async () => {
+  it('«Закрыть контрольную» after asking; the state says «Закрыта»', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: QA_STATS.close }));
-    expect(screen.getByText(/Закрыть контрольную сейчас\? Кто пишет \(1 человек\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Закрыть контрольную сейчас\? Ещё пишет 1 человек\./)).toBeInTheDocument();
     api.quizResults.mockImplementation(async () => results({ quiz: quizRow({ state: 'closed', closed_at: NOW.toISOString() }) }));
     fireEvent.click(screen.getByRole('button', { name: QA_STATS.closeYes }));
     await waitFor(() => expect(api.closeQuiz).toHaveBeenCalledWith(QUIZ_ID));
@@ -208,7 +208,7 @@ describe('«Участники»', () => {
     const author = rows.find((row) => row.startsWith('Автор Экзамена'));
     expect(author).toContain('Автор Экзамена (вы)');
     const writing = rows.find((row) => row.startsWith('Борисова Анна'));
-    expect(writing).toContain('пишет — 2 из 3, осталось 08:41');
+    expect(writing).toContain('пишет, 2 из 3, осталось 08:41');
     const done = rows.find((row) => row.startsWith('Иванов Иван'));
     expect(done).toContain(`сдано ${hhmm('2026-10-16T11:58:00Z')}`);
     expect(done).toContain('2 из 3 · 67 %');
@@ -235,17 +235,17 @@ describe('«Участники»', () => {
     expect(plain(answers[0].textContent)).toContain('Вариант 1 · № 37');
     expect(plain(answers[0].textContent)).toContain('Какой оператор сравнивает строки?');
     expect(plain(answers[0].textContent)).toContain('Ответ: Б. ==');
-    expect(plain(answers[0].textContent)).toContain('Ключ: Б. ==');
+    expect(plain(answers[0].textContent)).toContain('Верный ответ: Б. ==');
     expect(plain(answers[0].textContent)).toContain(QA_PEOPLE.right);
     expect(plain(answers[1].textContent)).toContain('Вариант 2 · № 5');
     expect(plain(answers[1].textContent)).toContain('Ответ: «1596»');
-    expect(plain(answers[1].textContent)).toContain('Принимается: 1569');
+    expect(plain(answers[1].textContent)).toContain('Принимаем: 1569');
     expect(plain(answers[1].textContent)).toContain(QA_PEOPLE.wrong);
-    expect(plain(sheet.textContent)).toContain('Без ответа: 1 вопрос.');
+    expect(plain(sheet.textContent)).toContain('1 вопрос без ответа.');
     fireEvent.click(within(sheet).getByRole('button', { name: QA_PEOPLE.attemptTab(1) }));
     await waitFor(() => expect(api.attemptAnswers).toHaveBeenCalledWith('a1'));
     expect(await within(sheet).findByText(/Ответ: А и Б/)).toBeInTheDocument();
-    expect(within(sheet).getByText('Ключ: А и В')).toBeInTheDocument();
+    expect(within(sheet).getByText('Верный ответ: А и В')).toBeInTheDocument();
   });
 
   it('«Сбросить попытку» asks, resets and reads the results again', async () => {
@@ -291,7 +291,7 @@ describe('«Вопросы»', () => {
       .getAllByRole('listitem')
       .filter((node) => node.parentElement === list)
       .map((card) => plain(card.querySelector('.qa-q-line')?.textContent));
-    expect(lines[0]).toBe('Телефон проверка 19.10 · № 5 — верно 1 из 4 (25 %)');
+    expect(lines[0]).toBe('Телефон проверка 19.10 · № 5: 1 из 4 ответили верно (25 %)');
     expect(lines.join(' ')).not.toContain('Вариант');
   });
 
@@ -302,14 +302,14 @@ describe('«Вопросы»', () => {
     const list = screen.getByRole('list', { name: QA_QUESTIONS.title });
     const cards = within(list).getAllByRole('listitem').filter((node) => node.parentElement === list);
     expect(cards.map((card) => plain(card.querySelector('.qa-q-line')?.textContent))).toEqual([
-      'Вариант 2 · № 5 — верно 1 из 4 (25 %)',
-      'Вариант 1 · № 3 — верно 1 из 2 (50 %)',
-      'Вариант 1 · № 37 — верно 3 из 4 (75 %)',
+      'Вариант 2 · № 5: 1 из 4 ответили верно (25 %)',
+      'Вариант 1 · № 3: 1 из 2 ответили верно (50 %)',
+      'Вариант 1 · № 37: 3 из 4 ответили верно (75 %)',
     ]);
-    expect(plain(cards[0].textContent)).toContain('«1596» — 2');
-    expect(plain(cards[0].textContent)).toContain('без ответа: 1');
+    expect(plain(cards[0].textContent)).toContain('«1596» · 2 раза');
+    expect(plain(cards[0].textContent)).toContain('1 без ответа');
     const picks = within(cards[2]).getByRole('list', { name: QA_QUESTIONS.picks });
-    expect(within(picks).getAllByRole('listitem').map((node) => plain(node.textContent))).toEqual(['А0', 'Б3ключ', 'В1', 'Г0']);
+    expect(within(picks).getAllByRole('listitem').map((node) => plain(node.textContent))).toEqual(['А0', 'Б3верный', 'В1', 'Г0']);
     expect(within(cards[2]).getByRole('link', { name: QA_QUESTIONS.edit }).getAttribute('href')).toBe(`/exams/c/${EXAM}/keys?s=${S1}&no=37`);
     expect(within(cards[0]).getByRole('link', { name: QA_QUESTIONS.edit }).getAttribute('href')).toBe(`/exams/c/${EXAM}/keys?s=${S2}&no=5`);
   });
@@ -338,7 +338,7 @@ describe('«Скачать таблицу»', () => {
     // The BOM (EF BB BF): Excel then reads the file as UTF-8.
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
     const lines = new TextDecoder('utf-8').decode(bytes).split('\r\n');
-    expect(lines[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог;Вариант 1 № 37;Вариант 2 № 5');
+    expect(lines[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Проходной балл;Вариант 1 № 37;Вариант 2 № 5');
     expect(lines.find((line) => line.startsWith('Иванов Иван;2;'))?.endsWith(';1;0')).toBe(true);
     expect(lines.some((line) => line.startsWith('Автор Экзамена (автор);'))).toBe(true);
   });

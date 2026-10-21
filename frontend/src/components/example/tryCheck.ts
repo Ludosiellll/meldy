@@ -27,14 +27,13 @@ export const TRY_TRANSCRIPT_CHARS = 4000;
 export type TryFallbackReason = 'no_key' | 'day_cap' | 'busy' | 'timeout' | 'failed' | 'client_limit' | 'offline' | 'too_long';
 
 const SERVER_REASONS: ReadonlySet<string> = new Set(['no_key', 'day_cap', 'busy', 'timeout', 'failed']);
-const ALL_REASONS: ReadonlySet<string> = new Set([...SERVER_REASONS, 'client_limit', 'offline', 'too_long']);
 
 export type TryCheck =
   | { by: 'ai'; evaluation: Evaluation }
   | { by: 'dont_know' }
   | { by: 'keywords'; reason: TryFallbackReason };
 
-/** How an answer was checked, as the tab keeps it (trySheet.TryAnswer.check); no reason — yesterday's seeded answers. */
+/** How an answer was checked, as step 3 says it; a key-word check without a reason says only that. */
 export type TryCheckSummary = { by: 'ai' } | { by: 'dont_know' } | { by: 'keywords'; reason?: TryFallbackReason };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -181,41 +180,28 @@ export function checkSummary(check: TryCheck): TryCheckSummary {
   return check.by === 'keywords' ? { by: 'keywords', reason: check.reason } : { by: check.by };
 }
 
-/** A summary kept in the tab, as written by this page (anything else reads as key words). */
-export function parseCheckSummary(value: unknown): TryCheckSummary | null {
-  if (!isRecord(value)) return null;
-  if (value.by === 'ai' || value.by === 'dont_know') return { by: value.by };
-  if (value.by !== 'keywords') return null;
-  return typeof value.reason === 'string' && ALL_REASONS.has(value.reason) ? { by: 'keywords', reason: value.reason as TryFallbackReason } : { by: 'keywords' };
-}
-
-export const CHECKED_BY_AI = 'Ответ проверил ИИ по пунктам из лекций примера.';
-export const CHECKED_BY_KEYWORDS = 'Проверено по ключевым словам.';
+/**
+ * How the answer was checked, said as the result (the owner's plain-words rule, 21.10): what happened, then what it
+ * means for this answer. One short sentence per thought.
+ */
+export const CHECKED_BY_AI = 'Ответ проверил ИИ по тексту лекций.';
+export const CHECKED_BY_KEYWORDS = 'Ответ проверен по ключевым словам.';
+export const CHECKED_DONT_KNOW = 'Вы ответили «не знаю». Проверять было нечего.';
 
 const KEYWORD_REASONS: Record<TryFallbackReason, string> = {
-  no_key: 'проверка ИИ в примере сейчас недоступна',
-  busy: 'проверка ИИ в примере сейчас недоступна',
-  failed: 'проверка ИИ в примере сейчас недоступна',
-  timeout: 'ИИ не успел проверить ответ',
-  day_cap: 'проверки ИИ в примере на сегодня закончились',
-  client_limit: 'из вашей сети было слишком много проверок подряд',
-  offline: 'нет связи с сервером',
-  too_long: `ИИ в примере проверяет ответы до ${TRY_TRANSCRIPT_CHARS} знаков`,
+  no_key: 'ИИ сейчас недоступен.',
+  busy: 'ИИ сейчас недоступен.',
+  failed: 'ИИ сейчас недоступен.',
+  timeout: 'ИИ не успел проверить ответ.',
+  day_cap: 'Проверки ИИ на сегодня закончились.',
+  client_limit: 'Из вашей сети было слишком много проверок.',
+  offline: 'Нет связи с сервером.',
+  too_long: `ИИ проверяет ответы до ${TRY_TRANSCRIPT_CHARS} знаков.`,
 };
 
-/** The protocol's line about how this answer was checked, in plain words. */
+/** The line about how this answer was checked: the AI, «не знаю», or why the key words did it. */
 export function checkLine(check: TryCheckSummary): string {
   if (check.by === 'ai') return CHECKED_BY_AI;
-  if (check.by === 'dont_know') return DONT_KNOW_VERDICT;
-  return check.reason ? `Проверено по ключевым словам: ${KEYWORD_REASONS[check.reason]}.` : CHECKED_BY_KEYWORDS;
+  if (check.by === 'dont_know') return CHECKED_DONT_KNOW;
+  return check.reason ? `${KEYWORD_REASONS[check.reason]} ${CHECKED_BY_KEYWORDS}` : CHECKED_BY_KEYWORDS;
 }
-
-/** The model's protocol as the tab keeps it with the answer (its quotes, comments and corrections), if it is one. */
-export function keptEvaluation(value: unknown, pointIds: readonly string[]): Evaluation | null {
-  try {
-    return parseEvaluation(value, pointIds);
-  } catch {
-    return null;
-  }
-}
-

@@ -15,15 +15,15 @@ export type BuildType = 'single' | 'multiple' | 'short' | 'truefalse';
 export const NEW_TEST = {
   entry: 'Новый тест',
   /** Under the two doors on «Экзамены» (release 47, M11): what each one makes. */
-  examNote: 'Экзамен — план подготовки по вопросам и лекциям',
-  entryNote: 'Тест — свои вопросы, ученикам по ссылке',
+  examNote: 'Для себя: план по вопросам и лекциям',
+  entryNote: 'Для учеников: по ссылке, можно без входа',
   /** On the empty «Экзамены», under the import's door. */
-  emptyLead: 'Файла нет? Напишите вопросы сами:',
+  emptyLead: 'Нет файла? Напишите вопросы сами:',
   docTitle: 'Новый тест',
   title: 'Новый тест',
-  lede: 'Назовите тест, затем добавьте вопросы: с одним или несколькими верными ответами, с коротким ответом или «верно / неверно».',
+  lede: 'Назовите тест. Потом добавите вопросы и отправите тест ученикам по ссылке.',
   name: 'Название теста',
-  create: 'Создать',
+  create: 'Создать тест',
   creating: 'Создаём…',
   nameEmpty: 'Назовите тест.',
   /** The one subject a new test starts with. */
@@ -40,7 +40,7 @@ export const BUILD = {
     [
       subjectCount > 1 ? subjects(subjectCount) : null,
       total > 0 ? questions(total) : 'пока без вопросов',
-      noKey > 0 ? `без ключа: ${noKey}` : null,
+      noKey > 0 ? `${noKey} без верного ответа` : null,
     ]
       .filter(Boolean)
       .join(`${NBSP}· `),
@@ -67,26 +67,26 @@ export const BUILD = {
   empty: 'В тесте пока нет вопросов. Выберите, с какого начать.',
   rightWord: 'верный',
   /** A question without its key, on the card and in the editor (release 47, M10). */
-  noKey: 'Не отмечен верный ответ: вопрос не попадёт в контрольную и в повторение.',
+  noKey: 'Отметьте верный ответ. Без него вопроса не будет в контрольной и в повторении.',
   forms: 'Принятые ответы',
   explanation: 'Пояснение',
-  copy: 'Копия',
+  copy: 'Копировать',
   remove: 'Удалить',
   up: 'Выше',
   down: 'Ниже',
   removeAsk: (n: number, group: boolean) => `Удалить вопрос ${n}? Ответы по нему пропадут${group ? ' у всех участников' : ''}.`,
-  copied: (n: number) => `Копия добавлена: вопрос ${n}.`,
-  copiedEnd: 'Копия добавлена в конец списка: поставить её под этим вопросом не получилось.',
-  moved: (n: number) => `Вопрос теперь на месте ${n}.`,
+  copied: (n: number) => `Копия добавлена, это вопрос ${n}.`,
+  copiedEnd: 'Копия добавлена в конец списка.',
+  moved: (n: number) => `Вопрос теперь ${n}-й.`,
   moveFailed: 'Порядок не сохранился, вопрос вернулся на место.',
   added: (n: number) => `Вопрос ${n} добавлен.`,
   newContext: (n: number, type: BuildType) => `Новый вопрос ${n} · ${BUILD.types[type]}: ${BUILD.typeHints[type]}`,
   editContext: (n: number, type: BuildType) => `Вопрос ${n} · ${BUILD.types[type]}`,
   send: 'Отправить по ссылке',
-  sendWhy: 'Отправить можно, когда хотя бы у одного вопроса отмечен верный ответ.',
+  sendWhy: 'Чтобы отправить, отметьте верный ответ хотя бы в одном вопросе.',
   quizzes: 'Контрольные',
   settings: 'Настройки',
-  noSubjects: 'В этом экзамене только устные предметы: их вопросы правят на странице предмета.',
+  noSubjects: 'В этом экзамене только устные предметы. Их вопросы меняют на странице предмета.',
 } as const;
 
 const quizzes = (n: number) => count(n, 'контрольная', 'контрольные', 'контрольных');
@@ -104,13 +104,13 @@ export const TEST_HOME = {
   studio: 'Открыть студию',
   send: BUILD.send,
   /** Why «Отправить по ссылке» waits: no question yet, or none with its key. */
-  sendWhyEmpty: 'Отправить можно, когда в тесте появятся вопросы: добавьте их в студии.',
+  sendWhyEmpty: 'Чтобы отправить, добавьте вопросы в студии.',
   sendWhyKey: BUILD.sendWhy,
   quizzes: BUILD.quizzes,
   quizzesLoading: 'Загружаем контрольные…',
   quizzesFailed: 'Не получилось загрузить контрольные.',
   retry: 'Повторить',
-  quizzesEmpty: 'Контрольных пока нет. Отправьте тест по ссылке: здесь будет видно, кто его написал и как.',
+  quizzesEmpty: 'Контрольная — это ваш тест по ссылке, со сроком сдачи. Нажмите «Отправить по ссылке», и здесь появятся результаты.',
   /** «сдали 5»; nobody yet — «пока никто не сдал». */
   finished: (n: number) => (n > 0 ? `сдали ${n}` : 'пока никто не сдал'),
   menuLabel: 'Ещё: тест',
@@ -121,11 +121,11 @@ export const KIND = {
   label: 'Что это',
   exam: 'Это экзамен',
   test: 'Это тест',
-  examHint: 'Вы готовитесь сами: план на каждый день, время в день, напоминания в Telegram.',
-  testHint: 'Вы даёте вопросы другим: студия, ссылка, контрольные. В ваш план на день он не входит.',
+  examHint: 'Вы готовитесь сами. План на каждый день и напоминания в Telegram.',
+  testHint: 'Вы даёте вопросы другим по ссылке. В ваш план на день тест не входит.',
   saving: 'Сохраняем…',
-  savedExam: 'Сохранено: это экзамен.',
-  savedTest: 'Сохранено: это тест.',
+  savedExam: 'Сохранено. Это экзамен.',
+  savedTest: 'Сохранено. Это тест.',
 } as const;
 
 /** «Удалить» of a test: the words of «Настройки» and of the confirm on the test's page, one source. */

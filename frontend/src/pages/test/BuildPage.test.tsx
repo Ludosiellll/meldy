@@ -180,8 +180,8 @@ describe('BuildPage: the questions as cards (spec 2026-10-18 §47.2)', () => {
     renderAt();
     // In the constructor's words (release 47, M10): where the question would have gone.
     expect(within(card(1)).getByText(BUILD.noKey)).toBeInTheDocument();
-    expect(BUILD.noKey).toBe('Не отмечен верный ответ: вопрос не попадёт в контрольную и в повторение.');
-    expect(screen.getByText(/без ключа: 1/)).toBeInTheDocument();
+    expect(BUILD.noKey).toBe('Отметьте верный ответ. Без него вопроса не будет в контрольной и в повторении.');
+    expect(screen.getByText(/1 без верного ответа/)).toBeInTheDocument();
     const send = screen.getByRole('button', { name: BUILD.send });
     expect(send).toBeDisabled();
     expect(send).toHaveAccessibleDescription(BUILD.sendWhy);

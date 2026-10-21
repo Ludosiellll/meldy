@@ -1,4 +1,5 @@
 import asyncio
+import gc
 import base64
 import contextlib
 import hashlib
@@ -63,6 +64,7 @@ from tutor_api import router as tutor_router
 import telemetry_api
 import try_api
 import bot_bridge
+import live_move_api
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pywebpush import webpush, WebPushException
@@ -316,6 +318,9 @@ app.include_router(telemetry_api.router)
 app.include_router(try_api.router)
 # /api/bot/voice: the Telegram bot's voice answers by single-use ticket (bot_bridge.py, stage 5, off until the owner says).
 app.include_router(bot_bridge.router)
+# /api/live/move/ws: the movement games' WebSocket (live_move_api.py). The HTTP middleware above does not see
+# WebSockets: the socket checks the live game's own player or host token in its first message.
+app.include_router(live_move_api.router)
 
 scheduler = AsyncIOScheduler()
 
@@ -343,6 +348,11 @@ async def scheduled_reminders():
 async def startup_event():
     scheduler.add_job(scheduled_reminders, 'interval', hours=24) # Daily reminders
     scheduler.start()
+    # The ~150 000 objects of the imports live as long as the process; a full garbage collection walking them took
+    # ~115 ms (measured 2026-10-21) and stalled the movement rooms' 50 ms ticks (live_move_api.py). Frozen, the
+    # collector skips them.
+    gc.collect()
+    gc.freeze()
 
 @app.on_event("shutdown")
 async def shutdown_event():

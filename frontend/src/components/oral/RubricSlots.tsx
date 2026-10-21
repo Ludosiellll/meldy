@@ -67,6 +67,11 @@ interface RubricSlotsProps {
    * group that named it, the same notion the transcript underlines — one pencil line per row.
    */
   said?: string;
+  /**
+   * Words in a closed row instead of the bare bar (the /try example: a first-time visitor did not know what the empty
+   * grey rows were). Never the point's own words. A real ticket passes none.
+   */
+  blankText?: string;
 }
 
 /**
@@ -78,7 +83,7 @@ interface RubricSlotsProps {
  * matched underlined. Marks only add. The examiner's row gets a brace and keeps its title hidden:
  * the question already says what it is about.
  */
-export default function RubricSlots({ points, materials, named, asked, seed, announcement, said }: RubricSlotsProps) {
+export default function RubricSlots({ points, materials, named, asked, seed, announcement, said, blankText }: RubricSlotsProps) {
   // Rows named before this sheet appeared (a restored answer) are drawn still; new ones are drawn in.
   const initial = useRef<ReadonlySet<string> | null>(null);
   if (initial.current === null) initial.current = new Set(named);
@@ -104,7 +109,13 @@ export default function RubricSlots({ points, materials, named, asked, seed, ann
                 <span className="or-pt-n" aria-hidden="true">
                   {number}
                 </span>
-                <span className="or-pt-blank" aria-hidden="true" />
+                {blankText ? (
+                  <span className="or-pt-blank" data-text="" aria-hidden="true">
+                    {blankText}
+                  </span>
+                ) : (
+                  <span className="or-pt-blank" aria-hidden="true" />
+                )}
                 {isAsked ? (
                   <span className="or-pt-src or-pt-asked">
                     <PencilBrace seed={markSeed + 3} animate />

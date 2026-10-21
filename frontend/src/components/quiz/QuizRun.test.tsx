@@ -186,7 +186,7 @@ describe('QuizRun: saving the answers', () => {
     fireEvent.click(options()[0]);
     await advance(SEND_DELAY_MS);
     expect(api.sendAnswers).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('Нет связи — ответы сохранятся, когда она вернётся')).toBeInTheDocument();
+    expect(screen.getByText('Нет связи. Ответы сохранятся, когда связь вернётся')).toBeInTheDocument();
     expect(JSON.parse(stored() ?? '{}')).toEqual({ i1: [0] });
     await advance(RETRY_MS[0]);
     expect(api.sendAnswers).toHaveBeenCalledTimes(2);
@@ -258,7 +258,7 @@ describe('QuizRun: the questions', () => {
     renderRun(attempt({ allow_back: false }));
     expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Все вопросы' })).toBeNull();
-    expect(screen.getByText('Только вперёд: к прошлым вопросам не вернуться.')).toBeInTheDocument();
+    expect(screen.getByText('Вернуться к прошлым вопросам нельзя.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
     expect(bar()).toContain('2 из 3');
     expect(screen.queryByRole('button', { name: 'Назад' })).toBeNull();
@@ -269,7 +269,7 @@ describe('QuizRun: the questions', () => {
     fireEvent.click(options()[1]);
     fireEvent.click(screen.getByRole('button', { name: 'Завершить' }));
     const sheet = screen.getByRole('dialog', { name: 'Завершить контрольную?' });
-    expect(plain(sheet.textContent)).toContain('Отвечено 1 из 3, без ответа: 2, 3 — они считаются ошибками.');
+    expect(plain(sheet.textContent)).toContain('Нет ответа на вопросы 2, 3. Они засчитаются как ошибки.');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Завершить' }));
     await advance(0);
     // The waiting answer goes first, then the finish.
@@ -342,7 +342,7 @@ describe('QuizRun: the end of the time', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Завершить' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Завершить' }));
     await advance(0);
-    expect(screen.getByText(/Нет связи — ответы сохранятся, когда она вернётся/)).toBeInTheDocument();
+    expect(screen.getByText(/Нет связи. Сдадим ответы сами, когда связь вернётся/)).toBeInTheDocument();
     expect(onResult).not.toHaveBeenCalled();
     await advance(RETRY_MS[0]);
     expect(api.finishQuiz).toHaveBeenCalledTimes(2);
@@ -371,7 +371,7 @@ describe('QuizRun: a reload (review focus 1)', () => {
     renderRun(resumed);
     // The first question without an answer; the clock counts to the same deadline: 20 minutes left.
     expect(bar()).toBe('2 из 3 · осталось 20:00');
-    expect(plain(screen.getByText(/Попытка продолжается/).textContent)).toBe('Попытка продолжается: 2 из 3, осталось 20:00.');
+    expect(plain(screen.getByText(/Продолжаем с вопроса/).textContent)).toBe('Продолжаем с вопроса 2 из 3. Осталось 20:00.');
     // The unsent answer goes at once.
     await advance(0);
     expect(api.sendAnswers).toHaveBeenCalledWith('att-1', [{ item_id: 'i3', text: 'Париж' }], null);

@@ -29,6 +29,27 @@ describe('<RubricSlots>', () => {
     for (const title of titles) expect(container.textContent).not.toContain(title);
     expect(screen.getByRole('listitem', { name: 'Пункт 3, ещё не назван' })).toBeInTheDocument();
     expect(container.querySelectorAll('.or-pt-blank')).toHaveLength(5);
+    // A real ticket's closed row is a bare bar.
+    expect(container.querySelector('.or-pt-blank')?.textContent).toBe('');
+  });
+
+  it('says in words what a closed row is when asked to (the /try example), never with the point’s own words', () => {
+    const { container } = render(
+      <RubricSlots
+        points={DEMO_RUBRIC.points}
+        materials={DEMO_RUBRIC.materials}
+        named={new Set(['p1'])}
+        asked={null}
+        seed="question-1"
+        announcement=""
+        blankText="откроется, когда вы его назовёте"
+      />,
+    );
+    const blanks = [...container.querySelectorAll<HTMLElement>('.or-pt-blank')];
+    expect(blanks).toHaveLength(4);
+    expect(blanks.every((blank) => blank.textContent === 'откроется, когда вы его назовёте' && blank.getAttribute('aria-hidden') === 'true')).toBe(true);
+    for (const title of titles.slice(1)) expect(container.textContent).not.toContain(title);
+    expect(screen.getByRole('listitem', { name: 'Пункт 2, ещё не назван' })).toBeInTheDocument();
   });
 
   it('opens a named row with a provisional pencil dot and the lecture’s own words, underlined where they matched', () => {
