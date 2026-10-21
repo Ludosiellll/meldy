@@ -61,6 +61,26 @@ describe('the guide names what is on screen', () => {
     expect(within(panel()!).getByRole('button', { name: 'Контрольная' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('«?» on a test’s own page (it says «game») opens «Игра в классе», with «Провести игру» and the way to the tests', () => {
+    renderWith('/exams/c/abc', <div data-guide-chapter="game" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Как пользоваться Meldy' }));
+    expect(within(panel()!).getByRole('heading', { name: 'Игра в классе' })).toBeInTheDocument();
+    expect(panel()).toHaveTextContent('Откройте тест и нажмите «Провести игру».');
+    expect(within(panel()!).getByRole('link', { name: 'Открыть раздел' })).toHaveAttribute('href', '/exams?view=tests');
+    // «Экзамены» lights up in the menu: the tests are there.
+    expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
+    // «Назад» is «Тесты».
+    fireEvent.click(within(panel()!).getByRole('button', { name: 'Назад' }));
+    expect(within(panel()!).getByRole('heading', { name: 'Быстрая контрольная' })).toBeInTheDocument();
+  });
+
+  it('on the tests themselves «Игра в классе» has no «Открыть раздел»: the page is the one it opens', () => {
+    renderWith('/exams?view=tests', <div data-guide-chapter="game" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Как пользоваться Meldy' }));
+    expect(within(panel()!).getByRole('heading', { name: 'Игра в классе' })).toBeInTheDocument();
+    expect(within(panel()!).queryByRole('link', { name: 'Открыть раздел' })).toBeNull();
+  });
+
   it('«Экзамены» with no exam names «Выбрать файлы», the button that is there', async () => {
     renderWith(
       '/exams',

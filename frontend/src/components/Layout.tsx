@@ -14,7 +14,7 @@ import RouteLoading from './RouteLoading';
 import { useInstallPWA } from '../hooks/useInstallPWA';
 import { GuideProvider, GUIDE_PROFILE_KEY, useGuide } from './guide/GuideContext';
 import GuidePanel from './guide/GuidePanel';
-import { GUIDE_CHAPTERS } from './guide/chapters';
+import { GUIDE_CHAPTERS, routePath } from './guide/chapters';
 import { usePhone } from '../lib/usePhone';
 import { containerOfExam, containerTitle, onContainerTitles } from '../lib/containers/titleCache';
 import { useMiniApp } from '../lib/telegram/miniApp';
@@ -413,7 +413,8 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   // The guide lights up the section it talks about: its pill in the top line, its tab on a phone, or
   // «Разобрать лекцию» — on a phone, whose line has no «+ Лекция», the «Лекции» tab (the link is at the top of its page).
   const spot = guide?.open ? GUIDE_CHAPTERS[guide.index] : null;
-  const spotOn = (to: string) => (spot && spot.spot === 'link' && spot.route === to ? '' : undefined);
+  // A chapter's page may carry a query («Игра в классе» opens the tests: /exams?view=tests): its item is the path's.
+  const spotOn = (to: string) => (spot && spot.spot === 'link' && spot.route && routePath(spot.route) === to ? '' : undefined);
   const tabSpotOn = (to: string) => spotOn(to) ?? (phone && spot?.spot === 'cta' && to === '/library' ? '' : undefined);
 
   const avatarUrl = profile?.avatar_url;

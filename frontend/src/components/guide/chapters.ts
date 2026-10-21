@@ -1,7 +1,7 @@
 /**
  * The guide's chapters: one per item of the menu, in the order of the menu, with «Разобрать лекцию»
  * after «Сегодня» (that is where a new student starts), «Тесты» after «Экзамены» (its door, «Новый тест», is
- * on «Экзамены»), and «Лимит ИИ» last: the meter in the top line that every AI action spends. Each has a short
+ * on «Экзамены»), «Игра в классе» after «Тесты» (a game is played on a test), and «Лимит ИИ» last: the meter in the top line that every AI action spends. Each has a short
  * clip (scenes/), a title and a line or two of text in the words the screens use. The mistakes diary is told
  * inside «Повторение» and the knowledge map inside «Прогресс»: that is where they live in the menu.
  *
@@ -15,7 +15,7 @@ import { plural } from '../pro/planCopy';
 import type { StepClipId } from '../clips/types';
 import { GUIDE_START } from '../quick/copyQuick';
 
-export type GuideChapterId = 'today' | 'add' | 'library' | 'exams' | 'tests' | 'review' | 'progress' | 'limit';
+export type GuideChapterId = 'today' | 'add' | 'library' | 'exams' | 'tests' | 'game' | 'review' | 'progress' | 'limit';
 
 /** One clip of a chapter: the chapter's own (`clip` null: scenes/) or a step clip (components/clips). */
 export interface GuideReel {
@@ -61,6 +61,17 @@ const EXAMS_TEXT =
 /** «Тесты»: the studio (release 47.2) in the words of its screens. */
 const TESTS_TEXT =
   'Кнопка «Новый тест» на странице «Экзамены» открывает студию: блоки на страницу, вопросы с верными ответами, цвет во вкладке «Оформление». Затем нажмите «Отправить по ссылке».';
+
+/** Where students join the live game on the site (the projector's lobby says the same address). */
+export const PLAY_SITE = 'ludosiel-studyforge.hf.space/play';
+
+/**
+ * «Игра в классе» (the live game, release 47.12), for the owner's questions of 21.10: «а где на сайте указать что ты
+ * хочешь такую игру? и обучение по тому как ее сделать? где это будет и можно ли с сайта играть, или только в тг?». Where
+ * it starts, the two games, what the class needs and how students join, in short sentences (the plain-words rules).
+ */
+export const GAME_TEXT =
+  `Откройте тест и нажмите «Провести игру». В «Битве с монстром» все отвечают кнопками. В «Встань на ответ» каждый ведёт героя к ответу. Нужен проектор или большой экран. Ученики входят на ${PLAY_SITE} по PIN или QR-коду. Войти можно и через Telegram.`;
 
 const units = (n: number) => `${n} ${plural(n, ['единица', 'единицы', 'единиц'])}`;
 
@@ -160,6 +171,18 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     ],
   },
   {
+    id: 'game',
+    tab: 'Игра в классе',
+    // A game starts from a test: «Открыть раздел» opens the tests, each with «Провести игру»; «Экзамены» lights up.
+    route: '/exams?view=tests',
+    // The game's own pages (/live/new, /live/:id) are outside the menu; the test's own page says it is this chapter
+    // (TestHome's data-guide-chapter).
+    match: /^\/live(?:\/|$)/,
+    title: 'Игра в классе',
+    text: GAME_TEXT,
+    spot: 'link',
+  },
+  {
     id: 'review',
     tab: 'Повторение',
     route: '/review',
@@ -187,13 +210,18 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
   },
 ];
 
+/** A chapter's page without its query (`/exams?view=tests` is on `/exams`): what the menu's links and the address name. */
+export function routePath(route: string): string {
+  return route.split('?')[0];
+}
+
 /** The chapter of the page at `pathname`, or -1 when the page belongs to none. */
 export function chapterIndexFor(pathname: string): number {
   return GUIDE_CHAPTERS.findIndex((chapter) => chapter.match?.test(pathname) ?? false);
 }
 
 /** The sections' own pages, where nothing is typed or uploading. */
-const SECTION_PAGES = new Set(GUIDE_CHAPTERS.flatMap((chapter) => (chapter.route ? [chapter.route] : [])));
+const SECTION_PAGES = new Set(GUIDE_CHAPTERS.flatMap((chapter) => (chapter.route ? [routePath(chapter.route)] : [])));
 
 /**
  * Whether «Дальше» may take the app to the next section: only from a section's own page that the

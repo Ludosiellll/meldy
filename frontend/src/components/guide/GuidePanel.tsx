@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { GUIDE_CHAPTERS } from './chapters';
+import { GUIDE_CHAPTERS, PLAY_SITE } from './chapters';
 import { useGuide } from './GuideContext';
 import { guideClipPart } from './clipPart';
 import { useLazyPart } from '../../lib/lazyPart';
@@ -64,6 +64,22 @@ function narrowNow(): boolean {
   } catch {
     return false;
   }
+}
+
+/** The game's address stays whole on one line («ludosiel-» broke off at its hyphen); the rest of the words wrap as usual. */
+function Words({ text }: { text: string }) {
+  const parts = text.split(PLAY_SITE);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((part, at) => (
+        <span key={at}>
+          {at > 0 ? <span className="gd-nowrap">{PLAY_SITE}</span> : null}
+          {part}
+        </span>
+      ))}
+    </>
+  );
 }
 
 /** Room around the lit menu item inside the cut-out (its yellow ring pulses out to 6 px). */
@@ -173,7 +189,7 @@ function Backdrop({ chapter, pathname }: { chapter: string; pathname: string }) 
  */
 export default function GuidePanel() {
   const guide = useGuide();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const titleId = useId();
   const textId = useId();
   const panel = useRef<HTMLElement>(null);
@@ -281,7 +297,8 @@ export default function GuidePanel() {
   const title = stop?.title ?? reel?.title ?? chapter.title;
   const text = stop?.text ?? examsWords ?? reel?.text ?? chapter.text;
   // The section's page, unless the student is on it; the limit has none (its meter is in the top line).
-  const sectionLink = chapter.route && !chapter.match?.test(pathname) && chapter.route !== pathname ? chapter.route : null;
+  const sectionLink =
+    chapter.route && !chapter.match?.test(pathname) && chapter.route !== pathname && chapter.route !== `${pathname}${search}` ? chapter.route : null;
   // Where the section is on a phone: said with the chapter's own clip.
   const where = reelAt > 0 ? undefined : phone && chapter.narrow ? chapter.narrow : chapter.phone;
   const stepReel = stop && stop.clip !== undefined ? stop.clip : reel?.clip ?? (chapter.id === 'tests' ? 'studio' : null);
@@ -372,7 +389,7 @@ export default function GuidePanel() {
         {title}
       </h2>
       <p id={textId} className="gd-p">
-        {text}
+        <Words text={text} />
         {where ? <span className="gd-phone"> {where}</span> : null}
       </p>
 

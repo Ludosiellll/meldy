@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GUIDE_CHAPTERS } from './chapters';
+import { GAME_TEXT, GUIDE_CHAPTERS, PLAY_SITE, mayLeave, routePath } from './chapters';
 
 const text = (id: string) => GUIDE_CHAPTERS.find((chapter) => chapter.id === id)!.text;
 
@@ -80,5 +80,49 @@ describe('the chapters with more than one clip (the owner, 18.10: «для но�
         if (reel.clip) expect(reel.text.length).toBeLessThanOrEqual(180);
       }
     }
+  });
+});
+
+describe('«Игра в классе» (the owner, 21.10: «а где на сайте указать что ты хочешь такую игру? и обучение по тому как ее сделать? где это будет и можно ли с сайта играть, или только в тг?»)', () => {
+  const game = GUIDE_CHAPTERS.find((item) => item.id === 'game')!;
+
+  it('follows «Тесты»: «Открыть раздел» opens the tests (each has «Провести игру») and «Экзамены» lights up', () => {
+    const ids = GUIDE_CHAPTERS.map((item) => item.id);
+    expect(ids.indexOf('game')).toBe(ids.indexOf('tests') + 1);
+    expect(game).toMatchObject({ tab: 'Игра в классе', title: 'Игра в классе', route: '/exams?view=tests', spot: 'link', text: GAME_TEXT });
+    expect(routePath(game.route!)).toBe('/exams');
+    // Its own clip (scenes/game.tsx), no step clips.
+    expect(game.reels).toBeUndefined();
+    // The setup and the projector are its pages; the tests' pages stay «Тесты».
+    for (const path of ['/live/new', '/live/abc', '/live']) expect(game.match!.test(path)).toBe(true);
+    for (const path of ['/exams', '/exams/c/abc', '/exams/c/abc/quizzes', '/play', '/tg/play', '/lively']) expect(game.match!.test(path)).toBe(false);
+    // «Дальше» from «Тесты» may take the app on to the tests' list: «Экзамены» is a section's page.
+    expect(mayLeave('/exams', null, false)).toBe(true);
+  });
+
+  it('answers the questions plainly: where it starts, the two games, the screen, how students join', () => {
+    const text = game.text;
+    // Where to start.
+    expect(text).toMatch(/^Откройте тест и нажмите «Провести игру»\./);
+    // The two games: buttons, and the character run to the answer.
+    expect(text).toContain('В «Битве с монстром» все отвечают кнопками.');
+    expect(text).toContain('В «Встань на ответ» каждый ведёт героя к ответу.');
+    // A projector or a big screen.
+    expect(text).toContain('Нужен проектор или большой экран.');
+    // The site with the PIN or the QR code, or Telegram: the site is enough.
+    expect(PLAY_SITE).toBe('ludosiel-studyforge.hf.space/play');
+    expect(text).toContain(`Ученики входят на ${PLAY_SITE} по PIN или QR-коду.`);
+    expect(text).toContain('Войти можно и через Telegram.');
+  });
+
+  it('keeps to the plain-words rules: one short sentence a thought, no «—», «:» or «·» chains, none of our own terms', () => {
+    const text = game.text;
+    expect(text).not.toMatch(/\s—\s|:|\s·\s|!|\(/);
+    expect(text).not.toMatch(/подтвержд|в сч[её]т|пункт|строк|подсмотр|по правилу|с первого раза|вернутся|сесси|режим|лобби|хост/i);
+    const sentences = text.split(/(?<=\.)\s+/);
+    expect(sentences).toHaveLength(6);
+    for (const sentence of sentences) expect(sentence.length, sentence).toBeLessThanOrEqual(90);
+    // Six lines on the owner's 1532×734 laptop, the address whole on one of them: «Назад / Дальше» stay in the card.
+    expect(text.length).toBeLessThanOrEqual(280);
   });
 });
