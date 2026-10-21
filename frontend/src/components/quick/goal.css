@@ -15,6 +15,11 @@
 .gl-t { margin: 0; font-size: 21px; line-height: 1.2; font-weight: 500; letter-spacing: -.015em; color: var(--sf-ink); }
 .gl-p { margin: 8px 0 0; font-size: 16px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .gl-acts { margin-top: auto; padding-top: 18px; }
+/* The teacher's second step: a hairline, its name and one line, the guide's clip a quiet press away. */
+.gl-step { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--sf-line); }
+.gl-step-t { margin: 0; font-size: 16px; line-height: 1.35; font-weight: 600; color: var(--sf-ink); }
+.gl-step-p { margin: 4px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.gl-step-p .sf-link { font-size: inherit; }
 .gl-try { margin: 16px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
 
 @media (max-width: 1023px) {

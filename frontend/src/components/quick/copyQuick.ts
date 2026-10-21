@@ -159,6 +159,12 @@ export const GOAL = {
     text: 'Вставьте вопросы и получите ссылку. Ученикам вход не нужен.',
     action: 'Быстрая контрольная',
   },
+  /** The teacher's second step (owner, 21.10): the test as a game in class; the guide's «Игра в классе» shows how. */
+  game: {
+    title: 'Провести игру в классе',
+    text: 'Тест можно провести как игру на проекторе. Ученики играют с телефонов.',
+    action: 'Посмотреть ролик',
+  },
   tryFirst: 'Сначала посмотреть?',
   tryLink: 'Попробовать на примере',
 } as const;
