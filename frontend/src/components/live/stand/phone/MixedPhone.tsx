@@ -1,7 +1,7 @@
 /**
  * The phone in a battle with movement rounds (docs/live/MODE_MIXED.md §8): the battle's own screens (the lobby, the
  * button questions, the five best, the podium) come in as `children`; during each movement round the screen of «Встань
- * на ответ» takes their place (the arena in 3D or the light view, the stick, the small map, the question card, no
+ * на ответ» takes their place (the arena in 3D, flat only without WebGL, the stick, the small map, the question card, no
  * answer buttons) with the battle's words for the own result.
  *
  * - The room's socket is opened right after the join and kept for the whole game; the battle's polling of the
@@ -77,8 +77,8 @@ export default function MixedPhone({ ctl, s, platform: _platform, haptic, childr
   const v = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const st = s.state!;
   const on = arenaOn(st, v.state);
-  // the 3D arena (or the light view): loaded in the lobby, the canvases kept for the whole game
-  const { canvasRef, spritesRef, scene, sprites, light, backdrop } = usePhoneArena(session, v);
+  // the 3D arena (or the flat view without WebGL): loaded in the lobby, the canvases kept for the whole game
+  const { canvasRef, spritesRef, scene, sprites, flat, backdrop } = usePhoneArena(session, v);
 
   // the room's picture of this round when it has one, else the database's
   const room = v.state && v.state.round === 'stand' && v.state.qi >= st.qi ? v.state : null;
@@ -109,8 +109,8 @@ export default function MixedPhone({ ctl, s, platform: _platform, haptic, childr
   const showFps = fpsWanted();
   return (
     <>
-      <canvas className="sp-3d" ref={canvasRef} data-on={question && !light && !!scene ? 'true' : undefined} aria-hidden="true" />
-      <canvas className="sp-3d" ref={spritesRef} data-on={question && light && !!sprites ? 'true' : undefined} aria-hidden="true" />
+      <canvas className="sp-3d" ref={canvasRef} data-on={question && !flat && !!scene ? 'true' : undefined} aria-hidden="true" />
+      <canvas className="sp-3d" ref={spritesRef} data-on={question && flat && !!sprites ? 'true' : undefined} aria-hidden="true" />
       {on ? (
         <StandPlay
           session={session}
@@ -136,7 +136,7 @@ export default function MixedPhone({ ctl, s, platform: _platform, haptic, childr
           {noLink ? 'Нет связи с ареной' : 'Связь пропала. Подключаемся'}
         </div>
       )}
-      {showFps && on ? <FpsReadout quality={() => (!light && scene ? (scene.stats()?.quality ?? null) : null)} /> : null}
+      {showFps && on ? <FpsReadout quality={() => (!flat && scene ? (scene.stats()?.quality ?? null) : null)} /> : null}
     </>
   );
 }

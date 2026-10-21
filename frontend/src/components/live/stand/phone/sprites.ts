@@ -1,8 +1,9 @@
 /**
- * The light view for weak phones (and phones without WebGL 2): the arena from above in 2D, the camera on the own
- * character, everyone drawn as the kit's picture in their clothes colour (thumbs.ts, ~5 KB each, painted once per
- * look). The answers on the floor, the floor dropping at the stomp (all but the right zone go dark), ghosts see-through
- * and floating. Same contract as the 3D scene (Backdrop): the screen's loop calls `frame()`.
+ * The flat view for a phone without WebGL 2 (every other phone draws the 3D arena, lighter when it must: scene3d.ts):
+ * the arena from above in 2D, the camera on the own character, everyone drawn as the kit's picture in their clothes
+ * colour (thumbs.ts, ~5 KB each, painted once per look). Each zone's letter and answer on a small sign at its far edge,
+ * the floor dropping at the stomp (all but the right zone go dark), ghosts see-through and floating. Same contract as
+ * the 3D scene (Backdrop): the screen's loop calls `frame()`.
  *
  * Per frame: one copy of the floor (drawn once per question into its own canvas), one picture per character, no
  * allocation of its own.
@@ -12,6 +13,7 @@ import { F_AWAY, isGhost, isIced, kindOf, KIND_PLAYER, type RosterEntry, type St
 import type { GameMap } from '../../../../lib/live/move/sim';
 import { toPlayerLook, type PlayerLook } from '../../../../lib/live/three/look';
 import { paintThumb, thumbUrl } from '../../../../lib/live/three/thumbs';
+import { roundRect } from './map';
 import { LETTERS, ZONE_COLOURS } from './words';
 
 /** Map units across the phone's width. */
@@ -33,6 +35,11 @@ export interface Backdrop {
   setState(st: StandState, nowRoom: number | null): void;
   setOptions(options: readonly string[] | null): void;
   setAlarm(on: boolean): void;
+  /**
+   * The part of the screen the arena may use, client px: from the question card's bottom edge (`top`) to the top edge
+   * of the stick and the small map (`bottom`). Told on layout changes, never per frame.
+   */
+  setBand?(top: number, bottom: number): void;
 }
 
 export class SpriteView implements Backdrop {
@@ -54,6 +61,8 @@ export class SpriteView implements Backdrop {
   private readonly order: number[] = [];
   private readonly ys: Float64Array = new Float64Array(128);
   private readonly ro: ResizeObserver | null;
+  /** Where the band between the cards is centred, a share of the canvas's height (setBand). */
+  private middle = 0.52;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -113,7 +122,13 @@ export class SpriteView implements Backdrop {
   }
 
   setAlarm(): void {
-    // The light view has no boss to ring: the timer on the card shakes.
+    // The flat view has no boss to ring: the timer on the card shakes.
+  }
+
+  setBand(top: number, bottom: number): void {
+    const r = this.canvas.getBoundingClientRect();
+    if (r.height <= 0) return;
+    this.middle = Math.min(0.75, Math.max(0.3, ((top + bottom) / 2 - r.top) / r.height));
   }
 
   frame(dt: number, input: FrameInput): void {
@@ -131,7 +146,7 @@ export class SpriteView implements Backdrop {
     if (key !== this.floorKey) this.paintFloor(key);
     const s = this.s;
     const ox = this.canvas.width / 2 - this.cam.x * s;
-    const oy = this.canvas.height * 0.52 - this.cam.y * s;
+    const oy = this.canvas.height * this.middle - this.cam.y * s;
     g.fillStyle = '#14163a';
     g.fillRect(0, 0, this.canvas.width, this.canvas.height);
     if (this.floor) g.drawImage(this.floor, ox, oy);
@@ -289,20 +304,29 @@ export class SpriteView implements Backdrop {
       g.fillRect(x * s, y * s, w * s, h * s);
       g.globalAlpha = 1;
       if (!live) return;
-      // the answer on the floor: the letter, then the text, as on the projector's banner
+      // a small sign at the zone's far edge, as on the projector's: the letter on the zone's colour, then the answer
       const text = this.options[i] ?? '';
-      const fs = Math.round(34 * s);
-      g.fillStyle = 'rgba(255, 255, 255, 0.92)';
-      g.fillRect((x + 16) * s, (y + 16) * s, (w - 32) * s, 64 * s);
+      g.font = `700 ${Math.round(20 * s)}px Onest, system-ui, sans-serif`;
+      const tw = Math.min((w - 90) * s, g.measureText(text).width);
+      const sw = 44 * s + (text ? tw + 18 * s : 0);
+      const sx0 = (x + 12) * s;
+      const sy0 = (y + 10) * s;
+      g.fillStyle = 'rgba(255, 255, 255, 0.94)';
+      roundRect(g, sx0, sy0, sw, 36 * s, 10 * s);
+      g.fill();
       g.fillStyle = ZONE_COLOURS[i];
-      g.fillRect((x + 24) * s, (y + 22) * s, 52 * s, 52 * s);
+      roundRect(g, sx0 + 4 * s, sy0 + 4 * s, 28 * s, 28 * s, 7 * s);
+      g.fill();
       g.fillStyle = '#0b121c';
-      g.font = `800 ${fs}px Onest, system-ui, sans-serif`;
       g.textBaseline = 'middle';
       g.textAlign = 'center';
-      g.fillText(LETTERS[i], (x + 50) * s, (y + 49) * s);
-      g.textAlign = 'left';
-      g.fillText(text, (x + 92) * s, (y + 49) * s, (w - 120) * s);
+      g.font = `800 ${Math.round(19 * s)}px Onest, system-ui, sans-serif`;
+      g.fillText(LETTERS[i], sx0 + 18 * s, sy0 + 19 * s);
+      if (text) {
+        g.textAlign = 'left';
+        g.font = `700 ${Math.round(20 * s)}px Onest, system-ui, sans-serif`;
+        g.fillText(text, sx0 + 42 * s, sy0 + 19 * s, tw);
+      }
     });
     for (const c of this.map.circles) {
       g.fillStyle = '#2b3140';

@@ -249,8 +249,9 @@ although the round opened in phase 2 with nobody right; `result.void: true`, cou
 1. The room's socket from the join on, for the whole game (`StandSession`); the battle's polling as in any battle. The
    lobby says «На вопросах 3 и 6 будет мини-игра. Там вы бегаете по арене».
 2. Button questions, leaderboard, podium: the battle's screens (`children`); a tap on a movement round is never sent.
-3. A movement round: the stand phone's screen (`StandPlay`: arena in 3D or the light view, stick, small map, question
-   card; no answer buttons). Until the room speaks for the question its card and times come from `live_state`.
+3. A movement round: the stand phone's screen (`StandPlay`: the arena in 3D, flat only without WebGL; the stick, the
+   small map, the question card; no answer buttons). Until the room speaks for the question its card and times come
+   from `live_state`.
 4. Its result (`mixedOutcome`, from the room's `me` or else `live_state.result`): «Верно. −141 урона Дедлайну»,
    «Лёд растаял», «Мимо. Вы заморожены», «Вы не встали ни на один ответ. Вы всё ещё заморожены», «Вы зашли позже»,
    «Мини-игра не засчитана»; a frozen player sees «Вы заморожены. Встаньте на верный ответ, и лёд растает» during the

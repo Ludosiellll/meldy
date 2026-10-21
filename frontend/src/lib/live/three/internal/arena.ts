@@ -24,6 +24,7 @@ import {
   type TileLayout,
 } from '../arenaPlan';
 import { canvasTexture, FONT, hullMaterial, makeRamp, roundRect, toon, type SharedUniforms } from './materials';
+import type { ArenaLook } from '../types';
 import { UNITS } from './crowd';
 import { ZONE_COLOURS } from '../constants';
 
@@ -93,6 +94,7 @@ export class ArenaImpl {
     private readonly shared: SharedUniforms,
     private readonly onShake: (strength: number) => void,
     readonly shape: ArenaShape = {},
+    look: ArenaLook = {},
   ) {
     this.group.name = 'arena';
     this.layout = layoutTiles(map, TILE_TARGET, shape);
@@ -114,8 +116,9 @@ export class ArenaImpl {
     const sx = this.layout.sx / UNITS;
     const sy = this.layout.sy / UNITS;
 
+    const signScale = Math.min(1, Math.max(0.3, look.signScale ?? 1));
     // tiles
-    const tileGeo = new RoundedBoxGeometry(sx * 0.95, TILE_DEPTH, sy * 0.95, 2, Math.min(sx, sy) * 0.07);
+    const tileGeo = new RoundedBoxGeometry(sx * 0.95, TILE_DEPTH, sy * 0.95, Math.max(1, Math.round(look.tileSegments ?? 2)), Math.min(sx, sy) * 0.07);
     const tileMat = toon('#ffffff', this.own(makeRamp([170, 210, 240, 255])));
     this.tiles = new THREE.InstancedMesh(tileGeo, tileMat, n);
     this.tiles.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
@@ -217,7 +220,7 @@ export class ArenaImpl {
       const [x, y, w, h] = zone.rect;
       const cx = (x + w / 2) / UNITS;
       const flat = y + h / 2 >= map.h / 2;
-      const width = Math.min((w / UNITS) * 0.92, 11.2);
+      const width = Math.min((w / UNITS) * 0.92, 11.2) * signScale;
       const height = width * (140 / 1024);
       const texture = this.own(canvasTexture(1024, 140, () => undefined));
       const mat = this.own(new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false }));
@@ -239,7 +242,7 @@ export class ArenaImpl {
           .rotateX(-0.25)
           .translate(0, 0, -0.16);
         const legs = [-1, 1].map((sx) =>
-          new RoundedBoxGeometry(0.22, base.y, 0.22, 2, 0.06).translate(sx * (width / 2 - 0.9), -base.y / 2, -0.25),
+          new RoundedBoxGeometry(0.22, base.y, 0.22, 2, 0.06).translate(sx * (width / 2 - 0.9 * signScale), -base.y / 2, -0.25),
         );
         const signGeo = mergeGeometries([board, ...legs]) as THREE.BufferGeometry;
         board.dispose();

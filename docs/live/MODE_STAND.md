@@ -253,10 +253,13 @@ this game, with its boss and time, `MODE_MIXED.md` §8):
 - A local whole game: `python backend/scripts/live_stand_local.py --local` (the real room, the database in memory,
   bots) and `node frontend/scripts/stand-local.mjs open | shots | video | perf | replay` (README in the script).
 
-The phone (`components/live/stand/phone`): during countdown, open and reveal its own 3D view of the arena (the kit,
-camera on the own character; KIT_3D.md), the question card on top with the four answers in the floor's layout, the
-stick bottom left, a small map and «Вы на ответе Б» bottom right, the result cards over the arena; the lobby, the
-leaderboard and the podium are pages with the 2D map. Others carry no name tag on a phone (§5 of CONTRACT.md). The
+The phone (`components/live/stand/phone`): during countdown, open and reveal the projector's game in 3D (the kit;
+KIT_3D.md): the same arena, signs, heroes, boss, stomp and ghosts, seen at the projector's tilt, closer, the camera
+following the own hero («Вы» and a white ring) with the arena's whole depth between the question card on top (the four
+answers in the floor's layout) and the stick bottom left, a small map and «Вы на ответе Б» bottom right; the result
+cards over the arena. A weak phone draws the same 3D lighter (resolution, then 30 frames a second); only a phone
+without WebGL plays the flat view. The lobby, the leaderboard and the podium are pages with the 2D map. Others carry no
+name tag on a phone (§5 of CONTRACT.md: a phone is told no one else's name). The
 database is read at the join, at the podium (`final.unlocked_now`) and when the room is gone, never while it works.
 The hero picker shows the kit's pictures before the join when the link says `mode=stand` (else after the join, in the
 lobby).

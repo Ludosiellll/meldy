@@ -41,8 +41,8 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   const st = s.state;
 
   // The 3D arena: loaded and warmed up while the player waits in the lobby, so the first question does not stall.
-  // A phone without WebGL 2, or one too slow even at the cheapest level, plays on the 2D screen.
-  const { canvasRef, spritesRef, scene, sprites, light } = usePhoneArena(session, v);
+  // A weak phone draws it lighter (scene3d.ts, quality.ts); only a phone without WebGL 2 plays the flat view.
+  const { canvasRef, spritesRef, scene, sprites, flat } = usePhoneArena(session, v);
 
   // The database's watch: off while the room works, on again when the room is gone or silent for long.
   useEffect(() => {
@@ -152,14 +152,14 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
     );
   }
 
-  const backdrop = light ? sprites : scene;
+  const backdrop = flat ? sprites : scene;
   // ?fps=1: a corner readout for checking a real phone (never by default)
   const showFps = fpsWanted();
   const question = phase === 'countdown' || phase === 'open' || phase === 'reveal';
   return (
     <>
-      <canvas className="sp-3d" ref={canvasRef} data-on={!light && !!scene && question ? 'true' : undefined} aria-hidden="true" />
-      <canvas className="sp-3d" ref={spritesRef} data-on={light && !!sprites && question ? 'true' : undefined} aria-hidden="true" />
+      <canvas className="sp-3d" ref={canvasRef} data-on={!flat && !!scene && question ? 'true' : undefined} aria-hidden="true" />
+      <canvas className="sp-3d" ref={spritesRef} data-on={flat && !!sprites && question ? 'true' : undefined} aria-hidden="true" />
       <StandPlay
         session={session}
         view={v}
@@ -179,7 +179,7 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
           Связь пропала. Подключаемся
         </div>
       )}
-      {showFps ? <FpsReadout quality={() => (!light && scene ? (scene.stats()?.quality ?? null) : null)} /> : null}
+      {showFps ? <FpsReadout quality={() => (!flat && scene ? (scene.stats()?.quality ?? null) : null)} /> : null}
     </>
   );
 }

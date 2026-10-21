@@ -50,6 +50,37 @@ describe('adaptive quality', () => {
     expect(g.level).toBe(0);
   });
 
+  it('keeps a ladder of its own length (a phone has its own levels)', () => {
+    const g = new QualityGovernor({ levels: 3 });
+    feed(g, 40, 2000);
+    expect(g.level).toBe(2);
+    g.force(99);
+    expect(g.level).toBe(2);
+  });
+
+  it('drops several levels at once when far over the budget, if allowed', () => {
+    const one = new QualityGovernor();
+    feed(one, 50, 45);
+    expect(one.level).toBe(1);
+    const fast = new QualityGovernor({ maxStep: 3 });
+    feed(fast, 50, 45); // 50 ms is 2.7 times the 18.3 ms limit: two levels
+    expect(fast.level).toBe(2);
+    const late = new QualityGovernor({ maxStep: 3 });
+    feed(late, 24, 45); // just late: one level
+    expect(late.level).toBe(1);
+  });
+
+  it('with a trimmed mean, a hitch now and then does not count; slow most of the time does', () => {
+    const g = new QualityGovernor({ window: 30, trim: 0.2 });
+    // one 250 ms frame every 10 frames: the plain mean would be 40 ms
+    for (let i = 0; i < 600; i++) g.push(i % 10 === 0 ? 250 : 16.7);
+    expect(g.level).toBe(0);
+    const slow = new QualityGovernor({ window: 30, trim: 0.2 });
+    // a third of the frames late
+    for (let i = 0; i < 120; i++) slow.push(i % 3 === 0 ? 33.4 : 16.7);
+    expect(slow.level).toBeGreaterThan(0);
+  });
+
   it('can be pinned', () => {
     const g = new QualityGovernor();
     g.force(3);
