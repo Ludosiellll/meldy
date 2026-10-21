@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, RotateCcw, X, XCircle } from 'lucide-react';
 import SourceReferences from './SourceReferences';
 import { pluralRu } from './conversation/visuals';
-import { stripSourceMarkers } from './summary/fragmentModel';
+import { stemsOf, stripSourceMarkers } from './summary/fragmentModel';
 import {
   LearningSaveError,
   SAVE_FAILED_MESSAGE,
@@ -13,6 +13,9 @@ import {
   type QuizAttemptAnswer,
 } from '../api/learning';
 import './QuizView.css';
+
+/** What the fragment panel says over a question's fragments: they are found by shared words, not checked. */
+export const QUESTION_SOURCE_NOTE = 'Здесь в лекции больше всего общих слов с вопросом.';
 
 /**
  * The test of a material («Тест» after analysis and on the material page).
@@ -578,7 +581,13 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
                   <span className="qz-explain-h">Пояснение:</span> {q.explanation}
                 </p>
               )}
-              <SourceReferences ids={q.sourceIds} sources={sources} compact />
+              <SourceReferences
+                ids={q.sourceIds}
+                sources={sources}
+                note={QUESTION_SOURCE_NOTE}
+                stems={[...stemsOf(`${q.question} ${q.explanation}`)]}
+                compact
+              />
             </li>
           );
         })}

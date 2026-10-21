@@ -1,17 +1,16 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import 'katex/dist/katex.min.css';
 import { SummaryInfo } from '../types';
-import { FragmentRefs, FragmentSlip } from './summary/FragmentSlip';
-import { buildSections, fragmentWord, stemsOf, stripSourceMarkers, type RefKind, type SourceFragment } from './summary/fragmentModel';
+import { FragmentRefs } from './summary/FragmentSlip';
+import { buildSections, stemsOf, stripSourceMarkers, type RefKind, type SourceFragment } from './summary/fragmentModel';
 import { repairMathEscapes } from '../lib/mathEscapes';
-import { usePhone } from '../lib/usePhone';
 import { observeSize } from '../lib/observeSize';
 import { MathMarkdown } from './summary/MathMarkdown';
 import './summary/summary.css';
 
 export { stripSourceMarkers };
 
-/** From this width of the summary the fragments stand on the margin to the right (spec 5.3: 36em + 64 + margin). */
+/** From this width of the summary the list of its sections stands on the margin to the right (spec 5.3: 36em + 64 + margin). */
 const MARGIN_FROM = 980;
 /** The section whose top is above this line is the one being read. */
 const READING_LINE = 0.38;
@@ -93,32 +92,26 @@ function useWide(ref: React.RefObject<HTMLElement | null>): boolean {
   return wide;
 }
 
-function captionFor(id: string, kind: RefKind | null, where: { title: string | null; term?: string }): string {
-  const fragment = fragmentWord(id).replace('фрагмент', 'Фрагмент');
-  if (where.term) return `${fragment} лекции — ближайший по словам к термину «${where.term}»`;
-  const place = where.title ? `разделу «${where.title}»` : 'началу конспекта';
-  if (kind === 'marked') return `${fragment} лекции — на него ссылается ${where.title ? `раздел «${where.title}»` : 'начало конспекта'}`;
-  return `${fragment} лекции — ближайший по словам к ${place}`;
-}
-
-interface MarginPick {
-  /** Section index (terms = sections.length). */
-  part: number;
-  id: string;
-  term?: string;
-  /** The section being read when the fragment was chosen: reading on lets the margin follow again. */
-  readingAt: number;
+/**
+ * Why the fragments stand by a section or a term, in plain words (owner 21.10, plain-words rules): the section's own
+ * marks say «ссылается»; a fragment found by shared words says so, it is not a confirmation.
+ */
+export function fragmentNote(kind: RefKind | null, where: { title: string | null; term?: string }): string {
+  if (where.term) return `Здесь в лекции больше всего общих слов с термином «${where.term}».`;
+  if (kind === 'marked') return where.title ? `Раздел «${where.title}» ссылается на это место лекции.` : 'Начало конспекта ссылается на это место лекции.';
+  return `Здесь в лекции больше всего общих слов с ${where.title ? `разделом «${where.title}»` : 'началом конспекта'}.`;
 }
 
 /**
  * The summary of a lecture (redesign spec 5.3): sections in a reading column of 36em; on a wide
- * page the margin to the right holds the lecture fragment of the section being read (it follows the
- * reading, a click on «фрагмент N» chooses another one) and, for a longer summary, the list of its
- * sections. On a narrow page «фрагмент N» opens the fragment under its section.
+ * page of a longer summary the margin to the right holds the list of its sections and follows the
+ * reading. «фрагмент N» under a section or a term opens the lecture fragment in the fragment panel
+ * (summary/FragmentPanel.tsx, owner 21.10): on a computer from the left over the page, on a phone
+ * from the bottom. Nothing opens inside the text, so no card grows and no row of terms stretches.
  *
  * `card` (the material page and the analysis result, Meldy 2026-10-04): the text stands in a white
- * card with a large radius, the margin beside it holds the list of sections and the fragment as soft
- * cards. Pages that put the summary into their own box leave it off.
+ * card with a large radius, the margin beside it holds the list of sections as a soft card. Pages
+ * that put the summary into their own box leave it off.
  */
 export default function SummaryView({ data, sources = [], card = false }: { data: SummaryInfo; sources?: SourceFragment[]; card?: boolean }) {
   // Formulas of lectures analysed before 2026-10-08 lost their backslashes on the server («\text» → TAB + «ext»).
@@ -135,18 +128,14 @@ export default function SummaryView({ data, sources = [], card = false }: { data
   const rootRef = useRef<HTMLDivElement>(null);
   const uid = useId();
   const wide = useWide(rootRef);
-  // A phone says nothing about the fragments: «фрагменты 2, 3» under a section says it (Phone_Declutter_2026-10-08).
-  const phone = usePhone();
-  const hasFragments = sections.some((section) => section.refs.length > 0) || termRefs.some((refs) => refs.length > 0);
   const outline = [
     ...sections.filter((section) => section.title).map((section) => ({ part: section.index, title: section.title as string })),
     ...(terms.length > 0 ? [{ part: sections.length, title: 'Термины' }] : []),
   ];
   const showOutline = outline.length >= 3;
-  const margin = wide && (hasFragments || showOutline);
+  const margin = wide && showOutline;
 
   const [reading, setReading] = useState(0);
-  const [picked, setPicked] = useState<MarginPick | null>(null);
 
   // Which section is being read: the last one whose top has passed the reading line.
   useEffect(() => {
@@ -176,43 +165,10 @@ export default function SummaryView({ data, sources = [], card = false }: { data
     };
   }, [margin, sections.length, terms.length]);
 
-  // Reading on past the section of a chosen fragment hands the margin back to the reading.
-  useEffect(() => {
-    setPicked((current) => (current && current.readingAt !== reading ? null : current));
-  }, [reading]);
-
   if (!content && terms.length === 0) {
     return <p className="text-[var(--sf-muted)]">Нет данных для отображения</p>;
   }
 
-  const partCount = sections.length + (terms.length > 0 ? 1 : 0);
-  const refsOf = (part: number): string[] => (part < sections.length ? sections[part]?.refs ?? [] : termRefs.find((refs) => refs.length > 0) ?? []);
-
-  // The margin: the chosen fragment, or the first fragment of the section being read (or of the nearest section that has one).
-  let shown: { part: number; id: string; term?: string } | null = picked;
-  if (!shown) {
-    for (let step = 0; step < partCount && !shown; step += 1) {
-      for (const part of [reading - step, reading + step]) {
-        if (part >= 0 && part < partCount && refsOf(part).length > 0) {
-          const id = refsOf(part)[0];
-          const term = part >= sections.length ? terms[termRefs.findIndex((refs) => refs.length > 0)]?.term : undefined;
-          shown = { part, id, term };
-          break;
-        }
-      }
-    }
-  }
-  const shownCaption = shown
-    ? shown.term
-      ? captionFor(shown.id, 'near', { title: null, term: shown.term })
-      : captionFor(shown.id, sections[shown.part]?.refKind ?? 'near', { title: sections[shown.part]?.title ?? null })
-    : '';
-  const shownStems = shown
-    ? shown.term
-      ? termStems[terms.findIndex((term) => term.term === shown?.term)] ?? []
-      : sections[shown.part]?.stems ?? []
-    : [];
-  const sourceText = (id: string) => sources.find((source) => source.id === id)?.text;
   const anchor = (part: number) => `${uid}-part-${part}`;
   const goTo = (part: number) => {
     const node = document.getElementById(anchor(part));
@@ -224,11 +180,6 @@ export default function SummaryView({ data, sources = [], card = false }: { data
   return (
     <div ref={rootRef} className="sv-doc" data-margin={margin ? '' : undefined} data-card={card ? '' : undefined}>
       <div className="sv-text">
-        {hasFragments && !phone && (
-          <p className="sv-origin">
-            {margin ? 'Справа от разделов — фрагменты лекции, ближайшие к ним.' : 'Под разделами — фрагменты лекции, ближайшие к ним.'}
-          </p>
-        )}
         {sections.map((section) => (
           <section
             key={section.index}
@@ -245,10 +196,7 @@ export default function SummaryView({ data, sources = [], card = false }: { data
               ids={section.refs}
               sources={sources}
               stems={section.stems}
-              mode={margin ? 'margin' : 'inline'}
-              current={shown && shown.part === section.index ? shown.id : null}
-              onPick={(id) => setPicked({ part: section.index, id, readingAt: reading })}
-              captionFor={(id) => captionFor(id, section.refKind, { title: section.title })}
+              note={fragmentNote(section.refKind, { title: section.title })}
             />
           </section>
         ))}
@@ -270,10 +218,7 @@ export default function SummaryView({ data, sources = [], card = false }: { data
                         ids={termRefs[index]}
                         sources={sources}
                         stems={termStems[index]}
-                        mode={margin ? 'margin' : 'inline'}
-                        current={shown && shown.term === term.term ? shown.id : null}
-                        onPick={(id) => setPicked({ part: sections.length, id, term: term.term, readingAt: reading })}
-                        captionFor={(id) => captionFor(id, 'near', { title: null, term: term.term })}
+                        note={fragmentNote('near', { title: null, term: term.term })}
                         compact
                       />
                     )}
@@ -307,17 +252,6 @@ export default function SummaryView({ data, sources = [], card = false }: { data
                   ))}
                 </ol>
               </nav>
-            )}
-            {shown && (
-              <div className="sv-margin-slip" key={`${shown.part}:${shown.id}`}>
-                <FragmentSlip
-                  id={shown.id}
-                  text={sourceText(shown.id)}
-                  stems={shownStems}
-                  caption={shownCaption}
-                  onClose={picked ? () => setPicked(null) : undefined}
-                />
-              </div>
             )}
           </div>
         </aside>

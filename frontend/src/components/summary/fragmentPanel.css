@@ -1,0 +1,184 @@
+/* The one fragment panel (FragmentPanel.tsx, owner 21.10): on a computer a white card that comes in from the left under
+   the top line, over the page, about 460 px wide and as tall as the window; a light dim over the rest. On a phone a
+   bottom sheet with a handle, as «почему» on the exam page. Nothing under it moves: it is fixed and sits in a portal. */
+.fp-layer {
+  --fp-gap: 12px;
+  --fp-paper: #fff8ee;
+  --fp-paper-ink: #2b2a26;
+  --fp-paper-edge: #eadfcc;
+  --fp-dim: rgba(11, 18, 28, .2);
+}
+.dark .fp-layer {
+  --fp-paper: #211f1b;
+  --fp-paper-ink: #efe8dc;
+  --fp-paper-edge: #2f2a22;
+  --fp-dim: rgba(0, 0, 0, .45);
+}
+
+.fp-dim {
+  position: fixed;
+  top: var(--fp-top, 0px);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 44;
+  background: var(--fp-dim);
+  animation: fp-fade 200ms ease backwards;
+}
+
+.fp-panel {
+  position: fixed;
+  top: calc(var(--fp-top, 0px) + var(--fp-gap));
+  bottom: var(--fp-gap);
+  left: var(--fp-gap);
+  z-index: 45;
+  box-sizing: border-box;
+  width: min(460px, calc(100vw - 2 * var(--fp-gap)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 0 28px 32px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  -webkit-font-smoothing: antialiased;
+  animation: fp-in 320ms var(--m-ease) backwards;
+}
+.fp-panel:focus { outline: none; }
+.fp-layer[data-still] .fp-panel,
+.fp-layer[data-still] .fp-dim { animation: none; }
+
+/* The top: «Фрагмент 4», or the switches between the fragments, and the round ×. It stays while the text scrolls. */
+.fp-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -28px;
+  padding: 22px 22px 12px 28px;
+  background: var(--sf-surface);
+}
+.fp-h {
+  margin: 6px 0 0;
+  font-size: 24px;
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: -.022em;
+  color: var(--sf-ink);
+}
+.fp-switch { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; padding-top: 2px; }
+.fp-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-canvas);
+  color: var(--sf-ink);
+  font-family: var(--ph-sans);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color .3s var(--m-ease), color .2s ease;
+}
+@media (hover: hover) {
+  .fp-pill:hover { background: var(--sf-accent-soft); }
+}
+.fp-pill[aria-pressed='true'] { background: var(--sf-accent); color: #fff; }
+.fp-close {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--sf-surface-soft);
+  color: var(--sf-ink);
+  cursor: pointer;
+  transition: background-color .3s ease, color .3s ease;
+}
+@media (hover: hover) {
+  .fp-close:hover { background: var(--sf-ink); color: var(--sf-surface); }
+}
+.fp-close svg { width: 20px; height: 20px; }
+
+.fp-note { margin: 0 0 16px; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+
+/* The fragment on warm paper with a few halftone dots, as the slips beside the summary were. */
+.fp-panel .fp-slip.sf-slip {
+  margin: 0;
+  padding: 22px 24px 24px;
+  border-radius: 26px;
+  background: var(--fp-paper);
+  box-shadow: 0 1px 0 var(--fp-paper-edge), 0 26px 50px -38px rgba(60, 40, 10, .45);
+  color: var(--fp-paper-ink);
+  font-size: 17px;
+  line-height: 1.6;
+  text-wrap: pretty;
+  --ph-paper-ink: var(--fp-paper-ink);
+}
+.dark .fp-panel .fp-slip.sf-slip { box-shadow: 0 0 0 1px var(--fp-paper-edge); }
+.fp-panel .fp-slip.sf-slip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(rgba(16, 41, 90, .08) 1px, transparent 1.3px);
+  background-size: 7px 7px;
+  -webkit-mask-image: linear-gradient(200deg, #000, transparent 55%);
+  mask-image: linear-gradient(200deg, #000, transparent 55%);
+  pointer-events: none;
+}
+.dark .fp-panel .fp-slip.sf-slip::before { background-image: radial-gradient(rgba(255, 248, 238, .07) 1px, transparent 1.3px); }
+.fp-panel .sv-slip-head { position: relative; display: block; margin-bottom: 6px; font-size: 15px; line-height: 22px; font-weight: 600; }
+.fp-acts { display: flex; margin: 6px 4px 0; }
+.fp-acts .sf-link { font-size: 15px; }
+
+/* A phone: a bottom sheet with a handle; the dim still leaves the top line alone. */
+.fp-layer[data-phone] .fp-panel {
+  top: auto;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: auto;
+  max-height: min(82vh, calc(100dvh - var(--fp-top, 0px) - 16px));
+  padding: 0 20px calc(24px + env(safe-area-inset-bottom));
+  border-radius: 32px 32px 0 0;
+  animation-name: fp-up;
+  animation-duration: 280ms;
+}
+.fp-grip-area { position: sticky; top: 0; z-index: 2; margin: 0 -20px; padding: 8px 0 2px; background: var(--sf-surface); }
+.fp-grip { display: block; width: 44px; height: 5px; margin: 0 auto; border-radius: 3px; background: var(--sf-line-strong, #cfd0c8); }
+.dark .fp-grip { background: #364052; }
+.fp-layer[data-phone] .fp-head { top: 15px; margin: 0 -20px; padding: 6px 14px 10px 20px; }
+.fp-layer[data-phone] .fp-h { font-size: 22px; }
+.fp-layer[data-phone] .fp-pill { min-height: 44px; }
+.fp-layer[data-phone] .fp-slip.sf-slip { padding: 18px 20px 20px; border-radius: 24px; font-size: 16px; }
+
+@keyframes fp-in {
+  from { transform: translateX(calc(-100% - 2 * var(--fp-gap))); }
+  to { transform: none; }
+}
+@keyframes fp-up {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@keyframes fp-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fp-panel,
+  .fp-dim { animation: none; }
+  .fp-pill,
+  .fp-close { transition: none; }
+}

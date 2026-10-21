@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import SourceReferences from './SourceReferences';
 
 afterEach(cleanup);
@@ -9,29 +9,56 @@ const sources = [
   { id: 'S02', text: 'Рост ВВП в номинальном выражении по итогам года составил\n7 % при инфляции около пяти процентов, что выше прогноза.' },
 ];
 
-function open(ids: string[]) {
-  render(<SourceReferences ids={ids} sources={sources} />);
+function open(ids: string[], note?: string) {
+  render(
+    <div className="card">
+      <SourceReferences ids={ids} sources={sources} note={note} />
+    </div>,
+  );
   fireEvent.click(screen.getByRole('button', { name: /Ближайшие фрагменты лекции/ }));
+  return screen.getByRole('dialog');
 }
 
+describe('SourceReferences opens the fragments in the panel, not inside the card (owner 21.10)', () => {
+  it('opens the panel beside the page and leaves the card as it was', () => {
+    const panel = open(['S01'], 'Здесь в лекции больше всего общих слов с карточкой.');
+    expect(panel).toHaveAccessibleName('Фрагмент 1 лекции');
+    expect(document.querySelector('.card .sf-slip')).toBeNull();
+    expect(within(panel).getByText('Здесь в лекции больше всего общих слов с карточкой.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Ближайшие фрагменты лекции/ })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('gives switches between the fragments of one card, in the order of their numbers', () => {
+    render(<SourceReferences ids={['S02', 'S01']} sources={sources} />);
+    const button = screen.getByRole('button', { name: 'Ближайшие фрагменты лекции: 2, 1' });
+    fireEvent.click(button);
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 1 лекции' });
+    const switches = within(panel).getAllByRole('button', { name: /^Фрагмент \d$/ });
+    expect(switches.map((item) => item.textContent)).toEqual(['Фрагмент 1', 'Фрагмент 2']);
+    fireEvent.click(switches[1]);
+    expect(screen.getByRole('dialog', { name: 'Фрагмент 2 лекции' })).toBeInTheDocument();
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(button).toHaveFocus();
+  });
+});
+
 describe('SourceReferences: a lecture heading on its own line (jury memo 12)', () => {
-  it('shows the heading line above the body and keeps «Фрагмент N.»', () => {
-    open(['S01']);
-    const heading = screen.getByText('Обучение нейронной сети');
+  it('shows the heading line above the body', () => {
+    const panel = open(['S01']);
+    const heading = within(panel).getByText('Обучение нейронной сети');
     expect(heading).toHaveAttribute('data-fragment-heading');
-    const fragment = heading.closest('p') as HTMLElement;
-    expect(fragment).toHaveTextContent(/^Фрагмент 1\.Обучение нейронной сетиОбучение сети заключается в подборе весов и смещений по данным\.$/);
-    const body = screen.getByText('Обучение сети заключается в подборе весов и смещений по данным.');
-    // The body is a block of its own: it starts a new line under the heading.
-    expect(body).toHaveClass('block');
-    expect(body.previousElementSibling).toBe(heading);
+    const slip = heading.closest('blockquote') as HTMLElement;
+    expect(slip.textContent).toBe('Обучение нейронной сетиОбучение сети заключается в подборе весов и смещений по данным.');
+    expect(heading.nextSibling?.textContent).toBe('Обучение сети заключается в подборе весов и смещений по данным.');
   });
 
   it('leaves a fragment without a heading unchanged (a PDF wrap is not a heading)', () => {
-    open(['S02']);
-    const fragment = screen.getByText(/Фрагмент 2\./).closest('p') as HTMLElement;
-    expect(fragment.querySelector('[data-fragment-heading]')).toBeNull();
-    expect(fragment.textContent).toBe(`Фрагмент 2.${sources[1].text}`);
+    const panel = open(['S02']);
+    const slip = panel.querySelector('.fp-slip') as HTMLElement;
+    expect(slip.querySelector('[data-fragment-heading]')).toBeNull();
+    // The wrap of the PDF line is joined: one paragraph, no heading.
+    expect(slip.textContent).toBe(sources[1].text.replace('\n', ' '));
   });
 
   it('still says when a fragment text is missing', () => {
@@ -47,29 +74,15 @@ describe('SourceReferences: a lecture heading on its own line (jury memo 12)', (
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /Ближайшие фрагменты лекции/ }));
-    const fragment = screen.getByText(/Фрагмент 3\./).closest('p') as HTMLElement;
-    expect(fragment.querySelectorAll('.katex')).toHaveLength(2);
+    const slip = screen.getByRole('dialog').querySelector('.fp-slip') as HTMLElement;
+    expect(slip.querySelectorAll('.katex')).toHaveLength(2);
     expect(screen.getByText('Теорема Пифагора')).toHaveAttribute('data-fragment-heading');
-    const body = fragment.querySelector('.block') as HTMLElement;
-    const plain = Array.from(body.childNodes)
+    const plain = Array.from(slip.childNodes)
       .filter(node => node.nodeType === Node.TEXT_NODE)
       .map(node => node.textContent)
       .join('');
     // The comma after the short formula stays on its line, with the formula.
     expect(plain).toBe('Сумма квадратов катетов:  при этом  прямоугольный.');
-    expect(body.querySelector('.sv-math-run')?.textContent?.endsWith(',')).toBe(true);
-  });
-});
-
-describe('SourceReferences: the button names its panel only while the panel is there', () => {
-  it('has no aria-controls while folded and points at the slips once open', () => {
-    render(<SourceReferences ids={['S01']} sources={sources} />);
-    const button = screen.getByRole('button', { name: /Ближайшие фрагменты лекции/ });
-    expect(button).toHaveAttribute('aria-expanded', 'false');
-    expect(button).not.toHaveAttribute('aria-controls');
-    fireEvent.click(button);
-    const id = button.getAttribute('aria-controls');
-    expect(id).toBeTruthy();
-    expect(document.getElementById(id as string)).not.toBeNull();
+    expect(slip.querySelector('.sv-math-run')?.textContent?.endsWith(',')).toBe(true);
   });
 });
