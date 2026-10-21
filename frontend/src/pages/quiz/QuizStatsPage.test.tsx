@@ -49,10 +49,10 @@ function Where() {
   return <p data-testid="where">{location.pathname}</p>;
 }
 
-function renderPage(width = 1532) {
+function renderPage(width = 1532, search = '') {
   Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
   return render(
-    <MemoryRouter initialEntries={[`/exams/c/${EXAM}/quizzes/${QUIZ_ID}`]}>
+    <MemoryRouter initialEntries={[`/exams/c/${EXAM}/quizzes/${QUIZ_ID}${search}`]}>
       <Routes>
         <Route path="/exams/c/:id/quizzes/:quizId" element={<QuizStatsPage />} />
         <Route path="*" element={<Where />} />
@@ -293,6 +293,21 @@ describe('«Вопросы»', () => {
       .map((card) => plain(card.querySelector('.qa-q-line')?.textContent));
     expect(lines[0]).toBe('Телефон проверка 19.10 · № 5: 1 из 4 ответили верно (25 %)');
     expect(lines.join(' ')).not.toContain('Вариант');
+  });
+
+  it('owner 21.10: a reload keeps the tab (?tab=questions)', async () => {
+    window.history.replaceState(null, '', `/exams/c/${EXAM}/quizzes/${QUIZ_ID}`);
+    try {
+      const first = renderPage();
+      fireEvent.click(await screen.findByRole('tab', { name: QA_STATS.tabQuestions }));
+      expect(window.location.search).toBe('?tab=questions');
+      first.unmount();
+      renderPage(1532, window.location.search);
+      expect(await screen.findByRole('tab', { name: QA_STATS.tabQuestions })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('list', { name: QA_QUESTIONS.title })).toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
   });
 
   it('the hardest first, the picks with the key in words, the common wrong answers, «Изменить» to «Вопросы и ключи»', async () => {

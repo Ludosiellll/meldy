@@ -52,9 +52,9 @@ function shelf(id: string, links: Array<[string, string]>, extra: Partial<ExamSh
 /** The text with its no-break spaces as plain ones (the lists keep a number with its word). */
 const plain = (text: string) => text.replace(/\u00a0/g, ' ');
 
-function renderLibrary() {
+function renderLibrary(path = '/library') {
   return render(
-    <MemoryRouter initialEntries={['/library']}>
+    <MemoryRouter initialEntries={[path]}>
       <Library />
     </MemoryRouter>,
   );
@@ -205,6 +205,30 @@ describe('<Library>', () => {
     expect(within(folders).getByRole('button', { name: /Семинары/ })).toBeInTheDocument();
     fireEvent.change(screen.getByRole('searchbox', { name: 'Найти лекцию' }), { target: { value: 'лекция 12' } });
     expect(screen.getAllByRole('link', { name: /Лекция/ }).map((link) => link.textContent)).toEqual([expect.stringContaining('Лекция 12')]);
+  });
+
+  it('owner 21.10: a reload keeps the search and the folder chosen (?q=, ?folder=)', async () => {
+    data.materials = Array.from({ length: SEARCH_FROM }, (_, index) => material(`m${index}`, `Лекция ${index + 1}`, `2026-09-${String(index + 1).padStart(2, '0')}T00:00:00Z`));
+    window.localStorage.setItem('library_folders_user-1', JSON.stringify([{ id: 'folder_9', name: 'Семинары' }]));
+    window.localStorage.setItem('library_folder_assignments_user-1', JSON.stringify({ m0: 'folder_9', m11: 'folder_9' }));
+    window.history.replaceState(null, '', '/library');
+    try {
+      const first = renderLibrary();
+      await screen.findByText('Лекция 13');
+      fireEvent.click(within(screen.getByRole('list', { name: 'Папки' })).getByRole('button', { name: /Семинары/ }));
+      fireEvent.change(screen.getByRole('searchbox', { name: 'Найти лекцию' }), { target: { value: 'лекция 12' } });
+      expect(new URLSearchParams(window.location.search).get('q')).toBe('лекция 12');
+      expect(new URLSearchParams(window.location.search).get('folder')).toBe('folder_9');
+      first.unmount();
+
+      renderLibrary(`${window.location.pathname}${window.location.search}`);
+      await screen.findByText('Лекция 12');
+      expect((screen.getByRole('searchbox', { name: 'Найти лекцию' }) as HTMLInputElement).value).toBe('лекция 12');
+      expect(within(screen.getByRole('list', { name: 'Папки' })).getByRole('button', { name: /Семинары/ })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getAllByRole('link', { name: /Лекция/ }).map((link) => link.textContent)).toEqual([expect.stringContaining('Лекция 12')]);
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
   });
 
   it('renames and deletes from «⋯», asking before a delete', async () => {
