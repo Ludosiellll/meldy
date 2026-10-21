@@ -188,12 +188,16 @@ describe('AuthProvider: a guest on the landing', () => {
   }
 
   it('never fetches the client while the guest stays on the landing, even when the page is idle', async () => {
+    // A fresh page: the tests above have loaded the client in this file's modules, and a client some page has already
+    // loaded is read at once (lib/supabaseClient whenSupabaseLoaded) — that costs the guest nothing. Here nothing has.
+    vi.resetModules();
+    const { AuthProvider: FreshProvider } = await import('./AuthContext');
     vi.useFakeTimers();
     try {
       render(
-        <AuthProvider>
+        <FreshProvider>
           <Who />
-        </AuthProvider>,
+        </FreshProvider>,
       );
       await act(async () => {
         window.dispatchEvent(new Event('load'));
