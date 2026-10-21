@@ -7,10 +7,13 @@
 <link rel="stylesheet" href="../design/stage.css">
 <style>
 /* What a student has before the session, drawn without a number: two rows of lecture sheets and a field of question
-   squares. Each group is one picture (data-pptx="image") that fades in; no count is tied to it. */
+   squares. The motion is native builds: every sheet is its own picture and arrives one after another, column by
+   column, like the weeks of a semester; then the questions fill the field row by row from the bottom up (one picture
+   per row of 40). Calm fades only; the static frame (PDF, Normal view) is the full field. No count is tied to it. */
 .sheet { position: absolute; width: 44px; height: 56px; border-radius: 8px; background: var(--surface-soft); border: 2px solid var(--line); }
 .sheet i { position: absolute; left: 8px; height: 4px; border-radius: 2px; background: #3a4456; }
-.q { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: #2b3444; }
+.qrow { position: absolute; width: 800px; height: 14px; }
+.q { position: absolute; top: 0; width: 14px; height: 14px; border-radius: 3px; background: #2b3444; }
 </style>
 </head>
 <body>
@@ -22,44 +25,53 @@
 
 <div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Перед сессией у&nbsp;студента десятки лекций<br>и&nbsp;сотни вопросов кафедры</div>
 
-<div class="t28" data-pptx="text" style="left:964px;top:356px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="2">Лекции за&nbsp;семестр</div>
-<div id="sheets" data-pptx="image" aria-label="Два ряда листов лекций" style="left:964px;top:404px;width:800px;height:128px" data-anim="fade" data-anim-trigger="with" data-anim-dur="700" data-anim-order="2"></div>
-<div class="t28" data-pptx="text" style="left:964px;top:580px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="3">Вопросы кафедры</div>
-<div id="grid" data-pptx="image" aria-label="Поле квадратов, по одному на вопрос" style="left:964px;top:628px;width:800px;height:254px" data-anim="fade" data-anim-trigger="with" data-anim-dur="900" data-anim-order="3"></div>
+<div class="t28" data-pptx="text" style="left:964px;top:372px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="2">Лекции за&nbsp;семестр</div>
+<div id="sheets"></div>
+<div class="t28" data-pptx="text" style="left:964px;top:596px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="3">Вопросы кафедры</div>
+<div id="grid"></div>
 
-<div class="t48" data-pptx="text" style="left:128px;top:404px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4">Сколько учить в&nbsp;день<br>и&nbsp;что уже выучено,<br>студент считает сам</div>
-<div class="t48" data-pptx="text" style="left:128px;top:652px;color:var(--muted)" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="5">Проверить себя он может<br>только на&nbsp;экзамене</div>
+<div class="t48" data-pptx="text" style="left:128px;top:420px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4">Сколько учить в&nbsp;день<br>и&nbsp;что уже выучено,<br>студент считает сам</div>
+<div class="t48" data-pptx="text" style="left:128px;top:680px;color:var(--muted)" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="5">Проверить себя он может<br>только на&nbsp;экзамене</div>
 <script>
-  // Lecture sheets: 2 rows of 14 (44 x 56, step 58 x 72), three text lines each.
-  const s = document.getElementById('sheets');
-  for (let i = 0; i < 28; i++) {
+  // Lecture sheets: 2 rows of 14 (44 x 56, step 58 x 72) from (964, 420), three text lines each. One picture per
+  // sheet; they arrive column by column (top, then bottom), 45 ms apart, each a 300 ms fade.
+  const main = document.querySelector('main.slide');
+  const sheetsAt = document.getElementById('sheets');
+  for (let k = 0; k < 28; k++) {
+    const col = Math.floor(k / 2), row = k % 2;
     const d = document.createElement('div');
     d.className = 'sheet';
-    d.style.left = ((i % 14) * 58) + 'px';
-    d.style.top = (Math.floor(i / 14) * 72) + 'px';
+    d.style.left = (964 + col * 58) + 'px';
+    d.style.top = (420 + row * 72) + 'px';
     d.innerHTML = '<i style="top:12px;width:26px"></i><i style="top:22px;width:22px"></i><i style="top:32px;width:18px"></i>';
-    s.appendChild(d);
+    Object.assign(d.dataset, { pptx: 'image', anim: 'fade', animTrigger: 'with', animDelay: String(k * 45), animDur: '300', animOrder: '2' });
+    d.setAttribute('aria-label', 'Лекция');
+    main.insertBefore(d, sheetsAt);
   }
-  // Questions: a plain field of 40 x 13 squares (14 px, step 20).
-  const g = document.getElementById('grid');
-  for (let i = 0; i < 520; i++) {
-    const d = document.createElement('div');
-    d.className = 'q';
-    d.style.left = ((i % 40) * 20) + 'px';
-    d.style.top = (Math.floor(i / 40) * 20) + 'px';
-    g.appendChild(d);
+  sheetsAt.remove();
+  // Questions: a field of 40 x 16 squares (14 px, step 20) from (964, 644). One picture per row; the rows fill the
+  // field from the bottom up, 75 ms apart, each a 300 ms fade.
+  const gridAt = document.getElementById('grid');
+  const ROWS = 16;
+  for (let r = 0; r < ROWS; r++) {
+    const row = document.createElement('div');
+    row.className = 'qrow';
+    row.style.left = '964px';
+    row.style.top = (644 + r * 20) + 'px';
+    for (let i = 0; i < 40; i++) {
+      const q = document.createElement('div');
+      q.className = 'q';
+      q.style.left = (i * 20) + 'px';
+      row.appendChild(q);
+    }
+    Object.assign(row.dataset, { pptx: 'image', anim: 'fade', animTrigger: 'with', animDelay: String((ROWS - 1 - r) * 75), animDur: '300', animOrder: '3' });
+    row.setAttribute('aria-label', 'Вопросы кафедры');
+    main.insertBefore(row, gridAt);
   }
+  gridAt.remove();
 </script>
 
-<div class="rule" style="left:128px;top:944px;width:1664px"></div>
-<div class="t32" data-pptx="text" style="left:128px;top:972px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="6">Более 229&nbsp;тыс. студентов в&nbsp;46&nbsp;вузах Беларуси</div>
-<div class="t28" data-pptx="text" style="left:880px;top:976px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="6">Минобразования, БЕЛТА, 2026</div>
-
-<template data-pptx="notes">Перед сессией у студента десятки лекций и сотни вопросов кафедры. Сколько учить в день и что уже выучено, студент считает сам. А проверить себя он может только на самом экзамене.
-
-[Щелчок.] В Беларуси около двухсот тридцати тысяч студентов вузов. Сессия у каждого два раза в год.
-
-Если спросят: число 229 тысяч взято у Минобразования через БЕЛТА, 2026 год. Цитата: «в стране работают 46 вузов, в которых обучается более 229 тысяч студентов».</template>
+<template data-pptx="notes">Перед сессией у студента десятки лекций и сотни вопросов кафедры. Сколько учить в день и что уже выучено, студент считает сам. А проверить себя он может только на самом экзамене.</template>
 </main>
 </body>
 </html>

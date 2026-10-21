@@ -6,3 +6,4 @@ pillow==12.3.0
 numpy==2.4.6
 defusedxml==0.7.1   # the pptx skill's validate.py
 pytest==9.1.1
+pypdf==6.20.1        # clean.py: the PDF copy without metadata or attachments

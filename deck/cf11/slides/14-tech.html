@@ -39,24 +39,48 @@
 <div class="k" data-pptx="text" style="left:760px;top:714px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Языковые модели и&nbsp;бот</div>
 <div class="v" data-pptx="text" style="left:760px;top:748px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Gemini, Groq, Telegram Bot API</div>
 
-<!-- How it is checked: the autotests counted on the freeze day, 21.10.2026, at meldy 5fb1c5e (release 47.10). -->
-<div class="panel" data-pptx="shape" style="left:1312px;top:340px;width:480px;height:560px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4"></div>
-<div class="grp" data-pptx="text" style="left:1360px;top:376px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Как проверяем</div>
-<div class="big" data-pptx="text" style="left:1354px;top:432px;font-size:112px;line-height:116px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">8&nbsp;978</div>
-<div class="t32" data-pptx="text" style="left:1360px;top:556px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">автотестов</div>
-<div class="t28m" data-pptx="text" style="left:1360px;top:604px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">6&nbsp;276 сайт (Vitest)<br>2&nbsp;316 сервер (pytest)<br>386 бот</div>
-<div class="t28m" data-pptx="text" style="left:1360px;top:740px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Новая версия выходит,<br>только если прошли все.<br>Потом проверяем живой сайт</div>
+<!-- The autotests: how many times they ran over the whole development (every recorded test run since 02.10.2026,
+     each run counted once: 2 425 795 test executions in 3 998 runs), and today's suite at meldy 67a3e9f (21.10.2026):
+     6 633 site (Vitest) + 2 472 server (pytest) + 393 bot = 9 498. -->
+<div class="panel" data-pptx="shape" style="left:1312px;top:340px;width:480px;height:452px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4"></div>
+<div class="big" data-pptx="text" style="left:1354px;top:380px;font-size:112px;line-height:116px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">2,4&nbsp;млн</div>
+<div class="t32" data-pptx="text" style="left:1360px;top:512px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">запусков автотестов<br>за&nbsp;время разработки</div>
+<div class="t28m" data-pptx="text" style="left:1360px;top:668px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Сейчас 9&nbsp;498 автотестов<br>у&nbsp;сайта, сервера и&nbsp;бота</div>
 
-<div class="rule" style="left:128px;top:952px;width:1664px"></div>
-<div class="t28m" data-pptx="text" style="left:128px;top:980px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">Сайт ludosiel-studyforge.hf.space. Пример без&nbsp;регистрации /try. Бот @Meldyteach_bot. Версия 47.13 от&nbsp;21.10.2026</div>
+<!-- The test tools really used in this repository (names only; what each one checks is in the notes). -->
+<div class="grp" data-pptx="text" style="left:128px;top:852px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">Тесты</div>
+<div class="k" data-pptx="text" style="left:128px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Сайт</div>
+<div class="v" data-pptx="text" style="left:128px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Vitest, React Testing Library</div>
+<div class="k" data-pptx="text" style="left:760px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Сервер</div>
+<div class="v" data-pptx="text" style="left:760px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">pytest, httpx</div>
+<div class="k" data-pptx="text" style="left:1040px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Бот</div>
+<div class="v" data-pptx="text" style="left:1040px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">node:test</div>
+<div class="k" data-pptx="text" style="left:1312px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Браузер и&nbsp;выпуск</div>
+<div class="v" data-pptx="text" style="left:1312px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Playwright, GitHub Actions</div>
 
 <template data-pptx="notes">Требования простые. Нужен любой современный браузер на телефоне или компьютере. Устанавливать ничего не нужно. Для ответов вслух нужен микрофон. Telegram по желанию. Тест по ссылке проходят без аккаунта.
 
 Сайт сделан на React и TypeScript. Сервер на Python и FastAPI. База данных Supabase. Языковые модели Gemini и Groq. Бот работает через Telegram Bot API.
 
-Как мы проверяем работу. У сайта, сервера и бота 8 978 автотестов. Новая версия выходит, только если прошли все. После выхода мы проверяем живой сайт.
+Как мы проверяем работу. За время разработки автотесты запускались 2,4 миллиона раз. Сейчас у сайта, сервера и бота 9 498 автотестов. Новая версия выходит, только если прошли все. После выхода мы проверяем живой сайт.
 
-Если спросят: 8 978 это 6 276 тестов Vitest, 2 316 pytest и 386 тестов бота. Посчитано 21.10.2026, в день заморозки чисел, на коммите 5fb1c5e. Это версия 47.10.</template>
+Если спросят, откуда 2,4 миллиона: это 2 425 795 запусков тестов. Посчитано по журналам работы с 2 октября. Это 3 998 прогонов, каждый прогон учтён один раз. Vitest запускал тесты 1 876 041 раз в 2 857 прогонах. pytest 485 080 раз в 836 прогонах. Тесты бота 64 674 раза в 305 прогонах.
+
+Если спросят, из чего 9 498: 6 633 теста сайта в Vitest, 2 472 теста сервера в pytest и 393 теста бота. Посчитано 21 октября 2026 года.
+
+Если спросят, чем тестируем:
+Vitest. Тесты сайта: расчёты, логика и экраны.
+React Testing Library с user-event и jest-dom. Проверяет экраны так, как с ними работает человек: нажимает, вводит и смотрит, что показано.
+jsdom. Браузер для этих тестов без окна.
+TypeScript. При каждой сборке сайта проверяет типы во всём коде.
+pytest. Тесты сервера.
+httpx. Через него тесты обращаются к серверу на FastAPI, как настоящий клиент.
+node:test. Тесты бота на встроенном раннере Node.
+Playwright в Chromium. Проходит сайт в настоящем браузере, снимает экраны в размере телефона и ноутбука, проверяет живой сайт.
+Нагрузка. Живая игра с 30 ботами через WebSocket на рабочем сайте.
+База данных. 31 файл SQL-проверок, их запускает GitHub Actions после миграций. Каждую миграцию сначала прогоняем на временной базе PostgreSQL. Ещё смотрим советы Supabase по безопасности и скорости.
+Сверка. Урон в игре считается одинаково в коде сайта и в базе. Сверено на 600 030 случаях.
+GitHub Actions. Применяет миграции с проверками и выкладывает сайт. После выкладки проверяет, что живой сайт отвечает.</template>
 </main>
 </body>
 </html>

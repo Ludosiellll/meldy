@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // HTML slides -> slides.json + pictures, per deck/cf11/CONTRACT.md.
 //
-//   node extract.mjs [--slides <dir>] [--out <dir>] [--only 01,03] [--no-opt] [--fill <private/fill.json>]
+//   node extract.mjs [--slides <dir>] [--out <dir>] [--only 01,03] [--no-opt] [--fill <private/fill.json>] [--no-notes]
 //
 // For every <dir>/NN-*.html: open at 1920x1080 (device scale 1), put the private values into [data-fill] elements
 // (--fill, default <slides>/../private/fill.json, git-ignored; a missing file or key keeps the placeholder and warns
@@ -14,6 +14,7 @@
 //                   when that cannot be a native one)
 //   img/NN/eK-text.png  the glyphs of each live text box alone (for the motion preview only)
 // Finally imgopt.py trims the layers and picks PNG8 or PNG24 for each picture (skip with --no-opt).
+// --no-notes leaves every slide's speaker notes out of slides.json, so the PPTX gets none (the file the jury gets).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -24,7 +25,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DECK = path.resolve(HERE, '..');
 
 function parseArgs(argv) {
-  const a = { slides: path.join(DECK, 'slides'), out: path.join(DECK, 'out', 'build'), only: null, opt: true, fill: null };
+  const a = { slides: path.join(DECK, 'slides'), out: path.join(DECK, 'out', 'build'), only: null, opt: true, fill: null, notes: true };
   for (let i = 0; i < argv.length; i++) {
     const k = argv[i];
     if (k === '--slides') a.slides = path.resolve(argv[++i]);
@@ -32,6 +33,7 @@ function parseArgs(argv) {
     else if (k === '--only') a.only = new Set(argv[++i].split(',').map((s) => s.trim().padStart(2, '0')));
     else if (k === '--no-opt') a.opt = false;
     else if (k === '--fill') a.fill = path.resolve(argv[++i]);
+    else if (k === '--no-notes') a.notes = false;
     else if (k === '-h' || k === '--help') { console.log(fs.readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 20).join('\n')); process.exit(0); }
     else throw new Error('unknown argument ' + k);
   }
@@ -218,6 +220,7 @@ async function main() {
     }
     await page2.close();
 
+    if (!args.notes) data.notes = [];
     for (const w of data.warnings) console.warn(`  ! ${file}: ${w}`);
     warnCount += data.warnings.length;
     const counts = data.elements.reduce((m, e) => ((m[e.type] = (m[e.type] || 0) + 1), m), {});

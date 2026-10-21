@@ -30,8 +30,17 @@ The whole chain:
 
 ```sh
 tools/make.sh            # the deck: slides/ -> out/meldy-codingfest11.pptx (+ PDF copy, renders, comparison)
+DECK_NOTES=1 tools/make.sh   # the same with the speaker notes (the speaker's copy; the jury's file has none)
 tools/make.sh fixtures   # the compiler's fixtures: tools/fixtures/ -> out/fixtures/cf11-fixtures.pptx
 ```
+
+The deck's file is the one the jury gets: `extract.mjs --no-notes` leaves the notes out, `clean.py pptx` makes the
+document properties neutral (title «Meldy», nothing else; no application name) and strips metadata from the media
+(PNG text chunks, JPEG EXIF/XMP/comments, SVG comments, MP4 tags by a stream-copy remux) and the template's frozen
+date from the master, `clean.py pdf` rewrites the PDF copy with the title only, no XMP packet and without the Screen
+annotations LibreOffice uses to attach the videos (the posters are page content, so the pages look the same; the PDF
+drops from ≈ 5.9 to ≈ 2.2 MB), and `clean.py check` fails the build on tool names, paths, e-mail addresses, notes,
+comments, hidden slides, custom properties, metadata or attachments it finds in either file (`pypdf` reads the PDF).
 
 It ends with `ALL GREEN` or lists what failed. Step by step:
 
@@ -43,6 +52,7 @@ It ends with `ALL GREEN` or lists what failed. Step by step:
 | render | `tools/render.sh FILE.pptx out/render out/build/slides.json` | PDF, `slide-N.png` at 1920 px, `contact-sheet.png`, pdffonts, size, the pptx skill's `validate.py` |
 | compare | `python tools/compare.py out/build out/render` | `out/render/compare/side-NN.png`, `diff-NN.png`, per-text offsets, exit 1 above 2.5 px (plus LibreOffice's run-change spacing drift, listed); every native shadow's ring against the HTML, exit 1 above p99 10 grey levels |
 | animations | `python tools/lo_roundtrip.py FILE.pptx out/build/slides.json` | how LibreOffice reads every effect, trigger, wipe direction, settle, easing, video play/loop |
+| clean | `python tools/clean.py pptx FILE.pptx`, `clean.py pdf FILE.pdf`, `clean.py check FILE.pptx FILE.pdf [--no-notes]` | the file and the PDF copy without hidden data, and the check of both (deck only) |
 | preview | `tools/preview/preview.sh [fixtures] [--only 06,07]` | `out/preview/motion/`: `deck.mp4`, `NN-in.mp4`, `keyframes/NN-in.png`, `morph-log.txt` (not part of `make.sh`: ≈ 3 min) |
 | tests | `python -m pytest deck/cf11/tools/tests` | unit tests (geometry, runs, fonts, EOT, timing XML vs the ISO schema, transitions, crops, bleed, Morph pairing, fill, native shadows, travelling layers, preview scenes) and an integration build |
 
