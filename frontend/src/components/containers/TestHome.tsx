@@ -65,7 +65,7 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
     </Link>
   );
   // «Провести игру» (live game «Битва с монстром», docs/live/CONTRACT.md): the setup at /live/new; shut for the same reason,
-  // and hidden until the students' side is on the site (lib/live/open).
+  // and hidden while the game is shut (lib/live/open: open to every author since 47.12).
   const game = !liveGameOpen() ? null : why ? (
     <button type="button" className="th-send" disabled aria-describedby={whyId}>
       {LIVE_ENTRY.host}
