@@ -1,6 +1,6 @@
 import PaperSelect from '../ui/PaperSelect';
 import { QUICK } from './copyQuick';
-import { QUICK_ATTEMPTS, QUICK_DAYS, QUICK_MINUTES, type QuickSettings, type QuickWho } from './quickModel';
+import { QUICK_ATTEMPTS, QUICK_DAYS, QUICK_MINUTES, QUICK_REVIEWS, type QuickReview, type QuickSettings, type QuickWho } from './quickModel';
 
 /** A list that allows «нет»: PaperSelect takes numbers, so null is 0. */
 const nz = (value: number | null) => value ?? 0;
@@ -8,7 +8,8 @@ const zn = (value: number) => (value === 0 ? null : value);
 
 /**
  * The few settings of «Быстрая контрольная» as pills, each a short list: who writes (without signing in by default),
- * the time, how long it stays open, the attempts. The rest is in the full form, behind «Ещё настройки».
+ * the time, how long it stays open, the attempts, when the right answers show. The rest is in the full form, behind
+ * «Ещё настройки».
  */
 export default function QuickChips({
   value,
@@ -56,6 +57,14 @@ export default function QuickChips({
         disabled={disabled}
         options={QUICK_ATTEMPTS.map((tries) => ({ value: nz(tries), label: tries === null ? QUICK.tries.any : QUICK.tries.some(tries) }))}
         onChange={(next) => set('attempts', zn(next))}
+      />
+      <PaperSelect<QuickReview>
+        className="qk-chip"
+        ariaLabel={QUICK.review.label}
+        value={value.review}
+        disabled={disabled}
+        options={QUICK_REVIEWS.map((review) => ({ value: review, label: review === 'answers' ? QUICK.review.now : QUICK.review.later }))}
+        onChange={(next) => set('review', next)}
       />
     </div>
   );

@@ -140,6 +140,8 @@ describe('QuickTestPage', () => {
     const [containerId, settings] = api.createQuiz.mock.calls[0];
     expect(containerId).toBe('c-new');
     expect(settings).toMatchObject({ title: 'Кислоты, 9 Б', subject_ids: ['s-new'], item_count: 3, guests: true, time_limit_min: null, attempts: 1, same_set: true });
+    // The right answers at the end, at once (owner, 21.10).
+    expect(settings).toMatchObject({ review: 'answers' });
   });
 
   it('without a name the контрольная is named by the day', async () => {
@@ -159,9 +161,12 @@ describe('QuickTestPage', () => {
     fireEvent.click(screen.getByRole('option', { name: '20 минут' }));
     fireEvent.click(screen.getByRole('combobox', { name: QUICK.who.label }));
     fireEvent.click(screen.getByRole('option', { name: QUICK.who.link }));
+    expect(screen.getByRole('combobox', { name: QUICK.review.label })).toHaveTextContent(QUICK.review.now);
+    fireEvent.click(screen.getByRole('combobox', { name: QUICK.review.label }));
+    fireEvent.click(screen.getByRole('option', { name: QUICK.review.later }));
     fireEvent.click(submit());
     await screen.findByRole('heading', { name: 'Ссылка c-new q-new' });
-    expect(api.createQuiz.mock.calls[0][1]).toMatchObject({ time_limit_min: 20, guests: false });
+    expect(api.createQuiz.mock.calls[0][1]).toMatchObject({ time_limit_min: 20, guests: false, review: 'mistakes_then_answers' });
   });
 
   it('a failure says so in place, and «Получить ссылку» again goes on without a second test', async () => {

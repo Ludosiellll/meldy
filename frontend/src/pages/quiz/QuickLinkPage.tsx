@@ -18,13 +18,14 @@ import '../../components/quick/quick.css';
 
 const QUIET = 4;
 
-/** The facts of the контрольная as short tags (no chain of «·»): the questions, the time, until when. */
-export function linkFacts(row: Pick<QuizListRow, 'item_count' | 'time_limit_s' | 'closes_at' | 'state'>, now: Date = new Date()): string[] {
+/** The facts of the контрольная as short tags (no chain of «·»): the questions, the time, until when, the right answers. */
+export function linkFacts(row: Pick<QuizListRow, 'item_count' | 'time_limit_s' | 'closes_at' | 'state' | 'review'>, now: Date = new Date()): string[] {
   const minutes = row.time_limit_s === null ? null : Math.round(row.time_limit_s / 60);
   return [
     QUICK_LINK.questions(row.item_count),
     minutes === null ? QUICK_LINK.noTime : QUICK_LINK.time(minutes),
     row.state === 'closed' ? QUICK_LINK.closed : row.closes_at ? QUICK_LINK.until(dateWords(row.closes_at, now)) : QUICK_LINK.noEnd,
+    QUICK_LINK.review[row.review],
   ];
 }
 

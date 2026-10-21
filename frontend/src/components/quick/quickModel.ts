@@ -9,7 +9,7 @@
  * line is a short answer (forms split by «;»). One without either cannot be saved: it is shown, and left out.
  */
 import type { BankItem, BankParseResult, ItemInput } from '../../types/container';
-import type { QuizSettings } from '../../types/quiz';
+import type { QuizReview, QuizSettings } from '../../types/quiz';
 import { draftItem, newImportId, shortNorm, type DraftItem } from '../containers/import/importModel';
 import { allQuestions } from '../quiz/setupModel';
 import { defaultSettings, MAX_ITEMS } from '../../lib/quizzes/quizModel';
@@ -160,6 +160,8 @@ export function quickInputs(list: readonly QuickQuestion[], importId: string = n
 // ───────────────────────────────────────── the settings
 
 export type QuickWho = 'guests' | 'link';
+/** The right answers at the end: at once, or after the closing (mistakes at once either way). */
+export type QuickReview = Extract<QuizReview, 'answers' | 'mistakes_then_answers'>;
 
 export interface QuickSettings {
   who: QuickWho;
@@ -169,9 +171,11 @@ export interface QuickSettings {
   days: number | null;
   /** null — as many as the student likes. */
   attempts: number | null;
+  review: QuickReview;
 }
 
-export const QUICK_DEFAULTS: QuickSettings = { who: 'guests', minutes: null, days: 7, attempts: 1 };
+export const QUICK_DEFAULTS: QuickSettings = { who: 'guests', minutes: null, days: 7, attempts: 1, review: 'answers' };
+export const QUICK_REVIEWS: readonly QuickReview[] = ['answers', 'mistakes_then_answers'];
 export const QUICK_MINUTES: readonly (number | null)[] = [null, 10, 15, 20, 30, 45, 60];
 export const QUICK_DAYS: readonly (number | null)[] = [1, 3, 7, 14, null];
 export const QUICK_ATTEMPTS: readonly (number | null)[] = [1, 2, 3, null];
@@ -194,6 +198,7 @@ export function quickQuizSettings(title: string, subjectId: string, count: numbe
     attempts: quick.attempts,
     guests: quick.who === 'guests',
     members_only: false,
+    review: quick.review,
   };
 }
 
@@ -205,5 +210,6 @@ export function quickPreset(quick: QuickSettings, now: Date = new Date()): Parti
     attempts: quick.attempts,
     guests: quick.who === 'guests',
     members_only: false,
+    review: quick.review,
   };
 }

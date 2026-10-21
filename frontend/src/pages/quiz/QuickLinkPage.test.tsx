@@ -128,8 +128,11 @@ describe('QuickLinkPage', () => {
 
   it('linkFacts: the time and the end in words', () => {
     const now = new Date(2026, 9, 21);
-    expect(linkFacts(row({ time_limit_s: 1200 }), now)).toEqual(['4 вопроса', 'На 20 минут', 'Открыта до 28 октября, 23:59']);
-    expect(linkFacts(row({ closes_at: null, time_limit_s: 3600 }), now)).toEqual(['4 вопроса', 'На 1 час', 'Без срока']);
+    expect(linkFacts(row({ time_limit_s: 1200 }), now).slice(0, 3)).toEqual(['4 вопроса', 'На 20 минут', 'Открыта до 28 октября, 23:59']);
+    expect(linkFacts(row({ closes_at: null, time_limit_s: 3600 }), now).slice(0, 3)).toEqual(['4 вопроса', 'На 1 час', 'Без срока']);
     expect(linkFacts(row({ state: 'closed' }), now)[2]).toBe('Закрыта');
+    // When the right answers show (owner, 21.10: at the end, by default at once).
+    expect(linkFacts(row({}), now)[3]).toBe('Верные ответы после закрытия');
+    expect(linkFacts(row({ review: 'answers' }), now)[3]).toBe('Верные ответы сразу');
   });
 });

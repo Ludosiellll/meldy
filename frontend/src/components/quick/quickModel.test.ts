@@ -129,23 +129,26 @@ describe('the settings', () => {
       attempts: 1,
       guests: true,
       members_only: false,
+      // Owner, 21.10: the right answers at the end, not only the mistakes.
+      review: 'answers',
     });
     const closes = new Date(settings.closes_at as string);
     expect([closes.getDate(), closes.getMonth(), closes.getHours(), closes.getMinutes()]).toEqual([28, 9, 23, 59]);
   });
 
   it('the pills change what they say', () => {
-    const settings = quickQuizSettings('Т', 's', 5, { who: 'link', minutes: 20, days: null, attempts: null }, now);
-    expect(settings).toMatchObject({ guests: false, time_limit_min: 20, closes_at: null, attempts: null });
+    const settings = quickQuizSettings('Т', 's', 5, { who: 'link', minutes: 20, days: null, attempts: null, review: 'mistakes_then_answers' }, now);
+    expect(settings).toMatchObject({ guests: false, time_limit_min: 20, closes_at: null, attempts: null, review: 'mistakes_then_answers' });
   });
 
   it('«Ещё настройки» hands the full form only what the pills decide', () => {
-    expect(quickPreset({ who: 'guests', minutes: 15, days: 1, attempts: 2 }, now)).toEqual({
+    expect(quickPreset({ who: 'guests', minutes: 15, days: 1, attempts: 2, review: 'answers' }, now)).toEqual({
       time_limit_min: 15,
       closes_at: closesAfter(1, now),
       attempts: 2,
       guests: true,
       members_only: false,
+      review: 'answers',
     });
   });
 });

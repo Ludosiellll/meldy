@@ -6,6 +6,7 @@
  * students write by its link before a deadline.
  */
 import { count, plural } from '../containers/copyImport';
+import type { QuizReview } from '../../types/quiz';
 
 const questions = (n: number) => count(n, 'вопрос', 'вопроса', 'вопросов');
 const days = (n: number) => count(n, 'день', 'дня', 'дней');
@@ -60,6 +61,8 @@ export const QUICK = {
   time: { label: 'Время', none: 'Время не ограничено', some: (n: number) => (n === 60 ? '1 час' : minutes(n)) },
   open: { label: 'Сколько открыта', days: (n: number) => `Открыта ${days(n)}`, never: 'Без срока' },
   tries: { label: 'Попытки', some: (n: number) => attempts(n), any: 'Сколько угодно попыток' },
+  /** What the student sees at the end (owner, 21.10: the right answers too, by default at once). */
+  review: { label: 'Верные ответы', now: 'Верные ответы сразу', later: 'Верные ответы после закрытия' },
   more: 'Ещё настройки',
 
   // the button and why it waits
@@ -85,6 +88,13 @@ export const QUICK_LINK = {
   until: (date: string) => `Открыта до ${date}`,
   noEnd: 'Без срока',
   closed: 'Закрыта',
+  /** What the student sees at the end, as a tag. */
+  review: {
+    answers: 'Верные ответы сразу',
+    mistakes_then_answers: 'Верные ответы после закрытия',
+    mistakes: 'Ошибки без верных ответов',
+    score: 'Только балл',
+  } as Record<QuizReview, string>,
   qr: 'QR-код ссылки',
   copy: 'Скопировать ссылку',
   copied: 'Ссылка скопирована',
