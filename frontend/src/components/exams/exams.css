@@ -1198,19 +1198,32 @@
    instead of an action that changes half a second later. */
 .sf-page .ex-cta[data-wait] { visibility: hidden; }
 .sf-page .ex-cta-why { margin: 0 0 8px; font-size: 15px; line-height: 20px; color: var(--sf-ink); text-align: center; text-wrap: balance; }
-/* The editor's step 2 on a computer: the same bar, one row under the content — what the press does (or what is
-   missing) beside the button on the right. The button stood at the end of the long form, 540–890 px under the
-   window's edge (audit 2026-10-08). */
+/* A computer (the editor's step 2, settings, keys, import, a quiz's settings, the constructor): what the press does
+   (or what is missing) beside the button, in one card at the bottom right. It stays in reach on a long form — the
+   button stood at the end, 540–890 px under the window's edge (audit 2026-10-08) — and comes to rest under the form
+   at its end. A card, not a band across the page: the band covered the form's last rows edge to edge (owner,
+   21.10: «почему блок снизу всегда прикреплен?»). */
 .sf-page .ex-cta[data-row] {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px 28px;
-  margin: 28px 0 -96px;
-  padding: 14px 0 calc(16px + env(safe-area-inset-bottom));
-  background: color-mix(in srgb, var(--sf-canvas) 95%, transparent);
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  margin: 28px 0 -72px auto;
+  bottom: 24px;
+  padding: 10px 10px 10px 28px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 0 0 1px var(--sf-line), 0 16px 40px -12px rgb(11 18 28 / .32);
 }
 .sf-page .ex-cta[data-row] .sf-primary { flex: none; width: auto; }
+/* One button and nothing beside it («Новая контрольная», «Проверить 1 вопрос»): the pill alone, with the card's shadow. */
+.sf-page .ex-cta[data-row]:not(:has(.ex-cta-why, .qa-cta-why, .sf-link)) { padding: 0; background: none; box-shadow: none; }
+.sf-page .ex-cta[data-row]:not(:has(.ex-cta-why, .qa-cta-why, .sf-link)) .sf-primary { box-shadow: 0 16px 40px -12px rgb(11 18 28 / .32); }
 .sf-page .ex-cta[data-row] .ex-cta-why { flex: 0 1 auto; max-width: 560px; margin: 0; font-size: 15px; line-height: 21px; text-align: right; text-wrap: pretty; }
 .sf-page .ex-cta-why[data-next] { color: var(--sf-muted); }
 

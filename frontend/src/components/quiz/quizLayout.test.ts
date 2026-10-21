@@ -148,3 +148,18 @@ describe('the participant’s top line (live check of release 47.2: text scrolle
     expect(SURFACES.dark.surface).toMatch(OPAQUE);
   });
 });
+
+describe('the bar on a computer (owner, 21.10: «почему блок снизу всегда прикреплен?»)', () => {
+  it('is a card at the bottom right that keeps the action in reach, not a band across the page over the form', async () => {
+    const bar = find(rules(await read('components/exams/exams.css')), '.sf-page .ex-cta[data-row]');
+    expect(bar).toBeDefined();
+    // Still in reach on a long form (audit 2026-10-08), resting under the form at its end.
+    expect(declaration(bar!.body, 'width')).toBe('fit-content');
+    expect(declaration(bar!.body, 'margin')).toBe('28px 0 -72px auto');
+    expect(declaration(bar!.body, 'bottom')).toBe('24px');
+    // A card of its own: solid surface, rounded, no see-through band edge to edge.
+    expect(declaration(bar!.body, 'background')).toBe('var(--sf-surface)');
+    expect(declaration(bar!.body, 'border-radius')).toBe('32px');
+    expect(declaration(bar!.body, 'backdrop-filter')).toBe('none');
+  });
+});
