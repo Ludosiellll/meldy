@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { createContainer, setContainerKind } from '../../api/containers';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { isText, useSessionDraft } from '../../lib/urlState';
 import { useFrame } from '../../components/exams/useFrame';
 import { errorText } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
@@ -16,13 +17,14 @@ import '../../components/test/build.css';
  * this page is left out of the history, so «Назад» from the studio does not bring the empty form back. Release 47.3: the
  * new exam is marked a test (containers.kind 'test', the author's own write) — its page is the test's own, and it stays
  * out of the author's plan; when that write fails the test opens all the same, an exam until «Это тест» in «Настройки».
+ * The name typed is kept in this tab until the test is made (owner, 21.10: a reload lost what was typed).
  */
 export default function NewTestPage() {
   const navigate = useNavigate();
   const frame = useFrame<HTMLDivElement>();
   useDocumentTitle(NEW_TEST.docTitle);
   const id = useId();
-  const [title, setTitle] = useState('');
+  const [title, setTitle, forgetTitle] = useSessionDraft('new-test', '', isText);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +46,7 @@ export default function NewTestPage() {
       } catch {
         // An older database (no kind yet) or a lost answer: the test is made; «Настройки» can say «Это тест» later.
       }
+      forgetTitle();
       navigate(`/exams/c/${created.container_id}/studio`, { replace: true });
     } catch (failure) {
       setError(errorText(failure));
