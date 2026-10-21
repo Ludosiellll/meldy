@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { F_GHOST, ZONE_SHIFT, type StandState } from '../../../lib/live/move';
+import { F_GHOST, F_ICE, ZONE_SHIFT, type StandState } from '../../../lib/live/move';
 import { changeOf, easeOutBack, fastestName, tally, timerFace } from './plan';
 
 const base: StandState = {
@@ -73,7 +73,13 @@ describe('the live counts from the snapshot flags', () => {
   it('counts every player per zone (ghosts too), alive and ghosts apart; monsters left out', () => {
     const out = { counts: [] as number[], alive: 0, ghosts: 0 };
     tally([player(0), player(0), player(1, true), player(null), player(3), 1 /* a monster */], 4, out);
-    expect(out).toEqual({ counts: [2, 1, 0, 1], alive: 4, ghosts: 1 });
+    expect(out).toEqual({ counts: [2, 1, 0, 1], alive: 4, ghosts: 1, iced: 0 });
+  });
+
+  it('a mixed game: the battle\'s ice counted apart (F_ICE), whatever the zone', () => {
+    const out = { counts: [] as number[], alive: 0, ghosts: 0, iced: 0 };
+    tally([player(0) | F_ICE, player(null) | F_ICE, player(1)], 4, out);
+    expect(out).toEqual({ counts: [1, 1, 0, 0], alive: 3, ghosts: 0, iced: 2 });
   });
 
   it('a question with three options counts three zones (the fourth is closed)', () => {

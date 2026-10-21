@@ -3,7 +3,7 @@
  * shows, how a state change plays (a stomp, a return of the floor, or drawn as it is after a reconnect), the live
  * counts from the snapshot flags. Pure, tested in plan.test.ts.
  */
-import { F_GHOST, KIND_PLAYER, ZONE_SHIFT, type StandState } from '../../../lib/live/move';
+import { F_GHOST, F_ICE, KIND_PLAYER, ZONE_SHIFT, type StandState } from '../../../lib/live/move';
 
 /** How long after the stomp a state is still played as news (older: drawn as it is, MODE_STAND §4.2). */
 export const STALE_MS = 1000;
@@ -68,15 +68,18 @@ export function changeOf(prev: StandState | null, next: StandState, now: number 
 
 /**
  * Players per zone from the flags of a frame's poses (MOVE.md §4: bits 8–15 the zone + 1), ghosts too (as the
- * server's `counts`), and how many are alive and ghosts. `out` is reused: no allocation per frame.
+ * server's `counts`), how many are alive and ghosts, and (a mixed game) how many carry the battle's ice. `out` is
+ * reused: no allocation per frame.
  */
-export function tally(flags: Iterable<number>, zones: number, out: { counts: number[]; alive: number; ghosts: number }): void {
+export function tally(flags: Iterable<number>, zones: number, out: { counts: number[]; alive: number; ghosts: number; iced?: number }): void {
   out.counts.length = zones;
   out.counts.fill(0);
   out.alive = 0;
   out.ghosts = 0;
+  out.iced = 0;
   for (const f of flags) {
     if ((f & 3) !== KIND_PLAYER) continue;
+    if (f & F_ICE) out.iced++;
     if (f & F_GHOST) out.ghosts++;
     else out.alive++;
     const z = (f >> ZONE_SHIFT) - 1;

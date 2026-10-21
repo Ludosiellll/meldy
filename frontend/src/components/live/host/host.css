@@ -47,6 +47,22 @@
 .lvh-viewport { position: fixed; inset: 0; overflow: hidden; background: var(--lvh-canvas); }
 .lvh-stage { position: absolute; left: 0; top: 0; transform-origin: 0 0; overflow: hidden; background: var(--lvh-canvas); }
 
+/* A battle with movement rounds (MODE_MIXED §8): the 3D arena lies under the stage for the whole game; the stage's
+   light background is a veil over it, faded out while a movement round is on screen (data-arena). The battle's own
+   stage is hidden then, not unmounted: the bar, the boss and the class come back as they were. */
+.lvh-viewport[data-mixed],
+.lvh-viewport[data-mixed] .lvh-stage { background: transparent; }
+.lvh-veil { position: absolute; inset: 0; background: var(--lvh-canvas); transition: opacity 0.4s ease; }
+.lvh-viewport[data-arena] .lvh-veil { opacity: 0; }
+.lvh-viewport[data-arena] .lvh-battle,
+.lvh-viewport[data-arena] .lvh-crowd { visibility: hidden; }
+.lvh-viewport[data-arena] .lvh-top { color: rgba(255, 255, 255, 0.8); }
+.lvh-viewport[data-arena] .lvh-top b,
+.lvh-viewport[data-arena] .lvh-top .lvh-logo { color: #fff; }
+.lvh-viewport[data-arena] .lvh-tool { color: rgba(255, 255, 255, 0.86); }
+/* Beside the question's number, before the next question: when the next movement round comes. */
+.lvh-note { padding: 10px 18px; border-radius: 999px; background: #fff1cf; box-shadow: inset 0 0 0 1.5px #f0d290; color: var(--lvh-ink); font: 600 20px/1 var(--ph-sans, system-ui); }
+
 /* ───────── buttons and pills ───────── */
 .lvh-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 14px;

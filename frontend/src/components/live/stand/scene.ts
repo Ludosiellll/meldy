@@ -8,7 +8,7 @@
  * (about seven a question). Meshes are made on the welcome and on `add`, never per frame.
  */
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type View } from '../../../lib/live/three';
-import { F_AWAY, F_GHOST, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandState, type Welcome } from '../../../lib/live/move';
+import { F_AWAY, F_GHOST, F_ICE, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandState, type Welcome } from '../../../lib/live/move';
 import type { Pose } from '../../../lib/live/move';
 
 /** Positions sampled each frame, reused (MoveClient.frameInto). */
@@ -16,12 +16,14 @@ type Poses = Map<number, Pose>;
 import { changeOf, easeOutBack, tally, timerFace, type TimerFace } from './plan';
 import type { StandRoom } from './room';
 
-export type StandCue = 'tick' | 'tickLast' | 'warn' | 'stomp' | 'impact' | 'back';
+/** freeze and thaw: a mixed game's ice formed or broke on someone (once per frame at most). */
+export type StandCue = 'tick' | 'tickLast' | 'warn' | 'stomp' | 'impact' | 'back' | 'freeze' | 'thaw';
 
 /** What the screen shows outside the 3D picture, told only on change. */
 export interface StandHud {
   timer(face: TimerFace): void;
-  tally(counts: readonly number[], alive: number, ghosts: number): void;
+  /** Players per zone, alive, ghosts and (a mixed game) frozen in the battle. */
+  tally(counts: readonly number[], alive: number, ghosts: number, iced: number): void;
   cue(cue: StandCue): void;
 }
 
@@ -30,6 +32,13 @@ export interface SceneOptions {
   margins: { top: number; bottom: number };
   /** The kit's view: quality ('auto' by default), antialiasing, the pixel ratio's cap (a slow machine's recording). */
   view?: { quality?: 'auto' | number; antialias?: boolean; maxPixelRatio?: number; preserveDrawingBuffer?: boolean };
+  /**
+   * A battle with movement rounds (docs/live/MODE_MIXED.md): the battle's freeze is drawn as ice (F_ICE), it breaks on
+   * the right zone at the boss's blow and forms on the fallen when they are back; the floor's return cheers nobody.
+   */
+  mixed?: boolean;
+  /** Start with the loop stopped (a mixed game's arena between its movement rounds): `resume()` starts it. */
+  paused?: boolean;
 }
 
 /** How steeply the camera looks down at the arena, degrees: steep enough that the boss hides little behind it. */
@@ -92,6 +101,8 @@ interface Actor {
   cheerFrom: number;
   cheerUntil: number;
   seen: number;
+  /** The ice drawn now (a mixed game). */
+  iced: boolean;
 }
 
 export class StandScene {
@@ -114,8 +125,14 @@ export class StandScene {
   private impactAt = Infinity;
   private impactCued = true;
   private lastFace: TimerFace = { sec: null, ready: false, hot: false, left: 0 };
-  private readonly sums = { counts: [0, 0, 0, 0], alive: 0, ghosts: 0 };
-  private readonly shown = { counts: [-1, -1, -1, -1], alive: -1, ghosts: -1, zones: 0 };
+  private readonly sums = { counts: [0, 0, 0, 0], alive: 0, ghosts: 0, iced: 0 };
+  private readonly shown = { counts: [-1, -1, -1, -1], alive: -1, ghosts: -1, iced: -1, zones: 0 };
+  /** The loop is stopped (a mixed game between its movement rounds); kit seconds of the last resume. */
+  private paused = false;
+  private resumedAt = -Infinity;
+  /** The ice's sounds of this frame (one each, whoever it was). */
+  private froze = false;
+  private thawed = false;
   private readonly flagsScratch: number[] = [];
   private readonly poses: Poses = new Map();
   /** Looks by live_players.id from the database's roster: a hero changed in the lobby (the room keeps the first). */
@@ -139,6 +156,7 @@ export class StandScene {
       onState: (s, prev) => this.onState(s, prev),
     };
     room.sceneHooks.add(this.hooks);
+    this.paused = options.paused === true;
     const c = room.client;
     this.hello = c.stand.hello;
     this.state = c.stand.state;
@@ -156,8 +174,34 @@ export class StandScene {
     if (this.room.client.welcome) this.onWelcome(this.room.client.welcome);
     this.build();
     await this.view.warmUp();
-    if (this.disposed) return;
+    if (this.disposed || this.paused) return;
     this.view.start((dt, now) => this.frame(dt, now));
+  }
+
+  /** Stops drawing (a mixed game's arena while the battle's screens show): no frames, no GPU work. */
+  pause(): void {
+    if (this.paused) return;
+    this.paused = true;
+    this.view?.stop();
+  }
+
+  /** Draws again; ice changed meanwhile is shown as it is, without growing or breaking. */
+  resume(): void {
+    if (!this.paused) return;
+    this.paused = false;
+    if (!this.view || !this.kit) return;
+    this.resumedAt = this.kit.now();
+    this.view.start((dt, now) => this.frame(dt, now));
+  }
+
+  /** A camera jolt (a hit on the boss in a mixed game's reveal). */
+  shake(strength: number): void {
+    this.view?.shake(strength);
+  }
+
+  /** The boss's look for a moment of the reveal: a roar at the blow, stunned when it falls. */
+  bossPhase(phase: 'roar' | 'stunned' | 'idle'): void {
+    this.boss?.setPhase(phase);
   }
 
   setMargins(margins: SceneOptions['margins']): void {
@@ -191,9 +235,9 @@ export class StandScene {
         hudCalls++;
         hud.timer(f);
       },
-      tally: (c, a, g) => {
+      tally: (c, a, g, i) => {
         hudCalls++;
-        hud.tally(c, a, g);
+        hud.tally(c, a, g, i);
       },
       cue: (c) => hud.cue(c),
     };
@@ -304,6 +348,7 @@ export class StandScene {
       a.player = kit.createPlayer(look, a.name);
       a.lookKey = key;
       a.player.setPosition(a.x, a.y, 0);
+      if (a.iced) a.player.setIce(true, true);
     }
   }
 
@@ -314,7 +359,7 @@ export class StandScene {
     const look = toPlayerLook(pid && this.looks.has(pid) ? this.looks.get(pid) : e[4]);
     const name = e[3] || '';
     const player = kit.createPlayer(look, name);
-    this.actors.set(e[0], { id: e[0], pid, lookKey: JSON.stringify(look), name, player, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0 });
+    this.actors.set(e[0], { id: e[0], pid, lookKey: JSON.stringify(look), name, player, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0, iced: false });
   }
 
   private removeActor(id: number): void {
@@ -375,12 +420,14 @@ export class StandScene {
       this.stompedQi = st.qi;
     } else if (change === 'up' && res) {
       arena.restore();
-      boss.setPhase('idle');
+      if (boss.phase !== 'stunned') boss.setPhase('idle');
       this.hud.cue('back');
       for (const id of res.back) {
         const a = this.actors.get(id);
         if (!a) continue;
         a.fall = null;
+        // a mixed game: everyone who fell comes back (a miss, not a revival): nobody cheers
+        if (this.options.mixed) continue;
         a.cheerFrom = now + 0.25;
         a.cheerUntil = now + 1.8;
       }
@@ -438,6 +485,10 @@ export class StandScene {
     const zones = st?.q ? Math.min(st.q.options.length, this.zoneIds.length) : this.zoneIds.length;
     tally(flags, zones, this.sums);
     this.tellTally(zones);
+    if (this.froze) this.hud.cue('freeze');
+    if (this.thawed) this.hud.cue('thaw');
+    this.froze = false;
+    this.thawed = false;
   }
 
   private stomp(qi: number, now: number): void {
@@ -454,6 +505,7 @@ export class StandScene {
     a.flags = pose.flags;
     const p = a.player;
     const f = a.fall;
+    if (this.options.mixed) this.ice(a, pose.flags, now, !f && (pose.flags & F_GHOST) === 0);
     if (f) {
       if (now < f.rise) {
         // held where it stood; drops with its tile (or by itself when the tile stays: a phone that went away)
@@ -500,7 +552,32 @@ export class StandScene {
     p.setPosition(a.x, a.y, z);
     if (!ghost && z < -4) p.setPose('fall');
     else if (now >= a.cheerFrom && now < a.cheerUntil && a.speed < RUN_SPEED) p.setPose('cheer');
-    else p.setPose(a.speed > RUN_SPEED ? 'run' : 'idle');
+    // in ice a character slides, it does not run
+    else p.setPose(a.speed > RUN_SPEED && !a.iced ? 'run' : 'idle');
+  }
+
+  /**
+   * A mixed game's ice (F_ICE: frozen in the battle). It forms only on a character in sight (the fallen get theirs
+   * when they are back with the floor) and breaks on the right zone at the boss's blow, not before it. Changes while
+   * the arena was away (the button questions) are shown as they are.
+   */
+  private ice(a: Actor, flags: number, now: number, visible: boolean): void {
+    const want = (flags & F_ICE) !== 0;
+    if (want === a.iced) return;
+    if (!a.placed || now - this.resumedAt < 0.3) {
+      a.iced = want;
+      a.player.setIce(want, true);
+      return;
+    }
+    if (want) {
+      if (!visible) return;
+      this.froze = true;
+    } else {
+      if (Number.isFinite(this.impactAt) && now < this.impactAt + 0.25) return;
+      this.thawed = true;
+    }
+    a.iced = want;
+    a.player.setIce(want);
   }
 
   private updateTimer(st: StandState | null, t: number | null): void {
@@ -517,13 +594,14 @@ export class StandScene {
   private tellTally(zones: number): void {
     const s = this.sums;
     const sh = this.shown;
-    let same = s.alive === sh.alive && s.ghosts === sh.ghosts && zones === sh.zones;
+    let same = s.alive === sh.alive && s.ghosts === sh.ghosts && s.iced === sh.iced && zones === sh.zones;
     for (let i = 0; same && i < zones; i++) if (s.counts[i] !== sh.counts[i]) same = false;
     if (same) return;
     sh.alive = s.alive;
     sh.ghosts = s.ghosts;
+    sh.iced = s.iced;
     sh.zones = zones;
     for (let i = 0; i < zones; i++) sh.counts[i] = s.counts[i];
-    this.hud.tally(s.counts.slice(0, zones), s.alive, s.ghosts);
+    this.hud.tally(s.counts.slice(0, zones), s.alive, s.ghosts, s.iced);
   }
 }
