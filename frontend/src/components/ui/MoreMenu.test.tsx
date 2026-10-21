@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -93,47 +92,6 @@ describe('MoreMenu', () => {
   it('the round variant is the «⋯» circle', () => {
     renderMenu({ variant: 'round' });
     expect(screen.getByRole('button', { name: 'Ещё: лист экзамена' })).toHaveClass('sf-more');
-  });
-
-  it('a switch: its state drawn and said, turned in place (the menu stays open on it), walked by the arrows with the rest', () => {
-    const onHistory = vi.fn();
-    function Switches() {
-      const [on, setOn] = useState(false);
-      return (
-        <MoreMenu
-          label="Ещё: шпаргалка"
-          variant="round"
-          items={[
-            { key: 'cover', label: 'Спрятать строки', hint: on ? null : 'и проверить, что помните их', checked: on, onSelect: () => setOn((value) => !value) },
-            { key: 'history', label: 'История шпаргалки', onSelect: onHistory, separatorBefore: true },
-          ]}
-        />
-      );
-    }
-    render(
-      <MemoryRouter>
-        <Switches />
-      </MemoryRouter>,
-    );
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: шпаргалка' }));
-    const item = screen.getByRole('menuitemcheckbox', { name: 'Спрятать строки' });
-    expect(item).toHaveFocus();
-    expect(item).toHaveAttribute('aria-checked', 'false');
-    // The hint is seen under the label and read as the description, not as part of the name.
-    expect(item).toHaveAccessibleDescription('и проверить, что помните их');
-    expect(item.querySelector('.mm-switch')).toHaveAttribute('aria-hidden', 'true');
-    fireEvent.click(item);
-    expect(screen.getByRole('menu', { name: 'Ещё: шпаргалка' })).toBeInTheDocument();
-    expect(item).toHaveAttribute('aria-checked', 'true');
-    expect(item).not.toHaveAccessibleDescription();
-    fireEvent.keyDown(item, { key: 'ArrowDown' });
-    expect(screen.getByRole('menuitem', { name: 'История шпаргалки' })).toHaveFocus();
-    fireEvent.keyDown(screen.getByRole('menuitem', { name: 'История шпаргалки' }), { key: 'ArrowDown' });
-    expect(item).toHaveFocus();
-    // An action still closes it.
-    fireEvent.click(screen.getByRole('menuitem', { name: 'История шпаргалки' }));
-    expect(onHistory).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('menu')).toBeNull();
   });
 
   it('draws nothing without items', () => {

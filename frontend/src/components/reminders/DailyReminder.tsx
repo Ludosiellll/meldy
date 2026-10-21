@@ -28,8 +28,8 @@ import './reminder.css';
  * and Meldy never sees it. After the download the window says what to do with the file on this kind of device;
  * the choice stays on the device, so the line reads «Напоминание в 20:00 — изменить».
  *
- * - `today`: a line in the exam card of «Сегодня», under «Можно стереть: N вопросов» (the sheet erases lines only
- *   with answers on different days, so the student has to come back);
+ * - `today`: a line in the exam card of «Сегодня», under «Осталось выучить» (a question is learned only with answers
+ *   on different days, so the student has to come back);
  * - `profile`: a row of «Уведомления» in «Профиль».
  * The event's UID is one per student and exam: the exam of the first file stays its exam, so a new time replaces
  * the event instead of adding a second one.

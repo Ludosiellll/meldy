@@ -1204,7 +1204,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   );
 
   // Tablets: «Изменить список · Лекции · Самооценка · Пригласить группу · Отчёт для преподавателя» took three or four
-  // rows above the status (audit 2026-10-08); they go under the list, as under the paper on «Шпаргалка». A phone has
+  // rows above the status (audit 2026-10-08); they go under the list. A phone has
   // them in the «⋯» of the heading.
   const linksBelow = !frame.side && !phone && frame.size === 's';
   const startRate = () => {

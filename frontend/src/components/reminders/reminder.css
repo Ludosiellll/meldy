@@ -1,5 +1,5 @@
 /* «Напоминать каждый день» (components/reminders/DailyReminder.tsx) in the Meldy language: on «Сегодня» a quiet
- * line under «Можно стереть» (an underlined word with a pencil-blue calendar, no pill: the card keeps its own
+ * line under «Осталось выучить» (an underlined word with a pencil-blue calendar, no pill: the card keeps its own
  * pills), and in «Профиль» a row of «Уведомления». It opens a white window inside the blue panel (a soft one
  * on the white profile card): the times as pills — the chosen one dark, as the current page of the menu — and
  * the event as a calendar will list it, a blue bar at its edge. That event is the one picture here: it shows

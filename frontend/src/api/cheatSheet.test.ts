@@ -15,7 +15,6 @@ import {
   resetSheetWritesForTests,
   SHEET_LOAD_MESSAGE,
   startSheetWrite,
-  stopSheetWrite,
   subscribeSheetWrites,
 } from './cheatSheet';
 
@@ -329,24 +328,5 @@ describe('startSheetWrite', () => {
     vi.stubGlobal('fetch', vi.fn(async () => sseResponse([ev({ type: 'progress', done: 0, total: 3 })])));
     await startSheetWrite(EXAM);
     expect(getSheetWrite(EXAM).phase).toBe('interrupted');
-  });
-});
-
-describe('stopSheetWrite', () => {
-  it('asks the server and says how many questions are still running', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ stopped: true, running: 2 }), { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
-    await expect(stopSheetWrite(EXAM)).resolves.toBe(2);
-    expect(JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body))).toEqual({ exam_id: EXAM });
-    expect(getSheetWrite(EXAM).stopping).toBe(true);
-  });
-
-  it('takes «stopping» back when the request failed, so the button comes back', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 502 })));
-    await expect(stopSheetWrite(EXAM)).resolves.toBe(0);
-    expect(getSheetWrite(EXAM).stopping).toBe(false);
-    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))));
-    await expect(stopSheetWrite(EXAM)).resolves.toBe(0);
-    expect(getSheetWrite(EXAM).stopping).toBe(false);
   });
 });

@@ -112,7 +112,7 @@ export function saidNothing(status: PointStatus): boolean {
 
 /**
  * The point named only once the examiner asked (missed, mentioned or said wrong in the answer, the reply
- * covered it): the cheat sheet's own words (components/exams/sheet/copy.ts, after_question).
+ * covered it). Such a naming does not count towards learning the question (lib/exams/cheatSheet.ts, after_question).
  */
 export const AFTER_QUESTION = 'назван только после вопроса экзаменатора';
 

@@ -193,8 +193,8 @@ describe('drawTicket «Из уже отвеченных»', () => {
   });
 });
 
-describe('drawTicket «Ждут подтверждения»', () => {
-  it('draws only questions a good answer would confirm now', () => {
+describe('drawTicket «Можно выучить сегодня»', () => {
+  it('draws only questions a good answer would make learned now', () => {
     const rng = lcg(4242);
     const list = questions(12, (index) => ({ readiness: index % 3 === 0 ? 'once' : 'untested', awaiting: index % 3 === 0 && index !== 0 }));
     for (let i = 0; i < 500; i += 1) {

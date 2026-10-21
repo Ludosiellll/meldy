@@ -882,8 +882,8 @@
 .ac-row-t { margin: 0; font-size: 17px; line-height: 1.35; font-weight: 600; color: var(--sf-ink); }
 .ac-row-d { margin: 4px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
 .ac-row-btn { flex: none; }
-/* A switch that says its state («Сохранять текст ответов»): the track and knob of the app's other switches
-   (the sheet's .cs-toggle) and the word, no pill — a blue «Выключено» pill read as the main action. */
+/* A switch that says its state («Сохранять текст ответов»): a track and a knob and the word, no pill — a blue
+   «Выключено» pill read as the main action. */
 .ac-switch {
   display: inline-flex;
   flex: none;
