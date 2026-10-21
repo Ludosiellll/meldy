@@ -3,6 +3,7 @@ import {
   createSupabaseFetch,
   DIRECT_READ_TIMEOUT_MS,
   PROBE_TIMEOUT_MS,
+  PROXY_AFTER_FAILURE_TTL_MS,
   ROUTE_STORAGE_KEY,
   ROUTE_TTL_MS,
 } from './supabaseRoute';
@@ -279,5 +280,74 @@ describe('supabaseRoute: a request cut off by leaving the page (live check of re
     const { error } = await answer;
     expect(error?.name).toBe('AuthRetryableFetchError');
     expect(errors).toHaveBeenCalled();
+  });
+});
+
+describe('supabaseRoute: a passing failure is not a blocked address (live game check, 21.10)', () => {
+  const stored = () => JSON.parse(window.localStorage.getItem(ROUTE_STORAGE_KEY) ?? '{}') as { route?: string };
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it('a direct request cut off by leaving the page keeps the direct way', async () => {
+    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route: 'direct', at: clock }));
+    const page = new EventTarget();
+    let cut: (error: unknown) => void = () => undefined;
+    const fetchImpl = vi.fn((input: RequestInfo | URL) =>
+      String(input).startsWith(BASE) ? new Promise<Response>((_, reject) => (cut = reject)) : Promise.resolve(new Response('[]')),
+    );
+    const sbFetch = createSupabaseFetch({ supabaseUrl: BASE, anonKey: 'anon', fetchImpl, now: () => clock, origin: () => SITE, page });
+    void sbFetch(REST).catch(() => undefined);
+    await tick();
+    page.dispatchEvent(new Event('pagehide'));
+    cut(new TypeError('Failed to fetch'));
+    await tick();
+    expect(stored().route).toBe('direct');
+    expect(fetchImpl.mock.calls.map(([url]) => String(url))).toEqual([REST]);
+  });
+
+  it('a failure while the browser is offline keeps the way: the read fails as it is, nothing moves to the site', async () => {
+    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route: 'direct', at: clock }));
+    const net = network('refused');
+    const sbFetch = createSupabaseFetch({ supabaseUrl: BASE, anonKey: 'anon', fetchImpl: net.fetchImpl, now: () => clock, origin: () => SITE, online: () => false });
+    await expect(sbFetch(REST)).rejects.toThrow('Failed to fetch');
+    expect(net.calls.map((call) => call.url)).toEqual([REST]);
+    expect(stored().route).toBe('direct');
+  });
+
+  it('a probe that fails with no network at all is not remembered for 12 hours', async () => {
+    const net = network('refused');
+    const sbFetch = createSupabaseFetch({ supabaseUrl: BASE, anonKey: 'anon', fetchImpl: net.fetchImpl, now: () => clock, origin: () => SITE, online: () => false });
+    await sbFetch(REST);
+    const saved = JSON.parse(window.localStorage.getItem(ROUTE_STORAGE_KEY) ?? '{}') as { route?: string; ttl?: number };
+    expect(saved).toMatchObject({ route: 'proxy', ttl: PROXY_AFTER_FAILURE_TTL_MS });
+  });
+
+  it('a failure moves to the site for ten minutes only; then the direct way is probed again', async () => {
+    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route: 'direct', at: clock }));
+    let direct: 'refused' | 'up' = 'refused';
+    const calls: string[] = [];
+    const fetchImpl = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      calls.push(url);
+      if (url.startsWith(SITE) || direct === 'up') return Promise.resolve(new Response('[]'));
+      return Promise.reject(new TypeError('Failed to fetch'));
+    });
+    const sbFetch = createSupabaseFetch({ supabaseUrl: BASE, anonKey: 'anon', fetchImpl, now: () => clock, origin: () => SITE, online: () => true });
+    await sbFetch(REST);
+    expect(calls).toEqual([REST, VIA_SITE]);
+    expect(stored().route).toBe('proxy');
+    clock += PROXY_AFTER_FAILURE_TTL_MS - 1;
+    await sbFetch(REST);
+    expect(calls.slice(2)).toEqual([VIA_SITE]);
+    direct = 'up';
+    clock += 2;
+    await sbFetch(REST);
+    expect(calls.slice(3)).toEqual([`${BASE}/auth/v1/health`, REST]);
+    expect(stored().route).toBe('direct');
+    // A new page after the ten minutes probes too (the stored way has run out).
+    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route: 'proxy', at: clock, ttl: PROXY_AFTER_FAILURE_TTL_MS }));
+    clock += PROXY_AFTER_FAILURE_TTL_MS + 1;
+    const fresh = network('up');
+    await make(fresh.fetchImpl)(REST);
+    expect(fresh.calls.map((call) => call.url)).toEqual([`${BASE}/auth/v1/health`, REST]);
   });
 });

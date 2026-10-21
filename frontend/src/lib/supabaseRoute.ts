@@ -4,7 +4,10 @@
  * его не пропускает. Путь выбирается один раз — пробным запросом `auth/v1/health` (до 4 с) — и
  * запоминается на 12 часов (localStorage `meldy_supabase_route`). Если позже прямой путь
  * обрывается сетевой ошибкой, клиент переходит на запасной: чтение повторяется сразу, запись — нет
- * (она могла дойти до базы), её повторит пользователь.
+ * (она могла дойти до базы), её повторит пользователь. Такой переход — на 10 минут, потом путь проверяется
+ * снова: обрыв посреди работы чаще значит плохую связь, чем блокировку. Обрыв, пока страница уходит или браузер
+ * без сети (`navigator.onLine`), путь не меняет вовсе (живая проверка игры 21.10: после двух перезагрузок или пяти
+ * секунд без сети телефон 12 часов ходил через сайт и без Realtime).
  *
  * Вход через Google идёт мимо этого пути: браузер сам открывает адрес Supabase.
  *
@@ -23,6 +26,8 @@ export type SupabaseRoute = 'direct' | 'proxy';
 
 export const ROUTE_STORAGE_KEY = 'meldy_supabase_route';
 export const ROUTE_TTL_MS = 12 * 60 * 60 * 1000;
+/** Запасной путь, выбранный из-за обрыва посреди работы (не пробой), — до новой проверки прямого. */
+export const PROXY_AFTER_FAILURE_TTL_MS = 10 * 60 * 1000;
 export const PROBE_TIMEOUT_MS = 4000;
 /** Чтение напрямую дольше этого — адрес, видимо, «молчит» (блокировка без отказа): на запасной путь. */
 export const DIRECT_READ_TIMEOUT_MS = 15000;
@@ -44,28 +49,38 @@ export interface SupabaseFetchOptions {
   wait?: (ms: number) => Promise<void>;
   /** Где слышны `pagehide` и `pageshow` (по умолчанию — window; тесты дают свой). */
   page?: Pick<EventTarget, 'addEventListener'> | null;
+  /** Есть ли у браузера сеть (по умолчанию — navigator.onLine). */
+  online?: () => boolean;
 }
 
-function storedRoute(now: number): SupabaseRoute | null {
+interface Stored {
+  route: SupabaseRoute;
+  /** До какого момента путь в силе (мс). */
+  until: number;
+}
+
+function storedRoute(now: number): Stored | null {
   try {
     const raw = window.localStorage.getItem(ROUTE_STORAGE_KEY);
     if (!raw) return null;
-    const saved = JSON.parse(raw) as { route?: unknown; at?: unknown };
-    const fresh = typeof saved.at === 'number' && now - saved.at >= 0 && now - saved.at < ROUTE_TTL_MS;
-    return fresh && (saved.route === 'direct' || saved.route === 'proxy') ? saved.route : null;
+    const saved = JSON.parse(raw) as { route?: unknown; at?: unknown; ttl?: unknown };
+    const ttl = typeof saved.ttl === 'number' && saved.ttl > 0 && saved.ttl <= ROUTE_TTL_MS ? saved.ttl : ROUTE_TTL_MS;
+    const fresh = typeof saved.at === 'number' && now - saved.at >= 0 && now - saved.at < ttl;
+    return fresh && (saved.route === 'direct' || saved.route === 'proxy') ? { route: saved.route, until: (saved.at as number) + ttl } : null;
   } catch {
     return null;
   }
 }
 
-/** Путь, который этот браузер уже выбрал (свежий, моложе ROUTE_TTL_MS), или null, пока не выбран. */
+/** Путь, который этот браузер уже выбрал (ещё в силе), или null, пока не выбран. */
 export function preferredRoute(now: number = Date.now()): SupabaseRoute | null {
-  return storedRoute(now);
+  return storedRoute(now)?.route ?? null;
 }
 
-function rememberRoute(route: SupabaseRoute, now: number): void {
+function rememberRoute(route: SupabaseRoute, now: number, ttl: number): void {
   try {
-    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route, at: now }));
+    const saved = ttl === ROUTE_TTL_MS ? { route, at: now } : { route, at: now, ttl };
+    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify(saved));
   } catch {
     // Без хранилища путь выбирается заново на каждой странице — работает так же.
   }
@@ -90,12 +105,16 @@ export function createSupabaseFetch(options: SupabaseFetchOptions): FetchLike {
   const rawFetch: FetchLike = options.fetchImpl ?? ((input, init) => fetch(input, init));
   const now = options.now ?? (() => Date.now());
   const origin = options.origin ?? (() => (typeof window !== 'undefined' ? window.location.origin : ''));
-  let route: SupabaseRoute | null = typeof window !== 'undefined' ? storedRoute(now()) : null;
+  const online = options.online ?? (() => typeof navigator === 'undefined' || navigator.onLine !== false);
+  const saved = typeof window !== 'undefined' ? storedRoute(now()) : null;
+  let route: SupabaseRoute | null = saved?.route ?? null;
+  let until = saved?.until ?? 0;
   let probing: Promise<SupabaseRoute> | null = null;
 
-  const choose = (next: SupabaseRoute) => {
+  const choose = (next: SupabaseRoute, ttl: number = ROUTE_TTL_MS) => {
     route = next;
-    rememberRoute(next, now());
+    until = now() + ttl;
+    rememberRoute(next, now(), ttl);
     return next;
   };
 
@@ -114,8 +133,14 @@ export function createSupabaseFetch(options: SupabaseFetchOptions): FetchLike {
   }
 
   function decide(): Promise<SupabaseRoute> {
-    if (route) return Promise.resolve(route);
-    probing ??= probe().then(choose);
+    if (route && now() < until) return Promise.resolve(route);
+    if (route) {
+      // Время пути вышло (переход после обрыва — через 10 минут): проверить прямой заново.
+      route = null;
+      probing = null;
+    }
+    // Пробный запрос без сети ничего не говорит о блокировке: такой запасной путь — тоже до новой проверки.
+    probing ??= probe().then((next) => choose(next, next === 'proxy' && (leaving || !online()) ? PROXY_AFTER_FAILURE_TTL_MS : ROUTE_TTL_MS));
     return probing;
   }
 
@@ -146,7 +171,9 @@ export function createSupabaseFetch(options: SupabaseFetchOptions): FetchLike {
       return await rawFetch(input, controller ? { ...init, signal: controller.signal } : init);
     } catch (error) {
       if (caller?.aborted || (controller?.signal.aborted && !timedOut)) throw error;
-      choose('proxy');
+      // Страница уходит или сети нет вовсе: прямой путь тут ни при чём.
+      if (leaving || !online()) throw error;
+      choose('proxy', PROXY_AFTER_FAILURE_TTL_MS);
       if (isRead(method)) return rawFetch(viaSite, init);
       throw error;
     } finally {
