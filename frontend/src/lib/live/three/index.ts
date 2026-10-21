@@ -16,7 +16,7 @@
  */
 import type { Kit, LoadOptions } from './types';
 
-export type { Arena, Boss, BossKind, BossPhase, CameraSpec, FrameStats, Kit, LoadOptions, Player, View, ViewOptions } from './types';
+export type { Arena, Boss, BossKind, BossOptions, BossPhase, CameraSpec, FrameStats, Kit, LoadOptions, Player, View, ViewOptions } from './types';
 export type { PlayerLook, KitHatId, ExtraHatId, BodyOption, ColourOption, HatOption, ModelId } from './look';
 export {
   ACCESSORIES,
@@ -32,8 +32,8 @@ export {
   toPlayerLook,
 } from './look';
 export { POSES, type Pose } from './pose';
-export { BOSS_KINDS, BOSS_PHASES } from './constants';
-export type { MoveMap } from './arenaPlan';
+export { BOSS_KINDS, BOSS_PHASES, ZONE_COLOURS } from './constants';
+export type { ArenaShape, FloorGrid, MoveMap } from './arenaPlan';
 export { thumbUrl, paintThumb } from './thumbs';
 
 let chunk: Promise<unknown> | null = null;

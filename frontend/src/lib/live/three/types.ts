@@ -2,7 +2,7 @@
  * The public shapes of the 3D kit (docs/live/KIT_3D.md). Types only: importing them costs nothing at run time.
  * Units are the server's map units (docs/live/MOVE.md: 1600 × 900, +y down the map) and seconds.
  */
-import type { MoveMap } from './arenaPlan';
+import type { ArenaShape, MoveMap } from './arenaPlan';
 import type { PlayerLook } from './look';
 import type { Pose } from './pose';
 
@@ -41,7 +41,7 @@ export interface Boss {
    * stunned (the skeleton falls apart and gets up again when the phase changes; the clock reels); chase (runs).
    */
   setPhase(phase: BossPhase): void;
-  /** Map units. Default: its stage beyond the far edge (Arena.stage). */
+  /** Map units. Default: its stage (Arena.stage). */
   setPosition(x: number, y: number): void;
   setFacing(rad: number): void;
   update(dt: number): void;
@@ -50,10 +50,12 @@ export interface Boss {
 
 export interface Arena {
   readonly map: MoveMap;
-  /** Where the boss stands, map units (y < 0: beyond the far edge). */
+  /** Where the boss stands, map units (the shape's stage; without one y < 0: beyond the far edge). */
   readonly stage: { x: number; y: number };
   /** The answer shown next to each zone's letter, by zone id (A → «А»); missing ids show the letter only. */
   setZoneLabels(labels: Partial<Record<string, string>>): void;
+  /** Zones that take no answer now (a question with fewer options): their tiles go plain and their sign hides. */
+  setClosedZones(ids: readonly string[]): void;
   /**
    * Drops every tile outside the zone `correctZoneId`, in a ripple from under the stage starting at `tStart`
    * (seconds of kit.now(); default now). The shock ring and the camera's jolt come at `tStart`.
@@ -87,6 +89,8 @@ export interface CameraSpec {
   /** Frames the whole arena of this map in the 3/4 view; margins keep a share of the screen free (0…0.5). */
   arena?: MoveMap;
   margins?: { top?: number; bottom?: number; left?: number; right?: number };
+  /** With `arena`: how steeply the camera looks down, degrees over the floor (default 27; 90 is straight down). */
+  tilt?: number;
   /** Map units; z is the height. */
   eye?: { x: number; y: number; z: number };
   target?: { x: number; y: number; z: number };
@@ -127,6 +131,11 @@ export interface View {
   dispose(): void;
 }
 
+export interface BossOptions {
+  /** Height in metres (50 map units each). Default: skeleton 6, clock 6.6. */
+  height?: number;
+}
+
 export interface LoadOptions {
   /** Load the skeleton boss's model too (the clock needs no file). */
   boss?: BossKind;
@@ -135,9 +144,10 @@ export interface LoadOptions {
 export interface Kit {
   createPlayer(look: PlayerLook, name: string): Player;
   /** The skeleton needs loadKit({ boss: 'skeleton' }) or kit.loadBoss('skeleton') first. */
-  createBoss(kind: BossKind): Boss;
+  createBoss(kind: BossKind, options?: BossOptions): Boss;
   loadBoss(kind: BossKind): Promise<void>;
-  createArena(map: MoveMap): Arena;
+  /** The server's map; `shape` (mode A: the hello's floor and stage) lays the tiles on its grid and the stage in it. */
+  createArena(map: MoveMap, shape?: ArenaShape): Arena;
   /** Draws the kit's scene on a canvas. One view per kit. */
   mount(canvas: HTMLCanvasElement, options?: ViewOptions): View;
   /** Seconds since the kit was made, advanced by update (the view's loop does it). */

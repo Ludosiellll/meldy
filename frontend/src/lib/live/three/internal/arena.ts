@@ -8,7 +8,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import {
   COLLAPSE,
+  TILE_TARGET,
   dropHeight,
+  floorRect,
   impactOf,
   layoutTiles,
   planCollapse,
@@ -16,16 +18,22 @@ import {
   shakeAmount,
   stageOf,
   tileIndexAt,
+  type ArenaShape,
   type MoveMap,
+  type Point,
   type TileLayout,
 } from '../arenaPlan';
 import { canvasTexture, FONT, hullMaterial, makeRamp, roundRect, toon, type SharedUniforms } from './materials';
 import { UNITS } from './crowd';
+import { ZONE_COLOURS } from '../constants';
 
-/** Zone colours by the zone's place in the map (А, Б, В, Г, then round again). */
-export const ZONE_COLOURS = ['#ff6f61', '#4d8dff', '#ffc531', '#36c47c', '#b07cff', '#ff8fc8'];
+export { ZONE_COLOURS };
 const LETTERS: Record<string, string> = { A: 'А', B: 'Б', C: 'В', D: 'Г', E: 'Д', F: 'Е' };
 const PIT = new THREE.Color('#15142e');
+/** The floor's plain tiles (and a closed zone's), in a light check. */
+const PLAIN = ['#e6d9c1', '#efe5d1'];
+/** How deep the stage's column goes into the pit, metres. */
+const COLUMN = 9;
 const TILE_DEPTH = 0.7;
 
 /** The letter shown for a zone id: the server's A–D become А–Г. */
@@ -56,12 +64,18 @@ export class ArenaImpl {
   readonly group = new THREE.Group();
   readonly layout: TileLayout;
   readonly stage: { x: number; y: number };
+  readonly impact: Point;
+  /** The floor's outline, map units (the shape's grid, or the whole map). */
+  readonly bounds: { x: number; y: number; w: number; h: number };
+  /** Zones that take no answer now (by index): plain tiles, no sign. */
+  private readonly closed: boolean[];
   private readonly tiles: THREE.InstancedMesh;
   private readonly baseColors: THREE.Color[];
   private readonly drop: Float64Array;
   private readonly riseAt: Float64Array;
   private readonly riseFrom: Float64Array;
   private readonly labels: Label[] = [];
+  private readonly posts: { zone: number; mesh: THREE.Mesh }[] = [];
   private readonly shock: THREE.Mesh;
   readonly redLight: THREE.PointLight;
   private readonly disposables: { dispose(): void }[] = [];
@@ -78,16 +92,25 @@ export class ArenaImpl {
     private readonly ramp: THREE.Texture,
     private readonly shared: SharedUniforms,
     private readonly onShake: (strength: number) => void,
+    readonly shape: ArenaShape = {},
   ) {
     this.group.name = 'arena';
-    this.layout = layoutTiles(map);
-    this.stage = stageOf(map);
+    this.layout = layoutTiles(map, TILE_TARGET, shape);
+    this.stage = stageOf(map, shape);
+    this.impact = impactOf(map, shape);
+    this.bounds = floorRect(map, shape);
+    this.closed = (map.zones ?? []).map(() => false);
     const n = this.layout.tiles.length;
     this.drop = new Float64Array(n).fill(Infinity);
     this.riseAt = new Float64Array(n).fill(Infinity);
     this.riseFrom = new Float64Array(n);
-    const W = map.w / UNITS;
-    const H = map.h / UNITS;
+    const gridded = !!shape.floor;
+    const staged = !!shape.stage && shape.stage.length >= 3;
+    // the floor's outline in metres: the whole map, or the shape's grid
+    const FX = this.bounds.x / UNITS;
+    const FZ = this.bounds.y / UNITS;
+    const W = this.bounds.w / UNITS;
+    const H = this.bounds.h / UNITS;
     const sx = this.layout.sx / UNITS;
     const sy = this.layout.sy / UNITS;
 
@@ -99,34 +122,36 @@ export class ArenaImpl {
     this.tiles.name = 'floor tiles';
     this.own(tileGeo);
     this.own(tileMat);
-    this.baseColors = this.layout.tiles.map((t) => {
-      const c = new THREE.Color();
-      if (t.zone >= 0) {
-        c.set(ZONE_COLOURS[t.zone % ZONE_COLOURS.length]);
-        if ((t.col + t.row) % 2) c.offsetHSL(0, -0.02, 0.06);
-      } else {
-        c.set((t.col + t.row) % 2 ? '#efe5d1' : '#e6d9c1');
-      }
-      return c;
-    });
+    this.baseColors = this.layout.tiles.map(() => new THREE.Color());
+    this.paintTiles();
     this.layout.tiles.forEach((t, i) => {
       this.tiles.setColorAt(i, this.baseColors[i]);
-      _m.makeTranslation(t.x / UNITS, -TILE_DEPTH / 2, t.y / UNITS);
+      if (t.under) _m.compose(_p.set(t.x / UNITS, -TILE_DEPTH / 2, t.y / UNITS), _q.identity(), _zero);
+      else _m.makeTranslation(t.x / UNITS, -TILE_DEPTH / 2, t.y / UNITS);
       this.tiles.setMatrixAt(i, _m);
     });
     this.group.add(this.tiles);
 
-    // frame around the floor
-    const frameParts = [
-      [W / 2, -1.3, W + 3.6, 2.6],
-      [W / 2, H + 0.6, W + 3.6, 1.2],
-      [-0.8, H / 2, 1.2, H + 4.4],
-      [W + 0.8, H / 2, 1.2, H + 4.4],
-    ].map(([x, z, w, d]) => new RoundedBoxGeometry(w, 1.0, d, 2, 0.2).translate(x, -0.2, z));
-    const frameGeo = mergeGeometries(frameParts) as THREE.BufferGeometry;
-    frameParts.forEach((g) => g.dispose());
-    const frameMat = toon('#3a3360', ramp);
-    this.addWithHull(this.own(frameGeo), this.own(frameMat), 'frame');
+    // frame around the floor: the map's own walls when the floor is the server's grid (they are its border), else a
+    // frame round the whole map
+    const frameParts = gridded
+      ? (map.solids ?? [])
+          .filter((sd) => sd.rect && sd.rect.length >= 4)
+          .map((sd) => {
+            const [x, y, w, h] = sd.rect as number[];
+            return new RoundedBoxGeometry(w / UNITS, 1.0, h / UNITS, 2, 0.2).translate((x + w / 2) / UNITS, -0.2, (y + h / 2) / UNITS);
+          })
+      : [
+          [W / 2, -1.3, W + 3.6, 2.6],
+          [W / 2, H + 0.6, W + 3.6, 1.2],
+          [-0.8, H / 2, 1.2, H + 4.4],
+          [W + 0.8, H / 2, 1.2, H + 4.4],
+        ].map(([x, z, w, d]) => new RoundedBoxGeometry(w, 1.0, d, 2, 0.2).translate(x, -0.2, z));
+    if (frameParts.length) {
+      const frameGeo = mergeGeometries(frameParts) as THREE.BufferGeometry;
+      frameParts.forEach((g) => g.dispose());
+      this.addWithHull(this.own(frameGeo), this.own(toon('#3a3360', ramp)), 'frame');
+    }
 
     // the pit under the floor: falling tiles go into the dark
     const pitTex = this.own(
@@ -140,9 +165,9 @@ export class ArenaImpl {
       }),
     );
     const walls = [
-      new THREE.PlaneGeometry(W, 16).translate(W / 2, -8.2, 0),
-      new THREE.PlaneGeometry(H, 16).rotateY(Math.PI / 2).translate(0, -8.2, H / 2),
-      new THREE.PlaneGeometry(H, 16).rotateY(-Math.PI / 2).translate(W, -8.2, H / 2),
+      new THREE.PlaneGeometry(W, 16).translate(FX + W / 2, -8.2, FZ),
+      new THREE.PlaneGeometry(H, 16).rotateY(Math.PI / 2).translate(FX, -8.2, FZ + H / 2),
+      new THREE.PlaneGeometry(H, 16).rotateY(-Math.PI / 2).translate(FX + W, -8.2, FZ + H / 2),
     ];
     const wallGeo = mergeGeometries(walls) as THREE.BufferGeometry;
     walls.forEach((g) => g.dispose());
@@ -161,13 +186,15 @@ export class ArenaImpl {
     );
     const front = new THREE.Mesh(this.own(new THREE.PlaneGeometry(W + 3.6, 16)), this.own(new THREE.MeshBasicMaterial({ map: frontTex })));
     // just in front of the frame's front face and overlapping it, so no gap shows the pit below the frame
-    front.position.set(W / 2, -8.35, H + 1.25);
+    front.position.set(FX + W / 2, -8.35, gridded ? map.h / UNITS + 0.05 : H + 1.25);
     front.name = 'front skirt';
     this.group.add(front);
 
     // solids from the map: walls and pillars
     const solidParts: THREE.BufferGeometry[] = [];
     for (const s of map.solids ?? []) {
+      if (gridded && s.rect) continue; // the frame
+      if (staged && s.circle && s.circle[0] === this.stage.x && s.circle[1] === this.stage.y) continue; // the stage
       if (s.rect && s.rect.length >= 4) {
         const [x, y, w, h] = s.rect;
         solidParts.push(new RoundedBoxGeometry(w / UNITS, 1.1, h / UNITS, 2, 0.12).translate((x + w / 2) / UNITS, 0.55, (y + h / 2) / UNITS));
@@ -219,6 +246,7 @@ export class ArenaImpl {
         legs.forEach((g) => g.dispose());
         const post = this.addWithHull(this.own(signGeo), this.own(toon('#3a3360', ramp)), 'sign');
         post.position.copy(base);
+        this.posts.push({ zone: zi, mesh: post });
       }
       mesh.position.copy(base);
       mesh.name = `label ${zone.id}`;
@@ -228,12 +256,19 @@ export class ArenaImpl {
       this.drawLabel(label);
     });
 
-    // the boss's stage
+    // the boss's stage: beyond the far edge, or (with the shape's stage) a round column in the floor that stays when
+    // the tiles around it drop, as wide as the solid circle the players run round
     const st = { x: this.stage.x / UNITS, z: this.stage.y / UNITS };
-    const stageGeo = this.own(new THREE.CylinderGeometry(4.6, 5.0, 1.2, 48));
+    const sr = staged ? (shape.stage as number[])[2] / UNITS : 4.6;
+    const stageGeo = this.own(
+      staged ? new THREE.CylinderGeometry(sr, sr * 0.92, COLUMN, 48).translate(0, 0.3 - COLUMN / 2, 0) : new THREE.CylinderGeometry(4.6, 5.0, 1.2, 48),
+    );
     const stageMesh = this.addWithHull(stageGeo, this.own(toon('#2c2650', ramp)), 'stage');
-    stageMesh.position.set(st.x, -0.3, st.z);
-    const ring = new THREE.Mesh(this.own(new THREE.TorusGeometry(4.3, 0.12, 8, 64)), this.own(new THREE.MeshBasicMaterial({ color: '#ff3b4a' })));
+    stageMesh.position.set(st.x, staged ? 0 : -0.3, st.z);
+    const ring = new THREE.Mesh(
+      this.own(new THREE.TorusGeometry(staged ? sr * 0.86 : 4.3, staged ? 0.07 : 0.12, 8, 64)),
+      this.own(new THREE.MeshBasicMaterial({ color: '#ff3b4a' })),
+    );
     ring.rotation.x = Math.PI / 2;
     ring.position.set(st.x, 0.31, st.z);
     ring.name = 'stage ring';
@@ -254,14 +289,15 @@ export class ArenaImpl {
       }),
     );
     stripes.wrapS = THREE.RepeatWrapping;
-    stripes.repeat.set(6, 1);
-    const band = new THREE.Mesh(this.own(new THREE.CylinderGeometry(5.02, 5.02, 0.35, 64, 1, true)), this.own(toon('#ffffff', ramp, { map: stripes })));
-    band.position.set(st.x, 0.05, st.z);
+    stripes.repeat.set(staged ? Math.max(2, Math.round(sr * 1.3)) : 6, 1);
+    const bandR = staged ? sr + 0.02 : 5.02;
+    const band = new THREE.Mesh(this.own(new THREE.CylinderGeometry(bandR, bandR, 0.35, 64, 1, true)), this.own(toon('#ffffff', ramp, { map: stripes })));
+    band.position.set(st.x, staged ? 0.1 : 0.05, st.z);
     band.name = 'stage band';
     this.group.add(band);
 
     // the stomp's shock ring
-    const imp = impactOf(map);
+    const imp = this.impact;
     this.shock = new THREE.Mesh(
       this.own(new THREE.RingGeometry(0.85, 1, 64)),
       this.own(new THREE.MeshBasicMaterial({ color: '#ff8a3d', transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })),
@@ -274,7 +310,7 @@ export class ArenaImpl {
 
     this.redLight = new THREE.PointLight('#ff2a3a', 25, 30, 1.6);
     // in front of the stage and low: it reddens the floor around the boss more than the boss itself
-    this.redLight.position.set(st.x, 3, st.z + 5.5);
+    this.redLight.position.set(st.x, 3, st.z + (staged ? sr + 2 : 5.5));
     this.group.add(this.redLight);
   }
 
@@ -343,6 +379,38 @@ export class ArenaImpl {
     label.texture.needsUpdate = true;
   }
 
+  /** Each tile's colour at rest: its zone's (a closed zone's tiles plain), or the floor's check. */
+  private paintTiles(): void {
+    this.layout.tiles.forEach((t, i) => {
+      const c = this.baseColors[i];
+      if (t.zone >= 0 && !this.closed[t.zone]) {
+        c.set(ZONE_COLOURS[t.zone % ZONE_COLOURS.length]);
+        if ((t.col + t.row) % 2) c.offsetHSL(0, -0.02, 0.06);
+      } else {
+        c.set(PLAIN[(t.col + t.row) % 2]);
+        if (t.zone >= 0) c.offsetHSL(0, -0.04, -0.05);
+      }
+    });
+  }
+
+  setClosedZones(ids: readonly string[]): void {
+    const zones = this.map.zones ?? [];
+    let changed = false;
+    zones.forEach((z, i) => {
+      const off = ids.includes(z.id);
+      if (off !== this.closed[i]) changed = true;
+      this.closed[i] = off;
+    });
+    if (!changed) return;
+    this.paintTiles();
+    for (const label of this.labels) label.mesh.visible = !this.closed[label.zone];
+    for (const post of this.posts) post.mesh.visible = !this.closed[post.zone];
+    if (!this.animating) {
+      this.layout.tiles.forEach((_t, i) => this.tiles.setColorAt(i, this.baseColors[i]));
+      if (this.tiles.instanceColor) this.tiles.instanceColor.needsUpdate = true;
+    }
+  }
+
   setZoneLabels(labels: Partial<Record<string, string>>): void {
     for (const label of this.labels) {
       const id = (this.map.zones ?? [])[label.zone]?.id ?? '';
@@ -355,7 +423,7 @@ export class ArenaImpl {
 
   collapse(correctZoneId: string, tStart: number): void {
     this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    planCollapse(this.map, this.layout, correctZoneId, tStart, this.seed, this.drop);
+    planCollapse(this.map, this.layout, correctZoneId, tStart, this.seed, this.drop, this.impact);
     this.riseAt.fill(Infinity);
     this.shockAt = tStart;
     this.shookAt = Infinity;
@@ -363,7 +431,7 @@ export class ArenaImpl {
   }
 
   restore(): void {
-    const imp = impactOf(this.map);
+    const imp = this.impact;
     this.layout.tiles.forEach((t, i) => {
       const h = this.heightOf(i);
       if (h < 0 || this.drop[i] !== Infinity) {
@@ -448,7 +516,7 @@ export class ArenaImpl {
         _e.set(rx, 0, rz);
       }
       _q.setFromEuler(_e);
-      _m.compose(_p, _q, y <= COLLAPSE.gone ? _zero : _one);
+      _m.compose(_p, _q, t.under || y <= COLLAPSE.gone ? _zero : _one);
       this.tiles.setMatrixAt(i, _m);
       _c.copy(this.baseColors[i]).lerp(PIT, Math.min(0.92, Math.max(0, -wy / 7)));
       this.tiles.setColorAt(i, _c);
@@ -459,9 +527,14 @@ export class ArenaImpl {
       if (!label.flat || label.tile < 0) continue;
       const h = this.heightOf(label.tile) / UNITS;
       label.mesh.position.set(label.base.x, label.base.y + h, label.base.z);
-      label.mesh.visible = h > -12;
+      label.mesh.visible = h > -12 && !this.closed[label.zone];
     }
     this.animating = busy;
+  }
+
+  /** The tops of the upright signs, metres (the camera keeps them in the picture). */
+  signTops(): THREE.Vector3[] {
+    return this.labels.filter((l) => !l.flat).map((l) => new THREE.Vector3(l.base.x, l.base.y + 0.9, l.base.z - 0.4));
   }
 
   setOutlines(on: boolean): void {
