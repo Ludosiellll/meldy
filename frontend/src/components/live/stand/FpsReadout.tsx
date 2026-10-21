@@ -1,5 +1,5 @@
 /**
- * A small corner readout for checking a real device (the projector laptop, a phone): frames a second, the slowest 5 %
+ * A small readout at the top centre for checking a real device (the projector laptop, a phone): frames a second, the slowest 5 %
  * of frames in ms, and the 3D quality level (0 best … 5 cheapest; «2D» when the phone plays the light view). It shows
  * only with `?fps=1` in the address, never by default. It times the page's own animation frames, so it costs one
  * requestAnimationFrame callback and one text update a second.
@@ -48,9 +48,11 @@ export function FpsReadout({ quality }: { quality: () => number | null }) {
       ref={ref}
       aria-hidden="true"
       style={{
+        // top centre: the corners and the bottom hold the screens' buttons and the phone's status card
         position: 'fixed',
-        right: 8,
-        bottom: 8,
+        top: 'max(2px, env(safe-area-inset-top))',
+        left: '50%',
+        transform: 'translateX(-50%)',
         zIndex: 9999,
         padding: '4px 8px',
         borderRadius: 6,
