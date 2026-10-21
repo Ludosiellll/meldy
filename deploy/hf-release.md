@@ -4,6 +4,23 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.20: «Провести игру» everywhere, real game footage in the guide (from the commit of this entry)
+
+- **Where to start the game** (owner, 21.10: «а где на сайте указать что ты хочешь такую игру? и обучение по тому как ее
+  сделать?»): «Провести игру» on «Тесты» and on the quick test's link, a step in «Первые шаги», a line on the landing, the
+  setup's lead says the game runs on a projector and students join by PIN or QR on the site or in Telegram.
+- **The guide's «Игра в классе» and the test page's tip play real footage** of the running 3D game (owner: «тут должен
+  быть ролик прям когда игра идет … небольшой отрезок где бегают игроки»), not the drawn scene: 10.8 s, 800×450 H.264,
+  five parts under 96 KB in `public/game/footage/` joined in the browser (`lib/footage.ts`, `components/film/Footage.tsx`);
+  fetched only when the chapter is shown; poster only with reduced motion or without H.264.
+- Stand game: the podium's names on a dark chip (the winner's name sat on the boss clock); the `?fps=1` readout at the
+  top centre.
+- Server: the room for the battle with movement rounds (`backend/live_move_mixed.py`) ships dormant: no screen offers it
+  yet; `20261024090000_live_mixed` is applied (run 39619751948), default off.
+- Gate on 7dbb71e (clean worktree): pytest 2472 (two later runs all green; the first two runs had 1 and 3 failures under
+  load 12 on 4 cores with ENOSPC on the first, names not captured), bot 393, sync ok, Vitest 405 files / 6609 tests,
+  Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.19: the movement game «Встань на ответ» (from the commit of this entry)
 
 - **«Встань на ответ»** (owner, 21.10: a game where everyone runs their own character from the phone): on `/live/new` the
