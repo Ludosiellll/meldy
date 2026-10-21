@@ -185,13 +185,17 @@
   color: #1f5bc6;
   font-weight: 500;
 }
+/* The arrow's tip (M5 3 of its 24 box, drawn 22 px) is the UI box's corner, and the dip of a press is about the tip:
+   its translate is the point it points at (pointer3.tsx TIP). */
 .r3-cursor {
   position: absolute;
-  left: -4px;
-  top: -2px;
+  left: -4.583px;
+  top: -2.75px;
   z-index: 10;
   width: 22px;
   height: 22px;
+  transform-origin: 4.583px 2.75px;
+  pointer-events: none;
   will-change: transform;
 }
 .r3-cursor svg {
@@ -258,8 +262,36 @@
   color: #fff;
   box-shadow: none;
 }
-.is-pressed {
-  transform: scale(0.94);
+/* Pressed for the pointer's dip (pointer3.tsx flags): `scale`, so it adds to a transform the frame code writes. */
+.r3-stage .is-pressed {
+  scale: 0.95;
+}
+.r3-stage .r3-opt.is-pressed,
+.r3-stage .r3-take-opt.is-pressed,
+.r3-stage .r3-menu span.is-pressed,
+.r3-stage .r3-choice.is-pressed {
+  scale: 0.98;
+}
+/* Under the pointer before a press: the app's hover, drawn at once (a class set at two moments, nothing animates). */
+.r3-link.is-hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.r3-btn.is-hover {
+  background: #1f5bc6;
+}
+.r3-mini.is-hover {
+  background: #f3f3f0;
+}
+.r3-mini--ink.is-hover,
+.r3-copy.is-hover {
+  background: #262e3b;
+}
+/* A block in hand: it moves from its own corner (pointer3.tsx carry). */
+.r3-carried {
+  transform-origin: 0 0;
+  pointer-events: none;
+  will-change: transform;
 }
 .r3-flag {
   display: inline-flex;
@@ -363,6 +395,10 @@
 }
 .r3-opt.is-wrong small {
   color: #8d2f50;
+}
+.r3-opt.is-hover {
+  background: #f7f7f3;
+  box-shadow: inset 0 0 0 1px #c9cbc6;
 }
 .r3-opt--s {
   padding: 6px 8px;
@@ -521,10 +557,11 @@
   max-width: 220px;
   margin-top: 4px;
 }
+/* Clear of the zone's first line («Перетащите файлы с вопросами.»), which runs under it otherwise. */
 .r3-file {
   position: absolute;
   right: 14px;
-  bottom: 14px;
+  bottom: 8px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -661,7 +698,8 @@
   padding: 7px 10px;
   border-radius: 9px;
 }
-.r3-menu span.is-hover {
+.r3-menu span.is-hover,
+.r3-menu span.is-pressed {
   background: #f0f0eb;
 }
 
@@ -1097,6 +1135,9 @@
 .r3-tg-btn--blue {
   background: #3a7be0;
 }
+.r3-tg-btn.is-hover {
+  background: rgba(84, 110, 74, 0.72);
+}
 .r3-tg-app {
   position: absolute;
   left: 0;
@@ -1219,6 +1260,14 @@
   border-radius: 8px;
   font-size: 11px;
 }
+/* As the studio's palette: a row under the pointer is lit; its block in hand, the row stays behind, faded. */
+.r3-pal-i.is-hover {
+  background: #f3f3f0;
+  box-shadow: 0 0 0 1px #e3e3dd;
+}
+.r3-pal-i.is-grabbed {
+  opacity: 0.45;
+}
 .r3-page {
   position: absolute;
   left: 148px;
@@ -1271,7 +1320,7 @@
   overflow: hidden;
   padding: 0;
 }
-.r3-blk-cover.is-drop {
+.r3-blk-cover.is-over {
   background: #f3f7fe;
   box-shadow: inset 0 0 0 2px #2869dd;
 }
@@ -1356,14 +1405,20 @@
   font-weight: 600;
   color: var(--acc);
 }
+/* A slot of the page holds its block and the line that shows where a dragged block will land: in the gap above it. */
+.r3-slot {
+  position: relative;
+}
 .r3-dropline {
   position: absolute;
   left: 0;
   right: 0;
+  top: -4.5px;
   height: 3px;
   border-radius: 3px;
   background: #2869dd;
 }
+/* The palette row in hand: the row's own size and padding, so it lifts off the row exactly where it lay. */
 .r3-ghost {
   position: absolute;
   left: 0;
@@ -1372,20 +1427,22 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  width: 100px;
+  width: 124px;
   height: 26px;
-  padding: 0 10px;
-  border-radius: 9px;
+  padding: 0 6px;
+  border-radius: 8px;
   background: #fff;
   box-shadow: 0 14px 28px -12px rgba(16, 41, 90, 0.55), 0 0 0 1.5px #2869dd;
   font-size: 11px;
   will-change: transform;
 }
+/* At the top of the cover's picture: the file in hand comes from below and is let go under it, so the words stay
+   readable. */
 .r3-dropword {
   position: absolute;
   left: 8px;
   right: 8px;
-  top: 40px;
+  top: 6px;
   font-size: 11px;
   font-weight: 600;
   text-align: center;
@@ -1490,6 +1547,9 @@
   box-shadow: inset 0 0 0 1px #ececE6;
   font-size: 10.5px;
 }
+.r3-choice.is-hover {
+  background: #f7f7f3;
+}
 .r3-choice.is-on {
   box-shadow: inset 0 0 0 1.5px #2869dd;
   color: #1f5bc6;
@@ -1532,6 +1592,10 @@
   color: #4b515b;
   white-space: nowrap;
 }
+.r3-side-tabs span.is-hover {
+  background: #f0f0eb;
+  color: #0b121c;
+}
 .r3-side-tabs span.is-on {
   background: #0b121c;
   color: #fff;
@@ -1546,6 +1610,9 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
+}
+.r3-sws i.is-hover {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #c9cbc6;
 }
 .r3-sws i.is-on {
   box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px #0b121c;
@@ -1562,8 +1629,18 @@
   font-size: 12px;
 }
 .r3-stepper i {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin: 0 -5px;
+  border-radius: 6px;
   font-style: normal;
   color: #4b515b;
+}
+.r3-stepper i.is-hover {
+  background: #f0f0eb;
+  color: #0b121c;
 }
 .r3-bands {
   position: absolute;
@@ -1665,6 +1742,7 @@
 }
 .r3-url {
   position: relative;
+  z-index: 1;
   margin: 8px 8px 0 !important;
   padding: 4px 8px;
   overflow: hidden;
@@ -1674,6 +1752,11 @@
   text-align: center;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+.r3-take-scroll {
+  display: grid;
+  align-content: start;
+  gap: 6px;
 }
 .r3-take-page {
   position: absolute;
@@ -1728,6 +1811,9 @@
   border-radius: 50%;
   box-shadow: inset 0 0 0 1.5px #b9bcc2;
 }
+.r3-take-opt.is-hover {
+  box-shadow: inset 0 0 0 1px #b9bcc2;
+}
 .r3-take-opt.is-picked {
   box-shadow: inset 0 0 0 1.5px #1f8a4c;
 }
@@ -1745,6 +1831,9 @@
   background: #1f8a4c;
   color: #fff;
   font-size: 10px;
+}
+.r3-take-next.is-hover {
+  background: #197a42;
 }
 .r3-take-result {
   position: absolute;

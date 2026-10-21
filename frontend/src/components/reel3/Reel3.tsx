@@ -1,17 +1,18 @@
 import { startTransition, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react';
 import { ReelClock } from '../reel/clock';
-import { ClockProvider, SceneProvider, opacity, put, useFrame } from '../reel/engine';
+import { ClockProvider, SceneProvider, StageScaleProvider, opacity, put, useFrame } from '../reel/engine';
 import { ease, seg } from '../reel/timeline';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import { SAY } from '../home3/copy3';
-import { CHAPTERS3, OVERLAP, POSTER3, STAGE, TALL_BELOW, TOTAL3, activeScenes3, chapterAt3, scene3, type Layout, type SceneId3 } from './timeline3';
-import { BuildScene, LookScene, MediaScene } from './scenes/Studio';
+import { CHAPTERS3, OVERLAP, POSTER3, SCENES3, STAGE, TALL_BELOW, TOTAL3, activeScenes3, chapterAt3, scene3, type Layout, type SceneId3 } from './timeline3';
+import type { CursorKey } from './pointer3';
+import { BUILD_KEYS, BuildScene, LOOK_KEYS, LookScene, MEDIA_KEYS, MediaScene } from './scenes/Studio';
 import { EndScene, END_CTA } from './scenes/End';
-import { FileScene, PlanScene, SessionScene } from './scenes/Exam';
-import { GroupScene } from './scenes/Group';
+import { FILE_KEYS, FileScene, PLAN_KEYS, PlanScene, SESSION_KEYS, SessionScene } from './scenes/Exam';
+import { GROUP_KEYS, GroupScene } from './scenes/Group';
 import { LectureScene } from './scenes/Lecture';
-import { SendScene, StatsScene, TakeScene } from './scenes/Share';
+import { SEND_KEYS, SendScene, StatsScene, TAKE_KEYS, TakeScene } from './scenes/Share';
 import { SheetScene, TicketScene } from './scenes/Oral';
 import './reel3.css';
 
@@ -19,7 +20,14 @@ declare global {
   interface Window {
     /** Set by the frame exporter before the page loads: no autoplay, and `__meldyReel` to step frames. */
     __MELDY_REEL_EXPORT__?: boolean;
-    __meldyReel?: { total: number; seek: (t: number) => Promise<void> };
+    __meldyReel?: {
+      total: number;
+      seek: (t: number) => Promise<void>;
+      /** The clock moved at once, without waiting for a paint (a scene already on the stage stays). */
+      seekNow: (t: number) => void;
+      scenes: typeof SCENES3;
+      pointers: typeof POINTER_KEYS3;
+    };
   }
 }
 
@@ -38,6 +46,19 @@ const VIEWS: Record<SceneId3, ComponentType> = {
   take: TakeScene,
   stats: StatsScene,
   end: EndScene,
+};
+
+/** The pointer's keys of every scene that has one (scene ms): what it presses, drags and where it rests. */
+export const POINTER_KEYS3: Partial<Record<SceneId3, readonly CursorKey[]>> = {
+  file: FILE_KEYS,
+  plan: PLAN_KEYS,
+  session: SESSION_KEYS,
+  group: GROUP_KEYS,
+  build: BUILD_KEYS,
+  media: MEDIA_KEYS,
+  look: LOOK_KEYS,
+  send: SEND_KEYS,
+  take: TAKE_KEYS,
 };
 
 /** Every sentence of the reel, in order: read to screen readers (the stage itself is hidden from them). */
@@ -66,7 +87,7 @@ function Gate({ id, children }: { id: SceneId3; children: ReactNode }) {
     put(root.current, 'transform', `translate3d(${Math.round(64 * (1 - enter) - 40 * leave)}px,0,0)`);
   });
   return (
-    <div ref={root} className="r3-gate" style={{ opacity: 0 }}>
+    <div ref={root} className="r3-gate" data-scene={id} style={{ opacity: 0 }}>
       {children}
     </div>
   );
@@ -94,6 +115,7 @@ function Stage({ clock, layout, scale }: { clock: ReelClock; layout: Layout; sca
   const size = STAGE[layout];
   return (
     <ClockProvider value={clock}>
+      <StageScaleProvider value={scale}>
       <div className="r3-stage" data-layout={layout} style={{ width: size.w, height: size.h, transform: `scale(${scale})` }} aria-hidden="true">
         {scenes.map((id) => {
           const View = VIEWS[id];
@@ -106,6 +128,7 @@ function Stage({ clock, layout, scale }: { clock: ReelClock; layout: Layout; sca
           );
         })}
       </div>
+      </StageScaleProvider>
     </ClockProvider>
   );
 }
@@ -268,6 +291,9 @@ export default function Reel3({ onCta, layoutOverride }: { onCta?: () => void; l
           clock.seek(t);
           requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
         }),
+      seekNow: (t: number) => clock.seek(t),
+      scenes: SCENES3,
+      pointers: POINTER_KEYS3,
     };
     return () => {
       delete window.__meldyReel;

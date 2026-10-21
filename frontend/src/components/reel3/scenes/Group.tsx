@@ -6,7 +6,8 @@
 import { useRef } from 'react';
 import { flag, useEls, useFrame } from '../../reel/engine';
 import { EXAMPLE, SAY } from '../../home3/copy3';
-import { Count, Cursor, Say, appear, ease, seg, move } from '../kit3';
+import { Count, Say, appear, ease, seg, move } from '../kit3';
+import { Cursor, pressAt, usePointer, type CursorKey } from '../pointer3';
 
 const AVATARS = ['А', 'М', 'К', 'Д', 'Е', 'С', 'И', 'Т'];
 const TONES = ['#e8effc', '#fcefc9', '#e2f2e5', '#fbe3ec', '#e8effc', '#fcefc9', '#e2f2e5', '#fbe3ec'];
@@ -17,12 +18,27 @@ const members = (n: number) => {
   return `В экзамене ${n} ${word}`;
 };
 
+/** «Скопировать» under the invite card, then «Открыть Meldy» in the bot's message; the pointer waits beside them. */
+export const GROUP_KEYS: readonly CursorKey[] = [
+  { t: 600, aim: 'invite', fx: 0.82, fy: 1, dy: 26 },
+  { t: 1100, aim: 'copy', press: true },
+  { t: 1800, aim: 'invite', fx: 0.82, fy: 1, dy: 26 },
+  { t: 2800, hide: true },
+  { t: 5100, aim: 'open', press: true },
+  { t: 5800, aim: 'phone', fx: 1, fy: 0.78, dx: 28 },
+  { t: 6500, hide: true },
+];
+const COPIED = pressAt(GROUP_KEYS, 'copy');
+/** The Mini App comes up as «Открыть Meldy» is let go. */
+const OPENED = pressAt(GROUP_KEYS, 'open') + 250;
+
 export function GroupScene() {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
+  const pointer = usePointer(GROUP_KEYS);
   useFrame((l) => {
     appear(one('invite'), l, 100, 450, 18, 3150);
-    flag(one('copy'), 'is-done', l >= 1150);
+    flag(one('copy'), 'is-done', l >= COPIED);
     all('av').forEach((av, index) => appear(av, l, 1500 + index * 120, 300, 6));
     const rise = ease.brand(seg(l, 3420, 700));
     // The phone comes up once the invite card has gone from the same place (no half-seen card under it).
@@ -30,8 +46,8 @@ export function GroupScene() {
     move(one('phone'), 0, 80 * (1 - rise));
     appear(one('bubble'), l, 3800, 400, 10);
     appear(one('btns'), l, 4100, 380, 6);
-    const app = ease.brand(seg(l, 5350, 600));
-    appear(one('app'), l, 5350, 200, 0);
+    const app = ease.brand(seg(l, OPENED, 600));
+    appear(one('app'), l, OPENED, 200, 0);
     move(one('app'), 0, 200 * (1 - app));
   });
   return (
@@ -39,12 +55,12 @@ export function GroupScene() {
       <Say text={SAY.group[0]} at={300} until={3300} />
       <Say text={SAY.group[1]} at={3550} />
       <div className="r3-ui">
-        <div data-a="invite" className="r3-card r3-invite" style={{ opacity: 0 }}>
+        <div data-a="invite" data-aim="invite" className="r3-card r3-invite" style={{ opacity: 0 }}>
           <p className="r3-h">Пригласить группу</p>
           <p className="r3-meta">По ссылке каждый получит весь экзамен: 4 предмета, 960 вопросов. Прогресс у каждого свой.</p>
           <div className="r3-linkrow">
             <span className="r3-field">…/g/k4Rm7Qx2</span>
-            <span data-a="copy" className="r3-copy">
+            <span data-a="copy" data-aim="copy" data-aim-on="is-done" className="r3-copy">
               <span>Скопировать</span>
               <span>Скопировано</span>
             </span>
@@ -60,7 +76,7 @@ export function GroupScene() {
             </p>
           </div>
         </div>
-        <div data-a="phone" className="r3-phone" style={{ opacity: 0 }}>
+        <div data-a="phone" data-aim="phone" className="r3-phone" style={{ opacity: 0 }}>
           <div className="r3-phone-in">
             <p className="r3-tg-top">
               <b>Meldy</b>
@@ -74,7 +90,9 @@ export function GroupScene() {
             </p>
             <div data-a="btns" className="r3-tg-btns" style={{ opacity: 0 }}>
               <span className="r3-tg-btn r3-tg-btn--blue">Начать: 20 вопросов</span>
-              <span className="r3-tg-btn">Открыть Meldy</span>
+              <span data-aim="open" className="r3-tg-btn">
+                Открыть Meldy
+              </span>
             </div>
             <div data-a="app" className="r3-tg-app" style={{ opacity: 0 }}>
               <p className="r3-tg-app-top">
@@ -92,17 +110,7 @@ export function GroupScene() {
             </div>
           </div>
         </div>
-        <Cursor
-          keys={[
-            { t: 600, x: 250, y: 220 },
-            { t: 1000, x: 312, y: 116, press: true },
-            { t: 1600, x: 340, y: 250 },
-            { t: 4600, x: 300, y: 300 },
-            { t: 5050, x: 190, y: 236, press: true },
-            { t: 5600, x: 320, y: 300 },
-          ]}
-          until={6400}
-        />
+        <Cursor pointer={pointer} />
       </div>
     </div>
   );

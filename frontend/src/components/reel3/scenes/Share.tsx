@@ -8,7 +8,8 @@ import { qrCode } from '../../../lib/quizzes/qr';
 import { flag, put, useEls, useFrame } from '../../reel/engine';
 import { EXAMPLE, SAY, SAMPLE_TEST_URL, SITE } from '../../home3/copy3';
 import { PAPER_URL, GRAPH_URL } from '../../home3/art';
-import { Arrow, Count, Cursor, Say, appear, ease, move, seg } from '../kit3';
+import { Arrow, Count, Say, appear, ease, move, seg } from '../kit3';
+import { Cursor, pressAt, usePointer, type CursorKey } from '../pointer3';
 
 export function Qr({ className }: { className?: string }) {
   const code = useMemo(() => qrCode(`${SITE}${SAMPLE_TEST_URL}`), []);
@@ -20,14 +21,25 @@ export function Qr({ className }: { className?: string }) {
   );
 }
 
+/** «Отправить по ссылке», then «Скопировать»; the pointer comes from under the bar and rests in the card's corner. */
+export const SEND_KEYS: readonly CursorKey[] = [
+  { t: 200, aim: 'studio', fx: 0.45, fy: 1, dy: 26 },
+  { t: 650, aim: 'send', press: true, fx: 0.42 },
+  { t: 1600, aim: 'copy', press: true },
+  { t: 2300, aim: 'share', fx: 0.86, fy: 0.93 },
+  { t: 3500, hide: true },
+];
+const SENT = pressAt(SEND_KEYS, 'send');
+const COPIED = pressAt(SEND_KEYS, 'copy');
+
 export function SendScene() {
   const root = useRef<HTMLDivElement>(null);
   const { one } = useEls(root);
+  const pointer = usePointer(SEND_KEYS);
   useFrame((l) => {
-    appear(one('studio'), l, 0, 1, 0, 900);
-    flag(one('send'), 'is-pressed', l >= 600 && l < 850);
-    appear(one('share'), l, 1180, 420, 16);
-    flag(one('copy'), 'is-done', l >= 1650);
+    appear(one('studio'), l, 0, 1, 0, SENT + 250);
+    appear(one('share'), l, SENT + 530, 420, 16);
+    flag(one('copy'), 'is-done', l >= COPIED);
     const grow = ease.brand(seg(l, 2300, 700));
     move(one('qr'), -40 * grow, -26 * grow, 1 + 0.42 * grow);
   });
@@ -35,23 +47,23 @@ export function SendScene() {
     <div ref={root} className="r3-scene is-flip">
       <Say text={SAY.send[0]} at={300} />
       <div className="r3-ui">
-        <div data-a="studio" className="r3-card r3-sendbar">
+        <div data-a="studio" data-aim="studio" className="r3-card r3-sendbar">
           <span className="r3-st-name">
             <b>{EXAMPLE.testTitle}</b>
             <small>Сохранено</small>
           </span>
-          <span data-a="send" className="r3-btn r3-btn--s">
+          <span data-a="send" data-aim="send" className="r3-btn r3-btn--s">
             Отправить по ссылке
             <i>
               <Arrow />
             </i>
           </span>
         </div>
-        <div data-a="share" className="r3-card r3-share" style={{ opacity: 0 }}>
+        <div data-a="share" data-aim="share" className="r3-card r3-share" style={{ opacity: 0 }}>
           <p className="r3-h r3-h--s">Ссылка для участников</p>
           <div className="r3-linkrow">
             <span className="r3-field r3-field--long">{EXAMPLE.link}</span>
-            <span data-a="copy" className="r3-copy">
+            <span data-a="copy" data-aim="copy" data-aim-on="is-done" className="r3-copy">
               <span>Скопировать</span>
               <span>Скопировано</span>
             </span>
@@ -67,45 +79,52 @@ export function SendScene() {
             </span>
           </div>
         </div>
-        <Cursor
-          keys={[
-            { t: 250, x: 200, y: 160 },
-            { t: 600, x: 318, y: 26, press: true },
-            { t: 1200, x: 250, y: 160 },
-            { t: 1550, x: 322, y: 116, press: true },
-            { t: 2200, x: 340, y: 300 },
-          ]}
-          until={3600}
-        />
+        <Cursor pointer={pointer} />
       </div>
     </div>
   );
 }
 
+/** How far the participant scrolls the page to reach «Дальше» under the options (UI px). */
+const TAKE_SCROLL = 36;
+
+/** «Вырастет», a scroll (the pointer still), then «Дальше»; the pointer waits beside the phone. */
+export const TAKE_KEYS: readonly CursorKey[] = [
+  { t: 700, aim: 'phone', fx: 1, fy: 0.74, dx: 30 },
+  { t: 1150, aim: 'pick', press: true, fx: 0.35 },
+  { t: 2000, aim: 'next', press: true, dy: -TAKE_SCROLL },
+  { t: 2700, aim: 'phone', fx: 1, fy: 0.8, dx: 30 },
+  { t: 3500, hide: true },
+];
+const PICKED = pressAt(TAKE_KEYS, 'pick');
+const NEXT = pressAt(TAKE_KEYS, 'next');
+
 export function TakeScene() {
   const root = useRef<HTMLDivElement>(null);
   const { one } = useEls(root);
+  const pointer = usePointer(TAKE_KEYS);
   useFrame((l) => {
     const rise = ease.brand(seg(l, 100, 600));
     appear(one('phone'), l, 100, 300, 0);
     move(one('phone'), 0, 60 * (1 - rise));
-    flag(one('pick'), 'is-picked', l >= 1250);
-    flag(one('next'), 'is-pressed', l >= 1750 && l < 1950);
+    flag(one('pick'), 'is-picked', l >= PICKED);
+    move(one('scroll'), 0, -TAKE_SCROLL * ease.inOut(seg(l, PICKED + 200, 400)));
     // The question is gone before the result comes up: nothing of it shows under the result card.
-    appear(one('q'), l, 0, 1, 0, 1950);
-    appear(one('result'), l, 2220, 420, 14);
+    appear(one('q'), l, 0, 1, 0, NEXT + 150);
+    appear(one('result'), l, NEXT + 420, 420, 14);
   });
   return (
     <div ref={root} className="r3-scene">
       <Say text={SAY.take[0]} at={300} />
       <div className="r3-ui">
-        <div data-a="phone" className="r3-phone" style={{ opacity: 0 }}>
+        <div data-a="phone" data-aim="phone" className="r3-phone" style={{ opacity: 0 }}>
           <div className="r3-phone-in r3-take">
             <span className="r3-take-bg">
               <img src={PAPER_URL} alt="" />
             </span>
             <p className="r3-url">{EXAMPLE.link}</p>
             <div data-a="q" className="r3-take-page">
+              <div data-a="scroll" className="r3-take-scroll">
               <div className="r3-take-cover">
                 <img src={GRAPH_URL} alt="" />
                 <p>{EXAMPLE.testTitle}</p>
@@ -115,14 +134,21 @@ export function TakeScene() {
                 <p className="r3-meta">Вопрос 1 из 5</p>
                 <p className="r3-stem r3-stem--s">{EXAMPLE.testStem}</p>
                 {EXAMPLE.testOptions.map((option, index) => (
-                  <span key={option} data-a={index === EXAMPLE.testRight ? 'pick' : undefined} className="r3-take-opt">
+                  <span
+                    key={option}
+                    data-a={index === EXAMPLE.testRight ? 'pick' : undefined}
+                    data-aim={index === EXAMPLE.testRight ? 'pick' : undefined}
+                    data-aim-on={index === EXAMPLE.testRight ? 'is-picked' : undefined}
+                    className="r3-take-opt"
+                  >
                     <i />
                     {option}
                   </span>
                 ))}
-                <span data-a="next" className="r3-take-next">
+                <span data-a="next" data-aim="next" className="r3-take-next">
                   Дальше
                 </span>
+              </div>
               </div>
             </div>
             <div data-a="result" className="r3-take-result" style={{ opacity: 0 }}>
@@ -134,15 +160,7 @@ export function TakeScene() {
             </div>
           </div>
         </div>
-        <Cursor
-          keys={[
-            { t: 800, x: 260, y: 300 },
-            { t: 1150, x: 170, y: 214, press: true },
-            { t: 1650, x: 190, y: 270, press: true },
-            { t: 2300, x: 300, y: 320 },
-          ]}
-          until={3000}
-        />
+        <Cursor pointer={pointer} />
       </div>
     </div>
   );
