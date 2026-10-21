@@ -4,6 +4,22 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.11: the live game after its check on the real database, still closed; the Supabase route (from the commit of this entry)
+
+- **«Битва с монстром», after the live check on the real database** (4 games, a class of 23–24, Realtime, reconnects):
+  the phones no longer wait forever when the teacher ends a game early («Игра закончилась», the review, «Войти по
+  PIN»); the teacher's podium says «Игра закончена · N вопросов из M» instead of «Дедлайн победил»; a late joiner sees
+  the buttons shut with one line instead of a failing tap; the PIN is checked before the character builder; the
+  reveal is one moment — one damage number flies into the HP bar, the question's top three under it; «Время вышло»
+  at zero instead of a frozen «0»; names a room can read, seats that stay put after a removal; a lobby for the
+  room; sound made on the device (lobby, ticks, the hit, the fanfare) with a switch; on the phone «Илья впереди на
+  150 урона», «Ваш ответ пришёл 4-м», a full final screen and a share text with the result.
+- **The Supabase route:** a short failure (a reload during a request, a few seconds without network) no longer sends
+  a browser through the site for 12 hours without Realtime; a move to the site after a failure lasts 10 minutes, then
+  the direct way is probed again.
+- **Still closed:** «Провести игру» stays hidden (`lib/live/open.ts`), `?live=1` for the second live check.
+- Gate on 61d951b: pytest 2316, bot 387, sync ok, Vitest 370 files / 6338 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.10: the live game's players' side, still closed (from the commit of this entry)
 
 - **«Битва с монстром», the students' side:** `/play` (PIN or link, name, a character from parts, lobby, big colour and
