@@ -1,0 +1,22 @@
+{
+  "clip": "12",
+  "name": "12-game",
+  "game": "a recorded game of «Встань на ответ» (backend/scripts/live_stand_local.py --local --auto --record: the real room with 30 bots, the database in memory, 3 questions of 15 s, boss «clock»), 21.10.2026: media/product/masters/12-game-rec.json (bot names, local tokens only)",
+  "projector": "cd frontend && GL=mesa xvfb-run … node scripts/stand-local.mjs replay ../deck/cf11/media/product/masters/12-game-rec.json <dir> 1920 1080 (the real projector page frame by frame, 25 fps; ≈ 32 min here): <dir>/stand-1920x1080.mp4",
+  "phone": "cd frontend && GL=mesa xvfb-run … node ../deck/cf11/tools/record/stand_phone_replay.mjs ../deck/cf11/media/product/masters/12-game-rec.json <frames> --follow 23 --end 35800 --windows 13400-22200,28400-35800 (the real phone page /play, 390 × 844 at 2×, the 3D view pinned; Лиза, who runs to «Венера» and falls; ≈ 2 min here)",
+  "compose": "python3 -I deck/cf11/tools/record/compose_12.py <dir>/stand-1920x1080.mp4 <frames> deck/cf11/tools/record/cut-12.json --out deck/cf11/media/product --work <tmp>",
+  "fps": 25,
+  "fade": 0.4,
+  "crf": 22,
+  "segments": [
+    { "from": 14400, "to": 21600, "beat": "the countdown ends, the question opens, the class runs to the answers; Лиза runs from «Марс» to «Венера»" },
+    { "from": 29000, "to": 35000, "beat": "the last seconds, the alarm, the stomp, the floor drops under the wrong answers, ghosts; «Устояли 18 из 30»" }
+  ],
+  "poster": 33120,
+  "moments": { "opens": 16000, "lisa_on_venus": 21080, "stomp": 31240, "floor_down": 33120 },
+  "layout": {
+    "box": [1362, 606],
+    "projector": { "x": 0, "y": 10, "w": 1040, "h": 585, "radius": 24 },
+    "phone": { "x": 1072, "y": 0, "w": 290, "h": 606, "radius": 44, "edge": 3, "screen": { "inset": 10, "radius": 34 } }
+  }
+}
