@@ -26,7 +26,8 @@ texts and the talk: meldy-notes
   muted `#A7ADB7`, line `#262E3B`, labels `#8DB2F5`, yellow `#F4C45B`. The light Meldy tokens (canvas `#F3F3F0`,
   ink `#0B121C`, …) appear only inside the product: screenshots of the live site, the QR cards, the table column of
   Meldy on 05, the documentation tiles on 13. One real Meldy moment per slide, large; yellow numbered marks (`.mk`)
-  tie a line of text to a place on the screen. No gradients, glow, glass, particles, emoji, generated pictures, paper
+  tie a line of text to a place on a still screen; never over a video (owner, 21.10: on the constructor's clip «очень
+  сильно мешают эти 1 2 3»), a video slide lists its points as plain lines. No gradients, glow, glass, particles, emoji, generated pictures, paper
   or handwriting. **No AI look** (owner, 19.10): no hand-drawn or wavy underline (the app's own marks of the cheat
   sheet stay; frames that show the site's swoosh under a heading are not used), no eyebrow labels (tracked capitals
   over a heading), no «не X — а Y» contrasts, no headings built on an em dash, no slogans, no reassurance captions,
