@@ -26,7 +26,8 @@ export function zoneLine(zone: number, options: number): string {
   return `Вы на ${LETTERS[zone]}`;
 }
 
-export type Tone = 'ok' | 'bad' | 'ghost' | 'seen';
+/** ok: right; fell: wrong or none (now a ghost: calm, not alarming); ghost: a ghost on the right answer; seen: late. */
+export type Tone = 'ok' | 'fell' | 'ghost' | 'seen';
 
 export interface Outcome {
   tone: Tone;
@@ -45,8 +46,8 @@ export function outcomeOf(last: StandLast, streak: number): Outcome {
   if (last.ok && last.revived) return { tone: 'ghost', title: 'Призрак на верном ответе', big: `+${nb(last.pts)}`, lines: ['Скоро вернётесь.'] };
   if (last.ok) return { tone: 'ok', title: 'Верно', big: `+${nb(last.pts)}`, lines: streak >= 2 ? [streakLine(streak)] : [] };
   const what = last.choice === null ? 'Вы не встали на ответ' : 'Мимо';
-  if (last.fell) return { tone: 'bad', title: what, big: null, lines: ['Теперь вы призрак.', 'Встаньте на верный ответ, и вы вернётесь.'] };
-  return { tone: 'bad', title: what, big: null, lines: ['Вы пока призрак.', 'Встаньте на верный ответ, и вы вернётесь.'] };
+  if (last.fell) return { tone: 'fell', title: what, big: null, lines: ['Теперь вы призрак.', 'Встаньте на верный ответ, и вы вернётесь.'] };
+  return { tone: 'fell', title: what, big: null, lines: ['Вы пока призрак.', 'Встаньте на верный ответ, и вы вернётесь.'] };
 }
 
 /** The own result of the question in this state, once the room has sent it (`me` can come a moment after `state`). */

@@ -2,8 +2,8 @@
    dark), its buttons and pages. Only transform and opacity animate; prefers-reduced-motion: none. The answer letters
    and the map use the projector's floor colours (lib/live/three/internal/arena.ts), the same in both themes. */
 
-.sp { --sp-red: #ff6f61; --sp-blue: #4d8dff; --sp-yellow: #ffc531; --sp-green: #36c47c; --sp-ghost: #cfc8f7; --sp-bad: #f5c2b8; }
-.dark .sp { --sp-ghost: #6c62a8; --sp-bad: #7a3f35; }
+.sp { --sp-red: #ff6f61; --sp-blue: #4d8dff; --sp-yellow: #ffc531; --sp-green: #36c47c; --sp-ghost: #ddd8fb; --sp-back: #a9dfbb; }
+.dark .sp { --sp-ghost: #4a4478; --sp-back: #2f5c40; }
 
 /* ─── a character's picture: the kit's WebP, the clothes painted through its own mask ─── */
 .sp-thumb {
@@ -97,14 +97,15 @@
 .sp-opt[data-here='true'] { box-shadow: inset 0 0 0 3px var(--zone); transform: translateX(4px); }
 .sp-opt[data-mark='key'] { box-shadow: inset 0 0 0 3px var(--sp-green); background: #e2f6e9; color: #0b121c; }
 .dark .sp-opt[data-mark='key'] { background: #1f3f2c; color: var(--lp-ink); }
-.sp-opt[data-mark='wrong'] { box-shadow: inset 0 0 0 3px var(--sp-red); }
+.sp-opt[data-mark='wrong'] { outline: 2px dashed var(--lp-ink-2); outline-offset: -2px; box-shadow: none; }
+.sp-opt__you { flex: none; padding: 5px 9px; border-radius: 999px; background: var(--lp-soft); color: var(--lp-ink-2); font: 600 12.5px/1 var(--ph-sans, sans-serif); white-space: nowrap; }
 .sp-opt[data-mark='dim'] { opacity: 0.5; }
 .sp-opt__ok { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--sp-green); color: #0b121c; }
 
 .sp-ghostline { margin: 0; padding: 8px 12px; border-radius: 12px; background: var(--sp-ghost); color: #0b121c; font: 600 14px/1.3 var(--ph-sans, sans-serif); flex: none; }
 .dark .sp-ghostline { color: #fff; }
 
-/* The field: the map and the stick. Pressing anywhere here starts the stick. */
+/* The field: the map and the stick, no box of its own. Pressing anywhere here starts the stick (also on the map). */
 .sp-field {
   position: relative;
   flex: 1;
@@ -112,14 +113,11 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  border-radius: 22px;
-  background: var(--lp-soft);
-  box-shadow: inset 0 0 0 1.5px var(--lp-line);
-  padding: 10px 10px 0;
-  overflow: hidden;
+  padding-top: 2px;
   touch-action: none;
   cursor: grab;
 }
+.sp-mapbox { position: relative; flex: 1 1 auto; min-height: 0; }
 .sp-status {
   align-self: center;
   margin: 0 0 8px;
@@ -136,8 +134,8 @@
 .sp-status[data-zone='1'] { background: var(--sp-blue); color: #0b121c; box-shadow: none; }
 .sp-status[data-zone='2'] { background: var(--sp-yellow); color: #0b121c; box-shadow: none; }
 .sp-status[data-zone='3'] { background: var(--sp-green); color: #0b121c; box-shadow: none; }
-.sp-map { display: block; width: 100%; aspect-ratio: 1560 / 720; border-radius: 14px; pointer-events: none; flex: none; }
-.sp-hint { position: absolute; left: 0; right: 0; bottom: 14px; margin: 0; text-align: center; font: 500 14px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); pointer-events: none; transition: opacity 0.3s ease; }
+.sp-map { display: block; width: 100%; aspect-ratio: 1560 / 720; border-radius: 16px; pointer-events: none; box-shadow: 0 0 0 1.5px var(--lp-line); }
+.sp-hint { position: absolute; left: 0; right: 0; top: 0; margin: 0; text-align: center; font: 500 14px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); pointer-events: none; transition: opacity 0.3s ease; }
 .sp-hint[data-gone='true'] { opacity: 0; }
 .sp-field:not([data-ready]) .sp-hint { opacity: 0; }
 .sp-stick, .sp-knob { position: absolute; left: 0; top: 0; border-radius: 50%; pointer-events: none; will-change: transform; transition: opacity 0.18s ease; }
@@ -151,10 +149,10 @@
 /* The result of a question, in the question's place. */
 .sp-out { display: flex; align-items: center; gap: 10px; padding: 14px 10px 14px 18px; color: #0b121c; box-shadow: none; animation: sp-rise 0.42s var(--lp-ease) both; }
 .sp-out[data-tone='ok'] { background: var(--lp-ok); }
-.sp-out[data-tone='bad'] { background: var(--sp-bad); }
-.sp-out[data-tone='ghost'] { background: var(--sp-ghost); }
+.sp-out[data-tone='fell'] { background: var(--sp-ghost); }
+.sp-out[data-tone='ghost'] { background: var(--sp-back); }
 .sp-out[data-tone='seen'] { background: var(--lp-card); color: var(--lp-ink); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
-.dark .sp-out[data-tone='bad'], .dark .sp-out[data-tone='ghost'] { color: #fff; }
+.dark .sp-out[data-tone='fell'], .dark .sp-out[data-tone='ghost'] { color: #fff; }
 .sp-out__text { flex: 1; min-width: 0; }
 .sp-out__title { margin: 0; font: 750 24px/1.12 var(--ph-sans, sans-serif); letter-spacing: -0.02em; }
 .sp-out__big { display: block; margin-top: 4px; font: 800 44px/1 var(--ph-sans, sans-serif); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }

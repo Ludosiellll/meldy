@@ -15,7 +15,7 @@ import { clothesHex, toPlayerLook } from '../../../../lib/live/three/look';
 import type { Look } from '../../../../lib/live/types';
 import { optionSize, questionSize } from '../../player/options';
 import type { HapticKind } from '../../player/platform';
-import { ArenaMap } from './map';
+import { ArenaMap, mapHeight } from './map';
 import type { StandSession, StandView } from './session';
 import { FloatingStick } from './stick';
 import { Thumb } from './Thumb';
@@ -35,6 +35,8 @@ export interface StandPlayProps {
   onEdit: () => void;
   haptic: (kind: HapticKind) => void;
 }
+
+const PHASES: readonly StandState['phase'][] = ['lobby', 'countdown', 'open', 'reveal', 'leaderboard', 'podium', 'ended'];
 
 const Check = () => (
   <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
@@ -81,6 +83,11 @@ const Options = memo(function Options({
             {mark === 'key' && (
               <span className="sp-opt__ok" aria-hidden="true">
                 <Check />
+              </span>
+            )}
+            {mark === 'wrong' && (
+              <span className="sp-opt__you" aria-hidden="true">
+                Вы стояли тут
               </span>
             )}
           </li>
@@ -137,6 +144,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
 
   // Refs the loop writes to.
   const fieldRef = useRef<HTMLDivElement>(null);
+  const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const baseRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
@@ -161,23 +169,38 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
+    const box = boxRef.current;
     const field = fieldRef.current;
     const base = baseRef.current;
     const knob = knobRef.current;
-    if (!canvas || !field || !base || !knob) return undefined;
+    if (!canvas || !box || !field || !base || !knob) return undefined;
     const map = new ArenaMap(canvas);
     setArena(map);
     const detach = stick.attach(field, base, knob);
-    // Sizes come from the observer (after layout), never read in the loop.
+    // Sizes come from the observer (after layout), never read in the loop. The map takes the box's width and as much
+    // of its height as the arena's shape allows; the stick rests under it, the hint under the stick.
+    let mapBottom = 0;
+    let fieldH = 0;
+    const place = () => {
+      const y = Math.max(70, Math.min(fieldH - 76, mapBottom + 92));
+      stick.rest(field.clientWidth / 2, y);
+      if (hint.current) hint.current.style.transform = `translateY(${Math.round(y + 64)}px)`;
+    };
     const ro = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver((entries) => {
           for (const e of entries) {
-            if (e.target === canvas) map.resize(e.contentRect.width, e.contentRect.height, window.devicePixelRatio || 1);
-            else if (e.target === field) stick.rest(e.contentRect.width / 2, Math.max(70, e.contentRect.height - 86));
+            if (e.target === box) {
+              const w = e.contentRect.width;
+              const h = Math.round(mapHeight(w, e.contentRect.height));
+              canvas.style.height = `${h}px`;
+              map.resize(w, h, window.devicePixelRatio || 1);
+              mapBottom = box.offsetTop + h;
+            } else if (e.target === field) fieldH = e.contentRect.height;
           }
+          place();
         })
       : null;
-    ro?.observe(canvas);
+    ro?.observe(box);
     ro?.observe(field);
     // iOS Safari zooms on a pinch even with touch-action: none.
     const noGesture = (e: Event) => e.preventDefault();
@@ -195,10 +218,9 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
     const client = session.client;
     let frame = 0;
     let zoneShown = -2;
-    let zoneOptions = -1;
+    let keyShown = -1;
     let secShown = -1;
     let alarmOn = false;
-    let holdShown: boolean | null = null;
     let mapSet = false;
     const tick = () => {
       frame = requestAnimationFrame(tick);
@@ -211,31 +233,33 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
       const me = f.me;
       // Where the own character stands (its predicted position), told once per change.
       const zone = me && client.map ? zoneIndexAt(client.map, me.x, me.y) - 1 : -1;
-      const hold = client.holding() || L.phase === 'reveal';
-      if (zone !== zoneShown || L.options !== zoneOptions || hold !== holdShown) {
-        const asking = L.phase === 'countdown' || L.phase === 'open';
-        if (asking && zone >= 0 && zone < L.options && zone !== zoneShown && zoneShown !== -2 && !hold) L.haptic('select');
+      const holding = L.phase === 'open' && client.holding();
+      const question = L.phase === 'countdown' || L.phase === 'open';
+      // One number for everything the line and the rows show: they are written only when it changes.
+      const key = (me ? 1 : 0) + 2 * (zone + 1) + 16 * L.options + 128 * PHASES.indexOf(L.phase) + 2048 * (holding ? 1 : 0) + 4096 * (L.ghost ? 1 : 0);
+      if (key !== keyShown) {
+        const onAnswer = question && zone >= 0 && zone < L.options;
+        if (onAnswer && !holding && zone !== zoneShown && zoneShown !== -2) L.haptic('select');
         zoneShown = zone;
-        zoneOptions = L.options;
-        holdShown = hold;
+        keyShown = key;
         const status = statusRef.current;
         if (status) {
           let text: string;
           if (!me) text = 'Подключаемся';
-          else if (L.phase === 'open' && client.holding()) text = 'Время вышло';
-          else if (asking) text = zoneLine(zone, L.options);
+          else if (holding) text = 'Время вышло';
+          else if (question) text = zoneLine(zone, L.options);
           else if (L.phase === 'reveal') text = L.ghost ? 'Вы призрак. Можно бегать' : 'Ждём следующий вопрос';
-          else text = 'Можно бегать по залу';
+          else text = 'Можно бегать';
           if (status.textContent !== text) status.textContent = text;
-          status.dataset.zone = asking && zone >= 0 && zone < L.options ? String(zone) : '';
+          status.dataset.zone = onAnswer ? String(zone) : '';
         }
         for (let i = 0; i < rows.current.length; i++) {
           const row = rows.current[i];
           if (!row) continue;
-          const here = (L.phase === 'countdown' || L.phase === 'open') && i === zone ? 'true' : '';
+          const here = question && i === zone ? 'true' : '';
           if ((row.dataset.here ?? '') !== here) row.dataset.here = here;
         }
-        stick.setEnabled(!(L.phase === 'open' && client.holding()));
+        stick.setEnabled(!holding);
       }
       // The big timer from the room's clock: the full time until the question opens, then down to zero.
       if (L.phase === 'countdown' || L.phase === 'open') {
@@ -278,7 +302,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   if (phase === 'lobby') {
     head = (
       <section className="sp-card sp-lobby">
-        <Thumb body={look.body} colour={look.colour} hat={look.hat} size={104} className="sp-thumb--joy" title={`${name}, ваш герой`} />
+        <Thumb body={look.body} colour={look.colour} hat={look.hat} size={132} className="sp-thumb--joy" title={`${name}, ваш герой`} />
         <div className="sp-lobby__text">
           <h1 className="sp-h1">Вы в игре</h1>
           <p className="sp-sub">Ждём начала.</p>
@@ -343,7 +367,9 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
         <p className="sp-status" ref={statusRef} aria-live="polite">
           Подключаемся
         </p>
-        <canvas className="sp-map" ref={canvasRef} aria-label="Карта зала: где вы стоите" role="img" />
+        <div className="sp-mapbox" ref={boxRef}>
+          <canvas className="sp-map" ref={canvasRef} aria-label="Карта зала: где вы стоите" role="img" />
+        </div>
         <p className="sp-hint" ref={hint}>
           Ведите пальцем, чтобы бежать
         </p>
