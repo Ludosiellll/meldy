@@ -4,6 +4,21 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.22: the mini-game every N questions, music and sounds, the landing studio's block names (from the commit of this entry)
+
+- **«Мини-игра с движением»** in «Битва с монстром» (owner: «каждые три вопроса например, или каждые 10 вопросов включалась
+  миниигра, в общем как в кахуте»): the setup offers Нет / Каждые 3 / 5 (first) / 10 / Все вопросы; a movement round
+  shows the 3D arena with the HP bar on the projector and the stand view on phones; its reveal plays the fall, the hits one
+  by one, heal, phase, ice. Ties share a place number. The room ignores a stale «open» for a question whose result it
+  already applied (it could reopen a round after its own reveal). Database: `20261024090000_live_mixed`, applied earlier.
+- **Music and sounds on the projector** for both games (owner: «звуки я надеюсь ты добавил крутые»): lobby, question and
+  leaderboard loops, 3-2-1, the last seconds, the alarm, the stomp and the collapse, ghosts, the floor back, cheers,
+  podium fanfare; seven short CC0 recordings (Kenney Impact Sounds, applause from OpenGameArt) under 42 KB each; the
+  instruments rendered once in a worker; phones stay silent.
+- Landing studio: block names on one line, read from the left; the palette column 168 px (owner: «Один ответ» on two lines).
+- Gate on ff4f722 (clean worktree): pytest 2474, bot 393, sync ok, Vitest 414 files / 6674 tests, Docker-layout build ok.
+  The commit of this entry differs from ff4f722 only in `deck/` (not pushed to the Space).
+
 ## 2026-10-21 — Release 47.21: the phone looks like the projector; the game on the landing and in the reel (from the commit of this entry)
 
 - **The phone in «Встань на ответ» shows the projector's game** (owner, comparing a phone shot with the projector video:
