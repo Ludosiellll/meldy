@@ -346,7 +346,7 @@ describe('player screens on the fake server', () => {
     await joinDemo();
     await play('right');
     await until(() => gameState() === 'leaderboard');
-    expect(document.querySelector('.lp-place__gap')?.textContent).toMatch(/впереди/i);
+    expect(document.querySelector('.lp-place__gap')?.textContent).toMatch(/^(Отрыв по урону:\u00a0\d+|.+ впереди, разница по урону:\u00a0\d+|.+ впереди при равном уроне|У второго места столько же урона)$/);
   });
 
   it('ended by the host mid-game: «Игра закончилась», the damage and place, «Разбор», «Войти по PIN»', async () => {
@@ -466,12 +466,31 @@ describe('the gap to the next place', () => {
   const r = (id: string, name: string, dmg: number): TopRow => ({ player_id: id, name, look: defaultLook(name), dmg, move: 0 });
   const top = [r('a', 'Лиза', 420), r('b', 'Илья', 300), r('me', 'Дима', 150), r('d', 'Аня', 150), r('e', 'Оля', 90)];
   it('names the one above (2nd to 6th), the lead when 1st, nothing further down', () => {
-    expect(gapLine(top, { player_id: 'me', place: 3, dmg: 150 })).toBe('Илья впереди на\u00a0150 урона');
+    expect(gapLine(top, { player_id: 'me', place: 3, dmg: 150 })).toBe('Илья впереди, разница по урону:\u00a0150');
     expect(gapLine(top, { player_id: 'd', place: 4, dmg: 150 })).toBe('Дима впереди при равном уроне');
-    expect(gapLine(top, { player_id: 'a', place: 1, dmg: 420 })).toBe('Впереди всех на\u00a0120 урона');
-    expect(gapLine(top, { player_id: 'x', place: 6, dmg: 80 })).toBe('Оля впереди на\u00a010 урона');
+    expect(gapLine(top, { player_id: 'a', place: 1, dmg: 420 })).toBe('Отрыв по урону:\u00a0120');
+    expect(gapLine(top, { player_id: 'x', place: 6, dmg: 80 })).toBe('Оля впереди, разница по урону:\u00a010');
     expect(gapLine(top, { player_id: 'y', place: 9, dmg: 10 })).toBeNull();
     expect(gapLine(null, { player_id: 'me', place: 3, dmg: 150 })).toBeNull();
+    expect(gapLine([r('me', 'Дима', 300), r('b', 'Илья', 300)], { player_id: 'me', place: 1, dmg: 300 })).toBe('У второго места столько же урона');
+  });
+
+  it('reads right for 1, 2, 5, 21, 150 and 1 500: the number after a colon, no noun to agree with it', () => {
+    for (const [n, shown] of [
+      [1, '1'],
+      [2, '2'],
+      [5, '5'],
+      [21, '21'],
+      [150, '150'],
+      [1500, '1\u00a0500'],
+    ] as const) {
+      const behind = gapLine([r('a', 'Даша', 2000 + n), r('me', 'Дима', 2000)], { player_id: 'me', place: 2, dmg: 2000 });
+      expect(behind).toBe(`Даша впереди, разница по урону:\u00a0${shown}`);
+      const lead = gapLine([r('me', 'Дима', 2000 + n), r('b', 'Даша', 2000)], { player_id: 'me', place: 1, dmg: 2000 + n });
+      expect(lead).toBe(`Отрыв по урону:\u00a0${shown}`);
+      // No «на N урона» / «N урон» whose ending would have to change with N.
+      expect(`${behind} ${lead}`).not.toMatch(/\d\s*урон/);
+    }
   });
 });
 

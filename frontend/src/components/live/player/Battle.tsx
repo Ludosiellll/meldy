@@ -166,6 +166,7 @@ function fly(el: HTMLDivElement | null, from: { x: number; y: number }, to: { x:
 /**
  * The gap to the next place up (Kahoot's «150 points behind»), from the top five of the leaderboard: the name above
  * when this player is 2nd to 6th, the lead when 1st; null further down (the state has no one else's damage there).
+ * The number always comes after a colon («разница по урону: 21»), so no noun has to agree with it (1, 2, 5, 21, 150).
  */
 export function gapLine(top: readonly TopRow[] | null, me: Pick2<Me, 'player_id' | 'place' | 'dmg'>): string | null {
   if (!top || top.length === 0 || me.place < 1) return null;
@@ -173,12 +174,12 @@ export function gapLine(top: readonly TopRow[] | null, me: Pick2<Me, 'player_id'
     const next = top[1];
     if (!next || top[0]?.player_id !== me.player_id) return null;
     const lead = me.dmg - next.dmg;
-    return lead > 0 ? `Впереди всех на${NBSP}${nb(lead)} урона` : 'Впереди всех при равном уроне';
+    return lead > 0 ? `Отрыв по урону:${NBSP}${nb(lead)}` : 'У второго места столько же урона';
   }
   const above = top[me.place - 2];
   if (!above || above.player_id === me.player_id) return null;
   const gap = above.dmg - me.dmg;
-  return gap > 0 ? `${above.name} впереди на${NBSP}${nb(gap)} урона` : `${above.name} впереди при равном уроне`;
+  return gap > 0 ? `${above.name} впереди, разница по урону:${NBSP}${nb(gap)}` : `${above.name} впереди при равном уроне`;
 }
 type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
 
