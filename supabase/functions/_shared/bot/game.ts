@@ -58,7 +58,16 @@ export interface LivePost {
   players: number;
   /** bot.config.flags.live_direct: the Mini App's direct link exists (@BotFather /newapp `play`). */
   direct: boolean;
+  /**
+   * The game's mode (migration 20261023090000_live_stand_phone.sql): «Встань на ответ» is 'stand'. Absent (an older
+   * database) reads as the battle, 'boss'.
+   */
+  mode?: LiveMode;
 }
+
+export type LiveMode = 'boss' | 'stand';
+/** A stand game says so; a battle's facts stay as they were (no key). */
+const modeOf = (v: unknown): { mode?: LiveMode } => (v === 'stand' ? { mode: 'stand' } : {});
 
 /** The same message now (bot_live_sync). */
 export interface LiveNow extends LivePost {
@@ -77,6 +86,8 @@ export interface LiveFinal {
   gameId: string;
   containerId: string;
   direct: boolean;
+  /** As LivePost.mode: in a stand game nobody beats the boss, places count (`won` is always false). */
+  mode?: LiveMode;
 }
 
 export interface LiveLinks {
@@ -169,7 +180,7 @@ export function toPost(raw: unknown): ({ chatId: number } & LivePost) | null {
   if (chatId === null || chatId >= 0 || qCount === null || players === null || typeof r.title !== 'string' || typeof r.pin !== 'string') {
     throw new TypeError('bot_live_post: bad answer');
   }
-  return { chatId, title: r.title, qCount, host: text(r.host), pin: r.pin, players, direct: r.direct === true };
+  return { chatId, title: r.title, qCount, host: text(r.host), pin: r.pin, players, direct: r.direct === true, ...modeOf(r.mode) };
 }
 
 export interface SyncEdit {
@@ -203,12 +214,12 @@ export function toSync(raw: unknown): SyncEdit | null {
     if (typeof f.game_id !== 'string' || !UUID.test(f.game_id) || typeof f.container_id !== 'string' || !UUID.test(f.container_id)) {
       throw new TypeError('bot_live_sync: bad final');
     }
-    final = { won: f.won === true, top, accuracyPct: int(f.accuracy_pct) ?? 0, gameId: f.game_id, containerId: f.container_id, direct };
+    final = { won: f.won === true, top, accuracyPct: int(f.accuracy_pct) ?? 0, gameId: f.game_id, containerId: f.container_id, direct, ...modeOf(f.mode ?? r.mode) };
   }
   return {
     chatId,
     messageId,
-    now: { state: r.state as LiveState, qi, qCount, players, title: r.title, pin: r.pin, host: text(r.host), direct, hpPct: int(r.hp_pct) },
+    now: { state: r.state as LiveState, qi, qCount, players, title: r.title, pin: r.pin, host: text(r.host), direct, hpPct: int(r.hp_pct), ...modeOf(r.mode) },
     final,
   };
 }
