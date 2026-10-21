@@ -244,7 +244,7 @@ export class BossImpl {
     ramp: THREE.Texture,
     shared: SharedUniforms,
     skeletonGltf: GLTF | null,
-    height: number,
+    readonly height: number,
   ) {
     this.group.name = `boss ${kind}`;
     this.stompImpactS = STOMP_IMPACT[kind];

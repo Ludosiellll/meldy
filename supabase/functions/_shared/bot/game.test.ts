@@ -341,3 +341,11 @@ test('nothing secret in a log line or an answer: the bot token, the live secret,
     }
   }
 });
+
+test('the facts carry the mode of a stand game (migration 20261023090000); a battle\'s stay as they were', () => {
+  const s = toSync({ ...SYNC, mode: 'stand', state: 'podium', final: { won: false, top: null, accuracy_pct: 40, game_id: GAME, container_id: EXAM, mode: 'stand' } });
+  assert.equal(s?.now.mode, 'stand');
+  assert.equal(s?.final?.mode, 'stand');
+  const battle = toSync(SYNC);
+  assert.ok(battle && !('mode' in battle.now));
+});

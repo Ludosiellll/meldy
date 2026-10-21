@@ -27,6 +27,23 @@ describe('SnapshotBuffer', () => {
     expect(b.sample(900).get(1)!.x).toBeCloseTo(140);
   });
 
+  it('samples into a reused map: the same poses as sample(), the same objects, the departed removed', () => {
+    const b = new SnapshotBuffer();
+    b.push(snap(2, [[1, 100, 100], [2, 500, 500]]));
+    b.push(snap(4, [[1, 120, 140], [2, 520, 500]]));
+    const out = new Map();
+    b.sampleInto(150, out);
+    expect(out).toEqual(b.sample(150));
+    const one = out.get(1);
+    b.sampleInto(180, out);
+    expect(out.get(1)).toBe(one);
+    expect(out.get(1)).toEqual(b.sample(180).get(1));
+    b.push(snap(6, [[1, 140, 140]]));
+    b.sampleInto(260, out);
+    expect([...out.keys()]).toEqual([1]);
+    expect(out.get(1)).toBe(one);
+  });
+
   it('ignores old ticks, drops the departed, shows the new at once', () => {
     const b = new SnapshotBuffer();
     b.push(snap(2, [[1, 100, 100], [2, 500, 500]]));

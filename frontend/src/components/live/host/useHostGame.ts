@@ -22,6 +22,16 @@ export interface HostGame {
   kick(playerId: string): Promise<boolean>;
   end(): Promise<boolean>;
   retry(): void;
+  /** Reads the state now (a movement game's room saw it change first). */
+  refresh(): void;
+}
+
+export interface HostGameOptions {
+  /**
+   * After every live_next, live_kick and live_end has answered (or failed): a movement game's room is told to read the
+   * game's state at once (MODE_STAND.md §2, `{"t":"cmd","op":"sync"}`).
+   */
+  onMoved?: () => void;
 }
 
 /** States the host moves on from (CONTRACT §1); countdown and open move by time. */
@@ -62,7 +72,9 @@ export function shareState(prev: HostState | null, next: HostState): HostState {
   return unchanged ? prev : out;
 }
 
-export function useHostGame(gameId: string, api: LiveApi): HostGame {
+export function useHostGame(gameId: string, api: LiveApi, options: HostGameOptions = {}): HostGame {
+  const movedRef = useRef(options.onMoved);
+  movedRef.current = options.onMoved;
   const [token] = useState(() => readHostToken(gameId));
   const [status, setStatus] = useState<HostStatus>(token ? 'loading' : 'notoken');
   const [state, setState] = useState<HostState | null>(null);
@@ -152,6 +164,7 @@ export function useHostGame(gameId: string, api: LiveApi): HostGame {
       .finally(() => {
         busyRef.current = false;
         setBusy(false);
+        movedRef.current?.();
       });
   }, [api, gameId, token, accept, refresh]);
 
@@ -166,6 +179,7 @@ export function useHostGame(gameId: string, api: LiveApi): HostGame {
       } finally {
         // Either way, show what the server has now.
         refresh();
+        movedRef.current?.();
       }
     },
     [api, gameId, token, refresh],
@@ -180,6 +194,7 @@ export function useHostGame(gameId: string, api: LiveApi): HostGame {
       return false;
     } finally {
       refresh();
+      movedRef.current?.();
     }
   }, [api, gameId, token, refresh]);
 
@@ -190,5 +205,5 @@ export function useHostGame(gameId: string, api: LiveApi): HostGame {
 
   const offset = useCallback(() => offsetRef.current, []);
 
-  return { status, state, offline, busy, offset, next, kick, end, retry };
+  return { status, state, offline, busy, offset, next, kick, end, retry, refresh };
 }

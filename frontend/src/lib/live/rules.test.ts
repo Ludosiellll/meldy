@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import nameCases from '../../../../contracts/live/name_cases.json';
 import lookCases from '../../../../contracts/live/default_looks.json';
-import { accuracyPct, checkLook, checkName, closeQuestion, damage, defaultLook, healAmount, hpFor, phaseFor, rank, rightNeeded, unlocksAfter, type ClosePlayer } from './rules';
+import { accuracyPct, checkLook, checkName, closeQuestion, damage, defaultLook, healAmount, hpFor, KIT_HATS, KIT_HATS_ON, phaseFor, rank, rightNeeded, unlocksAfter, type ClosePlayer } from './rules';
+import { HAT_OPTIONS } from './three/look';
 
 const P = (id: string, extra: Partial<ClosePlayer> = {}): ClosePlayer => ({ id, streak: 0, best: 0, frozen: false, dmg: 0, right: 0, thaws: 0, active: true, ...extra });
 
@@ -111,6 +112,12 @@ describe('ranking, unlocks, looks, names', () => {
     expect(checkLook({ body: 'cloud', colour: 'orange', eyes: 'round', hat: 'tophat' })).toEqual({ ok: false, reason: 'unknown_part' });
     expect(checkLook({ body: 'cloud', colour: 'orange', eyes: 'round', hat: 'crown' })).toEqual({ ok: false, reason: 'locked' });
     expect(checkLook({ body: 'cloud', colour: 'graphite', eyes: 'round', hat: 'none' }, ['graphite']).ok).toBe(true);
+  });
+  it('keeps the kit hats off until the database takes them (20261023090000_live_stand_phone.sql)', () => {
+    // The kit's list and this one are the same three; the live SQL refuses them, so the phone must not offer them.
+    expect(HAT_OPTIONS.filter((h) => !h.wardrobe).map((h) => h.id)).toEqual([...KIT_HATS]);
+    expect(KIT_HATS_ON).toBe(false);
+    for (const hat of KIT_HATS) expect(checkLook({ body: 'drop', colour: 'blue', eyes: 'round', hat })).toEqual({ ok: false, reason: 'unknown_part' });
   });
   it('gives the same free look for the same name', () => {
     const a = defaultLook('Дима');

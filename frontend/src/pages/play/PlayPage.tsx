@@ -20,7 +20,7 @@ export default function PlayPage() {
   const [ctl] = useState(() => new PlayerController({ api: obeyOffline(liveApi()), platform, profile: 'web' }));
 
   useEffect(() => {
-    void ctl.start({ pin: params.get('pin') });
+    void ctl.start({ pin: params.get('pin'), mode: params.get('mode') });
     return () => ctl.dispose();
     // The address is read once: later the game writes it.
     // eslint-disable-next-line react-hooks/exhaustive-deps

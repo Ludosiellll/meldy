@@ -12,6 +12,8 @@
 import type { BodyId, ColourId } from '../types';
 import { BODY_OPTIONS, clothesHex, type KitHatId, type ModelId } from './look';
 import { THUMBS_DIR, THUMB_PX } from './thumbs.gen';
+import { BOSS_PICTURES } from './bosses.gen';
+import type { BossKind } from './types';
 
 /** Side of one half of a thumbnail, px (the file is twice as wide). */
 export const THUMB_SIZE = THUMB_PX;
@@ -25,6 +27,11 @@ export function thumbFile(model: ModelId, hat: KitHatId): string {
 export function thumbUrl(body: BodyId, hat: KitHatId): string {
   const model = (BODY_OPTIONS.find((b) => b.id === body) ?? BODY_OPTIONS[0]).model;
   return `${import.meta.env.BASE_URL ?? '/'}game/thumbs/${THUMBS_DIR}/${thumbFile(model, hat)}`;
+}
+
+/** A boss's picture (200 × 200, transparent; scripts/game-kit.mjs bosses): the teacher's choice at the game's setup. */
+export function bossPictureUrl(kind: BossKind): string {
+  return `${import.meta.env.BASE_URL ?? '/'}game/boss/${BOSS_PICTURES[kind] ?? BOSS_PICTURES.clock}`;
 }
 
 /** Draws a loaded thumbnail onto a canvas with the clothes in the player's colour. */

@@ -23,6 +23,15 @@ export const COLOURS: readonly ColourId[] = ['blue', 'yellow', 'green', 'pink', 
 export const EYES: readonly EyesId[] = ['round', 'dots', 'one', 'sleepy', 'glasses'];
 export const HATS: readonly HatId[] = ['none', 'cap', 'beanie', 'phones', 'flower', 'antenna', 'bow', 'crown', 'grad', 'horns'];
 export const LOCKED: ReadonlySet<string> = new Set<UnlockId>(['graphite', 'snow', 'crown', 'grad', 'horns']);
+/**
+ * The hats the 3D kit draws beyond the wardrobe (docs/live/KIT_3D.md §3: колпак, пропеллер, цилиндр), free once the
+ * database takes them: migration 20261023090000_live_stand_phone.sql adds them to `live_look_check`. Until that
+ * migration is applied the server refuses them (ML007 unknown_part), so KIT_HATS_ON stays false and no screen offers
+ * them; `checkLook` above mirrors the SQL that is live. Turning it on also needs the battle's art to draw them
+ * (components/live/art/parts.ts), because a look carries over between games.
+ */
+export const KIT_HATS: readonly string[] = ['party', 'propeller', 'tophat'];
+export const KIT_HATS_ON = false;
 
 /** `round(100 × speed × mult)`; `streakAfter` counts this answer (1 for the first right answer in a row). */
 export function damage(elapsedMs: number, timeS: number, streakAfter: number, speedOn = true): number {

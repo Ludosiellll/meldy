@@ -264,6 +264,11 @@ dashes>` → review. Needs @BotFather `/newapp`, short name `play`, URL `https:/
 - Final post (new message, silent): `<b>Дедлайн повержен</b>` or `<b>Дедлайн победил</b>`; with `chat_names` the top three
   `1. {name} — {dmg}`; then `Верных ответов {pct} %. Свой разбор — у каждого в игре.`; URL buttons `Разбор` →
   `…/play?startapp=r_{game}` and `Ещё игра` → the exam page on the site.
+- «Встань на ответ» (`mode: "stand"` in the facts, migration `20261023090000_live_stand_phone.sql`; without it the
+  battle's lines): post `<b>Встань на ответ</b>` / `Игра по тесту «{title}». {q_count} вопросов.` / `Заходите по PIN
+  {pin}.` / `Ведёт {host}.` / `Играют {n}`; a question's edit `Идёт вопрос {i} из {q_count}.` (no HP); the end `Игра
+  окончена.`; the final `<b>Игра окончена. На первом месте {name}</b>`, with `chat_names` the top three
+  `1. {name}, {pts} очков`, then `Верных ответов {pct} %. Свои ответы каждый посмотрит в игре.`; the same buttons.
 - Cadence (kept by the database): the DB calls `/game/sync` on `countdown`, `reveal`, `podium` and `ended` (once per state
   and question) and on lobby count changes at most every 5 s; `bot_live_sync` allows one edit per 3 s per message (lobby
   5 s; the end after 1 s); ≈ 2–3 calls per question — under 20 per minute per group and 1 per second per chat. A 429

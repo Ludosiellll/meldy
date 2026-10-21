@@ -6,6 +6,7 @@
  *   ?scene=arena&boss=clock    mode A: 30 players run to the zones, the stomp, the collapse, ghosts (a 9 s loop)
  *   ?scene=bench&players=40    the perf scene: players run about, the floor drops and comes back
  *   ?scene=thumbs              renders the phone's pictures (scripts/game-thumbs.mjs drives it)
+ *   ?scene=bossthumbs          renders the bosses' pictures for the game's setup (game-kit.mjs bosses)
  *   &capture                   no loop: window.__render(t) draws the state at t seconds (screenshots)
  *   &fps                       shows the frame rate (to check on a real projector laptop)
  */
@@ -35,6 +36,7 @@ declare global {
     __resetStats?: () => void;
     __bench?: (frames: number) => unknown;
     __thumb?: (model: string, hat: string) => string;
+    __bossThumb?: (kind: BossKind) => Promise<string>;
     __kit?: KitImpl;
   }
 }
@@ -412,6 +414,56 @@ async function thumbSheet(): Promise<void> {
   window.__ready = true;
 }
 
+// ------------------------------------------------------------------ the bosses' pictures (the setup's choice)
+async function bossThumbs(): Promise<void> {
+  const size = Number(Q.get('size') ?? 420);
+  canvas.width = size;
+  canvas.height = size;
+  stage.style.width = `${size}px`;
+  stage.style.height = `${size}px`;
+  const kit = (await KitImpl.load({ boss: 'skeleton' })) as KitImpl;
+  window.__kit = kit;
+  const view = kit.mount(canvas, { transparent: true, preserveDrawingBuffer: true, quality: 0, maxPixelRatio: 1 });
+  kit.blobs.enabled = false;
+  kit.tags.enabled = false;
+  view.setCamera({ eye: { x: 0, y: 760, z: 330 }, target: { x: 0, y: 0, z: 150 }, fov: 30 });
+  let current: Boss | null = null;
+  window.__bossThumb = async (kind: BossKind) => {
+    current?.dispose();
+    if (kind === 'skeleton') await kit.loadBoss('skeleton');
+    current = kit.createBoss(kind, { height: 5.4 });
+    current.setPosition(0, 0);
+    current.setFacing(kind === 'skeleton' ? 0.35 : -0.3);
+    for (let i = 0; i < 40; i++) kit.update(1 / 30);
+    (view as unknown as { renderOnce(): void }).renderOnce();
+    // crop to the drawn pixels, square, a little air round them
+    const copy = document.createElement('canvas');
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const cg = copy.getContext('2d') as CanvasRenderingContext2D;
+    cg.drawImage(canvas, 0, 0);
+    const px = cg.getImageData(0, 0, copy.width, copy.height).data;
+    let x0 = copy.width, y0 = copy.height, x1 = 0, y1 = 0;
+    for (let y = 0; y < copy.height; y++)
+      for (let x = 0; x < copy.width; x++)
+        if (px[(y * copy.width + x) * 4 + 3] > 8) {
+          x0 = Math.min(x0, x);
+          y0 = Math.min(y0, y);
+          x1 = Math.max(x1, x);
+          y1 = Math.max(y1, y);
+        }
+    const side = Math.max(x1 - x0, y1 - y0) * 1.08;
+    const out = document.createElement('canvas');
+    out.width = 200;
+    out.height = 200;
+    const og = out.getContext('2d') as CanvasRenderingContext2D;
+    const k = 200 / side;
+    og.drawImage(copy, x0, y0, x1 - x0, y1 - y0, (200 - (x1 - x0) * k) / 2, 200 - (y1 - y0) * k - 4, (x1 - x0) * k, (y1 - y0) * k);
+    return out.toDataURL('image/webp', Number(Q.get('quality') ?? 0.86));
+  };
+  window.__ready = true;
+}
+
 // ------------------------------------------------------------------ thumbnails
 async function thumbs(): Promise<void> {
   const size = Number(Q.get('size') ?? 160);
@@ -486,6 +538,7 @@ function finish(kit: KitImpl, view: View, onFrame: (dt: number, now: number) => 
     else if (SCENE === 'arena') await arena(Number(Q.get('players') ?? 30), false);
     else if (SCENE === 'bench') await arena(Number(Q.get('players') ?? 40), true);
     else if (SCENE === 'thumbs') await thumbs();
+    else if (SCENE === 'bossthumbs') await bossThumbs();
     else if (SCENE === 'hats') await hats();
     else if (SCENE === 'thumbsheet') await thumbSheet();
     void ACCESSORIES;

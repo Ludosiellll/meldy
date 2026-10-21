@@ -1,10 +1,15 @@
 /**
  * Name tags: every name drawn once into one canvas atlas, all tags drawn in one call as screen-sized quads (the same
  * size on screen wherever the player stands, readable on a projector). No DOM per frame.
+ *
+ * In a crowd tags would cover each other: each frame a tag that would overlap one already placed is left out (no tag
+ * is ever cut by another). Tags shown in the last frame are placed first, so a name does not blink as people pass;
+ * then the living before ghosts, nearer before farther.
  */
 import * as THREE from 'three';
 import { FONT, roundRect } from './materials';
 import { uploadFirst } from './upload';
+import { declutter, type DeclutterBuffers } from '../declutter';
 
 const ATLAS_W = 1024;
 const ATLAS_H = 1408;
@@ -71,11 +76,29 @@ export class Tags {
   private readonly fGhost = new Uint8Array(TAG_CAPACITY);
   private readonly fDepth = new Float32Array(TAG_CAPACITY);
   private readonly order = new Int32Array(TAG_CAPACITY);
+  // decluttering: screen boxes, the order they are placed in, who is left out, who was shown in the last frame
+  private readonly boxes: DeclutterBuffers = {
+    x0: new Float32Array(TAG_CAPACITY),
+    x1: new Float32Array(TAG_CAPACITY),
+    y0: new Float32Array(TAG_CAPACITY),
+    y1: new Float32Array(TAG_CAPACITY),
+    rank: new Float32Array(TAG_CAPACITY),
+    order: new Int32Array(TAG_CAPACITY),
+    placed: new Int32Array(TAG_CAPACITY),
+    hidden: new Uint8Array(TAG_CAPACITY),
+  };
+  private readonly hidden = this.boxes.hidden;
+  private readonly shownLast = new Uint8Array(TAG_CAPACITY);
+  private readonly pv = new THREE.Matrix4();
+  private vw = 1;
+  private vh = 1;
   private n = 0;
   private dirty = false;
   scale = 1;
   /** False hides every tag (thumbnails). */
   enabled = true;
+  /** Leave out tags that would overlap others (default). False draws every tag, nearer on top. */
+  declutter = true;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -173,6 +196,8 @@ export class Tags {
     // a tag is TAG_PX tall on a 1080-high screen and scales with the screen
     const k = (height / 1080) * this.scale * (TAG_PX / CELL_H);
     this.uniforms.tagPx.value.set((2 / width) * k, (2 / height) * k);
+    this.vw = width;
+    this.vh = height;
   }
 
   begin(): void {
@@ -203,8 +228,13 @@ export class Tags {
       }
       this.order[j] = i;
     }
-    for (let k = 0; k < n; k++) {
-      const i = this.order[k];
+    if (this.declutter) this.leaveOut(camera);
+    else this.hidden.fill(0, 0, n);
+    let m = 0;
+    for (let o = 0; o < n; o++) {
+      const i = this.order[o];
+      if (this.hidden[i]) continue;
+      const k = m++;
       const id = this.fCell[i];
       this.pos[k * 3] = this.fX[i];
       this.pos[k * 3 + 1] = this.fY[i];
@@ -220,13 +250,49 @@ export class Tags {
       this.size[k * 2 + 1] = CELL_H;
       this.ghost[k] = this.fGhost[i];
     }
-    this.geometry.instanceCount = n;
-    this.mesh.visible = n > 0 && this.enabled;
-    for (let i = 0; i < this.attrs.length; i++) uploadFirst(this.attrs[i], n);
+    this.geometry.instanceCount = m;
+    this.mesh.visible = m > 0 && this.enabled;
+    for (let i = 0; i < this.attrs.length; i++) uploadFirst(this.attrs[i], m);
     if (this.dirty) {
       this.texture.needsUpdate = true;
       this.dirty = false;
     }
+  }
+
+  /**
+   * Marks in `hidden` the tags that would overlap a tag placed before them: shown last frame first, the living before
+   * ghosts, nearer before farther. Screen boxes in pixels, a little smaller than the pill (touching is fine).
+   */
+  private leaveOut(camera: THREE.Camera): void {
+    const n = this.n;
+    const e = this.pv.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse).elements;
+    const kpx = (this.vh / 1080) * this.scale * (TAG_PX / CELL_H);
+    const h = (CELL_H - 14) * kpx;
+    const lift = 7 * kpx;
+    const b = this.boxes;
+    for (let i = 0; i < n; i++) {
+      const x = this.fX[i];
+      const y = this.fY[i];
+      const z = this.fZ[i];
+      const cw = e[3] * x + e[7] * y + e[11] * z + e[15];
+      b.hidden[i] = 0;
+      if (cw <= 1e-6) {
+        b.hidden[i] = 1;
+        b.rank[i] = Infinity;
+        continue;
+      }
+      const sx = (((e[0] * x + e[4] * y + e[8] * z + e[12]) / cw + 1) / 2) * this.vw;
+      const sy = ((1 - (e[1] * x + e[5] * y + e[9] * z + e[13]) / cw) / 2) * this.vh;
+      const half = ((this.widths[this.fCell[i]] - 6) * kpx) / 2;
+      b.x0[i] = sx - half;
+      b.x1[i] = sx + half;
+      b.y1[i] = sy - lift;
+      b.y0[i] = sy - lift - h;
+      // smaller is placed first: shown last frame, alive, near (view depth is negative, nearer is bigger)
+      b.rank[i] = (this.shownLast[this.fCell[i]] ? 0 : 2e6) + (this.fGhost[i] ? 1e6 : 0) - this.fDepth[i];
+    }
+    declutter(n, b);
+    for (let i = 0; i < n; i++) this.shownLast[this.fCell[i]] = this.hidden[i] ? 0 : 1;
   }
 
   dispose(): void {

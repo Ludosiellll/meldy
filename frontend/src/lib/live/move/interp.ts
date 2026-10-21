@@ -54,6 +54,11 @@ export interface BufferOptions {
 
 export class SnapshotBuffer {
   private snaps: Snapshot[] = [];
+  /** Each snapshot's entities by id, made once when it arrives (sampling every frame needs no new Map). */
+  private readonly byId = new WeakMap<Snapshot, Map<number, Entity>>();
+  /** sampleInto's mark of the poses written this call. */
+  private gen = 0;
+  private readonly seen = new Map<number, number>();
   private readonly size: number;
   private readonly maxExtrapolateMs: number;
   private readonly teleport: number;
@@ -82,47 +87,84 @@ export class SnapshotBuffer {
 
   /** Every entity's pose at server time `t` (ms). */
   sample(t: number): Map<number, Pose> {
-    const out = new Map<number, Pose>();
+    return this.sampleInto(t, new Map<number, Pose>());
+  }
+
+  /**
+   * The same into `out`, reusing its pose objects (a render loop calls it every frame: no new Map and no new poses
+   * once everyone is known). Entities gone from the snapshots are removed from `out`.
+   */
+  sampleInto(t: number, out: Map<number, Pose>): Map<number, Pose> {
+    const gen = ++this.gen;
+    const seen = this.seen;
+    const put = (id: number, x: number, y: number, flags: number) => {
+      const p = out.get(id);
+      if (p) {
+        p.x = x;
+        p.y = y;
+        p.flags = flags;
+      } else out.set(id, { x, y, flags });
+      seen.set(id, gen);
+    };
+    this.fill(t, put);
+    for (const id of out.keys()) {
+      if (seen.get(id) !== gen) {
+        out.delete(id);
+        seen.delete(id);
+      }
+    }
+    return out;
+  }
+
+  private indexOf(s: Snapshot): Map<number, Entity> {
+    let m = this.byId.get(s);
+    if (!m) {
+      m = index(s.ents);
+      this.byId.set(s, m);
+    }
+    return m;
+  }
+
+  private fill(t: number, put: (id: number, x: number, y: number, flags: number) => void): void {
     const s = this.snaps;
-    if (s.length === 0) return out;
+    if (s.length === 0) return;
     const last = s[s.length - 1];
     if (t >= last.t) {
       const prev = s.length > 1 ? s[s.length - 2] : null;
       const ahead = Math.min(t - last.t, this.maxExtrapolateMs);
-      const before = prev ? index(prev.ents) : null;
+      const before = prev ? this.indexOf(prev) : null;
       for (const e of last.ents) {
         const p = before?.get(e.id);
         if (!p || !prev || ahead <= 0 || this.jumped(p, e)) {
-          out.set(e.id, { x: e.x, y: e.y, flags: e.flags });
+          put(e.id, e.x, e.y, e.flags);
           continue;
         }
         const k = ahead / (last.t - prev.t);
-        out.set(e.id, { x: e.x + (e.x - p.x) * k, y: e.y + (e.y - p.y) * k, flags: e.flags });
+        put(e.id, e.x + (e.x - p.x) * k, e.y + (e.y - p.y) * k, e.flags);
       }
-      return out;
+      return;
     }
     if (t <= s[0].t) {
-      for (const e of s[0].ents) out.set(e.id, { x: e.x, y: e.y, flags: e.flags });
-      return out;
+      for (const e of s[0].ents) put(e.id, e.x, e.y, e.flags);
+      return;
     }
     let i = s.length - 2;
     while (i > 0 && s[i].t > t) i--;
     const a = s[i];
     const b = s[i + 1];
     const alpha = (t - a.t) / (b.t - a.t);
-    const from = index(a.ents);
+    const from = this.indexOf(a);
     for (const e of b.ents) {
       const p = from.get(e.id);
       if (!p) {
-        out.set(e.id, { x: e.x, y: e.y, flags: e.flags });
+        put(e.id, e.x, e.y, e.flags);
       } else if (this.jumped(p, e)) {
         const q = alpha < 0.5 ? p : e;
-        out.set(e.id, { x: q.x, y: q.y, flags: q.flags });
+        put(e.id, q.x, q.y, q.flags);
       } else {
-        out.set(e.id, { x: p.x + (e.x - p.x) * alpha, y: p.y + (e.y - p.y) * alpha, flags: alpha < 0.5 ? p.flags : e.flags });
+        put(e.id, p.x + (e.x - p.x) * alpha, p.y + (e.y - p.y) * alpha, alpha < 0.5 ? p.flags : e.flags);
       }
     }
-    return out;
   }
 
   private jumped(a: Entity, b: Entity): boolean {

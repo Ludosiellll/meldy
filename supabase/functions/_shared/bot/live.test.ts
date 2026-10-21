@@ -202,3 +202,46 @@ test('through the function: game.ts posts, edits and closes with these texts', a
   assert.deepEqual(plain(fin.params.text).split('\n'), ['Дедлайн повержен', '1. Лена — 779', 'Верных ответов 69 %. Свой разбор — у каждого в игре.']);
   assert.equal(fin.params.disable_notification, true);
 });
+
+// ─────────────── «Встань на ответ» (MODE_STAND.md; the mode comes from migration 20261023090000) ───────────────
+
+const STAND_POST: LivePost = { ...POST, mode: 'stand' };
+
+test('«Встань на ответ»: the post says the mode and the PIN to come in by, in plain words', () => {
+  const out = livePost(STAND_POST, LINKS);
+  assert.deepEqual(words(out), ['Встань на ответ', 'Игра по тесту «Базы данных». 6 вопросов.', 'Заходите по PIN 482 913.', 'Ведёт Анна Сергеевна.', 'Играют 9']);
+  assert.match(out.text, /^<b>Встань[ \u00a0]на[ \u00a0]ответ<\/b>\n/);
+  assert.deepEqual(out.keyboard, [[{ text: 'Играть', url: 'https://t.me/Meldyteach_bot/play?startapp=482913', style: 'primary' }]]);
+  assert.deepEqual(lint(out, 'group', ['Базы данных', 'Анна Сергеевна']), []);
+  assert.deepEqual(words(livePost({ ...STAND_POST, host: null }, LINKS)).slice(2), ['Заходите по PIN 482 913.', 'Играют 9']);
+  assert.doesNotMatch(out.text, /Битва|Дедлайн|·/);
+});
+
+test('«Встань на ответ»: the edits follow the game, the end takes the button away', () => {
+  const q = liveEdit({ ...STAND_POST, state: 'open', qi: 1, players: 24, hpPct: null }, LINKS);
+  assert.deepEqual(words(q), ['Встань на ответ', 'Игра по тесту «Базы данных». 6 вопросов.', 'Идёт вопрос 2 из 6.', 'Заходите по PIN 482 913.', 'Ведёт Анна Сергеевна.', 'Играют 24']);
+  assert.ok(q.keyboard);
+  assert.deepEqual(lint(q, 'group', ['Базы данных', 'Анна Сергеевна']), []);
+  const lobby = liveEdit({ ...STAND_POST, state: 'lobby', qi: -1, players: 12, hpPct: null }, LINKS);
+  const lobbyWords = words(lobby);
+  assert.equal(lobbyWords[lobbyWords.length - 1], 'Играют 12');
+  const end = liveEdit({ ...STAND_POST, state: 'podium', qi: 5, players: 24, hpPct: null }, LINKS);
+  assert.deepEqual(words(end), ['Встань на ответ', 'Игра по тесту «Базы данных». 6 вопросов.', 'Игра окончена.']);
+  assert.equal(end.keyboard, null);
+  for (const out of [q, lobby, end]) assert.doesNotMatch(out.text, /Дедлайн|Битва|%/);
+});
+
+test('«Встань на ответ»: the final names the first place, never a boss', () => {
+  const out = liveFinal({ ...FINAL, won: false, top: [{ name: 'Дима', dmg: 2450 }, { name: 'Лена', dmg: 2210 }, { name: 'Вера', dmg: 1980 }], mode: 'stand' }, LINKS);
+  assert.deepEqual(words(out), ['Игра окончена. На первом месте Дима', '1. Дима, 2450 очков', '2. Лена, 2210 очков', '3. Вера, 1980 очков', 'Верных ответов 69 %. Свои ответы каждый посмотрит в игре.']);
+  assert.match(out.text, /^<b>Игра окончена\. На первом месте Дима<\/b>\n/);
+  assert.doesNotMatch(out.text, /Дедлайн/);
+  assert.deepEqual(out.keyboard?.[0].map((k) => k.text), ['Разбор', 'Ещё игра']);
+  assert.deepEqual(lint(out, 'group', ['Дима', 'Лена', 'Вера']), []);
+  // Names off: no first place, only the class's answers.
+  assert.deepEqual(words(liveFinal({ ...FINAL, won: false, top: null, mode: 'stand' }, LINKS)), ['Игра окончена', 'Верных ответов 69 %. Свои ответы каждый посмотрит в игре.']);
+  // Names are the players' own: escaped.
+  assert.match(liveFinal({ ...FINAL, won: false, top: [{ name: '<i>Ян</i>', dmg: 10 }], mode: 'stand' }, LINKS).text, /&lt;i&gt;Ян&lt;\/i&gt;/);
+  // A battle's final is the battle's.
+  assert.equal(words(liveFinal(FINAL, LINKS))[0], 'Дедлайн повержен');
+});
