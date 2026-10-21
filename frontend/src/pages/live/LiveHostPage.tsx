@@ -17,6 +17,17 @@ import '../../components/live/host/host.css';
 
 const StandScreen = lazy(() => import('../../components/live/stand/StandScreen'));
 
+/** The join link with `mode` set (kept once, whatever else it carries). */
+export function withMode(url: string, mode: string): string {
+  try {
+    const u = new URL(url, typeof window !== 'undefined' ? window.location.origin : 'https://meldy.invalid');
+    u.searchParams.set('mode', mode);
+    return /^https?:/i.test(url) ? u.toString() : `${u.pathname}${u.search}${u.hash}`;
+  } catch {
+    return url.includes('?') ? `${url}&mode=${mode}` : `${url}?mode=${mode}`;
+  }
+}
+
 function Message({ title, why, onRetry }: { title: string; why?: string; onRetry?: () => void }) {
   return (
     <div className="lvh lvh-viewport">
@@ -63,8 +74,11 @@ export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) 
   if (game.status === 'error') return <Message title={SCREEN.error} onRetry={game.retry} />;
   if (!s) return <Message title={SCREEN.loading} />;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const joinUrl = info?.joinUrl ?? `${origin}/play?pin=${s.pin}`;
-  if (s.mode === 'stand' || s.settings?.mode === 'stand') {
+  const base = info?.joinUrl ?? `${origin}/play?pin=${s.pin}`;
+  const stand = s.mode === 'stand' || s.settings?.mode === 'stand';
+  // a stand game's link says so: the phone shows the 3D hero picker before joining
+  const joinUrl = stand ? withMode(base, 'stand') : base;
+  if (stand) {
     return (
       <Suspense fallback={<Message title={SCREEN.loading} />}>
         <StandScreen gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} syncRef={syncRef} />

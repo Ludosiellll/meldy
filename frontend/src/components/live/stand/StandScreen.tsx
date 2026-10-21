@@ -212,6 +212,11 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
       sceneRef.current = null;
     };
   }, [room, hud, bossKind, margins, viewKnobs]);
+  // a hero changed in the lobby reaches the projector through the database's roster (the room keeps the first look)
+  const looks = useMemo(() => new Map<string, unknown>(s.roster.map((r) => [r.player_id, r.look])), [s.roster]);
+  useEffect(() => {
+    sceneRef.current?.setLooks(looks);
+  }, [looks, room]);
 
   // ── sound and keys ──
   const muted = useSyncExternalStore(sound.subscribe, sound.isMuted, sound.isMuted);

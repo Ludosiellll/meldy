@@ -80,6 +80,10 @@ interface Fall {
 
 interface Actor {
   id: number;
+  /** live_players.id (the host's roster has it), and the look drawn now as JSON. */
+  pid: string | null;
+  lookKey: string;
+  name: string;
   player: Player;
   x: number;
   y: number;
@@ -116,6 +120,8 @@ export class StandScene {
   private readonly shown = { counts: [-1, -1, -1, -1], alive: -1, ghosts: -1, zones: 0 };
   private readonly flagsScratch: number[] = [];
   private readonly poses: Poses = new Map();
+  /** Looks by live_players.id from the database's roster: a hero changed in the lobby (the room keeps the first). */
+  private looks = new Map<string, unknown>();
   private readonly hooks: Parameters<StandRoom['sceneHooks']['add']>[0];
 
   constructor(
@@ -278,11 +284,34 @@ export class StandScene {
     this.view.setCamera({ arena: this.map, margins: { top: m.top, bottom: m.bottom, left: 0.01, right: 0.01 }, tilt: TILT });
   }
 
+  /**
+   * The database's looks by live_players.id (HostState roster). A player who changed the hero in the lobby gets the
+   * new model; everyone else keeps theirs (models are made only when a look changes).
+   */
+  setLooks(looks: Map<string, unknown>): void {
+    this.looks = looks;
+    const kit = this.kit;
+    if (!kit) return;
+    for (const a of this.actors.values()) {
+      if (!a.pid || !looks.has(a.pid)) continue;
+      const look = toPlayerLook(looks.get(a.pid));
+      const key = JSON.stringify(look);
+      if (key === a.lookKey) continue;
+      a.player.dispose();
+      a.player = kit.createPlayer(look, a.name);
+      a.lookKey = key;
+      a.player.setPosition(a.x, a.y, 0);
+    }
+  }
+
   private addActor(e: RosterEntry): void {
     const kit = this.kit;
     if (!kit || e[1] !== KIND_PLAYER || this.actors.has(e[0])) return;
-    const player = kit.createPlayer(toPlayerLook(e[4]), e[3] || '');
-    this.actors.set(e[0], { id: e[0], player, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0 });
+    const pid = e[2];
+    const look = toPlayerLook(pid && this.looks.has(pid) ? this.looks.get(pid) : e[4]);
+    const name = e[3] || '';
+    const player = kit.createPlayer(look, name);
+    this.actors.set(e[0], { id: e[0], pid, lookKey: JSON.stringify(look), name, player, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0 });
   }
 
   private removeActor(id: number): void {
