@@ -1,0 +1,18 @@
+/* Real footage (Footage.tsx): the poster, and the video over it once it shows a frame. Both are fitted the same way, so
+   the change is invisible but for the motion; around a contained frame is the root's background (the bars). */
+.fo { position: relative; width: 100%; height: 100%; overflow: hidden; }
+.fo-poster,
+.fo-video {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+}
+.fo[data-fit='cover'] .fo-poster,
+.fo[data-fit='cover'] .fo-video { object-fit: cover; }
+.fo-video { opacity: 0; transition: opacity .3s ease; }
+.fo[data-shown] .fo-video { opacity: 1; }

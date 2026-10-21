@@ -26,7 +26,7 @@ export interface TipDef {
   /** The quiet one: the tip goes away for good. */
   later: string;
   /**
-   * The clip's frame when it is not the usual 16:10: its width to its height (its stage in scenes TIP_CLIPS has that shape),
+   * The clip's frame when it is not the usual 16:10: its width to its height (its stage in scenes TIP_CLIPS, or its footage in TIP_FOOTAGE, has that shape),
    * and whether it follows the site's dark theme (the Telegram chat is drawn in Telegram's night colours there).
    */
   clip?: { ratio: number; themed: boolean };
@@ -57,15 +57,16 @@ export const TIPS: { [K in TipId]: TipDef & { id: K } } = {
     clip: { ratio: 1, themed: true },
   },
   // «Провести игру» on the test's own page (TestHome): the first time a test can be played, a card under the button with
-  // the guide's clip of the game (guide/scenes/game.tsx, its 4:3 stage: the button, the game picked, the PIN and the QR
-  // code, the phones, the floor that drops). Its action is the button's own; using the button puts the tip away too.
+  // the footage the guide's «Игра в классе» shows (lib/footage.ts STAND_RUN: the real game on the projector, the class
+  // running to the answers, the floor dropping), in its own 16:9 frame. Its action is the button's own; using the button
+  // puts the tip away too.
   game: {
     id: 'game',
     title: 'Игра в классе',
     text: 'Вопросы теста идут на проекторе. Ученики играют с телефонов, на сайте или в Telegram.',
     action: 'Провести игру',
     later: 'Не сейчас',
-    clip: { ratio: 4 / 3, themed: false },
+    clip: { ratio: 16 / 9, themed: false },
   },
   // «Перенести экзамен» (MoveExamDialog): the first time the dialog opens, a compact card at its top with the clip of a
   // move (components/clips «move»: the exam's day, the dialog, «Экзамен перенесён на 25 октября.» and the plan made

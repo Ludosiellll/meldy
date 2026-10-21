@@ -1,0 +1,155 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import nginxConf from '../../../nginx.conf?raw';
+import { STAND_RUN, canPlayFootage, loadFootage, type Footage } from './footage';
+
+/* Real footage in parts (lib/footage.ts): the files on disk, and the loader that joins them into one video. */
+
+interface NodeFs {
+  readdirSync(path: string): string[];
+  readFileSync(path: string): Uint8Array;
+}
+interface NodeCrypto {
+  createHash(name: string): { update(data: Uint8Array): { digest(encoding: 'hex'): string } };
+}
+// Specifiers TypeScript does not resolve: the project has no Node types, and the test only runs in Node.
+const NODE_FS: string = 'node:fs';
+const NODE_CRYPTO: string = 'node:crypto';
+const HERE = decodeURIComponent(import.meta.url.replace(/^file:\/\//, ''));
+const PUBLIC = `${HERE.slice(0, HERE.lastIndexOf('/src/'))}/public`;
+
+let made = 0;
+/** A footage of its own per test: the loader keeps one load per footage for the page's life. */
+function footage(count = 3): Footage {
+  made += 1;
+  return {
+    parts: Array.from({ length: count }, (_, at) => `/game/footage/t${made}-0123456789-${at + 1}.bin`),
+    poster: `/game/footage/t${made}-0123456789-poster.webp`,
+    width: 800,
+    height: 450,
+    duration: 10.8,
+    type: 'video/mp4; codecs="avc1.640028"',
+    backdrop: '#2a2356',
+  };
+}
+
+const ok = (text: string) => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'application/octet-stream' }), blob: async () => new Blob([text]) });
+const failing = (status = 503) => ({ ok: false, status, headers: new Headers({ 'content-type': 'text/plain' }), blob: async () => new Blob(['']) });
+const page = () => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }), blob: async () => new Blob(['<!doctype html>']) });
+
+let blobs: Blob[];
+const ownCreate = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
+beforeEach(() => {
+  blobs = [];
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    writable: true,
+    value: (blob: Blob) => {
+      blobs.push(blob);
+      return `blob:footage-${blobs.length}`;
+    },
+  });
+});
+afterEach(() => {
+  if (ownCreate) Object.defineProperty(URL, 'createObjectURL', ownCreate);
+  else delete (URL as { createObjectURL?: unknown }).createObjectURL;
+  vi.unstubAllGlobals();
+});
+
+describe('STAND_RUN, the class running to the answers on the projector', () => {
+  it('is five parts and a poster under /game/footage/, every name with the video’s hash', () => {
+    expect(STAND_RUN.parts).toEqual([1, 2, 3, 4, 5].map((n) => `/game/footage/stand-run-46f8c5a7ae-${n}.bin`));
+    expect(STAND_RUN.poster).toBe('/game/footage/stand-run-46f8c5a7ae-poster.webp');
+    expect(STAND_RUN).toMatchObject({ width: 800, height: 450, duration: 10.8, type: 'video/mp4; codecs="avc1.640028"' });
+    // nginx keeps exactly these names for a year, and answers a missing one with 404, not the app's page.
+    const location = /location ~ "(\^\/game\/[^"]+)" \{([^}]*)\}/.exec(nginxConf);
+    expect(location).not.toBeNull();
+    expect(location![2]).toContain('try_files $uri =404;');
+    expect(location![2]).toContain('add_header Cache-Control "public, max-age=31536000, immutable";');
+    const served = new RegExp(location![1]);
+    for (const name of [...STAND_RUN.parts, STAND_RUN.poster]) expect(name).toMatch(served);
+    for (const other of ['/game/footage/stand-run-46f8c5a7ae.mp4', '/game/footage/stand-run-1.bin', '/game/footage/x/stand-run-46f8c5a7ae-1.bin']) {
+      expect(other).not.toMatch(served);
+    }
+  });
+
+  it('is on disk: joined, the parts are the video the hash names, each under the Space’s 100 KB', async () => {
+    const fs = (await import(/* @vite-ignore */ NODE_FS)) as NodeFs;
+    const crypto = (await import(/* @vite-ignore */ NODE_CRYPTO)) as NodeCrypto;
+    const files = fs.readdirSync(`${PUBLIC}/game/footage`).sort();
+    expect(files).toEqual([...STAND_RUN.parts, STAND_RUN.poster].map((name) => name.split('/').pop()).sort());
+    const parts = STAND_RUN.parts.map((name) => fs.readFileSync(`${PUBLIC}${name}`));
+    for (const part of parts) expect(part.length).toBeLessThanOrEqual(100 * 1024);
+    const whole = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
+    parts.reduce((at, part) => {
+      whole.set(part, at);
+      return at + part.length;
+    }, 0);
+    expect(crypto.createHash('sha256').update(whole).digest('hex').slice(0, 10)).toBe('46f8c5a7ae');
+    // An MP4 whose index comes first (faststart): it can play as soon as it is whole.
+    expect(new TextDecoder().decode(whole.slice(4, 8))).toBe('ftyp');
+    expect(new TextDecoder().decode(whole.slice(0, 4096))).toContain('moov');
+    expect(fs.readFileSync(`${PUBLIC}${STAND_RUN.poster}`).length).toBeLessThanOrEqual(100 * 1024);
+  });
+});
+
+describe('loadFootage', () => {
+  it('fetches the parts and joins them in their order into one video/mp4 Blob behind an object URL', async () => {
+    const clip = footage(3);
+    const fetchMock = vi.fn(async (url: string) => ok(`[${url.split('-').pop()}]`));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(loadFootage(clip)).resolves.toBe('blob:footage-1');
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(clip.parts);
+    expect(blobs).toHaveLength(1);
+    expect(blobs[0].type).toBe('video/mp4');
+    expect(await blobs[0].text()).toBe('[1.bin][2.bin][3.bin]');
+  });
+
+  it('fetches once per page life: every player of the same footage gets the same URL', async () => {
+    const clip = footage(2);
+    const fetchMock = vi.fn(async () => ok('x'));
+    vi.stubGlobal('fetch', fetchMock);
+    const [a, b] = await Promise.all([loadFootage(clip), loadFootage(clip)]);
+    const c = await loadFootage({ ...clip });
+    expect(new Set([a, b, c]).size).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks for a failed part once more', async () => {
+    const clip = footage(2);
+    let second = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('-2.bin') && second++ === 0) throw new TypeError('Failed to fetch');
+      return ok(url.endsWith('-1.bin') ? 'a' : 'b');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(loadFootage(clip)).resolves.toMatch(/^blob:/);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(await blobs[0].text()).toBe('ab');
+  });
+
+  it('fails when a part fails twice, or comes back as the app’s page; the next call tries again', async () => {
+    const clip = footage(2);
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (url.endsWith('-2.bin') ? failing() : ok('a'))));
+    await expect(loadFootage(clip)).rejects.toThrow(/HTTP 503/);
+    expect(blobs).toHaveLength(0);
+
+    // A missing file is answered with index.html (200, text/html): not a part of a video.
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => (url.endsWith('-2.bin') ? page() : ok('a'))));
+    await expect(loadFootage(clip)).rejects.toThrow(/text\/html/);
+
+    const fetchMock = vi.fn(async () => ok('z'));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(loadFootage(clip)).resolves.toMatch(/^blob:/);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('canPlayFootage', () => {
+  it('asks the browser about the footage’s own type and codecs', () => {
+    const ask = vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('');
+    expect(canPlayFootage(STAND_RUN)).toBe(false);
+    expect(ask).toHaveBeenCalledWith('video/mp4; codecs="avc1.640028"');
+    ask.mockReturnValue('probably');
+    expect(canPlayFootage(STAND_RUN)).toBe(true);
+  });
+});

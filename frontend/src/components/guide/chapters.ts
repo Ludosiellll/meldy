@@ -69,9 +69,10 @@ export const PLAY_SITE = 'ludosiel-studyforge.hf.space/play';
  * «Игра в классе» (the live game, release 47.12), for the owner's questions of 21.10: «а где на сайте указать что ты
  * хочешь такую игру? и обучение по тому как ее сделать? где это будет и можно ли с сайта играть, или только в тг?». Where
  * it starts, the two games, what the class needs and how students join, in short sentences (the plain-words rules).
+ * Each game's name follows «В игре» (21.10): «В «Встань на ответ»» read as a slip.
  */
 export const GAME_TEXT =
-  `Откройте тест и нажмите «Провести игру». В «Битве с монстром» все отвечают кнопками. В «Встань на ответ» каждый ведёт героя к ответу. Нужен проектор или большой экран. Ученики входят на ${PLAY_SITE} по PIN или QR-коду. Войти можно и через Telegram.`;
+  `Откройте тест и нажмите «Провести игру». В игре «Битва с монстром» все отвечают кнопками. В игре «Встань на ответ» каждый ведёт героя к ответу. Нужен проектор или большой экран. Ученики входят на ${PLAY_SITE} по PIN или QR-коду. Войти можно и через Telegram.`;
 
 const units = (n: number) => `${n} ${plural(n, ['единица', 'единицы', 'единиц'])}`;
 
