@@ -215,44 +215,63 @@ although the round opened in phase 2 with nobody right; `result.void: true`, cou
 - Database: one `live_host_state` a second per room for the whole game (mostly `unchanged`; full in `lobby` and
   `open`), one `live_stand_close` per movement round. The phones keep the battle's polling (`CONTRACT.md` §6).
 
-## 8. What each screen builds (the screens' work; the server, database and types are done)
+## 8. What each screen shows (as built, 21.10)
 
-**Setup (the host's «Игра» form)**
-1. The picker «Мини-игра с движением»: «Нет», «Каждые 3 вопроса», «Каждые 5 вопросов» (selected first), «Каждые 10
-   вопросов», «Все вопросы» (`MINI_GAMES`, `miniGameSettings(pick)` merged into `p_settings`).
+**Setup** (`pages/live/LiveSetupPage.tsx`, the card «Игра»)
+1. One card for the game with the picker «Мини-игра с движением»: «Нет», «Каждые 3 вопроса», «Каждые 5 вопросов» (the
+   default, `DEFAULT_STAND_EVERY`), «Каждые 10 вопросов», «Все вопросы»; `?mode=stand` opens it on «Все вопросы», `?mini=N`
+   on N («Ещё раз» keeps the pick). The card's picture and line follow the pick: the battle's, the stand game's, or the
+   battle's with the arena's boss and «На вопросах 3 и 6 ученики бегут на верный ответ» (`SETUP.mixedAbout`, the
+   questions from `standRounds(N, count)`; past four of them «На каждом 3-м вопросе»).
 2. «Все вопросы»: the stand game's form (time 15/20/30, the boss). The others: the battle's time 10/20/30; with N > 0
-   also the boss pick (it stands in the arena).
-3. Optional preview for a subjects source with a known count: `standRounds(N, count)` → «Мини-игры: 3-й и 6-й вопрос».
-4. `22023 stand_every` is a programming error (show the generic error).
+   also the boss pick. The settings are `miniGameSettings(pick)` plus time, speed, who, chat_names and the boss.
+3. `22023 stand_every` shows the generic error.
 
-**Projector (`/live/:id`)**
-1. A mixed game (`mixedOf(hostState)`): open `MoveClient` as host in the lobby and keep it; send `{op: "sync"}` after
-   every `live_next`, `live_kick`, `live_end`.
-2. Lobby, button questions, leaderboard, podium: the battle's screens as today; optionally «мини-игра через k
-   вопросов» from `untilStandRound(mixed, qi + 1)`, and a mark on the question counter for the movement rounds.
-3. A movement round (`isStandRound(hostState)`, the room's `arenaLive(state)`): the stand projector's arena (board,
-   zones, timer from the room's `opens`/`closes`, live counts from snapshot flags) **plus the battle's HP bar** of
-   `boss.hp / hp_max` and the arena's boss `boss.kind`. `answered` is 0 here: use the zone counts.
-4. Its reveal: the stomp and falls (`res.fell`), the hits on the boss in order (`res.hits`: damage and the HP after
-   each), `res.healed`, `res.phase_changed`, ice breaking (`res.thawed`) and forming (`res.froze`), «Попали N из M»
-   (`stood`/`of`), `fastest`; ice on characters from `F_ICE`; `res.void` → «Мини-игра не засчитана», no stomp.
-5. The floor returns after 4 s; stay on the arena until the host's «Дальше» (then the battle's leaderboard).
-6. `res.defeated` or `boss.defeated`: the battle's defeat animation, then the podium as usual.
+**Projector** (`components/live/stand/MixedHost.tsx`, lazy; `LiveHostPage` picks it for `mixedOf(state)` or
+`settings.stand_every > 0`)
+1. The battle's screens (`HostScreen`) with the room opened from the lobby (`useStandRoom`) and `{op: "sync"}` after
+   every «Дальше», kick and end. The lobby's line names the movement rounds («мини-игра на вопросах 3 и 6»); the bar
+   says «Мини-игра через 2 вопроса» / «Следующий вопрос с мини-игрой» on a reveal and the leaderboard.
+2. A movement round (`arenaOn` in `stand/mixed.ts`: the room's state when it knows the question, else
+   `question.stand`): the stand game's 3D arena (`StandScene` with `mixed: true`, loaded once in the lobby and paused
+   between rounds) under the battle's stage, the battle's bar and HP bar on top, the question, the zones' live counts,
+   the timer and «Заморожены N» under it. The battle's body stays mounted and hidden, so nothing reloads.
+3. Its reveal (`revealPlan`): the stomp and falls, then the hits one by one about 1.1 s later (each one moves the HP
+   bar, a short shake and `land`), the blow (`hit`, the boss's stagger), then the news (phase, heal, defeat, the
+   battle's banners and cues); ice forms on `res.froze` and breaks on `res.thawed` after the blow (`Player.setIce`);
+   «Попали N из M», «Быстрее всех Алина, −141», the three who hit hardest as chips. `res.void`: «Мини-игра не
+   засчитана», nothing played. A reveal seen late (a reload) shows the end state at once.
+4. «Дальше»: the battle's leaderboard; a defeat in a movement round ends on the battle's podium as usual.
+5. `?bench` exposes the arena (`__stand`) as in the stand game (`scripts/stand-local.mjs`, `scripts/mixed-local.mjs`).
 
-**Phone (`/play`, `/tg/play`)**
-1. A mixed game (`mixedOf(state)` after the join): open `MoveClient` as player and keep it for the whole game.
-2. Lobby, button questions, leaderboard, podium, review: the battle's phone as today (review: mark `items[].stand`).
-3. A movement round (`isStandRound(state)` from `live_state`, or the room's `state.round === "stand"`, whichever comes
-   first): the stand phone's view (arena, stick, question card, timer from the room's times); no answer buttons.
-4. Its result from the room's `me` (or `live_state.result`): «Верно. −141 Дедлайну» (`last.ok`, `last.pts`), «Лёд
-   растаял» (`last.thawed`), «Мимо. Вы заморожены» (`last.froze`, a zone), «Вы не встали ни на один ответ. Вы
-   заморожены» (`last.froze`, `choice` null), «Вы зашли позже. Этот вопрос не считаем» (`last.late`), «Мини-игра не
-   засчитана» (`last.void`). The fall animation for `last.fell`; never a ghost after the floor returns.
-5. Own ice from `me.frozen` (`live_state.me.frozen` between rounds); others' ice from `F_ICE`.
-6. «Нет связи с ареной» while `MoveClient.status` is not `open` during a movement round.
+**Phone** (`components/live/stand/phone/MixedPhone.tsx`, lazy; `PlayerApp` wraps the game screens in it when
+`mixedOf(state)`)
+1. The room's socket from the join on, for the whole game (`StandSession`); the battle's polling as in any battle. The
+   lobby says «На вопросах 3 и 6 будет мини-игра. Там вы бегаете по арене».
+2. Button questions, leaderboard, podium: the battle's screens (`children`); a tap on a movement round is never sent.
+3. A movement round: the stand phone's screen (`StandPlay`: arena in 3D or the light view, stick, small map, question
+   card; no answer buttons). Until the room speaks for the question its card and times come from `live_state`.
+4. Its result (`mixedOutcome`, from the room's `me` or else `live_state.result`): «Верно. −141 урона Дедлайну»,
+   «Лёд растаял», «Мимо. Вы заморожены», «Вы не встали ни на один ответ. Вы всё ещё заморожены», «Вы зашли позже»,
+   «Мини-игра не засчитана»; a frozen player sees «Вы заморожены. Встаньте на верный ответ, и лёд растает» during the
+   round, and the ice on their character (others' from `F_ICE`). On the leaderboard after the round the battle's sheet
+   repeats it in the same words («Не встали на ответ», «Мимо», «Мини-игра не засчитана»; `missWords` in `Battle.tsx`).
+5. «Нет связи с ареной» while the socket is not open during a movement round; «Связь пропала. Подключаемся» while it
+   reconnects. The review marks the movement rounds («Мини-игра», «вы стояли тут», «Не встали на ответ»).
 
-**Bot:** nothing (the battle's texts hold). **Fake server** (`lib/live/fake.ts`): no mixed games yet; to add them, mark
-`question.stand` by `standRounds` and refuse taps on those questions.
+**Both:** equal points share the place number on every list (`rules.ts` `sharedPlaces`, `shownPlace`): the order stays
+the server's, the place shown is «1, 2, 2, 4». The phone's own place past the five best stays the server's (it does not
+see the others' points there).
+
+**Sounds:** only the cues that exist (`tick`, `roll`, `hit`, `land`, `freeze`, `heal`, `growl`, `fanfare`; the stomp plays `roll`).
+Wanted: ice breaking (thaw), a short start of the mini-game, the fall into the floor.
+
+**Fake server** (`lib/live/fake.ts`): mixed games with `question.stand` by `standRounds`, `ML004 stand` on a tap there,
+bots that skip those rounds, and the round closed as void after the room's grace (no room in the fake).
+
+**On this machine:** `frontend/scripts/mixed-local.mjs open | shots <dir> | video <dir>` plays a whole mixed game: the
+rehearsal's database, a real PostgREST, the real room with bots (`supabase/tests/local/live_mixed_local.sh`,
+`backend/scripts/live_mixed_local.py`), the site, the projector and one phone in Chromium.
 
 ## 9. Release order
 

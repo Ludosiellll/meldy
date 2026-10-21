@@ -231,7 +231,8 @@ Texts follow the plain-words rules (short, no exclamation marks, numbers first).
 Ghosts are drawn translucent and floating on both screens; a character with `F_AWAY` is drawn faded.
 
 **The projector as built** (`frontend/src/components/live/stand/`, opened by `/live/:id` when the game's settings say
-`mode: "stand"`; the setup page `/live/new` offers «Битва с монстром» or «Встань на ответ» with its boss and time):
+`mode: "stand"`; the setup page `/live/new` has one game card whose picker «Мини-игра с движением» → «Все вопросы» makes
+this game, with its boss and time, `MODE_MIXED.md` §8):
 
 - Two sources. The database's HostState (PIN, roster for «Игроки» and kicks, settings, the teacher's moves) and the
   room's socket as host: positions, and the `state` messages that drive the board. The board follows the room's phase

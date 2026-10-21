@@ -314,3 +314,5 @@ dashes>` → review. Needs @BotFather `/newapp`, short name `play`, URL `https:/
 `frontend/src/lib/live/api.ts` `liveApi()` returns the fake in-memory server when `import.meta.env.VITE_LIVE_FAKE === '1'` or
 `localStorage['meldy.live.fake'] === '1'` or the URL has `?fake=1`; otherwise the real client. Both implement `LiveApi`
 (`types.ts`). The fake fills the game with bots and can act as its own host (`autoHost`), so the player screens work alone.
+It also plays a mixed battle (`stand_every`, `MODE_MIXED.md` §8): its movement rounds close as void, since the fake has
+no room.
