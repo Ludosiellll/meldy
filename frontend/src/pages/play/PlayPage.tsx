@@ -42,5 +42,6 @@ export default function PlayPage() {
     [ctl, setParams],
   );
 
-  return <PlayerApp ctl={ctl} platform={platform} shareUrl={`${SITE_URL}/`} />;
+  // Shared with the result: the game's own door on the site (a PIN from the teacher's screen), never a token.
+  return <PlayerApp ctl={ctl} platform={platform} shareUrl={`${SITE_URL}/play`} />;
 }

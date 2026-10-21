@@ -1,14 +1,19 @@
 /**
- * The player's side of «Битва с монстром» (docs/live/CONTRACT.md), without React: PIN → character → join → the game by
- * the server's state (watchState: Realtime hints + polling) → final → review. The screens render its snapshot
- * (useSyncExternalStore); every change makes a new snapshot object.
+ * The player's side of «Битва с монстром» (docs/live/CONTRACT.md), without React: PIN (checked at once) → character →
+ * join → the game by the server's state (watchState: Realtime hints + polling) → final → review. The screens render its
+ * snapshot (useSyncExternalStore); every change makes a new snapshot object.
  *
  * - Time is the server's: the answer buttons open at `opens_at` on the server clock, estimated from every response's
  *   `now` (watchState's median offset). The server still decides.
- * - An answer shows at once (optimistic); a refusal says why; a lost network retries until the question closes.
+ * - An answer shows at once (optimistic); a refusal says why; a lost network retries until the question closes. The
+ *   seconds shown with the damage are the server's (the answer's ack), never the tap's.
+ * - A player who joined while a question was open sits that question out (CONTRACT §2: the server refuses it): the
+ *   buttons say so from the start instead of failing a tap.
  * - The token stays on the device (platform.ts): a reload finds the game by its PIN in this tab and goes on with it.
+ * - The Realtime channel: a phone left on 1 s polling (the channel never joined, or lost) subscribes again after a while
+ *   and when the browser is back online.
  */
-import { watchState } from '../../../lib/live/api';
+import { newLiveToken, watchState } from '../../../lib/live/api';
 import { GRACE_MS, LOCKED, checkLook, checkName, defaultLook } from '../../../lib/live/rules';
 import {
   LiveError,
@@ -25,7 +30,7 @@ import {
   type UnlockId,
 } from '../../../lib/live/types';
 import { errorText } from './copy';
-import { readStore, writeStore, type PlayerPlatform } from './platform';
+import { readStore, writeStore, TOKEN_RE, type PlayerPlatform } from './platform';
 
 export type Step = 'pin' | 'builder' | 'joining' | 'game' | 'review' | 'gone';
 export type Part = 'body' | 'colour' | 'eyes' | 'hat';
@@ -35,8 +40,13 @@ export interface Pick {
   /** Shown index. */
   choice: number;
   status: 'sending' | 'accepted' | 'retrying' | 'late';
-  /** Opening → tap on the server's clock (estimated here), ms; null when the answer came from the server (a reload). */
+  /**
+   * Opening → the answer's arrival on the server's clock (the ack's `now`), ms: the time the damage was counted with.
+   * null until the ack comes, and when it never does (a reload, a lost ack): then no seconds are shown.
+   */
   elapsedMs: number | null;
+  /** The answer's place in the class's order (the ack's count, this answer included); null when unknown. */
+  order: number | null;
 }
 
 export interface PlayerSnapshot {
@@ -71,12 +81,23 @@ export interface PlayerSnapshot {
   hpFrom: number | null;
   /** The player was frozen when this question opened. */
   frozenBefore: boolean;
+  /** The question this player joined during: the server takes no answer to it (CONTRACT §2), the next one counts. */
+  lateQi: number | null;
   review: Review | null;
   reviewError: string | null;
   /** Review opened from a link (Telegram `r_<game>`): no game screen behind it. */
   reviewOnly: boolean;
   /** Why the game cannot go on: a heading and a line (kicked, the game gone). */
   gone: { title: string; text: string } | null;
+}
+
+/** A game this tab joined (sessionStorage): enough to go on after a reload. */
+interface Kept {
+  topic: string;
+  playerId: string;
+  guest: boolean;
+  /** The server's time of the join (ms), when this tab made the player: later questions only. */
+  joinedAt?: number | null;
 }
 
 export interface ControllerOptions {
@@ -96,6 +117,11 @@ const JOIN_RETRIES = 4;
 const JOIN_WAIT_MS = 3000;
 const UNLOCKED_KEY = (profile: string) => `meldy.live.unlocked.${profile}`;
 const UNLOCK_IDS: readonly UnlockId[] = ['graphite', 'snow', 'crown', 'grad', 'horns'];
+/** No word from the channel for this long (or a lost one): subscribe again; the wait doubles up to RELINK_MAX_MS. */
+const RELINK_MS = 20_000;
+const RELINK_MAX_MS = 120_000;
+/** Between the old channel's leave and the new subscribe: a channel of the same topic still leaving would come back. */
+const RELINK_GAP_MS = 1500;
 
 function parseJson<T>(raw: string | null): T | null {
   if (!raw) return null;
@@ -131,6 +157,12 @@ export function goneOf(e: LiveError, pin: string | null): { title: string; text:
   return { title: 'Игра недоступна', text: errorText(e, pin) };
 }
 
+/** How many of the game's questions closed (a game the host ended: `result` is there when its last one closed). */
+export function closedOf(st: PlayerState): number {
+  if (st.qi < 0) return 0;
+  return st.result && st.result.qi === st.qi ? st.qi + 1 : st.qi;
+}
+
 export class PlayerController {
   private s: PlayerSnapshot;
   private readonly listeners = new Set<() => void>();
@@ -147,7 +179,22 @@ export class PlayerController {
   private gen = 0;
   /** The question whose end already has its read scheduled (one per question, not one per poll). */
   private closeReadFor = -1;
-  private readonly onOnline = () => this.kick();
+  /** The server's time of this player's join (ms), when this tab made the player; null when unknown (a rejoin). */
+  private joinedAt: number | null = null;
+  /** The channel's last word: joined (true), lost or refused (false), nothing yet (null) — and since when. */
+  private linked: boolean | null = null;
+  private linkAt = 0;
+  private relinkMs = RELINK_MS;
+  /** The review of a game ended before its podium was asked for once (it shows the right answers so far). */
+  private reviewAsked = false;
+  private readonly onOnline = () => {
+    this.kick();
+    // Back online: the channel may have been given up meanwhile (or never joined): a fresh one now.
+    if (this.linked !== true && this.stopWatch) {
+      this.relinkMs = RELINK_MS;
+      this.relink();
+    }
+  };
   private readonly onOffline = () => this.set({ link: 'lost' });
   private readonly onVisible = () => {
     if (document.visibilityState === 'visible') this.kick();
@@ -182,6 +229,7 @@ export class PlayerController {
       turnQi: -1,
       hpFrom: null,
       frozenBefore: false,
+      lateQi: null,
       review: null,
       reviewError: null,
       reviewOnly: false,
@@ -258,14 +306,14 @@ export class PlayerController {
     }
     this.set({ pin });
     if (await this.resume(pin, gen)) return;
-    if (gen === this.gen) this.set({ step: 'builder', builderFrom: 'join' });
+    if (gen === this.gen) await this.checkPin(pin, gen);
   }
 
   /** A game this tab joined with this PIN: its kept token, if the server still knows it. */
   private async resume(pin: string, gen: number): Promise<boolean> {
     const gameId = readStore('session', PIN_KEY(pin));
     if (!gameId) return false;
-    const kept = parseJson<{ topic: string; playerId: string; guest: boolean }>(readStore('session', GAME_KEY(gameId)));
+    const kept = parseJson<Kept>(readStore('session', GAME_KEY(gameId)));
     const token = await this.platform.readToken(gameId);
     if (gen !== this.gen) return true;
     if (!kept || !token) return false;
@@ -275,6 +323,7 @@ export class PlayerController {
       if (gen !== this.gen) return true;
       if (isUnchanged(got)) throw new LiveError('unknown');
       this.token = token;
+      this.joinedAt = typeof kept.joinedAt === 'number' ? kept.joinedAt : null;
       this.set({
         game: { id: gameId, topic: kept.topic, playerId: kept.playerId },
         guest: kept.guest,
@@ -305,14 +354,56 @@ export class PlayerController {
 
   // ─────────────────────────────────────────── PIN and builder ───────────────────────────────────────────
 
-  submitPin(raw: string): boolean {
+  /** «Дальше» on the PIN: six digits, then the server says whether there is a game to join (checkPin). */
+  async submitPin(raw: string): Promise<boolean> {
+    if (this.s.busy) return false;
     const pin = raw.replace(/\D/g, '');
     if (!PIN_RE.test(pin)) {
-      this.set({ error: 'PIN — шесть цифр с экрана ведущего.' });
+      this.set({ error: 'PIN\u00a0— шесть цифр с экрана ведущего.' });
       return false;
     }
-    this.set({ pin, step: 'builder', builderFrom: 'join', error: null });
-    return true;
+    this.set({ pin, error: null });
+    return this.checkPin(pin, this.gen);
+  }
+
+  /**
+   * A wrong or finished PIN is told on the PIN screen, before the character (Kahoot does the same). The contract has no
+   * read-only look-up by PIN, so this is `live_join` with no name: the server checks the PIN, the game's state, the
+   * members-only rule and the room before the name (live_join_as), and a refused name makes no player and counts no
+   * join. ML006 therefore means «a game to join». If this identity is already in the game (the same token, or the same
+   * account), the server takes it back at once: that join is kept and the builder skipped.
+   *
+   * Telegram's join goes through the bot's function, which needs a name; the check is the same anonymous RPC there, so
+   * «members only» does not stop a Telegram player (their linked account decides at the real join).
+   */
+  private async checkPin(pin: string, gen: number): Promise<boolean> {
+    this.set({ step: 'pin', busy: true, error: null, notice: null });
+    const kept = readStore('session', PIN_KEY(pin));
+    const known = this.token ?? (kept ? await this.platform.readToken(kept) : null);
+    if (gen !== this.gen) return false;
+    const token = known && TOKEN_RE.test(known) ? known : newLiveToken();
+    try {
+      const result = await this.api.join(pin, '', token, null);
+      if (gen !== this.gen) return false;
+      await this.joined(result, token);
+      return true;
+    } catch (error) {
+      if (gen !== this.gen) return false;
+      const e = error instanceof LiveError ? error : new LiveError('unknown');
+      const fine = e.code === 'ML006' || e.code === 'ML007' || e.code === 'ML005' || e.code === '22023' || (e.code === 'ML003' && this.platform.kind === 'telegram');
+      if (fine) {
+        this.set({ step: 'builder', builderFrom: 'join', busy: false, error: null });
+        return true;
+      }
+      if (e.code === '42501' && e.detail === 'kicked') {
+        this.set({ busy: false, step: 'gone', gone: goneOf(e, pin) });
+        return false;
+      }
+      if (e.code === 'P0002') writeStore('session', PIN_KEY(pin), null);
+      this.platform.haptic('error');
+      this.set({ step: 'pin', busy: false, error: errorText(e, pin) });
+      return false;
+    }
   }
 
   backToPin(): void {
@@ -364,7 +455,7 @@ export class PlayerController {
     const check = checkName(name);
     if (!check.ok) {
       this.platform.haptic('warning');
-      this.set({ error: check.reason === 'rude' ? 'Такое имя не подойдёт. Выберите другое.' : 'Напишите имя — до 24 знаков.' });
+      this.set({ error: check.reason === 'rude' ? 'Такое имя не подойдёт. Выберите другое.' : 'Напишите имя\u00a0— до 24 знаков.' });
       return;
     }
     this.set({ busy: true, error: null, notice: null, step: 'joining' });
@@ -407,8 +498,14 @@ export class PlayerController {
     this.token = token;
     await this.platform.keepToken(result.game_id, token);
     const guest = result.wardrobe === null;
+    // The join's time: a player this tab made sits out the question that was open then. A rejoin of a player this tab
+    // knows keeps the first time; one it does not know (another device) is taken as new.
+    const before = parseJson<Kept>(readStore('session', GAME_KEY(result.game_id)));
+    const at = Date.parse(result.now);
+    this.joinedAt = before && before.playerId === result.player_id ? (typeof before.joinedAt === 'number' ? before.joinedAt : null) : Number.isFinite(at) ? at : null;
+    const keep: Kept = { topic: result.topic, playerId: result.player_id, guest, joinedAt: this.joinedAt };
     writeStore('session', PIN_KEY(this.s.pin), result.game_id);
-    writeStore('session', GAME_KEY(result.game_id), JSON.stringify({ topic: result.topic, playerId: result.player_id, guest }));
+    writeStore('session', GAME_KEY(result.game_id), JSON.stringify(keep));
     writeStore('local', NAME_KEY(this.profile), result.name);
     writeStore('local', LOOK_KEY(this.profile), JSON.stringify(result.look));
     const unlocked = result.wardrobe ? (result.wardrobe.unlocked.filter((u) => UNLOCK_IDS.includes(u)) as UnlockId[]) : this.s.unlocked;
@@ -421,6 +518,7 @@ export class PlayerController {
       unlocked,
       busy: false,
       error: null,
+      notice: null,
       step: 'game',
     });
     this.platform.haptic('success');
@@ -460,8 +558,19 @@ export class PlayerController {
     const token = this.token;
     if (!game || !token) return;
     this.stopWatch?.();
+    this.linked = null;
+    this.linkAt = Date.now();
+    // The same API, with the channel's word noted here too (watchState keeps its own for the polling pace).
+    const api = this.api;
+    const tracked: LiveApi = Object.assign(Object.create(api) as LiveApi, {
+      subscribe: (topic: string, onHint: Parameters<LiveApi['subscribe']>[1], onLink?: (connected: boolean) => void) =>
+        api.subscribe(topic, onHint, (connected) => {
+          this.noteLink(connected);
+          onLink?.(connected);
+        }),
+    });
     this.stopWatch = watchState<PlayerState>({
-      api: this.api,
+      api: tracked,
       topic: game.topic,
       read: (since) => this.api.state(game.id, token, since),
       onState: (st) => this.onState(st),
@@ -469,6 +578,38 @@ export class PlayerController {
       onClock: (offsetMs) => {
         if (Math.abs(offsetMs - this.s.offsetMs) > 15) this.set({ offsetMs });
       },
+    });
+  }
+
+  private noteLink(connected: boolean): void {
+    if (connected) {
+      this.linked = true;
+      this.relinkMs = RELINK_MS;
+    } else if (this.linked !== false) {
+      this.linked = false;
+      this.linkAt = Date.now();
+    }
+  }
+
+  /**
+   * Polling every second while the channel is down is the fallback, not the way to play: after RELINK_MS without the
+   * channel (never joined — the site's /sb way had no WebSocket when it subscribed — or lost and not back), subscribe
+   * again; the wait doubles each time. Runs on every state read, so it needs no timer of its own.
+   */
+  private maybeRelink(st: PlayerState): void {
+    if (this.linked === true || !this.stopWatch || st.state === 'podium' || st.state === 'ended') return;
+    if (Date.now() - this.linkAt < this.relinkMs) return;
+    this.relinkMs = Math.min(this.relinkMs * 2, RELINK_MAX_MS);
+    this.relink();
+  }
+
+  private relink(): void {
+    this.stopWatch?.();
+    this.stopWatch = null;
+    this.linked = null;
+    this.linkAt = Date.now();
+    this.later(RELINK_GAP_MS, () => {
+      if (this.s.game && this.token && !this.stopWatch && this.s.step !== 'gone') this.watch();
     });
   }
 
@@ -510,7 +651,7 @@ export class PlayerController {
     if (st.qi !== this.s.turnQi && st.qi >= 0) {
       // A new question: its own figures.
       patch.turnQi = st.qi;
-      patch.pick = st.me.choice !== null ? { qi: st.qi, choice: st.me.choice, status: 'accepted', elapsedMs: null } : null;
+      patch.pick = st.me.choice !== null ? { qi: st.qi, choice: st.me.choice, status: 'accepted', elapsedMs: null, order: null } : null;
       patch.answered = null;
       patch.hpFrom = live ? st.boss.hp : null;
       patch.frozenBefore = live ? st.me.frozen : false;
@@ -518,8 +659,12 @@ export class PlayerController {
       patch.hpFrom = st.boss.hp;
       patch.frozenBefore = st.me.frozen;
       if (st.me.choice !== null && (!this.s.pick || this.s.pick.qi !== st.qi)) {
-        patch.pick = { qi: st.qi, choice: st.me.choice, status: 'accepted', elapsedMs: null };
+        patch.pick = { qi: st.qi, choice: st.me.choice, status: 'accepted', elapsedMs: null, order: null };
       }
+    }
+    // Joined after this question opened: the server takes no answer to it (live_answer: not_joined_yet).
+    if (live && st.question && st.me.choice === null && this.joinedAt !== null && Date.parse(st.question.opens_at) < this.joinedAt) {
+      patch.lateQi = st.qi;
     }
     if (st.state === 'open') patch.answered = Math.max(st.answered, this.s.answered ?? 0);
     if (st.state === 'lobby') patch.look = st.me.look;
@@ -538,6 +683,12 @@ export class PlayerController {
       }
     }
     this.set(patch);
+    this.maybeRelink(st);
+    // Ended before the podium (the host's «Закончить»): no final comes; the review gives the right answers so far.
+    if (st.state === 'ended' && !st.final && closedOf(st) > 0 && !this.reviewAsked) {
+      this.reviewAsked = true;
+      void this.loadReview();
+    }
     // A question that closes by time: read once just after its end (the hint may come later than the clock).
     if (st.state === 'open' && st.question && this.closeReadFor !== st.qi) {
       this.closeReadFor = st.qi;
@@ -562,47 +713,59 @@ export class PlayerController {
     const st = this.s.state;
     const q = st?.question;
     if (!st || !q || !this.isOpenNow() || !this.s.game || !this.token) return;
+    if (this.s.lateQi === q.qi) return;
     if (this.s.pick && this.s.pick.qi === q.qi) return;
     if (choice < 0 || choice >= q.options.length) return;
-    const elapsedMs = Math.min(Math.max(this.serverNow() - Date.parse(q.opens_at), 0), st.time_s * 1000);
-    this.set({ pick: { qi: q.qi, choice, status: 'sending', elapsedMs } });
+    this.set({ pick: { qi: q.qi, choice, status: 'sending', elapsedMs: null, order: null } });
     this.platform.haptic('tap');
-    this.send(q.qi, choice, Date.parse(q.closes_at), 0);
+    this.send({ qi: q.qi, choice, opensAt: Date.parse(q.opens_at), closesAt: Date.parse(q.closes_at), timeMs: st.time_s * 1000 }, 0);
   }
 
-  private send(qi: number, choice: number, closesAt: number, attempt: number): void {
+  private send(a: { qi: number; choice: number; opensAt: number; closesAt: number; timeMs: number }, attempt: number): void {
     const game = this.s.game;
     const token = this.token;
     if (!game || !token) return;
-    const mark = (status: Pick['status']) => {
+    const { qi } = a;
+    const mark = (patch: Partial<Pick>) => {
       const pick = this.s.pick;
-      if (pick && pick.qi === qi) this.set({ pick: { ...pick, status } });
+      if (pick && pick.qi === qi) this.set({ pick: { ...pick, ...patch } });
     };
     this.api
-      .answer(game.id, token, qi, choice)
+      .answer(game.id, token, qi, a.choice)
       .then((ack) => {
-        mark('accepted');
+        // The ack's `now` is the server's clock at this answer: the time its damage is counted with (live_answer).
+        const at = Date.parse(ack.now);
+        const elapsedMs = Number.isFinite(at) ? Math.min(Math.max(at - a.opensAt, 0), a.timeMs) : null;
+        mark({ status: 'accepted', elapsedMs, order: ack.answered > 0 ? ack.answered : null });
         if (this.s.turnQi === qi || this.s.state?.qi === qi) this.set({ answered: Math.max(ack.answered, this.s.answered ?? 0), link: 'ok' });
       })
       .catch((error: unknown) => {
         const e = error instanceof LiveError ? error : new LiveError('unknown');
-        if (e.code === 'ML004' && e.detail === 'twice') return mark('accepted');
+        // Taken before (the first ack was lost): the server's time is not known here, so no seconds are shown.
+        if (e.code === 'ML004' && e.detail === 'twice') return mark({ status: 'accepted' });
         if (e.code === 'ML004' && e.detail === 'early' && attempt < 6) {
-          this.later(250, () => this.send(qi, choice, closesAt, attempt + 1));
+          this.later(250, () => this.send(a, attempt + 1));
+          return;
+        }
+        if (e.code === 'ML004' && e.detail === 'not_joined_yet') {
+          // Joined during this question (a rejoin this tab could not date): sit it out, said in the line, not a toast.
+          const pick = this.s.pick;
+          this.set({ lateQi: qi, pick: pick && pick.qi === qi ? null : pick });
           return;
         }
         if (e.code === 'network' || e.code === 'unknown' || e.status >= 500) {
-          if (this.serverNow() < closesAt + GRACE_MS) {
-            mark('retrying');
+          if (this.serverNow() < a.closesAt + GRACE_MS) {
+            mark({ status: 'retrying' });
             this.set({ link: 'lost' });
-            this.later(900, () => this.send(qi, choice, closesAt, attempt + 1));
-          } else mark('late');
+            this.later(900, () => this.send(a, attempt + 1));
+          } else mark({ status: 'late' });
           return;
         }
         if (e.code === '42501') return this.onError(e);
-        mark('late');
+        mark({ status: 'late' });
         this.platform.haptic('warning');
-        this.set({ notice: errorText(e, this.s.pin) });
+        // ML004 is said in the line beside the character; anything else in a passing line.
+        if (e.code !== 'ML004') this.set({ notice: errorText(e, this.s.pin) });
       });
   }
 
@@ -613,9 +776,15 @@ export class PlayerController {
     if (!game || !this.token) return;
     this.set({ step: 'review', reviewError: null });
     if (this.s.review) return;
+    await this.loadReview();
+  }
+
+  private async loadReview(): Promise<void> {
+    const game = this.s.game;
+    if (!game || !this.token) return;
     try {
       const review = await this.api.review(game.id, this.token);
-      this.set({ review });
+      this.set({ review, reviewError: null });
     } catch (error) {
       this.set({ reviewError: errorText(error instanceof LiveError ? error : new LiveError('unknown'), null) });
     }
@@ -647,9 +816,11 @@ export class PlayerController {
     this.stopWatch?.();
     this.stopWatch = null;
     this.token = null;
+    this.joinedAt = null;
+    this.reviewAsked = false;
     this.closeReadFor = -1;
     this.platform.setPlaying(false);
-    this.set({ step: 'pin', pin: '', game: null, state: null, pick: null, answered: null, review: null, reviewError: null, reviewOnly: false, turnQi: -1, hpFrom: null, gone: null, error: null, notice: null });
+    this.set({ step: 'pin', pin: '', game: null, state: null, pick: null, answered: null, review: null, reviewError: null, reviewOnly: false, turnQi: -1, hpFrom: null, lateQi: null, gone: null, error: null, notice: null, busy: false });
   }
 
   /** The player's token (sharing asks the bot's function with it). */

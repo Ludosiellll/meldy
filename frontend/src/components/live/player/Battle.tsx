@@ -1,19 +1,22 @@
 /**
  * One question on the phone, from «приготовьтесь» to the place after it: countdown (text and options visible, the
- * buttons wait), open (the buttons take one tap, the time bar runs), reveal (the key, the own result sheet, the hit or
- * the freeze), leaderboard (the top five and the own place). Mounted once per question (keyed by qi).
+ * buttons wait), open (the buttons take one tap, the time bar runs), the wait after the tap (the order of the own
+ * answer, how many answered, the streak), «Время вышло» while the server closes the question, reveal (the key, the own
+ * result sheet, the hit or the freeze), leaderboard (the top five, the own place and the gap to the next one). Mounted
+ * once per question (keyed by qi).
  *
- * Smoothness (owner's rule): only transform and opacity move — the time bar and HP bar are scaleX, the countdown digits
- * are CSS animations with delays, the star and the shard are WAAPI transforms. Nothing is measured in a handler: the
- * one read (where the star starts and lands) runs in a timer after the sheet has settled, when layout is clean. The tap
- * sets one snapshot field; the seconds counter writes a text node, not React state.
+ * Smoothness (owner's rule): only transform and opacity move — the time bar, the answered bar and the HP bar are scaleX,
+ * the countdown digits are CSS animations with delays, the star and the shard are WAAPI transforms. Nothing is measured
+ * in a handler: the one read (where the star starts and lands) runs in a timer after the sheet has settled, when layout
+ * is clean. The tap sets one snapshot field; the wait's panel comes with the server's ack, a frame or more later; the
+ * seconds counter writes a text node, not React state.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
-import type { BossPhase, Look, PlayerResult, PlayerState, Question, TopRow } from '../../../lib/live/types';
+import type { BossPhase, Look, Me, PlayerResult, PlayerState, Question, TopRow } from '../../../lib/live/types';
 import { Shard, Star } from '../art/Fx';
 import { LiveBoss, LiveChar, reducedMotion } from './art';
 import type { Pick, PlayerController } from './controller';
-import { multText, nb, seconds } from './copy';
+import { NBSP, multText, nb, orderText, seconds } from './copy';
 import { OPTION_STYLES, optionLabel, optionSize, questionSize, type OptionShape } from './options';
 import type { HapticKind } from './platform';
 
@@ -160,6 +163,25 @@ function fly(el: HTMLDivElement | null, from: { x: number; y: number }, to: { x:
   };
 }
 
+/**
+ * The gap to the next place up (Kahoot's «150 points behind»), from the top five of the leaderboard: the name above
+ * when this player is 2nd to 6th, the lead when 1st; null further down (the state has no one else's damage there).
+ */
+export function gapLine(top: readonly TopRow[] | null, me: Pick2<Me, 'player_id' | 'place' | 'dmg'>): string | null {
+  if (!top || top.length === 0 || me.place < 1) return null;
+  if (me.place === 1) {
+    const next = top[1];
+    if (!next || top[0]?.player_id !== me.player_id) return null;
+    const lead = me.dmg - next.dmg;
+    return lead > 0 ? `Впереди всех на${NBSP}${nb(lead)} урона` : 'Впереди всех при равном уроне';
+  }
+  const above = top[me.place - 2];
+  if (!above || above.player_id === me.player_id) return null;
+  const gap = above.dmg - me.dmg;
+  return gap > 0 ? `${above.name} впереди на${NBSP}${nb(gap)} урона` : `${above.name} впереди при равном уроне`;
+}
+type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
+
 // ─────────────────────────────────────────── the result sheet ───────────────────────────────────────────
 
 interface SheetProps {
@@ -167,6 +189,8 @@ interface SheetProps {
   options: string[];
   look: Look;
   frozenBefore: boolean;
+  /** This player joined during the question: the server counted nothing for them (no answer, no freeze). */
+  sitOut: boolean;
   qPhase: BossPhase;
   elapsedMs: number | null;
   speed: boolean;
@@ -175,6 +199,7 @@ interface SheetProps {
   place: number;
   players: number;
   dmgTotal: number;
+  gap: string | null;
   bossEl: RefObject<HTMLDivElement>;
   haptic: (kind: HapticKind) => void;
   onImpact: () => void;
@@ -187,7 +212,8 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const meEl = useRef<HTMLDivElement>(null);
   const star = useRef<HTMLDivElement>(null);
   const shard = useRef<HTMLDivElement>(null);
-  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(r.correct ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
+  const seen = p.sitOut && r.none && !r.frozen;
+  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(seen ? 'idle' : r.correct ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
   const [ice, setIce] = useState(r.thawed || (r.frozen && !newlyFrozen));
   const [move, setMove] = useState<'idle' | 'bounce' | 'hit'>('idle');
   const { haptic, onImpact, bossEl } = p;
@@ -228,24 +254,34 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
           if (still || !from || !to) freeze();
           else fly(shard.current, from, to, 'shard', freeze);
         });
-      } else if (!r.correct) at(20, () => haptic(r.none ? 'warning' : 'error'));
+      } else if (!r.correct && !seen) at(20, () => haptic(r.none ? 'warning' : 'error'));
     }
     return () => timers.forEach(clearTimeout);
     // Once per question: the sheet is keyed by it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const keyText = `${OPTION_STYLES[r.key]?.letter ?? ''} · ${p.options[r.key] ?? ''}`;
+  const keyText = `${OPTION_STYLES[r.key]?.letter ?? ''}${NBSP}·${NBSP}${p.options[r.key] ?? ''}`;
   let title: string;
   let body: ReactNode;
   if (r.thawed) {
-    title = 'Верно — оттаяли';
+    title = `Верно${NBSP}— оттаяли`;
     body = (
       <>
         <p>Урона в этом вопросе нет: вы были заморожены. Со следующего вопроса бьёте как все.</p>
         <div className="lp-pills">
           <span className="lp-pill">Серия 1</span>
         </div>
+      </>
+    );
+  } else if (seen) {
+    title = `Следующий${NBSP}— ваш`;
+    body = (
+      <>
+        <p>
+          Верный ответ: <b>{keyText}</b>
+        </p>
+        <p>Вы вошли во время этого вопроса. Со следующего играете со всеми.</p>
       </>
     );
   } else if (r.correct) {
@@ -257,6 +293,7 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
         <div className="lp-pills">
           <span className="lp-pill">Серия {p.streak}</span>
           {p.streak > 1 && <span className="lp-pill">{multText(p.streak)} за серию</span>}
+          {/* The server's seconds (the ack), the ones the damage was counted with; unknown → none. */}
           {p.speed && p.elapsedMs !== null && <span className="lp-pill">{seconds(p.elapsedMs)}</span>}
         </div>
       </>
@@ -281,7 +318,7 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   }
   const healed = r.healed > 0;
   return (
-    <section className={`lp-sheet ${r.correct ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
+    <section className={`lp-sheet ${seen ? 'lp-sheet--seen' : r.correct ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
       <h2 id="lp-sheet-title" role="status">
         {title}
       </h2>
@@ -289,10 +326,13 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
       {healed && <p className="lp-wide">Мало верных ответов: Дедлайн восстановил силы.</p>}
       {p.showPlace && (
         <div className="lp-place">
-          <span>
-            Вы {p.place}-й по урону из {p.players}
-          </span>
-          <span>{nb(p.dmgTotal)}</span>
+          <div className="lp-place__row">
+            <span>
+              Вы {p.place}-й по урону из {p.players}
+            </span>
+            <span>{nb(p.dmgTotal)}</span>
+          </div>
+          {p.gap && <p className="lp-place__gap">{p.gap}</p>}
         </div>
       )}
       <div ref={meEl} className="lp-sheet-me">
@@ -327,6 +367,55 @@ const Top5 = memo(function Top5({ top, meId }: { top: TopRow[]; meId: string }) 
   );
 });
 
+// ─────────────────────────────────────────── the wait after the tap ───────────────────────────────────────────
+
+interface WaitProps {
+  /** 'answered': the ack came; 'up': the time is over (or everyone answered), the result is on its way; 'late': this
+   * player joined during the question. */
+  mode: 'answered' | 'up' | 'late';
+  allIn: boolean;
+  order: number | null;
+  answered: number;
+  players: number;
+  streak: number;
+  frozen: boolean;
+}
+
+/**
+ * The wait (up to ~18 s after a fast tap): what the server already knows — the order of the own answer, how many of
+ * the class answered (a bar, scaleX), the streak at stake; then «Время вышло» and a short beat until the result.
+ * Plain DOM, no characters: it comes a frame after the ack and costs a few nodes.
+ */
+const Wait = memo(function Wait({ mode, allIn, order, answered, players, streak, frozen }: WaitProps) {
+  const k = players > 0 ? Math.min(1, answered / players) : 0;
+  let head: string;
+  if (mode === 'up') head = allIn ? 'Все ответили' : 'Время вышло';
+  else if (mode === 'late') head = `Следующий вопрос${NBSP}— ваш`;
+  else head = order !== null ? `Ваш ответ пришёл ${orderText(order)}` : 'Ждём остальных';
+  let foot: ReactNode = null;
+  if (mode === 'up')
+    foot = (
+      <span className="lp-wait__dots" aria-hidden="true">
+        Считаем удары <i />
+        <i />
+        <i />
+      </span>
+    );
+  else if (mode === 'answered') foot = frozen ? 'Верный ответ разморозит вас' : streak > 0 ? `Серия ${streak} · если верно, урон ${multText(streak + 1)}` : null;
+  return (
+    <div className="lp-wait" data-mode={mode}>
+      <b className="lp-wait__h">{head}</b>
+      <div className="lp-wait__bar" aria-hidden="true">
+        <i style={{ transform: `scaleX(${k})` }} />
+      </div>
+      <span className="lp-wait__n">
+        Ответили {Math.min(answered, players)} из {players}
+      </span>
+      {foot && <span className="lp-wait__foot">{foot}</span>}
+    </div>
+  );
+});
+
 // ─────────────────────────────────────────── the question ───────────────────────────────────────────
 
 export interface BattleProps {
@@ -337,6 +426,8 @@ export interface BattleProps {
   answered: number | null;
   hpFrom: number | null;
   frozenBefore: boolean;
+  /** This player joined while this question was open: no answer to it. */
+  late: boolean;
   offsetMs: number;
   look: Look;
   haptic: (kind: HapticKind) => void;
@@ -347,7 +438,7 @@ const PHASE_TEXT: Record<1 | 2, { title: string; text: string }> = {
   2: { title: 'Последняя минута', text: 'Если верных ответов меньше двух третей, Дедлайн восстанавливает силы.' },
 };
 
-export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBefore, offsetMs, look, haptic }: BattleProps) {
+export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBefore, late, offsetMs, look, haptic }: BattleProps) {
   const closed = st.state === 'reveal' || st.state === 'leaderboard';
   const result = closed ? st.result : null;
   const T = st.time_s * 1000;
@@ -359,11 +450,13 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
   const sec = useRef<HTMLSpanElement>(null);
   const bossEl = useRef<HTMLDivElement>(null);
   const [impact, setImpact] = useState(false);
-  const [bossMove, setBossMove] = useState<'idle' | 'hit' | 'fall'>('idle');
+  const [bossMove, setBossMove] = useState<'idle' | 'hit' | 'fall' | 'roar'>('idle');
   const [flash, setFlash] = useState(0);
   const [hurt, setHurt] = useState(false);
   const [banner, setBanner] = useState<{ title: string; text: string } | null>(null);
-  const timeUp = useRef(false);
+  /** The phone's clock reached the question's end: «Время вышло» until the server's result comes. */
+  const [timeUp, setTimeUp] = useState(() => !closed && st.state === 'open' && Date.now() >= closesLocal);
+  const [hop, setHop] = useState(false);
 
   // The buttons open at the server's opens_at.
   useEffect(() => {
@@ -375,13 +468,14 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
     return () => clearTimeout(t);
   }, [closed, openNow, opensLocal, haptic]);
 
-  // The time bar (WAAPI scaleX) and the seconds (a text node).
+  // The time bar (WAAPI scaleX) and the seconds (a text node). Closed: no number at all, never a stale one.
   useEffect(() => {
     const el = bar.current;
     const s = sec.current;
     if (!el || !s) return undefined;
     if (closed) {
       el.getAnimations?.().forEach((a) => a.pause());
+      s.textContent = '';
       return undefined;
     }
     if (!isOpen) {
@@ -396,24 +490,44 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
       anim = el.animate([{ transform: `scaleX(${k})` }, { transform: 'scaleX(0)' }], { duration: left, easing: 'linear', fill: 'forwards' });
     } else el.style.transform = `scaleX(${k})`;
     let shown = -1;
+    let iv: ReturnType<typeof setInterval> | null = null;
     const tick = () => {
       const n = Math.max(0, Math.ceil((closesLocal - Date.now()) / 1000));
-      if (n !== shown) {
-        shown = n;
-        s.textContent = String(Math.min(n, st.time_s));
-        if (n === 0 && !timeUp.current) {
-          timeUp.current = true;
-          if (reducedMotion()) el.style.transform = 'scaleX(0)';
-        }
+      if (n === shown) return;
+      shown = n;
+      s.textContent = String(Math.min(n, st.time_s));
+      if (n === 0) {
+        if (reducedMotion()) el.style.transform = 'scaleX(0)';
+        if (iv) clearInterval(iv);
+        iv = null;
+        setTimeUp(true);
       }
     };
     tick();
-    const iv = setInterval(tick, 250);
+    if (shown > 0) iv = setInterval(tick, 250);
     return () => {
-      clearInterval(iv);
+      if (iv) clearInterval(iv);
       anim?.pause();
     };
   }, [closed, isOpen, closesLocal, T, st.time_s]);
+
+  // Time is up: the boss winds up once (a transform), the beat before the result.
+  const upNow = timeUp && !closed;
+  useEffect(() => {
+    if (!upNow) return undefined;
+    setBossMove('roar');
+    const t = setTimeout(() => setBossMove((m) => (m === 'roar' ? 'idle' : m)), 460);
+    return () => clearTimeout(t);
+  }, [upNow]);
+
+  // The own character hops once when the server takes the answer.
+  const acked = !!pick && pick.qi === q.qi && pick.status === 'accepted' && pick.order !== null;
+  useEffect(() => {
+    if (!acked) return undefined;
+    setHop(true);
+    const t = setTimeout(() => setHop(false), 450);
+    return () => clearTimeout(t);
+  }, [acked]);
 
   // The hit (or the others' hits) lands: the boss shakes, the HP bar moves, then the phase or the defeat.
   const latest = useRef(st);
@@ -436,7 +550,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
       setHurt(false);
       setBossMove(now.boss.defeated ? 'fall' : 'idle');
       if (now.boss.defeated) {
-        setBanner({ title: 'Дедлайн повержен', text: 'Класс победил. Сейчас — итог игры.' });
+        setBanner({ title: 'Дедлайн повержен', text: `Класс победил. Сейчас${NBSP}— итог игры.` });
         haptic('success');
       } else if (res?.phase_changed === 1 || res?.phase_changed === 2) {
         setBanner(PHASE_TEXT[res.phase_changed]);
@@ -451,7 +565,9 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
   const pct = Math.max(0, Math.round(k * 100));
 
   const picked = pick && pick.qi === q.qi ? pick : null;
-  const looks: AnsLook[] = q.options.map((_, i) => (picked ? (picked.choice === i ? 'chosen' : 'dim') : 'idle'));
+  const sitOut = late && !picked && !closed;
+  const missed = upNow && !picked;
+  const looks: AnsLook[] = q.options.map((_, i) => (picked ? (picked.choice === i ? 'chosen' : 'dim') : sitOut || missed ? 'dim' : 'idle'));
   const marks = q.options.map((_, i) => {
     if (!result) return null;
     if (i === result.key) return 'key' as const;
@@ -461,26 +577,38 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
   const closedLooks: AnsLook[] = q.options.map((_, i) => (marks[i] ? 'idle' : 'dim'));
   const onPick = useMemo(() => (i: number) => ctl.answer(i), [ctl]);
 
+  // «Ответили N»: the larger of the ack's count and the last state's, at least this answer.
+  const known = Math.max(answered ?? 0, st.answered);
+  const count = Math.min(st.players, Math.max(known + (picked && picked.status === 'sending' ? 1 : 0), picked ? 1 : 0));
+  // Everyone answered by the server's count (not the tap's guess): the question closes at once.
+  const allIn = isOpen && st.players > 0 && known >= st.players;
+
   // The line beside the own character.
   let line: ReactNode;
   let tone: 'ice' | undefined;
   const frozen = st.me.frozen;
-  if (picked) {
+  if (closed && result) line = `Верно ответили ${result.right} из ${st.players}`;
+  else if (sitOut) line = <><b>Вы вошли во время вопроса</b>{NBSP}— играете со следующего</>;
+  else if (picked) {
     if (picked.status === 'retrying') line = <><b>Отправляем ответ…</b> Нет связи, пробуем ещё раз.</>;
     else if (picked.status === 'late') line = <><b>Ответ не успел.</b> Время вышло.</>;
-    // Until the server's count comes: the last state's count and this answer.
-    else line = <><b>Ответ принят.</b> Ответили {Math.min(st.players, Math.max(answered ?? 0, st.answered + (picked.status === 'sending' ? 1 : 0), 1))} из {st.players}</>;
-  } else if (frozen) {
+    // The count is in the wait's panel (after the ack); here only that the tap counted.
+    else line = <><b>Ответ принят.</b>{upNow || allIn ? null : ' Ждём остальных.'}</>;
+  } else if (missed) line = 'В этот раз без ответа';
+  else if (frozen) {
     tone = 'ice';
     line = isOpen ? 'Заморожены: ответьте верно, чтобы оттаять' : 'Вы заморожены. Ответьте верно, чтобы оттаять. Урона в этом вопросе не будет.';
   } else if (st.me.streak > 0) line = `Серия ${st.me.streak} · урон ${multText(st.me.streak + 1)} за верный`;
-  else line = st.speed ? 'Отвечайте быстрее — урон больше' : 'Верный ответ — удар по Дедлайну';
+  else line = st.speed ? `Отвечайте быстрее${NBSP}— урон больше` : `Верный ответ${NBSP}— удар по Дедлайну`;
 
-  const rule = q.phase === 1 ? 'Дедлайн злится: кто не успел — тоже замёрзнет.' : q.phase === 2 ? 'Последняя минута: мало верных — Дедлайн лечится.' : null;
+  const rule = q.phase === 1 ? `Дедлайн злится: кто не успел${NBSP}— тоже замёрзнет.` : q.phase === 2 ? `Последняя минута: мало верных${NBSP}— Дедлайн лечится.` : null;
   const showTop = st.state === 'leaderboard' && st.top && st.top.length > 0;
+  // The wait's panel: after the ack (never on the tap's own frame), at the end of the time, or for a late joiner.
+  const waitMode: WaitProps['mode'] | null = closed || !isOpen ? null : upNow || allIn ? 'up' : sitOut ? 'late' : picked && picked.status === 'accepted' ? 'answered' : null;
+  const gap = st.state === 'leaderboard' ? gapLine(st.top, st.me) : null;
 
   return (
-    <div className="lp-battle">
+    <div className="lp-battle" data-up={upNow ? 'true' : undefined}>
       <div className="lp-top">
         <span className="lp-count" aria-label={`Вопрос ${q.qi + 1} из ${st.q_count}`}>
           {q.qi + 1}/{st.q_count}
@@ -488,8 +616,8 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
         <span className="lp-time" aria-hidden="true">
           <i ref={bar} />
         </span>
-        <span ref={sec} className="lp-sec" aria-label="Секунд осталось">
-          {st.time_s}
+        <span ref={sec} className="lp-sec" aria-label={closed ? undefined : 'Секунд осталось'} aria-hidden={closed ? true : undefined}>
+          {closed ? '' : st.time_s}
         </span>
       </div>
       <div className="lp-boss">
@@ -515,18 +643,21 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
             </h2>
             {q.picture && <img className="lp-pic" src={q.picture} alt="Рисунок к вопросу" decoding="async" />}
             {!isOpen && !closed && <Countdown untilMs={opensLocal - Date.now()} />}
+            {waitMode && (
+              <Wait mode={waitMode} allIn={allIn} order={picked?.order ?? null} answered={count} players={st.players} streak={st.me.streak} frozen={frozen} />
+            )}
           </>
         )}
       </div>
       <div className="lp-me">
-        <LiveChar look={look} size={52} frozen={frozen} face={frozen ? 'frozen' : picked ? 'happy' : 'idle'} />
+        <LiveChar look={look} size={52} frozen={frozen} face={frozen ? 'frozen' : picked ? 'happy' : 'idle'} move={hop ? 'bounce' : 'idle'} />
         <div className="lp-me-text" data-tone={tone} role="status" aria-live="polite">
           {line}
         </div>
       </div>
       <div className="lp-answers" data-wait={!isOpen && !closed ? 'true' : 'false'}>
         {q.options.map((text, i) => (
-          <Answer key={i} index={i} text={text} disabled={!isOpen || !!picked || closed} look={closed ? closedLooks[i] : looks[i]} mark={marks[i]} onPick={onPick} />
+          <Answer key={i} index={i} text={text} disabled={!isOpen || !!picked || closed || sitOut || upNow} look={closed ? closedLooks[i] : looks[i]} mark={marks[i]} onPick={onPick} />
         ))}
       </div>
       {banner && (
@@ -541,6 +672,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           options={q.options}
           look={look}
           frozenBefore={frozenBefore}
+          sitOut={late}
           qPhase={q.phase}
           elapsedMs={picked?.elapsedMs ?? null}
           speed={st.speed}
@@ -549,6 +681,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           place={st.me.place}
           players={st.players}
           dmgTotal={st.me.dmg}
+          gap={gap}
           bossEl={bossEl}
           haptic={haptic}
           onImpact={onImpact}

@@ -240,6 +240,33 @@ describe('/tg/play in Telegram', () => {
     expect(screen.queryByRole('heading', { name: 'Ваш персонаж' })).toBeNull();
   });
 
+  it('startapp with a PIN of no game: said on the PIN screen before the character', async () => {
+    w = gameWebApp({ startParam: '111111' });
+    await open('/tg/play');
+    expect(screen.getByRole('heading', { name: 'Битва с монстром' })).toBeInTheDocument();
+    expect(screen.getByRole('alert').textContent?.replace(/\u00a0/g, ' ')).toBe('Игры с PIN 111 111 нет. Проверьте цифры у ведущего.');
+    expect(screen.queryByRole('heading', { name: 'Ваш персонаж' })).toBeNull();
+  });
+
+  it('the host ends the game before the podium: the same «Игра закончилась» as on the site; closing no longer asks', async () => {
+    await open('/tg/play?pin=482913');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    });
+    await until(() => gameState() === 'lobby');
+    expect(w.enableClosingConfirmation).toHaveBeenCalled();
+    const id = Array.from(w.SecureStorage.store.keys())[0].slice(5);
+    const uuid = `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(16, 20)}-${id.slice(20)}`;
+    await act(async () => {
+      await api.end(uuid, api.peek(uuid)!.hostToken);
+    });
+    await until(() => gameState() === 'ended');
+    expect(screen.getByRole('heading', { name: 'Игра закончилась' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Войти по PIN' })).toBeInTheDocument();
+    expect(w.disableClosingConfirmation).toHaveBeenCalled();
+    expect(w.BackButton.isVisible).toBe(false);
+  });
+
   it('startapp=r_<game> on a device without the token: the review says where it opens', async () => {
     w = gameWebApp({ startParam: 'r_0a1b2c3d4e5f4a6b8c7d0123456789ab' });
     await open('/tg/play');

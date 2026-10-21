@@ -49,6 +49,13 @@ describe('/play', () => {
     expect(window.Telegram).toBeUndefined();
   });
 
+  it('a link with a PIN of no game: said on the PIN screen, before the character', async () => {
+    await open('/play?pin=111111');
+    expect(screen.getByRole('heading', { name: 'Битва с монстром' })).toBeInTheDocument();
+    expect(screen.getByLabelText('PIN игры')).toHaveValue('111 111');
+    expect(screen.getByRole('alert').textContent).toMatch(/^Игры с PIN 111.111 нет/);
+  });
+
   it('a typed PIN goes into the address (a reload comes back to it)', async () => {
     await open('/play?fake=1');
     fireEvent.change(screen.getByLabelText('PIN игры'), { target: { value: '482913' } });

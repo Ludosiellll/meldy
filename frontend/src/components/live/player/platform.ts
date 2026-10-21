@@ -72,20 +72,29 @@ export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 // ─────────────────────────────────────────── the site ───────────────────────────────────────────
 
-const VIBRATION: Record<HapticKind, number | number[]> = {
-  tap: 12,
-  select: 6,
-  go: 8,
-  success: [14, 50, 14],
-  error: 45,
-  warning: [18, 40, 18],
-  hit: 22,
-  freeze: [10, 30, 30],
+/**
+ * Android's vibration for the moments Telegram gives HapticFeedback (telegram.ts): short, and long enough to be felt —
+ * many phones' motors do not move for less than ~15 ms. Right = two light taps, wrong = one firm buzz, the freeze = a
+ * buzz that grows. iOS Safari has no navigator.vibrate: nothing happens there.
+ */
+export const VIBRATION: Record<HapticKind, number | number[]> = {
+  tap: 15,
+  select: 10,
+  go: 20,
+  success: [25, 60, 25],
+  error: 70,
+  warning: [30, 60, 30],
+  hit: 40,
+  freeze: [20, 50, 90],
 };
 
 function vibrate(kind: HapticKind): void {
   try {
-    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') navigator.vibrate(VIBRATION[kind]);
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+    // Before the first tap on the page Chrome refuses (and says so in the console): a reload mid-game waits for a tap.
+    const activation = (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation;
+    if (activation && !activation.hasBeenActive) return;
+    navigator.vibrate(VIBRATION[kind]);
   } catch {
     // Haptics are a bonus.
   }

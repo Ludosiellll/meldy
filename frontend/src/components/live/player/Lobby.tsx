@@ -45,11 +45,11 @@ export function Lobby({ ctl, look, name, players, pin, crowd, canEdit }: LobbyPr
         <h1 className="lp-h1">Вы в игре</h1>
         <p className="lp-sub">Ведущий начнёт, когда соберутся все.</p>
         <div className="lp-me-big">
-          <div className="lp-floor" style={{ bottom: 26 }} />
+          <div className="lp-floor" style={{ bottom: 12 }} />
           <LiveChar look={look} size={176} face="happy" move="cheer" title={`${name}, ваш персонаж`} />
         </div>
         <div className="lp-card">
-          <b>Битва с монстром.</b> Весь класс против Дедлайна: верный ответ — удар, ошибка — заморозка до следующего верного.
+          <b>Битва с монстром.</b> Весь класс против Дедлайна: верный ответ&nbsp;— удар, ошибка&nbsp;— заморозка до следующего верного.
         </div>
         <div className="lp-row">
           <span aria-live="polite">Играют {players}</span>

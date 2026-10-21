@@ -1,13 +1,20 @@
-/** The way in without a link: the six digits of the PIN from the teacher's screen. */
-import { useState, type FormEvent } from 'react';
+/**
+ * The way in without a link: the six digits of the PIN from the teacher's screen. «Дальше» asks the server at once
+ * (controller.checkPin): a wrong or finished PIN is said here, before the character.
+ */
+import { useEffect, useState, type FormEvent } from 'react';
 import { LiveBoss } from './art';
 import type { PlayerController } from './controller';
 
-export function PinScreen({ ctl, error, initial }: { ctl: PlayerController; error: string | null; initial: string }) {
+export function PinScreen({ ctl, error, initial, busy }: { ctl: PlayerController; error: string | null; initial: string; busy: boolean }) {
   const [value, setValue] = useState(initial);
+  // A PIN from the address arrives after the first paint: the field shows the one being checked.
+  useEffect(() => {
+    if (initial) setValue(initial);
+  }, [initial]);
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    ctl.submitPin(value);
+    void ctl.submitPin(value);
   };
   const digits = value.replace(/\D/g, '').slice(0, 6);
   const shown = digits.length > 3 ? `${digits.slice(0, 3)} ${digits.slice(3)}` : digits;
@@ -42,8 +49,8 @@ export function PinScreen({ ctl, error, initial }: { ctl: PlayerController; erro
         )}
       </div>
       <div className="lp-bar">
-        <button type="submit" className="lp-btn lp-btn--main" disabled={digits.length !== 6}>
-          Дальше
+        <button type="submit" className="lp-btn lp-btn--main" disabled={digits.length !== 6 || busy}>
+          {busy ? 'Ищем игру…' : 'Дальше'}
         </button>
       </div>
     </form>

@@ -38,6 +38,14 @@ export function multText(streakAfter: number): string {
 }
 
 export const questions = (n: number) => `${n}${NBSP}${plural(n, 'вопрос', 'вопроса', 'вопросов')}`;
+
+/** «4-й» (a place). */
+export const placeText = (n: number) => `${n}-й`;
+
+/** «пришёл 4-м» / «пришёл первым» (an answer's order: the noun is «ответ»). */
+export function orderText(n: number): string {
+  return n === 1 ? 'первым' : n === 2 ? 'вторым' : n === 3 ? 'третьим' : `${n}-м`;
+}
 export const playersOf = (n: number) => `${n}${NBSP}${plural(n, 'игрока', 'игроков', 'игроков')}`;
 
 export const UNLOCK_NAMES: Record<UnlockId, { title: string; why: string }> = {
@@ -68,7 +76,7 @@ export function errorText(error: LiveError, pin: string | null): string {
       return 'Слишком много входов подряд. Подождите минуту и попробуйте снова.';
     case 'ML006':
       if (d && WORDS.test(d)) return d;
-      return d === 'rude' ? 'Такое имя не подойдёт. Выберите другое.' : 'Имя — от 1 до 24 знаков.';
+      return d === 'rude' ? 'Такое имя не подойдёт. Выберите другое.' : `Имя${NBSP}— от 1 до 24 знаков.`;
     case 'ML007':
       if (d && WORDS.test(d)) return d;
       return d === 'locked' ? 'Эта часть ещё закрыта. Выберите другую.' : 'Эта часть не подошла. Выберите другую.';

@@ -14,7 +14,7 @@ export function ReviewScreen({ ctl, review, error, standalone }: { ctl: PlayerCo
         <h1 className="lp-h1">Разбор</h1>
         {review && (
           <p className="lp-sub">
-            Верно {right} из {review.items.length}. Ключи — только вопросов этой игры.
+            Верно {right} из {review.items.length}. Ключи&nbsp;— только вопросов этой игры.
           </p>
         )}
         {!review && !error && (
@@ -50,7 +50,7 @@ export function ReviewScreen({ ctl, review, error, standalone }: { ctl: PlayerCo
                         <span className="lp-sr">{OPTION_STYLES[i]?.letter}: </span>
                         {text}
                       </span>
-                      {(key || mine) && <small>{key && mine ? 'ваш ответ, верный' : key ? 'верный' : 'ваш ответ'}</small>}
+                      {(key || mine) && <small>{key && mine ? 'ваш ответ, верный' : key ? 'верный ответ' : 'ваш ответ'}</small>}
                     </div>
                   );
                 })}

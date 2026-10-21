@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Battle } from './Battle';
 import { Builder } from './Builder';
+import { Ended } from './Ended';
 import { Final } from './Final';
 import { Lobby } from './Lobby';
 import { PinScreen } from './PinScreen';
@@ -17,7 +18,7 @@ import './player.css';
 export interface PlayerAppProps {
   ctl: PlayerController;
   platform: PlayerPlatform;
-  /** Shared with the result («Играть с Meldy»). */
+  /** Shared with the result: where someone who sees it can play too (the site's /play, the bot in Telegram). */
   shareUrl: string;
   /** Telegram's «Назад»: the page shows it with this handler, or hides it with null. */
   onBackChange?: (handler: (() => void) | null) => void;
@@ -58,8 +59,9 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
   useEffect(() => () => onBackChange?.(null), [onBackChange]);
 
   const st = s.state;
+  const lost = s.link === 'lost' && s.step !== 'pin' && s.step !== 'builder';
   let screen: JSX.Element;
-  if (s.step === 'pin') screen = <PinScreen ctl={ctl} error={s.error} initial={s.pin} />;
+  if (s.step === 'pin') screen = <PinScreen ctl={ctl} error={s.error} initial={s.pin} busy={s.busy} />;
   else if (s.step === 'builder')
     screen = (
       <Builder
@@ -114,12 +116,17 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
         players={st.players}
         asked={st.qi + 1}
         guest={s.guest}
+        top={st.top}
+        meId={st.me.player_id}
         gameId={s.game?.id ?? ''}
         token={() => ctl.playerToken()}
         shareUrl={shareUrl}
         haptic={haptic}
       />
     );
+  // Ended before the podium (the host's «Закончить», or the 3 hours ran out): no final, no question.
+  else if (st.state === 'ended' || st.state === 'podium')
+    screen = <Ended ctl={ctl} st={st} look={st.me.look} review={s.review} reviewFailed={!!s.reviewError} />;
   else if (st.question)
     screen = (
       <Battle
@@ -131,6 +138,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
         answered={s.answered}
         hpFrom={s.hpFrom}
         frozenBefore={s.frozenBefore}
+        late={s.lateQi === st.question.qi}
         offsetMs={s.offsetMs}
         look={st.me.look}
         haptic={haptic}
@@ -148,15 +156,20 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
   return (
     <main className="lp" data-step={s.step} data-state={st?.state ?? 'none'} data-platform={platform.kind} aria-label="Битва с монстром">
       {screen}
-      {s.link === 'lost' && s.step !== 'pin' && s.step !== 'builder' && (
-        <div className="lp-link" role="alert">
-          <i aria-hidden="true" />
-          Нет связи. Переподключаемся…
-        </div>
-      )}
-      {s.notice && (
-        <div className="lp-notice" role="status">
-          {s.notice}
+      {/* Over the boss's row in a question (never the counter, the timer, the question or the answers). */}
+      {(lost || s.notice) && (
+        <div className="lp-float">
+          {lost && (
+            <div className="lp-link" role="alert">
+              <i aria-hidden="true" />
+              Нет связи. Переподключаемся…
+            </div>
+          )}
+          {s.notice && (
+            <div className="lp-notice" role="status">
+              {s.notice}
+            </div>
+          )}
         </div>
       )}
     </main>

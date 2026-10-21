@@ -21,6 +21,8 @@
   --lp-hp-bg: #e9d9d4;
   --lp-hp-lag: #f7b9a8;
   --lp-floor: rgba(16, 41, 90, 0.1);
+  --lp-rv-wrong: #e7a493;
+  --lp-rv-wrong-ink: #a3412b;
   --lp-ease: cubic-bezier(0.16, 1, 0.3, 1);
   --lp-back: cubic-bezier(0.34, 1.56, 0.64, 1);
   /* Safe areas: the device's and, in Telegram's full screen, Telegram's own controls (Bot API 8.0). */
@@ -47,6 +49,8 @@
   --lp-hp-bg: #3b2c2a;
   --lp-hp-lag: #8f5446;
   --lp-floor: rgba(0, 0, 0, 0.35);
+  --lp-rv-wrong: #6b4038;
+  --lp-rv-wrong-ink: #e3a596;
 }
 .lp *, .lp *::before, .lp *::after { box-sizing: border-box; }
 /* The reset weighs nothing (:where), so every button's own class wins. */
@@ -94,17 +98,28 @@
 .lp-error { margin: 12px 0 0; font: 500 15px/1.4 var(--ph-sans, sans-serif); color: #b3261e; }
 .dark .lp-error { color: #ffb4ab; }
 /* At night the characters' dark outline needs a little light behind the big ones (a still gradient: no motion). */
-.dark .lp-preview, .dark .lp-me-big, .dark .lp-stage { background: radial-gradient(closest-side, rgba(243, 243, 240, 0.09), rgba(243, 243, 240, 0)); }
+.dark .lp-preview, .dark .lp-me-big, .dark .lp-podium { background: radial-gradient(closest-side, rgba(243, 243, 240, 0.09), rgba(243, 243, 240, 0)); }
 .lp-card { background: var(--lp-card); border-radius: 22px; padding: 16px 18px; box-shadow: inset 0 0 0 1.5px var(--lp-line); font: 400 15.5px/1.45 var(--ph-sans, sans-serif); }
 .lp-card b { font-weight: 600; }
 
-/* ─── the line of a lost network ─── */
-.lp-link {
+/* ─── the line of a lost network and the passing line ───
+   One floating stack. On the pages it sits at the top; in a question it sits over the boss's row (under the counter
+   and the timer, above the question): nothing needed to answer is covered, the answers least of all. */
+.lp-float {
   position: absolute;
   left: calc(var(--lp-left) + 12px);
   right: calc(var(--lp-right) + 12px);
   top: calc(var(--lp-top) + 8px);
   z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+.lp[data-step='game']:is([data-state='countdown'], [data-state='open'], [data-state='reveal'], [data-state='leaderboard']) .lp-float { top: calc(var(--lp-top) + 37px); }
+/* In a question the lost-network line takes the boss's whole row (the HP waits for the network anyway). */
+.lp[data-step='game']:is([data-state='countdown'], [data-state='open'], [data-state='reveal'], [data-state='leaderboard']) .lp-link { min-height: 62px; }
+.lp-link {
   border-radius: 14px;
   padding: 10px 14px;
   background: var(--lp-ink);
@@ -117,17 +132,12 @@
 }
 .lp-link i { width: 10px; height: 10px; border-radius: 50%; background: var(--lp-coral); flex: none; animation: lp-blink 1s ease-in-out infinite alternate; }
 .lp-notice {
-  position: absolute;
-  left: calc(var(--lp-left) + 12px);
-  right: calc(var(--lp-right) + 12px);
-  bottom: calc(var(--lp-bottom) + 16px);
-  z-index: 45;
-  border-radius: 16px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 12px 14px;
   background: var(--lp-ink);
   color: var(--lp-canvas);
   font: 500 15px/1.35 var(--ph-sans, sans-serif);
-  animation: lp-rise 0.36s var(--lp-ease) both;
+  animation: lp-drop 0.32s var(--lp-ease) both;
 }
 @keyframes lp-drop { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
 @keyframes lp-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
@@ -177,7 +187,8 @@
 .lp-note b { color: var(--lp-ink); font-weight: 600; }
 
 /* ─── lobby ─── */
-.lp-me-big { position: relative; height: 236px; display: grid; place-items: center; flex: none; animation: lp-land 0.6s var(--lp-back) both; }
+/* Room above for the hat (up to ~22 % of the size) and the cheer (another ~22 %): the subtitle stays clear. */
+.lp-me-big { position: relative; height: 280px; display: grid; place-items: end center; padding-bottom: 18px; flex: none; animation: lp-land 0.6s var(--lp-back) both; }
 @keyframes lp-land { from { opacity: 0; transform: translateY(-80px) scale(0.6); } to { opacity: 1; transform: none; } }
 .lp-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; font: 600 15px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); font-variant-numeric: tabular-nums; }
 .lp-crowd { display: flex; flex-wrap: wrap; gap: 4px 2px; justify-content: center; margin-top: 10px; }
@@ -246,6 +257,21 @@
 .lp-answers { animation: lp-ans-in 0.4s var(--lp-ease) backwards; }
 @keyframes lp-ans-in { from { opacity: 0; transform: translateY(24px) scale(0.96); } to { opacity: 1; transform: none; } }
 
+/* The wait after the tap (and «Время вышло»): under the question, at the bottom of the middle. */
+.lp-wait { margin: auto 4px 0; padding: 14px 16px 15px; border-radius: 20px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); display: flex; flex-direction: column; gap: 8px; animation: lp-rise 0.34s var(--lp-ease) both; }
+.lp-wait__h { font: 700 19px/1.2 var(--ph-sans, sans-serif); letter-spacing: -0.01em; }
+.lp-wait[data-mode='up'] .lp-wait__h { font-size: 24px; }
+.lp-wait__bar { height: 8px; border-radius: 5px; background: var(--lp-line); overflow: hidden; position: relative; }
+.lp-wait__bar > i { position: absolute; inset: 0; border-radius: 5px; background: var(--lp-blue); transform-origin: 0 50%; transition: transform 0.5s var(--lp-ease); }
+.lp-wait__n { font: 600 15px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); font-variant-numeric: tabular-nums; }
+.lp-wait__foot { font: 500 15px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.lp-wait__dots { display: inline-flex; align-items: center; gap: 2px; }
+.lp-wait__dots i { width: 5px; height: 5px; margin-left: 3px; border-radius: 50%; background: currentColor; animation: lp-blink 0.6s ease-in-out infinite alternate; }
+.lp-wait__dots i:nth-child(2) { animation-delay: 0.2s; }
+.lp-wait__dots i:nth-child(3) { animation-delay: 0.4s; }
+/* Time is up: the bar and the counter rest; the answers already wait (aria-disabled). */
+.lp-battle[data-up='true'] .lp-time { opacity: 0.45; }
+
 /* The countdown 3 · 2 · 1 over the waiting answers: each digit its own delayed animation (no timers). */
 .lp-cd { position: relative; flex: 1 0 128px; pointer-events: none; }
 .lp-cd > span { position: absolute; left: 50%; top: 50%; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: var(--lp-ink); color: var(--lp-canvas); display: grid; place-items: center; font: 800 64px/1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; animation: lp-digit 1000ms ease-out both; opacity: 0; }
@@ -260,6 +286,8 @@
 .lp-sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 12; border-radius: 30px 30px 0 0; padding: 22px calc(var(--lp-right) + 22px) calc(var(--lp-bottom) + 26px) calc(var(--lp-left) + 22px); color: var(--lp-sheet-ink); animation: lp-sheet 0.48s var(--lp-ease) both; }
 .lp-sheet--ok { background: var(--lp-ok); }
 .lp-sheet--bad { background: var(--lp-ice); }
+/* A question this player only watched (joined during it): no verdict, a calm card. */
+.lp-sheet--seen { background: var(--lp-card); color: var(--lp-ink); box-shadow: 0 -1.5px 0 var(--lp-line); }
 @keyframes lp-sheet { from { transform: translateY(105%); } to { transform: none; } }
 .lp-sheet h2 { font: 800 34px/1 var(--ph-sans, sans-serif); margin: 0; letter-spacing: -0.02em; padding-right: 104px; }
 .lp-sheet p { font: 500 17px/1.38 var(--ph-sans, sans-serif); margin: 10px 0 0; padding-right: 118px; }
@@ -268,7 +296,9 @@
 .lp-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 .lp-pill { background: rgba(255, 255, 255, 0.7); border-radius: 999px; padding: 8px 13px; font: 600 15px/1 var(--ph-sans, sans-serif); }
 .lp-sheet-me { position: absolute; right: calc(var(--lp-right) + 20px); top: 16px; }
-.lp-place { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1.5px solid rgba(11, 18, 28, 0.16); font: 600 17px/1.25 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; animation: lp-rise 0.38s var(--lp-ease) both; }
+.lp-place { margin-top: 16px; padding-top: 14px; border-top: 1.5px solid rgba(11, 18, 28, 0.16); font: 600 17px/1.25 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; animation: lp-rise 0.38s var(--lp-ease) both; }
+.lp-place__row { display: flex; justify-content: space-between; gap: 12px; }
+.lp-sheet p.lp-place__gap { margin: 6px 0 0; padding-right: 0; font: 500 15.5px/1.3 var(--ph-sans, sans-serif); }
 
 /* The top five after a question (in place of the question). */
 .lp-top5 { margin: 14px 4px 0; animation: lp-fade 0.3s ease-out both; }
@@ -300,12 +330,39 @@
 .lp-fly { position: absolute; left: 0; top: 0; z-index: 30; pointer-events: none; will-change: transform; }
 
 /* ─── final ─── */
-.lp-stage { position: relative; height: 250px; margin-top: 6px; flex: none; }
-.lp-block { position: absolute; left: 50%; bottom: 0; width: 150px; margin-left: -75px; border-radius: 22px 22px 0 0; background: #dce6f7; color: #0b121c; display: grid; place-items: center; font: 800 44px/1 var(--ph-sans, sans-serif); animation: lp-up 0.5s var(--lp-ease) both; transform-origin: 50% 100%; }
-.dark .lp-block { background: #24324d; color: #f3f3f0; }
-@keyframes lp-up { from { transform: translateY(100%); } to { transform: none; } }
-.lp-winner { position: absolute; left: 50%; margin-left: -75px; animation: lp-land 0.65s var(--lp-back) 0.2s both; }
-.lp-stats { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+/* The podium: 2nd · 1st · 3rd. The top padding is the hats' and the cheer's room (never over the heading). */
+.lp-podium { display: flex; align-items: flex-end; justify-content: center; gap: 8px; padding-top: 44px; margin: 4px 0 0; flex: none; }
+.lp-podium__col { flex: 1 1 0; max-width: 124px; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+.lp-podium__char { display: flex; justify-content: center; animation: lp-land 0.6s var(--lp-back) both; }
+.lp-podium__step { width: 100%; border-radius: 18px 18px 0 0; background: #dce6f7; color: #0b121c; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 10px 6px 0; gap: 4px; transform-origin: 50% 100%; animation: lp-step 0.5s var(--lp-ease) both; }
+.lp-podium__step b { font: 800 30px/1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
+.lp-podium__step span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13.5px/1.2 var(--ph-sans, sans-serif); }
+.lp-podium__col[data-place='1'] .lp-podium__step { background: var(--lp-yellow); }
+.lp-podium__col[data-me='true'] .lp-podium__step { background: var(--lp-blue); color: #fff; }
+.dark .lp-podium__step { background: #24324d; color: #f3f3f0; }
+.dark .lp-podium__col[data-place='1'] .lp-podium__step { background: #f4c45b; color: #0b121c; }
+.dark .lp-podium__col[data-me='true'] .lp-podium__step { background: var(--lp-blue); color: #fff; }
+@keyframes lp-step { from { opacity: 0; transform: scaleY(0.15); } to { opacity: 1; transform: none; } }
+.lp-result { display: flex; align-items: center; gap: 14px; margin-top: 0; border-radius: 0 0 22px 22px; }
+.lp-podium + .lp-result { border-top-left-radius: 0; border-top-right-radius: 0; }
+.lp-result__me { flex: none; }
+.lp-result__place { display: flex; flex-direction: column; gap: 2px; }
+.lp-result__place b { font: 800 34px/1.05 var(--ph-sans, sans-serif); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.lp-result__place span { font: 500 15px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+/* Three figures in a row (the final, a game ended early). */
+.lp-stats3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; }
+.lp-stats3 > div { background: var(--lp-card); border-radius: 18px; box-shadow: inset 0 0 0 1.5px var(--lp-line); padding: 12px 10px; display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 4px; min-width: 0; }
+.lp-stats3 dt { font: 500 13.5px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.lp-stats3 dd { margin: 0; font: 800 22px/1.1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lp-final__class { margin-top: 12px; }
+.lp-nudge { display: flex; align-items: flex-start; gap: 14px; margin-top: 10px; }
+.lp-nudge b { display: block; font-size: 17px; }
+.lp-nudge span { display: block; margin-top: 4px; color: var(--lp-ink-2); }
+.lp-nudge__go { display: inline-flex; align-items: center; min-height: 44px; margin-top: 6px; font: 600 16px/1.2 var(--ph-sans, sans-serif); color: var(--lp-blue-ink); text-decoration: none; }
+/* A game ended before its podium. */
+.lp-ended__me { position: relative; height: 210px; display: grid; place-items: end center; padding-bottom: 14px; flex: none; }
+.lp-ended__me .lp-floor { bottom: 10px; }
+.dark .lp-ended__me { background: radial-gradient(closest-side, rgba(243, 243, 240, 0.09), rgba(243, 243, 240, 0)); }
 .lp-unlock { display: flex; align-items: center; gap: 14px; margin-top: 10px; background: var(--lp-yellow); color: #0b121c; box-shadow: none; animation: lp-unlock 0.52s var(--lp-back) 1.1s both; }
 .lp-unlock b { font-size: 17px; }
 @keyframes lp-unlock { from { opacity: 0; transform: translateY(40px) scale(0.9); } to { opacity: 1; transform: none; } }
@@ -316,16 +373,20 @@
 .lp-rv-item { background: var(--lp-card); border-radius: 20px; padding: 14px 16px 16px; box-shadow: inset 0 0 0 1.5px var(--lp-line); }
 .lp-rv-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; font: 600 14px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
 .lp-rv-badge { border-radius: 999px; padding: 6px 10px; font: 700 13px/1 var(--ph-sans, sans-serif); }
-.lp-rv-badge[data-ok='true'] { background: var(--m-green-soft, #e2f2e5); color: var(--m-green-ink, #2c6b3a); }
-.lp-rv-badge[data-ok='false'] { background: var(--lp-ice); color: #0b2a4a; }
+.lp-rv-badge[data-ok='true'] { background: var(--lp-ok); color: #0b121c; }
+.lp-rv-badge[data-ok='false'] { background: transparent; color: var(--lp-ink-2); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
 .lp-rv-q { font: 600 17px/1.35 var(--ph-sans, sans-serif); margin: 8px 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .lp-rv-opt { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 10px; border-radius: 12px; font: 500 15px/1.3 var(--ph-sans, sans-serif); }
 .lp-rv-opt + .lp-rv-opt { margin-top: 4px; }
 .lp-rv-opt .lp-ans__l { width: 30px; height: 30px; border-radius: 9px; font-size: 15px; background: var(--lp-soft); color: var(--lp-ink); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
-.lp-rv-opt[data-key='true'] { background: var(--m-green-soft, #e2f2e5); }
-.lp-rv-opt[data-mine='true'][data-key='false'] { background: var(--lp-ice); color: #0b121c; }
+/* The key: filled green, dark ink, a check — the loudest thing on the card in both themes. */
+.lp-rv-opt[data-key='true'] { background: var(--lp-ok); color: #0b121c; font-weight: 600; }
+.lp-rv-opt[data-key='true'] .lp-ans__l { background: rgba(255, 255, 255, 0.85); color: #0b121c; box-shadow: none; }
 .lp-rv-opt small { margin-left: auto; flex: none; font: 600 12.5px/1 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
-.lp-rv-opt[data-mine='true'][data-key='false'] small { color: #0b2a4a; }
+.lp-rv-opt[data-key='true'] small { color: #0b121c; }
+/* The own wrong answer: a thin outline and its label, quieter than the key; the text stays readable. */
+.lp-rv-opt[data-mine='true'][data-key='false'] { box-shadow: inset 0 0 0 1.5px var(--lp-rv-wrong); }
+.lp-rv-opt[data-mine='true'][data-key='false'] small { color: var(--lp-rv-wrong-ink); }
 
 @media (prefers-reduced-motion: reduce) {
   .lp *, .lp *::before, .lp *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }

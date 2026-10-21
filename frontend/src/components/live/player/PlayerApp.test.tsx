@@ -6,6 +6,10 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeAll } from 'vitest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Final as FinalData, TopRow } from '../../../lib/live/types';
+import { defaultLook } from '../../../lib/live/rules';
+import { gapLine } from './Battle';
+import { Final } from './Final';
 import { PlayerApp } from './PlayerApp';
 import type { PlayerController } from './controller';
 import { obeyOffline } from './offline';
@@ -43,12 +47,17 @@ async function mount(pin: string | null = '482913') {
 }
 
 async function joinDemo() {
+  await joinDemoAny();
+  await until(() => gameState() === 'lobby');
+}
+
+/** Mounts, names and joins; the game may be in any state. */
+async function joinDemoAny() {
   await mount();
   fireEvent.change(screen.getByLabelText('Имя в игре'), { target: { value: 'Дима' } });
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
   });
-  await until(() => gameState() === 'lobby');
 }
 
 /** Waits for the next question's open buttons and answers it: right, wrong, or not at all. */
@@ -219,7 +228,7 @@ describe('player screens on the fake server', () => {
     });
     expect(rec.shares).toHaveLength(1);
     expect(rec.shares[0]).toMatchObject({ title: 'Дедлайн повержен', url: 'https://ludosiel-studyforge.hf.space/' });
-    expect(rec.shares[0].text).toMatch(/^\d+-е место из 4 · урон \d+/);
+    expect(rec.shares[0].text).toMatch(/^\d+-е место из 4, урон \d+, верных ответов \d из \d\.$/);
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Разбор ошибок' }));
     });
@@ -254,6 +263,215 @@ describe('player screens on the fake server', () => {
     await until(() => !document.querySelector('.lp-link'));
     online.mockRestore();
   });
+
+  it('PIN: a wrong PIN is said on the PIN screen; the character comes only for a game that exists', async () => {
+    await mount(null);
+    fireEvent.change(screen.getByLabelText('PIN игры'), { target: { value: '111111' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+    expect(screen.getByRole('alert').textContent?.replace(/\u00a0/g, ' ')).toBe('Игры с PIN 111 111 нет. Проверьте цифры у ведущего.');
+    expect(screen.getByRole('heading', { name: 'Битва с монстром' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ваш персонаж' })).toBeNull();
+  });
+
+  it('after the tap, the wait: the answer\'s order, how many answered, the streak at stake', async () => {
+    await joinDemo();
+    await play('right');
+    await until(() => !!document.querySelector('.lp-wait'));
+    const wait = document.querySelector('.lp-wait') as HTMLElement;
+    expect(wait.dataset.mode).toBe('answered');
+    expect(wait.textContent).toMatch(/Ваш ответ пришёл (первым|вторым|третьим|\d+-м)/);
+    expect(wait.textContent).toMatch(/Ответили \d из 4/);
+    expect((wait.querySelector('.lp-wait__bar > i') as HTMLElement).style.transform).toMatch(/^scaleX\(/);
+  });
+
+  it('time up: «Время вышло» at once and the buttons wait; at the reveal the counter shows no number', async () => {
+    await joinDemo();
+    await play('none');
+    await until(() => document.querySelector('.lp-wait')?.getAttribute('data-mode') === 'up', 40_000);
+    expect(gameState()).toBe('open');
+    expect(document.querySelector('.lp-wait__h')?.textContent).toBe('Время вышло');
+    expect(screen.getByText('В этот раз без ответа')).toBeInTheDocument();
+    expect(document.querySelector('.lp-sec')?.textContent).toBe('0');
+    expect(answers().every((b) => b.getAttribute('aria-disabled') === 'true')).toBe(true);
+    await until(() => gameState() === 'reveal');
+    expect(document.querySelector('.lp-sec')?.textContent).toBe('');
+    // The class's result, not a call to answer faster.
+    expect(document.querySelector('.lp-me-text')?.textContent).toMatch(/^Верно ответили \d из 4$/);
+  });
+
+  it('the late joiner\'s reveal: no verdict for a question they could not answer', async () => {
+    const other = controller(api, recordingPlatform(newRecorder()));
+    await act(async () => {
+      await other.start({ pin: '482913' });
+      other.setName('Лена');
+      await other.confirm();
+    });
+    await until(() => other.getSnapshot().state?.state === 'open');
+    window.sessionStorage.clear();
+    await joinDemoAny();
+    await until(() => gameState() === 'reveal', 40_000);
+    const sheet = document.querySelector('.lp-sheet') as HTMLElement;
+    expect(sheet.classList.contains('lp-sheet--seen')).toBe(true);
+    expect(within(sheet).getByRole('status').textContent).toBe('Следующий\u00a0— ваш');
+    expect(screen.queryByText('Не успели')).toBeNull();
+    other.dispose();
+  });
+
+  it('joined during a question: one plain line, every button waits, a tap does nothing, no passing line', async () => {
+    const other = controller(api, recordingPlatform(newRecorder()));
+    await act(async () => {
+      await other.start({ pin: '482913' });
+      other.setName('Лена');
+      await other.confirm();
+    });
+    await until(() => other.getSnapshot().state?.state === 'open');
+    window.sessionStorage.clear();
+    await joinDemoAny();
+    await until(() => gameState() === 'open');
+    expect(screen.getByText(/^Вы вошли во время вопроса/).parentElement?.textContent?.replace(/\u00a0/g, ' ')).toBe('Вы вошли во время вопроса — играете со следующего');
+    expect(answers().every((b) => b.getAttribute('aria-disabled') === 'true')).toBe(true);
+    await act(async () => {
+      fireEvent.click(answers()[0]);
+    });
+    expect(ctl.getSnapshot().pick).toBeNull();
+    expect(document.querySelector('.lp-notice')).toBeNull();
+    expect(screen.queryByText(/Ответ не успел/)).toBeNull();
+    other.dispose();
+  });
+
+  it('the place after a question says the gap to the next one up', async () => {
+    await joinDemo();
+    await play('right');
+    await until(() => gameState() === 'leaderboard');
+    expect(document.querySelector('.lp-place__gap')?.textContent).toMatch(/впереди/i);
+  });
+
+  it('ended by the host mid-game: «Игра закончилась», the damage and place, «Разбор», «Войти по PIN»', async () => {
+    await joinDemo();
+    await play('right');
+    await until(() => gameState() === 'reveal');
+    await until(() => gameState() === 'countdown');
+    const g = api.peek(ctl.getSnapshot().game!.id)!;
+    await act(async () => {
+      await api.end(g.id, g.hostToken);
+    });
+    await until(() => gameState() === 'ended');
+    expect(screen.getByRole('heading', { name: 'Игра закончилась' })).toBeInTheDocument();
+    expect(screen.queryByText('Ждём ведущего…')).toBeNull();
+    await until(() => /1\s+из\s+1/.test(document.querySelector('.lp-stats3')?.textContent ?? ''));
+    expect(document.querySelector('.lp-stats3')?.textContent).toMatch(/урона/);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Разбор' }));
+    });
+    expect(screen.getByRole('heading', { name: 'Разбор' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад к итогу' }));
+    expect(screen.getByRole('heading', { name: 'Игра закончилась' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Войти по PIN' }));
+    expect(screen.getByRole('heading', { name: 'Битва с монстром' })).toBeInTheDocument();
+  });
+
+  it('ended by the host in the lobby: «Игра закончилась», no review to open', async () => {
+    await joinDemo();
+    const g = api.peek(ctl.getSnapshot().game!.id)!;
+    await act(async () => {
+      await api.end(g.id, g.hostToken);
+    });
+    await until(() => gameState() === 'ended');
+    expect(screen.getByRole('heading', { name: 'Игра закончилась' })).toBeInTheDocument();
+    expect(screen.getByText('Ведущий закончил игру до первого вопроса.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Разбор' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Войти по PIN' })).toBeInTheDocument();
+  });
+
+  it('a passing line and the lost network sit together over the boss\'s row, not over the answers', async () => {
+    ctl.dispose();
+    ctl = controller(obeyOffline(api), platform);
+    await joinDemo();
+    await until(() => gameState() === 'countdown' || gameState() === 'open');
+    const online = vi.spyOn(window.navigator, 'onLine', 'get').mockReturnValue(false);
+    await act(async () => {
+      window.dispatchEvent(new Event('offline'));
+    });
+    const float = document.querySelector('.lp-float') as HTMLElement;
+    expect(float).not.toBeNull();
+    expect(float.querySelector('.lp-link')).toHaveTextContent('Нет связи. Переподключаемся…');
+    expect(document.querySelector('.lp-answers .lp-link, .lp-answers .lp-notice')).toBeNull();
+    online.mockRestore();
+  });
+});
+
+describe('the final', () => {
+  const look = defaultLook('Дима');
+  const row = (id: string, name: string, dmg: number): TopRow => ({ player_id: id, name, look: defaultLook(name), dmg, move: 0 });
+  const top = [row('a', 'Миша', 764), row('me', 'Дима', 632), row('c', 'Аня', 630), row('d', 'Даша', 625)];
+  const final = (over: Partial<FinalData> = {}): FinalData => ({ won: true, place: 2, dmg: 632, best: 5, right: 6, accuracy_pct: 73, unlocked_now: [], ...over });
+  function show(f: FinalData, p: PlayerPlatform, guest = true) {
+    render(
+      <Final
+        ctl={ctl}
+        platform={p}
+        final={f}
+        boss={{ hp: 0, hp_max: 1000, phase: 2, defeated: true }}
+        look={look}
+        players={23}
+        asked={7}
+        guest={guest}
+        top={top}
+        meId="me"
+        gameId="g"
+        token={() => 'T'.repeat(43)}
+        shareUrl="https://ludosiel-studyforge.hf.space/play"
+        haptic={() => undefined}
+      />,
+    );
+  }
+
+  it('the podium: 2nd · 1st · 3rd with the own step, the place big, damage, right answers, best streak', () => {
+    show(final(), platform);
+    const cols = Array.from(document.querySelectorAll('.lp-podium__col'));
+    expect(cols.map((c) => c.getAttribute('data-place'))).toEqual(['2', '1', '3']);
+    expect(cols.find((c) => c.getAttribute('data-me') === 'true')?.textContent).toContain('Вы');
+    expect(screen.getByRole('img', { name: 'Тройка по урону: 1. Миша, 2. Дима (вы), 3. Аня' })).toBeInTheDocument();
+    expect(document.querySelector('.lp-result__place')?.textContent).toBe('2-е местоиз 23 по урону');
+    expect(document.querySelector('.lp-stats3')?.textContent?.replace(/\u00a0/g, ' ')).toBe('урона632верных6 из 7лучшая серия5');
+    // No line starts with a dash: a no-break space before it.
+    expect(document.querySelector('.lp-final__class')?.textContent).toBe('Верных ответов у класса\u00a0— 73\u00a0%.');
+  });
+
+  it('a web guest in the top three: the crown stays with an account, so the nudge is for the next game', () => {
+    show(final(), { ...platform, kind: 'web' });
+    expect(screen.getByText('За тройку даётся корона')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Войти в Meldy' })).toHaveAttribute('href', '/login?next=%2Fplay');
+    cleanup();
+    show(final({ place: 5 }), { ...platform, kind: 'web' });
+    expect(screen.queryByText('За тройку даётся корона')).toBeNull();
+    cleanup();
+    show(final(), { ...platform, kind: 'telegram' }, false);
+    expect(screen.queryByText('За тройку даётся корона')).toBeNull();
+  });
+
+  it('the share: plain words with the result, the site\'s /play, no token', async () => {
+    show(final(), platform);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Поделиться' }));
+    });
+    expect(rec.shares[0]).toMatchObject({ title: 'Дедлайн повержен', text: '2-е место из 23, урон 632, верных ответов 6 из 7.', url: 'https://ludosiel-studyforge.hf.space/play' });
+  });
+});
+
+describe('the gap to the next place', () => {
+  const r = (id: string, name: string, dmg: number): TopRow => ({ player_id: id, name, look: defaultLook(name), dmg, move: 0 });
+  const top = [r('a', 'Лиза', 420), r('b', 'Илья', 300), r('me', 'Дима', 150), r('d', 'Аня', 150), r('e', 'Оля', 90)];
+  it('names the one above (2nd to 6th), the lead when 1st, nothing further down', () => {
+    expect(gapLine(top, { player_id: 'me', place: 3, dmg: 150 })).toBe('Илья впереди на\u00a0150 урона');
+    expect(gapLine(top, { player_id: 'd', place: 4, dmg: 150 })).toBe('Дима впереди при равном уроне');
+    expect(gapLine(top, { player_id: 'a', place: 1, dmg: 420 })).toBe('Впереди всех на\u00a0120 урона');
+    expect(gapLine(top, { player_id: 'x', place: 6, dmg: 80 })).toBe('Оля впереди на\u00a010 урона');
+    expect(gapLine(top, { player_id: 'y', place: 9, dmg: 10 })).toBeNull();
+    expect(gapLine(null, { player_id: 'me', place: 3, dmg: 150 })).toBeNull();
+  });
 });
 
 describe('the player\'s styles', () => {
@@ -275,6 +493,11 @@ describe('the player\'s styles', () => {
     }
     const transitions = Array.from(css.matchAll(/transition:\s*([^;]+);/g)).map((m) => m[1]);
     for (const t of transitions) for (const part of t.split(',')) expect(part.trim().split(/\s+/)[0]).toMatch(/^(transform|opacity|none)$/);
+  });
+
+  it('the passing line is not pinned to the bottom (it covered the 4th answer)', () => {
+    expect(css).not.toMatch(/\.lp-notice \{[^}]*bottom:/);
+    expect(css).toMatch(/\.lp-float \{[^}]*top:/);
   });
 
   it('buttons are 56 px or more; reduced motion stills everything', () => {
