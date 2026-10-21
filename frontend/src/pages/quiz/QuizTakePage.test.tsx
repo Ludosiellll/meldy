@@ -160,6 +160,7 @@ function signedIn(me: Partial<QuizPreviewMe> = {}, preview: Partial<QuizPreview>
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   // Only Date: the half second of the sending and the second of the clock run as they do.
   vi.useFakeTimers({ now: DEVICE_NOW, toFake: ['Date'] });
   window.localStorage.clear();

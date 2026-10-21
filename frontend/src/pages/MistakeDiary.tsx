@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useUrlState } from '../lib/urlState';
 import { CheckCircle2, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -159,6 +160,7 @@ function MistakeItem({ mistake, point, withDate, expanded, onToggle, onResolve, 
 
 const RESOLVE_FAILED = 'Не удалось отметить ошибку. Проверьте соединение и попробуйте ещё раз.';
 const DELETE_FAILED = 'Не удалось удалить ошибку. Проверьте соединение и попробуйте ещё раз.';
+const MISTAKE_FILTERS = ['all', 'open', 'resolved'] as const;
 
 /**
  * What the practice takes, under its button: «Задания по 5 открытым ошибкам. Расходует 2 единицы дневного лимита ИИ,
@@ -181,7 +183,8 @@ export default function MistakeDiary() {
   const { verifyEnergy } = useEnergyConfirm();
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
+  // The filter lives in the address (?filter=open | resolved; lib/urlState.ts): a reload and «Назад» keep it.
+  const [filter, setFilter] = useUrlState<'all' | 'open' | 'resolved'>('filter', 'all', MISTAKE_FILTERS);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { playFlipSound, playSuccessSound, playErrorSound } = useSound();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { useUrlState } from '../lib/urlState';
 import { ArrowRight, MoreHorizontal, Plus, RotateCcw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -497,10 +498,13 @@ export default function Library() {
   const [loading, setLoading] = useState(true);
   const [loadingLine, setLoadingLine] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [search, setSearch] = useState('');
+  // The search and the folder chosen live in the address (?q=, ?folder=; lib/urlState.ts): a reload and «Назад» keep them.
+  const [search, setSearch] = useUrlState<string>('q', '');
   const [folders, setFolders] = useState<Folder[]>([]);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
-  const [folderFilter, setFolderFilter] = useState('');
+  const [folderChoice, setFolderFilter] = useUrlState<string>('folder', '');
+  // A folder this device does not have (deleted, or a link from another device) filters nothing.
+  const folderFilter = folders.some((folder) => folder.id === folderChoice) ? folderChoice : '';
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
 

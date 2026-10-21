@@ -56,6 +56,7 @@ async function typeText(value: string) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   vi.useFakeTimers({ shouldAdvanceTime: true });
   api.parsePaste.mockReset().mockResolvedValue(CHEMISTRY);
   api.createContainer.mockReset().mockResolvedValue({ container_id: 'c-new', subjects: [{ id: 's-new', position: 1, title: 'Вопросы' }] });
@@ -142,6 +143,29 @@ describe('QuickTestPage', () => {
     expect(settings).toMatchObject({ title: 'Кислоты, 9 Б', subject_ids: ['s-new'], item_count: 3, guests: true, time_limit_min: null, attempts: 1, same_set: true });
     // The right answers at the end, at once (owner, 21.10).
     expect(settings).toMatchObject({ review: 'answers' });
+  });
+
+  it('owner 21.10: a reload keeps the name and the pasted questions; a saved test leaves nothing behind', async () => {
+    const first = renderPage();
+    fireEvent.change(screen.getByLabelText(QUICK.name), { target: { value: 'Кислоты, 9 Б' } });
+    await typeText('текст');
+    await screen.findByRole('heading', { name: 'Нашли 4 вопроса' });
+    first.unmount();
+
+    renderPage();
+    expect((screen.getByLabelText(QUICK.name) as HTMLInputElement).value).toBe('Кислоты, 9 Б');
+    expect((field() as HTMLTextAreaElement).value).toBe('текст');
+    await act(async () => {
+      vi.advanceTimersByTime(PARSE_PAUSE_MS + 10);
+    });
+    await screen.findByRole('heading', { name: 'Нашли 4 вопроса' });
+    fireEvent.click(submit());
+    await screen.findByRole('heading', { name: 'Ссылка c-new q-new' });
+    cleanup();
+
+    renderPage();
+    expect((field() as HTMLTextAreaElement).value).toBe('');
+    expect((screen.getByLabelText(QUICK.name) as HTMLInputElement).value).toBe('');
   });
 
   it('without a name the контрольная is named by the day', async () => {

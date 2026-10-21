@@ -1853,6 +1853,29 @@ describe('ExamTicket: a ticket of two questions', () => {
     expect(await screen.findByRole('article', { name: 'Билет 12, вопрос 2 из 2' })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.' })).toBeInTheDocument();
   });
+  it('owner 21.10: a reload on the second question of a ticket opens the second question again', async () => {
+    seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
+    window.history.replaceState(null, '', ticketUrl([Q1, Q2]));
+    try {
+      await renderPage(ticketUrl([Q1, Q2]));
+      await readyToAnswer();
+      fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
+      typeAnswer(DEMO_ANSWER);
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
+      await screen.findByText(/Сохранено в историю и/);
+      fireEvent.click(screen.getByRole('button', { name: 'Второй вопрос' }));
+      expect(await screen.findByRole('article', { name: 'Билет 12, вопрос 2 из 2' })).toBeInTheDocument();
+      expect(new URLSearchParams(window.location.search).get('i')).toBe('2');
+      expect(new URLSearchParams(window.location.search).get('q')).toBe(`${Q1},${Q2}`);
+      cleanup();
+
+      await renderPage(`${window.location.pathname}${window.location.search}`);
+      expect(await screen.findByRole('article', { name: 'Билет 12, вопрос 2 из 2' })).toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
   it('keeps the question’s own number for a drawn pair: card, top line and protocol (redesign critique 8)', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
     const { container } = await renderPage(`/exams/${EXAM}/ticket?q=${Q1},${Q2}`);

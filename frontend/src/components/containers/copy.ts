@@ -342,6 +342,9 @@ export const KEYS_HINT = glue('1–8 — ответ · 0 — не знаю · En
 export const SESSION_LOADING = 'Загружаем вопросы…';
 export const SESSION_EMPTY = 'На сегодня всё.';
 export const ERRORS_EMPTY = 'Ошибок нет.';
+// A reload of a finished session's end screen (StudyPage): the session is over, a new one starts only when asked.
+export const SESSION_OVER = 'Занятие закончено.';
+export const SESSION_NEW = 'Начать новое занятие';
 export const BACK_TO_EXAM = 'Вернуться к экзамену';
 export const OPTION_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З'] as const;
 export const PICTURE_FAILED = 'Картинка не загрузилась.';

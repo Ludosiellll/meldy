@@ -71,11 +71,11 @@ function Where() {
   return <p data-testid="where">{`${location.pathname}${location.search}`}</p>;
 }
 
-function renderPage(state: Loadable<ContainerData>, subjectId = SUBJECT_DB, phone = false) {
+function renderPage(state: Loadable<ContainerData>, subjectId = SUBJECT_DB, phone = false, search = '') {
   mocks.state = state;
   setPhone(phone);
   return render(
-    <MemoryRouter initialEntries={[`/exams/c/${CONTAINER}/s/${subjectId}`]}>
+    <MemoryRouter initialEntries={[`/exams/c/${CONTAINER}/s/${subjectId}${search}`]}>
       <Routes>
         <Route path="/exams/c/:id/s/:subjectId" element={<SubjectPage />} />
         <Route path="*" element={<Where />} />
@@ -138,6 +138,27 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     expect(plain(sheet.textContent)).toContain('120 вопросов · выучено 10 · 4 ошибки');
     const start = within(sheet).getByRole('link', { name: nm('Начать 1 вопрос по теме') });
     expect(start.getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&topic=2&back=s`);
+  });
+
+  it('owner 21.10: a reload opens the topic’s sheet again (?topic=), and closing it takes it out of the address', () => {
+    window.history.replaceState(null, '', `/exams/c/${CONTAINER}/s/${SUBJECT_DB}`);
+    try {
+      const first = renderPage(loaded(dbData()));
+      fireEvent.click(screen.getByRole('button', { name: /3\.2 Индексы/ }));
+      expect(screen.getByRole('dialog', { name: '3.2 Индексы' })).toBeInTheDocument();
+      const search = window.location.search;
+      expect(new URLSearchParams(search).get('topic')).toBeTruthy();
+      first.unmount();
+
+      renderPage(loaded(dbData()), SUBJECT_DB, false, search);
+      const sheet = screen.getByRole('dialog', { name: '3.2 Индексы' });
+      expect(plain(sheet.textContent)).toContain('120 вопросов · выучено 10 · 4 ошибки');
+      fireEvent.click(within(sheet).getByRole('button', { name: /Закрыть/ }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+      expect(window.location.search).toBe('');
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
   });
 
   it('«Как на экзамене» opens the setup with one line of rules and the last try, and «Начать» opens the try', () => {

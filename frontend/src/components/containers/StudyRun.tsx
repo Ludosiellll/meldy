@@ -31,6 +31,7 @@ import {
   loadSession,
   markFirstSessionDone,
   markKeysHintSeen,
+  markSessionEnded,
   nameInAddress,
   resumable,
   saveSession,
@@ -290,6 +291,7 @@ export default function StudyRun(props: StudyRunProps) {
       setRecords(finalRecords);
       setEnded({ at });
       if (userId) clearSession(userId, containerId);
+      markSessionEnded(setup.id);
       if (finalRecords.length > 0) {
         markKeysHintSeen();
         markFirstSessionDone();
@@ -302,7 +304,7 @@ export default function StudyRun(props: StudyRunProps) {
       }
       replan.ask(sending.current);
     },
-    [userId, containerId, setup.startedAt, replan.ask],
+    [userId, containerId, setup.id, setup.startedAt, replan.ask],
   );
 
   /** The queue after the answer on screen: a retry when it was wrong (not once the key changed under it), no question set aside. */
@@ -452,7 +454,10 @@ export default function StudyRun(props: StudyRunProps) {
     const nextRecords = commit(pending, Date.now(), records);
     const nextQueue = queueAfter(pending);
     if (pos + 1 < nextQueue.length) persist(nextQueue, pos + 1, nextRecords);
-    else if (userId) clearSession(userId, containerId);
+    else {
+      if (userId) clearSession(userId, containerId);
+      markSessionEnded(setup.id);
+    }
   };
   useEffect(() => {
     const flush = () => leaveRef.current();

@@ -414,6 +414,22 @@ describe('the words of «Понятия» (LIB-24)', () => {
 });
 
 describe('the list', () => {
+  it('owner 21.10: a reload keeps the list (?view=list)', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/knowledge-map');
+    try {
+      await renderMap();
+      await user.click(screen.getByRole('button', { name: 'Списком' }));
+      expect(new URLSearchParams(window.location.search).get('view')).toBe('list');
+      cleanup();
+      renderPage(`/knowledge-map${window.location.search}`);
+      expect(await screen.findByRole('region', { name: 'Лекции' })).toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: /^Карта связей/ })).toBeNull();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('says the same in words, and a row opens the same panel', async () => {
     const user = userEvent.setup();
     await renderMap();

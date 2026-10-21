@@ -8,7 +8,18 @@ import { RoomBar } from './RoomParts';
 import SessionEnd, { useReplan, type OralTally } from './SessionEnd';
 import * as copy from './copy';
 import { subjectTitle, type Figure } from './model';
-import { clearSession, firstSessionDone, markFirstSessionDone, markSelfCheckNoteSeen, selfCheckNoteSeen } from './sessionStore';
+import {
+  clearSession,
+  firstSessionDone,
+  loadSession,
+  markFirstSessionDone,
+  markSelfCheckNoteSeen,
+  markSessionEnded,
+  nameInAddress,
+  resumable,
+  saveSession,
+  selfCheckNoteSeen,
+} from './sessionStore';
 import type { SessionSetup } from './studySetup';
 import './room.css';
 
@@ -19,6 +30,9 @@ import './room.css';
  * existing `self_rating`. A self-check never counts; no «Ответить с проверкой Meldy» here — the AI check is a session
  * of its own (one ticket, decision 29в). Each rating is saved before the next question, so the plan is read again
  * (SessionEnd useReplan) as soon as the session ends, once the peeks of its points have left too.
+ *
+ * Kept like a session of answers (owner, 21.10: a reload lost the place): the session is saved on this device with
+ * its question and its ratings so far, and the address names it (?sid=), so a reload goes on at the same question.
  */
 interface Props {
   containerId: string;
@@ -47,13 +61,15 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
   const [sheet, setSheet] = useState<SheetResponse | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
-  const [pos, setPos] = useState(0);
+  const [pos, setPos] = useState(() => Math.min(Math.max(0, setup.pos), Math.max(0, setup.queue.length - 1)));
   const [shown, setShown] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tally, setTally] = useState<OralTally>({ know: 0, unsure: 0, dontKnow: 0, questions: 0 });
+  const [tally, setTally] = useState<OralTally>(() =>
+    setup.oral ? { know: setup.oral.know, unsure: setup.oral.unsure, dontKnow: setup.oral.dontKnow, questions: setup.oral.questions } : { know: 0, unsure: 0, dontKnow: 0, questions: 0 },
+  );
   /** The questions rated in this session (what is left today leaves them out). */
-  const [rated, setRated] = useState<ReadonlySet<string>>(() => new Set());
+  const [rated, setRated] = useState<ReadonlySet<string>>(() => new Set(setup.oral?.rated ?? []));
   const [ended, setEnded] = useState<number | null>(null);
   const firstEver = useRef(!firstSessionDone());
   const showNote = useRef(!selfCheckNoteSeen());
@@ -77,8 +93,33 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
     return () => controller.abort();
   }, [examId, attempt]);
 
+  /** The session on this device: its question and its ratings so far. */
+  const persist = (nextPos: number, nextTally: OralTally, nextRated: ReadonlySet<string>) => {
+    if (!userId) return;
+    saveSession(userId, {
+      v: 1,
+      id: setup.id,
+      containerId,
+      day: today,
+      subjectId: setup.subjectId,
+      kind: 'self_check',
+      topic: setup.topic,
+      only: setup.only,
+      queue: setup.queue,
+      pos: nextPos,
+      startedAt: setup.startedAt,
+      records: [],
+      oral: { ...nextTally, rated: Array.from(nextRated) },
+    });
+  };
+
+  // The session starts (a resumed one was counted when it started): kept before the first rating too, and named in
+  // the address. Another session of today with answers stays kept until this one has a rating of its own.
   useEffect(() => {
-    track('container.session_started', { planned: ids.length, kind: 'self_check' });
+    if (!setup.resumed) track('container.session_started', { planned: ids.length, kind: 'self_check' });
+    const kept = !setup.resumed && userId ? loadSession(userId, containerId) : null;
+    if (!setup.resumed && !(kept && kept.id !== setup.id && resumable(kept, today))) persist(pos, tally, rated);
+    nameInAddress(setup.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -93,6 +134,7 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
     const at = Date.now();
     setEnded(at);
     if (userId) clearSession(userId, containerId);
+    markSessionEnded(setup.id);
     markFirstSessionDone();
     track('container.session_finished', { answered: tally.questions, retries: 0, minutes: Math.max(1, Math.round((at - setup.startedAt) / 60_000)) });
     replan.ask(peeks.current);
@@ -168,11 +210,14 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
     );
   }
 
-  const advance = () => {
+  const advance = (nextTally: OralTally = tally, nextRated: ReadonlySet<string> = rated) => {
     setShown(false);
     setError(null);
     if (pos + 1 >= ids.length) end();
-    else setPos(pos + 1);
+    else {
+      setPos(pos + 1);
+      persist(pos + 1, nextTally, nextRated);
+    }
   };
 
   if (!question) return <>{bar}</>;
@@ -194,15 +239,17 @@ export default function OralRun({ containerId, userId, summary, plan, input, off
       if (question.question_hash) {
         await recordSelfRating({ questionHash: question.question_hash, rating, examId, examQuestionId: question.question_id, materialId: question.rubric?.materials[0]?.material_id || null });
       }
-      setRated((current) => new Set(current).add(question.question_id));
-      setTally((current) => ({
-        know: current.know + (rating === 'know' ? 1 : 0),
-        unsure: current.unsure + (rating === 'unsure' ? 1 : 0),
-        dontKnow: current.dontKnow + (rating === 'dont_know' ? 1 : 0),
-        questions: current.questions + 1,
-      }));
+      const nextRated = new Set(rated).add(question.question_id);
+      const nextTally: OralTally = {
+        know: tally.know + (rating === 'know' ? 1 : 0),
+        unsure: tally.unsure + (rating === 'unsure' ? 1 : 0),
+        dontKnow: tally.dontKnow + (rating === 'dont_know' ? 1 : 0),
+        questions: tally.questions + 1,
+      };
+      setRated(nextRated);
+      setTally(nextTally);
       markSelfCheckNoteSeen();
-      advance();
+      advance(nextTally, nextRated);
     } catch {
       setError(copy.RATING_FAILED);
     } finally {

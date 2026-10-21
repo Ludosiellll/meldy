@@ -40,6 +40,9 @@ import {
   subjectQuestions,
 } from './model';
 import { loadSession, resumable } from './sessionStore';
+import { useUrlState } from '../../lib/urlState';
+
+const SHEETS = ['', 'mock', 'days'] as const;
 
 /**
  * A subject with variants (Concept 1 §3.4, decisions 44, 46): the plan card with «Только ошибки: N» and «Как на
@@ -53,15 +56,22 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   const wide = useWide();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [topicOpen, setTopicOpen] = useState<number | null>(null);
+  // The topic's sheet open, «Как на экзамене» and «План по дням» live in the address (?topic=3, ?sheet=mock | days;
+  // lib/urlState.ts): a reload and «Назад» open them again.
+  const [topicParam, setTopicParam] = useUrlState<string>('topic', '');
+  const topicOpen = /^\d{1,4}$/.test(topicParam) ? Number(topicParam) : null;
+  const setTopicOpen = (value: number | null) => setTopicParam(value === null ? '' : String(value));
+  const [sheet, setSheet] = useUrlState<'' | 'mock' | 'days'>('sheet', '', SHEETS);
   // «Осталось выучить»: the test topics from the plan's input (no read of their own), the oral part's from learn_left.
   const oralExamId = subject.oral?.exam_id ?? null;
   const learn = useLearnLeft(oralExamId ? [oralExamId] : [], Boolean(oralExamId));
   const oralFacts = oralExamId ? learn.exams.find((exam) => exam.examId === oralExamId) ?? null : null;
   const topicList = useMemo(() => subjectTopics(subject, planInput, oralFacts), [subject, planInput, oralFacts]);
   const learnNow = useMemo(() => Date.now(), [topicList]);
-  const [mockOpen, setMockOpen] = useState(false);
-  const [daysOpen, setDaysOpen] = useState(false);
+  const mockOpen = sheet === 'mock';
+  const daysOpen = sheet === 'days';
+  const setMockOpen = (open: boolean) => setSheet(open ? 'mock' : '');
+  const setDaysOpen = (open: boolean) => setSheet(open ? 'days' : '');
   const [returning, setReturning] = useState(false);
   const today = plan?.day ?? summary.day;
   const author = isAuthor(summary.role);

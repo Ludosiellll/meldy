@@ -2,7 +2,7 @@ import type { ContainerSummary, DayPlan, LocalDay, PlanCls, PlanInput } from '..
 import { SESSION_SIZE } from '../../lib/containers/plan';
 import { buildSession, freeSession, shuffled, type QueueEntry } from '../../lib/containers/session';
 import { answeredToday, clsOf, firstSession, moreNew, subjectKind, type DaySession, type StudyRecord } from './model';
-import { newId, resumable, sessionOf, type SavedSession } from './sessionStore';
+import { newId, resumable, sessionOf, type SavedOral, type SavedSession } from './sessionStore';
 
 /**
  * Which questions a «занятие» takes (Concept 2 §3.10; spec decisions 12, 18, 51), all from the study engine
@@ -28,6 +28,8 @@ export interface SessionSetup {
   resumed: boolean;
   /** The plan class of each planned question, for the answer's `cls`. */
   cls: Record<string, PlanCls>;
+  /** A self-check picked up again: its ratings so far (null for a new one and for an answer session). */
+  oral: SavedOral | null;
 }
 
 export function setupSession(p: {
@@ -61,6 +63,7 @@ export function setupSession(p: {
       startedAt: again.startedAt,
       resumed: true,
       cls: classOf(ids, again.only === 'new' ? 'new_fill' : again.only || again.topic ? 'free' : null),
+      oral: again.kind === 'self_check' ? again.oral ?? null : null,
     };
   }
 
@@ -110,7 +113,7 @@ export function setupSession(p: {
       null,
     );
   }
-  return { id, subjectId, kind, topic, only, queue, pos: 0, records: [], startedAt: now, resumed: false, cls };
+  return { id, subjectId, kind, topic, only, queue, pos: 0, records: [], startedAt: now, resumed: false, cls, oral: null };
 }
 
 /** A «занятие» of a subject: an oral subject has only self-checks here (its AI checks are a ticket of the oral exam). */

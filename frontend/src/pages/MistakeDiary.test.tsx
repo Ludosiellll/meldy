@@ -551,6 +551,26 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     expect(await names()).toEqual(['Все 2', 'Открытые 2']);
   });
 
+  it('owner 21.10: a reload keeps the filter (?filter=)', async () => {
+    const fixed = { ...open[1], id: 'c', question: 'Что такое дефляция?', is_resolved: true };
+    api.from.mockImplementation(diaryTable([...open, fixed]));
+    window.history.replaceState(null, '', '/mistakes');
+    try {
+      const first = render(<MemoryRouter initialEntries={['/mistakes']}><MistakeDiary /></MemoryRouter>);
+      await screen.findByText('Что такое ВВП?');
+      fireEvent.click(screen.getByRole('button', { name: 'Исправленные 1' }));
+      expect(window.location.search).toBe('?filter=resolved');
+      first.unmount();
+
+      render(<MemoryRouter initialEntries={[`/mistakes${window.location.search}`]}><MistakeDiary /></MemoryRouter>);
+      expect(await screen.findByRole('button', { name: 'Исправленные 1' })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.queryByText('Что такое ВВП?')).toBeNull();
+      expect(screen.getByText('Что такое дефляция?')).toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('words the price on a phone and on a computer', () => {
     expect(practiceNote(17, true)).toBe('Задания по 5 ошибкам, 2 единицы ИИ');
     expect(practiceNote(1, true)).toBe('Задания по 1 ошибке, 2 единицы ИИ');
