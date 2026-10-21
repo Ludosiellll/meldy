@@ -193,7 +193,7 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     // Without a date there is nothing to count to.
     fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '' } });
     expect(screen.queryByText(/Чтобы пройти все/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Без даты — по 15\sновых вопросов в день на предмет\./)).toBeInTheDocument();
+    expect(screen.getByText(/Дата не указана\. Пока по 15\sновых вопросов в день на предмет\./)).toBeInTheDocument();
   });
 
   it('says honestly what the minutes reach when they fall short, the final window under «Подробнее»', async () => {
@@ -531,7 +531,7 @@ describe('SettingsPage: «Моя дата экзамена» (release 47)', () =
     expect(field().value).toBe('');
     expect(field().min).toBe('2026-12-21');
     expect(field().max).toBe('2028-12-20');
-    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора — 12\sянваря\.$/);
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора 12\sянваря\.$/);
     // Nothing to take away yet.
     expect(screen.queryByRole('button', { name: SETTINGS.ownDateClear })).toBeNull();
     fireEvent.change(field(), { target: { value: '2027-01-26' } });
@@ -548,7 +548,7 @@ describe('SettingsPage: «Моя дата экзамена» (release 47)', () =
     renderAt();
     expect(field().value).toBe('2027-01-26');
     // Their own date stands in for the summary's: the note still names the author's.
-    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора — 12\sянваря\.$/);
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора 12\sянваря\.$/);
     expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: SETTINGS.ownDateClear }));
     await waitFor(() => expect(api.moveExamDate).toHaveBeenCalledWith(ID, null, 'me'));
@@ -590,7 +590,7 @@ describe('SettingsPage: «Моя дата экзамена» (release 47)', () =
     };
     renderAt();
     expect(field().value).toBe('2027-01-26');
-    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У участников — 12\sянваря\.$/);
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У участников 12\sянваря\.$/);
     expect((screen.getByLabelText('Дата экзамена') as HTMLInputElement).value).toBe('2027-01-12');
     // The subjects' own dates are not known here: no «У предметов разные даты», and nothing to clear.
     expect(screen.queryByRole('button', { name: SETTINGS.dates })).toBeNull();

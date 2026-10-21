@@ -50,7 +50,7 @@ export const TIPS: { [K in TipId]: TipDef & { id: K } } = {
   telegram: {
     id: 'telegram',
     title: 'План на день в Telegram',
-    text: 'Раз в\u00a0день\u00a0— план на\u00a0сегодня. Вопросы экзамена можно решать прямо в\u00a0чате, по\u00a020\u00a0за\u00a0раз.',
+    text: 'Раз в\u00a0день бот пришлёт план на\u00a0сегодня. Вопросы экзамена можно решать прямо в\u00a0чате, по\u00a020\u00a0за\u00a0раз.',
     action: 'Подключить Telegram',
     later: 'Не сейчас',
     // The bot's chat as Telegram draws it: a phone's width, from the header to the input bar — a square.

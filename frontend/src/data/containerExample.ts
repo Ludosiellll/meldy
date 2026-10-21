@@ -102,7 +102,7 @@ export const IMPORT_WORDS = {
   title: 'Новый экзамен',
   lede: 'Один общий файл или по файлу на предмет.',
   drop: 'Загрузите вопросы',
-  dropLede: 'Перетащите сюда файлы — по одному на предмет или один на все.',
+  dropLede: 'Перетащите сюда файлы, по одному на предмет или один на все.',
   found: `Нашли ${SUBJECTS_WORD} и ${QUESTIONS_WORD}`,
   reading: `Читаем 1${NB}файл`,
   file: 'Осенняя сессия.docx',
@@ -150,7 +150,7 @@ export const INVITE_WORDS = {
 /** The Telegram card (components/telegram/TelegramCard): the plan of the day in a chat. */
 export const TELEGRAM_WORDS = {
   title: 'План на день в Telegram',
-  about: 'Раз в день — план на сегодня. Вопросы экзамена можно решать прямо в чате, по 20 за раз.',
+  about: 'Раз в день бот пришлёт план на сегодня. Вопросы экзамена можно решать прямо в чате, по 20 за раз.',
 } as const;
 
 /** The student's local day now, 'YYYY-MM-DD'. */

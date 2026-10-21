@@ -298,7 +298,7 @@ describe('polling while the code waits', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Telegram подключён.');
     expect(screen.getByRole('status')).toHaveClass('sr-only');
     expect(plain(container.textContent)).toContain('План на день — в 20:00.');
-    expect(plain(container.textContent)).toContain('Экзамен — «Осенняя сессия», 3 ноября.');
+    expect(plain(container.textContent)).toContain('Экзамен «Осенняя сессия», 3 ноября.');
     expect(screen.queryByRole('img', { name: TELEGRAM_COPY.qr })).toBeNull();
     await tick(POLL_MS * 10);
     expect(calls('telegram_link_state')).toHaveLength(4);
@@ -320,7 +320,7 @@ describe('polling while the code waits', () => {
     const asked = calls('telegram_link_state').length;
     expect(asked).toBeLessThanOrEqual(1 + LINK_MS / POLL_MS + 1);
     expect(screen.queryByRole('link', { name: 'Открыть Telegram на компьютере' })).toBeNull();
-    expect(screen.getByRole('status')).toHaveTextContent('Ссылка устарела: она действует 15 минут.');
+    expect(screen.getByRole('status')).toHaveTextContent('Ссылка устарела, она действует 15 минут.');
     expect(screen.getByRole('button', { name: 'Подключить Telegram' })).toHaveFocus();
     await tick(POLL_MS * 20);
     expect(calls('telegram_link_state')).toHaveLength(asked);
@@ -382,10 +382,10 @@ describe('linked', () => {
     const card = container.querySelector('#telegram') as HTMLElement;
     expect(within(card).getByText(TELEGRAM_COPY.linked)).toBeInTheDocument();
     const text = plain(card.textContent);
-    expect(text).toContain('Экзамен — «Осенняя сессия», 3 ноября.');
+    expect(text).toContain('Экзамен «Осенняя сессия», 3 ноября.');
     expect(text).toContain('План на день — в 20:00.');
     expect(text).not.toContain('Пауза');
-    expect(text).toContain('Время и пауза — в боте: /settings.');
+    expect(text).toContain('Время и паузу можно поменять в боте: /settings.');
     expect(card.querySelector('[data-line="data"]')!.textContent).toBe(DATA_LINE);
     expect(within(card).getByRole('button', { name: 'Отключить' })).toHaveClass('ac-btn');
     expect(card.querySelector('.ac-row-i')).toHaveClass('ac-row-i--on');
@@ -395,7 +395,7 @@ describe('linked', () => {
     server([{ ...LINKED, exam: { title: 'Летняя сессия', date: '2027-06-10' } }]);
     const { container } = show();
     await tick();
-    expect(plain(container.textContent)).toContain('Экзамен — «Летняя сессия», 10 июня.');
+    expect(plain(container.textContent)).toContain('Экзамен «Летняя сессия», 10 июня.');
     expect(mocks.fetchOverview).not.toHaveBeenCalled();
   });
 
@@ -424,7 +424,7 @@ describe('linked', () => {
     mocks.fetchOverview.mockResolvedValue({ ...OVERVIEW, containers: [{ id: 'c-3', title: 'Осенняя сессия', exam_date: null, subjects: [] }] });
     const second = show();
     await tick();
-    expect(plain(second.container.textContent)).toContain('Экзамен — «Осенняя сессия», дата не указана.');
+    expect(plain(second.container.textContent)).toContain('Экзамен «Осенняя сессия», дата не указана.');
   });
 
   it('leaves the exam out when the exams cannot be read, or the server has no exams', async () => {
@@ -449,7 +449,7 @@ describe('linked', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Отключить' }));
     const ask = screen.getByRole('group', { name: TELEGRAM_COPY.ask });
     expect(screen.getByText(TELEGRAM_COPY.ask)).toHaveFocus();
-    expect(plain(ask.textContent)).toContain('План перестанет приходить в Telegram. Экзамен и счёт останутся в Meldy.');
+    expect(plain(ask.textContent)).toContain('План перестанет приходить в Telegram. Экзамен и ваши результаты останутся в Meldy.');
     const confirm = within(ask).getByRole('button', { name: 'Отключить' });
     expect(confirm).toHaveClass('ac-btn--danger');
     expect(screen.getAllByRole('button', { name: 'Отключить' })).toHaveLength(1);
@@ -501,7 +501,7 @@ describe('linked', () => {
     server([{ ...LINKED, blocked: true }]);
     const { container } = show();
     await tick();
-    expect(plain(container.textContent)).toContain('Бот остановлен в Telegram — план не приходит.');
+    expect(plain(container.textContent)).toContain('Бот остановлен в Telegram, поэтому план не приходит.');
     expect(screen.getByRole('link', { name: 'Открыть чат с ботом' })).toHaveAttribute('href', 'https://t.me/Meldyteach_bot');
   });
 
@@ -562,7 +562,7 @@ describe('«Экзамены в плане»: the bot’s day plan per exam (rel
     expect(plain(within(list).getAllByRole('listitem')[1].textContent)).toBe('Осенняя сессия3 ноября');
     expect(plain(within(list).getAllByRole('listitem')[3].textContent)).toBe('Коллоквиумпрошёл 10 октября');
     const text = plain(container.textContent);
-    expect(text).not.toContain('Экзамен — «');
+    expect(text).not.toContain('Экзамен «');
     expect(text).not.toContain(TELEGRAM_COPY.noneChosen);
     expect(text).toContain('План на день — в 20:00.');
     expect(danglingControls(container)).toEqual([]);
@@ -581,7 +581,7 @@ describe('«Экзамены в плане»: the bot’s day plan per exam (rel
     expect(switchOf('Осенняя сессия')).toHaveAttribute('aria-checked', 'false');
     expect(switchOf('Осенняя сессия')).not.toHaveAttribute('aria-disabled');
     expect(document.activeElement).toBe(switchOf('Осенняя сессия'));
-    expect(plain(container.textContent)).toContain('Ни один экзамен не выбран — план не приходит.');
+    expect(plain(container.textContent)).toContain('Ни один экзамен не выбран, поэтому план не приходит.');
     press(switchOf('Зимняя сессия'));
     await tick();
     expect(mocks.setExamRemind).toHaveBeenLastCalledWith('c-1', true);
@@ -720,7 +720,7 @@ describe('the link window of the exam page’s tip (TelegramLinkWindow)', () => 
     const open = screen.getByRole('link', { name: 'Открыть Telegram' });
     expect(open).toHaveAttribute('href', URL_OF_CODE);
     expect(open).toHaveClass('sf-primary');
-    expect(plain(container.textContent)).toContain('В Telegram откроется чат с Meldy — нажмите в нём «Запустить».');
+    expect(plain(container.textContent)).toContain('В Telegram откроется чат с Meldy. Нажмите в нём «Запустить».');
     expect(container.querySelector('[data-line="data"]')!.textContent).toBe(DATA_LINE);
     expect(screen.queryByRole('img', { name: TELEGRAM_COPY.qr })).toBeNull();
     // The bot links the account: the window says so, with the plan's time; no second code.
@@ -748,7 +748,7 @@ describe('the link window of the exam page’s tip (TelegramLinkWindow)', () => 
     await tick();
     expect(calls('telegram_link_start')).toHaveLength(1);
     await tick(LINK_MS + POLL_MS);
-    expect(screen.getByRole('status')).toHaveTextContent('Ссылка устарела: она действует 15 минут.');
+    expect(screen.getByRole('status')).toHaveTextContent('Ссылка устарела, она действует 15 минут.');
     expect(screen.queryByRole('link', { name: TELEGRAM_COPY.openHere })).toBeNull();
     expect(calls('telegram_link_start')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: TELEGRAM_COPY.connect }));
@@ -792,7 +792,7 @@ describe('the words', () => {
     expect(plain(pauseLine('2026-10-19'))).toBe('Пауза до понедельника, 19 октября.');
     expect(plain(pauseLine('2026-10-21'))).toBe('Пауза до среды, 21 октября.');
     expect(plain(pauseLine('2026-10-25'))).toBe('Пауза до воскресенья, 25 октября.');
-    expect(plain(examLine({ title: 'Осенняя сессия', date: '2026-11-03' }))).toBe('Экзамен — «Осенняя сессия», 3 ноября.');
+    expect(plain(examLine({ title: 'Осенняя сессия', date: '2026-11-03' }))).toBe('Экзамен «Осенняя сессия», 3 ноября.');
     // A number holds on to its word.
     expect(pauseLine('2026-10-19')).toContain('19 октября');
   });

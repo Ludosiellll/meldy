@@ -201,7 +201,7 @@ describe('ImportPage: one door for every file', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Новый экзамен' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Вставить список текстом' })).toBeInTheDocument();
-    expect(screen.getByText(/сканы — для списков без вариантов/)).toBeInTheDocument();
+    expect(screen.getByText(/Сканы подходят только для списков без вариантов/)).toBeInTheDocument();
   });
 
   it('reads a file of two subjects, previews them and saves one exam with both (items, topics, minutes)', async () => {
@@ -277,7 +277,7 @@ describe('ImportPage: one door for every file', () => {
     expect(screen.getByText('Гражданское право, часть 1')).toBeInTheDocument();
     expect(screen.getByText('Гражданское право, часть 2')).toBeInTheDocument();
     expect(screen.getByText(/вопросы 151–200/)).toBeInTheDocument();
-    expect(screen.getByText(/помещается 150 — разделили на 2\sчасти/)).toBeInTheDocument();
+    expect(screen.getByText(/помещается 150\. Разделили на 2\sчасти/)).toBeInTheDocument();
 
     fireEvent.click(saveButton());
     await waitFor(() => expect(where).toBe('/exams/c/c-1'));
@@ -338,7 +338,7 @@ describe('ImportPage: one door for every file', () => {
     renderAt();
     upload(['Сети.docx']);
     await screen.findByRole('heading', { name: /Нашли 4\sвопроса/ });
-    expect(screen.getByText(/Проверьте 3\sвопроса — можно и после сохранения/)).toBeInTheDocument();
+    expect(screen.getByText(/Проверьте 3\sвопроса\. Можно и после сохранения/)).toBeInTheDocument();
     expect(screen.getByText(/Картинка в №\s2 не перенеслась/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Проверить' }));
 
