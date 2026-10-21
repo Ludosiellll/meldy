@@ -446,7 +446,9 @@ describe('the final', () => {
   it('a web guest in the top three: the crown stays with an account, so the nudge is for the next game', () => {
     show(final(), { ...platform, kind: 'web' });
     expect(screen.getByText('За тройку даётся корона')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Войти в Meldy' })).toHaveAttribute('href', '/login?next=%2Fplay');
+    expect(screen.getByRole('link', { name: 'Войти до следующей игры' })).toHaveAttribute('href', '/login?next=%2Fplay');
+    // The two actions share one row: the card keeps its room above them.
+    expect(document.querySelector('.lp-bar')?.classList.contains('lp-bar--row')).toBe(true);
     cleanup();
     show(final({ place: 5 }), { ...platform, kind: 'web' });
     expect(screen.queryByText('За тройку даётся корона')).toBeNull();

@@ -170,12 +170,12 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
         ))}
         {crownNudge && (
           <div className="lp-card lp-nudge">
-            <LiveChar look={{ ...look, hat: 'crown' }} size={56} face="happy" move="none" />
+            <LiveChar look={{ ...look, hat: 'crown' }} size={48} face="happy" move="none" />
             <div>
               <b>За тройку даётся корона</b>
-              <span>Она остаётся у тех, кто играет со входом в Meldy или из Telegram. Войдите до следующей игры.</span>
+              <span>Она сохраняется со входом в Meldy или в Telegram.</span>
               <a className="lp-nudge__go" href="/login?next=%2Fplay">
-                Войти в Meldy
+                Войти до следующей игры
               </a>
             </div>
           </div>
@@ -193,8 +193,11 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
             Не получилось поделиться.
           </p>
         )}
+        {/* Stays at the bottom edge while there is more below: the page's scroll shows (it covers only its own room
+            at the end). */}
+        <div className="lp-more" aria-hidden="true" />
       </div>
-      <div className="lp-bar">
+      <div className="lp-bar lp-bar--row">
         <button type="button" className="lp-btn lp-btn--second" onClick={() => void ctl.openReview()}>
           Разбор ошибок
         </button>
