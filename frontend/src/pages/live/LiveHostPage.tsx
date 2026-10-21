@@ -1,9 +1,10 @@
 /**
  * /live/:id — the teacher's screen of a game (CONTRACT §6–§8). The host token is this tab's (sessionStorage, from
  * «Открыть комнату»); a reload reads it again and the screen picks the game up as it is. `?fake=1` (or VITE_LIVE_FAKE)
- * plays against the in-memory server; the switch to the real one is that flag only.
+ * plays against the in-memory server; the switch to the real one is that flag only. A game whose settings say
+ * `mode: "stand"` gets the 3D projector of «Встань на ответ» (components/live/stand, its own chunk).
  */
-import { useCallback, useMemo } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useRef } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { liveApi, liveFakeWanted } from '../../lib/live/api';
 import type { LiveApi } from '../../lib/live/types';
@@ -13,6 +14,8 @@ import { HostScreen } from '../../components/live/host/HostScreen';
 import { fakeKnobs, readHostInfo } from '../../components/live/host/hostSession';
 import { useHostGame } from '../../components/live/host/useHostGame';
 import '../../components/live/host/host.css';
+
+const StandScreen = lazy(() => import('../../components/live/stand/StandScreen'));
 
 function Message({ title, why, onRetry }: { title: string; why?: string; onRetry?: () => void }) {
   return (
@@ -38,7 +41,10 @@ function Message({ title, why, onRetry }: { title: string; why?: string; onRetry
 }
 
 export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) {
-  const game = useHostGame(gameId, api);
+  // A movement game's room hears each of the teacher's moves at once (MODE_STAND.md §2): the stand screen sets this.
+  const syncRef = useRef<(() => void) | null>(null);
+  const onMoved = useCallback(() => syncRef.current?.(), []);
+  const game = useHostGame(gameId, api, { onMoved });
   const info = useMemo(() => readHostInfo(gameId), [gameId]);
   const navigate = useNavigate();
   const { search } = useLocation();
@@ -56,6 +62,13 @@ export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) 
   if (!s) return <Message title={SCREEN.loading} />;
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
   const joinUrl = info?.joinUrl ?? `${origin}/play?pin=${s.pin}`;
+  if (s.mode === 'stand' || s.settings?.mode === 'stand') {
+    return (
+      <Suspense fallback={<Message title={SCREEN.loading} />}>
+        <StandScreen gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} syncRef={syncRef} />
+      </Suspense>
+    );
+  }
   return <HostScreen gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} />;
 }
 

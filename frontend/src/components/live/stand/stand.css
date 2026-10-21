@@ -1,0 +1,196 @@
+/* «Встань на ответ» on the projector (StandScreen.tsx): the 3D canvas on the whole window, the stage (host/Stage, 900
+   units high) over it with the board, the timer and the buttons. Only transforms and opacity animate. */
+
+.lvst {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #171a3a;
+  color: #fff;
+  font-family: var(--ph-sans, system-ui);
+}
+.lvst-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.lvst .lvh-viewport, .lvst .lvh-stage { background: transparent; color: #fff; }
+.lvst .lvh-viewport { pointer-events: none; }
+.lvst .lvh-stage button, .lvst .lvh-stage a, .lvst .lvh-stage .lvh-dim, .lvst .lvh-stage .lvh-tg { pointer-events: auto; }
+
+/* ───────── top left: what is playing ───────── */
+.lvst-brand { position: absolute; left: 32px; top: 22px; display: flex; flex-direction: column; gap: 6px; max-width: 300px; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); }
+.lvst-brand .lvh-logo { color: #fff; font-size: 30px; }
+.lvst-brand b { font: 700 20px/1.2 var(--ph-sans, system-ui); }
+.lvst-brand span:last-child { font: 500 17px/1.3 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.72); font-variant-numeric: tabular-nums; }
+
+/* ───────── the board ───────── */
+.lvst-head { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 2; }
+.lvst-board {
+  position: relative; max-width: 100%; min-width: 620px; box-sizing: border-box; padding: 12px 34px 15px;
+  background: #1f3b33; border: 8px solid #b9824f; border-radius: 18px;
+  box-shadow: 0 6px 0 rgba(0, 0, 0, 0.28), inset 0 0 0 2px rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+.lvst-board:empty { display: none; }
+.lvst-q { animation: lvst-in 0.35s var(--lvh-out, ease-out) both; }
+.lvst-hint { display: block; font: 500 17px/1.25 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.72); }
+.lvst-q-text {
+  margin: 6px 0 0; font: 800 34px/1.16 var(--ph-sans, system-ui); letter-spacing: -0.01em; color: #fff;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; text-wrap: balance;
+}
+.lvst-q-text[data-long] { font-size: 28px; }
+.lvst-answer { display: inline-flex; align-items: center; gap: 16px; margin-top: 8px; font: 800 38px/1.1 var(--ph-sans, system-ui); }
+.lvst-q--reveal .lvst-answer { animation: lvst-pop 0.5s var(--lvh-pop, ease-out) both 0.1s; }
+
+.lvst-letter {
+  display: inline-grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 10px;
+  font: 800 22px/1 var(--ph-sans, system-ui); color: #fff; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+}
+.lvst-letter--big { width: 54px; height: 54px; border-radius: 14px; font-size: 32px; }
+
+/* lobby: the way in */
+.lvst-join { display: flex; align-items: center; gap: 26px; text-align: left; padding: 2px 0; }
+.lvst-join-qr { flex: none; width: 132px; height: 132px; padding: 8px; box-sizing: border-box; background: #fff; border-radius: 12px; }
+.lvst-qr { display: block; width: 100%; height: 100%; }
+.lvst-join-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.lvst-join-text span { font: 500 19px/1.25 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.78); }
+.lvst-join-text span b { color: #fff; font-weight: 700; }
+.lvst-join-text strong { font: 800 66px/1.05 var(--ph-sans, system-ui); letter-spacing: 0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* the options under the board, with live counts */
+.lvst-options { display: flex; justify-content: center; gap: 10px; margin: 0; padding: 0; list-style: none; max-width: 100%; }
+.lvst-options li {
+  display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 auto; max-width: 300px;
+  padding: 7px 8px 7px 8px; border-radius: 14px; background: #fff; color: #1d1b2e;
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22);
+  animation: lvst-pop 0.4s var(--lvh-pop, ease-out) both calc(0.06s * var(--k, 0));
+}
+.lvst-options li:nth-child(2) { --k: 1; }
+.lvst-options li:nth-child(3) { --k: 2; }
+.lvst-options li:nth-child(4) { --k: 3; }
+.lvst-opt-text { font: 700 19px/1.15 var(--ph-sans, system-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.lvst-opt-count {
+  flex: none; min-width: 34px; height: 30px; padding: 0 8px; box-sizing: border-box; border-radius: 9px;
+  display: inline-grid; place-items: center; background: #eef0f6; font: 800 18px/1 var(--ph-sans, system-ui); font-variant-numeric: tabular-nums;
+}
+.lvst-options[data-revealed] li[data-dim] { opacity: 0.45; transform: scale(0.96); transition: opacity 0.4s, transform 0.4s; }
+.lvst-options[data-revealed] li[data-key] { box-shadow: 0 4px 0 rgba(0, 0, 0, 0.22), 0 0 0 4px #36c47c; }
+
+/* ───────── right: the timer, the result, alive and ghosts ───────── */
+.lvst-side { position: absolute; right: 28px; top: 16px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px; width: 300px; }
+.lvst-timer {
+  --left: 1;
+  position: relative; width: 116px; height: 116px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(#3d7bff calc(var(--left) * 360deg), rgba(255, 255, 255, 0.18) 0);
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3);
+}
+.lvst-timer::before { content: ''; position: absolute; inset: 9px; border-radius: 50%; background: #fff; }
+.lvst-timer b { position: relative; font: 800 54px/1 var(--ph-sans, system-ui); color: #1d1b2e; font-variant-numeric: tabular-nums; }
+.lvst-timer[data-ready] { background: #ffc531; }
+.lvst-timer[data-ready] b { animation: lvst-tick 1s steps(1) infinite; }
+.lvst-timer[data-hot] { background: conic-gradient(#e2283d calc(var(--left) * 360deg), rgba(255, 255, 255, 0.18) 0); animation: lvst-shake 0.32s linear infinite; }
+.lvst-timer[data-hot] b { color: #e2283d; }
+
+.lvst-pills { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.lvst-pill {
+  display: inline-flex; align-items: center; gap: 9px; padding: 9px 16px; border-radius: 999px;
+  background: #fff; color: #1d1b2e; font: 600 18px/1 var(--ph-sans, system-ui); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.22);
+}
+.lvst-pill[hidden] { display: none; }
+.lvst-pill b { font-weight: 800; font-variant-numeric: tabular-nums; }
+.lvst-dot { width: 11px; height: 11px; border-radius: 50%; background: #2fc46b; }
+.lvst-dot--ghost { background: #9cc8ff; }
+
+.lvst-result { position: absolute; right: 28px; top: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; width: 330px; }
+.lvst-result ~ .lvst-side { top: 196px; }
+.lvst-stood {
+  padding: 14px 22px; border-radius: 20px; background: #fff; color: #1d1b2e; font: 700 24px/1.1 var(--ph-sans, system-ui);
+  box-shadow: 0 5px 0 rgba(0, 0, 0, 0.28); white-space: nowrap; animation: lvst-pop 0.5s var(--lvh-pop, ease-out) both 1.1s;
+}
+.lvst-stood b { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.lvst-fastest {
+  padding: 10px 16px; border-radius: 14px; background: #2c6b3a; color: #fff; font: 700 19px/1.2 var(--ph-sans, system-ui);
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.25); text-align: right; animation: lvst-pop 0.5s var(--lvh-pop, ease-out) both 1.6s;
+}
+
+/* ───────── the five best and the podium, over a darkened arena ───────── */
+.lvst-veil {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0; display: grid; place-items: center; padding-top: 120px;
+  background: radial-gradient(ellipse at 50% 60%, rgba(12, 13, 34, 0.55), rgba(12, 13, 34, 0.86));
+  animation: lvst-fade 0.4s ease-out both;
+}
+.lvst-top { display: flex; gap: 16px; margin: 0; padding: 0; list-style: none; }
+.lvst-top li {
+  position: relative; width: 218px; padding: 18px 14px 16px; box-sizing: border-box; border-radius: 22px; background: #fff; color: #1d1b2e;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; box-shadow: 0 6px 0 rgba(0, 0, 0, 0.3);
+  animation: lvst-rise 0.5s var(--lvh-pop, ease-out) both calc(0.08s * var(--i, 0));
+}
+.lvst-top li.lvst-top-first { background: #ffe9a8; }
+.lvst-top-place {
+  position: absolute; left: 12px; top: 12px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center;
+  background: #1d1b2e; color: #fff; font: 800 19px/1 var(--ph-sans, system-ui);
+}
+.lvst-top-name { font: 700 22px/1.15 var(--ph-sans, system-ui); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvst-top-pts { font: 800 30px/1 var(--ph-sans, system-ui); font-variant-numeric: tabular-nums; }
+.lvst-up, .lvst-down { font: 700 16px/1 var(--ph-sans, system-ui); min-height: 16px; }
+.lvst-up { color: #2c6b3a; }
+.lvst-down { color: #b3261e; }
+
+.lvst-podium { display: flex; flex-direction: column; align-items: center; gap: 22px; }
+.lvst-podium-blocks { display: flex; align-items: flex-end; gap: 18px; }
+.lvst-pod { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 240px; animation: lvst-rise 0.6s var(--lvh-pop, ease-out) both calc(0.25s * (2 - var(--i, 0))); }
+.lvst-pod-name { font: 700 26px/1.15 var(--ph-sans, system-ui); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lvst-pod-pts { font: 800 24px/1 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.8); font-variant-numeric: tabular-nums; }
+.lvst-pod-block {
+  width: 100%; margin-top: 8px; border-radius: 16px 16px 0 0; display: grid; place-items: start center; padding-top: 14px; box-sizing: border-box;
+  font: 800 54px/1 var(--ph-sans, system-ui); color: #1d1b2e; background: #fff; box-shadow: inset 0 -8px 0 rgba(0, 0, 0, 0.08);
+}
+.lvst-pod--1 .lvst-pod-block { height: 190px; background: #ffc531; }
+.lvst-pod--2 .lvst-pod-block { height: 140px; background: #dfe6f5; }
+.lvst-pod--3 .lvst-pod-block { height: 100px; background: #f4c9a2; }
+.lvst-podium-rest { display: flex; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.lvst-podium-rest li {
+  position: relative; display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 54px; border-radius: 16px; background: #fff; color: #1d1b2e;
+}
+.lvst-podium-rest .lvst-top-place { top: 50%; transform: translateY(-50%); }
+
+/* a character's picture: the kit's thumbnail, clothes tinted by a mask */
+.lvst-thumb { position: relative; display: block; flex: none; background: var(--thumb) 0 0 / 200% 100% no-repeat; }
+.lvst-thumb::after {
+  content: ''; position: absolute; inset: 0; background: var(--clothes); mix-blend-mode: multiply;
+  -webkit-mask: var(--thumb) 100% 0 / 200% 100% no-repeat; mask: var(--thumb) 100% 0 / 200% 100% no-repeat;
+}
+
+/* ───────── bottom: the teacher's buttons ───────── */
+.lvst-foot { position: absolute; left: 24px; right: 28px; bottom: 18px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; z-index: 3; }
+.lvst-tools { display: flex; align-items: center; gap: 8px; }
+.lvst-tool {
+  width: 44px; height: 44px; border-radius: 50%; display: inline-grid; place-items: center;
+  background: rgba(20, 22, 54, 0.6); color: rgba(255, 255, 255, 0.82); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.14);
+}
+.lvst-tool--text { width: auto; padding: 0 16px; border-radius: 999px; font: 600 17px/1 var(--ph-sans, system-ui); }
+@media (hover: hover) {
+  .lvst-tool:hover { background: rgba(255, 255, 255, 0.92); color: #1d1b2e; }
+}
+.lvst-tool:focus-visible, .lvst-go:focus-visible { outline: 3px solid #ffc531; outline-offset: 3px; }
+.lvst-warn { margin-left: 8px; padding: 9px 14px; border-radius: 999px; background: #fff3d6; color: #6b4300; font: 600 16px/1 var(--ph-sans, system-ui); }
+.lvst-actions { display: flex; align-items: center; gap: 14px; }
+.lvst-settings { font: 500 17px/1.2 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.75); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.lvst-go { box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3); }
+.lvst .lvh-tg { pointer-events: auto; }
+
+.lvst-fail {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); max-width: 560px; padding: 26px 30px; border-radius: 20px;
+  background: #fff; color: #1d1b2e; font: 600 22px/1.35 var(--ph-sans, system-ui); text-align: center;
+}
+
+@keyframes lvst-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes lvst-pop { from { opacity: 0; transform: scale(0.82); } to { opacity: 1; transform: none; } }
+@keyframes lvst-rise { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
+@keyframes lvst-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes lvst-tick { 0% { transform: scale(1.18); } 50% { transform: scale(1); } }
+@keyframes lvst-shake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-7deg) translateX(-2px); }
+  75% { transform: rotate(7deg) translateX(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lvst *, .lvst *::before, .lvst *::after { animation: none !important; transition: none !important; }
+}
