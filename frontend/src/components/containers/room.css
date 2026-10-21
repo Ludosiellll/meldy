@@ -265,11 +265,34 @@
 }
 .ct-bar .ct-back:disabled { opacity: .45; cursor: default; }
 @media (min-width: 1024px) {
-  /* A computer: the verdict beside the pill on the right, as the editor's bar (.ex-cta-why). */
-  .ct-bar { display: flex; align-items: center; justify-content: flex-end; gap: 24px; margin: 28px 0 -40px; padding-inline: 0; }
-  .ct-verdict { flex: 1 1 auto; margin: 0; }
+  /* A computer: the verdict beside the pill in one card at the bottom right, as the editor's bar (.ex-cta[data-row],
+     exams.css): in reach on a long page, not a band across the column over the last rows (owner, 21.10: «в пробной
+     контрольной тоже блок нижний привязан»). A lone button floats without the card. */
+  .ct-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 24px;
+    box-sizing: border-box;
+    width: fit-content;
+    max-width: 100%;
+    margin: 28px 0 -16px auto;
+    bottom: 24px;
+    padding: 10px 10px 10px 28px;
+    border-radius: 32px;
+    background: var(--sf-surface);
+    box-shadow: 0 0 0 1px var(--sf-line), 0 16px 40px -12px rgb(11 18 28 / .32);
+  }
+  .ct-verdict { flex: 0 1 auto; max-width: 520px; margin: 0; }
   .ct-bar .sf-primary { flex: none; min-width: 240px; }
   .ct-bar-row { flex: none; }
+  .ct-bar:not(:has(.ct-verdict, .ct-back, .sf-secondary)) { padding: 0; background: none; box-shadow: none; }
+  .ct-bar:not(:has(.ct-verdict, .ct-back, .sf-secondary)) .sf-primary { box-shadow: 0 16px 40px -12px rgb(11 18 28 / .32); }
+}
+/* An end screen (a quiz's result, a session's end): a page to read, so its action waits at the end of it. */
+.ct-bar.ct-bar-end { position: static; }
+@media (min-width: 1024px) {
+  .ct-bar.ct-bar-end { margin-bottom: 0; }
 }
 
 /* ---------------------------------------------------------------- panels in place: «Ключ неверный?» */

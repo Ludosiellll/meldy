@@ -365,7 +365,7 @@ export default function SessionEnd({
             <TelegramRemindLink fallback={<DailyReminder variant="today" examId={containerId} />} />
           </div>
         ) : null}
-        <div className="ct-bar">
+        <div className="ct-bar ct-bar-end">
           <div className="ct-bar-row" aria-hidden={holding || undefined} style={{ ...(wide ? null : { width: '100%' }), ...hidden }}>
             {next ? (
               <Link className="sf-primary" to={next.href}>

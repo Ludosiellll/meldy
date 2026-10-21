@@ -323,7 +323,7 @@ export default function QuizResultView({ result, onRetry, onClose, guest = false
         ) : null}
         {result.practice ? <PracticeOffer result={result} guest={guest} primary={!result.can_retry} /> : null}
         {result.can_retry ? (
-          <div className="ct-bar">
+          <div className="ct-bar ct-bar-end">
             <div className="ct-bar-row" style={wide ? undefined : { width: '100%' }}>
               <button type="button" className="sf-primary" onClick={onRetry}>
                 {RESULT.retry(result.attempts_left)}
