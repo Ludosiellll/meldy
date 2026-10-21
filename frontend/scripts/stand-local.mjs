@@ -418,7 +418,7 @@ async function main() {
         await context.close();
         console.log('video saved in', dir);
       } else if (cmd === 'perf') {
-        const { page } = await openPage(browser, base, room.game, room.host_token, { width: 960, height: 540 }, { query: '?bench' });
+        const { page } = await openPage(browser, base, room.game, room.host_token, { width: Number(env('PERF_W', 960)), height: Number(env('PERF_H', 540)) }, { query: `?bench${env('QUERY', '')}` });
         await perf(page);
       }
     } finally {
@@ -461,7 +461,7 @@ async function perf(page) {
     await page.evaluate(() => window.__standBench?.(20));
     const r = await page.evaluate(() => window.__standBench?.(150));
     const round = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, +v.toFixed(2)]));
-    console.log(JSON.stringify({ cpu: rate, players: BOTS, total: round(r.total), scene: round(r.scene), kitAndDraw: round(r.kitAndDraw), hudCallsPerFrame: +(r.hudCalls / r.frames).toFixed(2), drawCalls: r.drawCalls }));
+    console.log(JSON.stringify({ cpu: rate, players: BOTS, total: round(r.total), scene: round(r.scene), kitAndDraw: round(r.kitAndDraw), kitUpdate: round(r.update), drawSubmit: round(r.draw), hudCallsPerFrame: +(r.hudCalls / r.frames).toFixed(2), drawCalls: r.drawCalls }));
   }
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 }

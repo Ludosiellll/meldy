@@ -29,7 +29,7 @@ export interface SceneOptions {
   /** Share of the screen kept free at the top (the board) and at the bottom (the buttons). */
   margins: { top: number; bottom: number };
   /** The kit's view: quality ('auto' by default), antialiasing, the pixel ratio's cap (a slow machine's recording). */
-  view?: { quality?: 'auto' | number; antialias?: boolean; maxPixelRatio?: number };
+  view?: { quality?: 'auto' | number; antialias?: boolean; maxPixelRatio?: number; preserveDrawingBuffer?: boolean };
 }
 
 /** Height of the boss on its stage, metres: the stage is the server's solid circle (r 80 = 1.6 m). */
@@ -177,13 +177,15 @@ export class StandScene {
    * after waiting for the GPU, timing this screen's per-frame work (positions, poses, timer, counts), the kit's update
    * and handing the draw calls over. Milliseconds of JavaScript; the loop starts again after.
    */
-  bench(frames: number): { frames: number; total: Stat; scene: Stat; kitAndDraw: Stat; hudCalls: number; drawCalls: number } | null {
+  bench(frames: number): { frames: number; total: Stat; scene: Stat; kitAndDraw: Stat; update: Stat; draw: Stat; hudCalls: number; drawCalls: number } | null {
     const view = this.view as unknown as { stop(): void; start(f: (dt: number, now: number) => void): void; frame(dt: number): number; renderer: { getContext(): WebGL2RenderingContext; info: { render: { calls: number } } } } | null;
     if (!view || !this.kit) return null;
     view.stop();
     const gl = view.renderer.getContext();
     const total: number[] = [];
     const scene: number[] = [];
+    const update: number[] = [];
+    const draw: number[] = [];
     let hudCalls = 0;
     const hud = this.hud;
     const counting: StandHud = {
@@ -205,8 +207,11 @@ export class StandScene {
       this.frame(dt, this.kit.now());
       const t1 = performance.now();
       this.kit.update(dt);
+      const t1b = performance.now();
       (view as unknown as { renderOnce(dt: number): void }).renderOnce(dt);
       const t2 = performance.now();
+      update.push(t1b - t1);
+      draw.push(t2 - t1b);
       scene.push(t1 - t0);
       total.push(t2 - t0);
     }
@@ -214,7 +219,7 @@ export class StandScene {
     const drawCalls = view.renderer.info.render.calls;
     view.start((d, now) => this.frame(d, now));
     const kitAndDraw = total.map((t, i) => t - scene[i]);
-    return { frames, total: stat(total), scene: stat(scene), kitAndDraw: stat(kitAndDraw), hudCalls, drawCalls };
+    return { frames, total: stat(total), scene: stat(scene), kitAndDraw: stat(kitAndDraw), update: stat(update), draw: stat(draw), hudCalls, drawCalls };
   }
 
   /**

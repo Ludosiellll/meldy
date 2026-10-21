@@ -191,6 +191,7 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
       quality: q !== null && /^[0-5]$/.test(q) ? Number(q) : ('auto' as const),
       antialias: p.get('aa') !== '0',
       maxPixelRatio: px > 0.2 && px <= 2 ? px : undefined,
+      preserveDrawingBuffer: p.get('pdb') === '1',
     };
   }, []);
   useEffect(() => {
