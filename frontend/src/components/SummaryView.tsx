@@ -197,6 +197,7 @@ export default function SummaryView({ data, sources = [], card = false }: { data
               sources={sources}
               stems={section.stems}
               note={fragmentNote(section.refKind, { title: section.title })}
+              panelKey={`sec-${section.index}`}
             />
           </section>
         ))}
@@ -219,6 +220,7 @@ export default function SummaryView({ data, sources = [], card = false }: { data
                         sources={sources}
                         stems={termStems[index]}
                         note={fragmentNote('near', { title: null, term: term.term })}
+                        panelKey={`term-${index}`}
                         compact
                       />
                     )}

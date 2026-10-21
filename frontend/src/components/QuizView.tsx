@@ -585,6 +585,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
                 ids={q.sourceIds}
                 sources={sources}
                 note={QUESTION_SOURCE_NOTE}
+                panelKey={`q-${i + 1}`}
                 stems={[...stemsOf(`${q.question} ${q.explanation}`)]}
                 compact
               />

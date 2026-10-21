@@ -4,6 +4,7 @@ import { useFragmentPanel } from './FragmentPanel';
 import { FragmentRefs } from './FragmentSlip';
 import { closeFragmentPanel, fragmentPanelState, type PanelFragment } from './fragmentPanelStore';
 import { PHONE_QUERY } from '../../lib/usePhone';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 
 const SOURCES = [
   { id: 'S01', text: 'Природа\nПрирода — материальный мир Вселенной, основной объект изучения естественных наук.' },
@@ -35,6 +36,7 @@ afterEach(() => {
   closeFragmentPanel();
   cleanup();
   delete (window as { matchMedia?: unknown }).matchMedia;
+  window.history.replaceState(null, '', '/');
 });
 
 describe('the fragment panel', () => {
@@ -182,5 +184,127 @@ describe('FragmentRefs opens the panel instead of a slip inside the card', () =>
     fireEvent.click(within(panel).getByRole('button', { name: 'Фрагмент 1' }));
     expect(within(term).getByRole('button', { name: 'Фрагмент лекции 1' })).toHaveAttribute('data-active');
     expect(seventh).not.toHaveAttribute('data-active');
+  });
+});
+
+// Each test has a page path of its own: the panel remembers the fragments the reader closed on a page for the visit.
+describe('the open fragment lives in the address (owner 21.10: a reload lost it)', () => {
+  const terms = (
+    <>
+      <div className="sv-term">
+        <FragmentRefs ids={['S01', 'S07']} sources={SOURCES} stems={[]} note="Про природу." panelKey="term-0" compact />
+      </div>
+      <div className="sv-term">
+        <FragmentRefs ids={['S29']} sources={SOURCES} stems={[]} note="Про экосистему." panelKey="term-1" compact />
+      </div>
+    </>
+  );
+
+  it('writes ?frag and frag_for without a new step in the history, follows the switches and clears them on close', () => {
+    window.history.replaceState({ idx: 3 }, '', '/library/m1?tab=summary');
+    const steps = window.history.length;
+    render(terms);
+    const chip = screen.getByRole('button', { name: 'Фрагмент лекции 1' });
+    fireEvent.click(chip);
+    expect(window.location.search).toBe('?tab=summary&frag=1&frag_for=term-0');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Фрагмент 7' }));
+    expect(window.location.search).toBe('?tab=summary&frag=7&frag_for=term-0');
+    // Replaced, not pushed: Back still leaves the page; the router's state of the entry is kept.
+    expect(window.history.length).toBe(steps);
+    expect(window.history.state).toEqual({ idx: 3 });
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+    expect(window.location.search).toBe('?tab=summary');
+    expect(chip).toHaveFocus();
+  });
+
+  it('opens the fragment the address names when the page comes back (a reload, Back), for that item only', () => {
+    window.history.replaceState(null, '', '/library/m4?tab=summary&frag=7&frag_for=term-0');
+    render(terms);
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 7 лекции' });
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    expect(within(panel).getByText('Про природу.')).toBeInTheDocument();
+    const chip = screen.getByRole('button', { name: 'Фрагмент лекции 7' });
+    expect(chip).toHaveAttribute('data-active');
+    // Closing gives the focus to its chip and takes the parameters away, the page's own stay.
+    fireEvent.click(within(panel).getByRole('button', { name: 'Закрыть фрагмент' }));
+    expect(chip).toHaveFocus();
+    expect(window.location.search).toBe('?tab=summary');
+  });
+
+  it('ignores an address that names no fragment of the item', () => {
+    window.history.replaceState(null, '', '/library/m1?frag=12&frag_for=term-1');
+    render(terms);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('moves the address to the item that opens next, and keeps it out of the way for items without a key', () => {
+    render(
+      <>
+        {terms}
+        <Opener name="Без адреса" ids={['S29']} />
+      </>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Фрагмент лекции 29' }));
+    expect(window.location.search).toBe('?frag=29&frag_for=term-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Без адреса' }));
+    expect(window.location.search).toBe('');
+  });
+
+  it('inside the router, writes the browser’s address and leaves the router alone: the page does not draw again', () => {
+    window.history.replaceState(null, '', '/library/m2?tab=summary&frag=7&frag_for=term-0');
+    let draws = 0;
+    function Where() {
+      const location = useLocation();
+      draws += 1;
+      return <output data-testid="where">{`${location.pathname}${location.search}`}</output>;
+    }
+    render(
+      <MemoryRouter initialEntries={['/library/m2?tab=summary']}>
+        <Routes>
+          <Route
+            path="/library/:id"
+            element={
+              <>
+                {terms}
+                <Where />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 7 лекции' });
+    const before = draws;
+    fireEvent.click(within(panel).getByRole('button', { name: 'Закрыть фрагмент' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Фрагмент лекции 29' }));
+    expect(window.location.search).toBe('?tab=summary&frag=29&frag_for=term-1');
+    expect(screen.getByTestId('where')).toHaveTextContent('/library/m2?tab=summary');
+    expect(draws).toBe(before);
+  });
+
+  it('does not open again a fragment the reader closed when an old address comes back; a new opening counts again', () => {
+    window.history.replaceState(null, '', '/library/m3?frag=7&frag_for=term-0');
+    const first = render(terms);
+    fireEvent.keyDown(screen.getByRole('dialog', { name: 'Фрагмент 7 лекции' }), { key: 'Escape' });
+    expect(window.location.search).toBe('');
+    first.unmount();
+    // The page wrote its own parameter from the router's old address: the closed fragment came back with it.
+    window.history.replaceState(null, '', '/library/m3?tab=summary&frag=7&frag_for=term-0');
+    const second = render(terms);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    // Opened by hand and left by going away: Back to the address opens it again.
+    fireEvent.click(screen.getByRole('button', { name: 'Фрагмент лекции 7' }));
+    second.unmount();
+    window.history.replaceState(null, '', '/library/m3?tab=summary&frag=7&frag_for=term-0');
+    render(terms);
+    expect(screen.getByRole('dialog', { name: 'Фрагмент 7 лекции' })).toBeInTheDocument();
+  });
+
+  it('takes the parameters away when the item goes (another tab)', () => {
+    const { rerender } = render(terms);
+    fireEvent.click(screen.getByRole('button', { name: 'Фрагмент лекции 29' }));
+    expect(window.location.search).toBe('?frag=29&frag_for=term-1');
+    rerender(<p>Карточки</p>);
+    expect(window.location.search).toBe('');
   });
 });

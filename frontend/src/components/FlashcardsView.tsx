@@ -301,6 +301,7 @@ export default function FlashcardsView({ data, sources = [], reviewHref, followu
               ids={c.source_ids}
               sources={sources}
               note={CARD_SOURCE_NOTE}
+              panelKey={`card-${i + 1}`}
               stems={[...stemsOf(`${c.question ?? ''} ${c.answer ?? ''}`)]}
               compact
             />

@@ -9,6 +9,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
@@ -16,6 +17,8 @@ import { usePhone } from '../../lib/usePhone';
 import { FragmentText } from './FragmentText';
 import {
   closeFragmentPanel,
+  fragmentDismissed,
+  fragmentUrlValue,
   openFragmentPanel,
   showFragment,
   useFragmentPanelState,
@@ -23,6 +26,7 @@ import {
   type FragmentPanelRequest,
   type PanelFragment,
 } from './fragmentPanelStore';
+import { readFragmentUrl } from './fragmentPanelUrl';
 import './fragmentPanel.css';
 
 /** A pull of the phone's sheet down by this much closes it. */
@@ -87,7 +91,7 @@ function FragmentPanel({ request }: { request: FragmentPanelRequest }) {
   const fragment = fragments.find((item) => item.id === request.current) ?? fragments[0];
 
   const close = useCallback(() => {
-    const target = closeFragmentPanel(owner);
+    const target = closeFragmentPanel(owner, true);
     if (target && target.isConnected) target.focus({ preventScroll: true });
   }, [owner]);
 
@@ -241,18 +245,47 @@ export interface FragmentPanelHandle {
   current: string | null;
   /** The panel, while this component has it: render it anywhere (it goes into a portal). */
   panel: ReactNode;
+  /** Put on the element around the chips: a panel opened again from the address gives the focus back to its chip. */
+  anchorRef: RefObject<HTMLDivElement>;
+}
+
+/** What an item shows in the panel, to open it again from the address without a click. */
+export type FragmentPanelContent = Pick<FragmentPanelOpen, 'note' | 'fragments'>;
+
+/** `[data-fragment-chip="S07"]`, the id kept to the characters an id has. */
+function chipSelector(id: string): string {
+  return `[data-fragment-chip="${id.replace(/["\\]/g, '')}"]`;
 }
 
 /**
  * A component that opens lecture fragments: `open(…)` from its chip, `current` marks the chip, `panel` is rendered by
  * it. One request for the whole app (fragmentPanelStore): only the component that opened the panel draws it.
+ *
+ * `urlKey` names the item in the address (`?frag=7&frag_for=term-2`, fragmentPanelUrl.ts); with `content` the item
+ * opens its fragment again when the page is reloaded or reached by Back. The address is read once, when the item
+ * appears.
  */
-export function useFragmentPanel(): FragmentPanelHandle {
+export function useFragmentPanel(urlKey?: string, content?: () => FragmentPanelContent | null): FragmentPanelHandle {
   const owner = useId();
   const state = useFragmentPanelState();
   const mine = state && state.owner === owner ? state : null;
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef(content);
+  contentRef.current = content;
+  // Read before any effect: React's development double mount closes and opens again, and the second opening must
+  // still know what the address asked for.
+  const [asked] = useState(() => (urlKey ? readFragmentUrl(urlKey) : null));
   // The chip's page goes away (another tab, another page): its panel goes with it.
   useEffect(() => () => void closeFragmentPanel(owner), [owner]);
-  const open = useCallback((request: FragmentPanelOpen) => openFragmentPanel(owner, request), [owner]);
-  return { open, current: mine ? mine.current : null, panel: mine ? <FragmentPanel request={mine} /> : null };
+  useEffect(() => {
+    if (!urlKey || !asked) return;
+    const shown = contentRef.current?.();
+    const fragment = shown?.fragments.find((item) => fragmentUrlValue(item) === asked || item.id === asked);
+    if (!shown || !fragment || fragmentDismissed(urlKey, asked)) return;
+    const anchor = anchorRef.current;
+    const chip = anchor?.querySelector<HTMLElement>(chipSelector(fragment.id)) ?? anchor?.querySelector<HTMLElement>('[aria-haspopup="dialog"]') ?? null;
+    openFragmentPanel(owner, { ...shown, current: fragment.id, returnTo: chip, urlKey });
+  }, [owner, urlKey, asked]);
+  const open = useCallback((request: FragmentPanelOpen) => openFragmentPanel(owner, { urlKey, ...request }), [owner, urlKey]);
+  return { open, current: mine ? mine.current : null, panel: mine ? <FragmentPanel request={mine} /> : null, anchorRef };
 }

@@ -10,6 +10,8 @@ interface FragmentRefsProps {
   stems: string[];
   /** Why these fragments, in plain words: the panel says it over the fragment. */
   note: string;
+  /** The item in the address while its fragment is open (`?frag=7&frag_for=term-2`): a reload opens it again. */
+  panelKey?: string;
   compact?: boolean;
 }
 
@@ -30,23 +32,21 @@ export function fragmentsLine(ids: string[]): string {
  * opens inside the card, so a card never grows and its row never stretches. The panel has switches between the
  * fragments of the same section or term; the chip of the fragment on screen stays marked.
  */
-export function FragmentRefs({ ids, sources, stems, note, compact = false }: FragmentRefsProps) {
+export function FragmentRefs({ ids, sources, stems, note, panelKey, compact = false }: FragmentRefsProps) {
   const phone = usePhone();
-  const { open, current, panel } = useFragmentPanel();
-  if (ids.length === 0) return null;
   const textOf = (id: string) => sources.find((source) => source.id === id)?.text;
   const ordered = byNumber(ids);
-  const show = (id: string, from: HTMLElement) =>
-    open({
-      note,
-      fragments: ordered.map((fragmentId) => ({ id: fragmentId, number: fragmentNumber(fragmentId), text: textOf(fragmentId), stems })),
-      current: id,
-      returnTo: from,
-    });
+  const content = () => ({
+    note,
+    fragments: ordered.map((fragmentId) => ({ id: fragmentId, number: fragmentNumber(fragmentId), text: textOf(fragmentId), stems })),
+  });
+  const { open, current, panel, anchorRef } = useFragmentPanel(panelKey, content);
+  if (ids.length === 0) return null;
+  const show = (id: string, from: HTMLElement) => open({ ...content(), current: id, returnTo: from });
 
   if (phone) {
     return (
-      <div className={`sv-refs sv-refs-line${compact ? ' sv-refs-compact' : ''}`}>
+      <div ref={anchorRef} className={`sv-refs sv-refs-line${compact ? ' sv-refs-compact' : ''}`}>
         <button
           type="button"
           className="sf-link sv-refs-link"
@@ -63,7 +63,7 @@ export function FragmentRefs({ ids, sources, stems, note, compact = false }: Fra
   }
 
   return (
-    <div className={`sv-refs${compact ? ' sv-refs-compact' : ''}`}>
+    <div ref={anchorRef} className={`sv-refs${compact ? ' sv-refs-compact' : ''}`}>
       <p className="sv-refline">
         {ids.map((id, index) => {
           const active = current === id;
@@ -75,6 +75,7 @@ export function FragmentRefs({ ids, sources, stems, note, compact = false }: Fra
                 type="button"
                 className="sf-ref sv-ref"
                 data-active={active ? '' : undefined}
+                data-fragment-chip={id}
                 // The number again in a small circle before the words (CSS ::before, not part of the text).
                 data-n={number}
                 aria-label={`Фрагмент лекции ${number}`}
