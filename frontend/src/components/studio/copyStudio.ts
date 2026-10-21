@@ -155,7 +155,7 @@ export const STUDIO = {
   layout: 'Как проходить',
   layouts: { one_by_one: 'По одному', one_page: 'Одна страница', pages: 'По страницам' } as Record<DocLayout, string>,
   layoutHints: {
-    one_by_one: 'По одному вопросу. Текст перед вопросом виден вместе с ним.',
+    one_by_one: 'Вопрос за вопросом. Текст перед вопросом виден вместе с ним.',
     one_page: 'Все вопросы сразу, «Завершить» внизу.',
     pages: 'Делите блоком «Новая страница». Между страницами кнопка «Дальше».',
   } as Record<DocLayout, string>,
