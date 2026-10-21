@@ -15,7 +15,7 @@ import { loadKit } from '../../lib/live/three';      // this module has no three
 
 const kit = await loadKit({ boss: 'skeleton' });     // fetches the 3D chunk and the models (cached for a year)
 const view = kit.mount(canvas);                       // pixel ratio ≤ 1.5, adaptive quality, pauses on a hidden tab
-const arena = kit.createArena(map);                   // the server's map (welcome.map)
+const arena = kit.createArena(map, { floor, stage }); // the server's map (welcome.map); mode A: the hello's floor and stage
 arena.setZoneLabels({ A: 'Меркурий', B: 'Венера', C: 'Марс', D: 'Земля' });
 const boss = kit.createBoss('skeleton');              // stands on its stage (arena.stage)
 const players = new Map(roster.map(([id, , , name, look]) => [id, kit.createPlayer(look, name)]));
@@ -49,9 +49,9 @@ prefetchKit(): void                                   // start fetching the 3D c
 
 interface Kit {
   createPlayer(look: PlayerLook, name: string): Player
-  createBoss(kind: 'skeleton' | 'clock'): Boss        // the skeleton needs loadKit({ boss: 'skeleton' }) or loadBoss first
+  createBoss(kind: 'skeleton' | 'clock', options?: { height?: number }): Boss   // metres; the skeleton needs loadKit({ boss: 'skeleton' }) or loadBoss first
   loadBoss(kind: BossKind): Promise<void>
-  createArena(map: MoveMap): Arena
+  createArena(map: MoveMap, shape?: { floor?: FloorGrid; stage?: [x, y, r] }): Arena
   mount(canvas: HTMLCanvasElement, options?: ViewOptions): View
   now(): number                                       // seconds of the kit's clock (the loop advances it)
   update(dt: number): void                            // the loop calls it; call it yourself only without view.start
@@ -70,13 +70,14 @@ interface Boss {
   readonly kind: BossKind; readonly phase: BossPhase
   readonly stompImpactS: number                       // setPhase('stomp') → blow on the floor: skeleton 0.7 s, clock 0.85 s
   setPhase(phase: 'idle' | 'warn' | 'stomp' | 'roar' | 'stunned' | 'chase'): void
-  setPosition(x: number, y: number): void             // default: the stage, beyond the far edge
+  setPosition(x: number, y: number): void             // default: the arena's stage
   setFacing(rad: number): void
   update(dt: number): void; dispose(): void
 }
 interface Arena {
   readonly map: MoveMap; readonly stage: { x: number; y: number }
   setZoneLabels(labels: Partial<Record<string, string>>): void   // by zone id; A–D show as А–Г
+  setClosedZones(ids: readonly string[]): void                   // zones that take no answer now: plain tiles, no sign
   collapse(correctZoneId: string, tStart?: number): void         // tStart in kit.now() seconds (default: now)
   restore(): void
   floorAt(x: number, y: number): number               // map units: 0 intact, negative while the tile falls
@@ -85,7 +86,7 @@ interface Arena {
 }
 interface View {
   start(onFrame?: (dt: number, now: number) => void): void; stop(): void
-  setCamera(spec: { arena?: MoveMap; margins?: {top?, bottom?, left?, right?}; eye?; target?; fov? }): void
+  setCamera(spec: { arena?: MoveMap; margins?: {top?, bottom?, left?, right?}; tilt?: degrees; eye?; target?; fov? }): void
   shake(strength?: number): void
   warmUp(): Promise<void>
   setQuality(level: 'auto' | number): void            // 0 best … 5 cheapest
@@ -100,7 +101,16 @@ not restarted. Bosses: `warn` rings the bells and glows, `stomp` jumps once and 
 makes the skeleton fall apart (it gets up when the phase changes) and the clock reel, `chase` runs.
 
 `createArena` frames the camera on the whole floor and the stage; `view.setCamera({ arena: map, margins: { top: 0.11 } })`
-keeps the top 11 % free for the question board.
+keeps the top 11 % free for the question board. The fit takes the floor's corners, the boss's top, the tops of the
+upright signs and the corners of the labels lying on the floor, as close as they fit between the margins, then shifts
+the lens so they sit in the middle of the free part (`camera.setViewOffset`; the perspective does not change). `tilt`
+is how steeply the camera looks down (default 27°; the projector of mode A uses 52°, so the boss on its central stage
+hides little behind it).
+
+Name tags never cover each other: each frame a tag that would overlap one already placed is left out (shown in the
+last frame first, so names do not blink; the living before ghosts; nearer before farther). `ViewOptions.tagDeclutter`
+(default true) switches it; the placement is `lib/live/three/declutter.ts` (pure, no three.js: any screen that draws
+labels over a crowd can use it).
 
 ## 3. The look (the wardrobe's own ids)
 
@@ -128,6 +138,14 @@ and the locked `crown grad horns`, plus three the kit has but the server does no
 The floor is laid on the server's map: tiles of ~100 map units (16 × 9 on 1600 × 900), each zone's tiles in its colour
 (А red, Б blue, В yellow, Г green), the zone's letter and answer on a sign on legs behind the zone (zones in the top half)
 or on the floor (bottom half). The boss's stage is centred 160 units beyond the far edge (`arena.stage`).
+
+**On the server's map (`createArena(welcome.map, { floor: hello.floor, stage: hello.stage })`, MODE_STAND.md §3).** The
+tiles are the server's grid (60 units from (20, 160), 26 × 12: every tile edge on a zone edge), the map's wall
+rectangles are the frame, and the stage is the solid circle in the middle (800, 520, r 80): a round column that stays
+standing when the floor around it drops, with the boss on it (the projector draws the clock 4.6 m and the skeleton
+4.4 m tall so their feet stay on it). Tiles under the stage are never drawn and never drop; the collapse ripples out
+from the stage's centre. Players can never walk where nothing is drawn, nor stop at an invisible wall: the frame and
+the column are exactly the server's solids.
 
 `collapse(id, t)`: every tile outside zone `id` shakes for 0.3 s, then drops with gravity (1300 units/s²) at
 `t + 0.12 s + 0.0009 s × distance from the impact point + up to 0.1 s` (a seeded jitter): a ripple from under the stage
@@ -185,6 +203,9 @@ check is `/scripts/game-preview.html?scene=bench&players=40&fps` in `npm run dev
   vary by ±50 % between runs.
 
 ## 6. The phone's picture
+
+The two bosses' pictures for the game's setup: `bossPictureUrl(kind)` → `/game/boss/<kind>-<hash>.webp` (200 × 200,
+transparent, about 10 KB each; `node scripts/game-kit.mjs bosses` renders them from the kit and writes `bosses.gen.ts`).
 
 `thumbUrl(body, hat)` → `/game/thumbs/<hash>/<model>-<hat>.webp`: 65 files (5 bodies × 13), 320 × 160, 246 KB in all and 5 KB at most each: the left half is
 the character with white clothes, the right half a mask, opaque where the clothes are. Paint the player's colour with

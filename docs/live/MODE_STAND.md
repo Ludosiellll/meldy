@@ -225,6 +225,28 @@ Texts follow the plain-words rules (short, no exclamation marks, numbers first).
 
 Ghosts are drawn translucent and floating on both screens; a character with `F_AWAY` is drawn faded.
 
+**The projector as built** (`frontend/src/components/live/stand/`, opened by `/live/:id` when the game's settings say
+`mode: "stand"`; the setup page `/live/new` offers «Битва с монстром» or «Встань на ответ» with its boss and time):
+
+- Two sources. The database's HostState (PIN, roster for «Игроки» and kicks, settings, the teacher's moves) and the
+  room's socket as host: positions, and the `state` messages that drive the board. The board follows the room's phase
+  while the room is connected, else the database's. After every `live_next`, `live_kick` and `live_end` the screen
+  sends `{"t":"cmd","op":"sync"}` (useHostGame's `onMoved`); a kick is also sent to the room (`kick`).
+- The 3D arena is the welcome's map with the hello's `floor` and `stage` (KIT_3D.md): the boss stands on the stage in
+  the middle; the frame and the stage's column are exactly the server's solids.
+- Timeline of a question: the zones light (closed zones plain) at `countdown`; the timer counts `closes −
+  serverNow()`; the live counts per zone come from the snapshot flags; at `closes − alarm_ms` the boss rings and the
+  timer shakes; at `closes` (room clock) the boss jumps; its blow drops the floor at once if the `reveal` is already
+  here (usually: closes + 0.25 s + the call), else as soon as it comes. Each character in `res.fell` stays where it
+  stood, drops with its tile, and rises out of the pit as a ghost (about 1.7 s), then follows the room again. Survivors
+  on the right zone cheer. `floor: up` raises the tiles and brings `res.back` back to life. A `reveal` older than 1 s
+  is drawn as it is (the floor down, ghosts floating).
+- Per frame: positions straight into the scene in the kit's requestAnimationFrame; the timer's second, the zone counts
+  and alive/ghosts are written into their elements only when they change; React renders on the room's `state` (about
+  seven a question) and the database's polls.
+- A local whole game: `python backend/scripts/live_stand_local.py --local` (the real room, the database in memory,
+  bots) and `node frontend/scripts/stand-local.mjs open | shots | video | perf | replay` (README in the script).
+
 ## 9. Smooth movement on a 150 ms phone (rules for both clients)
 
 - **Own character: prediction.** Draw `frame().me` every animation frame; never wait for a snapshot. The predictor

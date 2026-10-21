@@ -6,6 +6,10 @@
  *   node scripts/stand-local.mjs shots <dir>          plays a short game in Chromium and saves key frames
  *   node scripts/stand-local.mjs video <dir> [W H]    the same, recorded as a video (default 1920 × 1080)
  *   node scripts/stand-local.mjs perf                 JavaScript per frame with 40 bots, at CPU × 1 and × 4
+ *   node scripts/stand-local.mjs replay <game.json> <dir> [W H]
+ *                                                     a recorded game (live_stand_local.py --auto --record) drawn
+ *                                                     frame by frame on a stopped clock into <dir>/stand-WxH.mp4
+ *                                                     (25 fps, smooth however slow the machine) and key frames
  *
  * It starts backend/scripts/live_stand_local.py (the room with the database in memory and the bots; MELDY_PY names
  * the Python with the backend's packages), then Vite with VITE_SUPABASE_URL pointing at it and /api proxied with
@@ -14,8 +18,9 @@
  * Headless WebGL runs on SwiftShader (a GPU emulated on the CPU): its frame rate says nothing about a real GPU.
  */
 import { spawn } from 'node:child_process';
-import { mkdirSync, realpathSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -70,6 +75,8 @@ async function startVite() {
   const server = await createServer({
     root,
     configFile: join(root, 'vite.config.ts'),
+    // its own bundle cache: node_modules may be shared with other checkouts' dev servers
+    cacheDir: env('VITE_CACHE', join(tmpdir(), 'meldy-stand-vite')),
     logLevel: 'error',
     server: {
       host: '127.0.0.1',
@@ -194,8 +201,193 @@ async function play(page, { shot = null } = {}) {
   }
 }
 
+/** In the page, before anything else: the room's socket and the live RPCs answered from a recording, in page time. */
+function replayScript(rec) {
+  const b64 = (s) => {
+    const bin = atob(s);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out.buffer;
+  };
+  const log = rec.ws.map(([t, k, d]) => [t, k, k === 'b' ? b64(d) : d]);
+  const db = rec.db;
+  let goAt = null;
+  window.__replayGo = () => {
+    goAt = performance.now();
+  };
+  const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes('/auth/v1/health')) return json({});
+    const m = /\/rest\/v1\/rpc\/(\w+)/.exec(url);
+    if (!m) return realFetch(input, init);
+    const t = goAt === null ? -1 : performance.now() - goAt;
+    let st = db[0][1];
+    for (const [at, s] of db) {
+      if (at <= t) st = s;
+      else break;
+    }
+    return json(m[1] === 'live_host_state' || m[1] === 'live_next' ? st : { ok: true });
+  };
+  class FakeSocket {
+    constructor(url) {
+      this.url = url;
+      this.readyState = 0;
+      this.binaryType = 'blob';
+      this.onopen = this.onmessage = this.onclose = this.onerror = null;
+      this.i = 0;
+      if (!url.includes('/api/live/move/ws')) {
+        setTimeout(() => this.close(1006), 20);
+        return;
+      }
+      this.wait();
+    }
+    wait() {
+      if (this.readyState === 3) return;
+      if (goAt === null) {
+        setTimeout(() => this.wait(), 20);
+        return;
+      }
+      this.t0 = goAt;
+      this.readyState = 1;
+      this.onopen?.({});
+      this.next();
+    }
+    next() {
+      if (this.readyState !== 1 || this.i >= log.length) return;
+      setTimeout(() => this.deliver(), Math.max(0, this.t0 + log[this.i][0] - performance.now()));
+    }
+    deliver() {
+      if (this.readyState !== 1) return;
+      const now = performance.now() - this.t0;
+      while (this.i < log.length && log[this.i][0] <= now + 0.01) {
+        const [, k, d] = log[this.i++];
+        this.onmessage?.({ data: k === 'b' ? d.slice(0) : d });
+      }
+      this.next();
+    }
+    send() {}
+    close(code = 1000) {
+      if (this.readyState === 3) return;
+      this.readyState = 3;
+      setTimeout(() => this.onclose?.({ code, reason: '' }), 0);
+    }
+  }
+  FakeSocket.CONNECTING = 0;
+  FakeSocket.OPEN = 1;
+  FakeSocket.CLOSING = 2;
+  FakeSocket.CLOSED = 3;
+  window.WebSocket = FakeSocket;
+}
+
+/** Key frames of a replay, at ms of the recording (found from its room states). */
+function keyFrames(rec) {
+  const states = rec.ws.filter(([, k, d]) => k === 't' && d.includes('"k":"state"')).map(([t, , d]) => [t, JSON.parse(d)]);
+  const first = (pred) => states.find(([, s]) => pred(s))?.[0] ?? null;
+  const at = [];
+  const add = (name, t) => t !== null && at.push([name, t]);
+  const open0 = first((s) => s.phase === 'open' && s.qi === 0);
+  const reveal0 = first((s) => s.phase === 'reveal' && s.qi === 0);
+  add('01-lobby', (first((s) => s.phase === 'countdown') ?? 12000) - 1500);
+  add('02-countdown', (first((s) => s.phase === 'countdown') ?? 0) + 1200);
+  add('03-crowd-runs', open0 !== null ? open0 + 5000 : null);
+  if (reveal0 !== null) {
+    add('04-last-seconds', reveal0 - 2200);
+    add('05-stomp', reveal0 + 700);
+    add('06-floor-drops', reveal0 + 1500);
+    add('07-ghosts', reveal0 + 2600);
+    add('08-floor-back', reveal0 + 4700);
+  }
+  add('09-leaderboard', (first((s) => s.phase === 'leaderboard') ?? -1e9) + 2500);
+  add('10-podium', (first((s) => s.phase === 'podium') ?? -1e9) + 4500);
+  return at.filter(([, t]) => t > 0).sort((a, b) => a[1] - b[1]);
+}
+
+async function replay(recPath, dir, W, H) {
+  const rec = JSON.parse(readFileSync(recPath, 'utf8'));
+  process.env.VITE_SUPABASE_URL = 'http://127.0.0.1:8999';
+  const { server, base } = await startVite();
+  const { chromium } = await loadPlaywright();
+  const browser = await chromium.launch({ args: ARGS, headless: !MESA });
+  const fps = Number(env('FPS', 25));
+  const step = 1000 / fps;
+  mkdirSync(dir, { recursive: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: 'ru-RU' });
+    await context.addInitScript(
+      ([g, t]) => {
+        sessionStorage.setItem(`meldy.live.host.${g}`, t);
+        sessionStorage.setItem(`meldy.live.hostinfo.${g}`, JSON.stringify({ title: 'Повторение', joinUrl: 'https://meldy.ru/play?pin=123456', containerId: null, quizId: null, source: null, settings: null }));
+      },
+      [rec.game, rec.host_token],
+    );
+    await context.addInitScript(replayScript, rec);
+    const page = await context.newPage();
+    page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+    await page.clock.install();
+    // the first visit lets Vite bundle the dependencies (it may reload the page once)
+    await page.goto(`${base}/live/${rec.game}?bench${env('QUERY', '')}`, { waitUntil: 'load' });
+    if (env('DEBUG', '')) {
+      for (let i = 0; i < 6; i++) {
+        await sleep(5000);
+        console.log(await page.evaluate(() => JSON.stringify({ phase: document.querySelector('.lvst')?.getAttribute('data-phase'), body: document.body.innerText.slice(0, 120), stand: !!window.__stand, stats: window.__stand?.stats?.() ?? null, now: performance.now() })).catch((e) => e.message));
+      }
+      await page.screenshot({ path: join(dir, 'debug.png') });
+    }
+    // (a page-side wait would poll on the page's faked clock: poll from here)
+    for (let i = 0; ; i++) {
+      const frames = await page.evaluate(() => window.__stand?.stats?.()?.frames ?? 0).catch(() => 0);
+      if (frames > 3) break;
+      if (i > 600) throw new Error('the projector did not start drawing');
+      await sleep(300);
+    }
+    console.log('the projector draws; recording');
+    await page.addStyleTag({ content: '[class*="tsqd"]{display:none!important}' });
+    const now = await page.evaluate(() => Date.now());
+    await page.clock.pauseAt(now + 200);
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Animation.enable');
+    await cdp.send('Animation.setPlaybackRate', { playbackRate: Number(env('CSS_RATE', 0.12)) });
+    await page.evaluate(() => {
+      window.__standManual(true);
+      window.__replayGo();
+    });
+    const end = Math.min(rec.ws[rec.ws.length - 1][0] + 1500, Number(env('END_MS', Infinity)));
+    const startAt = Number(env('START_MS', 0));
+    const keys = keyFrames(rec);
+    const out = join(dir, `stand-${W}x${H}.mp4`);
+    const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+    const t0 = Date.now();
+    let k = 0;
+    if (startAt > 0) await page.clock.runFor(startAt);
+    for (let t = startAt, f = 0; t <= end; t += step, f++) {
+      await page.clock.runFor(step);
+      await page.evaluate((dt) => window.__standStep(dt), step / 1000);
+      const jpg = await page.screenshot({ type: 'jpeg', quality: 90 });
+      if (!ff.stdin.write(jpg)) await new Promise((r) => ff.stdin.once('drain', r));
+      while (k < keys.length && keys[k][1] <= t) {
+        await page.screenshot({ path: join(dir, `${keys[k][0]}-${W}x${H}.png`) });
+        k++;
+      }
+      if (f % 250 === 0) console.log(`${(t / 1000).toFixed(1)} s of ${(end / 1000).toFixed(0)} s, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`);
+    }
+    ff.stdin.end();
+    await new Promise((r) => ff.on('exit', r));
+    console.log('video', out);
+  } finally {
+    await browser.close();
+    await server.close();
+  }
+}
+
 async function main() {
   const [cmd = 'open', dir = join(root, '..', 'qa-screens', 'stand'), W = '1920', H = '1080'] = process.argv.slice(2);
+  if (cmd === 'replay') {
+    const [, recPath, outDir, rw = '1920', rh = '1080'] = process.argv.slice(2);
+    await replay(recPath, outDir, Number(rw), Number(rh));
+    return;
+  }
   const room = await startRoom();
   const { server, base } = await startVite();
   console.log(`room ${room.url}\npage ${base}/live/${room.game}\nhost token ${room.host_token}`);
@@ -233,22 +425,39 @@ async function main() {
   }
 }
 
-/** JavaScript per frame of the projector during a question with every bot running, at CPU × 1 and × 4. */
+/**
+ * JavaScript per frame of the projector during a question with every bot running, at CPU × 1 and × 4, and what the
+ * page spends on style and layout (the DOM overlay) per second of normal running.
+ */
 async function perf(page) {
   await waitPhase(page, ['lobby']);
-  for (let i = 0; i < 150; i++) {
-    const n = await page.evaluate(() => Number(document.querySelector('.lvst-pill b')?.textContent?.replace(/\s/g, '') ?? 0));
+  for (let i = 0; i < 200; i++) {
+    const n = await page.evaluate(() => Number(document.querySelector('.lvst-pill b')?.textContent?.replace(/\s/g, '') ?? 0)).catch(() => 0);
     if (n >= BOTS) break;
     await sleep(300);
   }
   await page.keyboard.press('Space');
   await waitPhase(page, ['open']);
+  await sleep(2500);
   const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Performance.enable');
+  const metrics = async () => Object.fromEntries((await cdp.send('Performance.getMetrics')).metrics.map((m) => [m.name, m.value]));
+  // the overlay: style and layout over a stretch of normal running (the loop, the timer, the counts)
+  const a = await metrics();
+  const wall0 = Date.now();
+  await sleep(5000);
+  const b = await metrics();
+  const secs = (Date.now() - wall0) / 1000;
+  const st = await page.evaluate(() => window.__stand?.stats?.() ?? null);
+  const per = (k) => (1000 * (b[k] - a[k])) / secs;
+  console.log(JSON.stringify({ overlay: { styleMsPerS: +per('RecalcStyleDuration').toFixed(2), layoutMsPerS: +per('LayoutDuration').toFixed(2), scriptMsPerS: +per('ScriptDuration').toFixed(1), fps: st ? +st.fps.toFixed(1) : null, quality: st?.quality ?? null } }));
   for (const rate of [1, 4]) {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
-    await sleep(1500);
+    await sleep(1000);
+    await page.evaluate(() => window.__standBench?.(20));
     const r = await page.evaluate(() => window.__standBench?.(150));
-    console.log(JSON.stringify({ cpu: rate, ...r }));
+    const round = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, +v.toFixed(2)]));
+    console.log(JSON.stringify({ cpu: rate, players: BOTS, total: round(r.total), scene: round(r.scene), kitAndDraw: round(r.kitAndDraw), hudCallsPerFrame: +(r.hudCalls / r.frames).toFixed(2), drawCalls: r.drawCalls }));
   }
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
 }

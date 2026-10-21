@@ -52,6 +52,19 @@ export function kitMap(map: MapJson): MoveMap {
   };
 }
 
+export interface Stat {
+  mean: number;
+  p50: number;
+  p95: number;
+  max: number;
+}
+
+function stat(list: number[]): Stat {
+  const s = list.slice().sort((a, b) => a - b);
+  const at = (q: number) => s[Math.min(s.length - 1, Math.floor(q * s.length))] ?? 0;
+  return { mean: s.reduce((a, b) => a + b, 0) / Math.max(1, s.length), p50: at(0.5), p95: at(0.95), max: s[s.length - 1] ?? 0 };
+}
+
 interface Fall {
   /** Where it stood (it is held still meanwhile). */
   x: number;
@@ -104,7 +117,7 @@ export class StandScene {
   constructor(
     private readonly canvas: HTMLCanvasElement,
     private readonly room: StandRoom,
-    private readonly hud: StandHud,
+    private hud: StandHud,
     private readonly bossKind: BossKind,
     private options: SceneOptions,
   ) {
@@ -147,6 +160,68 @@ export class StandScene {
   /** The frame statistics of the view (the perf harness and `?fps`). */
   stats() {
     return this.view?.stats() ?? null;
+  }
+
+  /**
+   * The perf harness (scripts/stand-local.mjs perf): `frames` frames drawn back to back with the loop stopped, each
+   * after waiting for the GPU, timing this screen's per-frame work (positions, poses, timer, counts), the kit's update
+   * and handing the draw calls over. Milliseconds of JavaScript; the loop starts again after.
+   */
+  bench(frames: number): { frames: number; total: Stat; scene: Stat; kitAndDraw: Stat; hudCalls: number; drawCalls: number } | null {
+    const view = this.view as unknown as { stop(): void; start(f: (dt: number, now: number) => void): void; frame(dt: number): number; renderer: { getContext(): WebGL2RenderingContext; info: { render: { calls: number } } } } | null;
+    if (!view || !this.kit) return null;
+    view.stop();
+    const gl = view.renderer.getContext();
+    const total: number[] = [];
+    const scene: number[] = [];
+    let hudCalls = 0;
+    const hud = this.hud;
+    const counting: StandHud = {
+      timer: (f) => {
+        hudCalls++;
+        hud.timer(f);
+      },
+      tally: (c, a, g) => {
+        hudCalls++;
+        hud.tally(c, a, g);
+      },
+      cue: (c) => hud.cue(c),
+    };
+    (this as unknown as { hud: StandHud }).hud = counting;
+    const dt = 1 / 60;
+    for (let i = 0; i < frames; i++) {
+      gl.finish();
+      const t0 = performance.now();
+      this.frame(dt, this.kit.now());
+      const t1 = performance.now();
+      this.kit.update(dt);
+      (view as unknown as { renderOnce(dt: number): void }).renderOnce(dt);
+      const t2 = performance.now();
+      scene.push(t1 - t0);
+      total.push(t2 - t0);
+    }
+    (this as unknown as { hud: StandHud }).hud = hud;
+    const drawCalls = view.renderer.info.render.calls;
+    view.start((d, now) => this.frame(d, now));
+    const kitAndDraw = total.map((t, i) => t - scene[i]);
+    return { frames, total: stat(total), scene: stat(scene), kitAndDraw: stat(kitAndDraw), hudCalls, drawCalls };
+  }
+
+  /**
+   * Frame by frame (a recording on a machine too slow for real time): `manual(true)` stops the loop; each `step(dt)`
+   * then draws exactly one frame dt seconds later.
+   */
+  manual(on: boolean): void {
+    if (on) this.view?.stop();
+    else this.view?.start((d, now) => this.frame(d, now));
+  }
+
+  step(dt: number): void {
+    const view = this.view as unknown as { renderOnce(dt: number): void } | null;
+    if (!view || !this.kit) return;
+    this.frame(dt, this.kit.now());
+    this.kit.update(dt);
+    view.renderOnce(dt);
   }
 
   dispose(): void {

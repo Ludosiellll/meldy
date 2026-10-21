@@ -200,7 +200,12 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
     sceneRef.current = scene;
     scene.start().catch(() => setFailed(true));
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('bench')) {
-      (window as unknown as { __stand?: StandScene }).__stand = scene;
+      const w = window as unknown as { __stand?: StandScene; __standBench?: (n: number) => unknown };
+      w.__stand = scene;
+      w.__standBench = (n: number) => scene.bench(n);
+      const m = w as unknown as { __standStep: (dt: number) => void; __standManual: (on: boolean) => void };
+      m.__standStep = (dt: number) => scene.step(dt);
+      m.__standManual = (on: boolean) => scene.manual(on);
     }
     return () => {
       scene.dispose();

@@ -10,11 +10,19 @@ to a zone in each question over the socket, as phones do.
 Then run the frontend with VITE_SUPABASE_URL=http://127.0.0.1:8000 and /api proxied to this port with WebSockets
 (frontend/scripts/stand-local.mjs does both), and open /live/<game> with the host token in sessionStorage:
 the script prints both. Refuses to start without --local.
+
+    python backend/scripts/live_stand_local.py --local --auto --record game.json
+
+plays the teacher itself (start, next after each reveal and top five, the end) and records what a projector
+receives: every message of a host socket with its time, and the database's host state whenever it changes. The
+projector page replays such a file frame by frame (stand-local.mjs replay) for a smooth video on a machine without
+a GPU.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import math
 import os
@@ -226,6 +234,83 @@ class Bot:
             await ws.send(lm.encode_input(self.seq, [(round(127 * dx / d), round(127 * dy / d), 0)]))
 
 
+class Recorder:
+    """A host socket that plays the teacher (with --auto) and writes what a projector receives."""
+
+    def __init__(self, url: str, db: FakeLiveDb, bots: int, auto: bool) -> None:
+        self.url = url
+        self.db = db
+        self.bots = bots
+        self.auto = auto
+        self.t0 = time.monotonic()
+        self.ws_log: list[list] = []          # [ms, "t" | "b", text or base64]
+        self.db_log: list[list] = []          # [ms, host state]
+        self.phase = "lobby"
+        self.since = time.monotonic()
+        self.done = asyncio.Event()
+
+    def ms(self) -> float:
+        return round((time.monotonic() - self.t0) * 1000.0, 1)
+
+    async def run(self) -> None:
+        async with connect(self.url, max_queue=None) as ws:
+            self.t0 = time.monotonic()
+            await ws.send(json.dumps({"t": "hello", "v": 1, "game": GAME, "token": HOST, "role": "host"}))
+            reader = asyncio.get_running_loop().create_task(self._read(ws))
+            try:
+                await self._drive(ws)
+            finally:
+                reader.cancel()
+
+    async def _read(self, ws) -> None:
+        async for msg in ws:
+            if isinstance(msg, bytes):
+                self.ws_log.append([self.ms(), "b", base64.b64encode(msg).decode()])
+            else:
+                self.ws_log.append([self.ms(), "t", msg])
+                obj = json.loads(msg)
+                if obj.get("t") == "stand" and obj.get("k") == "state" and obj["phase"] != self.phase:
+                    self.phase = obj["phase"]
+                    self.since = time.monotonic()
+
+    async def _drive(self, ws) -> None:
+        last_rev = None
+        last_roster = None
+        last_ping = 0.0
+        while True:
+            await asyncio.sleep(0.1)
+            now = time.monotonic()
+            if now - last_ping > 2:
+                last_ping = now
+                await ws.send(json.dumps({"t": "ping", "c": 0}))
+            st = self.db.host_state_sync()
+            key = json.dumps([r["player_id"] for r in st["roster"]] + [r["frozen"] for r in st["roster"]])
+            if st["rev"] != last_rev or key != last_roster:
+                last_rev, last_roster = st["rev"], key
+                self.db_log.append([self.ms(), st])
+            if not self.auto:
+                continue
+            t = now - self.since
+            moved = False
+            if self.phase == "lobby" and len(self.db.players) >= self.bots and t > 4:
+                moved = True
+            elif self.phase == "reveal" and t > 7.5:
+                moved = True
+            elif self.phase == "leaderboard" and t > 5:
+                moved = True
+            elif self.phase == "podium" and t > 9:
+                self.done.set()
+                return
+            if moved and self.db.state == self.phase:
+                self.db.next()
+                await ws.send(json.dumps({"t": "cmd", "op": "sync"}))
+                self.since = now + 100          # until the room says the next phase
+
+    def save(self, path: str) -> None:
+        with open(path, "w") as f:
+            json.dump({"game": GAME, "host_token": HOST, "ws": self.ws_log, "db": self.db_log}, f, ensure_ascii=False)
+
+
 def make_app(db: FakeLiveDb) -> FastAPI:
     app = FastAPI()
     app.include_router(api.router)
@@ -281,6 +366,8 @@ async def main() -> None:
     ap.add_argument("--boss", default="clock", choices=["clock", "skeleton"])
     ap.add_argument("--join-s", type=float, default=12.0, help="the bots join over this many seconds")
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--auto", action="store_true", help="play the teacher (start, next, the end)")
+    ap.add_argument("--record", default="", help="write what a projector receives to this file (with --auto)")
     a = ap.parse_args()
     if not a.local:
         raise SystemExit("live_stand_local.py is a local tool: pass --local")
@@ -301,15 +388,29 @@ async def main() -> None:
     print(json.dumps({"game": GAME, "host_token": HOST, "url": url}), flush=True)
     rng = random.Random(a.seed)
     bots: list[asyncio.Task] = []
+    recorder = Recorder(url, db, a.bots, a.auto) if (a.auto or a.record) else None
+    rec_task = asyncio.create_task(recorder.run()) if recorder else None
     # the bots join once the projector has opened the room (a phone before the host gets 4404 and retries anyway)
     while GAME not in api.hub.rooms:
         await asyncio.sleep(0.2)
+    if recorder:
+        await asyncio.sleep(2.0)                      # a moment of the empty arena first
     for i in range(a.bots):
         look = {"body": BODIES[(i * 3) % 5], "colour": COLOURS[(i * 5 + 1) % 8], "eyes": "round", "hat": HATS[(i * 7 + 2) % len(HATS)]}
         db.join(pid(i), NAMES[i % len(NAMES)], look)
         skill = 0.45 + rng.random() * 0.45
         bots.append(asyncio.create_task(Bot(i, url, db, skill, a.seed * 100 + i).run()))
         await asyncio.sleep(a.join_s / max(1, a.bots) * (0.5 + rng.random()))
+    if recorder and a.auto:
+        await recorder.done.wait()
+        if a.record:
+            recorder.save(a.record)
+            print(json.dumps({"recorded": a.record, "messages": len(recorder.ws_log), "states": len(recorder.db_log)}), flush=True)
+        server.should_exit = True
+        for t in bots:
+            t.cancel()
+        if rec_task:
+            rec_task.cancel()
     await task
 
 
