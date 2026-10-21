@@ -4,6 +4,17 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.18: a reload keeps the place (from the commit of this entry)
+
+- **A reload keeps the place** (owner, 21.10: «когда обновляется страница то состояние сбивается … в целом везде»): one
+  helper `lib/urlState.ts` (`useUrlState`, `setAddressParams` with `history.replaceState`, `useSessionDraft`). Study
+  session (oral self-check kept; a finished session shows «Занятие закончено.» instead of starting a new one), «Как на
+  экзамене» (`?q=`, the result screen `?done=` no longer starts a new timed try), the oral ticket (`?i=`), lecture tabs
+  (`?section=`, `?mode=`, with the fragment panel's `?frag=`), the exam sheet (`?filter=`, `?open=`), the subject page
+  sheets, «Лекции», «Ошибки», «Карта знаний», quiz results tab, the quick test's pasted text and the quiz setup's unsaved
+  settings. The quiz's «Продолжить» card stays (owner); «Продолжить» opens the question that was on screen.
+- Gate on de8c370 (clean worktree): pytest 2440, bot 389, sync ok, Vitest 392 files / 6517 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.17: lecture fragments open in one panel (from the commit of this entry)
 
 - **The fragment panel** (owner, 21.10: «в лекциях разве во время открытия фрагментов все должно так растягиваться? …
