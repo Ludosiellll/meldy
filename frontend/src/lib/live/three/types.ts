@@ -27,6 +27,12 @@ export interface Player {
    * see-through body for one player would need a sorted transparent pass of its own.
    */
   setAway(on: boolean): void;
+  /**
+   * The battle's freeze (a mixed game's movement round, docs/live/MODE_MIXED.md): a block of ice grows round the
+   * character; off, it breaks into chips. `instant` shows it as it is now (a state seen late), with no growing or
+   * breaking. Hidden while the character is a ghost or falls.
+   */
+  setIce(on: boolean, instant?: boolean): void;
   /** Map angle: 0 faces +y (down the map, towards the viewer), π/2 faces +x. Turns smoothly unless `instant`. */
   setFacing(rad: number, instant?: boolean): void;
   /** Map units; `z` is the height over the floor (negative while falling: see Arena.floorAt). */

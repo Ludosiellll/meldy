@@ -11,6 +11,7 @@ import type { BakedBodies } from './bodies';
 import { crowdMaterial, type CrowdPart, type SharedUniforms } from './materials';
 import type { Tags } from './tags';
 import type { Blobs } from './blobs';
+import { BREAK_S, FORM_S, ICE_CHIP_S, breakScale, formScale, type Ice } from './ice';
 import { uploadFirst } from './upload';
 
 /** Players a batch holds; the kit draws up to this many players (the server's room holds 60). */
@@ -140,6 +141,7 @@ export class Crowd {
     ramp: THREE.Texture,
     readonly tags: Tags,
     readonly blobs: Blobs,
+    readonly ice: Ice,
   ) {
     this.group.name = 'crowd';
     const models = MODELS.length;
@@ -188,6 +190,7 @@ export class Crowd {
 
   /** Every batch visible with one instance, for compiling the shaders before a round. */
   showAllForWarmUp(on: boolean): void {
+    this.ice.showForWarmUp(on);
     for (const b of this.batches) {
       b.mesh.visible = on || b.count > 0;
       if (on) b.mesh.count = Math.max(1, b.count);
@@ -235,6 +238,10 @@ export class CrowdPlayer {
   private target = 0;
   private ghost = false;
   private away = false;
+  private iced = false;
+  /** This player's time of the last ice change (−∞: drawn as it is, no growing or breaking). */
+  private iceAt = -1e9;
+  private readonly seed: number;
   private time = 0;
   private disposed = false;
   /** The kit frame this player was last updated in. */
@@ -251,6 +258,7 @@ export class CrowdPlayer {
     const hex = clothesHex(look.colour);
     this.color.set(hex);
     this.phase = ((seed * 0.6180339887) % 1 + 1) % 1;
+    this.seed = seed;
     this.machine = new PoseMachine(crowd.baked.clips, this.phase);
     // No name, no tag: a phone knows only its own player's name (CONTRACT §5), so the others carry none there.
     this.tag = name.trim() ? crowd.tags.add(name, hex) : -1;
@@ -273,6 +281,12 @@ export class CrowdPlayer {
 
   setAway(on: boolean): void {
     this.away = on;
+  }
+
+  setIce(on: boolean, instant = false): void {
+    if (on === this.iced) return;
+    this.iced = on;
+    this.iceAt = instant ? -1e9 : this.time;
   }
 
   setGhost(on: boolean): void {
@@ -338,6 +352,20 @@ export class CrowdPlayer {
       if (!this.ghost) this.crowd.blobs.push(wx, Math.min(0, floorY) + 0.02, wz, 0.62, 1, this.color.r, this.color.g, this.color.b, 0.95);
     }
     if (!falling || this.ghost) this.crowd.tags.push(this.tag, wx, wy + this.crowd.tagY, wz, this.ghost || this.away);
+    this.writeIce(wx, Math.min(0, this.z / UNITS), wz, falling);
+  }
+
+  /** The block of ice (growing, standing, breaking) and the chips of one that broke: none on a ghost or in a fall. */
+  private writeIce(wx: number, floorY: number, wz: number, falling: boolean): void {
+    const t = this.time - this.iceAt;
+    if (this.iced) {
+      if (this.ghost || falling) return;
+      this.crowd.ice.block(wx, floorY, wz, this.facing, t < FORM_S ? formScale(t / FORM_S) : 1);
+      return;
+    }
+    if (t > ICE_CHIP_S || this.ghost || falling) return;
+    if (t < BREAK_S) this.crowd.ice.block(wx, floorY, wz, this.facing, breakScale(t / BREAK_S));
+    this.crowd.ice.chips(wx, floorY, wz, t, this.seed);
   }
 
   private writeSlot(slot: Slot, row0: number, w: number): void {

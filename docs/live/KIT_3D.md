@@ -65,6 +65,7 @@ interface Player {
   readonly look: PlayerLook; readonly name: string; readonly pose: Pose
   setPose(pose: 'idle' | 'run' | 'jump' | 'fall' | 'cheer' | 'hit' | 'lie' | 'wave'): void
   setGhost(on: boolean): void
+  setIce(on: boolean, instant?: boolean): void        // the battle's freeze: a block of ice grows round it / breaks
   setFacing(rad: number, instant?: boolean): void     // map angle: 0 faces +y (down the map, to the viewer), π/2 faces +x
   setPosition(x: number, y: number, z?: number): void // map units; z = height over the floor (negative: falling)
   update(dt: number): void                            // done by the kit each frame unless you call it first
@@ -154,6 +155,15 @@ the column are exactly the server's solids. The projector and the phone both cre
 
 `player.setAway(on)` fades a player's name tag as a ghost's (the room's `F_AWAY`); the body is drawn as usual (a
 see-through body for one player would need a sorted transparent pass of its own).
+
+`player.setIce(on, instant?)` draws the battle's freeze in a mixed game's movement round (MODE_MIXED.md, the room's
+`F_ICE`): a pale faceted block round the character grows past its size and settles in 0.38 s; switched off, it swells
+and shrinks to nothing in 0.42 s and throws six chips. `instant` shows it as it is (a state seen late, the arena coming
+back after the button questions). The block is hidden while the character is a ghost or falls. Every block and chip of
+the scene is one instance of one transparent InstancedMesh drawn after the solid bodies (`internal/ice.ts`): no draw
+call while nobody is frozen, one otherwise; `view.warmUp()` compiles it with the rest. The screens choose when to call
+it: the projector (`stand/scene.ts`, `mixed: true`) breaks the ice on the right zone at the boss's blow and forms it on
+the fallen when the floor brings them back; frozen characters slide in their block (the idle pose), they do not run.
 
 `?fps=1` on the projector page and the phone's play page shows a corner readout: frames a second, the slowest 5 % of
 frames in ms and the 3D quality level (`2D` for the phone's light view). Never shown by default; it is how a real
