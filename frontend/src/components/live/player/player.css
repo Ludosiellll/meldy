@@ -101,6 +101,7 @@
 .dark .lp-preview, .dark .lp-me-big, .dark .lp-podium { background: radial-gradient(closest-side, rgba(243, 243, 240, 0.09), rgba(243, 243, 240, 0)); }
 .lp-card { background: var(--lp-card); border-radius: 22px; padding: 16px 18px; box-shadow: inset 0 0 0 1.5px var(--lp-line); font: 400 15.5px/1.45 var(--ph-sans, sans-serif); }
 .lp-card b { font-weight: 600; }
+.lp-card-more { display: block; margin-top: 8px; }
 
 /* ─── the line of a lost network and the passing line ───
    One floating stack. On the pages it sits at the top; in a question it sits over the boss's row (under the counter
@@ -393,6 +394,9 @@
 .lp-rv-item { background: var(--lp-card); border-radius: 20px; padding: 14px 16px 16px; box-shadow: inset 0 0 0 1.5px var(--lp-line); }
 .lp-rv-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; font: 600 14px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
 .lp-rv-badge { border-radius: 999px; padding: 6px 10px; font: 700 13px/1 var(--ph-sans, sans-serif); }
+/* a battle's movement round in the review */
+.lp-rv-mini { margin-left: 8px; padding: 3px 8px; border-radius: 999px; background: #dfe6fb; color: #23356b; font: 700 12px/1 var(--ph-sans, sans-serif); }
+.dark .lp-rv-mini { background: #2b3566; color: #dfe6fb; }
 .lp-rv-badge[data-ok='true'] { background: var(--lp-ok); color: #0b121c; }
 .lp-rv-badge[data-ok='false'] { background: transparent; color: var(--lp-ink-2); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
 .lp-rv-q { font: 600 17px/1.35 var(--ph-sans, sans-serif); margin: 8px 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }

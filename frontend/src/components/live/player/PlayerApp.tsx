@@ -5,6 +5,10 @@
  * A movement game «Встань на ответ» (state `mode: 'stand'`, docs/live/MODE_STAND.md) gets its own screens after the
  * join (components/live/stand/phone, loaded only then), and its own hero picker before the join when the mode is known
  * already (`modeHint`: the link's `mode=stand`, or this PIN met before in the tab).
+ *
+ * A battle with movement rounds (`mixed` in the state, docs/live/MODE_MIXED.md) keeps the battle's screens and wraps
+ * them in MixedPhone (its own chunk, loaded after the join): the room's socket for the whole game and, during each
+ * movement round, the arena in their place.
  */
 import { Suspense, lazy, useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Battle } from './Battle';
@@ -17,9 +21,11 @@ import { ReviewScreen } from './ReviewScreen';
 import { LiveBoss } from './art';
 import type { PlayerController } from './controller';
 import type { HapticKind, PlayerPlatform } from './platform';
+import { mixedOf } from '../../../lib/live/types';
 import './player.css';
 
 const StandGame = lazy(() => import('../stand/phone/StandGame'));
+const MixedPhone = lazy(() => import('../stand/phone/MixedPhone'));
 const StandBuilder = lazy(() => import('../stand/phone/StandBuilder'));
 
 export interface PlayerAppProps {
@@ -146,7 +152,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
       </div>
     );
   else if (st.state === 'lobby')
-    screen = <Lobby ctl={ctl} look={st.me.look} name={st.me.name} players={st.players} pin={s.pin} crowd={st.crowd ?? []} canEdit={!s.busy} />;
+    screen = <Lobby ctl={ctl} look={st.me.look} name={st.me.name} players={st.players} pin={s.pin} crowd={st.crowd ?? []} canEdit={!s.busy} rounds={mixedOf(st)?.rounds ?? null} />;
   else if ((st.state === 'podium' || st.state === 'ended') && st.final)
     screen = (
       <Final
@@ -195,8 +201,20 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
       </div>
     );
 
+  // A battle with movement rounds: its screens as they are, the arena over them in its rounds (the socket from the join
+  // to the end; the review is after it).
+  const mixed = !stand && !!st && !!s.game && !!mixedOf(st) && (s.step === 'game' || s.step === 'builder');
+  if (mixed)
+    screen = (
+      <Suspense fallback={screen}>
+        <MixedPhone ctl={ctl} s={s} platform={platform} haptic={haptic}>
+          {screen}
+        </MixedPhone>
+      </Suspense>
+    );
+
   return (
-    <main className="lp" data-step={s.step} data-state={st?.state ?? 'none'} data-mode={stand ? 'stand' : 'boss'} data-platform={platform.kind} aria-label={title}>
+    <main className="lp" data-step={s.step} data-state={st?.state ?? 'none'} data-mode={stand ? 'stand' : mixed ? 'mixed' : 'boss'} data-platform={platform.kind} aria-label={title}>
       {screen}
       {/* Over the boss's row in a question (never the counter, the timer, the question or the answers). */}
       {(lost || s.notice) && (

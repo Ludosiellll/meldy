@@ -1,6 +1,7 @@
 /**
  * «Разбор»: the player's own answers and the keys of this game's played questions (CONTRACT §5: `live_review`, the
- * exam's other keys never).
+ * exam's other keys never). A battle's movement round (`stand`, docs/live/MODE_MIXED.md) says so: the answer there is
+ * the zone the player stood in («вы стояли тут»).
  */
 import type { Review } from '../../../lib/live/types';
 import type { PlayerController } from './controller';
@@ -42,9 +43,12 @@ export function ReviewScreen({ ctl, review, error, standalone, back }: ReviewScr
             {review.items.map((item) => (
               <li key={item.qi} className="lp-rv-item">
                 <div className="lp-rv-top">
-                  <span>Вопрос {item.qi + 1}</span>
+                  <span>
+                    Вопрос {item.qi + 1}
+                    {item.stand ? <span className="lp-rv-mini">Мини-игра</span> : null}
+                  </span>
                   <span className="lp-rv-badge" data-ok={item.correct ? 'true' : 'false'}>
-                    {item.correct ? 'Верно' : item.choice === null ? 'Без ответа' : 'Неверно'}
+                    {item.correct ? 'Верно' : item.choice === null ? (item.stand ? 'Не встали на ответ' : 'Без ответа') : 'Неверно'}
                   </span>
                 </div>
                 <p className="lp-rv-q">{item.text}</p>
@@ -60,7 +64,7 @@ export function ReviewScreen({ ctl, review, error, standalone, back }: ReviewScr
                         <span className="lp-sr">{OPTION_STYLES[i]?.letter}: </span>
                         {text}
                       </span>
-                      {(key || mine) && <small>{key && mine ? 'ваш ответ, верный' : key ? 'верный ответ' : 'ваш ответ'}</small>}
+                      {(key || mine) && <small>{key && mine ? (item.stand ? 'вы стояли тут, верно' : 'ваш ответ, верный') : key ? 'верный ответ' : item.stand ? 'вы стояли тут' : 'ваш ответ'}</small>}
                     </div>
                   );
                 })}

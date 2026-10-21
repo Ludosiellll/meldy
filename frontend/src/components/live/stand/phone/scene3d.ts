@@ -14,7 +14,7 @@ import type { Arena, ArenaShape, Boss, BossKind, Kit, MoveMap, Player, View } fr
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook } from '../../../../lib/live/three';
 import { QUALITY_LEVELS, QualityGovernor } from '../../../../lib/live/three/quality';
 import type { Pose as Sample } from '../../../../lib/live/move/interp';
-import { F_AWAY, isGhost, kindOf, KIND_PLAYER, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, isIced, kindOf, KIND_PLAYER, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
 import type { MapJson } from '../../../../lib/live/move/sim';
 import type { Backdrop, FrameInput } from './sprites';
 
@@ -38,6 +38,10 @@ interface Tracked {
   seen: number;
   /** Kit seconds until which this character plays its fall (the floor dropped under it). */
   fallUntil: number;
+  /** The battle's ice drawn now (a mixed game's F_ICE; it forms only in sight, so the fallen get it when back). */
+  iced: boolean;
+  /** Not drawn yet: its ice is shown as it is, without growing. */
+  fresh: boolean;
 }
 
 export class PhoneScene implements Backdrop {
@@ -57,6 +61,9 @@ export class PhoneScene implements Backdrop {
   private alarm = false;
   /** The cheapest level could not keep up: the light view takes over. */
   slow = false;
+  /** kit.now() of the loop's last start, and of the last stomp's blow on the floor. */
+  private startedAt = -Infinity;
+  private impactAt = -Infinity;
 
   private constructor(
     private readonly kit: Kit,
@@ -106,6 +113,7 @@ export class PhoneScene implements Backdrop {
   }
 
   start(onFrame: (dt: number) => void): void {
+    this.startedAt = this.kit.now();
     this.view?.start((dt) => onFrame(dt));
   }
 
@@ -137,7 +145,8 @@ export class PhoneScene implements Backdrop {
       const zone = (arena.map.zones ?? [])[st.res.key];
       if (fresh) {
         boss.setPhase('stomp');
-        arena.collapse(zone?.id ?? '', this.kit.now() + boss.stompImpactS);
+        this.impactAt = this.kit.now() + boss.stompImpactS;
+        arena.collapse(zone?.id ?? '', this.impactAt);
         const until = this.kit.now() + boss.stompImpactS + 1.3;
         for (const id of st.res.fell) {
           const t = this.tracked.get(id);
@@ -184,7 +193,7 @@ export class PhoneScene implements Backdrop {
         let t = this.tracked.get(id);
         if (!t) {
           const entry = input.roster.get(id);
-          t = { player: this.kit.createPlayer(toPlayerLook(entry?.[4]), ''), x: p.x, y: p.y, seen: f, fallUntil: 0 };
+          t = { player: this.kit.createPlayer(toPlayerLook(entry?.[4]), ''), x: p.x, y: p.y, seen: f, fallUntil: 0, iced: false, fresh: true };
           t.player.setPosition(p.x, p.y);
           this.tracked.set(id, t);
         }
@@ -196,7 +205,7 @@ export class PhoneScene implements Backdrop {
       if (!this.me || this.you !== input.me.id) {
         this.me?.player.dispose();
         const entry = input.roster.get(input.me.id);
-        this.me = { player: this.kit.createPlayer(toPlayerLook(entry?.[4]), 'Вы'), x: input.me.x, y: input.me.y, seen: f, fallUntil: 0 };
+        this.me = { player: this.kit.createPlayer(toPlayerLook(entry?.[4]), 'Вы'), x: input.me.x, y: input.me.y, seen: f, fallUntil: 0, iced: false, fresh: true };
         this.you = input.me.id;
         this.placeCamera(input.me.x, input.me.y, true);
       }
@@ -223,14 +232,25 @@ export class PhoneScene implements Backdrop {
     t.x = x;
     t.y = y;
     const p = t.player;
-    if (now < t.fallUntil) {
+    const falling = now < t.fallUntil;
+    const ice = isIced(flags);
+    // the ice breaks on the right zone at the boss's blow, not before it; it forms only in sight
+    const breaks = !ice && now >= this.impactAt + 0.25;
+    if (ice !== t.iced && (breaks || (ice && !falling && !isGhost(flags)))) {
+      t.iced = ice;
+      // drawn as it is when first seen or right after the loop started again (ice changed in the button questions)
+      p.setIce(ice, t.fresh || now - this.startedAt < 0.3);
+    }
+    t.fresh = false;
+    if (falling) {
       p.setGhost(false);
       p.setPose('fall');
       p.setPosition(x, y, Math.min(0, arena.floorAt(x, y)));
       return;
     }
     p.setGhost(isGhost(flags) || (flags & F_AWAY) !== 0);
-    p.setPose(speed > RUN_SPEED ? 'run' : 'idle');
+    // in ice a character slides, it does not run
+    p.setPose(speed > RUN_SPEED && !t.iced ? 'run' : 'idle');
     if (speed > RUN_SPEED) p.setFacing(Math.atan2(dx, dy));
     p.setPosition(x, y, isGhost(flags) ? 0 : Math.min(0, arena.floorAt(x, y)));
   }

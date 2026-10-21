@@ -5,10 +5,12 @@
  * screens render this snapshot; positions never go through it (the screen's animation frame reads `client.frame()`).
  *
  * «Связь пропала» shows after 1 s without snapshots once the room has spoken (§9): the last picture stays meanwhile.
+ * A mixed room (docs/live/MODE_MIXED.md) sends snapshots only during its movement rounds: there «lost» counts only
+ * while the arena is on (`arenaLive`), from the moment it came on.
  * A final close (the game ended, kicked, a bad token, the room closed) stops for good and says why.
  */
 import { MoveClient, type MoveClientOptions, type MoveStatus } from '../../../../lib/live/move';
-import { CLOSE, type StandHello, type StandMe, type StandMessage, type StandState } from '../../../../lib/live/move/protocol';
+import { arenaLive, CLOSE, type StandHello, type StandMe, type StandMessage, type StandState } from '../../../../lib/live/move/protocol';
 
 export const LOST_MS = 1000;
 /** Phones see others this far in the past (MODE_STAND §9: mobile jitter). */
@@ -47,6 +49,8 @@ export class StandSession {
   private timer: ReturnType<typeof setInterval> | null = null;
   private readonly checkMs: number;
   private disposed = false;
+  /** A mixed room: when its arena came on (snapshots are due only from then). */
+  private liveSince: number | null = null;
 
   constructor(o: SessionOptions) {
     this.now = o.now ?? (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
@@ -102,14 +106,25 @@ export class StandSession {
 
   private check(): void {
     const at = this.client.lastSnapAt;
-    const lost = this.view.ready && this.view.status !== 'closed' && (at === null || this.now() - at > LOST_MS);
+    const st = this.view.state;
+    let lost: boolean;
+    if (st && st.round !== undefined) {
+      // a mixed room: snapshots only while its arena is on, the last one maybe from a round ago
+      const since = this.liveSince;
+      const last = since === null ? null : Math.max(since, at ?? -Infinity);
+      lost = this.view.ready && this.view.status !== 'closed' && last !== null && this.now() - last > LOST_MS;
+    } else lost = this.view.ready && this.view.status !== 'closed' && (at === null || this.now() - at > LOST_MS);
     if (lost !== this.view.lost) this.set({ lost });
   }
 
   private onStand(m: StandMessage): void {
     if (m.k === 'hello') this.set({ hello: m });
-    else if (m.k === 'state') this.set({ state: m });
-    else this.set({ me: m });
+    else if (m.k === 'state') {
+      const on = m.round !== undefined && arenaLive(m);
+      if (!on) this.liveSince = null;
+      else if (this.liveSince === null) this.liveSince = this.now();
+      this.set({ state: m });
+    } else this.set({ me: m });
   }
 
   private set(patch: Partial<StandView>): void {
