@@ -1,5 +1,5 @@
 /**
- * The live game «Битва с монстром» in Telegram (docs/live/CONTRACT.md §9; meldy-notes
+ * The live games in Telegram: «Битва с монстром» and «Встань на ответ» (docs/live/CONTRACT.md §9, MODE_STAND.md; meldy-notes
  * 10_Project/Telegram_Live_Game_Spec_2026-10-20.md): the bot's texts — the group post with «Играть», its live edits, the
  * final post — as `liveTexts` (the `LiveTexts` of game.ts, which the routes `/game/post` and `/game/sync` call), and the
  * private chat's answer to `/start play_<PIN>` and `/start r_<game>` (the router's hook) while the Mini App's direct link
@@ -64,6 +64,9 @@ export const ENDED = 'Игра закончилась';
 export const WON = 'Дедлайн повержен';
 export const LOST = 'Дедлайн победил';
 export const OWN_REVIEW = 'Свой разбор — у каждого в игре.';
+/** «Встань на ответ»: its own plain words (no boss to beat, places count). */
+export const STAND = 'Встань на ответ';
+export const STAND_OVER = 'Игра окончена';
 export const PRIVATE_PLAY = 'Нажмите «Играть»: игра откроется здесь, в Telegram.';
 export const PRIVATE_REVIEW = 'Ваши ответы и верные варианты этой игры — по кнопке «Разбор».';
 const NBSP = ' ';
@@ -86,8 +89,21 @@ function hostLine(facts: LivePost): string {
   return t(host ? `Ведёт ${host} · PIN ${pinText(facts.pin)}` : `PIN ${pinText(facts.pin)}`);
 }
 
+/** «Встань на ответ»: the mode as the title, then the test and its size, the PIN to come in by, who leads. */
+function standHead(facts: LivePost): string[] {
+  return [b(STAND), t(`Игра по тесту «${facts.title}». ${glue(facts.qCount, 'вопрос', 'вопроса', 'вопросов')}.`)];
+}
+
+function standDoor(facts: LivePost): string[] {
+  const host = facts.host?.trim();
+  return [t(`Заходите по PIN ${pinText(facts.pin)}.`), ...(host ? [t(`Ведёт ${host}.`)] : [])];
+}
+
 /** The post (`/game/post`, sent with sound): title, mode and count, host and PIN, players; «Играть». */
 export function livePost(facts: LivePost, links: LiveLinks): Out {
+  if (facts.mode === 'stand') {
+    return { text: lines(...standHead(facts), ...standDoor(facts), t(`Играют ${facts.players}`)), keyboard: playKeyboard(facts, links) };
+  }
   return { text: lines(...head(facts), hostLine(facts), t(`Играют ${facts.players}`)), keyboard: playKeyboard(facts, links) };
 }
 
@@ -97,6 +113,14 @@ export function livePost(facts: LivePost, links: LiveLinks): Out {
  * removed. Until the end «Играть» stays: a late player can still join.
  */
 export function liveEdit(facts: LiveNow, links: LiveLinks): Out {
+  if (facts.mode === 'stand') {
+    if (facts.state === 'podium' || facts.state === 'ended') return { text: lines(...standHead(facts), t(`${STAND_OVER}.`)), keyboard: null };
+    if (facts.state === 'lobby' || facts.qi < 0) return livePost(facts, links);
+    return {
+      text: lines(...standHead(facts), t(`Идёт вопрос ${facts.qi + 1} из ${facts.qCount}.`), ...standDoor(facts), t(`Играют ${facts.players}`)),
+      keyboard: playKeyboard(facts, links),
+    };
+  }
   if (facts.state === 'podium' || facts.state === 'ended') return { text: lines(...head(facts), t(ENDED)), keyboard: null };
   if (facts.state === 'lobby' || facts.qi < 0) return livePost(facts, links);
   const hp = facts.hpPct === null ? '' : ` · у Дедлайна ${facts.hpPct} %`;
@@ -108,10 +132,28 @@ export function liveEdit(facts: LiveNow, links: LiveLinks): Out {
 
 /** The final post (a new message, silent): who won, the top three (only when given), the class's accuracy. */
 export function liveFinal(facts: LiveFinal, links: LiveLinks): Out {
+  if (facts.mode === 'stand') return standFinal(facts, links);
   // Names are the players' own (escaped, never glued): «1. Лена — 779».
   const names = (facts.top ?? []).slice(0, 3).map((row, i) => `${i + 1}. ${esc(row.name.trim())}${NBSP}— ${Math.round(row.dmg)}`);
   return {
     text: lines(b(facts.won ? WON : LOST), ...names, t(`Верных ответов ${facts.accuracyPct} %. ${OWN_REVIEW}`)),
+    keyboard: [[
+      { text: REVIEW, url: reviewUrl(facts.gameId, facts.direct, links.bot) },
+      { text: ONE_MORE, url: `${links.site}/exams/c/${facts.containerId}` },
+    ]],
+  };
+}
+
+/**
+ * «Встань на ответ»'s final: no boss was beaten, places count. «Игра окончена. На первом месте Дима» (a name is never
+ * declined), the first three with their points when the author allows names, the class's right answers.
+ */
+function standFinal(facts: LiveFinal, links: LiveLinks): Out {
+  const top = (facts.top ?? []).slice(0, 3).filter((row) => row.name.trim());
+  const first = top[0] ? `. На первом месте ${esc(top[0].name.trim())}` : '';
+  const names = top.map((row, i) => `${i + 1}. ${esc(row.name.trim())}, ${glue(Math.round(row.dmg), 'очко', 'очка', 'очков')}`);
+  return {
+    text: lines(`<b>${STAND_OVER}${first}</b>`, ...names, t(`Верных ответов ${facts.accuracyPct} %. Свои ответы каждый посмотрит в игре.`)),
     keyboard: [[
       { text: REVIEW, url: reviewUrl(facts.gameId, facts.direct, links.bot) },
       { text: ONE_MORE, url: `${links.site}/exams/c/${facts.containerId}` },

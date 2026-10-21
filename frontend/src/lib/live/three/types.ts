@@ -83,6 +83,8 @@ export interface ViewOptions {
   tagScale?: number;
   /** Leave out name tags that would overlap others in a crowd (default true): no tag is ever cut by another. */
   tagDeclutter?: boolean;
+  /** How high over the feet the name tags sit, metres (default 2.95; a close phone camera wants them lower). */
+  tagHeight?: number;
   /** Keep the picture after drawing (screenshots only: it costs speed). */
   preserveDrawingBuffer?: boolean;
 }

@@ -67,6 +67,7 @@ export class ViewImpl {
     if (typeof options.quality === 'number') this.setQuality(options.quality);
     this.kit.tags.scale = options.tagScale ?? 1;
     this.kit.tags.declutter = options.tagDeclutter ?? true;
+    if (options.tagHeight !== undefined) this.kit.crowd.tagY = options.tagHeight;
     this.observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.resize()) : null;
     this.observer?.observe(canvas);
     this.onVisibility = () => {

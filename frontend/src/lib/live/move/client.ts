@@ -93,6 +93,8 @@ export class MoveClient {
   frozen = false;
   /** Mode A: the latest of each message (null before the first; kept across a reconnect until replaced). */
   stand: { hello: StandHello | null; state: StandState | null; me: StandMe | null } = { hello: null, state: null, me: null };
+  /** When the last snapshot came (the `now` clock), null before the first: a screen says «connection lost» from it. */
+  lastSnapAt: number | null = null;
 
   private ws: WebSocket | null = null;
   private readonly buffer = new SnapshotBuffer();
@@ -321,7 +323,8 @@ export class MoveClient {
     if (!snap) return;
     const first = this.buffer.latest() === null;
     this.buffer.push(snap);
-    this.clock.sample(snap.t, this.now());
+    this.lastSnapAt = this.now();
+    this.clock.sample(snap.t, this.lastSnapAt);
     const you = this.welcome?.you;
     if (you === undefined || !this.predictor) return;
     const mine = snap.ents.find((e) => e.id === you);
