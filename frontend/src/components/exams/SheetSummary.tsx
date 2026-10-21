@@ -344,7 +344,7 @@ function ReadinessSummary({ summary, confidence, selfRated = false, filter, onFi
       {/* «Подтверждено ответами — 6 из 40.» (17/25, the figure at 600): the one number of the card, no date after it. */}
       {head && (
         <p className="ex-stmt">
-          Подтверждено ответами{NBSP}—{' '}
+          Выучено{' '}
           <b>
             {summary.confirmed}
             {NBSP}из{NBSP}
@@ -424,7 +424,7 @@ export function PhoneSummary({ coverage, readiness, facts, filter, onFilter, ope
       {answers && (
         <>
           <p className="ex-psum-line">
-            Подтверждено ответами{NBSP}— <b>{confirmedCountWords(answers.summary.confirmed, answers.summary.total)}</b>
+            Выучено <b>{confirmedCountWords(answers.summary.confirmed, answers.summary.total)}</b>
             {figure ? null : <>. {toggle}</>}
           </p>
           {answers.staleLine && <p className="ex-psum-line ex-psum-note">{glue(answers.staleLine)}</p>}
@@ -553,7 +553,7 @@ export function peakCountLine(peak: PeakView): string {
 export function peakGrowthSpoken(growth: PeakGrowth): string {
   const days = growth.days > 0 ? ` ${daysPhrase(growth.days)}` : '';
   const today = growth.today > 0 ? `, плюс ${growth.today} сегодня` : '';
-  return `Подтверждено ответами: от 0 до ${growth.to} из ${growth.total}${days}${today}.`;
+  return `Выучено: от 0 до ${growth.to} из ${growth.total}${days}${today}.`;
 }
 
 /**
@@ -567,7 +567,7 @@ export function peakGrowthSpoken(growth: PeakGrowth): string {
 export function PeakSummary({ peak, confidence, onClose }: { peak: PeakView; confidence: string | null; onClose: () => void }) {
   const was = peak.before !== null && peak.before !== peak.after ? peak.before : null;
   const growth = peak.growth && peak.growth.to > 0 ? peak.growth : null;
-  const confirmTitle = peak.title === 'Подтверждено ответами';
+  const confirmTitle = peak.title === 'Выучено';
   return (
     <div className="ex-peak" aria-live="polite">
       <p className="ex-why-t">{peak.title}</p>
@@ -581,7 +581,7 @@ export function PeakSummary({ peak, confidence, onClose }: { peak: PeakView; con
             </span>
           </p>
           <p className="ex-peak-growth" aria-hidden="true">
-            {!confirmTitle && <span>подтверждено</span>}
+            {!confirmTitle && <span>выучено</span>}
             {growth.days > 0 && <span>{daysPhrase(growth.days)}</span>}
             {growth.today > 0 && <b>+{growth.today} сегодня</b>}
           </p>

@@ -375,7 +375,7 @@ describe('ExamDraw', () => {
       expect(mocks.fetchSheet).toHaveBeenCalledWith('exam-1');
       expect(mocks.fetchSheetEvents).toHaveBeenCalledWith([hash(1), hash(2)]);
       expect(document.querySelector('.dw-pool')?.textContent).toBe('Единственный вопрос, который ждёт подтверждения.');
-      expect(screen.getByText('Из вопросов, которые ждут подтверждения')).toBeInTheDocument();
+      expect(screen.getByText('Из вопросов с одним полным ответом')).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Отвечать' }));
       expect(location).toBe('/exams/exam-1/ticket?q=q2');
     });

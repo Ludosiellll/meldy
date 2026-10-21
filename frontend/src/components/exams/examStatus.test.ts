@@ -334,7 +334,7 @@ describe('examStatus: the cheat sheet and the answers', () => {
     const left = examStatus(input({ coverage: MAPPED, sheet: { written: 14, lines: { left: 21, total: 42 } }, answers: { answered: 18, untested: 0 } }));
     expect(title(left)).toBe('На шпаргалке осталась 21 строка из 42');
     const bare = examStatus(input({ coverage: MAPPED, sheet: { state: 'error' }, answers: { answered: 5, confirmed: 2 } }));
-    expect(title(bare)).toBe('Подтверждено ответами: 2 из 18');
+    expect(title(bare)).toBe('Выучено: 2 из 18');
   });
 
   it('never puts a percentage in the status block', () => {

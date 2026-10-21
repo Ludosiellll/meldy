@@ -672,8 +672,8 @@ function answeringStatus(input: ExamStatusInput): ExamStatus {
   }
   return {
     ...base,
-    title: plain(`Подтверждено ответами: ${answers.confirmed} из ${input.total}`),
-    text: 'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.',
+    title: plain(`Выучено: ${answers.confirmed} из ${input.total}`),
+    text: 'Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно.',
     brief: 'Отвечайте дальше.',
     action: draw,
   };

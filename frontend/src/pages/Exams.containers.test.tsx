@@ -123,7 +123,7 @@ const SCENARIOS: Record<string, Scenario> = {
       mocks.listExams.mockResolvedValue(THREE());
       mocks.fetchQuestionEvents.mockResolvedValue(Array.from({ length: 6 }, (_, index) => passes(index + 1)).flat());
     },
-    ready: () => screen.findByText(/подтверждено 6/),
+    ready: () => screen.findByText(/выучено 6/),
   },
   'list-phone': {
     phone: true,
@@ -131,7 +131,7 @@ const SCENARIOS: Record<string, Scenario> = {
       mocks.listExams.mockResolvedValue(THREE().slice(0, 2));
       mocks.fetchQuestionEvents.mockResolvedValue(Array.from({ length: 6 }, (_, index) => passes(index + 1)).flat());
     },
-    ready: () => screen.findByText(/подтверждено 6/),
+    ready: () => screen.findByText(/выучено 6/),
   },
   'error-desk': {
     setup: () => {
@@ -329,7 +329,7 @@ describe('«Экзамены» with exam containers', () => {
     expect(hashes).toHaveLength(40);
     expect(hashes.some((sent) => ORAL_HASHES.includes(sent))).toBe(false);
     const first = await screen.findByRole('link', { name: /^Микроэкономика/ });
-    await waitFor(() => expect(plain(first.textContent)).toContain('подтверждено 6'));
+    await waitFor(() => expect(plain(first.textContent)).toContain('выучено 6'));
   });
 
   it('a computer: the name, one meta line with the subjects and the figure, the bar, no pill', async () => {
@@ -366,7 +366,7 @@ describe('«Экзамены» with exam containers', () => {
     // The oral rows keep today's phone lines.
     const oral = within(list).getByRole('link', { name: /^Микроэкономика/ }).closest('li')!;
     expect(plain(oral.querySelector('.ex-row-meta')?.textContent)).toBe('15 октября, через 12 дней');
-    await waitFor(() => expect(plain(oral.querySelector('.ex-row-counts')?.textContent)).toBe('В лекциях: есть 24 · частично 7 · нет 9 · подтверждено 6'));
+    await waitFor(() => expect(plain(oral.querySelector('.ex-row-counts')?.textContent)).toBe('В лекциях: есть 24 · частично 7 · нет 9 · выучено 6'));
   });
 
   it('an account with containers only: «Новый экзамен» is there, no empty page', async () => {

@@ -393,9 +393,9 @@ describe('ExamDetail: the sheet', () => {
     await waitFor(() => expect(row('q1')).toHaveAttribute('data-readiness', 'confirmed'));
     expect(row('q1').querySelector('.ex-qn [data-mark="ring"]')).not.toBeNull();
     // The screen reader hears the age of the confirmation, counted from the last passed answer.
-    expect(plain(row('q1').querySelector('.ex-qn')?.textContent)).toBe('1, подтверждено вчера');
-    expect(plain(row('q2').querySelector('.ex-qn')?.textContent)).toBe('2, названо достаточно, не подтверждено');
-    expect(plain(row('q4').querySelector('.ex-qn')?.textContent)).toBe('4, названо недостаточно');
+    expect(plain(row('q1').querySelector('.ex-qn')?.textContent)).toBe('1, выучено вчера');
+    expect(plain(row('q2').querySelector('.ex-qn')?.textContent)).toBe('2, ответ полный, ещё не выучено');
+    expect(plain(row('q4').querySelector('.ex-qn')?.textContent)).toBe('4, ответ неполный');
     expect(row('q2')).toHaveAttribute('data-readiness', 'once');
     expect(row('q2').querySelector('.ex-qn [data-mark="under"]')).not.toBeNull();
     expect(row('q4')).toHaveAttribute('data-readiness', 'not_passed');
@@ -429,7 +429,7 @@ describe('ExamDetail: the sheet', () => {
     expect(plain(action.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     // Nothing about answers before the first one: the status at the top says what to do.
     await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalled());
-    expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность|Подтверждено ответами/);
+    expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность|Выучено/);
     expect(document.body.textContent).not.toMatch(/шанс сдать|вы выучили|ИИ понимает/i);
 
     fireEvent.click(how);
@@ -508,7 +508,7 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     await waitFor(() => expect(document.querySelectorAll('.ex-q')).toHaveLength(1));
     const legend = await within(column()).findByRole('list', { name: 'Показать вопросы по ответам' });
-    expect(within(legend).getByRole('button', { name: 'названо недостаточно 1' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(legend).getByRole('button', { name: 'ответ неполный 1' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('counts confirmed questions from the journal, with no date after the number', async () => {
@@ -519,25 +519,25 @@ describe('ExamDetail: the sheet', () => {
     renderDetail();
     await opened();
     const since = formatShortDay(dayKey(-9));
-    const statement = await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
-    expect(plain(statement.textContent)).toBe('Подтверждено ответами — 6 из 40.');
+    const statement = await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Выучено'));
+    expect(plain(statement.textContent)).toBe('Выучено 6 из 40.');
     expect(plain(column().textContent)).not.toContain(since);
     // One number on the card: what «подтверждено» means, without a second share.
-    expect(within(column()).getByText('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.')).toBeInTheDocument();
+    expect(within(column()).getByText('Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно.')).toBeInTheDocument();
     expect(plain(column().textContent)).not.toContain('Билетов, где подтверждены');
     // The growth from history, once the history spans more than a day.
     expect(within(column()).getByText(named(`С ${formatDay(dayKey(-9))}: 0 → 6 за 9 дней.`))).toBeInTheDocument();
 
     const legend = within(column()).getByRole('list', { name: 'Показать вопросы по ответам' });
     expect(within(legend).getAllByRole('button').map((item) => plain(item.textContent).replace(/^12/, ''))).toEqual([
-      'подтверждено 6',
-      'названо достаточно, не подтверждено 0',
-      'названо недостаточно 0',
-      'не проверялось 34',
+      'выучено 6',
+      'ответ полный, ещё не выучено 0',
+      'ответ неполный 0',
+      'ещё не отвечали 34',
     ]);
-    fireEvent.click(within(legend).getByRole('button', { name: 'подтверждено 6' }));
+    fireEvent.click(within(legend).getByRole('button', { name: 'выучено 6' }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(6);
-    fireEvent.click(within(legend).getByRole('button', { name: 'не проверялось 34' }));
+    fireEvent.click(within(legend).getByRole('button', { name: 'ещё не отвечали 34' }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(34);
   });
   it('keeps a confirmation older than 14 days among the confirmed and says it is «пора проверить»', async () => {
@@ -551,12 +551,12 @@ describe('ExamDetail: the sheet', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(await within(side).findByText(named('Пора проверить: 1 — подтверждён больше 14 дней назад.'))).toBeInTheDocument();
-    const statement = within(side).getByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
-    expect(plain(statement.textContent)).toBe('Подтверждено ответами — 2 из 40.');
-    expect(plain(row('q1').querySelector('.ex-qn')?.textContent)).toBe('1, подтверждено 20 дней назад, пора проверить');
+    expect(await within(side).findByText(named('1 вопрос выучен больше 14 дней назад. Пора его проверить.'))).toBeInTheDocument();
+    const statement = within(side).getByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Выучено'));
+    expect(plain(statement.textContent)).toBe('Выучено 2 из 40.');
+    expect(plain(row('q1').querySelector('.ex-qn')?.textContent)).toBe('1, выучено 20 дней назад, пора проверить');
     fireEvent.click(screen.getByRole('button', { name: 'Вопрос 1 о денежном рынке' }));
-    expect(await within(column()).findByText(named('Подтверждено 20 дней назад — пора проверить.'))).toBeInTheDocument();
+    expect(await within(column()).findByText(named('Выучено 20 дней назад. Пора проверить.'))).toBeInTheDocument();
   });
 
   it('filters the sheet by a coverage mark and back', async () => {
@@ -689,7 +689,7 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     const side = column();
     expect(within(side).getByText('билетов, где оба вопроса есть в лекциях')).toBeInTheDocument();
-    expect(plain(document.body.textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Сравнить уверенность|Вы отметили/);
+    expect(plain(document.body.textContent)).not.toMatch(/Ответов по билетам ещё не было|Выучено|Сравнить уверенность|Вы отметили/);
     expect(within(side).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
     // The status waits for the answers too; after 300 ms one quiet line says what is going on.
     expect(statusCard()).toHaveAttribute('aria-busy', 'true');
@@ -704,7 +704,7 @@ describe('ExamDetail: the sheet', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Готово' })[0]);
     await statusSays('Можно отвечать на билеты');
     // No answers yet: no answers card at all, and the status leads to the first ticket.
-    expect(plain(column().textContent)).not.toMatch(/Ответов по билетам ещё не было|Подтверждено ответами|Загружаем историю ответов/);
+    expect(plain(column().textContent)).not.toMatch(/Ответов по билетам ещё не было|Выучено|Загружаем историю ответов/);
     expect(within(statusCard()).getByRole('link', { name: 'Тянуть билет' })).toHaveClass('sf-primary');
   });
   it('reads the answer history next to the lecture titles, not after them', async () => {
@@ -931,7 +931,7 @@ describe('ExamDetail: the status block (owner, 2026-10-07)', () => {
     mocks.fetchQuestionEvents.mockResolvedValue([answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
     const first = renderDetail();
     await opened();
-    await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
+    await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Выучено'));
     expect(plain(column().textContent)).not.toContain('Сравнить уверенность');
     expect(within(column()).queryByRole('button', { name: 'Самооценка' })).toBeNull();
     first.unmount();
@@ -939,7 +939,7 @@ describe('ExamDetail: the status block (owner, 2026-10-07)', () => {
     mocks.fetchQuestionEvents.mockResolvedValue([rating(2, dayKey(-2), 3), answer(1, dayKey(-3), true, 's1'), answer(1, dayKey(-1), true, 's2')]);
     renderDetail();
     await opened();
-    expect(await within(column()).findByText(/Сравнить уверенность с ответами пока нельзя/)).toBeInTheDocument();
+    expect(await within(column()).findByText(/Пока мало ответов, чтобы сравнить их/)).toBeInTheDocument();
     expect(within(column()).getByRole('button', { name: 'Самооценка' })).toBeInTheDocument();
   });
 });
@@ -1122,24 +1122,24 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     expect(window.sessionStorage.getItem('meldy_exam_peak_exam-1')).toBeNull();
 
     const side = column();
-    expect(await within(side).findByText('Подтверждено ответами')).toBeInTheDocument();
+    expect(await within(side).findByText('Выучено')).toBeInTheDocument();
     // The growth from history: «0 → 1 из 40», «за 3 дня», «+1 сегодня» — no struck-out figure.
     const big = side.querySelector('.ex-peak-big') as HTMLElement;
     expect(plain(big.querySelector('.ex-now')?.textContent)).toBe('0 → 1 из 40');
     expect(big.querySelector('s, del')).toBeNull();
     expect(plain(big.querySelector('.ex-sr')?.textContent)).toBe(
-      'Подтверждено ответами: 1 из 40, было 0. Подтверждено ответами: от 0 до 1 из 40 за 3 дня, плюс 1 сегодня.',
+      'Выучено: 1 из 40, было 0. Выучено: от 0 до 1 из 40 за 3 дня, плюс 1 сегодня.',
     );
     expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('за 3 дня+1 сегодня');
-    expect(plain(side.querySelector('.ex-peak .ex-peak-stmt')?.textContent)).toBe('Вопрос 1 подтверждён ответом, который вы дали только что.');
-    expect(within(side).getByText(named('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов. Билетов, где подтверждены оба вопроса, — 0 %.'))).toBeInTheDocument();
+    expect(plain(side.querySelector('.ex-peak .ex-peak-stmt')?.textContent)).toBe('Вопрос 1 выучен.');
+    expect(within(side).getByText(named('Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно. В 0 % билетов выучены оба вопроса.'))).toBeInTheDocument();
     // Not enough «знаю» answers to compare confidence with results: no such line.
     expect(screen.queryByText(/Вы отметили «знаю»/)).toBeNull();
-    expect(within(side).queryByText(/Сравнить уверенность с ответами пока нельзя/)).toBeNull();
+    expect(within(side).queryByText(/Пока мало ответов, чтобы сравнить их/)).toBeNull();
 
     expect(row('q1')).toHaveAttribute('data-peak');
     expect(plain(row('q1').querySelector('.ex-because')?.textContent)).toBe(
-      `${formatDay(dayKey(-3))} — названо достаточно. Сегодня снова названо достаточно: дважды, в разные дни, — вопрос подтверждён.`,
+      `${formatDay(dayKey(-3))} ответ был полным. Сегодня ответ снова полный. Два полных ответа в разные дни, и вопрос выучен.`,
     );
     expect(screen.getByRole('article', { name: 'Список вопросов кафедры с пометками' })).toHaveAttribute('data-dim');
     // The old mark first, then the new one is drawn.
@@ -1156,7 +1156,7 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     mocks.fetchQuestionEvents.mockResolvedValue(confirmingAnswer());
     renderDetail({ strict: true });
     await opened();
-    expect(await within(column()).findByText(/^Вопрос 1 подтверждён ответом, который вы дали только что\./)).toBeInTheDocument();
+    expect(await within(column()).findByText(/^Вопрос 1 выучен\./)).toBeInTheDocument();
     expect(row('q1')).toHaveAttribute('data-peak');
   });
 
@@ -1168,7 +1168,7 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     renderDetail();
     await opened();
     await waitFor(() => expect(row('q1')).toHaveAttribute('data-peak'));
-    expect(plain(row('q1').querySelector('.ex-because-count')?.textContent)).toBe('Подтверждено ответами: 1 из 40, было 0.');
+    expect(plain(row('q1').querySelector('.ex-because-count')?.textContent)).toBe('Выучено: 1 из 40, было 0.');
   });
 
   it('adds the confidence line only with enough «знаю» answers', async () => {
@@ -1180,10 +1180,10 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     ]);
     renderDetail();
     await opened();
-    expect(await within(column()).findByText('Вы отметили «знаю» у 3 вопросов. Из 3 таких, на которые вы ответили, в 3 названо достаточно.')).toBeInTheDocument();
+    expect(await within(column()).findByText('Вы отметили «знаю» у 3 вопросов. Из 3 таких, на которые вы ответили, полный ответ в 3.')).toBeInTheDocument();
   });
 
-  it('after a failed answer shows the wavy line, «Названо недостаточно», the growth from history and no «+1»', async () => {
+  it('after a failed answer shows the wavy line, «Ответ неполный», the growth from history and no «+1»', async () => {
     window.sessionStorage.setItem('meldy_exam_peak_exam-1', JSON.stringify({ hash: hash(9), before: 'untested' }));
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     mocks.fetchQuestionEvents.mockResolvedValue([
@@ -1195,13 +1195,13 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(await within(side).findByText('Названо недостаточно')).toBeInTheDocument();
+    expect(await within(side).findByText('Ответ неполный')).toBeInTheDocument();
     expect(plain(side.querySelector('.ex-peak-big .ex-now')?.textContent)).toBe('0 → 2 из 40');
-    expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('подтвержденоза 6 дней');
+    expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('выученоза 6 дней');
     expect(side.querySelector('.ex-peak-growth b')).toBeNull();
-    expect(plain(side.querySelector('.ex-peak-stmt')?.textContent)).toBe('Вопрос 9: в ответе, который вы дали только что, названо недостаточно пунктов.');
+    expect(plain(side.querySelector('.ex-peak-stmt')?.textContent)).toBe('Вопрос 9: ответ неполный.');
     expect(plain(row('q9').querySelector('.ex-because')?.textContent)).toBe(
-      'Сегодня названо недостаточно пунктов. В режиме «Чаще слабые» вопрос будет выпадать чаще.',
+      'Сегодня ответ неполный. В режиме «Чаще слабые» вопрос будет выпадать чаще.',
     );
     await waitFor(() => expect(row('q9').querySelector('.ex-qn [data-mark="wave"]')).not.toBeNull(), { timeout: 2000 });
   });
@@ -1219,7 +1219,7 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(await within(side).findByText(/^Вопрос 1 подтверждён ответом/)).toBeInTheDocument();
+    expect(await within(side).findByText(/^Вопрос 1 выучен/)).toBeInTheDocument();
     expect(plain(side.querySelector('.ex-peak-big .ex-now')?.textContent)).toBe('0 → 1 из 40');
     expect(plain(side.querySelector('.ex-peak-growth')?.textContent)).toBe('за 6 дней');
     expect(side.textContent).not.toMatch(/\+\d+ сегодня/);
@@ -1232,13 +1232,13 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     renderDetail();
     await opened();
     const side = column();
-    expect(await within(side).findByText('Названо достаточно, не подтверждено')).toBeInTheDocument();
+    expect(await within(side).findByText('Ответ полный')).toBeInTheDocument();
     const big = side.querySelector('.ex-peak-big') as HTMLElement;
     expect(plain(big.querySelector('.ex-now')?.textContent)).toBe('1');
     expect(plain(big.querySelector('.ex-was')?.textContent)).toBe('было 0');
     expect(plain(side.textContent)).not.toContain('0 → 0');
     expect(plain(row('q4').querySelector('.ex-because')?.textContent)).toBe(
-      'Сегодня названо достаточно. Подтвердит такой же ответ на другой день, не раньше чем через 20 часов.',
+      'Сегодня ответ полный. Ответьте так же в другой день, через 20 часов или позже, и вопрос выучен.',
     );
   });
 
@@ -1273,7 +1273,7 @@ describe('ExamDetail: back from an answer (peak 3)', () => {
     mocks.fetchSessionPoints.mockRejectedValue(new Error('offline'));
     renderDetail();
     await opened();
-    await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
+    await within(column()).findByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Выучено'));
     await waitFor(() => expect(mocks.fetchSessionPoints).toHaveBeenCalled());
     expect(plain(column().textContent)).not.toContain('Второй ответ после разбора');
   });
@@ -1789,7 +1789,7 @@ describe('ExamDetail on a phone', () => {
     const sheet = document.querySelector('.ex-sheet') as HTMLElement;
     expect(sheet.compareDocumentPosition(legend) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(legend.closest('.ex-rl')).not.toBeNull();
-    const statement = screen.getByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Подтверждено ответами'));
+    const statement = screen.getByText((_, element) => element?.classList.contains('ex-stmt') === true && plain(element.textContent).startsWith('Выучено'));
     expect(statement.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const cta = document.querySelector('.ex-cta') as HTMLElement;
     expect(legend.compareDocumentPosition(cta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -1859,7 +1859,7 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     await opened();
     const summary = screen.getByRole('region', { name: 'Сводка' });
     expect(plain(summary.querySelector('.ex-psum-fig')?.textContent)).toBe('35 % билетов, где оба вопроса есть в лекциях. Как считается');
-    await waitFor(() => expect(plain(summary.querySelector('.ex-psum-line')?.textContent)).toBe('Подтверждено ответами — 1 вопрос из 40'));
+    await waitFor(() => expect(plain(summary.querySelector('.ex-psum-line')?.textContent)).toBe('Выучено 1 вопрос из 40'));
     // Until «Как считается» opens: no caveat, no action line, no legend, nothing under the list.
     expect(screen.queryByText(/Это доля билетов, а не вероятность сдать/)).toBeNull();
     expect(document.querySelector('.ex-act')).toBeNull();
@@ -1872,7 +1872,7 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(how).toHaveAttribute('aria-controls', panel.id);
     expect(plain(panel.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
     expect(panel.querySelector('.ex-formula')).not.toBeNull();
-    expect(plain(panel.textContent)).toContain('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.');
+    expect(plain(panel.textContent)).toContain('Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно.');
     // The legend of the number circles is «Обозначения» over the list, not here.
     expect(within(panel).queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
     fireEvent.click(within(panel).getByRole('button', { name: named('7 вопросов «частично»') }));
@@ -1992,15 +1992,15 @@ describe('ExamDetail on a phone: what the critics found (2026-10-08)', () => {
     expect(keys).toHaveAttribute('aria-controls', panel.id);
     expect(header().contains(panel)).toBe(true);
     expect(within(legend).getAllByRole('button').map((item) => plain(item.textContent))).toEqual([
-      'подтверждено 1',
-      'названо достаточно, не подтверждено 0',
-      'названо недостаточно 1',
-      'не проверялось 38',
+      'выучено 1',
+      'ответ полный, ещё не выучено 0',
+      'ответ неполный 1',
+      'ещё не отвечали 38',
     ]);
-    fireEvent.click(within(legend).getByRole('button', { name: /^названо недостаточно/ }));
+    fireEvent.click(within(legend).getByRole('button', { name: /^ответ неполный/ }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(1);
     expect(row('q2')).toBeInTheDocument();
-    fireEvent.click(within(legend).getByRole('button', { name: /^названо недостаточно/ }));
+    fireEvent.click(within(legend).getByRole('button', { name: /^ответ неполный/ }));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(40);
     fireEvent.click(keys);
     expect(screen.queryByRole('list', { name: 'Показать вопросы по ответам' })).toBeNull();
@@ -2063,8 +2063,8 @@ describe('ExamDetail on a phone: what the critics found (2026-10-08)', () => {
     const summary = screen.getByRole('region', { name: 'Сводка' });
     await waitFor(() => expect(summary.querySelectorAll('.ex-psum-line')).toHaveLength(2));
     expect(Array.from(summary.querySelectorAll('.ex-psum-line')).map((item) => plain(item.textContent))).toEqual([
-      'Подтверждено ответами — 1 вопрос из 40',
-      'Пора проверить: 1 — подтверждён больше 14 дней назад.',
+      'Выучено 1 вопрос из 40',
+      '1 вопрос выучен больше 14 дней назад. Пора его проверить.',
     ]);
     // «Пора проверить» is not repeated behind «Как считается»; the figure about past answers waits there.
     fireEvent.click(within(summary).getByRole('button', { name: 'Как считается' }));

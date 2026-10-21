@@ -474,7 +474,7 @@ describe('<ReviewCard>', () => {
     expect(screen.getByText('А что будет, если взять слишком большую скорость обучения?')).toBeInTheDocument();
     expect(container.querySelector('.or-rcard-when')?.textContent).toBe('завтра');
     expect(container.querySelector('.or-rcard svg')).toBeNull();
-    expect(screen.getByText('Вернётся в повторении завтра.')).toBeInTheDocument();
+    expect(screen.getByText('Повторим завтра.')).toBeInTheDocument();
   });
 });
 
@@ -486,8 +486,8 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
     );
     const note = container.querySelector('.or-asked') as HTMLElement;
     // The wording is kept; it is a button now (Jury_Check item 9).
-    expect(note.textContent).toBe('Пункт 4 не назван — о нём спросил экзаменатор.');
-    expect(within(note).getByRole('button', { name: 'Пункт 4 не назван — о нём спросил экзаменатор.' })).toHaveClass('or-asked-link');
+    expect(note.textContent).toBe('Пункт 4 не назван, о нём спросил экзаменатор.');
+    expect(within(note).getByRole('button', { name: 'Пункт 4 не назван, о нём спросил экзаменатор.' })).toHaveClass('or-asked-link');
     // Right under the header, before the first point.
     expect(note.compareDocumentPosition(container.querySelector('.or-ppts') as HTMLElement) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
@@ -500,7 +500,7 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
         seed="attempt-1"
       />,
     );
-    expect(container.querySelector('.or-asked')?.textContent).toBe('В пункте 5 ошибка — о ней спросил экзаменатор.');
+    expect(container.querySelector('.or-asked')?.textContent).toBe('В пункте 5 ошибка, о ней спросил экзаменатор.');
 
     rerender(<ProtocolSheet heading="h" points={livePoints(DEMO_RUBRIC, evaluation)} followup={null} seed="attempt-1" />);
     expect(container.querySelector('.or-asked')).toBeNull();
@@ -565,7 +565,7 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
         verdict: '',
       };
       const { container } = protocol(wrong, reply);
-      expect(screen.getByRole('button', { name: 'В пункте 4 ошибка — верно только после вопроса экзаменатора.' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'В пункте 4 ошибка. Верно только после вопроса экзаменатора.' })).toBeInTheDocument();
       const p4 = container.querySelector('[data-point="p4"]') as HTMLElement;
       expect(text(p4, '.or-ppt-st')).toBe('главный пункт · ошибка, верно — только после вопроса экзаменатора');
       expect(text(p4, '.or-ppt-cm')).toBe('В ответе: сказано неверно.');
@@ -575,7 +575,7 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
     it('a reply that did not name it leaves every line as it was', () => {
       stubReducedMotion(false);
       const { container } = protocol(named, { ...reply, status: 'partial' });
-      expect(screen.getByRole('button', { name: 'Пункт 4 не назван — о нём спросил экзаменатор.' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Пункт 4 не назван, о нём спросил экзаменатор.' })).toBeInTheDocument();
       const p4 = container.querySelector('[data-point="p4"]') as HTMLElement;
       expect(text(p4, '.or-ppt-st')).toBe('главный пункт · не назван; после вопроса экзаменатора — упомянут');
       expect(text(p4, '.or-ppt-cm')).toBe('Пункт про скорость обучения полностью отсутствует.');
@@ -629,8 +629,8 @@ describe('«Как считается» without a grade (Ф1)', () => {
     expect(text).toContain('Сами — пункт назван в ответе, до вопроса экзаменатора.');
     expect(text).toContain('После вопроса — пункт назван только в ответ на вопрос экзаменатора: строку шпаргалки такой пункт не стирает.');
     expect(text).toContain('Ошибка — пункт назван неверно.');
-    expect(text).toContain('Вопрос подтверждается, когда дважды, в разные дни, в ответе названо достаточно');
-    expect(text).toContain('С двумя ошибками ответ вопрос не подтверждает.');
+    expect(text).toContain('Вопрос выучен, когда вы дважды, в разные дни, ответили полно');
+    expect(text).toContain('С двумя ошибками ответ неполный.');
     // No digits of a grade, no formula, no «засчитано».
     expect(text).not.toMatch(/[Оо]ценк|из 100|→|[Зз]асчит|не выше [2-5]/);
   });
@@ -766,7 +766,7 @@ describe('the line about the asked point (Jury_Check item 9)', () => {
     );
     const row = container.querySelector('[data-point="p4"]') as HTMLElement;
     vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 900, bottom: 1000, left: 0, right: 0, width: 0, height: 100, x: 0, y: 900, toJSON: () => ({}) });
-    fireEvent.click(screen.getByRole('button', { name: 'Пункт 4 не назван — о нём спросил экзаменатор.' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Пункт 4 не назван, о нём спросил экзаменатор.' }));
     expect(document.activeElement).toBe(row);
     expect(row).toHaveAttribute('tabindex', '-1');
     // The page's own smooth scrolling is not used: each step is instant, the last one lands on the row.
@@ -798,7 +798,7 @@ describe('the line about the asked point (Jury_Check item 9)', () => {
     );
     const row = container.querySelector('[data-point="p4"]') as HTMLElement;
     vi.spyOn(row, 'getBoundingClientRect').mockReturnValue({ top: 640, bottom: 700, left: 0, right: 0, width: 0, height: 60, x: 0, y: 640, toJSON: () => ({}) });
-    fireEvent.click(screen.getByRole('button', { name: 'Пункт 4 не назван — о нём спросил экзаменатор.' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Пункт 4 не назван, о нём спросил экзаменатор.' }));
     expect(scrollTo).toHaveBeenCalledTimes(1);
     expect(scrollTo).toHaveBeenCalledWith({ top: 640 - 16, behavior: 'instant' });
     expect(raf).not.toHaveBeenCalled();

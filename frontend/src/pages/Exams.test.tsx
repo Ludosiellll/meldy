@@ -123,7 +123,7 @@ describe('Exams', () => {
     const draws = within(list).getAllByRole('link', { name: /^Тянуть билет/ });
     expect(draws.map((link) => link.getAttribute('href'))).toEqual(['/exams/exam-1/draw', '/exams/exam-3/draw']);
     expect(draws[0]).toHaveAccessibleName('Тянуть билет: Микроэкономика');
-    await waitFor(() => expect(plain(links[0].textContent)).toContain('24 из 40 вопросов есть в лекциях · подтверждено 6'));
+    await waitFor(() => expect(plain(links[0].textContent)).toContain('24 из 40 вопросов есть в лекциях · выучено 6'));
     expect(plain(links[0].textContent)).toMatch(/экзамен · \d+ [а-я]+, через 12 дней/);
     expect(plain(links[1].textContent)).toContain('зачёт, дата не указана · 25 вопросов, со своими лекциями ещё не сверены');
     expect(plain(links[2].textContent)).toMatch(/коллоквиум · прошёл \d+ [а-я]+ · 8 из 12 вопросов есть в лекциях/);
@@ -154,7 +154,7 @@ describe('Exams', () => {
     ]);
     renderList();
     const link = await screen.findByRole('link', { name: /^Микроэкономика/ });
-    await waitFor(() => expect(plain(link.textContent)).toContain('24 из 40 вопросов есть в лекциях · подтверждено 1'));
+    await waitFor(() => expect(plain(link.textContent)).toContain('24 из 40 вопросов есть в лекциях · выучено 1'));
   });
 
   it('names an exam by its subject: «Экзамен: цифровая экономика» reads «Цифровая экономика» next to «экзамен ·»', async () => {
@@ -171,7 +171,7 @@ describe('Exams', () => {
     renderList();
     const link = await screen.findByRole('link', { name: /^Микроэкономика/ });
     expect(plain(link.textContent)).toContain('24 из 40 вопросов есть в лекциях');
-    expect(plain(link.textContent)).not.toContain('подтверждено');
+    expect(plain(link.textContent)).not.toContain('выучено');
   });
 
   it('shows a running mapping as a moving bar, with nothing to draw yet', async () => {
@@ -247,7 +247,7 @@ describe('Exams on a phone (Phone_Declutter_2026-10-08)', () => {
     const meta = (card: HTMLElement) => plain(card.querySelector('.ex-row-meta')?.textContent);
     const counts = (card: HTMLElement) => plain(card.querySelector('.ex-row-counts')?.textContent);
     expect(meta(cards[0])).toMatch(/^\d+ [а-я]+, через 12 дней$/);
-    await waitFor(() => expect(counts(cards[0])).toBe('В лекциях: есть 24 · частично 7 · нет 9 · подтверждено 6'));
+    await waitFor(() => expect(counts(cards[0])).toBe('В лекциях: есть 24 · частично 7 · нет 9 · выучено 6'));
     expect(cards[0].querySelector('.ex-pill')).toBeNull();
     // The card still draws a ticket and still opens the exam.
     expect(within(cards[0]).getByRole('link', { name: 'Тянуть билет: Микроэкономика' })).toHaveAttribute('href', '/exams/exam-1/draw');
@@ -279,7 +279,7 @@ describe('row texts', () => {
   });
 
   it('words the coverage', () => {
-    expect(examCoverageLine(item(), 6, false)).toBe('24 из 40 вопросов есть в лекциях · подтверждено 6');
+    expect(examCoverageLine(item(), 6, false)).toBe('24 из 40 вопросов есть в лекциях · выучено 6');
     expect(examCoverageLine(item({ total: 21, coverage: { full: 3, partial: 0, none: 18, unverified: 0, unmapped: 0 } }), 0, false)).toBe(
       '3 из 21 вопроса есть в лекциях',
     );

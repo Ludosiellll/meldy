@@ -720,7 +720,7 @@ describe('Progress sources', () => {
     expect(row.querySelectorAll('.sf-ledger-fig')).toHaveLength(1);
     expect(within(row).queryByText('билетов, где подтверждены оба вопроса')).toBeNull();
     expect((row.querySelector('.sf-ledger-foot')?.textContent ?? '').replace(/ /g, ' ')).toBe(
-      'Названо достаточно, не подтверждено — 0, названо недостаточно — 1. В 0 % билетов выучены оба вопроса. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
+      'Ответ полный, ещё не выучено — 0, ответ неполный — 1. В 0 % билетов выучены оба вопроса. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
     );
     expect(row.textContent).not.toMatch(/зачт[её]н|засчит|вслух/i);
     expect(db.fetchQuestionEvents).toHaveBeenCalledWith([a, b, c]);
@@ -737,10 +737,10 @@ describe('Progress sources', () => {
       data: [a, b, c].map((hash, index) => ({ id: `q${index}`, exam_id: 'e1', section: null, question_hash: hash, coverage: 'full' })),
     }));
     db.fetchQuestionEvents.mockResolvedValue([
-      // 23:59 and 0:01: two days, two minutes — названо достаточно, не подтверждено.
+      // 23:59 and 0:01: two days, two minutes — ответ полный, ещё не выучено.
       examAnswer(a, '2026-10-01', true, '1', '2026-10-01T20:59:00Z'),
       examAnswer(a, '2026-10-02', true, '2', '2026-10-01T21:01:00Z'),
-      // 1:00 and 21:00 of one day — названо достаточно, не подтверждено.
+      // 1:00 and 21:00 of one day — ответ полный, ещё не выучено.
       examAnswer(b, '2026-10-02', true, '3', '2026-10-01T22:00:00Z'),
       examAnswer(b, '2026-10-02', true, '4', '2026-10-02T18:00:00Z'),
       // 10:00, 18:00 and 8:00 the next day — подтверждено.
@@ -751,18 +751,18 @@ describe('Progress sources', () => {
     renderProgress();
     const row = (await screen.findByRole('link', { name: 'Микроэкономика' })).closest('li') as HTMLElement;
     expect(row.querySelector('.sf-ledger-fig')?.textContent).toBe('1 из 3');
-    expect(row.querySelector('.sf-ledger-foot')?.textContent).toMatch(/^Названо достаточно, не подтверждено — 2, названо недостаточно — 0\. /);
+    expect(row.querySelector('.sf-ledger-foot')?.textContent).toMatch(/^Ответ полный, ещё не выучено — 2, ответ неполный — 0\. /);
   });
 
   it('words the ledger foot with «названо достаточно» and «ответили» (no «засчитано», Ф1), and the confirmed tickets as a small line', () => {
     const summary = { total: 40, confirmed: 7, once: 3, notPassed: 2, untested: 28, since: '2026-10-01', stale: 0 };
     const confidence = { ratedKnow: 18, ratedKnowAnswered: 10, ratedKnowPassed: 8, enoughData: true };
     expect(ledgerFoot({ summary, confidence, confirmedTickets: 3, perTicket: 2 }).replace(/ /g, ' ')).toBe(
-      'Названо достаточно, не подтверждено — 3, названо недостаточно — 2. В 3 % билетов выучены оба вопроса. Вы отметили «знаю» у 18 вопросов. Вы ответили на 10 из них, и в 8 ответ был полным.',
+      'Ответ полный, ещё не выучено — 3, ответ неполный — 2. В 3 % билетов выучены оба вопроса. Вы отметили «знаю» у 18 вопросов. Вы ответили на 10 из них, и в 8 ответ был полным.',
     );
     expect(ledgerFoot({ summary: { ...summary, confirmed: 0 }, confidence, confirmedTickets: 0, perTicket: 2 })).not.toContain('Билетов');
     expect(ledgerFoot({ summary, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 1 })).toBe(
-      'Названо достаточно, не подтверждено — 3, названо недостаточно — 2. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
+      'Ответ полный, ещё не выучено — 3, ответ неполный — 2. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
     );
     expect(ledgerFoot({ summary: { ...summary, confirmed: 0, once: 0, notPassed: 0 }, confidence: { ...confidence, enoughData: false }, confirmedTickets: null, perTicket: 2 })).toBe(
       'Ответов по билетам ещё не было. Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».',
