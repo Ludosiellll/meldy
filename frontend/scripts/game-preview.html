@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meldy · 3D-набор игр (только для разработки)</title>
+<!-- Dev only: `npm run dev`, then /scripts/game-preview.html?scene=lineup|arena|bench|thumbs. Not part of the build. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #121429; overflow: hidden; }
+  body { font-family: 'Onest Variable', system-ui, sans-serif; color: #1d1b2e; }
+  #stage { position: relative; width: 1536px; height: 864px; overflow: hidden; }
+  #c { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
+  #hud { position: absolute; inset: 0; pointer-events: none; }
+  .brand { position: absolute; left: 26px; top: 20px; }
+  .brand b { font: 800 30px/1 'Onest Variable'; letter-spacing: -.5px; color: #fff; }
+  .brand b span { color: #ffc23d; }
+  .brand .mode { font: 700 17px/1.2 'Onest Variable'; color: #fff; margin-top: 8px; }
+  .brand .sub { font: 500 14px/1.2 'Onest Variable'; color: rgba(255,255,255,.7); margin-top: 4px; }
+  .q { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); width: 700px; padding: 9px 22px 11px;
+    box-sizing: border-box; text-align: center; background: #1f3b33; border: 7px solid #b9824f; border-radius: 14px;
+    box-shadow: 0 6px 0 rgba(0,0,0,.25); }
+  .q .hint { font: 500 14px/1.2 'Onest Variable'; color: rgba(255,255,255,.72); }
+  .q .text { font: 800 26px/1.15 'Onest Variable'; color: #fff; margin-top: 5px; }
+  .q .ans { display: inline-flex; align-items: center; gap: 12px; font: 800 28px/1 'Onest Variable'; color: #fff; margin-top: 3px; }
+  .q .ans em { font-style: normal; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; color: #fff; }
+  .right { position: absolute; right: 26px; top: 18px; display: flex; align-items: center; gap: 14px; }
+  .pills { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .pill { background: #fff; border-radius: 999px; padding: 7px 14px; font: 600 16px/1 'Onest Variable'; display: flex;
+    align-items: center; gap: 8px; box-shadow: 0 3px 0 rgba(0,0,0,.2); }
+  .pill b { font-weight: 800; }
+  .pill .dot { width: 10px; height: 10px; border-radius: 50%; background: #2fc46b; }
+  .pill .dot.g { background: #9cc8ff; }
+  .timer { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: #fff;
+    font: 800 42px/1 'Onest Variable'; box-shadow: 0 4px 0 rgba(0,0,0,.25), inset 0 0 0 7px #3d7bff; }
+  .timer.hot { color: #e2283d; box-shadow: 0 4px 0 rgba(0,0,0,.25), inset 0 0 0 7px #e2283d; }
+  .title { position: absolute; left: 40px; top: 30px; color: #fff; }
+  .title h1 { margin: 0; font: 800 40px/1 'Onest Variable'; letter-spacing: -.5px; text-shadow: 0 2px 8px rgba(0,0,0,.45); }
+  .title p { margin: 8px 0 0; font: 500 18px/1.3 'Onest Variable'; color: rgba(255,255,255,.78); text-shadow: 0 2px 8px rgba(0,0,0,.45); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="hud"></div>
+</div>
+<script type="module" src="/src/lib/live/three/dev/preview.ts"></script>
+</body>
+</html>
