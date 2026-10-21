@@ -1,0 +1,264 @@
+/* «Игра в классе» (game.tsx): the test's page, the setup, the projector of «Встань на ответ» and two phones, on a
+   1440 × 1080 stage read at a quarter. Every rule sits under the clip's root (.gp-scene): the tip's clip loads this
+   sheet too, and it stays for the rest of the visit. */
+
+.gp-scene .gp-ui { position: absolute; inset: 0; transform-origin: 50% 45%; }
+.gp-scene .gp-say { left: 0; right: 0; top: 400px; z-index: 40; text-align: center; font-size: 132px; }
+.gp-scene .gp-screen { position: absolute; inset: 0; }
+
+/* ------------------------------------------------------------------ the top line */
+.gp-scene .gp-strip { position: absolute; left: 64px; right: 64px; top: 48px; display: flex; align-items: center; gap: 8px; font-size: 30px; }
+.gp-scene .gp-strip-mark { margin-right: 26px; font-size: 44px; }
+.gp-scene .gp-strip > span:not(.fm-wordmark) { padding: 14px 24px; border-radius: 999px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.gp-scene .gp-strip > span.is-on { background: var(--ink); color: #f3f3f0; }
+
+/* ------------------------------------------------------------------ 1 · the test's page */
+.gp-scene .gp-crumb {
+  position: absolute;
+  left: 80px;
+  top: 168px;
+  margin: 0;
+  padding: 12px 26px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #e4e4de;
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--ink);
+}
+.gp-scene .gp-h1 { position: absolute; left: 80px; top: 262px; font-size: 78px; }
+.gp-scene .gp-meta { position: absolute; left: 80px; top: 362px; margin: 0; font-size: 32px; }
+.gp-scene .gp-pills { position: absolute; left: 80px; top: 438px; display: flex; gap: 18px; }
+.gp-scene .gp-pills .fm-btn { padding: 0 38px; }
+.gp-scene .gp-host { transform-origin: 50% 50%; }
+.gp-scene .gp-h2 { position: absolute; left: 80px; top: 612px; margin: 0; font-size: 42px; font-weight: 600; letter-spacing: -.03em; color: var(--ink); }
+.gp-scene .gp-quiz { left: 80px; top: 690px; display: flex; align-items: center; justify-content: space-between; width: 1280px; height: 150px; padding: 0 44px 0 48px; }
+.gp-scene .gp-quiz-t { font-size: 40px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+.gp-scene .gp-quiz-t small { display: flex; align-items: center; gap: 12px; margin-top: 10px; font-size: 29px; font-weight: 400; letter-spacing: 0; color: var(--muted); }
+.gp-scene .gp-quiz-t small i { width: 14px; height: 14px; border-radius: 50%; background: #48b06a; }
+.gp-scene .gp-chev { width: 40px; height: 40px; }
+.gp-scene .gp-chev path { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ------------------------------------------------------------------ 2 · the setup */
+.gp-scene .gp-top { position: absolute; left: 64px; right: 64px; top: 48px; display: flex; align-items: center; gap: 34px; height: 84px; font-size: 32px; }
+.gp-scene .gp-top-mark { font-size: 44px; }
+.gp-scene .gp-setup-h { position: absolute; left: 80px; top: 176px; max-width: 1280px; font-size: 60px; white-space: nowrap; }
+.gp-scene .gp-setup-lead { position: absolute; left: 80px; top: 262px; margin: 0; font-size: 31px; }
+.gp-scene .gp-setup-l { position: absolute; left: 80px; top: 344px; margin: 0; font-size: 28px; font-weight: 500; }
+.gp-scene .gp-modes { position: absolute; left: 80px; top: 396px; display: grid; grid-template-columns: repeat(2, 630px); gap: 20px; }
+.gp-scene .gp-mode {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 360px;
+  padding: 26px 34px 30px;
+  border-radius: 36px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #e4e4de;
+}
+.gp-scene .gp-mode-pic { position: relative; display: grid; place-items: center; height: 150px; border-radius: 24px; background: #f4f2fb; }
+.gp-scene .gp-mode-name { margin-top: 24px; font-size: 40px; font-weight: 600; letter-spacing: -.025em; color: var(--ink); }
+.gp-scene .gp-mode-about { margin-top: 10px; font-size: 27px; line-height: 1.32; }
+.gp-scene .gp-mode-tick { position: absolute; right: 24px; top: 24px; display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%; background: var(--ink); color: #fff; }
+.gp-scene .gp-mode-tick svg { width: 30px; height: 30px; }
+.gp-scene .gp-open { position: absolute; left: 80px; top: 818px; }
+.gp-scene .gp-swap { position: relative; display: inline-grid; }
+.gp-scene .gp-swap > span { grid-area: 1 / 1; }
+
+/* The two games, drawn small: a monster, and a floor of four colours with three players. */
+.gp-scene .gp-monster { position: relative; width: 130px; height: 112px; border-radius: 58px 58px 44px 44px; background: #6b4fd8; box-shadow: inset 0 -12px 0 #5539bb; }
+.gp-scene .gp-monster-eye { position: absolute; top: 30px; width: 30px; height: 30px; border-radius: 50%; background: #fff; box-shadow: inset 8px 6px 0 -1px #fff, inset 0 0 0 9px #1d1640; }
+.gp-scene .gp-monster-eye:first-child { left: 30px; }
+.gp-scene .gp-monster-eye:nth-child(2) { right: 30px; }
+.gp-scene .gp-monster-mouth { position: absolute; left: 38px; right: 38px; bottom: 26px; height: 16px; border-radius: 0 0 16px 16px; background: #1d1640; }
+.gp-scene .gp-mini { position: relative; display: grid; grid-template-columns: repeat(2, 120px); gap: 12px 22px; padding: 10px; border-radius: 16px; background: #f4e6d4; }
+.gp-scene .gp-mini-z { display: block; height: 52px; border-radius: 8px; }
+.gp-scene .gp-mini-kid { position: absolute; width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(11, 18, 28, .18); }
+
+/* ------------------------------------------------------------------ 3–5 · the projector */
+.gp-scene .gp-proj { position: absolute; inset: 0; background: #241e46; color: #fff; }
+.gp-scene .gp-proj-id { position: absolute; left: 44px; top: 34px; display: grid; gap: 6px; max-width: 270px; }
+.gp-scene .gp-proj-mark { font-size: 44px; color: #fff; }
+.gp-scene .gp-proj-id b { font-size: 27px; font-weight: 650; white-space: nowrap; }
+.gp-scene .gp-proj-id > span:not(.fm-wordmark) { font-size: 22px; line-height: 1.25; color: #b9b3dc; }
+
+.gp-scene .gp-board {
+  position: absolute;
+  left: 330px;
+  top: 30px;
+  width: 800px;
+  height: 284px;
+  border: 12px solid #b9874f;
+  border-radius: 30px;
+  background: #1f3c33;
+  box-shadow: 0 24px 40px -20px rgba(0, 0, 0, .55);
+}
+.gp-scene .gp-board-in { position: absolute; inset: 0; }
+.gp-scene .gp-board-lobby { display: flex; align-items: center; gap: 30px; padding: 0 30px; }
+.gp-scene .gp-qr { flex: none; width: 196px; height: 196px; border-radius: 14px; }
+.gp-scene .gp-board-side { display: flex; flex-direction: column; min-width: 0; }
+.gp-scene .gp-board-small { font-size: 22px; line-height: 1.3; color: #bfd3c9; }
+.gp-scene .gp-board-site { margin-top: 2px; font-size: 26px; font-weight: 650; letter-spacing: -.01em; color: #fff; white-space: nowrap; }
+.gp-scene .gp-board-pin { margin: 6px 0 4px; font-size: 70px; font-weight: 800; line-height: 1.04; letter-spacing: .01em; color: #fff; white-space: nowrap; }
+.gp-scene .gp-board-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 0 40px; text-align: center; }
+.gp-scene .gp-board-stood { margin-top: 4px; padding: 8px 22px; border-radius: 999px; background: #fff; color: var(--ink); font-size: 28px; font-weight: 500; white-space: nowrap; }
+.gp-scene .gp-board-stood b { font-size: 34px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.gp-scene .gp-board-q { display: flex; align-items: center; gap: 22px; font-size: 56px; font-weight: 750; line-height: 1.1; letter-spacing: -.02em; color: #fff; }
+
+.gp-scene .gp-chip {
+  position: absolute;
+  right: 40px;
+  top: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 16px 28px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 30px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.gp-scene .gp-chip i { width: 16px; height: 16px; border-radius: 50%; background: #3cc47c; }
+.gp-scene .gp-chip b { font-size: 36px; font-weight: 750; font-variant-numeric: tabular-nums; }
+.gp-scene .gp-timer { position: absolute; right: 52px; top: 34px; display: grid; place-items: center; width: 150px; height: 150px; border-radius: 50%; background: #fff; }
+.gp-scene .gp-timer svg { position: absolute; inset: 10px; width: 130px; height: 130px; }
+.gp-scene .gp-timer circle { fill: none; stroke-width: 4; }
+.gp-scene .gp-timer-track { stroke: #e4e4de; }
+.gp-scene .gp-timer-arc { stroke: var(--blue); stroke-linecap: round; }
+.gp-scene .gp-timer b { position: relative; font-size: 64px; font-weight: 750; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* The floor: light tiles, four zones of the answers' colours (the projector's А Б В Г), a rim around. */
+.gp-scene .gp-floor {
+  position: absolute;
+  border-radius: 18px;
+  background: #15112b;
+  box-shadow: 0 0 0 16px #3a3168, 0 40px 60px -20px rgba(0, 0, 0, .6);
+}
+/* The paths between the zones: they stay when the zones drop. */
+.gp-scene .gp-path {
+  position: absolute;
+  background-color: #f3e4d1;
+  background-image: linear-gradient(rgba(120, 82, 46, .1) 2px, transparent 2px), linear-gradient(90deg, rgba(120, 82, 46, .1) 2px, transparent 2px);
+  background-size: 56px 56px;
+}
+.gp-scene .gp-zone {
+  position: absolute;
+  border-radius: 14px;
+  background-image: linear-gradient(rgba(255, 255, 255, .22) 2px, transparent 2px), linear-gradient(90deg, rgba(255, 255, 255, .22) 2px, transparent 2px);
+  background-size: 56px 56px;
+  transform-origin: 50% 30%;
+}
+.gp-scene .gp-z0 { background-color: #ef6a62; }
+.gp-scene .gp-z1 { background-color: #4d8af0; }
+.gp-scene .gp-z2 { background-color: #f5c13d; }
+.gp-scene .gp-z3 { background-color: #3cc47c; }
+.gp-scene .gp-zone-label { position: absolute; left: 18px; top: 18px; display: flex; align-items: center; gap: 12px; }
+.gp-scene .gp-zone-label > .gp-zone-letter { box-shadow: 0 0 0 5px rgba(255, 255, 255, .94); }
+.gp-scene .gp-zone-t {
+  padding: 10px 22px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .94);
+  color: var(--ink);
+  font-size: 32px;
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.gp-scene .gp-zone-letter { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 14px; color: #fff; font-size: 36px; font-weight: 800; }
+.gp-scene .gp-zl0 { background: #ef6a62; }
+.gp-scene .gp-zl1 { background: #4d8af0; }
+.gp-scene .gp-zl2 { background: #f5c13d; }
+.gp-scene .gp-zl3 { background: #3cc47c; }
+.gp-scene .gp-board-q .gp-zone-letter { width: 76px; height: 76px; border-radius: 18px; font-size: 48px; }
+
+/* A player: the body, its eyes, its shadow and the name above (placed by its middle). */
+.gp-scene .gp-kid { position: absolute; left: -26px; top: -26px; width: 52px; height: 52px; transform-origin: 26px 26px; }
+.gp-scene .gp-kid-shadow { position: absolute; left: 2px; top: 34px; width: 48px; height: 22px; border-radius: 50%; background: rgba(60, 35, 20, .22); }
+.gp-scene .gp-kid-body { position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 -7px 0 rgba(0, 0, 0, .16), 0 0 0 4px rgba(255, 255, 255, .9); }
+.gp-scene .gp-kid-eyes { position: absolute; left: 13px; top: 14px; width: 9px; height: 12px; border-radius: 5px; background: #1d1640; box-shadow: 17px 0 0 #1d1640; }
+.gp-scene .gp-kid-name {
+  position: absolute;
+  left: 50%;
+  bottom: 62px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 12px 4px 9px;
+  border-radius: 999px;
+  background: rgba(24, 19, 46, .86);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.gp-scene .gp-kid-name i { width: 10px; height: 10px; border-radius: 50%; }
+
+/* ------------------------------------------------------------------ the phones */
+.gp-scene .gp-phone {
+  position: absolute;
+  top: 392px;
+  width: 300px;
+  height: 620px;
+  padding: 12px;
+  border-radius: 54px;
+  background: #0d0f14;
+  box-shadow: 0 0 0 2px #2c3040, 0 50px 80px -30px rgba(0, 0, 0, .7);
+}
+.gp-scene .gp-phone--site { left: 790px; }
+.gp-scene .gp-phone--tg { left: 1110px; }
+.gp-scene .gp-phone-screen { position: relative; height: 100%; overflow: hidden; border-radius: 42px; background: #f3f3f0; color: var(--ink); }
+.gp-scene .gp-url {
+  margin: 0;
+  padding: 30px 24px 14px;
+  overflow: hidden;
+  background: #fff;
+  border-bottom: 2px solid #e4e4de;
+  font-size: 15px;
+  color: var(--muted);
+  text-align: center;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.gp-scene .gp-play { padding: 26px 22px 0; }
+.gp-scene .gp-play-mark { font-size: 36px; }
+.gp-scene .gp-play-sub { margin: 10px 0 0; font-size: 18px; line-height: 1.35; color: var(--muted); }
+.gp-scene .gp-play-l { margin: 34px 0 10px; font-size: 18px; font-weight: 500; color: var(--muted); }
+.gp-scene .gp-play-pin {
+  display: grid;
+  place-items: center;
+  height: 82px;
+  margin: 0;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #e4e4de;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+.gp-scene .gp-play-go {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: 22px;
+  display: grid;
+  place-items: center;
+  height: 70px;
+  border-radius: 22px;
+  background: var(--blue);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 600;
+}
+.gp-scene .gp-phone--tg .gp-phone-screen { background: #cfdcc1; }
+.gp-scene .gp-tg-head { display: flex; align-items: center; gap: 14px; padding: 30px 20px 16px; background: #fff; font-size: 21px; }
+.gp-scene .gp-tg-head small { display: block; margin-top: 4px; font-size: 16px; color: #7d8590; }
+.gp-scene .gp-tg-ava { display: grid; place-items: center; flex: none; width: 52px; height: 52px; border-radius: 50%; background: #e98e43; color: #fff; font-size: 20px; font-weight: 700; }
+.gp-scene .gp-tg-chat { position: absolute; left: 14px; right: 14px; bottom: 26px; }
+.gp-scene .gp-tg-msg { display: grid; gap: 6px; padding: 16px 18px 18px; border-radius: 22px 22px 22px 6px; background: #fff; font-size: 20px; line-height: 1.3; }
+.gp-scene .gp-tg-msg b { color: #3a8bd6; font-size: 19px; }
+.gp-scene .gp-tg-btn { display: grid; place-items: center; height: 58px; margin-top: 6px; border-radius: 16px; background: #f4f8fc; color: #2f7fca; font-size: 22px; font-weight: 600; }

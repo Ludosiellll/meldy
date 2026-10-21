@@ -12,6 +12,7 @@ import { errorText } from '../../components/containers/copyImport';
 import { QrScreen } from '../../components/quiz/QuizShare';
 import { QUICK_LINK } from '../../components/quick/copyQuick';
 import { QUICK_PATH, TESTS_PATH } from '../../components/quick/paths';
+import { keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../../components/test/gameEntry';
 import type { QuizListRow } from '../../types/quiz';
 import '../../components/exams/exams.css';
 import '../../components/quick/quick.css';
@@ -34,6 +35,9 @@ export function linkFacts(row: Pick<QuizListRow, 'item_count' | 'time_limit_s' |
  * готова», whether the students sign in, its questions, time and end as tags, the QR code drawn on the device with the
  * link under it, «Скопировать ссылку», «Поделиться» where the device shares, the QR over the whole screen, and how many
  * write and finished. Then «Открыть результаты», «Оформить в студии», «Изменить настройки», «Сделать ещё одну».
+ * The page's quiet second action is «Провести игру по этим вопросам» (release 47.19): the live game on the test of the
+ * контрольная, by the test's page's rule (test/gameEntry); until the test is read, the контрольная's own questions
+ * (every one has its key) stand for it.
  */
 export default function QuickLinkPage() {
   const params = useParams();
@@ -128,6 +132,23 @@ export default function QuickLinkPage() {
   }
 
   const outer = code.size + QUIET * 2;
+  const gameWhy = summary ? liveGameWhy(keyCounts(summary.subjects)) : liveGameWhy({ total: row.item_count, keyed: row.item_count });
+  const game = !liveGameOpen() ? null : gameWhy ? (
+    <div className="qk-game">
+      <button type="button" className="qk-pill" disabled aria-describedby="qk-game-why">
+        {QUICK_LINK.game}
+      </button>
+      <p id="qk-game-why" className="qk-game-why">
+        {gameWhy}
+      </p>
+    </div>
+  ) : (
+    <div className="qk-game">
+      <Link className="qk-pill" to={liveGamePath(containerId)}>
+        {QUICK_LINK.game}
+      </Link>
+    </div>
+  );
   const quizPath = `/exams/c/${encodeURIComponent(containerId)}/quizzes/${encodeURIComponent(quizId)}`;
   return (
     <div className="sf-page qk-page qk-link-page" ref={frame.ref} data-frame={frame.size}>
@@ -206,6 +227,7 @@ export default function QuickLinkPage() {
         </section>
       </div>
 
+      {game}
       <p className="qk-after">
         <Link className="sf-link" to={`/exams/c/${encodeURIComponent(containerId)}/studio`}>
           {QUICK_LINK.studio}

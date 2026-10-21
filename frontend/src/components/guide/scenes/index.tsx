@@ -15,6 +15,7 @@ import * as copy from '../../containers/copy';
 import { IMPORT, KEY_WORDS, nb } from '../../containers/copyImport';
 import { plural } from '../../pro/planCopy';
 import type { GuideChapterId } from '../chapters';
+import { GAME_CLIP, GAME_POSTER, Game } from './game';
 import './scenes.css';
 
 export const CLIP = 6400;
@@ -857,6 +858,8 @@ export const GUIDE_SCENES: Record<Exclude<GuideChapterId, 'tests'>, { total: num
   review: clip(Review),
   // The still frame: «План по дням» open, every row in — the exam's days up to its date.
   exams: clip(Exams, 6700, EXAMS_CLIP),
+  // «Игра в классе»: from «Провести игру» to the floor that drops; the still frame after the drop (scenes/game.tsx).
+  game: clip(Game, GAME_POSTER, GAME_CLIP),
   progress: clip(Progress),
   // The still frame: both prices spent, both lines in, nothing in flight.
   limit: clip(Limit, 5450),

@@ -121,8 +121,8 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
     ({ route, match }: Pick<GuideChapter, 'route' | 'match'>, own?: string) => {
       if (!route || !match) return;
       const here = pathRef.current;
-      // Already there: «Тесты» shares «Экзамены»'s page (its door, «Новый тест», is there).
-      if (!own && (match.test(here) || route === here)) return;
+      // Already there: «Тесты» shares «Экзамены»'s page (its door, «Новый тест», is there), «Игра в классе» its tests.
+      if (!own && (match.test(here) || route === here || route === `${here}${window.location.search}`)) return;
       if (own && `${here}${window.location.search}` === own) return;
       const target = own ?? route;
       if (!mayLeave(here, brought.current, touched.current)) return;

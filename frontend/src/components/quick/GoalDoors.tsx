@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useGuide } from '../guide/GuideContext';
 import { GOAL } from './copyQuick';
 import { readGoal, writeGoal, type Goal } from './goal';
 import { QUICK_PATH } from './paths';
@@ -9,10 +10,12 @@ import './goal.css';
  * «Первые шаги» start with the goal (UX audit of 21.10, P2; mockup m4): «Готовлюсь к экзамену» → «Новый экзамен», «Даю
  * тест ученикам» → «Быстрая контрольная», each in a card with one line of what follows, and the example a quiet link
  * away. The goal chosen in the first-run guide comes first and holds the blue pill; with none, the exam's door does, as
- * the steps did. `lead` false: something else on the page holds the blue pill, both doors are white.
+ * the steps did. `lead` false: something else on the page holds the blue pill, both doors are white. The teacher's card
+ * has a second step, «Провести игру в классе», with the guide's clip of the game a press away.
  */
 export default function GoalDoors({ id, lead }: { id?: string; lead: boolean }) {
   const { user } = useAuth();
+  const guide = useGuide();
   const chosen = readGoal(user?.id);
   const blue: Goal | null = lead ? chosen ?? 'exam' : null;
   const order: Goal[] = chosen === 'test' ? ['test', 'exam'] : ['exam', 'test'];
@@ -27,6 +30,17 @@ export default function GoalDoors({ id, lead }: { id?: string; lead: boolean }) 
             <li key={goal} className="gl-goal" data-goal={goal}>
               <h3 className="gl-t">{words.title}</h3>
               <p className="gl-p">{words.text}</p>
+              {goal === 'test' ? (
+                <div className="gl-step">
+                  <p className="gl-step-t">{GOAL.game.title}</p>
+                  <p className="gl-step-p">{GOAL.game.text}</p>
+                  {guide ? (
+                    <button type="button" className="sf-link gl-step-go" data-muted="" onClick={() => guide.start('game')}>
+                      {GOAL.game.action}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
               <div className="gl-acts">
                 <Link
                   className={primary ? 'sf-primary' : 'sf-secondary td-pill'}

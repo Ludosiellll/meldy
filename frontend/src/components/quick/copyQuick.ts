@@ -110,6 +110,8 @@ export const QUICK_LINK = {
   studio: 'Оформить в студии',
   edit: 'Изменить настройки',
   another: 'Сделать ещё одну',
+  /** The quiet second action: the live game on these questions, in class. */
+  game: 'Провести игру по этим вопросам',
   loading: 'Загружаем ссылку…',
   failed: 'Не получилось загрузить ссылку.',
   missing: 'Этой контрольной больше нет.',
@@ -156,6 +158,12 @@ export const GOAL = {
     title: 'Даю тест ученикам',
     text: 'Вставьте вопросы и получите ссылку. Ученикам вход не нужен.',
     action: 'Быстрая контрольная',
+  },
+  /** The teacher's second step (owner, 21.10): the test as a game in class; the guide's «Игра в классе» shows how. */
+  game: {
+    title: 'Провести игру в классе',
+    text: 'Тест можно провести как игру на проекторе. Ученики играют с телефонов.',
+    action: 'Посмотреть ролик',
   },
   tryFirst: 'Сначала посмотреть?',
   tryLink: 'Попробовать на примере',

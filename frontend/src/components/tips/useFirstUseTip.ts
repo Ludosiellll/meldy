@@ -79,10 +79,14 @@ export interface FirstUseTip {
  *
  * dismiss() and done() write both marks; the tip never comes back. A tip that was only looked at
  * comes once more, on the next visit; shown on TIP_SEEN_VISITS visits it writes both marks as it
- * shows (it stays for that visit, and the next one does not see it). Statistics: tip_shown once per
- * page visit, tip_action with `action` try or dismiss (try only when the tip was on screen).
+ * shows (it stays for that visit, and the next one does not see it); `visits` 1 shows a tip on one visit only (the test's
+ * «game»). Statistics: tip_shown once per page visit, tip_action with `action` try or dismiss (try only when the tip
+ * was on screen).
  */
-export function useFirstUseTip(id: TipId, { enabled, settle = TIP_SETTLE_MS }: { enabled: boolean; settle?: number }): FirstUseTip {
+export function useFirstUseTip(
+  id: TipId,
+  { enabled, settle = TIP_SETTLE_MS, visits = TIP_SEEN_VISITS }: { enabled: boolean; settle?: number; visits?: number },
+): FirstUseTip {
   const { user } = useAuth();
   const userId = user?.id;
   const guideOpen = Boolean(useGuide()?.open);
@@ -154,11 +158,11 @@ export function useFirstUseTip(id: TipId, { enabled, settle = TIP_SETTLE_MS }: {
     reported.current = true;
     track('tip_shown', { id });
     // Seen on two visits is enough: the tip does not come a third time (on any device).
-    if (countVisit(id) >= TIP_SEEN_VISITS && !closedRef.current) {
+    if (countVisit(id) >= visits && !closedRef.current) {
       rememberHere(id);
       if (userId) void Promise.resolve().then(() => markOnboardingTourSeen(userId, tipProfileKey(id))).catch(() => undefined);
     }
-  }, [show, id, userId]);
+  }, [show, id, userId, visits]);
 
   const finish = useCallback(
     (action: 'try' | 'dismiss') => {

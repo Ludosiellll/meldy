@@ -2,15 +2,24 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const api = vi.hoisted(() => ({ listQuizzes: vi.fn(), copyText: vi.fn() }));
+const api = vi.hoisted(() => ({ listQuizzes: vi.fn(), copyText: vi.fn(), summary: null as null | { id: string; title: string; subjects: { keyed: number; no_key: number }[] } }));
 vi.mock('../../api/quizzes', () => ({ listQuizzes: api.listQuizzes }));
 vi.mock('../../lib/clipboard', () => ({ copyText: api.copyText }));
 vi.mock('../../lib/containers/hooks', () => ({
-  useContainerData: () => ({ data: null, loading: true, offline: false, unavailable: false, error: null, gone: false, reload: vi.fn() }),
+  useContainerData: () => ({
+    data: api.summary ? { summary: api.summary } : null,
+    loading: !api.summary,
+    offline: false,
+    unavailable: false,
+    error: null,
+    gone: false,
+    reload: vi.fn(),
+  }),
 }));
 
 import QuickLinkPage, { linkFacts } from './QuickLinkPage';
 import { QUICK_LINK } from '../../components/quick/copyQuick';
+import { TEST_HOME } from '../../components/test/copyTest';
 import type { QuizListRow } from '../../types/quiz';
 
 /* The контрольная's link at once after «Быстрая контрольная» (UX audit of 21.10, P1; mockup m3). */
@@ -65,6 +74,7 @@ function renderPage() {
 beforeEach(() => {
   api.listQuizzes.mockReset().mockResolvedValue([row()]);
   api.copyText.mockReset().mockResolvedValue(true);
+  api.summary = null;
 });
 afterEach(() => cleanup());
 
@@ -113,6 +123,25 @@ describe('QuickLinkPage', () => {
     expect(await screen.findByRole('link', { name: QUICK_LINK.studio })).toHaveAttribute('href', '/exams/c/c-1/studio');
     expect(screen.getByRole('link', { name: QUICK_LINK.edit })).toHaveAttribute('href', '/exams/c/c-1/quizzes/q-1/edit');
     expect(screen.getByRole('link', { name: QUICK_LINK.another })).toHaveAttribute('href', '/tests/quick');
+  });
+
+  it('«Провести игру по этим вопросам»: the quiet second action, the live game on the test of the контрольная', async () => {
+    renderPage();
+    const game = await screen.findByRole('link', { name: QUICK_LINK.game });
+    expect(game).toHaveAttribute('href', '/live/new?c=c-1');
+    // Quiet: a white pill, the page's one blue pill stays «Скопировать ссылку».
+    expect(game).toHaveClass('qk-pill');
+    expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
+    expect(QUICK_LINK.game).toBe('Провести игру по этим вопросам');
+  });
+
+  it('the game waits, with the test page’s reason, while no question of the test has its key', async () => {
+    api.summary = { id: 'c-1', title: 'Кислоты и основания', subjects: [{ keyed: 0, no_key: 4 }] };
+    renderPage();
+    const game = await screen.findByRole('button', { name: QUICK_LINK.game });
+    expect(game).toBeDisabled();
+    expect(game).toHaveAccessibleDescription(TEST_HOME.sendWhyKey);
+    expect(screen.queryByRole('link', { name: QUICK_LINK.game })).toBeNull();
   });
 
   it('a контрольная that is gone, and a read that failed', async () => {

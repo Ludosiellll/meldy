@@ -98,6 +98,17 @@ describe('the landing v3', () => {
     expect(screen.getByRole('link', { name: CTA.build })).toHaveAttribute('href', BUILD_URL);
   });
 
+  it('says under the two pills that the test can be played as a game in class (owner, 21.10)', () => {
+    renderLanding();
+    const line = document.querySelector('.p3-game') as HTMLElement;
+    expect(line.textContent).toBe(bind(BUILDER_SECTION.game));
+    const card = line.closest('.p3-card-text')!;
+    // The two pills stay as they were.
+    expect(card.querySelectorAll('.p3-ctas a')).toHaveLength(2);
+    expect(card.querySelector('.p3-ctas')!.nextElementSibling).toBe(line);
+    expect(BUILDER_SECTION.game).toMatch(/игру в классе/);
+  });
+
   it('switches the lecture’s materials', () => {
     renderLanding();
     fireEvent.click(screen.getByRole('tab', { name: /Тест/ }));

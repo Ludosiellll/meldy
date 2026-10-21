@@ -7,15 +7,17 @@ vi.mock('../../api/quizzes', () => ({ listQuizzes: api.listQuizzes }));
 
 import TestsView, { TestDoors, ViewSwitch } from './TestsView';
 import { TESTS_VIEW } from './copyQuick';
+import { LIVE_ENTRY } from '../test/gameEntry';
+import { TEST_HOME } from '../test/copyTest';
 import type { OverviewContainer } from '../../types/container';
 import type { QuizListRow } from '../../types/quiz';
 
 /* «Тесты» on «Экзамены» (UX audit of 21.10, P2; mockups m1, m4). */
 
-function test(id: string, title: string, items: number): OverviewContainer {
+function test(id: string, title: string, items: number, keyed = items): OverviewContainer {
   return {
     id, title, kind: 'test', exam_date: null, created_at: '2026-10-14T10:00:00Z', role: 'owner', items, items_updated_at: null,
-    subjects: [], answers_today: 0, settings: null,
+    subjects: items > 0 ? [{ keyed, no_key: items - keyed }] : [], answers_today: 0, settings: null,
   } as OverviewContainer;
 }
 
@@ -65,6 +67,33 @@ describe('TestsView', () => {
     renderView([test('c-2', 'Входной тест', 8)]);
     expect(await screen.findByText(TESTS_VIEW.notSent)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: TESTS_VIEW.send })).toHaveAttribute('href', '/exams/c/c-2/quizzes/new?all=1&design=1');
+  });
+
+  it('every test offers «Провести игру» by the test page’s rule: the game’s setup for that test', async () => {
+    api.listQuizzes.mockImplementation(async (id: string) => (id === 'c-1' ? [quiz('q-1'), quiz('q-2'), quiz('q-3')] : []));
+    renderView([test('c-1', 'Кислоты и основания', 12), test('c-2', 'Входной тест', 8)]);
+    const sent = (await screen.findByRole('link', { name: 'Кислоты и основания' })).closest('li')!;
+    expect(await within(sent).findByRole('link', { name: LIVE_ENTRY.host })).toHaveAttribute('href', '/live/new?c=c-1');
+    // Beside «Ещё 1 контрольная», under the контрольные.
+    expect(within(sent).getByRole('link', { name: LIVE_ENTRY.host }).closest('.tv-foot')).toContainElement(within(sent).getByRole('link', { name: /^Ещё 1/ }));
+    // Not sent yet: beside «Отправить по ссылке».
+    const fresh = screen.getByRole('link', { name: 'Входной тест' }).closest('li')!;
+    const game = await within(fresh).findByRole('link', { name: LIVE_ENTRY.host });
+    expect(game).toHaveAttribute('href', '/live/new?c=c-2');
+    expect(game.parentElement).toContainElement(within(fresh).getByRole('link', { name: TESTS_VIEW.send }));
+    expect(LIVE_ENTRY.host).toBe('Провести игру');
+  });
+
+  it('«Провести игру» waits, with the test page’s reason, while no question has its key, or there is none', async () => {
+    api.listQuizzes.mockResolvedValue([]);
+    renderView([test('c-3', 'Без ключей', 6, 0), test('c-4', 'Пустой', 0)]);
+    const noKey = (await screen.findByRole('link', { name: 'Без ключей' })).closest('li')!;
+    const shut = await within(noKey).findByRole('button', { name: LIVE_ENTRY.host });
+    expect(shut).toBeDisabled();
+    expect(shut).toHaveAccessibleDescription(TEST_HOME.sendWhyKey);
+    const empty = screen.getByRole('link', { name: 'Пустой' }).closest('li')!;
+    expect(await within(empty).findByRole('button', { name: LIVE_ENTRY.host })).toHaveAccessibleDescription(TEST_HOME.sendWhyEmpty);
+    expect(screen.queryByRole('link', { name: LIVE_ENTRY.host })).toBeNull();
   });
 
   it('a read that failed offers «Повторить»', async () => {

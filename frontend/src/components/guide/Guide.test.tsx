@@ -88,6 +88,7 @@ describe('the guide chapters', () => {
       'Лекции',
       'Экзамены',
       'Тесты',
+      'Игра в классе',
       'Повторение',
       'Прогресс',
       'Лимит ИИ',
@@ -101,8 +102,11 @@ describe('the guide chapters', () => {
     expect(chapterIndexFor('/exams/c/abc')).toBe(3);
     expect(chapterIndexFor('/exams/c/abc/settings')).toBe(3);
     expect(chapterIndexFor('/exams')).toBe(3);
-    expect(chapterIndexFor('/mistakes')).toBe(5);
-    expect(chapterIndexFor('/knowledge-map')).toBe(6);
+    // The game's own pages (the setup, the projector) are «Игра в классе», after «Тесты».
+    expect(chapterIndexFor('/live/new')).toBe(5);
+    expect(chapterIndexFor('/live/g-1')).toBe(5);
+    expect(chapterIndexFor('/mistakes')).toBe(6);
+    expect(chapterIndexFor('/knowledge-map')).toBe(7);
     expect(chapterIndexFor('/profile')).toBe(-1);
     const byId = Object.fromEntries(GUIDE_CHAPTERS.map((chapter) => [chapter.id, chapter.text]));
     expect(byId.review).toMatch(/дневник ошибок/);

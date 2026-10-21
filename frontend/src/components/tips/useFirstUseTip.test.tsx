@@ -25,8 +25,8 @@ vi.mock('./clipPart', () => ({ tipClipPart: { load: (...args: unknown[]) => mock
 
 import { TIP_SETTLE_MS, useFirstUseTip } from './useFirstUseTip';
 
-function Probe({ enabled = true }: { enabled?: boolean }) {
-  const tip = useFirstUseTip('talk', { enabled });
+function Probe({ enabled = true, visits }: { enabled?: boolean; visits?: number }) {
+  const tip = useFirstUseTip('talk', { enabled, visits });
   return (
     <div>
       <p data-testid="show">{tip.show ? 'shown' : 'hidden'}</p>
@@ -232,5 +232,17 @@ describe('useFirstUseTip', () => {
     await settle(2000);
     expect(shown()).toBe(false);
     expect(mocks.getProfile).not.toHaveBeenCalled();
+  });
+
+  it('`visits` 1: a tip shown on one visit only is put away as it shows (the test page’s «game»)', async () => {
+    const view = render(<Probe visits={1} />);
+    await settle();
+    expect(shown()).toBe(true);
+    expect(window.localStorage.getItem('meldy_tip_talk')).toBe('1');
+    expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'tip_talk');
+    view.unmount();
+    render(<Probe visits={1} />);
+    await settle();
+    expect(shown()).toBe(false);
   });
 });
