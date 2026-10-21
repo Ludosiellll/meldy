@@ -295,6 +295,22 @@ describe('teacher screen against the fake server', () => {
     expect(view.container.querySelector('.lvh-ring-num')?.textContent).toBe('0');
   });
 
+  it('a player who joins during a question sits it out: «N из M» counts only those who can answer (live check r2, N2)', async () => {
+    const { api, g, view } = await start(6);
+    space();
+    await tick(50);
+    await tick(3000); // open
+    await api.join(g.pin, 'Поздний', 'P'.repeat(43), null);
+    await tick(1000);
+    expect(view.container.querySelector('.lvh-top')?.textContent).toMatch(/Играют 7/);
+    expect(view.container.querySelector('.lvh-q-side')?.textContent).toMatch(/из 6 ответили/);
+    await tick(2500); // the six answered: the question closes early
+    expect(view.container.querySelector('.lvh-closing')?.textContent).toBe('Все ответили');
+    expect(view.container.querySelector('.lvh-q-side')?.textContent?.replace(/\u00a0/g, ' ')).toMatch(/^6из 6 ответили$/);
+    await tick(800);
+    expect(view.container.querySelector('.lvh-q-side')?.textContent).toMatch(/из 6 верно/);
+  });
+
   it('a reload in the middle of a reveal draws it as it is, without replaying', async () => {
     const { view, ui, server } = await start();
     space();

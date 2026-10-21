@@ -61,6 +61,19 @@ const BATTLE_STATES = new Set(['countdown', 'open', 'reveal', 'leaderboard']);
 export const ALL_IN_BEAT_MS = 700;
 const NO_ROWS: RosterRow[] = [];
 
+/**
+ * Players who can answer the question: those who joined before it opened (CONTRACT §2 — a later joiner sits it out
+ * and is not waited for). The panel's «N из M» and «Все ответили» count these, not everyone in the room.
+ */
+export function answerable(roster: readonly RosterRow[], opensAt: string | null | undefined): number {
+  const open = opensAt ? Date.parse(opensAt) : NaN;
+  if (!Number.isFinite(open)) return roster.length;
+  return roster.filter((r) => {
+    const at = Date.parse(r.joined_at);
+    return !Number.isFinite(at) || at <= open;
+  }).length;
+}
+
 const at = (s: Slot, i: number, hidden = false, name = true): Place => ({ x: s.x, y: s.y, size: s.size, hidden, name, nameW: s.nameW, i });
 
 /**
@@ -265,7 +278,9 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
           director.reveal(latest.current.state === 'reveal' && latest.current.qi === s.qi ? latest.current : s, () => syncRest(store, latest.current));
         };
         // Everyone answered before the time ran out: «Все ответили», the monster braces itself, then the key.
-        const early = beatRef.current === null && Date.now() < closesAtRef.current - 400;
+        // (and only when every player who could answer did — the room's count may hold a later joiner)
+        const answers = s.result!.counts.reduce((a, b) => a + b, 0);
+        const early = beatRef.current === null && Date.now() < closesAtRef.current - 400 && answers >= answerable(s.roster, s.question?.opens_at);
         if (early) {
           setBeat('all');
           beatTimer.current = setTimeout(play, ALL_IN_BEAT_MS);
@@ -456,7 +471,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
               question={q}
               result={s.state === 'reveal' && beat !== 'all' ? s.result : null}
               closing={beat}
-              players={s.players}
+              players={answerable(s.roster, q.opens_at)}
               answered={s.answered}
               opensAt={opensAt}
               closesAt={closesAt}
