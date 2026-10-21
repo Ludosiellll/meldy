@@ -47,6 +47,8 @@ interface FragmentTextProps {
   text: string | undefined;
   /** Stems of what opened the fragment (a section, a term, a card): the slip underlines the ones it shares. */
   stems: readonly string[];
+  /** The whole text at once, no «Показать целиком». */
+  whole?: boolean;
 }
 
 /**
@@ -54,12 +56,12 @@ interface FragmentTextProps {
  * underlined, a long one cut at a word (never inside a formula) with «Показать целиком» under it. Keyed by the
  * fragment, so another fragment opens from its start.
  */
-export function FragmentText({ id, text, stems }: FragmentTextProps) {
+export function FragmentText({ id, text, stems, whole: always = false }: FragmentTextProps) {
   const [whole, setWhole] = useState(false);
   const parts = text ? splitFragmentHeading(text) : null;
   const body = parts?.body ?? '';
   const pieces = useMemo(() => splitMath(body), [body]);
-  const long = body.length > SLIP_LIMIT;
+  const long = !always && body.length > SLIP_LIMIT;
   const shown = long && !whole ? shortenPieces(pieces, SLIP_LIMIT) : pieces;
   const marks = useMemo(() => underlineStems(text ?? '', stems), [text, stems]);
 

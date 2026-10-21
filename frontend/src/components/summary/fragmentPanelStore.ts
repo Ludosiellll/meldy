@@ -16,6 +16,8 @@ export interface PanelFragment {
   text: string | undefined;
   /** Word stems underlined in pencil: the words the fragment shares with what opened it. */
   stems?: readonly string[];
+  /** Shown whole at once, without «Показать целиком» (the page already showed its start and asked for all of it). */
+  whole?: boolean;
 }
 
 export interface FragmentPanelRequest {

@@ -235,7 +235,7 @@ describe('ConversationPlayer', () => {
     expect(within(scene).getByRole('heading', { name: 'Температура кипения, °C' })).toBeInTheDocument();
     // The source note in the corner of the sheet: where the numbers come from. There are no fragments
     // here, so there is no number either: «S02» of the line cannot be checked against anything.
-    expect(within(scene).getByText('Числа — из лекции')).toHaveClass('sf-pnote');
+    expect(within(scene).getByText('Числа взяты из лекции')).toHaveClass('sf-pnote');
     expect(within(scene).queryByText(/S02|фрагмент/)).not.toBeInTheDocument();
     expect(within(scene).getByRole('img', { name: /Температура кипения/ })).toBeInTheDocument();
     const subtitles = screen.getByRole('region', { name: 'Субтитры' });
@@ -846,11 +846,12 @@ describe('ConversationPlayer', () => {
     expect(scene.querySelector('[data-source-note]')).toHaveTextContent('Из лекции, фрагмент 2');
     await user.click(fragment);
     expect(fragment).toHaveAttribute('aria-expanded', 'true');
-    // The fragment opens as a slip over the sheet, so the quote can be checked word for word.
-    const slip = within(scene).getByRole('region', { name: 'Лекция, фрагмент 2' });
-    expect(within(slip).getByText(sources[1].text)).toBeInTheDocument();
-    fireEvent.keyDown(within(slip).getByRole('button', { name: 'Закрыть фрагмент' }), { key: 'Escape' });
-    expect(within(scene).queryByRole('region', { name: 'Лекция, фрагмент 2' })).not.toBeInTheDocument();
+    // The fragment opens in the app's fragment panel, so the quote can be checked word for word.
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 2 лекции' });
+    expect(scene.contains(panel)).toBe(false);
+    expect(panel.querySelector('.fp-slip')).toHaveTextContent(sources[1].text);
+    fireEvent.keyDown(within(panel).getByRole('button', { name: 'Закрыть фрагмент' }), { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Фрагмент 2 лекции' })).not.toBeInTheDocument();
     expect(fragment).toHaveFocus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Следующая реплика' }));

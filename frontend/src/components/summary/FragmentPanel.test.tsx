@@ -158,9 +158,9 @@ describe('the fragment panel', () => {
     expect(document.querySelector('.fp-layer')).toHaveAttribute('data-phone');
     expect(document.querySelector('.fp-grip')).not.toBeNull();
     // The page under the sheet holds still while it is open.
-    expect(document.body.style.overflow).toBe('hidden');
+    expect(document.documentElement.style.overflow).toBe('hidden');
     fireEvent.keyDown(document.body, { key: 'Escape' });
-    expect(document.body.style.overflow).toBe('');
+    expect(document.documentElement.style.overflow).toBe('');
   });
 });
 

@@ -108,7 +108,9 @@ function FragmentPanel({ request }: { request: FragmentPanelRequest }) {
   }, [close]);
 
   // The page under the dim stays where it is: a wheel or a swipe over the dim does not scroll it. A computer keeps its
-  // scrollbar (hiding it would move the page sideways); a phone's sheet holds the page as «почему» does.
+  // scrollbar (hiding it would move the page sideways). A phone's sheet also holds the window still; only the root's
+  // overflow is set, so the page's sticky top line stays in place (with the body's as well the body became the
+  // scroller, and the top line scrolled away under the sheet).
   useEffect(() => {
     const dim = dimRef.current;
     if (!dim) return undefined;
@@ -122,15 +124,11 @@ function FragmentPanel({ request }: { request: FragmentPanelRequest }) {
   }, []);
   useEffect(() => {
     if (!phone) return undefined;
-    const targets = [document.documentElement, document.body];
-    const previous = targets.map((element) => element.style.overflow);
-    targets.forEach((element) => {
-      element.style.overflow = 'hidden';
-    });
+    const root = document.documentElement;
+    const previous = root.style.overflow;
+    root.style.overflow = 'hidden';
     return () => {
-      targets.forEach((element, index) => {
-        element.style.overflow = previous[index];
-      });
+      root.style.overflow = previous;
     };
   }, [phone]);
 
@@ -229,7 +227,7 @@ function FragmentPanel({ request }: { request: FragmentPanelRequest }) {
           </button>
         </div>
         {request.note ? <p className="fp-note">{request.note}</p> : null}
-        <FragmentText key={fragment.id} id={fragment.id} text={fragment.text} stems={fragment.stems ?? []} />
+        <FragmentText key={fragment.id} id={fragment.id} text={fragment.text} stems={fragment.stems ?? []} whole={fragment.whole} />
       </div>
     </div>,
     document.body,

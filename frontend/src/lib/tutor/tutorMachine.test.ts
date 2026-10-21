@@ -362,7 +362,7 @@ describe('«Не знаю» and «Спросить»', () => {
       now: 9,
     });
     expect(state.line?.slip).toEqual({ sourceId: 'S04', text: 'Безработица бывает…', kind: 'nearest' });
-    expect(slipCaption(state.line!.slip!)).toBe('Фрагмент 4 — ближайший к вопросу');
+    expect(slipCaption(state.line!.slip!)).toBe('Больше всего слов из вопроса во фрагменте 4');
     expect(lineText(state.line!)).toBe('В лекции об этом не сказано. Вернёмся к вопросу. Вопрос номер 1?');
   });
 

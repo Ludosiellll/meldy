@@ -29,6 +29,7 @@ import {
   questionsWord,
   sentences,
   slipCaption,
+  slipPanelNote,
   summaryOf,
   tally,
   tutorReducer,
@@ -46,6 +47,7 @@ import { displayMaterialTitle } from '../utils/materialTitle';
 import { glue } from '../lib/oral/format';
 import { minutesBucket, track, waitBucket } from '../lib/telemetry';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { fragmentIdNumber, useFragmentPanel } from '../components/summary/FragmentPanel';
 
 /**
  * «Поговорить о лекции» (notes: 10_Project/Voice_Tutor_Spec_2026-10-05): Meldy asks the lecture's
@@ -78,7 +80,7 @@ export const SLOW_AFTER_MS = 6_000;
 const FILLER_WAIT_MS = 1_500;
 /** «Так…» that never reports its end is let go after this. */
 const FILLER_MAX_MS = 3_000;
-/** A longer fragment on the desk opens with «Показать целиком»; in the protocol it is cut. */
+/** A longer fragment on the desk is cut; «Показать целиком» opens it whole in the fragment panel. In the protocol it is cut. */
 const SLIP_LIMIT = 420;
 const ROW_SLIP_LIMIT = 220;
 const NO_MARKS: ReadonlySet<number> = new Set();
@@ -284,20 +286,39 @@ function TutorCard({ line, links }: { line: TutorLine; links: ReactNode }) {
   );
 }
 
-/** The lecture's own words: the caption on the desk, the words on the paper card. */
+/**
+ * The lecture's own words: the caption on the desk, the words on the paper card. A long fragment stays cut on the desk,
+ * so «Ваш ответ» and the pill under it do not move; «Показать целиком» opens it whole in the fragment panel (owner
+ * 21.10: one way to open a fragment in the whole app).
+ */
 function TutorSlip({ slip }: { slip: Slip }) {
-  const [whole, setWhole] = useState(false);
+  const { open, current, panel } = useFragmentPanel();
   const long = slip.text.length > SLIP_LIMIT;
-  const shown = long && !whole ? `${slip.text.slice(0, SLIP_LIMIT).replace(/\s+\S*$/, '')}…` : slip.text;
+  const shown = long ? `${slip.text.slice(0, SLIP_LIMIT).replace(/\s+\S*$/, '')}…` : slip.text;
   return (
     <figure className="lt-slip" data-kind={slip.kind}>
       <figcaption className="lt-slip-cap">{slipCaption(slip)}</figcaption>
       <blockquote className="sf-slip lt-slip-text">{shown}</blockquote>
       {long ? (
-        <button type="button" className="sf-link" data-muted="" onClick={() => setWhole((value) => !value)}>
-          {whole ? 'Свернуть' : 'Показать целиком'}
+        <button
+          type="button"
+          className="sf-link"
+          data-muted=""
+          aria-haspopup="dialog"
+          aria-expanded={current !== null}
+          onClick={(event) =>
+            open({
+              note: slipPanelNote(slip),
+              fragments: [{ id: slip.sourceId, number: fragmentIdNumber(slip.sourceId), text: slip.text, whole: true }],
+              current: slip.sourceId,
+              returnTo: event.currentTarget,
+            })
+          }
+        >
+          Показать целиком
         </button>
       ) : null}
+      {panel}
     </figure>
   );
 }

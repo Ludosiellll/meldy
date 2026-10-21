@@ -552,9 +552,9 @@ describe('steps', () => {
 
 describe('words on the paper sheet (spec 5.7)', () => {
   it('writes the source note of the corner only for what was checked', () => {
-    expect(sourceNote({ kind: 'numbers', ids: ['S04'] })).toBe('Числа — из лекции, фрагмент 4');
-    expect(sourceNote({ kind: 'numbers', ids: [] })).toBe('Числа — из лекции');
-    expect(sourceNote({ kind: 'dates', ids: ['S02', 'S05'] })).toBe('Даты — из лекции, фрагменты 2 и 5');
+    expect(sourceNote({ kind: 'numbers', ids: ['S04'] })).toBe('Числа взяты из лекции, фрагмент 4');
+    expect(sourceNote({ kind: 'numbers', ids: [] })).toBe('Числа взяты из лекции');
+    expect(sourceNote({ kind: 'dates', ids: ['S02', 'S05'] })).toBe('Даты взяты из лекции, фрагменты 2 и 5');
     expect(sourceNote({ kind: 'quote', ids: ['S01'] })).toBe('Из лекции, фрагмент 1');
     expect(sourceNote({ kind: 'summary' })).toBe('Из конспекта');
     expect(sourceNote({ kind: 'cards' })).toBe('Из карточек');
