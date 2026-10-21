@@ -4,6 +4,16 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.16: plain words on the study side and in the bot (from the commit of this entry)
+
+- **Plain words** (owner, 21.10): about 450 strings on the study side say the result in short sentences — «Выучено 46
+  вопросов из 240», «17 из 20 верно за 11 минут. 3 ошибки повторим завтра.», «Повторить 20 ошибок»; the counting rule only
+  under «Как считается». «Сегодня», lectures, «Повторение», mistakes, «Прогресс», the oral answer, import, settings, the
+  group link, the guide, tips and the Telegram card. The lecture's quiz tab is «Самопроверка». The bot says the same
+  (deployed with this release).
+- The movement games' 3D kit is in the tree (KayKit players, both bosses, the mode A arena); no screen loads it yet.
+- Gate on 65d15b5 (clean worktree): pytest 2440, bot 389, sync ok, Vitest 390 files / 6476 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.15: plain words, «Осталось выучить», the quick test, the new landing and /try (from the commit of this entry)
 
 - **Plain words** (owner, 21.10: «ты когда их читаешь нихуя не понятно»): the test side rewritten (305 strings: tests,
