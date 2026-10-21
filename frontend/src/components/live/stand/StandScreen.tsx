@@ -32,7 +32,7 @@ import './stand.css';
 
 /** The board's bottom edge and the buttons' top edge, stage units (900 high): the 3D floor is framed between. */
 const BOARD_BOTTOM = 196;
-const FOOT_TOP = 868;
+const FOOT_TOP = 812;
 
 type Phase = StandState['phase'];
 

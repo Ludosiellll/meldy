@@ -81,6 +81,8 @@ export interface ViewOptions {
   antialias?: boolean;
   /** Name tag size: 1 = 34 px tall on a 1080-high screen. */
   tagScale?: number;
+  /** Leave out name tags that would overlap others in a crowd (default true): no tag is ever cut by another. */
+  tagDeclutter?: boolean;
   /** Keep the picture after drawing (screenshots only: it costs speed). */
   preserveDrawingBuffer?: boolean;
 }

@@ -532,9 +532,23 @@ export class ArenaImpl {
     this.animating = busy;
   }
 
-  /** The tops of the upright signs, metres (the camera keeps them in the picture). */
-  signTops(): THREE.Vector3[] {
-    return this.labels.filter((l) => !l.flat).map((l) => new THREE.Vector3(l.base.x, l.base.y + 0.9, l.base.z - 0.4));
+  /**
+   * Points the camera keeps in the picture so every zone's sign is whole: the tops of the upright signs and the four
+   * corners of the labels lying on the floor (metres).
+   */
+  labelPoints(): THREE.Vector3[] {
+    const out: THREE.Vector3[] = [];
+    for (const l of this.labels) {
+      if (!l.flat) {
+        out.push(new THREE.Vector3(l.base.x, l.base.y + 0.9, l.base.z - 0.4));
+        continue;
+      }
+      const g = l.mesh.geometry as THREE.PlaneGeometry;
+      const hw = g.parameters.width / 2;
+      const hh = g.parameters.height / 2;
+      for (const [dx, dz] of [[-hw, -hh], [hw, -hh], [-hw, hh], [hw, hh]]) out.push(new THREE.Vector3(l.base.x + dx, 0, l.base.z + dz));
+    }
+    return out;
   }
 
   setOutlines(on: boolean): void {

@@ -66,6 +66,7 @@ export class ViewImpl {
     this.renderer.setClearColor(0x000000, options.transparent ? 0 : 1);
     if (typeof options.quality === 'number') this.setQuality(options.quality);
     this.kit.tags.scale = options.tagScale ?? 1;
+    this.kit.tags.declutter = options.tagDeclutter ?? true;
     this.observer = typeof ResizeObserver === 'function' ? new ResizeObserver(() => this.resize()) : null;
     this.observer?.observe(canvas);
     this.onVisibility = () => {
@@ -148,7 +149,7 @@ export class ViewImpl {
       new THREE.Vector3(X0 + W, 0, Z0),
       new THREE.Vector3(stage.x / UNITS, bossTop, stage.y / UNITS),
       new THREE.Vector3(arena.impact.x / UNITS, 0, arena.impact.y / UNITS),
-      ...(drawn ? drawn.signTops() : []),
+      ...(drawn ? drawn.labelPoints() : []),
     ];
     const lim = { l: -1 + 2 * margins.left, r: 1 - 2 * margins.right, b: -1 + 2 * margins.bottom, t: 1 - 2 * margins.top };
     // as close as the picture fits between the margins; then the lens shifts it to their middle (no tilt changes)

@@ -165,6 +165,7 @@ async function play(page, { shot = null } = {}) {
     if (phase === 'lobby') {
       if ((r.pill >= BOTS && t > 2500) || t > 45000) {
         await once('lobby', () => snap('01-lobby'));
+        if (process.env.PROBE) console.log(await page.evaluate(() => { const e = document.elementFromPoint(innerWidth - 30, innerHeight - 30); return e ? e.outerHTML.slice(0, 300) + ' | ' + (e.parentElement?.outerHTML.slice(0, 200) ?? '') : 'none'; }));
         await once('start', () => page.keyboard.press('Space'));
       }
     } else if (phase === 'countdown') {
