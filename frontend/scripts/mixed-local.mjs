@@ -16,8 +16,8 @@
  * which leaves the database with the mixed migration applied — then Vite with VITE_SUPABASE_URL pointing at the room's
  * server (it passes /rest/v1 on to PostgREST) and /api proxied with WebSockets. Env: PGRST (the postgrest binary),
  * PGHOST / PGPORT / PGUSER and DB (live) for the cluster, MELDY_PY (a Python with the backend's packages), BOTS=12,
- * EVERY=3, TIME=10, BOSS=skeleton, SKILL="0.3 0.6" (how often the bots are right), PORT=8418, W/H (the projector,
- * 1532 × 734), QUERY (more of the projector's address, e.g. &fps=1). Playwright: the project's own package
+ * EVERY=3, TIME=10, BOSS=skeleton, SKILL="0.3 0.6" (how often the bots are right), THINK=5.5 (their seconds to tap), PORT=8418, W/H (the projector,
+ * 1532 × 734), QUERY (more of the projector's address, e.g. &fps=1), ROOM_LOG=debug (the room's log on stderr). Playwright: the project's own package
  * if installed, else one on NODE_PATH. Headless WebGL runs on SwiftShader: its frame rate says nothing about a GPU.
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -52,7 +52,7 @@ async function loadPlaywright() {
 function startRoom() {
   const args = [join(root, '..', 'supabase', 'tests', 'local', 'live_mixed_local.sh'), env('PGRST', 'postgrest'), env('DB', 'live'),
     '--bots', String(BOTS), '--every', env('EVERY', '3'), '--time', env('TIME', '10'), '--boss', env('BOSS', 'skeleton'), '--port', String(PORT),
-    '--skill', ...env('SKILL', '0.3 0.6').split(/\s+/)];
+    '--skill', ...env('SKILL', '0.3 0.6').split(/\s+/), '--log', env('ROOM_LOG', 'warning'), '--think', env('THINK', '5.5')];
   const child = spawn('bash', args, { stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, LIVE_PY: env('MELDY_PY', 'python3') }, detached: true });
   return new Promise((ok, fail) => {
     let buf = '';
@@ -108,6 +108,22 @@ async function openProjector(browser, base, room, video) {
     },
     [room.game, room.host_token],
   );
+  // the room's text messages as the projector got them (the last 40), read back when something goes wrong
+  await context.addInitScript(() => {
+    const Native = window.WebSocket;
+    const log = [];
+    window.__roomLog = log;
+    window.WebSocket = class extends Native {
+      constructor(...a) {
+        super(...a);
+        this.addEventListener('message', (e) => {
+          if (typeof e.data !== 'string') return;
+          log.push([Math.round(performance.now()), e.data.slice(0, 600)]);
+          if (log.length > 40) log.shift();
+        });
+      }
+    };
+  });
   const page = await context.newPage();
   const startedAt = Date.now();
   logConsole(page, 'projector');
@@ -271,7 +287,10 @@ async function play(proj, phone, dir, db, started) {
       }
       await sleep(1500);
       await shot(`q${n}-2-running`, true);
-      await until('the reveal', async () => (await projector(proj))?.phase === 'reveal', 60000);
+      await until('the reveal', async () => (await projector(proj))?.phase === 'reveal', 45000).catch(async () => {
+        console.log('the projector never showed the reveal; the database:', JSON.stringify(await db()));
+        console.log('the room said:', JSON.stringify(await proj.evaluate(() => window.__roomLog).catch(() => null), null, 1));
+      });
       await sleep(500);
       await shot(`q${n}-3-stomp`, true);
       await sleep(2200);

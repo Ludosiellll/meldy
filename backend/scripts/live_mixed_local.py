@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import math
 import os
 import random
@@ -67,8 +68,9 @@ def zone_spot(rng: random.Random, zone: int) -> tuple[float, float]:
 
 
 class Bot:
-    def __init__(self, i: int, pin: str, rpc, url: str, skill: float, seed: int) -> None:
+    def __init__(self, i: int, pin: str, rpc, url: str, skill: float, seed: int, think_s: float = 5.5) -> None:
         self.i = i
+        self.think_s = think_s
         self.pin = pin
         self.rpc = rpc
         self.url = url
@@ -182,7 +184,7 @@ class Bot:
                 continue
             qi = st["qi"]
             self.tapped.add(qi)
-            await asyncio.sleep(self.rng.random() * 5.5)
+            await asyncio.sleep(self.rng.random() * self.think_s)
             n = len(q["options"])
             choice = KEYS[qi] if self.rng.random() < self.skill else self.rng.randrange(n)
             try:
@@ -240,9 +242,13 @@ async def main() -> None:
     ap.add_argument("--join-s", type=float, default=8.0, help="the bots join over this many seconds")
     ap.add_argument("--skill", type=float, nargs=2, default=[0.3, 0.6], metavar=("LOW", "HIGH"),
                     help="each bot is right this often (a share between the two), so the boss lasts a short test")
+    ap.add_argument("--think", type=float, default=5.5, help="a bot taps within this many seconds of the opening")
+    ap.add_argument("--log", default="warning", choices=["debug", "info", "warning"], help="the room's own log (stderr)")
     a = ap.parse_args()
     if not a.local:
         raise SystemExit("live_mixed_local.py is a local tool: pass --local")
+    logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s", stream=sys.stderr)
+    logging.getLogger("live_move").setLevel(a.log.upper())
     anon = jwt(a.secret, {"role": "anon"})
     author = jwt(a.secret, {"role": "authenticated", "sub": a.author})
     supabase_rest._base_url = lambda: a.rest
@@ -274,7 +280,7 @@ async def main() -> None:
     bots = []
     for i in range(a.bots):
         skill = a.skill[0] + rng.random() * (a.skill[1] - a.skill[0])
-        bots.append(asyncio.create_task(Bot(i, pin, rpc, url, skill, a.seed * 100 + i).run()))
+        bots.append(asyncio.create_task(Bot(i, pin, rpc, url, skill, a.seed * 100 + i, a.think).run()))
         await asyncio.sleep(a.join_s / max(1, a.bots) * (0.5 + rng.random()))
     try:
         await serve
