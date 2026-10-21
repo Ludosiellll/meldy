@@ -155,7 +155,15 @@ export class MoveClient {
 
   private open(): void {
     const Impl = this.o.WebSocketImpl ?? WebSocket;
-    const ws = new Impl(this.o.url ?? defaultUrl());
+    let ws: WebSocket;
+    try {
+      ws = new Impl(this.o.url ?? defaultUrl());
+    } catch {
+      // A socket refused before it exists (a CSP block, a bad address): retried like a dropped one, backoff up to 8 s.
+      this.ws = null;
+      this.onClosed(1006);
+      return;
+    }
     ws.binaryType = 'arraybuffer';
     this.ws = ws;
     this.setStatus(this.attempt ? 'waiting' : 'connecting');

@@ -258,6 +258,22 @@ describe('MoveClient', () => {
     expect(FakeSocket.all.length).toBe(2);
   });
 
+  it('retries when the socket cannot even be created', () => {
+    let fail = true;
+    class Refusing extends FakeSocket {
+      constructor(url: string) {
+        if (fail) throw new Error('SecurityError');
+        super(url);
+      }
+    }
+    const c = client({ WebSocketImpl: Refusing as unknown as new (url: string) => WebSocket });
+    c.connect();
+    expect(last(statuses)).toEqual(['waiting', 1006]);
+    fail = false;
+    advance(1000);
+    expect(FakeSocket.all).toHaveLength(1);
+  });
+
   it('close() leaves for good', () => {
     const c = client();
     c.connect();
