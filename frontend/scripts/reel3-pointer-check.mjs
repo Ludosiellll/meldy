@@ -23,6 +23,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -73,7 +74,14 @@ let server = null;
 let url = arg('url');
 if (!url) {
   const { createServer } = await import('vite');
-  server = await createServer({ root, configFile: join(root, 'vite.config.ts'), logLevel: 'error', server: { host: '127.0.0.1', port: 0 } });
+  // Its own dependency cache: a dev server already running on this checkout keeps its own.
+  server = await createServer({
+    root,
+    configFile: join(root, 'vite.config.ts'),
+    cacheDir: join(tmpdir(), 'reel3-pointer-check-vite'),
+    logLevel: 'error',
+    server: { host: '127.0.0.1', port: 0 },
+  });
   await server.listen();
   url = server.resolvedUrls.local[0];
 }
@@ -85,6 +93,26 @@ const fail = (size, what) => {
   failures.push(`${size}: ${what}`);
   console.log(`  FAIL ${what}`);
 };
+
+/** A fresh dev server finds the reel's dependencies as its scenes load and reloads the page once it has: every scene is
+ * put on the stage once before the checks, and the page given time to settle. */
+async function warmUp() {
+  const page = await browser.newPage({ viewport: SIZES.desktop });
+  await page.addInitScript(() => {
+    window.__MELDY_REEL_EXPORT__ = true;
+  });
+  for (let round = 0; round < 2; round += 1) {
+    await page.goto(url, { waitUntil: 'load' });
+    await page.waitForFunction(() => window.__meldyReel, null, { timeout: 120000 });
+    const scenes = await page.evaluate(() => window.__meldyReel.scenes);
+    for (const scene of scenes) {
+      await page.evaluate((t) => window.__meldyReel?.seek(t), (scene.from + scene.to) / 2).catch(() => undefined);
+    }
+    await page.waitForTimeout(3000);
+  }
+  await page.close();
+}
+if (server) await warmUp();
 
 /** Reads, in the page, the pointer's tip and the target of a key in one scene's gate (frame px). */
 function probe({ scene, aim }) {

@@ -135,7 +135,8 @@ function dragRow(ghost: HTMLElement | undefined, line: HTMLElement | undefined, 
 
 /**
  * «Новый тест», «Создать», then «Заголовок» and «Один ответ» dragged from the palette into their places on the page:
- * each let go at the right of its slot, clear of the block's words; after, the pointer waits at the palette's empty foot.
+ * each let go at the right of its slot, clear of the block's words; after, the pointer waits at the palette's empty foot
+ * and is gone before the reel's still (POSTER3, 6300 ms into this scene).
  */
 export const BUILD_KEYS: readonly CursorKey[] = [
   { t: 250, aim: 'exams', fx: 0.5, fy: 1, dy: 36 },
@@ -146,7 +147,7 @@ export const BUILD_KEYS: readonly CursorKey[] = [
   { t: 4350, aim: 'pal-single', fx: 0.75, down: true },
   { t: 5050, aim: 'slot-q', fx: 0.6, fy: 0.04, up: true, over: 'page' },
   { t: 5750, aim: 'pal', fx: 0.62, fy: 0.95 },
-  { t: 6700, hide: true },
+  { t: 6200, hide: true },
 ];
 const NEW_TEST = pressAt(BUILD_KEYS, 'newtest');
 const CREATED = pressAt(BUILD_KEYS, 'create');
