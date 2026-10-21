@@ -1,7 +1,8 @@
 /**
  * The landing v3's sections after the first screen, in the reel's order: the lecture, the exam (the department's
- * file, the plan, the session with what is left to learn, the ticket aloud), the group and Telegram. Each picture is a
- * tinted stage with Meldy's own light screens laid over it (they are pictures of the app, light in both themes).
+ * file, the plan, the session with what is left to learn, the ticket aloud), the group and Telegram, the game in
+ * class. Each picture is a tinted stage with Meldy's own light screens laid over it (they are pictures of the app, light
+ * in both themes); the game's is the real recorded game on the projector.
  *
  * Nothing on the page moves when a picture is pressed (owner, 2026-10-21: «при нажатии на блоки … другие блоки чуть
  * вниз сьезжают»): every text a press can show is in the markup from the start, stacked in one grid cell with the
@@ -9,7 +10,9 @@
  */
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { glue } from '../../lib/containers/words';
-import { EXAMPLE, EXAM_SECTION, GROUP_SECTION, LECTURE_SECTION, PICTURES, bind } from './copy3';
+import { CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, LECTURE_SECTION, PICTURES, bind } from './copy3';
+import { GAME_FRAME, GAME_FRAMES } from './gameFrames';
+import { ArrowIcon } from './HeroTop';
 import Swap from './Swap';
 import TicketAloud from './TicketAloud';
 import { prefersStill, useInView } from './useInView';
@@ -401,6 +404,83 @@ export function GroupSection() {
             </p>
             <span className="p3-tg-btn p3-tg-btn--blue">{PICTURES.botStart}</span>
             <span className="p3-tg-btn">{PICTURES.botOpen}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ——— the game in class ——— */
+
+/** «Провести игру»: sign up, then «Тесты», where every test has «Провести игру» (Register honours ?next=). */
+export const GAME_URL = `/register?next=${encodeURIComponent('/exams?view=tests')}`;
+
+/** What the projector's picture shows, for those who do not see it. */
+export const GAME_ALT = 'Игра «Встань на ответ» на проекторе. Класс стоит на верном ответе, остальной пол провалился. Устояли 18 из 30.';
+
+/**
+ * «Игра в классе» (owner, 21.10): the real recorded game on the projector (the floor has dropped, the fallen are ghosts),
+ * the bot's post in the class chat with «Играть», and a student's phone in Telegram, «Верно +980». A still picture:
+ * nothing on it moves, and its one link is the only thing to press. The frame is fetched only as the section comes
+ * near (loading=lazy; the phone's view is the same file).
+ */
+export function GameSection() {
+  const stage = useRef<HTMLDivElement>(null);
+  const seen = useInView(stage);
+  return (
+    <section id="game" className="h3-wrap p3-sec p3-split" aria-labelledby="game-h">
+      <SectionHead id="game-h" title={GAME_SECTION.title} text={GAME_SECTION.text}>
+        <div className="p3-ctas p3-game-acts">
+          <a className="h3-pill h3-pill--blue" href={GAME_URL}>
+            {CTA.game}
+            <i>
+              <ArrowIcon />
+            </i>
+          </a>
+        </div>
+      </SectionHead>
+      <div ref={stage} className="p3-stage p3-stage--violet p3-game-stage" data-reveal={seen ? 'in' : 'wait'}>
+        <div className="p3-proj p3-l">
+          <img src={GAME_FRAMES.drop} width={GAME_FRAME.w} height={GAME_FRAME.h} alt={GAME_ALT} loading="lazy" decoding="async" />
+        </div>
+        <div className="p3-gpost p3-l" style={delay(160)} aria-hidden="true">
+          <p className="p3-tg-top">
+            <b>{GAME.chat}</b>
+            <small>{GAME.chatMeta}</small>
+          </p>
+          <div className="p3-gpost-in">
+            <p className="p3-tg-b">
+              <span className="p3-gpost-from">{GAME.bot}</span>
+              <b>{GAME.mode}</b>
+              {GAME.post.map((line) => (
+                <span key={line}>{line}</span>
+              ))}
+            </p>
+            <span className="p3-tg-btn p3-tg-btn--blue">{GAME.play}</span>
+          </div>
+        </div>
+        <div className="p3-gphone p3-l" style={delay(300)} aria-hidden="true">
+          <div className="p3-gphone-in">
+            <img src={GAME_FRAMES.drop} width={GAME_FRAME.w} height={GAME_FRAME.h} alt="" loading="lazy" decoding="async" />
+            <p className="p3-gphone-bar">
+              <span>{GAME.close}</span>
+              <i />
+            </p>
+            <p className="p3-gphone-win">
+              <b>{GAME.right}</b>
+              <strong>{GAME.points}</strong>
+            </p>
+            <span className="p3-gphone-stick">
+              <i />
+            </span>
+            <p className="p3-gphone-on">
+              <i>А</i>
+              <span>
+                <small>{GAME.onAnswer}</small>
+                {GAME.options[0]}
+              </span>
+            </p>
           </div>
         </div>
       </div>

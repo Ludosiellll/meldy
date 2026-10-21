@@ -3,7 +3,10 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Landing3 from './Landing3';
 import { BUILD_URL } from './Builder';
-import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, PICTURES, SAMPLE_TEST_URL, bind } from './copy3';
+import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, PICTURES, SAMPLE_TEST_URL, bind } from './copy3';
+import { GAME_ALT, GAME_URL } from './Sections';
+import { GAME_FRAMES } from './gameFrames';
+import { returnToFromSearch } from '../../lib/returnTo';
 
 const auth = vi.hoisted(() => ({ requestSession: vi.fn() }));
 vi.mock('../../hooks/useAuth', () => ({
@@ -89,7 +92,31 @@ describe('the landing v3', () => {
   it('has the sections in the reel’s order, the constructor last before the end', () => {
     renderLanding();
     const titles = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
-    expect(titles.slice(0, 4)).toEqual([LECTURE_SECTION.title, EXAM_SECTION.title, GROUP_SECTION.title, BUILDER_SECTION.title].map(bind));
+    expect(titles.slice(0, 5)).toEqual([LECTURE_SECTION.title, EXAM_SECTION.title, GROUP_SECTION.title, GAME_SECTION.title, BUILDER_SECTION.title].map(bind));
+  });
+
+  it('shows the game in class after the group: the recorded game, the bot’s post, a phone, one link (owner, 21.10)', () => {
+    renderLanding();
+    const section = document.getElementById('game')!;
+    expect(within(section).getByRole('heading', { level: 2 })).toHaveTextContent(GAME_SECTION.title);
+    expect(section.querySelector('.p3-text')!.textContent).toBe(bind(GAME_SECTION.text));
+    for (const line of ['на проекторе', 'с телефона', 'проваливается', 'в Telegram']) expect(GAME_SECTION.text).toContain(line);
+    // The projector is a frame of the real game, said in words; the post and the phone are pictures beside it.
+    const projector = within(section).getByRole('img', { name: GAME_ALT });
+    expect(projector).toHaveAttribute('src', GAME_FRAMES.drop);
+    for (const img of section.querySelectorAll('img')) expect(img).toHaveAttribute('loading', 'lazy');
+    for (const picture of section.querySelectorAll('.p3-gpost, .p3-gphone')) expect(picture).toHaveAttribute('aria-hidden', 'true');
+    expect(section.querySelector('.p3-gpost')).toHaveTextContent(GAME.play);
+    expect(section.querySelector('.p3-gphone')).toHaveTextContent(`${GAME.right}${GAME.points}`);
+    // Nothing to press but its one link: sign up, then «Тесты», where every test has «Провести игру».
+    expect(section.querySelectorAll('button')).toHaveLength(0);
+    const links = within(section).getAllByRole('link');
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName(CTA.game);
+    expect(links[0]).toHaveAttribute('href', GAME_URL);
+    expect(returnToFromSearch(GAME_URL.slice(GAME_URL.indexOf('?')))).toBe('/exams?view=tests');
+    fireEvent.click(links[0]);
+    expect(screen.getByText('Адрес: /register')).toBeInTheDocument();
   });
 
   it('offers «Собрать свой тест» beside the sample test: sign up, then the quick test (UX audit 21.10)', () => {

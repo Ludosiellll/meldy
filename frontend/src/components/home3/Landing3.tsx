@@ -1,7 +1,7 @@
 /**
  * The landing v3 «Один вопрос» (owner, 2026-10-19): one ticket question goes through the whole of Meldy in the reel,
- * and the page follows the reel's order — the lecture, the exam, the group, then the test constructor, the longest
- * part, with a small studio to touch. The first screen is also in index.html as plain HTML (#static-hero), so it paints
+ * and the page follows the reel's order — the lecture, the exam, the group, the game in class, then the test
+ * constructor, the longest part, with a small studio to touch. The first screen is also in index.html as plain HTML (#static-hero), so it paints
  * before any script; this page takes its place without a visible change.
  */
 import { startTransition, useEffect, useLayoutEffect, useState, type MouseEvent, type SyntheticEvent } from 'react';
@@ -12,7 +12,7 @@ import { prefetchLink } from '../../lib/prefetch';
 import Builder from './Builder';
 import { CTA, FINAL, FOOTER, FOOTER_NOTE, SAMPLE_TEST_URL, bind } from './copy3';
 import HeroTop, { ArrowIcon } from './HeroTop';
-import { ExamSection, GroupSection, LectureSection } from './Sections';
+import { ExamSection, GameSection, GroupSection, LectureSection } from './Sections';
 import './hero3.css';
 import './home3.css';
 
@@ -116,6 +116,7 @@ export default function Landing3() {
             <LectureSection />
             <ExamSection />
             <GroupSection />
+            <GameSection />
             <Builder />
             <FinalSection />
           </>
