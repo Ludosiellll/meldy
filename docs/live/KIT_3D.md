@@ -149,7 +149,15 @@ rectangles are the frame, and the stage is the solid circle in the middle (800, 
 standing when the floor around it drops, with the boss on it (the projector draws the clock 4.6 m and the skeleton
 4.4 m tall so their feet stay on it). Tiles under the stage are never drawn and never drop; the collapse ripples out
 from the stage's centre. Players can never walk where nothing is drawn, nor stop at an invisible wall: the frame and
-the column are exactly the server's solids.
+the column are exactly the server's solids. The projector and the phone both create it this way and draw the boss at
+`STAGE_BOSS_HEIGHT` (clock 4.6 m, skeleton 4.4 m), so both screens show the same arena.
+
+`player.setAway(on)` fades a player's name tag as a ghost's (the room's `F_AWAY`); the body is drawn as usual (a
+see-through body for one player would need a sorted transparent pass of its own).
+
+`?fps=1` on the projector page and the phone's play page shows a corner readout: frames a second, the slowest 5 % of
+frames in ms and the 3D quality level (`2D` for the phone's light view). Never shown by default; it is how a real
+laptop or phone is checked, since this container has no GPU.
 
 `collapse(id, t)`: every tile outside zone `id` shakes for 0.3 s, then drops with gravity (1300 units/s²) at
 `t + 0.12 s + 0.0009 s × distance from the impact point + up to 0.1 s` (a seeded jitter): a ripple from under the stage
