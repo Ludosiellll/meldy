@@ -1865,7 +1865,7 @@ export function containerRowMeta(item: TodayContainer, today: string, now: Date 
   return parts.filter(Boolean).join(' · ');
 }
 
-/** The oral exam as a quiet row: its day and today's step («можно стереть строки у 4 вопросов»), else its size. */
+/** The oral exam as a quiet row: its day and today's step («можно выучить 4 вопроса»), else its size. */
 function OralTodayRow({ exam }: { exam: TodayExam }) {
   const tally = coverageTally(exam.questions);
   const mapped = tally.total > 0 && tally.unmapped < tally.total;

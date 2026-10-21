@@ -11,16 +11,18 @@ vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: null }) }));
 import AuthReel from './AuthReel';
 import { READY_TAG } from './Ready';
 import { LOGIN_SCRIPT, REGISTER_SCRIPT, cornerOpacity, leaveOf, sceneVisible, scenesAt, type AuthReelVariant, type AuthScript } from './script';
-import { ANSWER_CHANGE, ORAL_CAPTION, ORAL_LINES } from './StoryScenes';
-import { statesAt } from '../film/listLine';
+import { COUNTED_AT, LEFT_WORDS, POP, RESULT_LINE, TOPIC_BEFORE } from './StoryScenes';
 import { EXAM_TITLE, IMPORT_WORDS, INVITE_WORDS, SESSION, START_LABEL, exampleWords } from '../../data/containerExample';
 import Login, { LOGIN_LEDE, LOGIN_PANEL_TITLE } from '../../pages/Login';
 import Register, { SIGN_UP_LEDE, SIGN_UP_PANEL_TITLE } from '../../pages/Register';
 
 afterEach(cleanup);
 
-/** Words of the old reels: the paper cheat sheet's story, the summary, cards and tests, grades and stamps. */
-const OLD = /Конспект|Карточк|Тест\b|Выжимк|Разговор|Повторение по дням|Засчитано|Проверено|оценк|отличн|хорошо\b|План готов|Шпаргалка на месте|пустая шпаргалка|Стирают только|клетк|ластик|карандаш/i;
+/**
+ * Words of the old reels: the cheat sheet (paper or not: its lines, erasing, its map), the summary, cards and tests,
+ * grades and stamps. The cheat sheet left the product on 2026-10-21 («Осталось выучить» instead).
+ */
+const OLD = /Конспект|Карточк|Тест\b|Выжимк|Разговор|Повторение по дням|Засчитано|Проверено|оценк|отличн|хорошо\b|План готов|шпаргалк|стёрл|стерл|стира|наполовину|строк|клетк|ластик|карандаш/i;
 
 describe('the sign-in reel scripts', () => {
   it.each([
@@ -72,21 +74,20 @@ describe('the story the reels tell (the exam for the whole preparation)', () => 
   it.each([
     ['sign-in', LOGIN_SCRIPT],
     ['sign-up', REGISTER_SCRIPT],
-  ] as const)('%s: the still frame is the sheet just after the oral answer, the line named on two days struck off', (_, script: AuthScript) => {
+  ] as const)('%s: the still frame is the oral answer\'s result, its topic learned and one topic fewer left', (_, script: AuthScript) => {
     const oral = script.scenes.find((scene) => scene.id === 'oral')!;
     expect(sceneVisible(oral, script.poster)).toBe(true);
     const local = script.poster - oral.from;
     expect(local).toBeLessThan(leaveOf(script, 'oral'));
-    expect(statesAt(ORAL_LINES, local)).toEqual(['erased', 'rubbed', 'missed', 'rubbed']);
-    // What the answer did is on screen by then.
-    expect(local).toBeGreaterThanOrEqual(ORAL_CAPTION[0].at + 320);
+    // Everything the answer did is on screen by then.
+    expect(local).toBeGreaterThanOrEqual(COUNTED_AT + POP);
   });
 
   it('signs off with what Meldy is, in the landing\'s words', () => {
     expect(READY_TAG).toBe(FACE);
   });
 
-  it('says nothing of the old story: no paper sheet, summary, cards, tests, grades or stamps', () => {
+  it('says nothing of the old story: no cheat sheet, summary, cards, tests, grades or stamps', () => {
     for (const script of [LOGIN_SCRIPT, REGISTER_SCRIPT]) {
       expect(script.caption).not.toMatch(OLD);
       for (const line of script.transcript) expect(line).not.toMatch(OLD);
@@ -153,7 +154,8 @@ describe('the reel in the panel', () => {
       }
       const text = Array.from(seen).join(' ').replace(/ /g, ' ');
       const plain = (value: string) => value.replace(/ /g, ' ');
-      for (const word of [...own, 'Ошибка', 'вернётся', 'завтра.', 'Ответ', 'вслух', 'лекциям.', 'Шпаргалка', READY_TAG, SESSION.stem, SESSION.verdict, ANSWER_CHANGE]) {
+      const oral = [RESULT_LINE, LEFT_WORDS.title, TOPIC_BEFORE.title, LEFT_WORDS.row[0], LEFT_WORDS.row[1], LEFT_WORDS.learned];
+      for (const word of [...own, 'Ошибка', 'вернётся', 'завтра.', 'Ответ', 'вслух', 'лекциям.', ...oral, READY_TAG, SESSION.stem, SESSION.verdict]) {
         expect(text).toContain(plain(word));
       }
       expect(text).not.toMatch(OLD);
@@ -189,7 +191,7 @@ describe('the reel in the panel', () => {
     }
   });
 
-  it('waits on a still frame with reduced motion until asked to play: the sheet, the answer said in its words', () => {
+  it('waits on a still frame with reduced motion until asked to play: the answer\'s result and its topic learned', () => {
     const original = window.matchMedia;
     window.matchMedia = ((query: string) => ({
       matches: query.includes('reduce') || query.includes('min-width'),
@@ -199,12 +201,17 @@ describe('the reel in the panel', () => {
     })) as unknown as typeof window.matchMedia;
     try {
       const { container } = render(<AuthReel variant="login" />);
-      const chip = container.querySelector('.ar-cap .sl-cap-t') as HTMLElement;
-      expect(chip.textContent).toBe(ANSWER_CHANGE);
-      expect(chip.style.opacity).toBe('1');
-      // The sheet in Meldy's own look: the first line struck off, no paper.
-      expect(container.querySelector('.ss, .ss-paper, .ar-paper')).toBeNull();
-      expect((container.querySelector('.ar-sheet .sl-words') as HTMLElement).style.getPropertyValue('--sl-s')).toBe('1.000');
+      const result = container.querySelector('.ar-res') as HTMLElement;
+      expect(result.style.opacity).toBe('1');
+      expect(result.querySelector('.ar-sum')?.textContent).toBe(RESULT_LINE);
+      expect((result.querySelector('.ar-sum') as HTMLElement).style.opacity).toBe('1');
+      // Every point has its mark, the topic its flag; the row and the count say what is left now.
+      result.querySelectorAll<HTMLElement>('.ar-pt-mark').forEach((mark) => expect(mark.style.opacity).toBe('1'));
+      expect((result.querySelector('.ar-topic-flag') as HTMLElement).style.opacity).toBe('1');
+      expect(result.querySelector('.ar-topic-m')).toHaveClass('is-later');
+      expect(result.querySelector('.ar-left-n b')).toHaveClass('is-later');
+      // No cheat sheet: no list of its lines, no map, no chip of erased lines.
+      expect(container.querySelector('.ar-sheet, .sl, .sl-map, .sl-cap, .ss, .ss-paper, .ar-paper')).toBeNull();
       act(() => {
         fireEvent.click(screen.getByRole('button', { name: /Смотреть ролик/ }));
       });

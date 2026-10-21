@@ -1,10 +1,10 @@
 /**
- * The cheat sheet's server calls (notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05, 3.2):
+ * The server calls for an oral exam's answer points (written for the cheat sheet, notes:
+ * 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05, 3.2; «Осталось выучить» and the oral plan read them now):
  * - GET /api/oral/sheet — every question of the exam with its current rubric (answer points and
- *   their short sheet lines), what is left to write and its price; no model, no units;
+ *   their short words), what is left to write and its price; no model, no units;
  * - POST /api/oral/sheet/write — starts (or joins) writing the missing questions: a server job that
- *   finishes what was paid for even when the page is gone; progress comes as an SSE stream;
- * - POST /api/oral/sheet/stop — no new questions (the ones already running finish).
+ *   finishes what was paid for even when the page is gone; progress comes as an SSE stream.
  * The writing state of each exam lives here, outside React, so a page that comes back finds it
  * (the same way components/exams/mapJobs.ts keeps the mapping).
  */
@@ -253,27 +253,6 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
     }
   } finally {
     running.delete(examId);
-  }
-}
-
-/**
- * No new questions; the ones already running finish (and are charged). Resolves to how many are
- * still running; a request that failed takes «stopping» back, so «Остановить» can be pressed again.
- */
-export async function stopSheetWrite(examId: string): Promise<number> {
-  set(examId, (previous) => ({ ...previous, stopping: true }));
-  try {
-    const response = await fetch('/api/oral/sheet/stop', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exam_id: examId }),
-    });
-    if (!response.ok) throw new Error(`stop ${response.status}`);
-    const json: unknown = await response.json().catch(() => null);
-    return isRecord(json) ? count(json.running) : 0;
-  } catch {
-    set(examId, (previous) => ({ ...previous, stopping: false }));
-    return 0;
   }
 }
 

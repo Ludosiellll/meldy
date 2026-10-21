@@ -22,7 +22,7 @@ vi.mock('../api/learning', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../api/learning')>();
   return { ...actual, fetchQuestionEvents: mocks.fetchQuestionEvents, fetchSheetEvents: mocks.fetchSheetEvents };
 });
-// The exam's cheat sheet (GET /api/oral/sheet): «Ждут подтверждения» draws from what an answer erases on it.
+// The exam's answer points (GET /api/oral/sheet): the draw leaves out the questions whose points cannot be built.
 vi.mock('../api/cheatSheet', () => ({ fetchSheet: mocks.fetchSheet }));
 // «Можно выучить сегодня» draws from what public.learn_left says an answer now makes learned.
 vi.mock('../api/learnLeft', () => ({ fetchLearnLeft: mocks.fetchLearnLeft }));

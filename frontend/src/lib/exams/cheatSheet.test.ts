@@ -2,26 +2,13 @@ import { describe, expect, it } from 'vitest';
 import type { LearningEvent } from '../../api/learning';
 import {
   DUE_DAYS,
-  LINE_LEFT,
-  LINE_READABLE,
   blockKind,
   buildSheet,
-  erasableAt,
-  erasableNow,
-  changeSummary,
   cleanMissing,
-  countsWith,
-  lastAnswerSession,
   lineStatus,
   localDayOf,
   normalizeTitle,
-  quietReason,
-  sheetChanges,
   sheetHashes,
-  HISTORY_MAX_FRAMES,
-  sheetHistory,
-  sheetsAround,
-  sheetWithout,
   type SheetQuestion,
   type SheetRubric,
 } from './cheatSheet';
@@ -95,17 +82,15 @@ const local = (text: string) => new Date(text).toISOString();
 const NOW = Date.parse(local('2026-10-05T12:00:00'));
 
 describe('lineStatus: each answer is a pass of the eraser', () => {
-  it('a line nobody answered is as written and readable', () => {
+  it('a line nobody answered is as written', () => {
     const status = lineStatus([], NOW);
     expect(status).toMatchObject({ state: 'fresh', history: [], peekedToday: false });
-    expect(LINE_READABLE.has(status.state)).toBe(true);
   });
 
   it('one naming rubs it half-way and says when a naming will erase it', () => {
     const at = Date.parse(local('2026-10-03T19:40:00'));
     const status = lineStatus([point(new Date(at).toISOString(), true)], NOW);
     expect(status.state).toBe('rubbed');
-    expect(LINE_READABLE.has('rubbed')).toBe(false);
     // The later of +20 hours by the server clock (4 Oct 15:40 where no clock changes that night) and the
     // local midnight after 3 Oct.
     expect(status.erasableFrom).toBe(new Date(Math.max(at + 20 * 3_600_000, Date.parse(local('2026-10-04T00:00:00')))).toISOString());
@@ -173,7 +158,6 @@ describe('lineStatus: each answer is a pass of the eraser', () => {
       NOW,
     );
     expect(status).toMatchObject({ state: 'returned', wasErasedOn: '2026-09-22' });
-    expect(LINE_READABLE.has('returned')).toBe(true);
   });
 
   it('a returned line named again is rubbed, and erased again only by a new pair of days', () => {
@@ -247,7 +231,6 @@ describe('lineStatus: when an erased line is checked again', () => {
     const due = lineStatus(events, named + DUE_DAYS[0] * 86_400_000);
     expect(due.state).toBe('due');
     expect(due.dueAt).toBe(new Date(named + 5 * 86_400_000).toISOString());
-    expect(LINE_LEFT.has('due')).toBe(false);
   });
 
   it('each passed check on another day moves the next one further: 12, then 25 days', () => {
@@ -394,7 +377,7 @@ describe('buildSheet', () => {
       ['6', 'unverified'],
       ['7', 'rebuilt'],
     ]);
-    expect(sheet.counts).toMatchObject({ total: 2, left: 2, essentialTotal: 1, essentialLeft: 1, readable: 2, withoutLines: 6, gaps: 2, unwritten: 1, unmapped: 1, unverified: 1, rebuilt: 1, questions: 7 });
+    expect(sheet.blocks.map((block) => block.lines.length)).toEqual([2, 0, 0, 0, 0, 0, 0]);
   });
 
   it('writes the short line, else the title; prints the wording', () => {
@@ -429,7 +412,6 @@ describe('buildSheet', () => {
     const sheet = buildSheet([question(1, { rubric: rubric('r1', TWO) })], events, NOW);
     expect(sheet.blocks[0].lines.map((line) => line.status.state)).toEqual(['erased', 'fresh']);
     expect(sheet.blocks[0].learned).toBe(true);
-    expect(sheet.counts).toMatchObject({ left: 1, essentialLeft: 0, erased: 1, learned: 1 });
   });
 
   it('a question whose essential line is due waits for its check: not learned (no tick beside «пора проверить»)', () => {
@@ -437,7 +419,6 @@ describe('buildSheet', () => {
     const sheet = buildSheet([question(1, { rubric: rubric('r1', TWO) })], events, NOW);
     expect(sheet.blocks[0].lines[0].status.state).toBe('due');
     expect(sheet.blocks[0].learned).toBe(false);
-    expect(sheet.counts.learned).toBe(0);
   });
 
   it('two points of one rubric with the same words keep their own history, by the point id', () => {
@@ -476,12 +457,6 @@ describe('buildSheet', () => {
     expect(lines.map((line) => line.status.state)).toEqual(['fresh', 'missed']);
   });
 
-  it('counts a line shared by two questions with the same wording once', () => {
-    const shared = rubric('r1', TWO);
-    const sheet = buildSheet([question(1, { rubric: shared }), question(2, { rubric: shared })], [], NOW);
-    expect(sheet.counts.total).toBe(2);
-  });
-
   it('lists the question hashes it needs events for', () => {
     expect(sheetHashes([question(1, { rubric: rubric('r1', TWO) }), question(2, { question_hash: 'b'.repeat(32) })])).toEqual([HASH]);
   });
@@ -494,12 +469,10 @@ describe('buildSheet', () => {
     expect(blockKind(question(1, { coverage: 'full', unwritable: true, rebuilt: true }))).toBe('gap');
   });
 
-  it('counts a question that cannot be written among the questions without points, not among the unwritten', () => {
+  it('a question that cannot be written is a gap of a question the lectures have, not an unwritten one', () => {
     const sheet = buildSheet([question(1, { rubric: rubric('r1', TWO) }), question(2, { question_hash: 'b'.repeat(32), unwritable: true })], [], NOW);
-    expect(sheet.counts).toMatchObject({ gaps: 1, unwritten: 0, withoutLines: 1 });
-    // The block a copy of a group link shows for the same question (components/exams/sheet/copy.blockNote:
-    // POINTS_NOT_WRITTEN): a gap of a question the lectures have.
-    expect(sheet.blocks[1]).toMatchObject({ kind: 'gap', coverage: 'full' });
+    // As a copy of a group link shows the same question (POINTS_NOT_WRITTEN in the teacher's report).
+    expect(sheet.blocks[1]).toMatchObject({ kind: 'gap', coverage: 'full', lines: [] });
   });
 
   it('builds 300 questions of 6 lines quickly', () => {
@@ -509,214 +482,8 @@ describe('buildSheet', () => {
     );
     const started = performance.now();
     const sheet = buildSheet(questions, [], NOW);
-    expect(sheet.counts.total).toBe(1800);
+    expect(sheet.blocks.flatMap((block) => block.lines)).toHaveLength(1800);
     expect(performance.now() - started).toBeLessThan(250);
-  });
-});
-
-describe('after an answer, and the history', () => {
-  const questions = [question(1, { rubric: rubric('r1', TWO) })];
-  const events = [
-    point(local('2026-10-03T10:00:00'), true, { session: 's1' }),
-    point(local('2026-10-03T10:00:00'), true, { session: 's1', point: 'p2', title: TWO[1][0] }),
-    point(local('2026-10-04T10:00:00'), true, { session: 's2' }),
-    point(local('2026-10-04T10:00:00'), false, { session: 's2', point: 'p2', title: TWO[1][0] }),
-  ];
-
-  it('finds the last answer and replays what it changed', () => {
-    const after = buildSheet(questions, events, NOW);
-    expect(lastAnswerSession(after)).toBe('s2');
-    const before = sheetWithout(questions, events, 's2', NOW);
-    const changes = sheetChanges(before, after);
-    expect(changes.map(({ before: _was, ...change }) => change)).toEqual([
-      { key: 'r1:p1', questionId: 'q-1', from: 'rubbed', to: 'erased' },
-      { key: 'r1:p2', questionId: 'q-1', from: 'rubbed', to: 'missed' },
-    ]);
-    // Each change carries the line as it was: the replay draws it so (its notes, its history then).
-    expect(changes[1].before).toMatchObject({ state: 'rubbed' });
-    expect(changes[1].before?.history).toHaveLength(1);
-    // The rubbed line not named this time is back in ink: it «вернулась».
-    expect(changeSummary(changes)).toEqual({ erased: 1, rubbed: 0, checked: 0, returned: 1, stayed: 0 });
-  });
-
-  it('the counter of a show steps from the sheet before the answer to the one after it, a line at a time (countsWith)', () => {
-    // Jury QA of /try, 2026-10-11: the lines were struck at 1.5 s and the counter moved only at 2.8 s, after the show.
-    const after = buildSheet(questions, events, NOW);
-    const before = sheetWithout(questions, events, 's2', NOW);
-    const changes = sheetChanges(before, after);
-    const essential = new Set(after.blocks.flatMap((block) => block.lines.filter((line) => line.essential).map((line) => line.key)));
-    const lineCounts = ({ total, left, essentialTotal, essentialLeft, rubbed, erased, due, readable }: typeof before.counts) =>
-      ({ total, left, essentialTotal, essentialLeft, rubbed, erased, due, readable });
-    // Nothing drawn yet: the sheet before the answer, whole.
-    expect(countsWith(before.counts, changes, new Set(), essential)).toEqual(before.counts);
-    // The first line struck (rubbed → erased, a main line): one line and one main line fewer left.
-    const one = countsWith(before.counts, changes, new Set([changes[0].key]), essential);
-    expect(lineCounts(one)).toEqual({
-      ...lineCounts(before.counts),
-      left: before.counts.left - 1,
-      essentialLeft: before.counts.essentialLeft - 1,
-      rubbed: before.counts.rubbed - 1,
-      erased: before.counts.erased + 1,
-    });
-    // Every line drawn: the lines' counts are the sheet's after the answer; a question's own (learned) waits for the end.
-    const all = countsWith(before.counts, changes, new Set(changes.map((change) => change.key)), essential);
-    expect(lineCounts(all)).toEqual(lineCounts(after.counts));
-    expect(all.learned).toBe(before.counts.learned);
-  });
-
-  it('counts each change in the words of the sheet', () => {
-    const change = (from: string, to: string) => ({ key: `r:${from}-${to}`, questionId: 'q', from, to }) as Parameters<typeof changeSummary>[0][number];
-    // A due line named again passed its check: counted apart from the newly erased ones.
-    expect(changeSummary([change('due', 'erased'), change('rubbed', 'erased')])).toEqual({ erased: 1, rubbed: 0, checked: 1, returned: 0, stayed: 0 });
-    // Erased by the answer and due by now («Показать последний ответ» days later): erased.
-    expect(changeSummary([change('rubbed', 'due')])).toEqual({ erased: 1, rubbed: 0, checked: 0, returned: 0, stayed: 0 });
-    // A fresh line not named stays on the sheet (with the wave); an erased one not named comes back.
-    expect(changeSummary([change('fresh', 'missed'), change('erased', 'returned'), change('fresh', 'rubbed')])).toEqual({
-      erased: 0,
-      rubbed: 1,
-      checked: 0,
-      returned: 1,
-      stayed: 1,
-    });
-  });
-
-  it('says why an answer changed nothing, from its own lines', () => {
-    // Named again the same day: the moment it will erase, and why it is too soon.
-    const early = [point(local('2026-10-05T09:00:00'), true, { session: 'a' }), point(local('2026-10-05T11:00:00'), true, { session: 'b' })];
-    const sheet = buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], early, NOW);
-    expect(quietReason(sheet, new Set(['b']))).toEqual({ kind: 'wait', from: sheet.blocks[0].lines[0].status.erasableFrom, count: 1, why: 'day' });
-    // Named again the next morning, less than 20 hours after the first naming.
-    const night = [point(local('2026-10-04T18:00:00'), true, { session: 'a' }), point(local('2026-10-05T09:00:00'), true, { session: 'b' })];
-    const nextMorning = buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], night, NOW);
-    expect(quietReason(nextMorning, new Set(['b']))).toEqual({ kind: 'wait', from: local('2026-10-05T14:00:00'), count: 1, why: 'hours' });
-    // Named after a peek the same day.
-    const peeked = [point(local('2026-10-04T09:00:00'), true, { session: 'a' }), peek(local('2026-10-05T08:00:00')), point(local('2026-10-05T11:00:00'), true, { session: 'b' })];
-    expect(quietReason(buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], peeked, NOW), new Set(['b']))).toEqual({ kind: 'peek' });
-    // Named again when already erased (a check on another day moves its next one).
-    const erased = [
-      point(local('2026-10-01T09:00:00'), true, { session: 'a' }),
-      point(local('2026-10-02T10:00:00'), true, { session: 'b' }),
-      point(local('2026-10-04T10:00:00'), true, { session: 'c' }),
-    ];
-    expect(quietReason(buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], erased, NOW), new Set(['c']))).toEqual({ kind: 'erased' });
-    // Nothing named: no reason of its own.
-    const missed = [point(local('2026-10-04T10:00:00'), false, { session: 'a' }), point(local('2026-10-05T10:00:00'), false, { session: 'b' })];
-    expect(quietReason(buildSheet([question(1, { rubric: rubric('r1', [[TITLE, true]]) })], missed, NOW), new Set(['b']))).toBeNull();
-  });
-
-  it('after a change, counts only the named lines the answer left as they were', () => {
-    // p1 named yesterday evening and again this morning (too soon); p2 named for the first time.
-    const events = [
-      point(local('2026-10-04T18:00:00'), true, { session: 'a', point: 'p1' }),
-      point(local('2026-10-05T08:00:00'), true, { session: 'b', point: 'p1' }),
-      point(local('2026-10-05T08:00:00'), true, { session: 'b', point: 'p2', title: 'Кривая спроса идёт вниз' }),
-    ];
-    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true], ['Кривая спроса идёт вниз', false]]) })];
-    const after = buildSheet(qs, events, NOW);
-    const before = sheetWithout(qs, events, 'b', NOW);
-    const changes = sheetChanges(before, after);
-    expect(changes.map((change) => [change.from, change.to])).toEqual([['fresh', 'rubbed']]);
-    const p1 = after.blocks[0].lines[0];
-    expect(quietReason(after, new Set(['b']), new Set(changes.map((change) => change.key)))).toEqual({ kind: 'wait', from: p1.status.erasableFrom, count: 1, why: 'hours' });
-    // Without the changes every named line of the answer counts.
-    expect(quietReason(after, new Set(['b']))).toMatchObject({ kind: 'wait', count: 2 });
-  });
-
-  it('names the latest of the waiting lines’ moments: at the earliest one only some of them would erase', () => {
-    // p1 named at 18:00, p2 first named at 22:00; both named again the next morning, too soon.
-    const p2Title = 'Кривая спроса идёт вниз';
-    const at = (text: string, named: boolean, session: string, pointId: string) =>
-      point(local(text), named, { session, point: pointId, ...(pointId === 'p2' ? { title: p2Title } : {}) });
-    const events = [
-      at('2026-10-04T18:00:00', true, 'a', 'p1'),
-      at('2026-10-04T18:00:00', false, 'a', 'p2'),
-      at('2026-10-04T22:00:00', true, 'b', 'p1'),
-      at('2026-10-04T22:00:00', true, 'b', 'p2'),
-      at('2026-10-05T09:00:00', true, 'c', 'p1'),
-      at('2026-10-05T09:00:00', true, 'c', 'p2'),
-    ];
-    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true], [p2Title, false]]) })];
-    const after = buildSheet(qs, events, NOW);
-    expect(after.blocks[0].lines.map((line) => line.status.erasableFrom)).toEqual([local('2026-10-05T14:00:00'), local('2026-10-05T18:00:00')]);
-    expect(quietReason(after, new Set(['c']))).toEqual({ kind: 'wait', from: local('2026-10-05T18:00:00'), count: 2, why: 'hours' });
-  });
-
-  it('says «the same day» and «20 hours» together when the waiting lines wait for different reasons', () => {
-    const p2Title = 'Кривая спроса идёт вниз';
-    const events = [
-      point(local('2026-10-04T18:00:00'), true, { session: 'a', point: 'p1' }),
-      point(local('2026-10-05T08:00:00'), true, { session: 'a2', point: 'p2', title: p2Title }),
-      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p1' }),
-      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p2', title: p2Title }),
-    ];
-    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true], [p2Title, false]]) })];
-    expect(quietReason(buildSheet(qs, events, NOW), new Set(['c']))).toMatchObject({ kind: 'wait', count: 2, why: 'both' });
-  });
-
-  it('a naming blocked by a peek is said together with the lines named too soon', () => {
-    // p1 named at 18:00 and again this morning, too soon; p2 named 23 hours ago — it would erase, but
-    // it was uncovered this morning.
-    const p2Title = 'Кривая спроса идёт вниз';
-    const events = [
-      point(local('2026-10-04T18:00:00'), true, { session: 'a', point: 'p1' }),
-      point(local('2026-10-04T10:00:00'), true, { session: 'a0', point: 'p2', title: p2Title }),
-      peek(local('2026-10-05T08:00:00'), { point: 'p2', title: p2Title }),
-      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p1' }),
-      point(local('2026-10-05T09:00:00'), true, { session: 'c', point: 'p2', title: p2Title }),
-    ];
-    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true], [p2Title, false]]) })];
-    expect(quietReason(buildSheet(qs, events, NOW), new Set(['c']))).toEqual({ kind: 'wait', from: local('2026-10-05T14:00:00'), count: 1, why: 'hours', peek: true });
-  });
-
-  it('replays an answer as of its own moment: a passed check stays a passed check weeks later', () => {
-    // Erased on 25 Sep, due on 30 Sep, named on 4 Oct: the check passed. By 20 Oct it is due again.
-    const checkEvents = [
-      point(local('2026-09-24T10:00:00'), true, { session: 'a' }),
-      point(local('2026-09-25T10:00:00'), true, { session: 'b' }),
-      point(local('2026-10-04T10:00:00'), true, { session: 'c' }),
-    ];
-    const qs = [question(1, { rubric: rubric('r1', [[TITLE, true]]) })];
-    const later = Date.parse(local('2026-10-20T10:00:00'));
-    expect(buildSheet(qs, checkEvents, later).blocks[0].lines[0].status.state).toBe('due');
-    const around = sheetsAround(qs, checkEvents, new Set(['c']));
-    expect(around?.at).toBe(Date.parse(local('2026-10-04T10:00:00')));
-    const changes = sheetChanges(around!.before, around!.after);
-    expect(changes.map(({ from, to }) => [from, to])).toEqual([['due', 'erased']]);
-    expect(changeSummary(changes)).toMatchObject({ checked: 1 });
-    // Later answers and peeks are not part of it; a session without events has nothing to replay.
-    expect(sheetsAround(qs, [...checkEvents, peek(local('2026-10-05T08:00:00'))], new Set(['c']))?.after.blocks[0].lines[0].status.peekedToday).toBe(false);
-    expect(sheetsAround(qs, checkEvents, new Set(['nope']))).toBeNull();
-  });
-
-  it('has nothing to replay without answers', () => {
-    expect(lastAnswerSession(buildSheet(questions, [], NOW))).toBeNull();
-  });
-
-  it('replays the sheet day by day from the first answer to today', () => {
-    const frames = sheetHistory(questions, events, NOW);
-    expect(frames.map((frame) => frame.day)).toEqual(['2026-10-03', '2026-10-04', '2026-10-05']);
-    expect(frames[0]).toMatchObject({ left: 2, total: 2 });
-    expect(frames[1]).toMatchObject({ left: 1, total: 2 });
-    expect(sheetHistory(questions, [], NOW)).toEqual([]);
-  });
-
-  it('a long history is shown by at most 50 days spread over it, from the first answer to today', () => {
-    const long = [point(local('2025-09-01T10:00:00'), true, { session: 'old' }), ...events];
-    const frames = sheetHistory(questions, long, NOW);
-    expect(frames.length).toBeLessThanOrEqual(HISTORY_MAX_FRAMES);
-    expect(frames[0].day).toBe('2025-09-01');
-    expect(frames[frames.length - 1]).toMatchObject({ day: '2026-10-05', left: buildSheet(questions, long, NOW).counts.left });
-    expect(frames.map((frame) => frame.day)).toEqual([...frames.map((frame) => frame.day)].sort());
-  });
-
-  it('starts at the first answer of a line on the sheet, and never ends before the newest answer', () => {
-    // An answer to a point the sheet no longer has does not start the history.
-    const other = point(local('2026-09-01T10:00:00'), true, { session: 'x', point: 'p9', title: 'Пункт, которого на листе нет' });
-    expect(sheetHistory(questions, [other, ...events], NOW)[0].day).toBe('2026-10-03');
-    // The device clock 30 s behind the server: the answer just saved is still in the last frame.
-    const fresh = point(new Date(NOW + 30_000).toISOString(), true, { session: 's3', point: 'p2', title: TWO[1][0] });
-    const frames = sheetHistory(questions, [...events, fresh], NOW);
-    expect(frames[frames.length - 1].left).toBe(buildSheet(questions, [...events, fresh], NOW + 30_000).counts.left);
   });
 });
 
@@ -731,84 +498,5 @@ describe('normalizeTitle', () => {
     expect(normalizeTitle('При P > MC фирма расширяет выпуск')).not.toBe(normalizeTitle('При P < MC фирма расширяет выпуск'));
     expect(normalizeTitle('При P>MC фирма')).toBe(normalizeTitle('При P > MC фирма'));
     expect(normalizeTitle('Цена ↑ → спрос ↓')).toBe('цена ↑ → спрос ↓');
-  });
-});
-
-describe('erasableNow: what an answer can erase now («Сегодня-lite»)', () => {
-  const HASHES = { b: 'b'.repeat(32), c: 'c'.repeat(32), d: 'd'.repeat(32) };
-  const ELASTIC = 'Эластичность спроса по цене';
-  const SURPLUS = 'Излишек потребителя';
-  const UTILITY = 'Предельная полезность убывает';
-  const sheetOf = (events: LearningEvent[], now = NOW) =>
-    buildSheet(
-      [
-        question(1, { rubric: rubric('r1', TWO) }),
-        question(2, { question_hash: HASHES.b, rubric: rubric('r2', [[ELASTIC, true]]) }),
-        question(3, { question_hash: HASHES.c, rubric: rubric('r3', [[SURPLUS, true]]) }),
-        question(4, { question_hash: HASHES.d, rubric: rubric('r4', [[UTILITY, true]]) }),
-        // Not in the lectures: no lines, nothing to erase.
-        question(5, { coverage: 'none' }),
-      ],
-      events,
-      now,
-    );
-  const events = () => [
-    // 1: named yesterday morning — the other day and 20 hours have come: an answer now erases it.
-    point(local('2026-10-04T10:00:00'), true),
-    // 2: named an hour ago — it can be erased from tomorrow, 20 hours on.
-    point(local('2026-10-05T11:00:00'), true, { hash: HASHES.b, rubric: 'r2', title: ELASTIC }),
-    // 3: erased on 20–21 Sep, due since 26 Sep: naming it now is its check.
-    point(local('2026-09-20T10:00:00'), true, { hash: HASHES.c, rubric: 'r3', title: SURPLUS }),
-    point(local('2026-09-21T10:00:00'), true, { hash: HASHES.c, rubric: 'r3', title: SURPLUS }),
-    // 4: not named: a naming would only rub it.
-    point(local('2026-10-04T10:00:00'), false, { hash: HASHES.d, rubric: 'r4', title: UTILITY }),
-  ];
-
-  it('counts the questions with a rubbed line whose moment has come or a line due for its check, by the sheet’s own states', () => {
-    const sheet = sheetOf(events());
-    expect(sheet.blocks.map((block) => block.lines.map((line) => line.status.state))).toEqual([
-      ['rubbed', 'fresh'],
-      ['rubbed'],
-      ['due'],
-      ['missed'],
-      [],
-    ]);
-    const now = erasableNow(sheet, NOW);
-    expect(now.questions).toEqual(['q-1', 'q-3']);
-    // The next moment for the rest: question 2, 20 hours after its naming.
-    expect(now.next).toBe(new Date(Date.parse(local('2026-10-05T11:00:00')) + 20 * 3_600_000).toISOString());
-  });
-
-  it('says when the next lines can be erased when none can now, and nothing when no line waits', () => {
-    const early = sheetOf(events().filter((event) => event.payload.question_hash === HASHES.b));
-    expect(erasableNow(early, NOW)).toEqual({
-      questions: [],
-      next: new Date(Date.parse(local('2026-10-05T11:00:00')) + 20 * 3_600_000).toISOString(),
-    });
-    // That moment comes: the question can be erased.
-    expect(erasableNow(early, Date.parse(local('2026-10-06T07:00:00'))).questions).toEqual(['q-2']);
-    // Nothing named, or only missed lines: nothing to erase and nothing to wait for.
-    expect(erasableNow(sheetOf([]), NOW)).toEqual({ questions: [], next: null });
-    expect(erasableNow(sheetOf(events().filter((event) => event.payload.question_hash === HASHES.d)), NOW)).toEqual({ questions: [], next: null });
-  });
-
-  it('erasableAt: a due line uncovered today waits for the midnight, an erased one for its check, a readable one for nothing', () => {
-    const erased = [point(local('2026-10-01T10:00:00'), true), point(local('2026-10-02T10:00:00'), true)];
-    // Erased on 2 Oct: due 5 days after the last naming, on 7 Oct.
-    const waiting = lineStatus(erased, NOW);
-    expect(waiting.state).toBe('erased');
-    expect(erasableAt(waiting, NOW)).toBe(Date.parse(local('2026-10-07T10:00:00')));
-    // Due since then: an answer now is its check.
-    const due = Date.parse(local('2026-10-08T12:00:00'));
-    expect(lineStatus(erased, due).state).toBe('due');
-    expect(erasableAt(lineStatus(erased, due), due)).toBe(Date.parse(local('2026-10-07T10:00:00')));
-    // Uncovered today («Подсмотреть»): a naming today does not count — from the next midnight.
-    const peeked = lineStatus([...erased, peek(local('2026-10-08T09:00:00'))], due);
-    expect(peeked).toMatchObject({ state: 'due', peekedToday: true });
-    expect(erasableAt(peeked, due)).toBe(Date.parse(local('2026-10-09T00:00:00')));
-    // A rubbed line peeked today: its own erasableFrom already waits for the midnight.
-    const rubbed = lineStatus([point(local('2026-10-04T10:00:00'), true), peek(local('2026-10-05T09:00:00'))], NOW);
-    expect(erasableAt(rubbed, NOW)).toBe(Date.parse(local('2026-10-06T00:00:00')));
-    for (const status of [lineStatus([], NOW), lineStatus([point(local('2026-10-04T10:00:00'), false)], NOW)]) expect(erasableAt(status, NOW)).toBeNull();
   });
 });

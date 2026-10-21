@@ -1,9 +1,10 @@
 /**
- * The answer of GET /api/oral/sheet as the client reads it (notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05, 3.2):
- * `parseSheetResponse` keeps what the screens and the plan may trust (the server is trusted; a broken proxy or an old
- * build is not). Pure: no network, no storage, no clock — api/cheatSheet.ts (which re-exports all of it) parses the
- * Space's answer with it, and the Telegram bot parses the same JSON from `meldy_private.oral_sheet_for` (through
- * `bot_oral_inputs`) with a copy of this file, so both plan the oral questions from the same sheet.
+ * The answer of GET /api/oral/sheet, every oral question with its answer points (notes:
+ * 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05, 3.2), as the client reads it: `parseSheetResponse` keeps what the
+ * screens and the plan may trust (the server is trusted; a broken proxy or an old build is not). Pure: no network, no
+ * storage, no clock — api/cheatSheet.ts (which re-exports all of it) parses the Space's answer with it, and the Telegram
+ * bot parses the same JSON from `meldy_private.oral_sheet_for` (through `bot_oral_inputs`) with a copy of this file, so
+ * both plan the oral questions from the same answer points.
  */
 import type { SheetCoverage, SheetMaterial, SheetPoint, SheetQuestion, SheetRubric } from './cheatSheet.ts';
 
@@ -41,7 +42,7 @@ export class SheetError extends Error {
   }
 }
 
-export const SHEET_LOAD_MESSAGE = 'Шпаргалка не загрузилась. Проверьте связь и нажмите «Повторить».';
+export const SHEET_LOAD_MESSAGE = 'Не получилось загрузить устные вопросы. Проверьте связь и нажмите «Повторить».';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const HASH = /^[0-9a-f]{32}$/;

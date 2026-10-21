@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { DrawMode } from '../../lib/exams/draw';
 import type { FrameBox } from './useFrame';
 
-/** The ways of drawing (contracts §8, Jury_Check item 4), in the words of the sheet (redesign spec 5.9). */
+/** The ways of drawing (contracts §8, Jury_Check item 4), in the words of the exam page (redesign spec 5.9). */
 export const DRAW_MODES: DrawMode[] = ['exam', 'weak', 'answered', 'awaiting'];
 
 export const DRAW_CAPTIONS: Record<DrawMode, string> = {
@@ -14,8 +14,9 @@ export const DRAW_CAPTIONS: Record<DrawMode, string> = {
 };
 
 /**
- * One short line under each way (audit 2026-10-08: the four took 425 px and ran off a 734 px window). The exact
- * rule of «ждут подтверждения» (another day, 20 hours, a line due for its check) is the cheat sheet's, on its page.
+ * One short line under each way (audit 2026-10-08: the four took 425 px and ran off a 734 px window). The exact rule of
+ * «можно выучить сегодня» (every main point named on another day, 20 hours ago) is in «Как считается» of «Осталось
+ * выучить» on the exam page.
  */
 export const DRAW_HINTS: Record<DrawMode, string> = {
   // In the answer screen's own words for «Как на экзамене»: «пункты ответа и цитаты — только в протоколе».

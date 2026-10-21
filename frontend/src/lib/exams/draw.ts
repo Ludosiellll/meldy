@@ -57,7 +57,7 @@ export interface DrawQuestion {
   attempts: number;
   /** Confirmed, but the last passed answer is 14 or more days old. */
   stale?: boolean;
-  /** An answer now erases a line of its cheat sheet (cheatSheet.erasableNow); without the sheet, QuestionState.awaiting. */
+  /** An answer now makes it learned (public.learn_left, «Сегодня можно выучить»); when that cannot be read, QuestionState.awaiting. */
   awaiting?: boolean;
 }
 

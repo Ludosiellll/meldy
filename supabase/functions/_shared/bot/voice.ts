@@ -16,24 +16,24 @@
  *       once) → bot_voice_checked → «Экзаменатор: …» as a reply to the voice, [Не знаю]; the voice to it → the Space's
  *       one-point check → bot_voice_followup.
  *   V4  the site's grade formula (oralGrade.ts) and save payload (oralPersistence.ts) → bot_voice_record (the site's
- *       record_oral_attempt for this user) → a new message: «Сами назвали …» (answerSummary.ts), the sheet's lines when
- *       known, the units spent, [[Следующий: 2 из 3]] {Протокол}; V1 loses its keyboard.
+ *       record_oral_attempt for this user) → a new message: «Сами назвали …» (answerSummary.ts), the units spent,
+ *       [[Следующий: 2 из 3]] {Протокол}; V1 loses its keyboard.
  *   Self-check: V1 turns into the points in an expandable quote with [Знаю] [Плаваю] [Не знаю] (bot_voice_self writes a
  *   sheet_peek of every point, as «Показать пункты» on the site); the mark (bot_voice_rate: the site's self_rating)
  *   folds it into «Отмечено: плаваю. Самопроверка в счёт не идёт…»: the points do not stay in the history.
  * Refusals never charge: a typed text, a forwarded voice, too short (the answer's first voice under 5 s by Telegram,
  * under 8 words by the Space), not recognised, the AI limit, the student's ceiling, the shared stop, over 20 MB.
  *
- * The site's pure logic is ported below line for line (oralGrade.ts, answerSummary.ts, oralPersistence.ts,
- * components/exams/sheet/copy.ts) and pinned by voice.test.ts: against the site's modules where they load outside the
- * browser build, against the site's own test vectors where they do not.
+ * The site's pure logic is ported below line for line (oralGrade.ts, answerSummary.ts, oralPersistence.ts) and pinned
+ * by voice.test.ts: against the site's modules where they load outside the browser build, against the site's own test
+ * vectors where they do not.
  *
  * The bot token serves only getFile's file URL: it never reaches the Space, a log line or an error. A failure writes one
  * log line with a status word or the error's name; never a text, a ticket or an id.
  */
 import type { Ctx, Tap } from './router.ts';
 import type { Who } from './db.ts';
-import { b, esc, lines, NBSP, t, typo } from './html.ts';
+import { b, esc, lines, t, typo } from './html.ts';
 import { errorName, log } from './log.ts';
 import { API_BASE, edit, editKeyboard, remove, send, type Button, type FetchLike, type Keyboard, type Out, type TgMessage } from './tg.ts';
 import { clockText, localDay } from '../plan/time.ts';
@@ -425,30 +425,12 @@ export function dontKnowProtocol(attempt: Attempt): Protocol {
   return { points: attempt.points.map((p) => ({ id: p.id, status: 'missing', student_quote: '', comment: '' })), errors: [], verdict: DONT_KNOW_VERDICT };
 }
 
-/** components/exams/sheet/copy.ts changeParts + changeSentence (today's answer): «После ответа: 2 строки стёрлись…». */
-export interface ChangeSummary { erased: number; rubbed: number; checked: number; returned: number; stayed: number }
-export function changeSentence(summary: ChangeSummary): string {
-  const single = (count: number) => count % 10 === 1 && count % 100 !== 11;
-  const linesWord = (count: number) => plural(count, 'строка', 'строки', 'строк');
-  const items: string[] = [];
-  const add = (count: number, words: string) => items.push(items.length === 0 ? `${count}${NBSP}${linesWord(count)} ${words}` : `${count}${NBSP}${words}`);
-  if (summary.erased > 0) add(summary.erased, single(summary.erased) ? 'стёрлась' : 'стёрлись');
-  if (summary.rubbed > 0) {
-    if (summary.erased > 0) items.push(`${summary.rubbed}${NBSP}—${NBSP}наполовину`);
-    else add(summary.rubbed, single(summary.rubbed) ? 'стёрлась наполовину' : 'стёрлись наполовину');
-  }
-  if (summary.checked > 0) add(summary.checked, single(summary.checked) ? 'прошла проверку' : 'прошли проверку');
-  if (summary.returned > 0) add(summary.returned, single(summary.returned) ? 'вернулась' : 'вернулись');
-  if (summary.stayed > 0) add(summary.stayed, single(summary.stayed) ? 'не стёрлась' : 'не стёрлись');
-  return items.length > 0 ? `После ответа: ${items.join(', ')}.` : 'После ответа строки не изменились.';
-}
-
 // ─────────────────────────────────────────── the messages ───────────────────────────────────────────
 
 export const sitePath = {
   /** The site's answer screen for this question (the plan's AI-check link, components/containers/model.ts sessionHref). */
   answer: (a: Attempt) => `/exams/${a.examId}/ticket?q=${a.questionId}&from=c:${a.containerId}`,
-  /** The saved answer's protocol (the sheet's and the journal's link). */
+  /** The saved answer's protocol (the journal's link). */
   protocol: (a: Attempt, sessionId: string) => `/exams/${a.examId}/ticket?session=${sessionId}`,
 };
 const button = (text: string, data: string, primary = false): Button => (primary ? { text: typo(text), data, style: 'primary' } : { text: typo(text), data });
@@ -489,19 +471,19 @@ export function v3(a: Attempt): Out {
   return { text: `<b>${esc(V.EXAMINER)}</b> ${t(a.followup?.question ?? '')}`, keyboard: [[button(V.DONT_KNOW, encodeVoice(a.aid, 'y'))]] };
 }
 
-export interface Result { summary: string | null; changes: ChangeSummary | null; charged: number; unitsLeft: number; sessionId: string | null }
+export interface Result { summary: string | null; charged: number; unitsLeft: number; sessionId: string | null }
 
 const protocolRow = (a: Attempt, sessionId: string | null, site: string): Button[] | null =>
   sessionId ? [link(V.PROTOCOL, `${site}${sitePath.protocol(a, sessionId)}`)] : null;
 
-/** V4 — the result: what was named, the sheet's lines when known, the units spent. */
+/** V4 — the result: what was named, the units spent. */
 export function v4(a: Attempt, r: Result, site: string): Out {
   const keyboard: Keyboard = [];
   if (a.hasNext) keyboard.push([button(nextButton(a.n + 1, a.of), encodeVoice(a.aid, 'n'), true)]);
   const protocol = protocolRow(a, r.sessionId, site);
   if (protocol) keyboard.push(protocol);
   return {
-    text: lines(r.summary ? b(`${r.summary}.`) : null, r.changes ? t(changeSentence(r.changes)) : null, r.charged > 0 ? t(spent(r.charged, r.unitsLeft)) : null),
+    text: lines(r.summary ? b(`${r.summary}.`) : null, r.charged > 0 ? t(spent(r.charged, r.unitsLeft)) : null),
     keyboard,
   };
 }
@@ -594,11 +576,6 @@ export interface VoiceDeps {
   bridgeUrl?: string;
   /** ms: the download, a recognition (transcribe, followup), a check. */
   timeouts?: { download?: number; voice?: number; check?: number };
-  /**
-   * V4's «После ответа: …»: the site counts the sheet's lines with lib/exams/cheatSheet.ts over the exam's sheet and
-   * journal. Until the bot has those reads (package T11) and copies, absent: the line is left out.
-   */
-  sheetChange?: (ctx: Ctx, attempt: Attempt, sessionId: string) => Promise<ChangeSummary | null>;
 }
 
 export const MAX_VOICE_BYTES = 20 * 1024 * 1024;
@@ -759,10 +736,9 @@ export function createVoice(deps: VoiceDeps): VoiceHandlers {
     const done = r.attempt;
     const sessionId = str(r.raw.session_id) || null;
     const points = done.points.map((p) => ({ id: p.id, essential: p.essential, status: protocol.points.find((x) => x.id === p.id)?.status ?? 'unrated' }));
-    const changes = deps.sheetChange && sessionId ? await deps.sheetChange(ctx, done, sessionId).catch(() => null) : null;
     const out = v4(done, {
       summary: summaryLine(points, followup && followup.status ? { point_id: followup.point_id, status: followup.status } : null),
-      changes, charged: num(r.raw.charged) ?? 0, unitsLeft: toUnits(r.raw.units).left, sessionId,
+      charged: num(r.raw.charged) ?? 0, unitsLeft: toUnits(r.raw.units).left, sessionId,
     }, ctx.site);
     const id = await post(ctx, chatId, out);
     await remember(ctx, tgUserId, done.aid, 'v4', id);

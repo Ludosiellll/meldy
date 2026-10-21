@@ -1,10 +1,10 @@
 /**
  * Chapter «Билет вслух»: ticket 7 answered aloud — the answer's points light up as they are named, the examiner asks
- * about the missed one, the protocol line. Points: data/sheetExample.ts Q7. (What is left to learn follows in
- * Learn.tsx; the cheat sheet is gone, owner 21.10.)
+ * about the missed one, the protocol line. Points: data/ticketExample.ts Q7. (What is left to learn follows in
+ * Learn.tsx.)
  */
 import { useRef } from 'react';
-import { Q7 } from '../../../data/sheetExample';
+import { Q7 } from '../../../data/ticketExample';
 import { flag, useEls, useFrame } from '../../reel/engine';
 import { EXAMPLE, SAY } from '../../home3/copy3';
 import { Say, Wave, appear, ease, seg } from '../kit3';
@@ -61,10 +61,10 @@ export function TicketScene() {
           {EXAMPLE.protocol}
         </div>
         <div className="r3-pts">
-          {Q7.lines.map((line) => (
-            <p key={line.text} data-a="pt" className="r3-pt" style={{ opacity: 0 }}>
+          {Q7.points.map((point) => (
+            <p key={point.text} data-a="pt" className="r3-pt" style={{ opacity: 0 }}>
               <i />
-              {withGlyphs(line.text)}
+              {withGlyphs(point.text)}
             </p>
           ))}
         </div>

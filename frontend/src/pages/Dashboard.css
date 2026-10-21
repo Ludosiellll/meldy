@@ -305,7 +305,7 @@
 .td-tally b { font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .td-answers { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--td-tint-edge); }
-/* «Шпаргалка: 39 строк осталось из 47» — the last line of the readiness, into the exam's cheat sheet. */
+/* «Осталось выучить 9 тем из 12» — the last line of the readiness, into the exam's page. */
 .td-sheet { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--td-tint-edge); }
 .td-ready > .td-sheet:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .td-exam > .td-sheet { margin-top: 22px; padding-top: 0; border-top: 0; }
@@ -917,7 +917,7 @@
   .td-exam[data-phone] .td-gap,
   .td-exam[data-phone] .td-sheet,
   .td-exam[data-phone] .td-ready > .td-sheet:first-child { margin: 0; padding: 0; border-top: 0; }
-  /* 15 px, so «Шпаргалка: 63 строки осталось из 63 →» is one line from 360 px; 44 px tall to tap. */
+  /* 15 px, so «Осталось выучить 12 тем из 12 →» is one line from 360 px; 44 px tall to tap. */
   .td-exam[data-phone] .td-gap-link,
   .td-exam[data-phone] .td-sheet-link {
     display: inline-block;

@@ -71,7 +71,7 @@ export const SAY = {
   stats: ['Результаты видно, пока участники пишут'],
 } as const;
 
-/** The example the reel follows: the /try example's lecture and its question 7 (data/sheetExample.ts Q7). */
+/** The example the reel follows: the /try example's lecture and its question 7 (data/ticketExample.ts Q7). */
 export const EXAMPLE = {
   subject: 'Микроэкономика',
   lecture: 'Лекция 6. Эластичность спроса',
@@ -144,7 +144,7 @@ export const EXAM_SECTION = {
 } as const;
 
 /**
- * «Билет вслух» on the page, a short loop: the parts of the answer to ticket 7 (data/sheetExample.ts Q7, said in
+ * «Билет вслух» on the page, a short loop: the parts of the answer to ticket 7 (data/ticketExample.ts Q7, said in
  * plain words), what the student says (each of the first three lines names one part: 1, 2 and 4), the examiner's
  * question about the missed part and the answer to it.
  */

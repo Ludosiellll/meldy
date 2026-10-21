@@ -18,7 +18,8 @@ import { SITE_TITLE } from '../lib/useDocumentTitle';
 const TITLE = 'Meldy — подготовка к экзамену и конструктор тестов';
 const SITE = 'https://ludosiel-studyforge.hf.space/';
 /** Older faces: the 2026-10 «тренажёр» and its promise, and the tagline before it. */
-const OLD = /Конспекты, карточки и тесты|помощник для учёбы|засчит|тренажёр экзамена|ИИ не отвечает/i;
+/** The old faces, and the cheat sheet (it left the product on 2026-10-21: «Осталось выучить» instead). */
+const OLD = /Конспекты, карточки и тесты|помощник для учёбы|засчит|тренажёр экзамена|ИИ не отвечает|шпаргалк/i;
 
 /** The public PNGs, inlined by Vite as data: URLs (their bytes, base64). */
 const PNG: Record<string, string> = {

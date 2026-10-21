@@ -65,8 +65,6 @@ describe('the first screen of /try (jury QA, 2026-10-11: Slow 4G)', () => {
   it('does not carry the Supabase client: the list of questions never touches an account', async () => {
     const graph = await staticClosure('pages/TryExample.tsx');
     expect(graph.modules.has('components/example/ExamplePick.tsx')).toBe(true);
-    // The exam's cheat sheet is not part of the example any more (owner, 21.10).
-    expect(graph.modules.has('components/exams/sheet/CheatSheet.tsx')).toBe(false);
     expect(graph.modules.has('lib/supabase.ts')).toBe(false);
     expect(graph.packages.get('@supabase/supabase-js') ?? null).toBeNull();
   });

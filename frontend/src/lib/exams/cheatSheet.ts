@@ -1,44 +1,41 @@
 /**
- * «Шпаргалка, которая исчезает» (notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05, v2): the
- * state of every line of an exam's cheat sheet, from the answer journal. Pure module: no network,
- * no storage.
+ * The state of every answer point of an oral exam's questions, from the answer journal. Pure module: no network, no
+ * storage. «Осталось выучить» decides by it when an oral question is learned (lib/exams/learnFacts.ts, the server's
+ * learn_left, lib/containers/oralParts.ts for the plan and the Telegram bot's copy). The words «sheet», «line» and
+ * «erased» are those of the cheat sheet this module was written for (notes: 10_Project/Vanishing_Cheat_Sheet_Spec_2026-10-05);
+ * the sheet itself left the product on 2026-10-21, its rule stayed.
  *
  * A line is one answer point of a question's current rubric (the points the examiner checks the
  * answer by). Its events are the journal rows of that point:
  * - `oral_point`, written by record_oral_attempt with every checked answer;
- * - `sheet_peek`, written when the student uncovered the line on the sheet («подсмотреть»).
+ * - `sheet_peek`, written when the student uncovered the point («Показать пункты»).
  * An event belongs to a line when it is about the same question (payload.question_hash) and the
  * same point by its words (payload.title, normalised): a rubric rebuilt under the same id with other
  * points does not inherit their history, a rubric rebuilt with the same point (after re-mapping)
  * does. An event without a title falls back to its item_key.
  *
- * Each answer is a pass of the eraser. What counts:
+ * What counts in an answer:
  * - «назван»: the point was covered in the answer itself;
  * - «не назван»: partial, wrong, missing — and missing but named only after the examiner asked
  *   about it (the student did not recall it alone);
- * - skipped: an unrated point, and a naming on the same local day after the line was uncovered.
+ * - skipped: an unrated point, and a naming on the same local day after the point was uncovered.
  * The rule is «подтверждено» of readiness.ts: the series is the namings after the last miss, and
- * the line is erased when the first and the last naming of the series are on different local days
+ * the line is erased (learned) when the first and the last naming of the series are on different local days
  * and at least 20 hours apart by the server clock. States:
- * - fresh — as written (readable);
- * - rubbed — named, the series does not erase yet: rubbed half-way, not readable;
- * - erased — gone, only the eraser's trace;
+ * - fresh — never named;
+ * - rubbed — named, the series does not erase yet;
+ * - erased — learned;
  * - due — erased, and its check is due: 5, 12, 25, 50 days after the last naming as checks pass
  *   (a check is a naming of a due line; an erased line named before its check is due only waits
  *   that long again from the new naming, at the same stage — five days in a row are no three
  *   checks), or in the last days before the exam a line not named for 4 days;
- * - missed — the last event is a miss and the line was never erased (readable, a pencil wave);
- * - returned — the last event is a miss and the line had been erased (readable, wave, the trace).
+ * - missed — the last event is a miss and the line was never erased;
+ * - returned — the last event is a miss and the line had been erased.
  */
 import type { LearningEvent } from '../../types/learning.ts';
 import { CONFIRM_MIN_HOURS, compareEventTime, meetsRule, midnightAfter, serverTime } from '../learning/readiness.ts';
 
 export type LineState = 'fresh' | 'rubbed' | 'erased' | 'due' | 'missed' | 'returned';
-
-/** Lines still on the sheet (the counter's «осталось»): not erased. */
-export const LINE_LEFT: ReadonlySet<LineState> = new Set<LineState>(['fresh', 'rubbed', 'missed', 'returned']);
-/** Lines that can be read without uncovering: what is still to learn. */
-export const LINE_READABLE: ReadonlySet<LineState> = new Set<LineState>(['fresh', 'missed', 'returned']);
 
 /** Days after the last naming until an erased line is checked again; the stage grows with each passed check. */
 export const DUE_DAYS: readonly number[] = [5, 12, 25, 50];
@@ -292,7 +289,7 @@ export interface SheetPoint {
   id: string;
   /** The point as the examiner checks it (≤ 120). */
   title: string;
-  /** The cheat-sheet line (≤ 56), empty when there is none: then the title is written. */
+  /** The point's short words (≤ 56), empty when there are none: then the title stands for them. */
   short: string;
   essential: boolean;
   /** Word for word from the lecture. */
@@ -352,7 +349,7 @@ export interface SheetLine {
   questionHash: string;
   rubricId: string;
   pointId: string;
-  /** The handwritten line: `short`, else the point's title. */
+  /** The point's short words: `short`, else the point's title. */
   text: string;
   title: string;
   essential: boolean;
@@ -366,7 +363,7 @@ export interface SheetBlock {
   /** The department's number, else the position. */
   number: string;
   section: number | null;
-  /** The department's wording, printed. */
+  /** The department's wording. */
   text: string;
   kind: BlockKind;
   coverage: SheetCoverage;
@@ -382,32 +379,8 @@ export interface SheetBlock {
   learned: boolean;
 }
 
-export interface SheetCounts {
-  /** Lines on the sheet (each line once, even when two questions share it). */
-  total: number;
-  /** Lines still there (not erased): fresh, rubbed, missed, returned. */
-  left: number;
-  essentialTotal: number;
-  essentialLeft: number;
-  rubbed: number;
-  erased: number;
-  due: number;
-  /** Lines to learn: readable (fresh, missed, returned). */
-  readable: number;
-  learned: number;
-  /** Questions without lines: gaps, unwritten, rebuilt, unmapped, unverified. */
-  withoutLines: number;
-  gaps: number;
-  unwritten: number;
-  rebuilt: number;
-  unmapped: number;
-  unverified: number;
-  questions: number;
-}
-
 export interface Sheet {
   blocks: SheetBlock[];
-  counts: SheetCounts;
 }
 
 // The words after «Не хватает:» (backend/exams_map.py: clean_missing): a model's «В лекции нет
@@ -519,7 +492,7 @@ function onePerAnswer(events: LearningEvent[], pointId: string): LearningEvent[]
 }
 
 /**
- * The whole sheet: blocks in the department's order with their lines' states, and the counts.
+ * Every question as a block in the department's order with its lines' states.
  * `events` are the exam's oral_point and sheet_peek events (any order).
  */
 export function buildSheet(
@@ -543,25 +516,6 @@ export function buildSheet(
     }
   }
 
-  const counts: SheetCounts = {
-    total: 0,
-    left: 0,
-    essentialTotal: 0,
-    essentialLeft: 0,
-    rubbed: 0,
-    erased: 0,
-    due: 0,
-    readable: 0,
-    learned: 0,
-    withoutLines: 0,
-    gaps: 0,
-    unwritten: 0,
-    rebuilt: 0,
-    unmapped: 0,
-    unverified: 0,
-    questions: questions.length,
-  };
-  const counted = new Set<string>();
   const ordered = questions.slice().sort((a, b) => a.position - b.position);
   const blocks: SheetBlock[] = ordered.map((question) => {
     const kind = blockKind(question);
@@ -603,31 +557,8 @@ export function buildSheet(
           })
         : [];
 
-    for (const line of lines) {
-      if (counted.has(line.key)) continue;
-      counted.add(line.key);
-      const state = line.status.state;
-      counts.total += 1;
-      if (line.essential) counts.essentialTotal += 1;
-      if (LINE_LEFT.has(state)) {
-        counts.left += 1;
-        if (line.essential) counts.essentialLeft += 1;
-      }
-      if (LINE_READABLE.has(state)) counts.readable += 1;
-      if (state === 'rubbed') counts.rubbed += 1;
-      if (state === 'erased') counts.erased += 1;
-      if (state === 'due') counts.due += 1;
-    }
-    if (kind === 'gap') counts.gaps += 1;
-    if (kind === 'unwritten') counts.unwritten += 1;
-    if (kind === 'rebuilt') counts.rebuilt += 1;
-    if (kind === 'unmapped') counts.unmapped += 1;
-    if (kind === 'unverified') counts.unverified += 1;
-    if (kind !== 'lines') counts.withoutLines += 1;
-
     const deciding = lines.some((line) => line.essential) ? lines.filter((line) => line.essential) : lines;
     const learned = deciding.length > 0 && deciding.every((line) => line.status.state === 'erased');
-    if (learned) counts.learned += 1;
 
     const partial = question.coverage === 'partial' || rubric?.coverage === 'partial';
     return {
@@ -646,338 +577,5 @@ export function buildSheet(
       learned,
     };
   });
-  return { blocks, counts };
-}
-
-// ------------------------------------------------------------------ after an answer, and the history
-
-export interface LineChange {
-  key: string;
-  questionId: string;
-  from: LineState;
-  to: LineState;
-  /** The line as it was before (its notes and history then): the replay draws it so first. */
-  before?: LineStatus;
-}
-
-/** Lines whose state differs between two builds of the same sheet, in the sheet's order. */
-export function sheetChanges(before: Sheet, after: Sheet): LineChange[] {
-  const previous = new Map<string, LineStatus>();
-  for (const block of before.blocks) for (const line of block.lines) previous.set(line.key, line.status);
-  const changes: LineChange[] = [];
-  const seen = new Set<string>();
-  for (const block of after.blocks) {
-    for (const line of block.lines) {
-      if (seen.has(line.key)) continue;
-      seen.add(line.key);
-      const was = previous.get(line.key);
-      if (!was || was.state === line.status.state) continue;
-      changes.push({ key: line.key, questionId: block.questionId, from: was.state, to: line.status.state, before: was });
-    }
-  }
-  return changes;
-}
-
-/**
- * The counts of a sheet with some of its changes made: the counter while an answer is played, which follows the
- * lines as each one is struck or comes back (`made`: the keys of the changes made so far; `essential`: the keys of
- * the main lines). The questions' own counts (learned, without lines) are left as they were.
- */
-export function countsWith(
-  before: SheetCounts,
-  changes: readonly LineChange[],
-  made: ReadonlySet<string>,
-  essential: ReadonlySet<string> = new Set(),
-): SheetCounts {
-  const counts = { ...before };
-  for (const change of changes) {
-    if (!made.has(change.key)) continue;
-    const step = (state: LineState, by: 1 | -1) => {
-      if (LINE_LEFT.has(state)) {
-        counts.left += by;
-        if (essential.has(change.key)) counts.essentialLeft += by;
-      }
-      if (LINE_READABLE.has(state)) counts.readable += by;
-      if (state === 'rubbed') counts.rubbed += by;
-      if (state === 'erased') counts.erased += by;
-      if (state === 'due') counts.due += by;
-    };
-    step(change.from, -1);
-    step(change.to, 1);
-  }
-  return counts;
-}
-
-/** «2 строки стёрлись, 3 — наполовину, 1 вернулась»: what the changes of an answer did. */
-export interface ChangeSummary {
-  /** Erased by the answer (a line erased then and due by now counts here too). */
-  erased: number;
-  /** Rubbed half-way. */
-  rubbed: number;
-  /** Lines that were due and were named: the check passed, they are erased again. */
-  checked: number;
-  /** Back in ink: an erased line not named (returned), or a rubbed one not named this time. */
-  returned: number;
-  /** Still there as written: a fresh line not named this time (it gets the pencil wave). */
-  stayed: number;
-}
-
-export function changeSummary(changes: readonly LineChange[]): ChangeSummary {
-  const summary: ChangeSummary = { erased: 0, rubbed: 0, checked: 0, returned: 0, stayed: 0 };
-  for (const change of changes) {
-    if (change.to === 'erased') {
-      if (change.from === 'due') summary.checked += 1;
-      else summary.erased += 1;
-    } else if (change.to === 'due') summary.erased += 1;
-    else if (change.to === 'rubbed') summary.rubbed += 1;
-    else if (change.to === 'returned') summary.returned += 1;
-    else if (change.to === 'missed') {
-      if (change.from === 'fresh') summary.stayed += 1;
-      else summary.returned += 1;
-    }
-  }
-  return summary;
-}
-
-/**
- * Why an answer left lines it named as they were, from its own events: lines named again too soon —
- * how many, why (`day`: on the same local day as the first naming of their series; `hours`: on
- * another day but less than 20 hours after it; `both`: some of each) and the moment from which a
- * naming erases every one of them (the latest) — a line uncovered the same day, lines already
- * erased — or null (nothing named: the protocol says what was missed). `changed`: the keys of the
- * lines the answer did change, which need no reason (without it every line of the answer counts).
- */
-export type QuietReason =
-  | {
-      kind: 'wait';
-      from: string;
-      count: number;
-      why: 'day' | 'hours' | 'both';
-      /** Some other line of the answer was uncovered earlier that day: its naming did not count either. */
-      peek?: boolean;
-    }
-  | { kind: 'peek' }
-  | { kind: 'erased' };
-
-/** The first naming of the series (namings since the last miss) that `target` belongs to. */
-function seriesStart(history: readonly LineEvent[], target: LineEvent): LineEvent | null {
-  let start: LineEvent | null = null;
-  for (const event of history) {
-    if (event.outcome === 'missed') start = null;
-    else if (event.outcome === 'named' && start === null) start = event;
-    if (event === target) return start;
-  }
-  return start;
-}
-
-export function quietReason(sheet: Sheet, sessions: ReadonlySet<string>, changed: ReadonlySet<string> = new Set()): QuietReason | null {
-  let wait: string | null = null;
-  let waiting = 0;
-  const why = new Set<'day' | 'hours'>();
-  let peek = false;
-  let erased = false;
-  for (const block of sheet.blocks) {
-    for (const line of block.lines) {
-      if (changed.has(line.key)) continue;
-      const own = line.status.history.filter((event) => event.sessionId !== null && sessions.has(event.sessionId));
-      if (own.length === 0) continue;
-      if (own.some((event) => event.word === 'after_peek')) peek = true;
-      const named = own.filter((event) => event.outcome === 'named');
-      if (named.length === 0) continue;
-      const { state, erasableFrom } = line.status;
-      if (state === 'rubbed' && erasableFrom) {
-        waiting += 1;
-        // The latest moment: from then on a naming erases each of them (an earlier one would not hold for all).
-        if (wait === null || Date.parse(erasableFrom) > Date.parse(wait)) wait = erasableFrom;
-        const last = named[named.length - 1];
-        const start = seriesStart(line.status.history, last);
-        why.add(start && start !== last && start.date === last.date ? 'day' : 'hours');
-      }
-      if (state === 'erased' || state === 'due') erased = true;
-    }
-  }
-  if (wait) return { kind: 'wait', from: wait, count: waiting, why: why.size > 1 ? 'both' : why.has('day') ? 'day' : 'hours', ...(peek ? { peek: true } : {}) };
-  if (peek) return { kind: 'peek' };
-  if (erased) return { kind: 'erased' };
-  return null;
-}
-
-/**
- * The answer session whose events are the newest among the sheet's lines (the last answer that
- * changed the sheet), or null.
- */
-export function lastAnswerSession(sheet: Sheet, questionIds?: ReadonlySet<string>): string | null {
-  let newest: LineEvent | null = null;
-  for (const block of sheet.blocks) {
-    if (questionIds && !questionIds.has(block.questionId)) continue;
-    for (const line of block.lines) {
-      for (const event of line.status.history) {
-        if (event.sessionId && (!newest || event.at > newest.at)) newest = event;
-      }
-    }
-  }
-  return newest?.sessionId ?? null;
-}
-
-/** The sheet as it was before one answer session (or several): the same build without their events. */
-export function sheetWithout(
-  questions: readonly SheetQuestion[],
-  events: readonly LearningEvent[],
-  sessionId: string | ReadonlySet<string>,
-  now: Date | number = new Date(),
-  options: LineOptions = {},
-): Sheet {
-  const left = typeof sessionId === 'string' ? new Set([sessionId]) : sessionId;
-  return buildSheet(
-    questions,
-    events.filter((event) => !event.session_id || !left.has(event.session_id)),
-    now,
-    options,
-  );
-}
-
-/**
- * The sheet just before and just after an answer session (or several), as of the answer's own
- * moment (its last event): what the answer did, whenever it is replayed — not what the same events
- * would mean today, when lines it erased may be due again. Null when the journal has none of its events.
- */
-export function sheetsAround(
-  questions: readonly SheetQuestion[],
-  events: readonly LearningEvent[],
-  sessions: ReadonlySet<string>,
-  options: LineOptions = {},
-): { before: Sheet; after: Sheet; at: number } | null {
-  let at = -Infinity;
-  for (const event of events) {
-    if (!event?.session_id || !sessions.has(event.session_id)) continue;
-    const time = Date.parse(event.created_at);
-    if (Number.isFinite(time) && time > at) at = time;
-  }
-  if (!Number.isFinite(at)) return null;
-  const until = events.filter((event) => {
-    const time = Date.parse(event.created_at);
-    return !Number.isFinite(time) || time <= at;
-  });
-  return { at, before: sheetWithout(questions, until, sessions, at + 1, options), after: buildSheet(questions, until, at + 1, options) };
-}
-
-export interface HistoryFrame {
-  /** The local day ('yyyy-MM-dd'). */
-  day: string;
-  /** End of that day (ms), the `now` the frame was built with. */
-  at: number;
-  left: number;
-  total: number;
-}
-
-/** The history plays at most this many days; a longer one is shown by days spread evenly over it. */
-export const HISTORY_MAX_FRAMES = 50;
-
-/**
- * The sheet day by day from the first answer to today (the finale «История листа»): one frame per
- * local day, built as of the end of that day, the last one as of now. Lines written later than a day
- * still count on it — the sheet is the current one, only the answers are replayed. It starts at the
- * first answer of a line on the sheet (answers to questions the sheet no longer has do not count),
- * and a history longer than 50 days is shown by 50 days spread over it, the first and today among
- * them. «Now» is never before the newest answer: a device clock behind the server would leave it out.
- */
-export function sheetHistory(
-  questions: readonly SheetQuestion[],
-  events: readonly LearningEvent[],
-  now: Date | number = new Date(),
-  options: LineOptions = {},
-): HistoryFrame[] {
-  let end = timeOf(now);
-  for (const event of events) {
-    const time = event ? Date.parse(event.created_at) : NaN;
-    if (Number.isFinite(time) && time > end) end = time;
-  }
-  const current = buildSheet(questions, events, end, options);
-  let first = Infinity;
-  for (const block of current.blocks) {
-    for (const line of block.lines) {
-      for (const event of line.status.history) {
-        const time = Date.parse(event.at);
-        if (Number.isFinite(time) && time < first) first = time;
-      }
-    }
-  }
-  if (!Number.isFinite(first)) return [];
-  const days: number[] = [];
-  const start = new Date(first);
-  for (let day = new Date(start.getFullYear(), start.getMonth(), start.getDate()); day.getTime() <= end; day = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1)) {
-    days.push(day.getTime());
-  }
-  const picked =
-    days.length <= HISTORY_MAX_FRAMES
-      ? days
-      : [...new Set(Array.from({ length: HISTORY_MAX_FRAMES }, (_, index) => days[Math.round((index * (days.length - 1)) / (HISTORY_MAX_FRAMES - 1))]))];
-  return picked.map((dayStart) => {
-    const day = new Date(dayStart);
-    const at = Math.min(new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime() - 1, end);
-    const sheet = buildSheet(
-      questions,
-      events.filter((event) => Date.parse(event.created_at) <= at),
-      at,
-      options,
-    );
-    return { day: localDayOf(at), at, left: sheet.counts.left, total: sheet.counts.total };
-  });
-}
-
-// ------------------------------------------------------------------ what an answer can erase now («Сегодня»)
-
-/**
- * The moment from which naming the line in an answer erases it (ms), read off the line's own state:
- * - rubbed: its `erasableFrom` (the other day and the 20 hours of the rule, and not today after a peek);
- * - due: now — the naming is its check — unless the line was uncovered today (a naming after a peek
- *   does not count), then the next local midnight;
- * - erased: the moment it becomes due (`dueAt`);
- * - fresh, missed, returned: null — a naming only rubs such a line, it erases nothing yet.
- */
-export function erasableAt(status: LineStatus, now: Date | number = new Date()): number | null {
-  const at = timeOf(now);
-  const moment = (iso: string | null): number | null => {
-    const ms = iso ? Date.parse(iso) : NaN;
-    return Number.isFinite(ms) ? ms : null;
-  };
-  switch (status.state) {
-    case 'rubbed':
-      return moment(status.erasableFrom);
-    case 'due':
-      return status.peekedToday ? midnightAfter(localDayOf(at)) : Math.min(moment(status.dueAt) ?? at, at);
-    case 'erased':
-      return moment(status.dueAt);
-    default:
-      return null;
-  }
-}
-
-export interface ErasableNow {
-  /** Questions (ids, in the sheet's order) with at least one line an answer erases now. */
-  questions: string[];
-  /** The earliest later moment an answer erases a line of the sheet (ISO); null when no line waits for one. */
-  next: string | null;
-}
-
-/**
- * «Сегодня можно стереть строки шпаргалки у N вопросов» on «Сегодня» and the draw «Ждут подтверждения»
- * (Сегодня-lite): the questions where naming a point now erases its line — a rubbed line whose moment has
- * come, or a line due for its check (erasableAt) — and when the next such moment comes for the rest of the sheet.
- */
-export function erasableNow(sheet: Sheet, now: Date | number = new Date()): ErasableNow {
-  const at = timeOf(now);
-  const questions: string[] = [];
-  let next: number | null = null;
-  for (const block of sheet.blocks) {
-    let ready = false;
-    for (const line of block.lines) {
-      const from = erasableAt(line.status, at);
-      if (from === null) continue;
-      if (from <= at) ready = true;
-      else if (next === null || from < next) next = from;
-    }
-    if (ready && !questions.includes(block.questionId)) questions.push(block.questionId);
-  }
-  return { questions, next: next === null ? null : new Date(next).toISOString() };
+  return { blocks };
 }

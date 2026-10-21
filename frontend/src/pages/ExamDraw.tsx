@@ -93,7 +93,7 @@ export default function ExamDraw() {
   // «Можно выучить сегодня» draws from the questions an answer now makes learned (public.learn_left) — the ones
   // «Сегодня» counts in «Сегодня можно выучить N вопросов». Read when the mode is chosen; 'failed': learn_left could
   // not be read, the readiness rule's «ждут» stands in.
-  const [sheetPool, setSheetPool] = useState<{ examId: string; ids: ReadonlySet<string> | 'failed' } | null>(null);
+  const [learnPool, setLearnPool] = useState<{ examId: string; ids: ReadonlySet<string> | 'failed' } | null>(null);
 
   const load = useCallback(async () => {
     setStatus('loading');
@@ -129,7 +129,7 @@ export default function ExamDraw() {
   useEffect(() => {
     // Read afresh each time the mode is chosen: a pool from an earlier visit would draw before the new one.
     if (mode !== 'awaiting' || !bundle) {
-      setSheetPool(null);
+      setLearnPool(null);
       return undefined;
     }
     let alive = true;
@@ -138,19 +138,19 @@ export default function ExamDraw() {
     fetchLearnLeft([owner], { fresh: true }).then(
       (exams) => {
         const exam = exams.find((item) => item.examId === owner);
-        if (alive) setSheetPool({ examId: owner, ids: new Set(exam ? readyNow(exam, Date.now()) : []) });
+        if (alive) setLearnPool({ examId: owner, ids: new Set(exam ? readyNow(exam, Date.now()) : []) });
       },
       () => {
-        if (alive) setSheetPool({ examId: owner, ids: 'failed' });
+        if (alive) setLearnPool({ examId: owner, ids: 'failed' });
       },
     );
     return () => {
       alive = false;
     };
   }, [mode, bundle]);
-  const erasableIds = sheetPool && bundle && sheetPool.examId === bundle.exam.id ? sheetPool.ids : null;
-  // The draw waits for the sheet in «Ждут подтверждения» (it decides the pool).
-  const waiting = mode === 'awaiting' && erasableIds === null;
+  const readyIds = learnPool && bundle && learnPool.examId === bundle.exam.id ? learnPool.ids : null;
+  // «Можно выучить сегодня» waits for learn_left (it decides the pool).
+  const waiting = mode === 'awaiting' && readyIds === null;
 
   const pool: DrawQuestion[] = useMemo(() => {
     if (!bundle) return [];
@@ -163,10 +163,10 @@ export default function ExamDraw() {
         readiness: state?.readiness ?? 'untested',
         attempts: state?.attempts ?? 0,
         stale: state?.stale ?? false,
-        awaiting: erasableIds !== null && erasableIds !== 'failed' ? erasableIds.has(question.id) : state?.awaiting ?? false,
+        awaiting: readyIds !== null && readyIds !== 'failed' ? readyIds.has(question.id) : state?.awaiting ?? false,
       };
     });
-  }, [bundle, states, erasableIds]);
+  }, [bundle, states, readyIds]);
 
   const drawLayout = useMemo(() => {
     const layout = bundle?.exam.ticket_layout ?? { mode: 'random' as const, per_ticket: 2 };
@@ -205,7 +205,7 @@ export default function ExamDraw() {
     setDrawn({ key: counter.current, result });
   }, [bundle, mode, pool, drawLayout]);
 
-  // Draw on arrival and whenever the mode changes («Ждут подтверждения» once its sheet is read).
+  // Draw on arrival and whenever the mode changes («Можно выучить сегодня» once learn_left is read).
   useEffect(() => {
     if (status === 'ready' && !waiting) draw();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -359,7 +359,7 @@ export default function ExamDraw() {
           <p className="dw-note">{skippedNote(answerable.length, card.questions.filter((question) => question.none).map((question) => question.number))}</p>
         )}
         {historyFailed && <p className="dw-note">История ответов не загрузилась: тянем без неё.</p>}
-        {mode === 'awaiting' && erasableIds === 'failed' && (
+        {mode === 'awaiting' && readyIds === 'failed' && (
           <p className="dw-note">Не получилось узнать, что можно выучить сегодня. Тянем вопросы, на которые вы уже хорошо отвечали.</p>
         )}
         </section>

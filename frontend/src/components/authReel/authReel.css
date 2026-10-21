@@ -138,7 +138,7 @@
 .ar-verdict { flex: 1 1 auto; margin: 0; font-size: 29px; font-weight: 500; line-height: 1.3; color: var(--ink); }
 .ar-next { flex: none; }
 
-/* ------------------------------------------------------------------ the oral answer and the cheat sheet */
+/* ------------------------------------------------------------------ the oral answer, its result and «Осталось выучить» */
 .ar-room { position: absolute; left: 1056px; top: 66px; width: 850px; height: 960px; transform-origin: 0 50%; }
 .ar-ticket { left: 0; top: 0; width: 830px; padding: 46px 50px 50px; }
 .ar-pill { display: inline-flex; align-items: center; height: 60px; padding: 0 28px; border-radius: 999px; background: #10295a; color: #fff; font-size: 29px; font-weight: 600; }
@@ -147,31 +147,69 @@
 .ar-wave { display: flex; align-items: center; gap: 8px; height: 86px; }
 .ar-wave i { width: 7px; height: 86px; border-radius: 4px; background: var(--ink); transform-origin: 50% 50%; }
 
-/* The sheet comes forward over the ticket, which steps back out of focus behind it; the room under its last line is
-   the chip's. */
-.ar-sheet { left: 20px; top: 54px; width: 830px; padding: 34px 36px 84px; }
-.ar-sheet-top { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
-.ar-flag {
-  display: inline-flex;
-  align-items: center;
+/* The result comes forward over the ticket, which steps back out of focus behind it: the answer's points with the
+   protocol's statuses (a tick for «раскрыт», half for «упомянут»), its line, and the topics left with the one it closes. */
+.ar-res { left: 20px; top: 54px; width: 830px; padding: 30px 40px 40px; }
+.ar-pts { margin: 0; padding: 0; list-style: none; }
+.ar-pt { display: grid; grid-template-columns: 54px minmax(0, 1fr); column-gap: 20px; align-items: center; padding: 12px 0; }
+.ar-pt + .ar-pt { border-top: 2px solid #ecece6; }
+.ar-pt-n {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 54px;
   height: 54px;
-  padding: 0 44px 0 24px;
-  background: #f3a9c4;
+  border-radius: 50%;
+  background: #efefea;
+  font-size: 25px;
+  font-weight: 600;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ar-pt-mark { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; }
+.ar-pt-mark svg { width: 32px; height: 32px; }
+.ar-pt[data-status='covered'] .ar-pt-mark { background: #e2f2e5; color: #2c6b3a; }
+.ar-pt[data-status='partial'] .ar-pt-mark { background: #fcefc9; color: #7a5a12; }
+/* Question 7's longest point holds on one row. */
+.ar-pt-t { min-width: 0; font-size: 29px; line-height: 1.25; color: var(--muted); white-space: nowrap; }
+.ar-pt.is-checked .ar-pt-t { color: var(--ink); }
+.ar-sum { margin: 18px 0 0; font-size: 35px; font-weight: 600; line-height: 1.15; letter-spacing: -.02em; color: var(--ink); }
+
+/* «Осталось выучить» as the exam page has it: the count, the topic with a segment a question (blue learned, yellow
+   started); the topic's flag once it is learned. */
+.ar-left { margin-top: 26px; padding: 26px 30px 30px; border-radius: 28px; background: #f3f3f0; }
+.ar-left-top { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; }
+.ar-left-h { margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -.02em; color: var(--ink); }
+.ar-left-n { display: flex; align-items: baseline; gap: 12px; margin: 0; font-size: 28px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+.ar-left-n b { font-size: 58px; line-height: .9; font-weight: 600; letter-spacing: -.04em; color: var(--blue); font-variant-numeric: tabular-nums; transform-origin: 50% 70%; }
+.ar-topic { margin-top: 22px; padding-top: 22px; border-top: 2px solid #e4e4de; }
+.ar-topic-t { display: flex; align-items: center; justify-content: space-between; gap: 20px; min-height: 48px; margin: 0; font-size: 32px; font-weight: 600; letter-spacing: -.015em; color: var(--ink); }
+.ar-topic-flag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 48px;
+  padding: 0 34px 0 22px;
+  background: #8acb97;
   color: var(--ink);
-  font-size: 27px;
+  font-size: 25px;
   font-weight: 500;
   white-space: nowrap;
-  clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 0 100%);
+  transform-origin: 100% 50%;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 14px) 50%, 100% 100%, 0 100%);
 }
-.ar-sheet-meta { font-size: 27px; color: var(--muted); white-space: nowrap; }
-.ar-sheet-count { margin-top: 22px; }
-.ar-sheet-map { margin-top: 22px; padding: 20px; border-radius: 24px; background: #f3f3f0; }
-/* Question 7's longest line holds on one row. */
-.ar-sheet-list { margin-top: 26px; font-size: 30px; }
-.ar-sheet-list .sl-qh { font-size: 34px; }
-.ar-sheet-list .sl-line { grid-template-columns: 1.42em minmax(0, 1fr); }
-/* What the answer did: the exam page's chip at the end of an answer, over the bottom of the card. */
-.ar-cap { position: absolute; left: 36px; right: 36px; bottom: -48px; z-index: 2; }
+.ar-topic-m { margin: 4px 0 0; font-size: 27px; color: var(--muted); }
+.ar-segs { display: flex; gap: 10px; margin-top: 18px; }
+.ar-segs i { position: relative; flex: 1 1 0; height: 14px; overflow: hidden; border-radius: 7px; background: #e3e3dd; }
+.ar-segs i[data-s='done'] { background: var(--blue); }
+.ar-segs i[data-s='started'] { background: var(--yellow); }
+.ar-segs i b { position: absolute; inset: 0; background: var(--blue); transform: scaleX(0); transform-origin: 0 50%; }
+/* Two words in one place; .is-later shows the second. */
+.ar-two { display: inline-grid; }
+.ar-two > span { grid-area: 1 / 1; }
+.ar-two > span:last-child,
+.ar-two.is-later > span:first-child { visibility: hidden; }
+.ar-two.is-later > span:last-child { visibility: visible; }
 
 /* ------------------------------------------------------------------ sign-in · 4 the group's link */
 .ar-invite { position: absolute; left: 1056px; top: 90px; width: 850px; height: 900px; transform-origin: 0 50%; }
