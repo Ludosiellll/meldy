@@ -511,7 +511,7 @@ def build(build_dir: Path, out: Path, font_dir: Path, title: str, embed: str) ->
     cp.title = title
     cp.subject = ''
     cp.author = ''
-    cp.keywords = 'CodingFest-11; Meldy'
+    cp.keywords = ''
     cp.comments = ''
     cp.category = ''
     cp.last_modified_by = ''
@@ -572,7 +572,7 @@ def main(argv=None) -> int:
     ap.add_argument('--build', default=str(DECK / 'out' / 'build'), help='folder with slides.json (extract.mjs --out)')
     ap.add_argument('--out', default=str(DECK / 'out' / 'meldy-codingfest11.pptx'))
     ap.add_argument('--fonts', default=str(DECK / 'design' / 'fonts'))
-    ap.add_argument('--title', default='Meldy — CodingFest-11')
+    ap.add_argument('--title', default='Meldy')
     ap.add_argument('--embed', default='all', choices=['all', 'used', 'none'], help='Onest faces to embed (default all four)')
     ap.add_argument('--deck-rules', action='store_true', help='fail if the mandatory names/order/15-slide rules are broken')
     a = ap.parse_args(argv)

@@ -141,9 +141,11 @@ def main() -> int:
                     c.ok(e['name'] in names, f'{tag}: {e["name"]} missing')
             # notes
             want_notes = sd.get('notes') or []
+            got = slide.notes_slide.notes_text_frame.text if slide.has_notes_slide else ''
             if want_notes:
-                got = slide.notes_slide.notes_text_frame.text if slide.has_notes_slide else ''
                 c.ok(got.split('\n') == want_notes, f'{tag}: notes differ')
+            else:   # extract --no-notes (the jury's file): no notes text at all
+                c.ok(not got.strip(), f'{tag}: notes expected empty, found {len(got)} characters')
             # transition
             kind = (sd.get('transition') or {}).get('type', 'morph')
             ac = sld.find('mc:AlternateContent', NS)

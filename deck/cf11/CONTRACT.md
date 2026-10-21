@@ -17,6 +17,12 @@ texts and the talk: meldy-notes
   09–10 exams, 11 the test constructor and 12 «Контрольные» (the test by link and the game in class); testing moves
   to 14 and promotion and scale to 15.
 - **No hidden slides** in the submitted file. File **≤ 9.5 MB** (decimal), Latin file name, a PDF copy next to it.
+- **No speaker notes and no hidden data in the files the jury gets** (owner, 21.10): `tools/make.sh` builds the PPTX
+  without notes (`DECK_NOTES=1` keeps them for a speaker's copy), and `tools/clean.py` leaves only neutral properties
+  (title «Meldy»), media without metadata and a PDF without attachments; its check fails the build otherwise. The
+  notes stay in the slide sources as the talk text, handed to the speaker separately.
+- **No version numbers, dates or measurement footnotes on the slides** (owner, 21.10: «надписи сложные ненужные»):
+  the method behind a number goes to the notes' «Если спросят».
 - **The static frame is the master copy.** Normal view, the PDF and LibreOffice show every object at its final place;
   animations only add (entrance effects only, no exits, no motion paths that end elsewhere). Nothing essential lives
   only in motion or only in the notes.

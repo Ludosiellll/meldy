@@ -116,7 +116,8 @@ def new_presentation() -> Presentation:
 
 
 def app_properties_xml(n_slides: int, n_notes: int, n_media: int, words: int, paragraphs: int, titles: list[str]) -> bytes:
-    """docProps/app.xml: counts, slide titles; no company or template names. PowerPoint rewrites it on save."""
+    """docProps/app.xml: counts, slide titles; no application, company or template names. PowerPoint rewrites it on
+    save."""
     ns = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties'
     vt = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes'
     root = etree.Element(f'{{{ns}}}Properties', nsmap={None: ns, 'vt': vt})
@@ -126,7 +127,6 @@ def app_properties_xml(n_slides: int, n_notes: int, n_media: int, words: int, pa
 
     add('TotalTime', 0)
     add('Words', words)
-    add('Application', 'Meldy deck compiler (python-pptx)')
     add('PresentationFormat', 'Widescreen')
     add('Paragraphs', paragraphs)
     add('Slides', n_slides)
