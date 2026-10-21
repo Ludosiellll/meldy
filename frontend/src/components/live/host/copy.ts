@@ -37,7 +37,8 @@ export const SETUP = {
   top: 'Провести игру',
   title: (name: string) => `Игра по тесту «${name}»`,
   titleNone: 'Игра по тесту',
-  lead: (n: number) => `${count(n, QUESTIONS)} в игре. Ученики входят с телефона по PIN или QR-коду.`,
+  lead: (n: number) =>
+    `${count(n, QUESTIONS)} в игре. Откройте игру на проекторе или большом экране. Ученики войдут с телефона по PIN или QR-коду, на сайте или в Telegram.`,
   loading: 'Загружаем вопросы…',
   failed: 'Не получилось загрузить вопросы.',
   retry: 'Повторить',
