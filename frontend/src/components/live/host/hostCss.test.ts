@@ -50,6 +50,16 @@ describe('host.css', () => {
     expect(css).toMatch(/\.lvh-lobby-foot \.lvh-tg-pop \{ left: var\(--tg-pop-x/);
   });
 
+  it('a top-bar tool over the arena stays readable under the mouse: dark on the white hover circle', async () => {
+    const css = await read('host.css');
+    // the arena whitens the tools with a more specific selector than the plain hover's
+    expect(css).toMatch(/\.lvh-viewport\[data-arena\] \.lvh-tool \{ color: rgba\(255, 255, 255/);
+    expect(css).toMatch(/\.lvh-tool:hover \{ background: var\(--lvh-card\); color: var\(--lvh-ink\);/);
+    const hoverBlocks = [...css.matchAll(/@media \(hover: hover\) \{([\s\S]*?)\n\}/g)].map((m) => m[1]);
+    const arenaHover = hoverBlocks.map((b) => /\.lvh-viewport\[data-arena\] \.lvh-tool:hover \{([^}]*)\}/.exec(b)?.[1]).find(Boolean);
+    expect(arenaHover).toMatch(/color: var\(--lvh-ink\)/);
+  });
+
   it('has no glow, gradients or blur in the chrome, and stands still for reduced motion', async () => {
     const css = await read('host.css');
     expect(css).not.toMatch(/gradient\(|text-shadow|drop-shadow|blur\(|backdrop-filter|filter:/);

@@ -99,6 +99,8 @@ a.lvh-btn { text-decoration: none; }
 .lvh-tool--text { width: auto; padding: 0 16px; border-radius: 999px; font: 600 20px/1 var(--ph-sans, system-ui); }
 @media (hover: hover) {
   .lvh-tool:hover { background: var(--lvh-card); color: var(--lvh-ink); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+  /* over the arena the tools are white: on the white hover circle they turn dark again (else a blank circle) */
+  .lvh-viewport[data-arena] .lvh-tool:hover { color: var(--lvh-ink); }
 }
 
 /* ───────── lobby: for the room (the card and the panel), one line of the teacher's under both ───────── */
