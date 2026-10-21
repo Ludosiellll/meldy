@@ -3,4 +3,4 @@ export { MoveClient, backoffMs, defaultUrl, CLOSE_STALE, type MoveClientOptions,
 export { SnapshotBuffer, ServerClock, type Pose } from './interp';
 export { CommandClock, Predictor } from './predict';
 export * from './protocol';
-export { applyCommand, mapFromJson, moveCircle, toAxes, zoneAt, DEFAULT_RULES, type GameMap, type MapJson, type MoveRules } from './sim';
+export { applyCommand, mapFromJson, moveCircle, toAxes, zoneAt, zoneIndexAt, DEFAULT_RULES, type GameMap, type MapJson, type MoveRules } from './sim';

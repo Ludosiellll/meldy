@@ -9,6 +9,8 @@
  *   (interp.ts).
  * - Pings every 2 s (the server closes a socket silent for 15 s; the pong gives the round trip); a socket that brought
  *   nothing for `staleMs` is dropped and opened again.
+ * - A mode's messages: mode A «Встань на ответ» (docs/live/MODE_STAND.md) keeps its latest `hello`, `state` and `me` in
+ *   `stand` and calls `onStand`; at the question's zero it lets the stick go by itself until the next state.
  */
 import { SnapshotBuffer, ServerClock, type Pose } from './interp';
 import { CommandClock, Predictor } from './predict';
@@ -18,6 +20,7 @@ import {
   encodeInput,
   F_FROZEN,
   MAX_CMDS_PER_MSG,
+  parseStand,
   PROTOCOL_VERSION,
   retryable,
   WS_PATH,
@@ -25,6 +28,10 @@ import {
   type HostCommand,
   type RosterEntry,
   type ServerEvent,
+  type StandHello,
+  type StandMe,
+  type StandMessage,
+  type StandState,
   type Welcome,
 } from './protocol';
 import { mapFromJson, toAxes, type GameMap } from './sim';
@@ -46,6 +53,8 @@ export interface MoveClientOptions {
   staleMs?: number;
   onWelcome?: (w: Welcome) => void;
   onEvent?: (e: ServerEvent) => void;
+  /** Mode A «Встань на ответ»: each hello, state and me (also kept in `client.stand`). */
+  onStand?: (m: StandMessage) => void;
   /** `closed` carries the final close code; `waiting` the code it will retry after (e.g. 4404 before the host comes). */
   onStatus?: (status: MoveStatus, code?: number) => void;
   /** Tests: a WebSocket class and a clock. */
@@ -82,6 +91,8 @@ export class MoveClient {
   roster = new Map<number, RosterEntry>();
   rttMs: number | null = null;
   frozen = false;
+  /** Mode A: the latest of each message (null before the first; kept across a reconnect until replaced). */
+  stand: { hello: StandHello | null; state: StandState | null; me: StandMe | null } = { hello: null, state: null, me: null };
 
   private ws: WebSocket | null = null;
   private readonly buffer = new SnapshotBuffer();
@@ -135,6 +146,19 @@ export class MoveClient {
   /** A host command (ignored for a player by the server). */
   command(cmd: HostCommand): void {
     this.sendJson({ t: 'cmd', ...cmd });
+  }
+
+  /** The room's clock now (ms, the snapshots' `t`): the base of every mode time (`opens`, `closes`, `back_at`). */
+  serverNow(nowMs: number = this.now()): number | null {
+    return this.clock.now(nowMs);
+  }
+
+  /** Mode A: the question's zero has passed while it is still open here — the stick is let go until the next state. */
+  holding(nowMs: number = this.now()): boolean {
+    const st = this.stand.state;
+    if (!st || st.phase !== 'open' || st.closes === null) return false;
+    const t = this.clock.now(nowMs);
+    return t !== null && t >= st.closes;
   }
 
   /** What to draw now. */
@@ -233,6 +257,15 @@ export class MoveClient {
       case 'pong':
         if (typeof msg.c === 'number') this.rttMs = this.now() - msg.c;
         break;
+      case 'stand': {
+        const m = parseStand(msg);
+        if (!m) return;
+        if (m.k === 'hello') this.stand = { ...this.stand, hello: m };
+        else if (m.k === 'state') this.stand = { ...this.stand, state: m };
+        else this.stand = { ...this.stand, me: m };
+        this.o.onStand?.(m);
+        break;
+      }
     }
     this.o.onEvent?.(msg as unknown as ServerEvent);
   }
@@ -302,7 +335,7 @@ export class MoveClient {
     if (!this.predictor || !this.buffer.latest()) return; // commands start from the first known position
     const n = this.cmdClock.due(now);
     if (n <= 0) return;
-    const [jx, jy] = this.axes;
+    const [jx, jy] = this.holding(now) ? [0, 0] : this.axes;
     const idle = jx === 0 && jy === 0 && this.buttons === 0;
     if (idle && this.lastIdle) return;
     const count = idle ? 1 : n; // one still command tells the server the stick and buttons were let go

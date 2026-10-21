@@ -4,7 +4,10 @@
  */
 
 export type GameState = 'lobby' | 'countdown' | 'open' | 'reveal' | 'leaderboard' | 'podium' | 'ended';
-export type GameMode = 'boss';
+/** 'boss': «Битва с монстром»; 'stand': «Встань на ответ», a movement game (docs/live/MODE_STAND.md). */
+export type GameMode = 'boss' | 'stand';
+/** The boss of a movement game, the teacher's pick. */
+export type BossKind = 'clock' | 'skeleton';
 export type BossPhase = 0 | 1 | 2;
 export type Uuid = string;
 
@@ -25,8 +28,10 @@ export interface Look {
 
 export interface Settings {
   mode: GameMode;
-  /** Seconds to answer: 10, 20 or 30. */
-  time_s: 10 | 20 | 30;
+  /** Seconds to answer: 10, 20 or 30 («Встань на ответ»: 15, 20 or 30; 15 by default). */
+  time_s: 10 | 15 | 20 | 30;
+  /** «Встань на ответ»: the boss (default 'clock'); returned in a stand game's settings only. */
+  boss?: BossKind;
   /** Damage depends on speed; false = accuracy only. */
   speed: boolean;
   /** 'pin': anyone with the PIN; 'members': only the exam's members. */
@@ -88,6 +93,8 @@ export interface Boss {
   hp_max: number;
   phase: BossPhase;
   defeated: boolean;
+  /** A stand game's boss (no HP there: hp = hp_max = 0). */
+  kind?: BossKind;
 }
 
 export interface Me {

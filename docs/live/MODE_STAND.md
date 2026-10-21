@@ -7,9 +7,12 @@ gets half the points and comes back to life when the floor returns.
 
 This file is the contract between the room server (`backend/live_move_stand.py`, `live_move_modes.py`), the database
 (`supabase/migrations/20261022090000_live_stand.sql`), the projector and the phone. It builds on `CONTRACT.md` (the live
-game: states, tokens, RPCs, errors) and `MOVE.md` (the socket, snapshots, prediction). TypeScript types:
-`frontend/src/lib/live/move/protocol.ts` (`Stand*`). Where this file and the code disagree, fix one of them in the same
-commit.
+game: states, tokens, RPCs, errors) and `MOVE.md` (the socket, snapshots, prediction). TypeScript:
+`frontend/src/lib/live/move/protocol.ts` (`Stand*` types, `parseStand`, `STAND_ARENA`, `STAND_LETTERS`, `standPoints`,
+`zoneOption`, `isGhost`), `sim.ts` `zoneIndexAt`, and `MoveClient` (`stand.hello/state/me`, `onStand`, `serverNow()`,
+`holding()`). The arena and the worked points are shared in `contracts/live/stand_arena.json` (checked by pytest and
+Vitest; the SQL is rehearsed against the Python mirror for every millisecond). Where this file and the code disagree,
+fix one of them in the same commit.
 
 ## 1. Settings
 
@@ -24,7 +27,8 @@ commit.
 - The brief called the battle value `battle`; it is `boss` on the wire, in the live database and in ten client call
   sites already, so it stays `boss`. There is no `battle` value.
 - `speed` works as in battle (off: everyone gets the early bonus in full). `who`, `chat_names` unchanged.
-- HostState `settings` gains `"boss"`. PlayerState and HostState `boss` gain `"kind": "clock" | "skeleton"`.
+- In a stand game HostState `settings` has `"boss"` and PlayerState / HostState `boss` has `"kind": "clock" |
+  "skeleton"` (a battle game's JSON is unchanged).
 - In a stand game `live_answer` is refused with `ML004 stand`: answers come only from the room (§6).
 - No boss HP in a stand game: `boss.hp = hp_max = 0`, `phase` stays 0, no freezes or heals. Podium after the last
   question; `final.won` is always `false` (nobody beats the boss; places matter).
@@ -131,7 +135,7 @@ did not count (§6). `place`/`of` are among players not kicked.
 ### 4.4 Client → server
 
 - Host: `{"t": "cmd", "op": "sync"}` after every `live_next`, `live_kick`, `live_end`. Other host commands as in
-  `MOVE.md`; `map` and `npc` are refused in a stand room (`err map` / `err op`).
+  `MOVE.md`; `map` and `npc` are refused in a stand room (`{"t": "err", "code": "op"}`): the arena is the mode's.
 - Phones send nothing new: only the joystick (binary) and pings.
 
 ## 5. One question, step by step (room ms; T = `time_s` × 1000)
@@ -243,12 +247,25 @@ Ghosts are drawn translucent and floating on both screens; a character with `F_A
 
 ## 10. Server budget
 
-- Tick work with 40 players in a stand room: p99 ≤ 3 ms (measured in `test_live_stand_api.py`, reported by the
-  `stats` command). Mode work per tick: one zone check per player during `countdown` and `open`, nothing otherwise.
+- Tick work with 40 players in a stand room: p99 ≤ 3 ms. Asserted on the tick's own CPU time by `test_live_stand.py`
+  (40 players running in an open question, snapshots framed for 41 sockets: p50 0.32, p99 0.60 ms on 21.10). The wall
+  time under a whole game of 40 bots over the socket (`test_live_stand_api.py`, `stats`): p50 0.3, p99 1.4–2.0 ms on a
+  machine at load 14–17 on 4 cores; the end to end through PostgREST with 30 bots: p99 0.66 ms. Mode work per tick: one
+  zone check per player during `countdown` and `open`, nothing otherwise.
+- Every socket must ping (`MoveClient` does, every 2 s): the server drops one silent for 15 s, longer than a question.
 - No JSON per tick. Per question per socket: ~7 messages (countdown, open, reveal, floor up, leaderboard, `me` × 1–2).
 - Database: one `live_host_state` a second per room (mostly `unchanged`), one `live_stand_close` per question.
 
-## 11. Mode B «Убеги от Дедлайна» (later)
+## 11. Release order
+
+1. Apply `20261022090000_live_stand.sql` (after `20261021090000_live_game.sql`), then run `supabase/tests/live_stand.sql`
+   and `supabase/tests/live_game.sql`. Until then `live_create` refuses `mode: "stand"` (`22023 mode`), so nothing
+   half-works. Rollback: `supabase/rollback/20261022090000_live_stand_down.sql` (drops stand games only).
+2. Release the Space (the room). A stand game whose room is not there closes each question by time (`closes_at + 8 s`,
+   no answers).
+3. The projector and the phone screens.
+
+## 12. Mode B «Убеги от Дедлайна» (later)
 
 `backend/live_move_modes.make_mode` picks the mode from the game's settings; a new value (`"run"`) gets its own module
 and `RoomHooks` there. Snapshot flag bits 6–7 and `"t": "run"` messages are free for it. Nothing of B exists yet.
