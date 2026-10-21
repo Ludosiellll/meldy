@@ -12,8 +12,6 @@ import {
   checkTryAnswer,
   checkTryFollowup,
   followupPlan,
-  keptEvaluation,
-  parseCheckSummary,
   parseTryResponse,
   tryEvaluation,
 } from './tryCheck';
@@ -198,36 +196,30 @@ describe('the protocol of a checked answer', () => {
     ]);
   });
 
-  it('reads a protocol kept in the tab, and nothing else', () => {
-    expect(keptEvaluation(PROTOCOL, IDS)?.points[1].status).toBe('wrong');
-    expect(keptEvaluation('<script>', IDS)).toBeNull();
-    expect(keptEvaluation({ points: [] }, IDS)).toBeNull();
-  });
 });
 
 describe('the line that says how the answer was checked', () => {
-  it('names the AI, or the key words and why, in plain words', () => {
+  it('names the AI, or why the key words checked the answer, in short plain sentences', () => {
     expect(checkLine({ by: 'ai' })).toBe(CHECKED_BY_AI);
-    expect(CHECKED_BY_AI).toBe('Ответ проверил ИИ по пунктам из лекций примера.');
-    expect(checkLine({ by: 'dont_know' })).toBe(DONT_KNOW_VERDICT);
+    expect(CHECKED_BY_AI).toBe('Ответ проверил ИИ по тексту лекций.');
+    expect(checkLine({ by: 'dont_know' })).toBe('Вы ответили «не знаю». Проверять было нечего.');
     expect(checkLine({ by: 'keywords' })).toBe(CHECKED_BY_KEYWORDS);
-    expect(checkLine({ by: 'keywords', reason: 'no_key' })).toBe('Проверено по ключевым словам: проверка ИИ в примере сейчас недоступна.');
-    expect(checkLine({ by: 'keywords', reason: 'busy' })).toBe('Проверено по ключевым словам: проверка ИИ в примере сейчас недоступна.');
-    expect(checkLine({ by: 'keywords', reason: 'failed' })).toBe('Проверено по ключевым словам: проверка ИИ в примере сейчас недоступна.');
-    expect(checkLine({ by: 'keywords', reason: 'timeout' })).toBe('Проверено по ключевым словам: ИИ не успел проверить ответ.');
-    expect(checkLine({ by: 'keywords', reason: 'day_cap' })).toBe('Проверено по ключевым словам: проверки ИИ в примере на сегодня закончились.');
-    expect(checkLine({ by: 'keywords', reason: 'client_limit' })).toBe('Проверено по ключевым словам: из вашей сети было слишком много проверок подряд.');
-    expect(checkLine({ by: 'keywords', reason: 'offline' })).toBe('Проверено по ключевым словам: нет связи с сервером.');
-    expect(checkLine({ by: 'keywords', reason: 'too_long' })).toBe('Проверено по ключевым словам: ИИ в примере проверяет ответы до 4000 знаков.');
+    expect(checkLine({ by: 'keywords', reason: 'no_key' })).toBe('ИИ сейчас недоступен. Ответ проверен по ключевым словам.');
+    expect(checkLine({ by: 'keywords', reason: 'busy' })).toBe('ИИ сейчас недоступен. Ответ проверен по ключевым словам.');
+    expect(checkLine({ by: 'keywords', reason: 'failed' })).toBe('ИИ сейчас недоступен. Ответ проверен по ключевым словам.');
+    expect(checkLine({ by: 'keywords', reason: 'timeout' })).toBe('ИИ не успел проверить ответ. Ответ проверен по ключевым словам.');
+    expect(checkLine({ by: 'keywords', reason: 'day_cap' })).toBe('Проверки ИИ на сегодня закончились. Ответ проверен по ключевым словам.');
+    expect(checkLine({ by: 'keywords', reason: 'client_limit' })).toBe('Из вашей сети было слишком много проверок. Ответ проверен по ключевым словам.');
+    expect(checkLine({ by: 'keywords', reason: 'offline' })).toBe('Нет связи с сервером. Ответ проверен по ключевым словам.');
+    expect(checkLine({ by: 'keywords', reason: 'too_long' })).toBe('ИИ проверяет ответы до 4000 знаков. Ответ проверен по ключевым словам.');
+    // One thought, one sentence: no chain through a colon or a dash (the owner's plain-words rule, 21.10).
+    for (const reason of ['no_key', 'timeout', 'day_cap', 'client_limit', 'offline', 'too_long'] as const) {
+      expect(checkLine({ by: 'keywords', reason })).not.toMatch(/[:—]/);
+    }
   });
 
-  it('is kept with the answer and read back only as written', () => {
+  it('sums the check up without the protocol', () => {
     expect(checkSummary({ by: 'keywords', reason: 'day_cap' })).toEqual({ by: 'keywords', reason: 'day_cap' });
     expect(checkSummary({ by: 'ai', evaluation: KEYWORDS })).toEqual({ by: 'ai' });
-    expect(parseCheckSummary({ by: 'ai' })).toEqual({ by: 'ai' });
-    expect(parseCheckSummary({ by: 'keywords', reason: 'offline' })).toEqual({ by: 'keywords', reason: 'offline' });
-    expect(parseCheckSummary({ by: 'keywords', reason: 'made up' })).toEqual({ by: 'keywords' });
-    expect(parseCheckSummary({ by: 'teacher' })).toBeNull();
-    expect(parseCheckSummary(undefined)).toBeNull();
   });
 });

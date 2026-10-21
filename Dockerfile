@@ -42,5 +42,8 @@ RUN rm -f /etc/nginx/sites-enabled/default
 # Expose HF Spaces port
 EXPOSE 7860
 
-# Start nginx + uvicorn
-CMD ["sh", "-c", "nginx && uvicorn main:app --host 127.0.0.1 --port 8000"]
+# Start nginx + uvicorn. The WebSocket flags are for the movement games' socket, the only one (live_move_api.py):
+# a frame over 64 KB is refused before it is read into memory (uvicorn's default is 16 MB); no permessage-deflate —
+# it would halve the 3.4 KB/s of snapshots a phone gets but cost ~25 % more CPU (load test 2026-10-21), and CPU is
+# what the Space is short of.
+CMD ["sh", "-c", "nginx && uvicorn main:app --host 127.0.0.1 --port 8000 --ws-max-size 65536 --ws-per-message-deflate false"]

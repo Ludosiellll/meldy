@@ -42,10 +42,14 @@ describe('the CSP of every location (nginx.conf)', () => {
     expect(nginxConf).not.toMatch(/add_header X-Frame-Options/);
   });
 
+  it("passes the movement games' WebSocket on with its Upgrade headers (connect-src names its wss:// for Safari)", () => {
+    expect(nginxConf).toMatch(/location = \/api\/live\/move\/ws \{[^}]*proxy_set_header Upgrade \$http_upgrade;[^}]*proxy_set_header Connection "upgrade";/);
+  });
+
   it('keeps everything else as it was', () => {
     const csp = directives(policies[0]);
     expect(csp.get('default-src')).toBe("'self'");
-    expect(csp.get('connect-src')).toBe("'self' https://*.supabase.co wss://*.supabase.co");
+    expect(csp.get('connect-src')).toBe("'self' wss://ludosiel-studyforge.hf.space https://*.supabase.co wss://*.supabase.co");
     expect(csp.get('style-src')).toBe("'self' 'unsafe-inline'");
     expect(csp.get('base-uri')).toBe("'self'");
     expect(csp.get('form-action')).toBe("'self' https://accounts.google.com");

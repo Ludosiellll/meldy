@@ -5,9 +5,10 @@
  */
 import { useEffect, useRef, useState, type ComponentType } from 'react';
 import { lazyPart, useLazyPart } from '../../lib/lazyPart';
-import { BUILDER_SECTION, CTA, EXAMPLE, SAMPLE_TEST_URL, SITE, bind } from './copy3';
+import { BUILDER_SECTION, CTA, EXAMPLE, PICTURES, SAMPLE_TEST_URL, SITE, bind } from './copy3';
 import { ArrowIcon } from './HeroTop';
 import { SectionHead } from './Sections';
+import Swap from './Swap';
 
 /** The small studio and the QR code: one file, fetched when the section comes near (the QR library goes with it). */
 const partsPart = lazyPart(() => import('./MiniStudio').then((module) => ({ MiniStudio: module.default, Qr: module.TestQr })));
@@ -24,60 +25,69 @@ function SendCard({ Qr }: { Qr: ComponentType | null }) {
   };
   return (
     <article className="p3-card">
-      <h3 className="p3-h3">{BUILDER_SECTION.sendTitle}</h3>
-      <p className="p3-p">{bind(BUILDER_SECTION.sendText)}</p>
-      <div className="p3-pic p3-send">
-        {Qr ? <Qr /> : <span className="p3-qr" aria-hidden="true" />}
-        <div className="p3-send-side">
-          <p className="p3-meta">Ссылка для участников</p>
-          <p className="p3-link">{EXAMPLE.link}</p>
-          <button type="button" className="p3-action" onClick={copy}>
-            {copied ? 'Скопировано' : 'Скопировать ссылку'}
-          </button>
+      <div className="p3-card-text">
+        <h3 className="p3-h3">{BUILDER_SECTION.sendTitle}</h3>
+        <p className="p3-p">{bind(BUILDER_SECTION.sendText)}</p>
+        <a className="h3-pill h3-pill--blue p3-test" href={SAMPLE_TEST_URL}>
+          {CTA.test}
+          <i>
+            <ArrowIcon />
+          </i>
+        </a>
+      </div>
+      <div className="p3-stage">
+        <div className="p3-win p3-send">
+          {Qr ? <Qr /> : <span className="p3-qr" aria-hidden="true" />}
+          <div className="p3-send-side">
+            <p className="p3-meta">{PICTURES.linkLabel}</p>
+            <p className="p3-link">{EXAMPLE.link}</p>
+            <button type="button" className="p3-action" onClick={copy}>
+              <Swap items={PICTURES.copyLink} at={copied ? 1 : 0} />
+            </button>
+          </div>
         </div>
       </div>
-      <a className="h3-pill h3-pill--blue p3-test" href={SAMPLE_TEST_URL}>
-        {CTA.test}
-        <i>
-          <ArrowIcon />
-        </i>
-      </a>
     </article>
   );
 }
 
 const PEOPLE = [
-  { name: 'Анна К.', status: 'пишет — 3 из 5', time: '', live: true },
-  { name: 'Дмитрий С.', guest: true, status: '5 из 5 · 100 %', time: '6 мин' },
-  { name: 'Мария Л.', status: '4 из 5 · 80 %', time: '8 мин' },
-  { name: 'Илья П.', guest: true, status: '3 из 5 · 60 %', time: '9 мин' },
+  { name: 'Анна К.', status: '3 из 5', time: '', live: true },
+  { name: 'Дмитрий С.', guest: true, status: '5 из 5', time: '6 мин' },
+  { name: 'Мария Л.', status: '4 из 5', time: '8 мин' },
+  { name: 'Илья П.', guest: true, status: '3 из 5', time: '9 мин' },
 ];
 
 function StatsCard() {
   return (
     <article className="p3-card">
-      <h3 className="p3-h3">{BUILDER_SECTION.statsTitle}</h3>
-      <p className="p3-p">{bind(BUILDER_SECTION.statsText)}</p>
-      <div className="p3-pic">
-        <p className="p3-meta">{EXAMPLE.testTitle} · Результаты</p>
-        <p className="p3-stats">пишут 3 · сдали 23 · средний 71{'\u00a0'}%</p>
+      <div className="p3-card-text">
+        <h3 className="p3-h3">{BUILDER_SECTION.statsTitle}</h3>
+        <p className="p3-p">{bind(BUILDER_SECTION.statsText)}</p>
+      </div>
+      <div className="p3-stage">
+      <div className="p3-win">
+        <p className="p3-meta">{PICTURES.results}</p>
+        <p className="p3-stats">{PICTURES.resultsLine}</p>
         {PEOPLE.map((person) => (
           <p key={person.name} className={`p3-person${person.live ? ' is-live' : ''}`}>
             <b>
               {person.name}
-              {person.guest ? <small>без входа</small> : null}
+              {person.guest ? <small>{PICTURES.noAccount}</small> : null}
             </b>
             <span>{person.status}</span>
-            <span>{person.time}</span>
+            <span>{person.live ? PICTURES.writing : person.time}</span>
           </p>
         ))}
+        <p className="p3-meta p3-hard">{PICTURES.hardest}</p>
         <p className="p3-qline">
-          <span>2. Неэластичный спрос и выручка</span>
+          <span>{PICTURES.hardestQuestion}</span>
           <i>
             <b style={{ width: '38%' }} />
           </i>
-          <em>38{'\u00a0'}%</em>
+          <em>{PICTURES.hardestRight}</em>
         </p>
+      </div>
       </div>
     </article>
   );

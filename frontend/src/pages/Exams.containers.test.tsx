@@ -383,8 +383,8 @@ describe('«Экзамены» with exam containers', () => {
     expect(entry.closest('[data-pair]')).not.toBeNull();
     expect(entry.closest('[data-pair]')).toBe(door.closest('[data-pair]'));
     // Each door says in one quiet line what it makes (release 47, M11).
-    expect(door).toHaveAccessibleDescription('Экзамен — план подготовки по вопросам и лекциям');
-    expect(entry).toHaveAccessibleDescription('Тест — свои вопросы, ученикам по ссылке');
+    expect(door).toHaveAccessibleDescription('Для себя: план по вопросам и лекциям');
+    expect(entry).toHaveAccessibleDescription('Для учеников: по ссылке, можно без входа');
     expect(screen.queryByRole('heading', { name: 'Загрузите вопросы к экзамену' })).toBeNull();
     expect(mocks.fetchQuestionEvents).not.toHaveBeenCalled();
   });

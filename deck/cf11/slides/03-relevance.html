@@ -6,9 +6,11 @@
 <link rel="stylesheet" href="../design/deck.css">
 <link rel="stylesheet" href="../design/stage.css">
 <style>
-/* 960 questions, one square each, in six variants of 160 (20 × 8): baked into the background. */
+/* What a student has before the session, drawn without a number: two rows of lecture sheets and a field of question
+   squares. Each group is one picture (data-pptx="image") that fades in; no count is tied to it. */
+.sheet { position: absolute; width: 44px; height: 56px; border-radius: 8px; background: var(--surface-soft); border: 2px solid var(--line); }
+.sheet i { position: absolute; left: 8px; height: 4px; border-radius: 2px; background: #3a4456; }
 .q { position: absolute; width: 14px; height: 14px; border-radius: 3px; background: #2b3444; }
-.vb { position: absolute; }
 </style>
 </head>
 <body>
@@ -18,38 +20,46 @@
 <div class="mark" data-pptx="text" data-name="!!word" style="left:1682px">Meldy</div>
 <div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1780px;top:76px"></div>
 
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">К&nbsp;одной контрольной в&nbsp;нашем колледже 960&nbsp;вопросов.<br><span class="dim">План и&nbsp;проверку себе студент делает сам</span></div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Перед сессией у&nbsp;студента десятки лекций<br>и&nbsp;сотни вопросов кафедры</div>
 
-<div class="huge" data-pptx="text" style="left:104px;top:360px" data-anim="settle" data-anim-trigger="after" data-anim-dur="700" data-anim-order="2">960</div>
-<div class="t40" data-pptx="text" style="left:128px;top:712px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="2">вопросов: 6&nbsp;вариантов по&nbsp;160</div>
-<div class="t28" data-pptx="text" style="left:128px;top:768px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="2">Файлы контрольной группы авторов, октябрь 2026</div>
+<div class="t28" data-pptx="text" style="left:964px;top:356px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="2">Лекции за&nbsp;семестр</div>
+<div id="sheets" data-pptx="image" aria-label="Два ряда листов лекций" style="left:964px;top:404px;width:800px;height:128px" data-anim="fade" data-anim-trigger="with" data-anim-dur="700" data-anim-order="2"></div>
+<div class="t28" data-pptx="text" style="left:964px;top:580px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="3">Вопросы кафедры</div>
+<div id="grid" data-pptx="image" aria-label="Поле квадратов, по одному на вопрос" style="left:964px;top:628px;width:800px;height:254px" data-anim="fade" data-anim-trigger="with" data-anim-dur="900" data-anim-order="3"></div>
 
-<div id="grid" style="left:964px;top:372px;width:828px;height:542px"></div>
+<div class="t48" data-pptx="text" style="left:128px;top:404px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4">Сколько учить в&nbsp;день<br>и&nbsp;что уже выучено,<br>студент считает сам</div>
+<div class="t48" data-pptx="text" style="left:128px;top:652px;color:var(--muted)" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="5">Проверить себя он может<br>только на&nbsp;экзамене</div>
 <script>
-  // Six variants of 160 questions, 2 columns × 3 rows of 20 × 8 squares (14 px, step 20), 40 px between variants.
+  // Lecture sheets: 2 rows of 14 (44 x 56, step 58 x 72), three text lines each.
+  const s = document.getElementById('sheets');
+  for (let i = 0; i < 28; i++) {
+    const d = document.createElement('div');
+    d.className = 'sheet';
+    d.style.left = ((i % 14) * 58) + 'px';
+    d.style.top = (Math.floor(i / 14) * 72) + 'px';
+    d.innerHTML = '<i style="top:12px;width:26px"></i><i style="top:22px;width:22px"></i><i style="top:32px;width:18px"></i>';
+    s.appendChild(d);
+  }
+  // Questions: a plain field of 40 x 13 squares (14 px, step 20).
   const g = document.getElementById('grid');
-  for (let v = 0; v < 6; v++) {
-    const bx = (v % 2) * 434, by = Math.floor(v / 2) * 194;
-    for (let i = 0; i < 160; i++) {
-      const d = document.createElement('div');
-      d.className = 'q';
-      d.style.left = (bx + (i % 20) * 20) + 'px';
-      d.style.top = (by + Math.floor(i / 20) * 20) + 'px';
-      g.appendChild(d);
-    }
+  for (let i = 0; i < 520; i++) {
+    const d = document.createElement('div');
+    d.className = 'q';
+    d.style.left = ((i % 40) * 20) + 'px';
+    d.style.top = (Math.floor(i / 40) * 20) + 'px';
+    g.appendChild(d);
   }
 </script>
 
-<div class="rule" style="left:128px;top:880px;width:760px"></div>
-<div class="t32" data-pptx="text" style="left:128px;top:904px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="3">Экзамены по&nbsp;билетам: постановление<br>Минобразования №&nbsp;319 от&nbsp;13.10.2023</div>
-<div class="t32" data-pptx="text" style="left:964px;top:952px" data-anim="fade" data-anim-trigger="with" data-anim-delay="250" data-anim-dur="500" data-anim-order="3">Более 229&nbsp;тыс. студентов в&nbsp;46&nbsp;вузах Беларуси</div>
-<div class="t28" data-pptx="text" style="left:964px;top:1000px" data-anim="fade" data-anim-trigger="with" data-anim-delay="250" data-anim-dur="500" data-anim-order="3">Минобразования, БЕЛТА, 2026</div>
+<div class="rule" style="left:128px;top:944px;width:1664px"></div>
+<div class="t32" data-pptx="text" style="left:128px;top:972px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="6">Более 229&nbsp;тыс. студентов в&nbsp;46&nbsp;вузах Беларуси</div>
+<div class="t28" data-pptx="text" style="left:880px;top:976px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="6">Минобразования, БЕЛТА, 2026</div>
 
-<template data-pptx="notes">К одной контрольной в нашей группе дали шесть вариантов по сто шестьдесят вопросов, всего девятьсот шестьдесят. Рядом — стопка лекций. Сколько учить в день и что уже выучено, студент считает сам, а проверка одна — сама контрольная.
+<template data-pptx="notes">Перед сессией у студента десятки лекций и сотни вопросов кафедры. Сколько учить в день и что уже выучено, студент считает сам. А проверить себя он может только на самом экзамене.
 
-Экзамены по билетам — обычная форма аттестации, её устанавливает постановление Министерства образования номер триста девятнадцать. [Щелчок.] В Беларуси около двухсот тридцати тысяч студентов вузов, и сессия у каждого дважды в год.
+[Щелчок.] В Беларуси около двухсот тридцати тысяч студентов вузов. Сессия у каждого два раза в год.
 
-Если спросят: 960 — это настоящая контрольная нашей группы в октябре 2026 года, файлы кафедры загружены в Meldy. 229 тысяч — Минобразования через БЕЛТА, 2026: «в стране работают 46 вузов, в которых обучается более 229 тысяч студентов».</template>
+Если спросят: число 229 тысяч взято у Минобразования через БЕЛТА, 2026 год. Цитата: «в стране работают 46 вузов, в которых обучается более 229 тысяч студентов».</template>
 </main>
 </body>
 </html>

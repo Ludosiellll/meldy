@@ -91,7 +91,7 @@ export function LectureScene() {
                 <p className="r3-stem">Как связаны эластичность и выручка?</p>
               </div>
               <div data-a="back" className="r3-flash r3-flash--back">
-                <p className="r3-sum">Эластичный спрос: снижение цены увеличивает выручку. Неэластичный: повышение.</p>
+                <p className="r3-sum">Если спрос эластичный, выручку увеличит снижение цены. Если неэластичный, повышение.</p>
                 <span className="r3-flash-acts">
                   <span className="r3-mini">Не помню</span>
                   <span className="r3-mini">Знаю</span>

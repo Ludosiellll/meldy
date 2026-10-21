@@ -97,7 +97,7 @@ describe('QuizResult: the score', () => {
     renderResult(result({ pass_percent: 60, passed: true }));
     expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('15 из 20 · 75 %');
     // The start page's words for the pass mark.
-    expect(page()).toContain('Проходной балл 60 % — сдано');
+    expect(page()).toContain('Сдано. Проходной балл 60 %');
     expect(screen.getByRole('heading', { level: 1, name: 'Контрольная по базам данных' })).toBeInTheDocument();
     // A thin bar of the percent in the quiz's colour, a tick at the pass mark (decorative: the words say it).
     const meter = document.querySelector('.qt-meter')!;
@@ -108,7 +108,7 @@ describe('QuizResult: the score', () => {
 
   it('not passed', () => {
     renderResult(result({ correct: 10, percent: 50, pass_percent: 60, passed: false }));
-    expect(page()).toContain('Проходной балл 60 % — не сдано');
+    expect(page()).toContain('Не сдано. Проходной балл 60 %');
     expect(document.querySelector<HTMLElement>('.qt-meter-fill')?.style.width).toBe('50%');
   });
 
@@ -116,7 +116,7 @@ describe('QuizResult: the score', () => {
     renderResult(result({ review_now: 'score' }));
     expect(screen.queryByRole('heading', { name: 'Где вы ошиблись' })).toBeNull();
     expect(screen.queryByText(/Ваш ответ/)).toBeNull();
-    expect(screen.queryByRole('button', { name: /Ещё попытка/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Пройти ещё раз/ })).toBeNull();
     expect(page()).not.toContain('Проходной балл');
     // The bar without a pass mark has no tick.
     expect(document.querySelector('.qt-meter-fill')).not.toBeNull();
@@ -125,12 +125,12 @@ describe('QuizResult: the score', () => {
 
   it('says when the time closed the attempt', () => {
     renderResult(result({ finish_reason: 'time' }));
-    expect(page()).toContain('Время вышло — попытка закрылась сама.');
+    expect(page()).toContain('Время вышло, попытка завершена.');
   });
 
   it('says when «Защита от списывания» ended the attempt, with how many times the page was away', () => {
     renderResult(result({ finish_reason: 'protection', guard: { level: 'strict', count: 3, limit: 3 } }));
-    expect(page()).toContain('Попытка завершилась сама: вы покидали страницу 3 раза. Ответы, данные до этого, засчитаны');
+    expect(page()).toContain('Вы уходили со страницы 3 раза, и попытка завершилась. Ответы до этого засчитаны.');
   });
 
   it('«Закрыть» goes back', () => {
@@ -172,9 +172,9 @@ describe('QuizResult: the review', () => {
     expect(rows.map((row) => row.querySelector('.ct-opt-l')?.textContent)).toEqual(['А', 'Б', 'В']);
     // The right one the person did not pick has its own look and words; their wrong pick says so.
     expect(rows[1].getAttribute('data-state')).toBe('missed');
-    expect(plain(rows[1].querySelector('.ct-opt-tag')?.textContent)).toBe('Верный — вы не отметили');
+    expect(plain(rows[1].querySelector('.ct-opt-tag')?.textContent)).toBe('Верный, но вы его не отметили');
     expect(rows[2].getAttribute('data-state')).toBe('wrong');
-    expect(plain(rows[2].querySelector('.ct-opt-tag')?.textContent)).toBe('Ваш ответ — неверно');
+    expect(plain(rows[2].querySelector('.ct-opt-tag')?.textContent)).toBe('Ваш ответ неверный');
     expect(rows[0].getAttribute('data-state')).toBeNull();
     expect(rows[0].querySelector('.ct-opt-tag')).toBeNull();
     const capital = screen.getByText('Столица Франции').closest('li')!;
@@ -191,9 +191,9 @@ describe('QuizResult: the review', () => {
     const rows = Array.from(screen.getByText('Чётные числа').closest('li')!.querySelectorAll('.ct-opt'));
     expect(rows.map((row) => row.getAttribute('data-state'))).toEqual(['wrong', 'file', 'missed']);
     expect(rows.map((row) => plain(row.querySelector('.ct-opt-tag')?.textContent))).toEqual([
-      'Ваш ответ — неверно',
-      'Ваш ответ — верно',
-      'Верный — вы не отметили',
+      'Ваш ответ неверный',
+      'Ваш ответ верный',
+      'Верный, но вы его не отметили',
     ]);
   });
 
@@ -204,7 +204,7 @@ describe('QuizResult: the review', () => {
     fireEvent.click(screen.getByRole('button', { name: (name) => plain(name) === 'Показать все вопросы (4)' }));
     const first = screen.getByText('Сколько будет 2 + 2?').closest('li')!;
     expect(first.textContent).toContain('Вопрос 1');
-    expect(plain(first.querySelector('.ct-opt[data-state="file"] .ct-opt-tag')?.textContent)).toBe('Ваш ответ — верно');
+    expect(plain(first.querySelector('.ct-opt[data-state="file"] .ct-opt-tag')?.textContent)).toBe('Ваш ответ верный');
     fireEvent.click(screen.getByRole('button', { name: 'Показать только ошибки' }));
     expect(screen.queryByText('Сколько будет 2 + 2?')).toBeNull();
   });
@@ -242,9 +242,9 @@ describe('QuizResult: the review', () => {
 
 describe('QuizResult: another try', () => {
   it.each([
-    [1, 'Ещё попытка (осталась 1)'],
-    [2, 'Ещё попытка (осталось 2)'],
-    [null, 'Ещё попытка'],
+    [1, 'Пройти ещё раз (осталась 1)'],
+    [2, 'Пройти ещё раз (осталось 2)'],
+    [null, 'Пройти ещё раз'],
   ])('with %s left: «%s»', (left, label) => {
     renderResult(result({ can_retry: true, attempts_left: left }));
     const button = screen.getByRole('button', { name: (name) => plain(name) === label });
@@ -317,7 +317,7 @@ describe('«Повторить эти вопросы» (release 47)', () => {
     expect(api.joinPractice).toHaveBeenCalledWith('abcd2fghjkmn');
   });
 
-  it('with «Ещё попытка» on the screen the button is the white pill', () => {
+  it('with «Пройти ещё раз» on the screen the button is the white pill', () => {
     renderResult(offered({ can_retry: true, attempts_left: 1 }));
     expect(screen.getByRole('button', { name: 'Тренировать эти вопросы' })).toHaveClass('sf-secondary');
   });
@@ -381,9 +381,9 @@ describe('«Повторить эти вопросы» (release 47)', () => {
       expect(api.joinPractice).not.toHaveBeenCalled();
     });
 
-    it('«Ещё попытка» stays the screen’s blue pill', () => {
+    it('«Пройти ещё раз» stays the screen’s blue pill', () => {
       renderResult(offered({ can_retry: true, attempts_left: 1, practice: { exam_title: 'Зимняя сессия', member: false, ready: false } }));
-      expect(screen.getByRole('button', { name: /Ещё попытка/ })).toHaveClass('sf-primary');
+      expect(screen.getByRole('button', { name: /Пройти ещё раз/ })).toHaveClass('sf-primary');
       expect(plain(document.querySelector('.qt-practice-note')?.textContent)).toBe(LATER);
     });
 

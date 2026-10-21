@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Landing3 from './Landing3';
-import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, SAMPLE_TEST_URL, bind } from './copy3';
+import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, PICTURES, SAMPLE_TEST_URL, bind } from './copy3';
 
 const auth = vi.hoisted(() => ({ requestSession: vi.fn() }));
 vi.mock('../../hooks/useAuth', () => ({
@@ -21,6 +21,15 @@ class SilentObserver {
 function Where() {
   const { pathname } = useLocation();
   return <p>Адрес: {pathname}</p>;
+}
+
+/** Whether a text of a Swap is the one on screen (all of them are in the markup; the others are hidden). */
+function shown(text: string, root: HTMLElement = document.body): boolean {
+  const spans = within(root)
+    .getAllByText(text)
+    .filter((el) => el.parentElement?.classList.contains('p3-swap'));
+  expect(spans.length, text).toBe(1);
+  return spans[0].classList.contains('is-on') && !spans[0].hasAttribute('aria-hidden');
 }
 
 function renderLanding() {
@@ -91,21 +100,32 @@ describe('the landing v3', () => {
 
   it('moves the exam by two weeks and back', () => {
     renderLanding();
+    expect(shown(PICTURES.examDate[0])).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: EXAM_SECTION.plan.move }));
-    expect(screen.getByText('Экзамен 20 ноября · через 32 дня')).toBeInTheDocument();
+    expect(shown(PICTURES.examDate[1])).toBe(true);
+    expect(shown(PICTURES.examDate[0])).toBe(false);
+    expect(shown(PICTURES.today[1])).toBe(true);
+    expect(screen.getByText(PICTURES.moved)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: EXAM_SECTION.plan.back }));
-    expect(screen.getByText('Экзамен 6 ноября · через 18 дней')).toBeInTheDocument();
+    expect(shown(PICTURES.examDate[0])).toBe(true);
+    expect(screen.queryByText(PICTURES.moved)).toBeNull();
   });
 
-  it('answers a press in the session: the right one counts, a wrong one names the key', () => {
+  it('answers a press in the session: the right one is learned and closes its topic, a wrong one names the answer', () => {
     renderLanding();
-    const session = screen.getByText('Микроэкономика · 7 из 20').closest('.p3-pic') as HTMLElement;
+    const session = screen.getByText(PICTURES.question).closest('.p3-sess') as HTMLElement;
+    expect(shown(EXAM_SECTION.session.idle, session)).toBe(true);
     fireEvent.click(within(session).getByRole('button', { name: /Вырастет/ }));
-    expect(within(session).getByText('Верно.')).toBeInTheDocument();
-    expect(within(session).getByText('147')).toBeInTheDocument();
-    fireEvent.click(within(session).getByRole('button', { name: 'Ещё раз' }));
+    expect(shown(EXAM_SECTION.session.right, session)).toBe(true);
+    expect(shown('147', session)).toBe(true);
+    expect(shown('17 тем из 24', session)).toBe(true);
+    expect(within(session).getByText('Эластичность и выручка').closest('.p3-topic')).toHaveClass('is-done');
+    fireEvent.click(within(session).getByRole('button', { name: EXAM_SECTION.session.again }));
+    expect(shown('146', session)).toBe(true);
     fireEvent.click(within(session).getByRole('button', { name: /Снизится/ }));
-    expect(within(session).getByText(/Неверно\. В файле — Вырастет\./)).toBeInTheDocument();
+    expect(shown(EXAM_SECTION.session.wrong, session)).toBe(true);
+    expect(EXAM_SECTION.session.wrong).toContain(`«${EXAMPLE.testOptions[EXAMPLE.testRight]}»`);
+    expect(within(session).getByText('Эластичность и выручка').closest('.p3-topic')).not.toHaveClass('is-done');
   });
 });
 

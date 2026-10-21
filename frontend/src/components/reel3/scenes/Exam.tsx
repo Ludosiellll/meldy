@@ -6,27 +6,36 @@
 import { useRef } from 'react';
 import { flag, opacity, useEls, useFrame } from '../../reel/engine';
 import { EXAMPLE, SAY } from '../../home3/copy3';
-import { Count, Cursor, Say, appear, ease, seg, move } from '../kit3';
+import { Count, Say, appear, ease, seg } from '../kit3';
+import { Cursor, carry, pressAt, usePointer, type CursorKey } from '../pointer3';
 
 const SUBJECTS = [
-  { title: 'Экономика', meta: '240 вопросов · ключ жирным' },
-  { title: 'Право', meta: '240 вопросов · ключ в столбце' },
-  { title: 'Базы данных', meta: '240 вопросов · ключ из разметки' },
+  { title: 'Экономика', meta: '240 вопросов с ответами' },
+  { title: 'Право', meta: '240 вопросов с ответами' },
+  { title: 'Базы данных', meta: '240 вопросов с ответами' },
   { title: 'Микроэкономика', meta: '240 устных вопросов' },
+];
+
+/**
+ * The file comes in held by the pointer from below the frame, over the drop zone (lit while the pointer is over it) and
+ * is let go where it then stays, at its own place in the zone.
+ */
+export const FILE_KEYS: readonly CursorKey[] = [
+  { t: 150, aim: 'chip', fx: 0.16, dx: 30, dy: 380, down: true, outside: true },
+  { t: 1000, aim: 'chip', fx: 0.16, up: true, over: 'drop' },
+  { t: 1700, aim: 'drop', fx: 1, fy: 0.62, dx: 30, hide: true },
 ];
 
 export function FileScene() {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
+  const pointer = usePointer(FILE_KEYS);
   useFrame((l) => {
     appear(one('drop'), l, 100, 400, 16);
-    const fall = ease.brand(seg(l, 350, 650));
     const chip = one('chip');
-    if (chip) {
-      move(chip, 0, -90 * (1 - fall));
-    }
-    appear(chip, l, 350, 250, 0, 1500);
-    flag(one('drop'), 'is-over', l >= 700 && l < 1500);
+    const rest = pointer.box('chip');
+    opacity(chip, l < FILE_KEYS[0].t ? 0 : 1 - ease.inOut(seg(l, 1500, 260)));
+    if (rest) carry(chip, pointer, l, 0, { rest, grab: { x: rest.w * 0.16, y: rest.h * 0.5 }, fade: false });
     appear(one('list'), l, 1250, 420, 18);
     all('row').forEach((row, index) => appear(row, l, 1500 + index * 260, 380, 10));
     appear(one('q7'), l, 3500, 420, 8);
@@ -37,10 +46,10 @@ export function FileScene() {
       <Say text={SAY.file[0]} at={300} until={3000} />
       <Say text={SAY.file[1]} at={3250} />
       <div className="r3-ui">
-        <div data-a="drop" className="r3-card r3-drop" style={{ opacity: 0 }}>
+        <div data-a="drop" data-aim="drop" className="r3-card r3-drop" style={{ opacity: 0 }}>
           <p className="r3-h">Новый экзамен</p>
           <p className="r3-meta">Перетащите файлы с вопросами. Word, Excel или TXT.</p>
-          <span data-a="chip" className="r3-file" style={{ opacity: 0 }}>
+          <span data-a="chip" data-aim="chip" className="r3-file r3-carried" style={{ opacity: 0 }}>
             <i>DOCX</i>Вопросы_сессия.docx
           </span>
         </div>
@@ -58,6 +67,7 @@ export function FileScene() {
             <span data-a="oral">7.</span> {EXAMPLE.question}
           </p>
         </div>
+        <Cursor pointer={pointer} />
       </div>
     </div>
   );
@@ -72,18 +82,28 @@ const DAYS = [
   { d: 'Сб', n: 24, a: '60', b: '45' },
   { d: 'Вс', n: 25, a: '—', b: '—' },
 ];
-const MOVED = 3950;
+/** «Перенести экзамен», then «На 2 недели» in its menu; the pointer comes and goes in the card's empty foot. */
+export const PLAN_KEYS: readonly CursorKey[] = [
+  { t: 2450, aim: 'today', fx: 0.8, fy: 1, dy: 34 },
+  { t: 3150, aim: 'move', press: true },
+  { t: 3850, aim: 'two', press: true, fx: 0.4 },
+  { t: 4650, aim: 'today', fx: 0.8, fy: 1, dy: 34 },
+  { t: 5600, hide: true },
+];
+/** The menu opens as «Перенести экзамен» is let go; the plan moves as «На 2 недели» is. */
+const MENU = pressAt(PLAN_KEYS, 'move') + 120;
+const MOVED = pressAt(PLAN_KEYS, 'two') + 150;
 
 export function PlanScene() {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
+  const pointer = usePointer(PLAN_KEYS);
   useFrame((l) => {
     appear(one('card'), l, 100, 450, 20);
     all('day').forEach((day, index) => appear(day, l, 450 + index * 90, 380, 12));
     appear(one('today'), l, 1300, 380, 8);
     appear(one('move'), l, 1500, 380, 0);
-    appear(one('menu'), l, 3300, 260, -6, 4150);
-    flag(one('two'), 'is-hover', l >= 3650 && l < 4150);
+    appear(one('menu'), l, MENU, 260, -6, MOVED + 100);
     // The old dates and counts go, then the new ones come: never both half-seen in one place.
     const gone = ease.inOut(seg(l, MOVED, 220));
     const come = ease.inOut(seg(l, MOVED + 220, 280));
@@ -99,12 +119,12 @@ export function PlanScene() {
         <div data-a="card" className="r3-card r3-plan" style={{ opacity: 0 }}>
           <p className="r3-h">Осенняя сессия</p>
           <p className="r3-meta r3-swap">
-            <span data-a="was">Экзамен 6 ноября · через 18 дней</span>
+            <span data-a="was">Экзамен 6 ноября, через 18 дней</span>
             <span data-a="now" style={{ opacity: 0 }}>
-              Экзамен 20 ноября · через 32 дня
+              Экзамен 20 ноября, через 32 дня
             </span>
           </p>
-          <span data-a="move" className="r3-link r3-plan-move" style={{ opacity: 0 }}>
+          <span data-a="move" data-aim="move" className="r3-link r3-plan-move" style={{ opacity: 0 }}>
             Перенести экзамен
           </span>
           <div className="r3-days">
@@ -121,7 +141,7 @@ export function PlanScene() {
               </span>
             ))}
           </div>
-          <div data-a="today" className="r3-today" style={{ opacity: 0 }}>
+          <div data-a="today" data-aim="today" className="r3-today" style={{ opacity: 0 }}>
             <p className="r3-swap">
               <span data-a="was">
                 Сегодня <b>90 вопросов</b>, около 45 минут
@@ -130,23 +150,17 @@ export function PlanScene() {
                 Сегодня <b>60 вопросов</b>, около 30 минут
               </span>
             </p>
-            <span className="r3-btn">Начать: 20 вопросов</span>
+            <span className="r3-btn">Начать 20 вопросов</span>
           </div>
           <div data-a="menu" className="r3-menu" style={{ opacity: 0 }}>
             <span>На неделю</span>
-            <span data-a="two">На 2 недели</span>
+            <span data-a="two" data-aim="two">
+              На 2 недели
+            </span>
             <span>Другая дата</span>
           </div>
         </div>
-        <Cursor
-          keys={[
-            { t: 2500, x: 300, y: 300 },
-            { t: 3150, x: 318, y: 26, press: true },
-            { t: 3750, x: 282, y: 96, press: true },
-            { t: 4500, x: 330, y: 290 },
-          ]}
-          until={5600}
-        />
+        <Cursor pointer={pointer} />
       </div>
     </div>
   );
@@ -157,19 +171,34 @@ const Q2 = {
   options: ['Оплата сырья', 'Аренда помещения', 'Сдельная оплата труда'],
 };
 
+/** «Вырастет» picked (right), then «Оплата сырья» (wrong); between and after, the pointer waits beside the score. */
+export const SESSION_KEYS: readonly CursorKey[] = [
+  { t: 1100, aim: 'card', fx: 0.9, fy: 1, dy: 26 },
+  { t: 1700, aim: 'right1', press: true, fx: 0.2 },
+  { t: 2500, aim: 'card', fx: 0.9, fy: 1, dy: 26 },
+  { t: 3400, hide: true },
+  { t: 4950, aim: 'wrong2', press: true, fx: 0.24 },
+  { t: 5700, aim: 'card', fx: 0.9, fy: 1, dy: 26 },
+  { t: 6150, hide: true },
+];
+const PICK1 = pressAt(SESSION_KEYS, 'right1');
+const PICK2 = pressAt(SESSION_KEYS, 'wrong2');
+
 export function SessionScene() {
   const root = useRef<HTMLDivElement>(null);
   const { one } = useEls(root);
+  const pointer = usePointer(SESSION_KEYS);
   useFrame((l) => {
     appear(one('top'), l, 100, 350, 8);
     appear(one('card'), l, 150, 450, 20);
     appear(one('q1'), l, 350, 350, 6, 3900);
     appear(one('q2'), l, 4180, 380, 10);
-    flag(one('right1'), 'is-right', l >= 1850);
-    appear(one('ok1'), l, 1900, 300, 6, 3900);
-    flag(one('wrong2'), 'is-wrong', l >= 5050);
-    flag(one('key2'), 'is-right', l >= 5050);
-    appear(one('no2'), l, 5100, 300, 6);
+    // An option answers as it is pressed.
+    flag(one('right1'), 'is-right', l >= PICK1);
+    appear(one('ok1'), l, PICK1 + 60, 300, 6, 3900);
+    flag(one('wrong2'), 'is-wrong', l >= PICK2);
+    flag(one('key2'), 'is-right', l >= PICK2);
+    appear(one('no2'), l, PICK2 + 60, 300, 6);
     appear(one('score'), l, 600, 400, 10);
     flag(one('score'), 'is-up', l >= 2500 && l < 3400);
   });
@@ -179,14 +208,20 @@ export function SessionScene() {
       <Say text={SAY.session[1]} at={2950} />
       <div className="r3-ui">
         <p data-a="top" className="r3-sess-top" style={{ opacity: 0 }}>
-          <span>Микроэкономика · 7 из 20</span>
+          <span>Микроэкономика, вопрос 7 из 20</span>
           <span>Закончить</span>
         </p>
-        <div data-a="card" className="r3-card r3-sess" style={{ opacity: 0 }}>
+        <div data-a="card" data-aim="card" className="r3-card r3-sess" style={{ opacity: 0 }}>
           <div data-a="q1" className="r3-sess-q" style={{ opacity: 0 }}>
             <p className="r3-stem">{EXAMPLE.testStem}</p>
             {EXAMPLE.testOptions.map((option, index) => (
-              <span key={option} data-a={index === EXAMPLE.testRight ? 'right1' : undefined} className="r3-opt r3-opt--row">
+              <span
+                key={option}
+                data-a={index === EXAMPLE.testRight ? 'right1' : undefined}
+                data-aim={index === EXAMPLE.testRight ? 'right1' : undefined}
+                data-aim-on={index === EXAMPLE.testRight ? 'is-right' : undefined}
+                className="r3-opt r3-opt--row"
+              >
                 <b>{'АБВ'[index]}</b>
                 <span>
                   {option}
@@ -201,16 +236,22 @@ export function SessionScene() {
           <div data-a="q2" className="r3-sess-q" style={{ opacity: 0 }}>
             <p className="r3-stem">{Q2.stem}</p>
             {Q2.options.map((option, index) => (
-              <span key={option} data-a={index === 0 ? 'wrong2' : index === 1 ? 'key2' : undefined} className="r3-opt r3-opt--row">
+              <span
+                key={option}
+                data-a={index === 0 ? 'wrong2' : index === 1 ? 'key2' : undefined}
+                data-aim={index === 0 ? 'wrong2' : undefined}
+                data-aim-on={index === 0 ? 'is-wrong' : undefined}
+                className="r3-opt r3-opt--row"
+              >
                 <b>{'АБВ'[index]}</b>
                 <span>
                   {option}
-                  {index === 0 ? <small>Ваш ответ</small> : index === 1 ? <small>В файле</small> : null}
+                  {index === 0 ? <small>Ваш ответ</small> : index === 1 ? <small>Верный ответ</small> : null}
                 </span>
               </span>
             ))}
             <p data-a="no2" className="r3-note" style={{ opacity: 0 }}>
-              Неверно. В файле — Аренда помещения. Вернётся через пару вопросов и в понедельник.
+              Неверно. Ошибку повторим через пару вопросов и в понедельник.
             </p>
           </div>
         </div>
@@ -218,19 +259,9 @@ export function SessionScene() {
           <b>
             <Count from={146} to={147} at={2500} dur={300} />
           </b>
-          <span>из 960 верно в два разных дня</span>
+          <span>из 960 выучено</span>
         </p>
-        <Cursor
-          keys={[
-            { t: 1150, x: 320, y: 318 },
-            { t: 1650, x: 200, y: 196, press: true },
-            { t: 2300, x: 330, y: 312 },
-            { t: 4600, x: 300, y: 300 },
-            { t: 4900, x: 160, y: 150, press: true },
-            { t: 5600, x: 330, y: 320 },
-          ]}
-          until={6200}
-        />
+        <Cursor pointer={pointer} />
       </div>
     </div>
   );

@@ -100,7 +100,7 @@ describe('the tour on a phone', () => {
     stubWindow(375, 667);
     render(<Tour userId="user-1" phone onDone={() => undefined} />);
     expect(card().querySelector('.st-tour-clip')).toBeNull();
-    expect(card()).toHaveTextContent('Нажмите «Блоки» внизу → «Заголовок»');
+    expect(card()).toHaveTextContent('Нажмите «Блоки» внизу, затем «Заголовок»');
     expect(card()).not.toHaveTextContent(/Перетащите/);
     expect(within(card()).getAllByText(/\d\s*(из|\/)\s*\d/)).toHaveLength(1);
     expect(within(card()).getByText(STUDIO.tourStep(1, 4))).toBeInTheDocument();

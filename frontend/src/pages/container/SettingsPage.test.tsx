@@ -659,16 +659,16 @@ describe('SettingsPage: «Это экзамен» / «Это тест» (release
     renderAt();
     const group = screen.getByRole('group', { name: 'Что это' });
     expect(within(group).getByRole('radio', { name: 'Это экзамен' })).toBeChecked();
-    expect(group).toHaveAccessibleDescription('Вы готовитесь сами: план на каждый день, время в день, напоминания в Telegram.');
+    expect(group).toHaveAccessibleDescription('Вы готовитесь сами. План на каждый день и напоминания в Telegram.');
     fireEvent.click(within(group).getByRole('radio', { name: 'Это тест' }));
     await waitFor(() => expect(api.setContainerKind).toHaveBeenCalledWith(ID, 'test'));
-    expect(await within(group).findByText('Сохранено: это тест.')).toBeInTheDocument();
-    expect(group).toHaveAccessibleDescription('Вы даёте вопросы другим: студия, ссылка, контрольные. В ваш план на день он не входит.');
+    expect(await within(group).findByText('Сохранено. Это тест.')).toBeInTheDocument();
+    expect(group).toHaveAccessibleDescription('Вы даёте вопросы другим по ссылке. В ваш план на день тест не входит.');
     expect(api.reload).toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
     fireEvent.click(within(group).getByRole('radio', { name: 'Это экзамен' }));
     await waitFor(() => expect(api.setContainerKind).toHaveBeenLastCalledWith(ID, 'exam'));
-    expect(await within(group).findByText('Сохранено: это экзамен.')).toBeInTheDocument();
+    expect(await within(group).findByText('Сохранено. Это экзамен.')).toBeInTheDocument();
   });
 
   it('a failure is said and the choice goes back', async () => {

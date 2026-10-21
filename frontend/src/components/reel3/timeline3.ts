@@ -23,7 +23,7 @@ export type SceneId3 =
   | 'plan'
   | 'session'
   | 'ticket'
-  | 'sheet'
+  | 'learn'
   | 'group'
   | 'build'
   | 'media'
@@ -48,7 +48,7 @@ export const SCENES3: readonly SceneWindow3[] = [
   { id: 'plan', from: 12200, to: 19000 },
   { id: 'session', from: 18600, to: 25000 },
   { id: 'ticket', from: 24600, to: 32600 },
-  { id: 'sheet', from: 32200, to: 37800 },
+  { id: 'learn', from: 32200, to: 37800 },
   { id: 'group', from: 37400, to: 44600 },
   { id: 'build', from: 44200, to: 51600 },
   { id: 'media', from: 51200, to: 56600 },
@@ -90,8 +90,8 @@ export const CHAPTERS3: readonly Chapter3[] = [
   { id: 'file', label: CHAPTER_LABELS.file, from: scene3('file').from, to: scene3('plan').from },
   { id: 'plan', label: CHAPTER_LABELS.plan, from: scene3('plan').from, to: scene3('session').from },
   { id: 'session', label: CHAPTER_LABELS.session, from: scene3('session').from, to: scene3('ticket').from },
-  { id: 'ticket', label: CHAPTER_LABELS.ticket, from: scene3('ticket').from, to: scene3('sheet').from },
-  { id: 'sheet', label: CHAPTER_LABELS.sheet, from: scene3('sheet').from, to: scene3('group').from },
+  { id: 'ticket', label: CHAPTER_LABELS.ticket, from: scene3('ticket').from, to: scene3('learn').from },
+  { id: 'learn', label: CHAPTER_LABELS.learn, from: scene3('learn').from, to: scene3('group').from },
   { id: 'group', label: CHAPTER_LABELS.group, from: scene3('group').from, to: scene3('build').from },
   { id: 'builder', label: CHAPTER_LABELS.builder, from: scene3('build').from, to: TOTAL3 },
 ];

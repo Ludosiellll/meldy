@@ -585,6 +585,11 @@
 .sf-page.qa-page .qa-flag-filter input { width: 20px; height: 20px; margin: 0; accent-color: var(--sf-accent); }
 .sf-page.qa-page .qa-flag-filter:has(input:focus-visible) { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; border-radius: 8px; }
 .sf-page.qa-page .qa-guard .qa-checks { margin-top: 0; }
+/* «Подробнее» under the protection levels: the long words folded, the summary a quiet link. */
+.sf-page.qa-page .qa-details { margin-top: 6px; }
+.sf-page.qa-page .qa-details > summary { width: fit-content; min-height: 32px; list-style: none; cursor: pointer; }
+.sf-page.qa-page .qa-details > summary::-webkit-details-marker { display: none; }
+.sf-page.qa-page .qa-new-lede { max-width: 680px; }
 .qa-sheet .qa-events { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--sf-line); }
 .qa-sheet .qa-events-h { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 600; }
 .qa-sheet .qa-event-list { margin: 8px 0 0; padding: 0; list-style: none; }

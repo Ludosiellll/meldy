@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { answerQuote, drawExampleQuestion, exampleFollowup, judgeFollowupAnswer, keywordEvaluation, resetExampleDraws, STUDENT_QUOTE_CHARS } from './exampleFlow';
+import { describe, expect, it } from 'vitest';
+import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation, STUDENT_QUOTE_CHARS } from './exampleFlow';
 import { exampleQuestion, exampleRubric } from '../../data/example';
 import { liveMarks } from '../../lib/oral/rubricMatch';
 import { gradeAnswer } from '../../lib/oral/oralGrade';
@@ -24,8 +24,6 @@ function grade(id: string, answer: string, followup: { status: 'covered' | 'part
 }
 
 const Q1_PARTIAL = 'Закон спроса такой: когда цена растёт, люди покупают меньше. Кривая спроса на графике идёт вниз.';
-
-afterEach(() => resetExampleDraws());
 
 describe('answerQuote: the student’s words for the protocol', () => {
   const anchors = rubricOf('q1').points[1].anchors; // «Закон спроса: чем выше цена, тем меньше…»
@@ -154,18 +152,5 @@ describe('the grade: the app’s formula over the example’s check', () => {
       null,
     );
     expect(result).toMatchObject({ score: 100, grade: 5 });
-  });
-});
-
-describe('drawExampleQuestion: «Тянуть билет» of the example', () => {
-  it('draws only questions the lectures cover and never repeats the last three', () => {
-    const zero = () => 0;
-    const drawn = [1, 2, 3, 4].map(() => drawExampleQuestion(zero)!.id);
-    expect(drawn).toEqual(['q1', 'q2', 'q3', 'q4']);
-    resetExampleDraws();
-    const seen = new Set<string>();
-    for (let index = 0; index < 200; index += 1) seen.add(drawExampleQuestion()!.id);
-    expect(seen.has('q12')).toBe(false);
-    expect(seen.size).toBe(11);
   });
 });

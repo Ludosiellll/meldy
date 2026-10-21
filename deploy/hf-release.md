@@ -4,6 +4,20 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.14: the study and quiz bar is a card too; the movement games' server (from the commit of this entry)
+
+- **The bar in a study session and a quiz** (owner, 21.10: «в пробной контрольной тоже блок нижний привязан»): on a
+  computer «Ещё попытка», «Дальше» and the rest sit in the same card at the bottom right as the forms of 47.13; an end
+  screen's action waits at the end of the page. Phones unchanged.
+- **The movement games' server** (owner, 21.10: games where everyone runs their own character from the phone): a
+  WebSocket room at `/api/live/move/ws` (`backend/live_move.py`, `live_move_api.py`, `docs/live/MOVE.md`), an nginx
+  location for it, `wss://ludosiel-studyforge.hf.space` in `connect-src`, uvicorn with 64 KB frames and no
+  permessage-deflate, `gc.freeze()` at startup. No screen uses it yet: this release checks that the Space passes a
+  WebSocket through (`backend/scripts/live_move_load.py --probe`).
+- Gate: e4d6eec full (pytest 2316, bot 387, sync ok, Vitest 370 files / 6346 tests, Docker-layout build ok); after the
+  merge of the server: pytest 2388 of 2391 (the 3 failures are the bank parser's time limits on a machine at load 20,
+  the parser is untouched), Vitest `src/lib/live` + CSP 84, `tsc -b` ok, nginx config syntax ok.
+
 ## 2026-10-21 — Release 47.13: the computer bar is a card, not a band (from the commit of this entry)
 
 - **The bar on a computer** (owner, 21.10: «почему блок снизу всегда прикреплен?»): «Отмена» and «Создать»,

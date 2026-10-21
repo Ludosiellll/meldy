@@ -136,17 +136,17 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
   const short = item.kind === 'short';
 
   const pictureOnly = item.stem.trim() === PICTURE_STEM && !(item.images?.stem?.length);
-  if (!item.stem.trim() || pictureOnly) out.push({ ...where, id: `no_stem:${item.id}`, level: 'fix', message: `${head}нет текста — напишите его.` });
+  if (!item.stem.trim() || pictureOnly) out.push({ ...where, id: `no_stem:${item.id}`, level: 'fix', message: `${head}напишите текст вопроса.` });
 
   // A question still holding the palette's words is one problem, not two: its line also asks for the key.
   const draft = isDraftQuestion(item);
   if (!keyed(item) && !draft) {
-    out.push({ ...where, id: `no_key:${item.id}`, level: 'fix', message: `${head}нет верного ответа — ${short ? 'впишите' : 'отметьте'} его.` });
+    out.push({ ...where, id: `no_key:${item.id}`, level: 'fix', message: `${head}${short ? 'впишите' : 'отметьте'} верный ответ.` });
   }
 
   if (draft) {
     const words = short ? 'напишите вопрос и принятые ответы' : keyed(item) ? 'напишите вопрос и варианты ответа' : 'напишите вопрос и варианты ответа, отметьте верный';
-    out.push({ ...where, id: `draft:${item.id}`, level: 'fix', message: `${head}это заготовка — ${words}.` });
+    out.push({ ...where, id: `draft:${item.id}`, level: 'fix', message: `${head}${words}.` });
   }
 
   if (item.kind === 'multiple' && item.correct.length === 1 && !isTrueFalse(item.options)) {
@@ -154,7 +154,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
       ...where,
       id: `kind:${item.id}`,
       level: 'think',
-      message: `${head}выбран тип «несколько ответов», а верный отмечен один — участник будет искать второй. Отметьте остальные верные или сделайте вопрос с одним ответом.`,
+      message: `${head}тип «несколько ответов», но верный отмечен один. Отметьте остальные верные или сделайте вопрос с одним ответом.`,
       fix: { kind: 'set_kind', itemId: item.id, value: 'single' },
     });
   } else if (item.kind === 'single' && SEVERAL_WORDS.test(item.stem)) {
@@ -162,7 +162,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
       ...where,
       id: `kind:${item.id}`,
       level: 'think',
-      message: `${head}в тексте просят отметить все верные, а вопрос с одним ответом — участник сможет выбрать только один вариант.`,
+      message: `${head}в тексте просят отметить все верные, но выбрать можно только один вариант. Сделайте вопрос с несколькими ответами.`,
       fix: { kind: 'set_kind', itemId: item.id, value: 'multiple' },
     });
   }
@@ -179,7 +179,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
         ...where,
         id: `same_option:${item.id}:${later}`,
         level: 'fix',
-        message: `${head}вариант ${quote(item.options[later], later)} повторяется — уберите лишний.`,
+        message: `${head}вариант ${quote(item.options[later], later)} повторяется. Уберите лишний.`,
         ...(fix ? { fix } : {}),
       });
     });
@@ -190,7 +190,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
         ...where,
         id: `order:${item.id}`,
         level: 'fix',
-        message: `${head}вариант ${quote(item.options[bound], bound)} при перемешивании может встать первым — закрепите порядок вариантов.`,
+        message: `${head}при перемешивании вариант ${quote(item.options[bound], bound)} может встать первым. Закрепите порядок вариантов.`,
         fix: { kind: 'keep_order', itemId: item.id },
       });
     } else if (!item.keep_order && isTrueFalse(item.options)) {
@@ -198,7 +198,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
         ...where,
         id: `true_false:${item.id}`,
         level: 'fix',
-        message: `${head}варианты ${quote(item.options[0], 0)} и ${quote(item.options[1], 1)} лучше не перемешивать — закрепите их порядок.`,
+        message: `${head}варианты ${quote(item.options[0], 0)} и ${quote(item.options[1], 1)} лучше не перемешивать. Закрепите их порядок.`,
         fix: { kind: 'keep_order', itemId: item.id },
       });
     }
@@ -213,8 +213,8 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
       level: 'think',
       message:
         forms.length > 0
-          ? `${head}единственный ответ ${only} — число. Добавьте и ${forms.length > 1 ? 'другие записи' : 'другую запись'}: ${forms.map((form) => `«${form}»`).join(', ')}.`
-          : `${head}единственный ответ ${only} — число. Подумайте, как ещё его могут записать, и добавьте эти записи.`,
+          ? `${head}ответ ${only} записан цифрами. Добавьте и ${forms.length > 1 ? 'другие записи' : 'другую запись'}: ${forms.map((form) => `«${form}»`).join(', ')}.`
+          : `${head}ответ ${only} записан цифрами. Добавьте, как ещё его могут записать.`,
       ...(forms.length > 0 ? { fix: { kind: 'add_forms', itemId: item.id, forms } } : {}),
     });
   }
@@ -234,10 +234,10 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
           ...where,
           id: `repeat:${item.id}`,
           level: 'fix',
-          message: `${head}повторяет вопрос ${first.n} — удалите повтор.`,
+          message: `${head}повторяет вопрос ${first.n}. Удалите повтор.`,
           fix: { kind: 'delete_question', itemId: item.id, blockId: block.id },
         }
-      : { ...where, id: `repeat:${item.id}`, level: 'think', message: `${head}такой же текст у вопроса ${first.n} — проверьте, не повтор ли это.` },
+      : { ...where, id: `repeat:${item.id}`, level: 'think', message: `${head}такой же текст, как у вопроса ${first.n}. Проверьте, не повтор ли это.` },
   );
 }
 
@@ -254,7 +254,7 @@ function longestHint(questions: readonly OnPage[], out: Found[]): void {
       id: 'longest',
       level: 'think',
       at: Number.MAX_SAFE_INTEGER,
-      message: `Верный ответ — самый длинный в ${hits} из ${ofQuestions(eligible.length)}: его можно угадать по длине. Допишите неверные варианты.`,
+      message: `В ${hits} из ${ofQuestions(eligible.length)} верный ответ самый длинный, его можно угадать. Допишите неверные варианты.`,
     });
   }
 }
@@ -273,7 +273,7 @@ function letterHint(questions: readonly OnPage[], out: Found[]): void {
     id: 'letter',
     level: 'think',
     at: Number.MAX_SAFE_INTEGER,
-    message: `Верный ответ почти всегда под буквой «${letter(top)}» — в ${times} из ${ofQuestions(keys.length)}. Поменяйте варианты местами.`,
+    message: `В ${times} из ${ofQuestions(keys.length)} верный ответ под буквой «${letter(top)}». Поменяйте варианты местами.`,
   });
 }
 
@@ -295,7 +295,7 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
         blockId: block.id,
         level: 'fix',
         at,
-        message: 'Вопрос этого блока удалён — уберите блок.',
+        message: 'Вопрос этого блока удалили. Уберите блок.',
         fix: { kind: 'remove_block', blockId: block.id },
       });
     }
@@ -320,7 +320,7 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
         blockId: block.id,
         level: 'fix',
         at,
-        message: 'Пустая страница — добавьте на неё блоки или удалите её.',
+        message: 'Пустая страница. Добавьте на неё блоки или удалите её.',
         fix: { kind: 'remove_block', blockId: block.id },
       });
     });
@@ -338,8 +338,8 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
       at,
       message:
         block.type === 'image'
-          ? 'Блок «Картинка» без картинки не сохраняется — загрузите её или уберите блок.'
-          : 'Блок «Видео» без ссылки не сохраняется — вставьте ссылку или уберите блок.',
+          ? 'Блок «Картинка» без картинки не сохранится. Загрузите картинку или уберите блок.'
+          : 'Блок «Видео» без ссылки не сохранится. Вставьте ссылку или уберите блок.',
       fix: { kind: 'remove_block', blockId: block.id },
     });
   });
@@ -354,7 +354,7 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
       level: 'think',
       at: -1,
       message: title
-        ? `Название теста «${title}» — черновое: его увидят участники во вкладке браузера и в ссылке. Назовите тест в настройках страницы.`
+        ? `Тест называется «${title}», так его увидят участники. Назовите тест в настройках страницы.`
         : 'У теста нет названия. Назовите его в настройках страницы.',
     });
   }
@@ -365,7 +365,7 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
       blockId: block.id,
       level: 'think',
       at,
-      message: `Обложка: название «${block.title.trim()}» — заготовка. Напишите, как называется тест.`,
+      message: `На обложке осталось «${block.title.trim()}». Напишите название теста.`,
     });
   });
 
@@ -375,7 +375,7 @@ export function checkTest(doc: TestDoc, items: readonly TestItem[]): Hint[] {
       id: 'contrast',
       level: 'fix',
       at: Number.MAX_SAFE_INTEGER,
-      message: 'Свой цвет слишком светлый: белый текст на кнопках читается плохо. Возьмите чуть темнее.',
+      message: 'Свой цвет слишком светлый, белый текст на кнопках плохо видно. Возьмите темнее.',
       fix: { kind: 'theme_accent', value: { custom: readableAccent(accent.custom, '#ffffff').color } },
     });
   }

@@ -94,7 +94,7 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
     expect(within(subjects).getByRole('checkbox', { name: /Вариант 2/ })).toBeChecked();
     // The oral-only subject has no questions for a quiz.
     expect(within(subjects).queryByRole('checkbox', { name: /Билеты/ })).toBeNull();
-    expect(plain(subjects.textContent)).toContain('В контрольную идут только вопросы с ключом: в выбранных предметах их 30.');
+    expect(plain(subjects.textContent)).toContain('Возьмём только вопросы с верным ответом. В выбранных предметах их 30.');
     expect(combo(QA_SETUP.count)).toHaveTextContent('20');
     expect(combo(QA_SETUP.time)).toHaveTextContent('20 мин');
     expect(combo(QA_SETUP.set)).toHaveTextContent(QA_SETUP.setOwn);
@@ -104,7 +104,7 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
     expect(combo(QA_SETUP.closes)).toHaveTextContent(QA_SETUP.closesAt);
     expect(screen.getByLabelText(QA_SETUP.closesField)).toHaveValue(localInput(weekOn(NOW)));
     expect(combo(QA_SETUP.attempts)).toHaveTextContent('1');
-    // «В зачёт» only matters with more than one attempt.
+    // «Засчитать» only matters with more than one attempt.
     expect(screen.queryByRole('combobox', { name: QA_SETUP.grading })).toBeNull();
     expect(combo(QA_SETUP.pass)).toHaveTextContent(QA_SETUP.passNone);
     expect(combo(QA_SETUP.review)).toHaveTextContent(QA_SETUP.reviewOption('mistakes_then_answers'));
@@ -124,7 +124,7 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
     pick(QA_SETUP.count, '10');
     expect(combo(QA_SETUP.time)).toHaveTextContent('10 мин');
     pick(QA_SETUP.attempts, '3');
-    expect(combo(QA_SETUP.grading)).toHaveTextContent('лучшая попытка');
+    expect(combo(QA_SETUP.grading)).toHaveTextContent('лучшую попытку');
   });
 
   it('says what stops the form as lines, and the button waits', () => {
@@ -178,12 +178,14 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
     const group = screen.getByRole('group', { name: QA_SETUP.protection });
     const off = screen.getByRole('radio', { name: new RegExp(`^${QA_SETUP.protectionOption('off')}`) });
     expect(off).toBeChecked();
-    // every level says what it does; the two that record say what a site cannot see
+    // every level says what it does in one line; what a site cannot see comes with a level that records
     expect(group).toHaveTextContent(QA_SETUP.protectionHint('off', 3));
-    expect(group).toHaveTextContent('Второй телефон и фото экрана сайт заметить не может.');
+    expect(group).not.toHaveTextContent(QA_SETUP.protectionLimits);
     expect(screen.queryByRole('combobox', { name: QA_SETUP.protectionLimit })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('radio', { name: new RegExp(`^${QA_SETUP.protectionOption('strict')}`) }));
-    expect(group).toHaveTextContent(QA_SETUP.protectionLimits);
+    expect(group).toHaveTextContent('Второй телефон и фото экрана сайт не заметит.');
+    // the rest of the words folded under «Подробнее»
+    expect(within(group).getByText(QA_SETUP.protectionMore).closest('details')).not.toHaveAttribute('open');
     pick(QA_SETUP.protectionLimit, QA_SETUP.protectionLimitOption(5));
     fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
     await waitFor(() => expect(api.createQuiz).toHaveBeenCalledTimes(1));
@@ -191,10 +193,10 @@ describe('QuizSetupPage: a new quiz (spec 2026-10-16 §2.1)', () => {
   });
 
   it('says a refusal of the server and stays', async () => {
-    api.createQuiz.mockRejectedValue(new ContainerApiError('MC010', 'В экзамене уже 50 контрольных. Удалите старые, чтобы создать новую.'));
+    api.createQuiz.mockRejectedValue(new ContainerApiError('MC010', 'Уже 50 контрольных. Удалите старые, чтобы создать новую.'));
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('В экзамене уже 50 контрольных.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Уже 50 контрольных.');
     expect(screen.getByRole('button', { name: QA_SETUP.create })).toBeEnabled();
   });
 });
@@ -205,7 +207,7 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     fireEvent.click(combo(QA_SETUP.who));
     expect(screen.getAllByRole('option').map((node) => node.textContent)).toEqual([
       'все по ссылке, без входа',
-      'все по ссылке, со входом',
+      'все по ссылке, после входа',
       'только участники этого экзамена',
     ]);
     fireEvent.click(screen.getByRole('option', { name: QA_SETUP.whoOption('members') }));
@@ -225,13 +227,13 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
   });
 
   it('the guests’ hint is the one the spec gives', () => {
-    expect(QA_SETUP.whoHint('guests')).toBe('Участнику не нужен аккаунт. Его попытки считаются по браузеру: в другом браузере можно начать заново.');
+    expect(QA_SETUP.whoHint('guests')).toBe('Аккаунт не нужен. Попытки считаем по браузеру, в другом браузере можно начать заново.');
   });
 
   it('without an account and «балл, ошибки и верные ответы»: a hint under the review names the safer choice', async () => {
     const HINT =
-      'Без входа тест можно открыть заново в другом браузере и увидеть ответы до своей попытки. ' +
-      'Для контрольной лучше «балл и ошибки сразу; верные ответы и пояснения — после закрытия».';
+      'Без входа ученик может открыть тест в другом браузере и заранее увидеть ответы. ' +
+      'Лучше выбрать «балл и ошибки сразу, ответы и пояснения после закрытия».';
     expect(QA_SETUP.reviewGuests).toBe(HINT);
     expect(QA_SETUP.reviewGuests).toContain(`«${QA_SETUP.reviewOption('mistakes_then_answers')}»`);
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
@@ -320,8 +322,8 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     // The questions, not «этому экзамену» (release 47.1).
     expect(document.body.textContent).not.toContain('по этому экзамену');
     expect(toggle).toHaveAccessibleDescription(
-      'После закрытия ученикам предложат тренировать вопросы экзамена в Meldy (в тренировке видны все ответы). ' +
-        'Кто согласится, появится в списке участников экзамена. Его прогресс вам не виден.',
+      'Кнопка появится после закрытия контрольной. В тренировке видны все ответы экзамена. ' +
+        'Кто согласится, появится в списке участников экзамена. Его прогресс вы не увидите.',
     );
     // No «Участник станет участником»: the words say what happens and when.
     expect(document.body.textContent).not.toContain('станет участником');
@@ -337,8 +339,8 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     const toggle = screen.getByRole('checkbox', { name: 'После сдачи предложить тренировать эти вопросы в Meldy' });
     expect(toggle).toHaveAccessibleDescription(
-      'После закрытия ученикам предложат тренировать вопросы теста в Meldy (в тренировке видны все ответы). ' +
-        'Кто согласится, появится в списке участников теста. Его прогресс вам не виден.',
+      'Кнопка появится после закрытия контрольной. В тренировке видны все ответы теста. ' +
+        'Кто согласится, появится в списке участников теста. Его прогресс вы не увидите.',
     );
     expect(screen.queryByText(QA_SETUP.practiceNote)).toBeNull();
     pick(QA_SETUP.who, QA_SETUP.whoOption('members', true));
@@ -485,7 +487,7 @@ describe('QuizSetupPage: changing a quiz', () => {
     for (const name of [QA_SETUP.attempts, QA_SETUP.pass, QA_SETUP.review, QA_SETUP.who, QA_SETUP.closes]) expect(combo(name)).toBeEnabled();
     expect(combo(QA_SETUP.attempts)).toHaveTextContent('3');
     pick(QA_SETUP.attempts, '5');
-    pick(QA_SETUP.grading, 'последняя попытка');
+    pick(QA_SETUP.grading, 'последнюю попытку');
     fireEvent.click(screen.getByRole('button', { name: QA_SETUP.save }));
     await waitFor(() => expect(api.updateQuiz).toHaveBeenCalledWith(QUIZ_ID, { attempts: 5, grading: 'last' }));
     expect(await screen.findByTestId('where')).toHaveTextContent(`/exams/c/${EXAM}/quizzes/${QUIZ_ID}|{"quizNote":"saved"}`);
@@ -524,7 +526,7 @@ describe('QuizSetupPage: one subject, the date in words, the explanations (relea
     expect(screen.queryByRole('group', { name: QA_SETUP.subjects })).toBeNull();
     expect(screen.queryByRole('checkbox', { name: /Вариант 1/ })).toBeNull();
     const count = combo(QA_SETUP.count).closest('.qa-field')!;
-    expect(plain(count.textContent)).toContain('В контрольную идут только вопросы с ключом: их 15.');
+    expect(plain(count.textContent)).toContain('Возьмём только вопросы с верным ответом. Их 15.');
   });
 
   it('two subjects (the oral one does not count): «Вопросы из» stays', () => {
@@ -548,10 +550,10 @@ describe('QuizSetupPage: one subject, the date in words, the explanations (relea
   });
 
   it('the review’s option for the safe default fits its words; no explanations in the set — no line', () => {
-    expect(QA_SETUP.reviewOption('mistakes_then_answers')).toBe('балл и ошибки сразу; верные ответы и пояснения — после закрытия');
+    expect(QA_SETUP.reviewOption('mistakes_then_answers')).toBe('балл и ошибки сразу, ответы и пояснения после закрытия');
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     expect(combo(QA_SETUP.review)).toHaveTextContent(QA_SETUP.reviewOption('mistakes_then_answers'));
-    expect(screen.queryByText(/В тесте есть пояснения/)).toBeNull();
+    expect(screen.queryByText(/Пояснения ученики увидят/)).toBeNull();
   });
 
   it('a question of the set with an explanation: a line under the review says when the takers see it', () => {
@@ -560,14 +562,15 @@ describe('QuizSetupPage: one subject, the date in words, the explanations (relea
     api.state.items = items;
     renderAt(`/exams/c/${EXAM}/quizzes/new`);
     const review = combo(QA_SETUP.review).closest('.qa-field')!;
-    expect(plain(review.textContent)).toContain('В тесте есть пояснения. Ученики увидят их вместе с верными ответами — после закрытия.');
+    expect(plain(review.textContent)).toContain('Пояснения ученики увидят после закрытия, вместе с верными ответами.');
     pick(QA_SETUP.review, QA_SETUP.reviewOption('answers'));
-    expect(plain(review.textContent)).toContain('В тесте есть пояснения. Ученики увидят их вместе с верными ответами — сразу.');
+    expect(plain(review.textContent)).toContain('Пояснения ученики увидят сразу, вместе с верными ответами.');
     pick(QA_SETUP.review, QA_SETUP.reviewOption('score'));
-    expect(plain(review.textContent)).toContain('При этой настройке ученики их не увидят');
+    expect(plain(review.textContent)).toContain('При этой настройке пояснения не видны.');
     // The subject with the explanation unticked: no longer in the set, no line.
     fireEvent.click(screen.getByRole('checkbox', { name: /Вариант 1/ }));
-    expect(plain(review.textContent)).not.toContain('В тесте есть пояснения');
+    expect(plain(review.textContent)).not.toContain('Пояснения ученики увидят');
+    expect(plain(review.textContent)).not.toContain('пояснения не видны');
   });
 });
 
@@ -621,7 +624,7 @@ describe('QuizSetupPage: a quiz «как в студии» (?all=1&design=1, the
 
   it('the server finds no question on the page (MC013): said in the page’s words', async () => {
     api.fetchDoc.mockRejectedValue(new Error('offline'));
-    api.createQuiz.mockRejectedValue(new ContainerApiError('MC013', 'В выбранных предметах нет вопросов с ключом.', { detail: 'no_questions' }));
+    api.createQuiz.mockRejectedValue(new ContainerApiError('MC013', 'В выбранных предметах нет вопросов с верным ответом.', { detail: 'no_questions' }));
     renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
     fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
     expect(await screen.findByText(QA_SETUP.problems.page)).toBeInTheDocument();
