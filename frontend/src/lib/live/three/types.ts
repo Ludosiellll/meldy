@@ -79,8 +79,11 @@ export interface Arena {
   collapse(correctZoneId: string, tStart?: number): void;
   /** Brings the fallen tiles back up (a quick ripple). */
   restore(): void;
-  /** Height of the floor at a map point now, map units: 0 intact, negative while its tile falls. */
-  floorAt(x: number, y: number): number;
+  /**
+   * Height of the floor at a map point, map units: 0 intact, negative while its tile falls. At kit second `at`
+   * (default: now, the last update); a slow frame asks for the time it is drawn at.
+   */
+  floorAt(x: number, y: number, at?: number): number;
   /** kit.now() second the tile under the point starts to drop; Infinity if it stays. */
   fallsAt(x: number, y: number): number;
   update(dt: number): void;
@@ -151,7 +154,11 @@ export interface FrameStats {
 
 export interface View {
   readonly canvas: HTMLCanvasElement;
-  /** Runs the frame loop; `onFrame(dt, now)` runs first in each frame. Pauses by itself while the tab is hidden. */
+  /**
+   * Runs the frame loop; `onFrame(dt, now)` runs first in each frame: `dt` the real seconds since the last frame
+   * (however slow), `now` the kit's clock before this frame's update (it is drawn at `now + dt`). Pauses by itself
+   * while the tab is hidden; a frame after the pause counts from the resume.
+   */
   start(onFrame?: (dt: number, now: number) => void): void;
   stop(): void;
   setCamera(spec: CameraSpec): void;
@@ -193,9 +200,9 @@ export interface Kit {
   createArena(map: MoveMap, shape?: ArenaShape, look?: ArenaLook): Arena;
   /** Draws the kit's scene on a canvas. One view per kit. */
   mount(canvas: HTMLCanvasElement, options?: ViewOptions): View;
-  /** Seconds since the kit was made, advanced by update (the view's loop does it). */
+  /** Seconds since the kit was made, advanced by update (the view's loop does it with the real time between frames). */
   now(): number;
-  /** Advances everything by dt seconds; the view's loop calls it. */
+  /** Advances everything by dt seconds, however many; the view's loop calls it. */
   update(dt: number): void;
   /** Frees every GPU resource and the view. */
   dispose(): void;

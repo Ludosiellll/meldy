@@ -274,7 +274,9 @@ export class ViewImpl {
       // capped: skip this animation frame whole (2 ms of slack for a display's uneven timing)
       if (this.minGap > 0 && interval < this.minGap - 2) return;
       this.last = now;
-      const dt = Math.min(0.1, interval / 1000);
+      // the real time since the last frame, however long: the kit's clock (the stomp, the floor's drop, the poses)
+      // keeps the room's pace on a slow machine instead of falling behind it (the room's `floor: up` is real time)
+      const dt = interval / 1000;
       const cpu = this.frame(dt);
       this.record(interval, cpu);
       if (this.auto && this.governor.push(interval)) this.applyQuality();

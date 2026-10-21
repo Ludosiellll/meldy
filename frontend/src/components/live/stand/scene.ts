@@ -6,14 +6,19 @@
  * from the MoveClient and writes them into the scene: no React state per frame. The screen hears only what changes
  * (the timer's second, the zone counts, alive and ghosts) through `StandHud`, and passes each room `state` in
  * (about seven a question). Meshes are made on the welcome and on `add`, never per frame.
+ *
+ * The kit's clock is real time, however slow the frames (a projector without a GPU draws 1–2 a second). The room's
+ * `floor: up` waits for a frame that has shown the floor down (FloorShow), and every fallen character is drawn in its
+ * fall at least once (fallFrame): on any frame rate the drop is on screen between the stomp and the floor's return.
  */
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type View } from '../../../lib/live/three';
-import { F_AWAY, F_GHOST, F_ICE, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandState, type Welcome } from '../../../lib/live/move';
+import { collapseDownAfter } from '../../../lib/live/three/arenaPlan';
+import { F_AWAY, F_GHOST, F_ICE, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandResult, type StandState, type Welcome } from '../../../lib/live/move';
 import type { Pose } from '../../../lib/live/move';
 
 /** Positions sampled each frame, reused (MoveClient.frameInto). */
 type Poses = Map<number, Pose>;
-import { changeOf, easeOutBack, tally, timerFace, type TimerFace } from './plan';
+import { FALL_S, FloorShow, changeOf, easeOutBack, fallFrame, tally, timerFace, type FallPlan, type TimerFace } from './plan';
 import type { StandRoom } from './room';
 
 /** The moments the screen plays sounds on: the last seconds' ticks, the alarm, the boss's jump and blow, the first
@@ -47,10 +52,6 @@ export interface SceneOptions {
 const TILT = 52;
 /** Map units a second under which a character stands. */
 const RUN_SPEED = 45;
-/** A fallen character drops this long before it rises as a ghost, seconds. */
-const FALL_S = 0.75;
-/** How long a ghost takes to rise out of the pit, seconds. */
-const RISE_S = 1.0;
 
 /** The room's map as the kit takes it (answer zones are rectangles in mode A). */
 export function kitMap(map: MapJson): MoveMap {
@@ -77,14 +78,10 @@ function stat(list: number[]): Stat {
   return { mean: s.reduce((a, b) => a + b, 0) / Math.max(1, s.length), p50: at(0.5), p95: at(0.95), max: s[s.length - 1] ?? 0 };
 }
 
-interface Fall {
+interface Fall extends FallPlan {
   /** Where it stood (it is held still meanwhile). */
   x: number;
   y: number;
-  /** kit seconds: its tile starts to drop; it rises as a ghost; whether the tile under it drops at all. */
-  start: number;
-  rise: number;
-  tile: boolean;
 }
 
 interface Actor {
@@ -129,6 +126,13 @@ export class StandScene {
   /** kit seconds of the first ghost rising and the first cheer after the blow (Infinity: none coming). */
   private riseAt = Infinity;
   private cheerAt = Infinity;
+  /** The floor's drop on screen (FloorShow): the zone that stays, its kit second, the room's `up` that waits. */
+  private readonly floorShow = new FloorShow();
+  private collapseZone = '';
+  private collapseAt = -Infinity;
+  private upRes: StandResult | null = null;
+  /** Seconds from a collapse's start until the whole gap is down (collapseDownAfter for this arena). */
+  private downAfter = 2;
   private lastFace: TimerFace = { sec: null, ready: false, hot: false, left: 0 };
   private readonly sums = { counts: [0, 0, 0, 0], alive: 0, ghosts: 0, iced: 0 };
   private readonly shown = { counts: [-1, -1, -1, -1], alive: -1, ghosts: -1, iced: -1, zones: 0 };
@@ -322,6 +326,7 @@ export class StandScene {
     this.boss?.dispose();
     this.map = kitMap(w.map);
     this.arena = kit.createArena(this.map, { floor: h.floor, stage: h.stage });
+    this.downAfter = collapseDownAfter(this.map, { floor: h.floor, stage: h.stage });
     this.zoneIds = (this.map.zones ?? []).map((z) => z.id);
     this.boss = kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] });
     this.frameCamera();
@@ -394,6 +399,8 @@ export class StandScene {
       this.impactCued = true;
       this.riseAt = Infinity;
       this.cheerAt = Infinity;
+      this.floorShow.reset();
+      this.upRes = null;
     }
     if (st.q) {
       const labels: Record<string, string> = {};
@@ -409,7 +416,7 @@ export class StandScene {
       // the boss jumped at zero (frame): the floor goes at its blow; a result that came late drops it at once
       if (this.stompedQi !== st.qi) this.stomp(st.qi, now);
       const impact = Math.max(this.impactAt, now + 0.05);
-      arena.collapse(this.zoneIds[res.key] ?? '', impact);
+      this.dropFloor(this.zoneIds[res.key] ?? '', impact);
       const fell = new Set(res.fell);
       let rise = Infinity;
       let cheer = Infinity;
@@ -417,7 +424,7 @@ export class StandScene {
         if (fell.has(a.id)) {
           const drops = arena.fallsAt(a.x, a.y);
           const start = Number.isFinite(drops) ? drops : impact + 0.35;
-          a.fall = { x: a.x, y: a.y, start, rise: start + FALL_S, tile: Number.isFinite(drops) };
+          a.fall = { x: a.x, y: a.y, start, rise: start + FALL_S, tile: Number.isFinite(drops), drawn: false };
           rise = Math.min(rise, a.fall.rise);
         } else if ((a.flags & F_GHOST) === 0 && (a.flags >> ZONE_SHIFT) - 1 === res.key) {
           a.cheerFrom = impact + 0.45 + ((a.id * 7) % 10) * 0.04;
@@ -429,21 +436,12 @@ export class StandScene {
       this.cheerAt = cheer;
     } else if (change === 'down' && res) {
       // seen late: the floor is already down, the fallen already ghosts
-      arena.collapse(this.zoneIds[res.key] ?? '', now - 10);
+      this.dropFloor(this.zoneIds[res.key] ?? '', now - 10);
       this.stompedQi = st.qi;
     } else if (change === 'up' && res) {
-      arena.restore();
-      if (boss.phase !== 'stunned') boss.setPhase('idle');
-      this.hud.cue('back');
-      for (const id of res.back) {
-        const a = this.actors.get(id);
-        if (!a) continue;
-        a.fall = null;
-        // a mixed game: everyone who fell comes back (a miss, not a revival): nobody cheers
-        if (this.options.mixed) continue;
-        a.cheerFrom = now + 0.25;
-        a.cheerUntil = now + 1.8;
-      }
+      // back now, or after the frame that shows the floor down (a slow or late frame: FloorShow)
+      this.upRes = res;
+      if (this.floorShow.up()) this.floorUp(res, now);
     }
     if (st.phase === 'podium' && st.top) {
       st.top.slice(0, 3).forEach((t, i) => {
@@ -456,6 +454,60 @@ export class StandScene {
     }
   }
 
+  /** The floor drops from kit second `tStart` (the blow); FloorShow learns when a frame shows it down. */
+  private dropFloor(zone: string, tStart: number): void {
+    this.arena?.collapse(zone, tStart);
+    this.collapseZone = zone;
+    this.collapseAt = tStart;
+    this.floorShow.drop(tStart + this.downAfter);
+  }
+
+  /**
+   * The room's `up` waits and this frame would still come before the floor is down (frames slower than its down
+   * time): the whole drop moves `by` seconds earlier, the falls and the cheers with it, so this frame shows it down.
+   */
+  private hurry(by: number, now: number): void {
+    const arena = this.arena;
+    if (!arena) return;
+    this.collapseAt -= by;
+    arena.collapse(this.collapseZone, this.collapseAt);
+    if (Number.isFinite(this.impactAt)) this.impactAt -= by;
+    if (Number.isFinite(this.riseAt)) this.riseAt -= by;
+    if (Number.isFinite(this.cheerAt)) this.cheerAt -= by;
+    for (const a of this.actors.values()) {
+      if (Number.isFinite(a.cheerUntil) && a.cheerUntil > now) {
+        a.cheerFrom -= by;
+        a.cheerUntil -= by;
+      }
+      const f = a.fall;
+      if (!f) continue;
+      const drops = arena.fallsAt(f.x, f.y);
+      f.tile = Number.isFinite(drops);
+      f.start = f.tile ? drops : f.start - by;
+      f.rise = f.start + FALL_S;
+    }
+  }
+
+  /** The floor comes back: the tiles rise, the fallen of `res.back` are back. */
+  private floorUp(res: StandResult, now: number): void {
+    this.upRes = null;
+    const arena = this.arena;
+    const boss = this.boss;
+    if (!arena || !boss) return;
+    arena.restore();
+    if (boss.phase !== 'stunned') boss.setPhase('idle');
+    this.hud.cue('back');
+    for (const id of res.back) {
+      const a = this.actors.get(id);
+      if (!a) continue;
+      a.fall = null;
+      // a mixed game: everyone who fell comes back (a miss, not a revival): nobody cheers
+      if (this.options.mixed) continue;
+      a.cheerFrom = now + 0.25;
+      a.cheerUntil = now + 1.8;
+    }
+  }
+
   // ── each frame ──
 
   private frame(dt: number, now: number): void {
@@ -463,6 +515,8 @@ export class StandScene {
     const arena = this.arena;
     const boss = this.boss;
     this.frameNo++;
+    // the kit's update runs after this: what is set here is drawn at kit second `at` (a whole second later at 1 fps)
+    const at = now + (dt > 0 ? dt : 0);
     const t = client.frameInto(this.poses);
     const st = this.state;
     if (boss && st && st.phase === 'open' && st.closes !== null && t !== null) {
@@ -475,15 +529,19 @@ export class StandScene {
       // zero: the boss jumps; its blow drops the floor as soon as the room's result is here
       if (this.stompedQi !== st.qi && t >= st.closes) this.stomp(st.qi, now);
     }
-    if (!this.impactCued && now >= this.impactAt) {
+    // the floor on a slow or late frame: the room's `up` waits until a frame has shown it down
+    const floor = this.floorShow.frame(at);
+    if (floor.act === 'hurry') this.hurry(floor.by, now);
+    else if (floor.act === 'restore' && this.upRes) this.floorUp(this.upRes, now);
+    if (!this.impactCued && at >= this.impactAt) {
       this.impactCued = true;
       this.hud.cue('impact');
     }
-    if (now >= this.cheerAt) {
+    if (at >= this.cheerAt) {
       this.cheerAt = Infinity;
       this.hud.cue('cheer');
     }
-    if (now >= this.riseAt) {
+    if (at >= this.riseAt) {
       this.riseAt = Infinity;
       this.hud.cue('rise');
     }
@@ -501,7 +559,7 @@ export class StandScene {
         a = this.actors.get(id);
         if (!a) continue;
       }
-      if (arena) this.place(a, pose, dt, now, arena);
+      if (arena) this.place(a, pose, dt, now, at, arena);
     }
     const zones = st?.q ? Math.min(st.q.options.length, this.zoneIds.length) : this.zoneIds.length;
     tally(flags, zones, this.sums);
@@ -521,27 +579,26 @@ export class StandScene {
     this.hud.cue('stomp');
   }
 
-  private place(a: Actor, pose: Pose, dt: number, now: number, arena: Arena): void {
+  /** One character in this frame (kit seconds: `now` before the kit's update, `at` when it is drawn). */
+  private place(a: Actor, pose: Pose, dt: number, now: number, at: number, arena: Arena): void {
     a.seen = this.frameNo;
     a.flags = pose.flags;
     const p = a.player;
     const f = a.fall;
-    if (this.options.mixed) this.ice(a, pose.flags, now, !f && (pose.flags & F_GHOST) === 0);
+    if (this.options.mixed) this.ice(a, p, pose.flags, now, at, !f && (pose.flags & F_GHOST) === 0);
     if (f) {
-      if (now < f.rise) {
+      const ff = fallFrame(f, at);
+      if (ff.pit) {
         // held where it stood; drops with its tile (or by itself when the tile stays: a phone that went away)
         p.setGhost(false);
-        let z = 0;
-        if (f.tile) z = arena.floorAt(f.x, f.y);
-        else if (now > f.start) z = -650 * (now - f.start) * (now - f.start);
-        p.setPosition(f.x, f.y, Math.max(-650, z));
-        p.setPose(now >= f.start ? 'fall' : 'idle');
+        p.setPosition(f.x, f.y, ff.z);
+        p.setPose(ff.falling ? 'fall' : 'idle');
         a.x = f.x;
         a.y = f.y;
         return;
       }
       // out of the pit as a ghost, sliding to where the room has it now
-      const k = (now - f.rise) / RISE_S;
+      const k = ff.climb;
       const m = Math.min(1, k * 1.4);
       const x = f.x + (pose.x - f.x) * m;
       const y = f.y + (pose.y - f.y) * m;
@@ -553,8 +610,13 @@ export class StandScene {
       if (k >= 1) a.fall = null;
       return;
     }
-    const dx = pose.x - a.x;
-    const dy = pose.y - a.y;
+    // a frame the room's `up` waits for shows the moment before it: the room has everyone moving again, but whoever
+    // stood stays where it stood (not walking over the gap still drawn)
+    const hold = this.floorShow.waits && a.placed;
+    const px = hold ? a.x : pose.x;
+    const py = hold ? a.y : pose.y;
+    const dx = px - a.x;
+    const dy = py - a.y;
     const d = Math.hypot(dx, dy);
     if (!a.placed || d > 120) {
       a.placed = true;
@@ -564,15 +626,15 @@ export class StandScene {
       a.speed += (inst - a.speed) * Math.min(1, dt * 12);
       if (d > 0.4) p.setFacing(Math.atan2(dx, dy));
     }
-    a.x = pose.x;
-    a.y = pose.y;
+    a.x = px;
+    a.y = py;
     const ghost = (pose.flags & F_GHOST) !== 0;
     p.setGhost(ghost);
     p.setAway((pose.flags & F_AWAY) !== 0);
-    const z = ghost ? 0 : arena.floorAt(a.x, a.y);
+    const z = ghost ? 0 : arena.floorAt(a.x, a.y, at);
     p.setPosition(a.x, a.y, z);
     if (!ghost && z < -4) p.setPose('fall');
-    else if (now >= a.cheerFrom && now < a.cheerUntil && a.speed < RUN_SPEED) p.setPose('cheer');
+    else if (at >= a.cheerFrom && at < a.cheerUntil && a.speed < RUN_SPEED) p.setPose('cheer');
     // in ice a character slides, it does not run
     else p.setPose(a.speed > RUN_SPEED && !a.iced ? 'run' : 'idle');
   }
@@ -582,23 +644,23 @@ export class StandScene {
    * when they are back with the floor) and breaks on the right zone at the boss's blow, not before it. Changes while
    * the arena was away (the button questions) are shown as they are.
    */
-  private ice(a: Actor, flags: number, now: number, visible: boolean): void {
+  private ice(a: Actor, p: Player, flags: number, now: number, at: number, visible: boolean): void {
     const want = (flags & F_ICE) !== 0;
     if (want === a.iced) return;
     if (!a.placed || now - this.resumedAt < 0.3) {
       a.iced = want;
-      a.player.setIce(want, true);
+      p.setIce(want, true);
       return;
     }
     if (want) {
       if (!visible) return;
       this.froze = true;
     } else {
-      if (Number.isFinite(this.impactAt) && now < this.impactAt + 0.25) return;
+      if (Number.isFinite(this.impactAt) && at < this.impactAt + 0.25) return;
       this.thawed = true;
     }
     a.iced = want;
-    a.player.setIce(want);
+    p.setIce(want);
   }
 
   private updateTimer(st: StandState | null, t: number | null): void {

@@ -193,6 +193,22 @@ export function planCollapse(
   return out;
 }
 
+/** A tile reads as down once it has dropped this long: 0.3 s is ~60 map units, more than a tile's width. */
+export const DOWN_SEEN_S = 0.3;
+
+/**
+ * Seconds from a collapse's `tStart` until every tile that drops is down by at least DOWN_SEEN_S (an upper bound: the
+ * floor's far corner from the impact, with the whole jitter). A frame at or after `tStart + collapseDownAfter(…)`
+ * shows the whole gap in the floor.
+ */
+export function collapseDownAfter(map: MoveMap, shape?: ArenaShape): number {
+  const imp = impactOf(map, shape);
+  const f = floorRect(map, shape);
+  const dx = Math.max(Math.abs(f.x - imp.x), Math.abs(f.x + f.w - imp.x));
+  const dy = Math.max(Math.abs(f.y - imp.y), Math.abs(f.y + f.h - imp.y));
+  return COLLAPSE.lead + Math.hypot(dx, dy) * COLLAPSE.perUnit + COLLAPSE.jitter + DOWN_SEEN_S;
+}
+
 /**
  * Height of a tile's top at `now` (map units, 0 = the floor, negative = below it), given when it starts to drop.
  * Before the drop it shakes in place (the shake is drawn, not counted here).

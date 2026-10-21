@@ -94,8 +94,8 @@ class ArenaFacade implements Arena {
   restore(): void {
     this.impl.restore();
   }
-  floorAt(x: number, y: number): number {
-    return this.impl.floorAt(x, y);
+  floorAt(x: number, y: number, at?: number): number {
+    return this.impl.floorAt(x, y, at);
   }
   fallsAt(x: number, y: number): number {
     return this.impl.fallsAt(x, y);
@@ -239,7 +239,8 @@ export class KitImpl implements Kit {
   }
 
   update(dt: number): void {
-    const step = dt > 0.1 ? 0.1 : dt < 0 ? 0 : dt;
+    // the whole step, however long: the kit's seconds are real seconds (a projector at 2 fps must not run slow)
+    const step = dt > 0 ? dt : 0;
     const frame = this.crowd.frame;
     this.time += step;
     this.shared.kitTime.value = this.time;

@@ -465,7 +465,7 @@ export class BossImpl {
   }
 
   update(dt: number): void {
-    const step = dt > 0.1 ? 0.1 : dt < 0 ? 0 : dt;
+    const step = dt > 0 ? dt : 0;
     this.t += step;
     this.phaseT += step;
     const t = this.t;

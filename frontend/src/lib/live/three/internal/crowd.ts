@@ -318,7 +318,7 @@ export class CrowdPlayer {
   update(dt: number): void {
     this.stamp = this.crowd.frame;
     if (this.disposed) return;
-    const step = dt > 0.1 ? 0.1 : dt < 0 ? 0 : dt;
+    const step = dt > 0 ? dt : 0;
     this.time += step;
     this.machine.step(step);
     // turn the short way round, at most TURN_RATE rad/s
