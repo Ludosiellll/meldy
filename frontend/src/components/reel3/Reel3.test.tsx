@@ -70,7 +70,7 @@ describe('Reel3', () => {
   it('draws every scene at its time (the frame exporter steps the clock)', async () => {
     window.__MELDY_REEL_EXPORT__ = true;
     const { container } = render(<Reel3 />);
-    for (const id of ['lecture', 'file', 'plan', 'session', 'ticket', 'sheet', 'group', 'build', 'media', 'look', 'send', 'take', 'stats'] as const) {
+    for (const id of ['lecture', 'file', 'plan', 'session', 'ticket', 'learn', 'group', 'build', 'media', 'look', 'send', 'take', 'stats'] as const) {
       const window3 = scene3(id);
       await act(async () => {
         await window.__meldyReel!.seek(Math.round((window3.from + window3.to) / 2));
@@ -84,7 +84,7 @@ describe('Reel3', () => {
     window.__MELDY_REEL_EXPORT__ = true;
     const { container } = render(<Reel3 />);
     const scenes = Object.entries(POINTER_KEYS3);
-    expect(scenes.map(([id]) => id)).toEqual(['file', 'plan', 'session', 'group', 'build', 'media', 'look', 'send', 'take']);
+    expect(scenes.map(([id]) => id)).toEqual(['file', 'plan', 'session', 'learn', 'group', 'build', 'media', 'look', 'send', 'take']);
     for (const [id, keys] of scenes) {
       const window3 = scene3(id as keyof typeof POINTER_KEYS3);
       await act(async () => {
