@@ -13,7 +13,7 @@ const REVIEW_OPTIONS: Record<QuizReview, string> = {
   score: 'только балл',
   mistakes: 'балл и ошибки',
   answers: 'балл, ошибки и верные ответы',
-  /** The safe default: the explanations come with the right answers, after the closing (fits a phone's list). */
+  /** The safer choice when a class writes at the same time: the right answers come after the closing (fits a phone's list). */
   mistakes_then_answers: 'балл и ошибки сразу, ответы и пояснения после закрытия',
 };
 const keyed = (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} с верным ответом`;

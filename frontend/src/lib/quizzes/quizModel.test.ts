@@ -56,7 +56,7 @@ describe('defaults', () => {
     expect(s.item_count).toBe(20);
     expect(s.time_limit_min).toBe(20);
     expect(s.attempts).toBe(1);
-    expect(s.review).toBe('mistakes_then_answers');
+    expect(s.review).toBe('answers');
     expect(s.title).toMatch(/^Контрольная · \d{2}\.\d{2}$/);
     const closes = new Date(s.closes_at!);
     expect(closes.getTime() - NOW.getTime()).toBeGreaterThan(6 * 86400000);
