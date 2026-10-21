@@ -7,8 +7,9 @@
  *
  * Since 2026-10-10 they tell the exam as it is now (decision 2026-10-09, the universal exam): one exam for the whole
  * preparation — the department's file, a plan by days, a mistake back the next day, oral questions aloud against the
- * student's own lectures with the cheat sheet in Meldy's own look (decision 2026-10-10), one link for the group. The
- * example is «Осенняя сессия» (data/containerExample.ts) with /try's «Микроэкономика» as its oral part.
+ * student's own lectures, what is left to learn by topics (owner, 2026-10-21: «Осталось выучить» instead of the cheat
+ * sheet), one link for the group. The example is «Осенняя сессия» (data/containerExample.ts) with /try's
+ * «Микроэкономика» as its oral part.
  */
 
 export type AuthReelVariant = 'login' | 'register';
@@ -34,13 +35,13 @@ export interface AuthScript {
 
 /** The beats both reels share, as screen readers hear them. */
 const SESSION_LINE =
-  'Ошибка вернётся завтра: в занятии по базам данных выбран неверный вариант, Meldy показывает ответ из файла — «Неверно. В файле — SERIALIZABLE. Вернётся через пару вопросов и завтра».';
+  'Ошибка вернётся завтра: в занятии по базам данных выбран неверный вариант, Meldy показывает ответ из файла — «Неверно. В файле — SERIALIZABLE. Повторим через пару вопросов и завтра».';
 const ORAL_LINE =
-  'Ответ вслух по вашим лекциям: вопрос 7 по микроэкономике, ответ голосом. На шпаргалке строка, названная в другой день, зачёркивается, две строки названы впервые и отмечены жёлтым, а строка, названная только после вопроса экзаменатора, остаётся. На карте шпаргалки становится на один пустой квадрат больше.';
+  'Ответ вслух по вашим лекциям: на вопрос 7 по микроэкономике вы отвечаете голосом. Meldy сверяет ответ с лекциями. Сами назвали 3 из 3 главных пунктов. Тема «Эластичность спроса» выучена. Осталось выучить 2 темы из 3.';
 
 /**
  * Sign-in: the student comes back to today's plan of the exam, then a question of the day's session, an oral answer
- * that strikes a line off the sheet, the group's one link — and «Продолжите с того же места».
+ * that closes a topic, the group's one link — and «Продолжите с того же места».
  */
 export const LOGIN_SCRIPT: AuthScript = {
   total: 19200,

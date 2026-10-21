@@ -1,7 +1,7 @@
 /**
  * The sign-up reel, «От файла с вопросами до плана на каждый день», in the film style: the department's file goes into
  * a new exam and Meldy finds its subjects and questions; the plan by days to the exam; a question of the session; an
- * oral answer that strikes a line off the cheat sheet (StoryScenes); «Начните со списка». The example is
+ * oral answer that closes a topic of «Осталось выучить» (StoryScenes); «Начните со списка». The example is
  * data/containerExample.ts; the screens' own words.
  */
 import { useRef } from 'react';

@@ -1,7 +1,7 @@
 /**
  * The sign-in reel, «Как работает Meldy», in the film style (components/film): the student's exam is where they left
- * it — today's plan on «Сегодня»; then a question of the session, an oral answer that strikes a line off the cheat
- * sheet (StoryScenes), the group's one link with the plan of the day in Telegram, and «Продолжите с того же места».
+ * it — today's plan on «Сегодня»; then a question of the session, an oral answer that closes a topic of «Осталось
+ * выучить» (StoryScenes), the group's one link with the plan of the day in Telegram, and «Продолжите с того же места».
  * The yellow dot opens the loop and closes it.
  */
 import { useRef } from 'react';
