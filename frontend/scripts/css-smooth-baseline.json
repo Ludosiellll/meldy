@@ -43,7 +43,6 @@
     "components/exams/exams.css :: .sf-page .nx-field :: box-shadow",
     "components/exams/exams.css :: .sf-page .nx-pick-find :: box-shadow",
     "components/exams/exams.css :: .sf-page .nx-sel :: box-shadow",
-    "components/exams/sheet/sheet.css :: .sf-page .cs-zoom :: box-shadow",
     "components/guide/guide.css :: .gd-next :: box-shadow",
     "components/home/home.css :: .hm-card :: box-shadow",
     "components/home/home.css :: .hm-pill :: box-shadow",
