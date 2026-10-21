@@ -14,6 +14,7 @@ import { comesBackWhen, dayIn, studyHref, subjectTitle } from './model';
 import { clock, drawMock, isAnswered, mockAnswers, scoreMock, type MockAnswer } from './mockModel';
 import { newId } from './sessionStore';
 import { useWide } from './useWide';
+import { readDraftValue, setAddressParams, writeDraftValue } from '../../lib/urlState';
 import './room.css';
 
 /**
@@ -23,6 +24,11 @@ import './room.css';
  * through the queue at the end (submitMock): without network the result is counted on the device and the answers
  * leave later. An unanswered question counts as an error. The result: «31 из 40», the time, the errors — no percent,
  * no mark, no forecast.
+ *
+ * A reload keeps the place (owner, 21.10): the address names the question on screen (?q=7, written quietly — the page
+ * is keyed by location.key), so the try goes on at that question; once the try is over the address names its result
+ * (?done=<run>, kept in this tab) in place of the size and the time, so a reload shows the result again and never
+ * starts a new timed try.
  */
 interface Result {
   correct: number;
@@ -34,6 +40,27 @@ interface Result {
   day: LocalDay;
   offline: boolean;
   timedOutAway: boolean;
+}
+
+/** The result of a finished try, kept in this tab under its run (urlState drafts): what a reload of it shows. */
+const resultKey = (runId: string) => `mock-result:${runId}`;
+
+function isResult(value: unknown): value is Result & { subjectId: string } {
+  const r = value as (Result & { subjectId?: unknown }) | null;
+  return Boolean(
+    r &&
+      typeof r === 'object' &&
+      [r.correct, r.items, r.unanswered, r.minutes].every((n) => typeof n === 'number' && Number.isFinite(n)) &&
+      Array.isArray(r.wrongIds) &&
+      typeof r.day === 'string' &&
+      typeof r.subjectId === 'string',
+  );
+}
+
+/** The question a reload goes on at: ?q= (1-based) of a try picked up again, if it is one of its questions. */
+function placeOf(raw: string | null, total: number): number | null {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= total ? n - 1 : null;
 }
 
 function orderFor(item: TestItem, runId: string): number[] {
@@ -90,6 +117,11 @@ export default function MockRun({
   const count = Number(params.get('n'));
   const minutesParam = Number(params.get('t'));
 
+  // A try that is over and named in the address (?done=): its result again.
+  const [kept] = useState(() => {
+    const done = params.get('done');
+    return done ? readDraftValue(resultKey(done), isResult) : null;
+  });
   // The try in progress, or a new one from the address (?n=40&t=40), or the setup.
   const [start] = useState(() => {
     const saved = safeLoad(userId, containerId);
@@ -97,7 +129,7 @@ export default function MockRun({
       const over = saved.timeLimitS !== null && Date.now() >= saved.startedAt + saved.timeLimitS * 1000;
       return { progress: saved, resumed: true, over };
     }
-    if (!subjectParam || !(count > 0)) return { progress: null, resumed: false, over: false };
+    if (!subjectParam || !(count > 0) || params.get('done')) return { progress: null, resumed: false, over: false };
     const runId = newId();
     const itemIds = drawMock(input, items, subjectParam, count, runId);
     if (itemIds.length === 0) return { progress: null, resumed: false, over: false };
@@ -118,19 +150,21 @@ export default function MockRun({
   const [pos, setPos] = useState(() => {
     const p = start.progress;
     if (!p || !start.resumed) return 0;
+    const named = placeOf(params.get('q'), p.itemIds.length);
+    if (named !== null) return named;
     const first = p.itemIds.findIndex((id) => !isAnswered(p.answers[id]));
     return first >= 0 ? first : p.itemIds.length - 1;
   });
   const [now, setNow] = useState(Date.now());
   const [allOpen, setAllOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useState<Result | null>(kept);
   const [sending, setSending] = useState(false);
   const [resumedNote, setResumedNote] = useState(start.resumed && !start.over);
   const stemRef = useRef<HTMLHeadingElement | null>(null);
   const finishing = useRef(false);
 
-  const subjectId = progress?.subjectIds[0] ?? subjectParam ?? summary.subjects[0]?.id ?? '';
+  const subjectId = progress?.subjectIds[0] ?? kept?.subjectId ?? subjectParam ?? summary.subjects[0]?.id ?? '';
   const subject = subjectTitle(summary, subjectId);
   const back = `/exams/c/${containerId}${summary.subjects.length > 1 ? `/s/${subjectId}` : ''}`;
   const orders = useMemo(() => {
@@ -189,6 +223,8 @@ export default function MockRun({
       }
       const final: Result = server ? { ...base, correct: server.correct, items: server.items, unanswered: server.unanswered } : { ...base, offline: true };
       track('container.mock_finished', { items: final.items, correct: final.correct });
+      writeDraftValue(resultKey(progress.runId), { ...final, subjectId: progress.subjectIds[0] ?? '' });
+      setAddressParams({ n: null, t: null, q: null, done: progress.runId });
       setResult(final);
     },
     [progress, items, tz, userId, containerId, orders],
@@ -217,6 +253,11 @@ export default function MockRun({
       window.scrollTo(0, 0);
     }
   }, [pos]);
+
+  // The question on screen is named in the address: a reload goes on at it.
+  useEffect(() => {
+    if (progress && !result) setAddressParams({ q: String(pos + 1) });
+  }, [pos, progress, result]);
 
   const update = (id: string, answer: MockAnswer) => {
     if (!progress) return;

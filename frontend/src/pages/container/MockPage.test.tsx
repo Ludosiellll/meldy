@@ -234,3 +234,56 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     expect(screen.queryByRole('button', { name: nm('Начать') })).toBeNull();
   });
 });
+
+describe('owner 21.10: a reload keeps the place in «Как на экзамене»', () => {
+  const MOCK = `/exams/c/${CONTAINER}/mock`;
+  const banner = () => plain(screen.getByRole('banner').textContent);
+  const asked = (key: string) => new URLSearchParams(window.location.search).get(key);
+  function open(search: string) {
+    window.history.replaceState(null, '', `${MOCK}${search}`);
+    return renderMock(search);
+  }
+  /** A reload: the page comes back at the address the browser shows, with what the device kept. */
+  function reload() {
+    cleanup();
+    expect(window.location.pathname).toBe(MOCK);
+    return renderMock(window.location.search);
+  }
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('a try in progress goes on at the question on screen, not at the first without an answer', () => {
+    open(`?s=${SUBJECT_DB}&n=3&t=40`);
+    fireEvent.click(options()[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    expect(banner()).toContain('3 из 3');
+    expect(asked('q')).toBe('3');
+    mocks.loadMock.mockReturnValue(lastSaved());
+    reload();
+    expect(banner()).toContain('3 из 3');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(options()[0].getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('a finished try: a reload shows its result again and starts no new try', async () => {
+    mocks.submitMock.mockResolvedValue({ run_id: 'r', items: 3, correct: 1, unanswered: 2, duplicate: false });
+    open(`?s=${SUBJECT_DB}&n=3&t=40`);
+    fireEvent.click(options()[0]);
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Завершить' }));
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Как на экзамене' })).getByRole('button', { name: 'Завершить' }));
+    });
+    await waitFor(() => expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3'));
+    expect(asked('n')).toBeNull();
+    expect(asked('t')).toBeNull();
+    expect(asked('done')).toBeTruthy();
+    const saves = mocks.saveMock.mock.calls.length;
+    mocks.loadMock.mockReturnValue(null);
+    reload();
+    expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3');
+    expect(page()).toContain('2 ошибки, из них 2 без ответа.');
+    expect(mocks.saveMock.mock.calls.length).toBe(saves);
+    expect(mocks.submitMock).toHaveBeenCalledTimes(1);
+  });
+});
