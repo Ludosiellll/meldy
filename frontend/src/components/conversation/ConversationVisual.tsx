@@ -1,9 +1,9 @@
-import { memo, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { memo, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import katex from 'katex';
 import { repairFormula } from '../../lib/mathEscapes';
 import 'katex/contrib/mhchem';
 import 'katex/dist/katex.min.css';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import type {
   CompareVisual,
   ConversationSource,
@@ -20,7 +20,7 @@ import type {
 } from './types';
 import { fragmentWords, sourceNote, visualLabel } from './visuals';
 import { fragmentText, quoteHeading } from './grounding';
-import { splitFragmentHeading } from '../../utils/fragmentText';
+import { fragmentIdNumber, useFragmentPanel } from '../summary/FragmentPanel';
 import ChartView, { chartNotes, isPercentUnit } from './ChartView';
 import DiagramView from './DiagramView';
 import { useElementHeight } from './useElementWidth';
@@ -359,26 +359,35 @@ function SceneCard({
   );
 }
 
+/** What the fragment panel says over the fragments of a sheet's note: what of the sheet was taken from them. */
+export function sourcePanelNote(provenance: Provenance): string | undefined {
+  switch (provenance.kind) {
+    case 'numbers':
+      return 'Числа на листе взяты отсюда.';
+    case 'dates':
+      return 'Даты на листе взяты отсюда.';
+    case 'quote':
+      return 'Цитата на листе взята отсюда.';
+    default:
+      return undefined;
+  }
+}
+
 /**
- * Заметка-источник в правом углу листа (.sf-pnote): «Числа — из лекции, фрагмент 4».
- * «фрагмент 4» раскрывает сам фрагмент лекции вырезкой поверх листа, чтобы его можно было
- * сверить; заголовок лекции во вырезке — своей строкой.
+ * Заметка-источник в правом углу листа (.sf-pnote): «Числа взяты из лекции, фрагмент 4».
+ * «фрагмент 4» открывает сам фрагмент лекции в общей панели фрагментов (summary/FragmentPanel.tsx, владелец 21.10):
+ * на компьютере слева поверх страницы, на телефоне снизу, как везде в приложении.
  */
 function SourceNote({
   provenance,
   sources,
   interactive,
-  slipTop = 0,
 }: {
   provenance: Provenance;
   sources?: ConversationSource[] | null;
   interactive: boolean;
-  /** Вырезка ложится под заголовком листа и не закрывает саму заметку. */
-  slipTop?: number;
 }) {
-  const [open, setOpen] = useState(false);
-  const slipId = useId();
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const { open, current, panel } = useFragmentPanel();
   const note = sourceNote(provenance);
   if (!note) return null;
   const ids = 'ids' in provenance ? provenance.ids : [];
@@ -387,17 +396,6 @@ function SourceNote({
   const words = ids.length ? fragmentWords(ids) : '';
   const lead = words && note.endsWith(words) ? note.slice(0, note.length - words.length) : note;
 
-  const close = () => {
-    setOpen(false);
-    buttonRef.current?.focus();
-  };
-  const onSlipKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    event.stopPropagation();
-    close();
-  };
-
   return (
     <>
       <p className="sf-pnote cv-src" data-source-note="">
@@ -405,12 +403,18 @@ function SourceNote({
           <>
             {lead}
             <button
-              ref={buttonRef}
               type="button"
               className="cv-src-button"
-              onClick={() => setOpen(value => !value)}
-              aria-expanded={open}
-              aria-controls={open ? slipId : undefined}
+              onClick={event =>
+                open({
+                  note: sourcePanelNote(provenance),
+                  fragments: ids.map((id, index) => ({ id, number: fragmentIdNumber(id), text: texts[index] ?? undefined })),
+                  current: ids[0],
+                  returnTo: event.currentTarget,
+                })
+              }
+              aria-haspopup="dialog"
+              aria-expanded={current !== null}
             >
               {words}
             </button>
@@ -419,39 +423,7 @@ function SourceNote({
           note
         )}
       </p>
-      {expandable && open && (
-        <div
-          id={slipId}
-          className="sf-slip cv-slip"
-          role="region"
-          aria-label={`Лекция, ${words}`}
-          onKeyDown={onSlipKey}
-          style={slipTop ? { top: slipTop, maxHeight: `calc(100% - ${slipTop}px)` } : undefined}
-        >
-          <div className="cv-slip-head">
-            <p>{`Лекция, ${words}`}</p>
-            <button type="button" className="cv-ico" onClick={close} aria-label="Закрыть фрагмент">
-              <X aria-hidden="true" strokeWidth={1.75} />
-            </button>
-          </div>
-          {texts.map((text, index) => {
-            const parts = splitFragmentHeading(text as string);
-            return (
-              <p key={ids[index]} className={index > 0 ? 'mt-3' : undefined}>
-                {ids.length > 1 && <span className="cv-slip-n">{`Фрагмент ${ids[index].replace(/^S0*/i, '')}`}</span>}
-                {parts.heading ? (
-                  <>
-                    <span className="cv-slip-heading">{parts.heading}</span>
-                    {parts.body}
-                  </>
-                ) : (
-                  text
-                )}
-              </p>
-            );
-          })}
-        </div>
-      )}
+      {panel}
     </>
   );
 }
@@ -560,7 +532,7 @@ function ConversationVisual({
           {kind && <p className="cv-kind">{kind}</p>}
           <div className="cv-head">
             {title && <h3 className="cv-title">{title}</h3>}
-            <SourceNote provenance={provenance} sources={sources} interactive={interactive} slipTop={leadHeight} />
+            <SourceNote provenance={provenance} sources={sources} interactive={interactive} />
           </div>
         </div>
       )}

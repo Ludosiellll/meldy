@@ -784,7 +784,7 @@ export function provenanceLead(provenance: Provenance): string | null {
 }
 
 /**
- * Заметка-источник в правом углу листа (спека 5.7, .sf-pnote): «Числа — из лекции, фрагмент 4»,
+ * Заметка-источник в правом углу листа (спека 5.7, .sf-pnote): «Числа взяты из лекции, фрагмент 4»,
  * «Из лекции, фрагмент 3». Говорит только то, что проверено (см. Provenance); null — сказать нечего.
  */
 export function sourceNote(provenance: Provenance): string | null {
@@ -792,9 +792,9 @@ export function sourceNote(provenance: Provenance): string | null {
   const where = ids.length ? `, ${fragmentWords(ids)}` : '';
   switch (provenance.kind) {
     case 'numbers':
-      return `Числа — из лекции${where}`;
+      return `Числа взяты из лекции${where}`;
     case 'dates':
-      return `Даты — из лекции${where}`;
+      return `Даты взяты из лекции${where}`;
     case 'quote':
       return `Из лекции${where}`;
     case 'summary':

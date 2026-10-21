@@ -80,4 +80,22 @@ describe('the cards of a lecture', () => {
     fireEvent.click(document.querySelector('button[aria-label="Скопировать карточку"]') as HTMLButtonElement);
     expect(writeText).toHaveBeenCalledWith('Вопрос: Что такое первичный ключ?\nОтвет: Атрибут, который однозначно определяет строку.');
   });
+
+  it('open a card’s fragment in the panel: the card does not grow and its answer stays closed (owner 21.10)', () => {
+    const sources = [{ id: 'S01', text: 'Первичный ключ — атрибут, который однозначно определяет строку таблицы.' }];
+    renderCards({ reviewHref: '/review?material=m1', sources });
+    const card = document.querySelector('.fc-card') as HTMLElement;
+    fireEvent.click(card.querySelector('button[aria-label="Ближайшие фрагменты лекции: 1"]') as HTMLButtonElement);
+    const panel = document.querySelector('[role="dialog"]') as HTMLElement;
+    expect(panel).toHaveAttribute('aria-label', 'Фрагмент 1 лекции');
+    expect(card.querySelector('.sf-slip')).toBeNull();
+    expect(panel.textContent).toContain('Здесь в лекции больше всего общих слов с карточкой.');
+    // The words the card shares with the fragment are underlined.
+    expect(Array.from(panel.querySelectorAll('.sf-under')).map((mark) => mark.textContent)).toContain('однозначно');
+    // A click in the panel is not a click on the card: the answer stays closed.
+    fireEvent.click(panel.querySelector('.fp-slip') as HTMLElement);
+    fireEvent.click(document.querySelector('.fp-dim') as HTMLElement);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(card).not.toHaveAttribute('data-open');
+  });
 });

@@ -1,21 +1,13 @@
 /* The summary (redesign spec 5.3, Meldy 2026-10-04 — prototype Material.dc.html): a reading column of about
-   36em; on a wide page the margin to the right holds the lecture fragment of the section being read and the list
-   of sections. The card variant (data-card: the material page and the analysis result) sets the text in a white
-   card with a large radius and the margin beside it as soft cards. */
+   36em; on a wide page the margin to the right holds the list of sections. The lecture fragments open in the
+   fragment panel (fragmentPanel.css), never inside the text. The card variant (data-card: the material page and the
+   analysis result) sets the text in a white card with a large radius and the margin beside it as a soft card. */
 .sv-doc {
   --sv-measure: 612px;
   --sv-sec-line: color-mix(in srgb, var(--sf-line) 72%, transparent);
-  --sv-paper: #fff8ee;
-  --sv-paper-ink: #2b2a26;
-  --sv-paper-edge: #eadfcc;
   --sv-dot-off: #d6d6cf;
 }
-.dark .sv-doc {
-  --sv-paper: #211f1b;
-  --sv-paper-ink: #efe8dc;
-  --sv-paper-edge: #2f2a22;
-  --sv-dot-off: #3a4354;
-}
+.dark .sv-doc { --sv-dot-off: #3a4354; }
 .sv-text { min-width: 0; max-width: var(--sv-measure); }
 .sv-doc[data-margin] {
   display: grid;
@@ -38,24 +30,7 @@
 .sv-doc[data-card] .sv-sec > .sv-refs { max-width: var(--sv-measure); }
 .sv-doc[data-card][data-margin] { grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); column-gap: 28px; }
 
-/* «Справа от разделов — фрагменты лекции…»: a blue pill with a dot (the prototype's .origin). */
-.sv-origin {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 8px;
-  padding: 8px 16px 8px 13px;
-  border-radius: 999px;
-  background: var(--sf-accent-soft);
-  color: var(--sf-accent-fg);
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.35;
-}
-.sv-origin::before { content: ''; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sf-accent); }
-
 .sv-sec { padding: 34px 0; border-bottom: 1px solid var(--sv-sec-line); scroll-margin-top: 104px; }
-.sv-origin + .sv-sec { padding-top: 26px; }
 .sv-sec:first-child { padding-top: 0; }
 .sv-sec:last-child { border-bottom: 0; padding-bottom: 0; }
 .sv-h2 { margin: 0 0 14px; font-size: 30px; line-height: 1.15; font-weight: 500; letter-spacing: -.022em; color: var(--sf-ink); text-wrap: balance; }
@@ -88,7 +63,7 @@
 .sv-doc .sv-body .katex { font-size: 1.05em; }
 
 /* «фрагмент 1», «фрагмент 4» after a section: pills with the number in a circle (the prototype's .ref);
-   the fragment on the margin now is the blue one. */
+   the one the fragment panel shows now is the blue one. */
 .sv-refs { margin-top: 16px; }
 .sv-refs-compact { margin-top: 10px; }
 .sv-refline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
@@ -131,43 +106,10 @@
 }
 .sv-doc .sv-ref.sf-ref[data-active] { background: var(--sf-accent); color: #fff; }
 .sv-doc .sv-ref.sf-ref[data-active]::before { background: #fff; color: #1c4db1; }
-.sv-inline-slip { margin: 16px 0 4px; }
-
-/* A slip: the caption on the page, the fragment on warm paper with a few halftone dots. */
-.sv-slipbox { margin: 0; }
-.sv-caption { margin: 0 4px 10px; font-size: 14px; line-height: 1.45; color: var(--sf-muted); }
-.sv-doc .sv-slip.sf-slip {
-  position: relative;
-  margin: 0;
-  padding: 24px 26px 26px;
-  border-radius: 30px;
-  background: var(--sv-paper);
-  box-shadow: 0 1px 0 var(--sv-paper-edge), 0 26px 50px -34px rgba(60, 40, 10, .45);
-  color: var(--sv-paper-ink);
-  font-size: 17px;
-  line-height: 1.6;
-  --ph-paper-ink: var(--sv-paper-ink);
-}
-.dark .sv-doc .sv-slip.sf-slip { box-shadow: 0 0 0 1px var(--sv-paper-edge), 0 26px 50px -34px rgba(0, 0, 0, .7); }
-.sv-doc .sv-slip.sf-slip::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background-image: radial-gradient(rgba(16, 41, 90, .08) 1px, transparent 1.3px);
-  background-size: 7px 7px;
-  -webkit-mask-image: linear-gradient(200deg, #000, transparent 55%);
-  mask-image: linear-gradient(200deg, #000, transparent 55%);
-  pointer-events: none;
-}
-.dark .sv-doc .sv-slip.sf-slip::before { background-image: radial-gradient(rgba(255, 248, 238, .07) 1px, transparent 1.3px); }
-.sv-slip-head { position: relative; display: block; margin-bottom: 6px; font-family: var(--ph-sans); font-size: 15px; line-height: 22px; font-weight: 600; }
-.sv-slip-actions { display: flex; flex-wrap: wrap; gap: 0 20px; margin: 8px 4px 0; }
-.sv-slip-actions .sf-link { min-height: 40px; font-size: 15px; }
 
 /* The margin: sticky under the top bar, no taller than the window. */
 .sv-margin { min-width: 0; align-self: stretch; }
-/* The scrolling box reaches 20 px past the column on each side and 48 px below, so the soft shadow of the slip
+/* The scrolling box reaches 20 px past the column on each side and 48 px below, so the soft shadow of the list
    is not cut into a grey rectangle. */
 .sv-margin-in {
   position: sticky;
@@ -216,13 +158,8 @@
 }
 .sv-outline a[aria-current] { background: var(--sf-surface-soft); color: var(--sf-ink); font-weight: 600; }
 .sv-outline a[aria-current]::before { background: var(--sf-accent); transform: scale(1.25); }
-.sv-margin-slip { animation: sv-slip-in .6s var(--m-ease) both; }
-@keyframes sv-slip-in {
-  from { opacity: 0; transform: translateY(14px) rotate(-1.2deg); }
-  to { opacity: 1; transform: none; }
-}
-
-/* Terms: soft blue cards, the term in ink, the definition muted, its fragment under it. */
+/* Terms: soft blue cards, the term in ink, the definition muted, its fragments under it. Each card keeps its own
+   height (owner 21.10): a long definition never turns its neighbours into tall empty cards. */
 .sv-terms-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .sv-terms-head .sv-h2 { margin: 0; }
 .sv-terms-n {
@@ -240,7 +177,7 @@
   color: var(--sf-muted);
   font-variant-numeric: tabular-nums;
 }
-.sv-dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; margin: 0; }
+.sv-dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); align-items: start; gap: 14px; margin: 0; }
 .sv-term {
   display: grid;
   align-content: start;
@@ -263,7 +200,6 @@
   .sv-doc .sv-body.markdown-content { font-size: 17px; line-height: 1.65; }
   .sv-sec { padding: 28px 0; }
   .sv-doc[data-card] .sv-text { padding: 30px 22px 34px; border-radius: 36px; }
-  .sv-doc .sv-slip.sf-slip { padding: 20px 20px 22px; border-radius: 24px; font-size: 16px; }
   .sv-term { padding: 18px 20px; border-radius: 24px; }
 }
 @media (pointer: coarse) {
@@ -271,13 +207,11 @@
 }
 
 /* A phone (10_Project/Phone_Declutter_2026-10-08): the fragments of a section or a term are one small quiet line,
-   «фрагменты 2, 3», a 44 px target that opens their slips (FragmentSlip.tsx renders it on phones only); the terms
+   «фрагменты 2, 3», a 44 px target that opens them in the fragment panel (FragmentSlip.tsx renders it on phones only); the terms
    are a plain list on the white sheet, the count in words' colour next to the heading, not in a chip. */
 .sv-refs-line { margin-top: 4px; }
 .sv-refs-line.sv-refs-compact { margin-top: 0; }
 .sv-doc .sv-refs-link.sf-link { font-size: 14px; line-height: 20px; }
-.sv-refs-slips { display: grid; gap: 16px; margin: 6px 0 4px; }
-.sv-refs-slips .sv-inline-slip { margin: 0; }
 @media (max-width: 639px) {
   .sv-dl { display: block; }
   .sv-term {
@@ -301,7 +235,6 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sv-margin-slip { animation: none; }
   .sv-doc .sv-ref.sf-ref,
   .sv-outline a,
   .sv-outline a::before { transition: none; }

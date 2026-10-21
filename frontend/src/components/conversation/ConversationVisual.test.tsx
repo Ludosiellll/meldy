@@ -167,24 +167,27 @@ describe('pictures on the paper sheet (spec 5.7, step A)', () => {
       { sources: [S04] },
     );
     renderLine(line, [S04]);
-    const note = screen.getByText(/Числа — из лекции/);
+    const note = screen.getByText(/Числа взяты из лекции/);
     expect(note).toHaveClass('sf-pnote', 'cv-src');
-    expect(note).toHaveTextContent('Числа — из лекции, фрагмент 4');
+    expect(note).toHaveTextContent('Числа взяты из лекции, фрагмент 4');
     // The note and the title share the head row of the sheet.
     expect(note.parentElement).toHaveClass('cv-head');
     expect(note.parentElement?.querySelector('h3')).toHaveTextContent('Выручка');
   });
 
-  it('opens the quoted fragment as a slip with its heading on its own line; Escape closes it', () => {
+  it('opens the quoted fragment in the fragment panel, its heading on its own line; Escape closes it', () => {
     const [line] = buildConversation([{ speaker: 'Софья', text: 'Цитата.', source_ids: ['S01'] }], { sources: [HEADED] });
-    renderLine(line, [HEADED]);
+    const { container } = renderLine(line, [HEADED]);
     const button = screen.getByRole('button', { name: 'фрагмент 1' });
     fireEvent.click(button);
-    const slip = screen.getByRole('region', { name: 'Лекция, фрагмент 1' });
-    expect(slip).toHaveClass('sf-slip');
-    expect(within(slip).getByText('Обучение нейронной сети')).toHaveClass('cv-slip-heading');
-    fireEvent.keyDown(slip, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'Лекция, фрагмент 1' })).not.toBeInTheDocument();
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 1 лекции' });
+    // The panel is not laid over the sheet: it is the app's one panel, outside the picture.
+    expect(container.contains(panel)).toBe(false);
+    expect(within(panel).getByText('Цитата на листе взята отсюда.')).toBeInTheDocument();
+    expect(within(panel).getByText('Обучение нейронной сети')).toHaveAttribute('data-fragment-heading');
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(button).toHaveFocus();
   });
 
