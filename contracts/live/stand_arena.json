@@ -1,0 +1,40 @@
+{
+  "about": "Mode A «Встань на ответ» (docs/live/MODE_STAND.md): the arena and the points. Checked against backend/live_move_stand.py (test_live_stand.py) and frontend/src/lib/live/move/protocol.ts (stand.test.ts). Zone i is option i; ids are display letters.",
+  "map": {
+    "w": 1600,
+    "h": 900,
+    "solids": [
+      {"rect": [0, 0, 1600, 160]},
+      {"rect": [0, 160, 20, 740]},
+      {"rect": [1580, 160, 20, 740]},
+      {"rect": [0, 880, 1600, 20]},
+      {"circle": [800, 520, 80]}
+    ],
+    "zones": [
+      {"id": "А", "rect": [80, 220, 600, 240]},
+      {"id": "Б", "rect": [920, 220, 600, 240]},
+      {"id": "В", "rect": [80, 580, 600, 240]},
+      {"id": "Г", "rect": [920, 580, 600, 240]}
+    ],
+    "spawns": [[560, 520], [1040, 520], [800, 360], [800, 680]],
+    "npc_spawns": [[800, 520]]
+  },
+  "stage": [800, 520, 80],
+  "floor": {"x": 20, "y": 160, "tile": 60, "cols": 26, "rows": 12},
+  "letters": ["А", "Б", "В", "Г"],
+  "points": [
+    {"elapsed_ms": 3000, "time_s": 15, "streak_after": 1, "speed": true, "ghost": false, "pts": 900},
+    {"elapsed_ms": 6000, "time_s": 15, "streak_after": 3, "speed": true, "ghost": false, "pts": 960},
+    {"elapsed_ms": 4321, "time_s": 15, "streak_after": 2, "speed": true, "ghost": false, "pts": 940},
+    {"elapsed_ms": 0, "time_s": 15, "streak_after": 5, "speed": true, "ghost": false, "pts": 1400},
+    {"elapsed_ms": 0, "time_s": 15, "streak_after": 12, "speed": true, "ghost": false, "pts": 1400},
+    {"elapsed_ms": 15000, "time_s": 15, "streak_after": 1, "speed": true, "ghost": false, "pts": 500},
+    {"elapsed_ms": 7500, "time_s": 15, "streak_after": 3, "speed": true, "ghost": true, "pts": 380},
+    {"elapsed_ms": 3000, "time_s": 15, "streak_after": 1, "speed": true, "ghost": true, "pts": 450},
+    {"elapsed_ms": 15000, "time_s": 15, "streak_after": 1, "speed": true, "ghost": true, "pts": 250},
+    {"elapsed_ms": 14000, "time_s": 15, "streak_after": 1, "speed": false, "ghost": false, "pts": 1000},
+    {"elapsed_ms": 99999, "time_s": 20, "streak_after": 1, "speed": true, "ghost": false, "pts": 500},
+    {"elapsed_ms": -40, "time_s": 20, "streak_after": 1, "speed": true, "ghost": false, "pts": 1000},
+    {"elapsed_ms": 8500, "time_s": 30, "streak_after": 4, "speed": true, "ghost": false, "pts": 1120}
+  ]
+}
