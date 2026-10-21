@@ -88,6 +88,7 @@ import PasteNotice from '../components/oral/PasteNotice';
 import { useAnswerTopic } from '../components/learnLeft/useAnswerTopic';
 import { FINISH_SHORTCUTS, finishKeysLabel, isFinishKey, useDeskColumn } from '../components/oral/roomDesk';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { setAddressParams } from '../lib/urlState';
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
@@ -220,6 +221,7 @@ export default function ExamTicket() {
       requestedNumber={requestedNumber}
       mode={mode}
       fromContainer={fromContainer}
+      askedIndex={Number(params.get('i')) - 1}
     />
   );
 }
@@ -407,9 +409,12 @@ interface TicketRoomProps {
   mode: TicketMode;
   /** ?from=c:<id>: sent by an exam container's «занятие»; after the result the way is back to it (spec decision 29г). */
   fromContainer?: string | null;
+  /** ?i= of the address less one: the question of the ticket a reload goes on at (the first when it names none). */
+  askedIndex?: number;
 }
 
-function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer = null }: TicketRoomProps) {
+function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer = null, askedIndex = 0 }: TicketRoomProps) {
+  const [startAt] = useState(() => (Number.isInteger(askedIndex) && askedIndex > 0 ? askedIndex : 0));
   // Only with ?from=c:<id>: every link to this exam's pages keeps it, and the end of the ticket leads back to the
   // «занятие» instead of another random ticket. Without it, nothing changes.
   const withFrom = (path: string) => keepFrom(path, fromContainer);
@@ -525,7 +530,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     }
     loadTicket(examId, questionIds).then(
       (result) => {
-        if (active) dispatch({ type: 'loaded', exam: result.exam, questions: result.questions });
+        // A reload goes on at the question of the ticket the address names (?i=2, written as the student moves on).
+        if (active) dispatch({ type: 'loaded', exam: result.exam, questions: result.questions, index: startAt });
       },
       (error: unknown) => {
         if (!active) return;
@@ -536,7 +542,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     return () => {
       active = false;
     };
-  }, [examId, questionIds]);
+  }, [examId, questionIds, startAt]);
 
   const loadRubric = useCallback(
     async (run: number, target: TicketQuestion, signal: AbortSignal) => {
@@ -568,6 +574,12 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     },
     [alive, examId],
   );
+
+  // ── The question of the ticket on screen is named in the address (?i=2; the first leaves it out): a reload goes on there ──
+  useEffect(() => {
+    if (state.run === 0 || state.questions.length < 2) return;
+    setAddressParams({ i: state.index > 0 ? String(state.index + 1) : null });
+  }, [state.run, state.index, state.questions.length]);
 
   // ── Each question: rubric, history, limit, a restored attempt or draft ──
   useEffect(() => {

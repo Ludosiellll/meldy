@@ -142,7 +142,8 @@ export interface TicketState {
 }
 
 export type TicketAction =
-  | { type: 'loaded'; exam: TicketExam; questions: TicketQuestion[] }
+  /** `index`: the question the address names (a reload goes on at it); the first when it names none of them. */
+  | { type: 'loaded'; exam: TicketExam; questions: TicketQuestion[]; index?: number }
   | { type: 'load_failed'; kind: 'not_found' | 'failed'; message: string }
   | { type: 'question'; index: number }
   | { type: 'rubric_loading'; run: number }
@@ -244,8 +245,10 @@ export function answerTime(state: Pick<TicketState, 'clock'>, now: number): numb
 
 export function ticketReducer(state: TicketState, action: TicketAction): TicketState {
   switch (action.type) {
-    case 'loaded':
-      return freshQuestion({ ...state, exam: action.exam, questions: action.questions }, 0);
+    case 'loaded': {
+      const index = Number.isInteger(action.index) && (action.index as number) >= 0 && (action.index as number) < action.questions.length ? (action.index as number) : 0;
+      return freshQuestion({ ...state, exam: action.exam, questions: action.questions }, index);
+    }
     case 'load_failed':
       return { ...state, phase: 'load_error', loadError: { kind: action.kind, message: action.message } };
     case 'question':
