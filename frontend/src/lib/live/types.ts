@@ -4,10 +4,15 @@
  */
 
 export type GameState = 'lobby' | 'countdown' | 'open' | 'reveal' | 'leaderboard' | 'podium' | 'ended';
-/** 'boss': «Битва с монстром»; 'stand': «Встань на ответ», a movement game (docs/live/MODE_STAND.md). */
+/**
+ * 'boss': «Битва с монстром» (with `stand_every` > 0: a battle with movement rounds, docs/live/MODE_MIXED.md);
+ * 'stand': «Встань на ответ», a movement game (docs/live/MODE_STAND.md).
+ */
 export type GameMode = 'boss' | 'stand';
-/** The boss of a movement game, the teacher's pick. */
+/** The boss of a movement game or a battle's movement rounds, the teacher's pick. */
 export type BossKind = 'clock' | 'skeleton';
+/** A battle's movement rounds: every Nth question is played as «Встань на ответ»; 0: none (docs/live/MODE_MIXED.md). */
+export type StandEvery = 0 | 3 | 5 | 10;
 export type BossPhase = 0 | 1 | 2;
 export type Uuid = string;
 
@@ -30,8 +35,14 @@ export interface Settings {
   mode: GameMode;
   /** Seconds to answer: 10, 20 or 30 («Встань на ответ»: 15, 20 or 30; 15 by default). */
   time_s: 10 | 15 | 20 | 30;
-  /** «Встань на ответ»: the boss (default 'clock'); returned in a stand game's settings only. */
+  /** The arena's boss (default 'clock'); returned in a stand game's and a mixed game's settings only. */
   boss?: BossKind;
+  /**
+   * A battle (`mode` 'boss') with movement rounds: every 3rd, 5th or 10th question (0 or left out: none; a stand game
+   * takes 0 only, `22023 stand_every`). Returned in a mixed game's settings only. The setup's default is 5
+   * (`DEFAULT_STAND_EVERY`); the database's default is 0 so older screens keep the plain battle.
+   */
+  stand_every?: StandEvery;
   /** Damage depends on speed; false = accuracy only. */
   speed: boolean;
   /** 'pin': anyone with the PIN; 'members': only the exam's members. */
@@ -86,6 +97,17 @@ export interface Question {
   /** The phase the question opened with: its rules apply to it. */
   phase: BossPhase;
   picture: string | null;
+  /**
+   * A mixed game only: this question is a movement round — played in the arena over the room's socket; `live_answer`
+   * refuses it (`ML004 stand`), the room writes everyone's zone at the deadline. Absent in other games.
+   */
+  stand?: boolean;
+}
+
+/** A mixed game's plan (in PlayerState and HostState from the lobby on): N and the qi of every movement round. */
+export interface Mixed {
+  every: Exclude<StandEvery, 0>;
+  rounds: number[];
 }
 
 export interface Boss {
@@ -93,7 +115,7 @@ export interface Boss {
   hp_max: number;
   phase: BossPhase;
   defeated: boolean;
-  /** A stand game's boss (no HP there: hp = hp_max = 0). */
+  /** The arena's boss of a stand game (no HP there: hp = hp_max = 0) or of a mixed game (the battle's HP). */
   kind?: BossKind;
 }
 
@@ -120,6 +142,13 @@ export interface QuestionResult {
   healed: number;
   /** The phase the boss entered after this question, or null. */
   phase_changed: BossPhase | null;
+  /** A mixed game only: this question was a movement round. */
+  stand?: boolean;
+  /**
+   * A mixed game only: a movement round the room never wrote (it was down; closed by time 8 s after the deadline):
+   * nobody hit, froze or lost a streak, no heal. `counts` are zeros, `none` is true for everyone.
+   */
+  void?: boolean;
 }
 
 export interface PlayerResult extends QuestionResult {
@@ -173,10 +202,13 @@ interface StateBase {
   time_s: number;
   speed: boolean;
   players: number;
+  /** Taps so far; stays 0 during a movement round (the room writes everyone at once). */
   answered: number;
   question: Question | null;
   boss: Boss;
   top: TopRow[] | null;
+  /** A mixed game only (`settings.stand_every` > 0): the plan of its movement rounds. */
+  mixed?: Mixed;
 }
 
 export interface PlayerState extends StateBase {
@@ -225,6 +257,8 @@ export interface ReviewItem {
   key: number;
   choice: number | null;
   correct: boolean;
+  /** A mixed game only: a movement round (`choice` is the zone the player stood in, null for none). */
+  stand?: boolean;
 }
 
 export interface Review {
@@ -309,4 +343,48 @@ export interface LiveApi {
 
 export function isUnchanged(value: unknown): value is Unchanged {
   return typeof value === 'object' && value !== null && (value as { unchanged?: unknown }).unchanged === true;
+}
+
+// ─────────────── The battle with movement rounds (docs/live/MODE_MIXED.md) ───────────────
+
+export const STAND_EVERY: readonly StandEvery[] = [0, 3, 5, 10];
+/** «Каждые 5 вопросов»: what the setup offers first (the owner's pick, 21.10). */
+export const DEFAULT_STAND_EVERY: StandEvery = 5;
+
+/** The setup's «Мини-игра с движением»: «Нет», every 3rd, 5th or 10th question, «Все вопросы». */
+export type MiniGame = 'none' | 3 | 5 | 10 | 'all';
+export const MINI_GAMES: readonly MiniGame[] = ['none', 3, 5, 10, 'all'];
+
+/** The settings a pick gives: «Все вопросы» is the stand game, «Нет» the plain battle, N the battle every Nth. */
+export function miniGameSettings(pick: MiniGame): Pick<Settings, 'mode' | 'stand_every'> {
+  if (pick === 'all') return { mode: 'stand', stand_every: 0 };
+  return { mode: 'boss', stand_every: pick === 'none' ? 0 : pick };
+}
+
+/** The pick of a game's settings (the inverse of `miniGameSettings`; an older game without the key is «Нет»). */
+export function miniGameOf(settings: Pick<Settings, 'mode' | 'stand_every'>): MiniGame {
+  if (settings.mode === 'stand') return 'all';
+  const n = settings.stand_every;
+  return n === 3 || n === 5 || n === 10 ? n : 'none';
+}
+
+/** The mixed plan of a state, or null (a plain battle, a stand game, a broken value). */
+export function mixedOf(state: PlayerState | HostState | { mixed?: unknown } | null | undefined): Mixed | null {
+  const m = (state as { mixed?: unknown } | null | undefined)?.mixed;
+  if (!m || typeof m !== 'object') return null;
+  const { every, rounds } = m as { every?: unknown; rounds?: unknown };
+  if ((every !== 3 && every !== 5 && every !== 10) || !Array.isArray(rounds) || !rounds.every((r) => Number.isInteger(r) && r >= 0))
+    return null;
+  return { every, rounds: rounds as number[] };
+}
+
+/** Whether the state's current question is a movement round of a mixed game (the database's word: `question.stand`). */
+export function isStandRound(state: { question: Question | null } | null | undefined): boolean {
+  return state?.question?.stand === true;
+}
+
+/** How many questions until the next movement round after question `qi` (0: `qi` itself is one), or null: none left. */
+export function untilStandRound(mixed: Mixed | null, qi: number): number | null {
+  const next = mixed?.rounds.find((r) => r >= qi);
+  return next === undefined ? null : next - qi;
 }

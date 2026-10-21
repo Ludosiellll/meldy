@@ -182,7 +182,8 @@ begin
   perform pg_temp.eq('no unlocks', meldy_private.live_unlocks(2, 0, 1, 0, 1, 0, '{}')::text, '{}');
   perform pg_temp.eq('look ok', meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"phones","x":1}', '{}')::text,
                      '{"hat": "phones", "body": "cloud", "eyes": "round", "colour": "orange"}');
-  perform pg_temp.eq('look unknown', pg_temp.e($$select meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"tophat"}', '{}')$$),
+  -- 'fez' is unknown before and after 20261023090000_live_stand_phone.sql (which makes 'tophat' a free hat).
+  perform pg_temp.eq('look unknown', pg_temp.e($$select meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"fez"}', '{}')$$),
                      'ML007/unknown_part@400');
   perform pg_temp.eq('look locked', pg_temp.e($$select meldy_private.live_look_check('{"body":"cloud","colour":"orange","eyes":"round","hat":"crown"}', '{}')$$),
                      'ML007/locked@400');
@@ -727,7 +728,9 @@ begin
   perform pg_temp.eq('bot_live_post is the service role''s', split_part(pg_temp.e(format('select public.bot_live_post(%L)', v_g6)), '/', 1), '42501');
   perform pg_temp.who('service_role');
   r := public.bot_live_post(v_g6);
-  perform pg_temp.eq('post: the facts of the text', r::text,
+  -- 20261023090000_live_stand_phone.sql adds the game's mode to the facts ('boss' here); the rest is the battle's.
+  perform pg_temp.eq('post: the mode, when the facts name it', coalesce(r ->> 'mode', 'boss'), 'boss');
+  perform pg_temp.eq('post: the facts of the text', (r - 'mode')::text,
     jsonb_build_object('status', 'post', 'chat_id', -100123, 'title', 'Живая игра', 'q_count', 3, 'host', 'Автор А', 'pin', v_pin6, 'players', 2, 'direct', false)::text);
   perform pg_temp.eq('a retried call finds the post taken', public.bot_live_post(v_g6) ->> 'status', 'skip');
   perform pg_temp.eq('no game: skip', public.bot_live_post(gen_random_uuid()) ->> 'status', 'skip');
@@ -747,7 +750,8 @@ begin
   perform pg_temp.tick(v_g6, 3.1);
   perform pg_temp.who('service_role');
   r := public.bot_live_sync(v_g6);
-  perform pg_temp.eq('sync facts', r::text, jsonb_build_object('status', 'edit', 'chat_id', -100123, 'message_id', 555, 'state', 'open', 'players', 3,
+  perform pg_temp.eq('sync: the mode, when the facts name it', coalesce(r ->> 'mode', 'boss'), 'boss');
+  perform pg_temp.eq('sync facts', (r - 'mode')::text, jsonb_build_object('status', 'edit', 'chat_id', -100123, 'message_id', 555, 'state', 'open', 'players', 3,
     'qi', 0, 'q_count', 3, 'hp_pct', 100, 'title', 'Живая игра', 'pin', v_pin6, 'host', 'Автор А', 'direct', false, 'final', null)::text);
   perform pg_temp.eq('no key and no per-question result for the chat', (r::text ~ '"key"' or r::text ~ '"counts"')::text, 'false');
   perform pg_temp.eq('one edit per 3 s', public.bot_live_sync(v_g6) ->> 'status', 'skip');

@@ -105,7 +105,7 @@ Snapshot, server → client (16 + 8 per entity; 60 players + a monster = 504 byt
 | 16 + 8k | u16 ×4 | entity id, x × 10, y × 10, flags |
 
 Flags: bits 0–1 kind (0 player, 1 npc), bit 2 away (the phone is not connected), bit 3 frozen, bit 4 caught,
-bits 5–7 the mode's (bit 5 ghost in «Встань на ответ»), bits 8–15 the map zone it stands in (index + 1, 0 = none).
+bits 5–7 the mode's (bit 5 ghost in «Встань на ответ», bit 6 ice in a battle's movement rounds), bits 8–15 the map zone it stands in (index + 1, 0 = none).
 
 ### JSON, server → client
 
@@ -126,7 +126,9 @@ bits 5–7 the mode's (bit 5 ghost in «Встань на ответ»), bits 8�
   all), `zones`, `stats` (`reset`), `end`, `sync` (a mode reads the live game's state at once).
 - **Modes.** The room takes its mode from the host's `live_host_state` at opening (`settings.mode`,
   `backend/live_move_modes.make_mode`): `"stand"` is «Встань на ответ» (docs/live/MODE_STAND.md: its map, hooks and
-  `"t":"stand"` messages); a battle game (`"boss"`) gets the plain room.
+  `"t":"stand"` messages); a battle with `settings.stand_every` > 0 is the battle with movement rounds
+  (docs/live/MODE_MIXED.md: the stand room only during its movement rounds, no snapshots between them,
+  `Mode.snapshots()`); any other battle game (`"boss"`) gets the plain room.
 
 ### Map
 

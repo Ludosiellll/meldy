@@ -15,11 +15,16 @@
 # contract bites) → the migration again (the same fingerprint as the first apply) → the contract and behaviour again →
 # the stand stage: 20261022090000_live_stand.sql (mode «Встань на ответ», docs/live/MODE_STAND.md) the same way (its
 # contract tests/live_stand.sql, live_stand_behaviour.sql, the battle still green, the points against
-# backend/live_move_stand.py, the room end to end by live_stand_e2e.sh, its rollback back to the live game's catalog).
+# backend/live_move_stand.py, the room end to end by live_stand_e2e.sh, its rollback back to the live game's catalog) →
+# the mixed stage: 20261024090000_live_mixed.sql (the battle with movement rounds, docs/live/MODE_MIXED.md) the same way
+# (its contract tests/live_mixed.sql, live_mixed_behaviour.sql, the stand and the battle still green, the damage and the
+# rule against backend/live_move_mixed.py, the room end to end by live_mixed_e2e.sh with the database against the
+# mirror, its rollback back to the stand's catalog).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 SB=$(cd "$HERE/../.." && pwd)
@@ -394,6 +399,103 @@ print(str(len(out)) + ':' + hashlib.md5(','.join(map(str, out)).encode()).hexdig
   [ "$(fingerprint)" = "$FSTAND" ] && ok "the same catalog as the first stand apply" || bad "another catalog than the first stand apply"
   step "contract: live_stand.sql again" "$SCONTRACT"
   behave "stand behaviour again" "$SBEHAVIOUR" 'LIVE STAND BEHAVIOUR PASSED'
+fi
+
+# ─── The battle with movement rounds (20261024090000_live_mixed.sql, docs/live/MODE_MIXED.md) on top of the stand ───
+# First 20261023090000_live_stand_phone.sql (the kit's hats, the mode in the bot's facts), as live has it, with its
+# contract (LIVE_PHONE_MIG: another path; LIVE_PHONE_MIG=none skips it — the two touch different functions, so the mixed
+# migration works on either). Then the mixed one: its contract fails before it; applied twice
+# (the same catalog); its contract, live_stand.sql and live_game.sql hold; live_mixed_behaviour.sql (three games), the
+# stand's and the battle's behaviours still pass; the rule and the damage of every millisecond against
+# backend/live_move_mixed.py (the mirror the room's tests and the end to end use); the room end to end
+# (backend/scripts/live_mixed_e2e.py: 30 bots, 6 questions, every 3rd a movement round, the database against the mirror)
+# and the stand's end to end again; the rollback twice (the stand's catalog again, the stand still green); applied again.
+# LIVE_MIXED=0 skips the stage (it needs the stand stage).
+if [ "${LIVE_MIXED:-1}" = 0 ] || [ "${LIVE_STAND:-1}" = 0 ]; then
+  echo "  skip  the mixed stage (LIVE_MIXED=0 or LIVE_STAND=0)"
+else
+  MMIG=$SB/migrations/20261024090000_live_mixed.sql
+  MDOWN=$SB/rollback/20261024090000_live_mixed_down.sql
+  MCONTRACT=$SB/tests/live_mixed.sql
+  MBEHAVIOUR=$HERE/live_mixed_behaviour.sql
+  PHONE_MIG=${LIVE_PHONE_MIG:-$SB/migrations/20261023090000_live_stand_phone.sql}
+  if [ "$PHONE_MIG" != none ] && [ -f "$PHONE_MIG" ]; then
+    step "the phone's migration first: $(basename "$PHONE_MIG")" "$PHONE_MIG"
+    [ -f "$SB/tests/live_stand_phone.sql" ] && step "contract: live_stand_phone.sql" "$SB/tests/live_stand_phone.sql"
+  else
+    echo "  skip  the phone's migration (LIVE_PHONE_MIG=none or not found)"
+  fi
+  FPRE=$(fingerprint)
+  if run "$MCONTRACT"; then bad "live_mixed.sql passes before its migration (it tests nothing)"; else ok "live_mixed.sql fails before its migration"; fi
+  if passes "$MBEHAVIOUR" 'LIVE MIXED BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_mixed_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_mixed_behaviour fails before its migration"
+  fi
+  step "mixed migration, first apply" "$MMIG"
+  FMIXED=$(fingerprint)
+  [ "$FMIXED" != "$FPRE" ] && ok "the mixed migration changed the catalog" || bad "the mixed migration changed nothing"
+  step "mixed migration, second apply (re-runnable)" "$MMIG"
+  [ "$(fingerprint)" = "$FMIXED" ] && ok "a second mixed apply changes nothing in the catalog" || bad "a second mixed apply changed the catalog"
+  step "contract: live_mixed.sql (catalog, grants, the rule, the worked example)" "$MCONTRACT"
+  step "contract: live_stand.sql still holds" "$SCONTRACT"
+  step "contract: live_game.sql still holds" "$CONTRACT"
+  behave "mixed behaviour: settings, taps, two movement rounds (worked examples A and B), a void round, the boss falling in one" \
+    "$MBEHAVIOUR" 'LIVE MIXED BEHAVIOUR PASSED'
+  behave "the stand's behaviour unchanged after the mixed migration" "$SBEHAVIOUR" 'LIVE STAND BEHAVIOUR PASSED'
+  behave "the battle's behaviour unchanged after the mixed migration" "$BEHAVIOUR" 'LIVE GAME BEHAVIOUR PASSED'
+  PY=${LIVE_PY:-python3}
+  MIR_PY=$(cd "$ROOT/backend" && "$PY" -c "
+import hashlib, live_move_mixed as m
+d = [m.damage(e, t, s, sp) for t in (10, 20, 30) for sp in (True, False) for s in range(1, 6) for e in range(t * 1000 + 1)]
+r = [m.stand_round(n, q, i) for n in (0, 3, 5, 10) for q in range(1, 31) for i in range(-1, 31)]
+print(str(len(d)) + ':' + hashlib.md5(','.join(map(str, d)).encode()).hexdigest() + '/' + str(len(r)) + ':'
+      + hashlib.md5(','.join('t' if x else 'f' for x in r).encode()).hexdigest())" 2>&1)
+  MIR_SQL=$(q "select (select count(*) || ':' || md5(string_agg(d::text, ',' order by t, sp desc, s, e))
+                         from (select t, sp, s, e, meldy_private.live_damage(e, t, s, sp) as d
+                                 from unnest(array[10, 20, 30]) t, unnest(array[true, false]) sp, generate_series(1, 5) s,
+                                      lateral generate_series(0, t * 1000) e) x) || '/' ||
+                      (select count(*) || ':' || md5(string_agg(case when r then 't' else 'f' end, ',' order by o))
+                         from (select row_number() over (order by n.o, qc, i) as o, meldy_private.live_stand_round(n.v, qc, i) as r
+                                 from unnest(array[0, 3, 5, 10]) with ordinality n(v, o), generate_series(1, 30) qc,
+                                      generate_series(-1, 30) i) y)" 2>&1)
+  if [ -n "$MIR_PY" ] && [ "$MIR_PY" = "$MIR_SQL" ]; then
+    ok "the mirror: live_move_mixed.py and the SQL agree on the damage (${MIR_PY%%:*} cases) and the rule ($(echo "$MIR_PY" | cut -d/ -f2 | cut -d: -f1) cases)"
+  else
+    bad "the mirror: Python $MIR_PY, SQL $MIR_SQL"
+  fi
+  if [ "${LIVE_E2E:-1}" = 0 ]; then
+    echo "  skip  the mixed room end to end (LIVE_E2E=0)"
+  elif [ -z "$PGRST" ] || [ ! -x "$PGRST" ] || ! "$PY" -c "import fastapi, uvicorn, websockets, httpx" 2>/dev/null; then
+    echo "  skip  the mixed room end to end: needs a PostgREST binary (LIVE_PGRST) and the backend's Python (LIVE_PY)"
+  else
+    if LIVE_PY="$PY" bash "$HERE/live_mixed_e2e.sh" "$PGRST" "$DB" > "$WORK/mixed_e2e.log" 2>&1; then
+      ok "the mixed room end to end: $(grep -E '^MIXED E2E' "$WORK/mixed_e2e.log" | tail -1)"
+    else
+      bad "the mixed room end to end (log: $WORK/mixed_e2e.log)"; grep -Ev '^\s*$' "$WORK/mixed_e2e.log" | tail -8 | sed 's/^/    /'
+    fi
+    if LIVE_PY="$PY" bash "$HERE/live_stand_e2e.sh" "$PGRST" "$DB" > "$WORK/stand_e2e_mixed.log" 2>&1; then
+      ok "the stand room end to end after the mixed migration: $(grep -E '^STAND E2E' "$WORK/stand_e2e_mixed.log" | tail -1)"
+    else
+      bad "the stand room end to end after the mixed migration (log: $WORK/stand_e2e_mixed.log)"
+      grep -Ev '^\s*$' "$WORK/stand_e2e_mixed.log" | tail -8 | sed 's/^/    /'
+    fi
+  fi
+  [ "$(fingerprint)" = "$FMIXED" ] && ok "the catalog unchanged by the mixed runs" || bad "the mixed runs changed the catalog"
+  step "mixed rollback" "$MDOWN"
+  [ "$(fingerprint)" = "$FPRE" ] && ok "after the mixed rollback: the catalog before it (fingerprint)" \
+    || bad "after the mixed rollback: another catalog than before it"
+  step "mixed rollback again (re-runnable)" "$MDOWN"
+  [ "$(fingerprint)" = "$FPRE" ] && ok "after the second mixed rollback: still the catalog before it" || bad "after the second mixed rollback: another catalog"
+  if run "$MCONTRACT"; then bad "live_mixed.sql passes after its rollback"; else ok "live_mixed.sql fails after its rollback"; fi
+  step "contract: live_stand.sql after the mixed rollback" "$SCONTRACT"
+  step "contract: live_game.sql after the mixed rollback" "$CONTRACT"
+  behave "the stand's behaviour after the mixed rollback" "$SBEHAVIOUR" 'LIVE STAND BEHAVIOUR PASSED'
+  behave "the battle's behaviour after the mixed rollback" "$BEHAVIOUR" 'LIVE GAME BEHAVIOUR PASSED'
+  step "mixed migration after its rollback" "$MMIG"
+  [ "$(fingerprint)" = "$FMIXED" ] && ok "the same catalog as the first mixed apply" || bad "another catalog than the first mixed apply"
+  step "contract: live_mixed.sql again" "$MCONTRACT"
+  behave "mixed behaviour again" "$MBEHAVIOUR" 'LIVE MIXED BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"

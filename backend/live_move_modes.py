@@ -4,8 +4,9 @@ A room without a mode is the bare movement sandbox. A mode brings its map, its `
 its own JSON messages and the link to the live game's state in the database. ``make_mode`` picks it from the game's
 settings, as ``live_host_state`` returns them when the host's screen opens the room.
 
-Modes: ``"stand"`` — A «Встань на ответ» (``live_move_stand.py``, docs/live/MODE_STAND.md). Mode B «Убеги от
-Дедлайна» (``"run"``) will be a new module and one more branch in ``make_mode``.
+Modes: ``"stand"`` — A «Встань на ответ» (``live_move_stand.py``, docs/live/MODE_STAND.md); a battle (``"boss"``)
+with ``stand_every`` > 0 — the battle with movement rounds (``live_move_mixed.py``, docs/live/MODE_MIXED.md). Mode B
+«Убеги от Дедлайна» (``"run"``) will be a new module and one more branch in ``make_mode``.
 """
 
 from __future__ import annotations
@@ -53,15 +54,24 @@ class Mode:
         """A host command; True when the mode handled it (the default handling is skipped)."""
         return False
 
+    def snapshots(self) -> bool:
+        """Whether the room sends snapshots this tick (a mixed game sends none between its movement rounds)."""
+        return True
+
 
 def make_mode(host_state: dict[str, Any] | None, runner: "RoomRunner", source: GameSource) -> Mode | None:
     """The mode of this live game, or None for the plain room. ``host_state``: the host's ``live_host_state`` at the
-    room's opening (its ``settings.mode``)."""
+    room's opening (its ``settings.mode``, and ``settings.stand_every`` of a battle with movement rounds)."""
     settings = (host_state or {}).get("settings") or {}
     mode = settings.get("mode") if isinstance(settings, dict) else None
     if mode == "stand":
         from live_move_stand import StandMode
 
         return StandMode(runner, host_state or {}, source)
+    every = settings.get("stand_every") if isinstance(settings, dict) else None
+    if mode == "boss" and isinstance(every, int) and not isinstance(every, bool) and every > 0:
+        from live_move_mixed import MixedMode   # docs/live/MODE_MIXED.md
+
+        return MixedMode(runner, host_state or {}, source)
     # Mode B «Убеги от Дедлайна» ("run") goes here.
     return None
