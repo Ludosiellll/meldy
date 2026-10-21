@@ -13,16 +13,21 @@ import { FILE_KEYS, FileScene, PLAN_KEYS, PlanScene, SESSION_KEYS, SessionScene 
 import { GROUP_KEYS, GroupScene } from './scenes/Group';
 import { GAME_KEYS, GameScene } from './scenes/Game';
 import { preloadGameFrames } from '../home3/gameFrames';
-import { STAND_RUN, canPlayFootage, loadFootage } from '../../lib/footage';
+import { STAND_RUN, STAND_RUN_PHONE, canPlayFootage, loadFootage } from '../../lib/footage';
 import { LectureScene } from './scenes/Lecture';
 import { SEND_KEYS, SendScene, StatsScene, TAKE_KEYS, TakeScene } from './scenes/Share';
 import { TicketScene } from './scenes/Oral';
 import { LEARN_KEYS, LearnScene } from './scenes/Learn';
 import './reel3.css';
 
-/** The game's footage and its player, for the page's section «Игра в классе» (home3/reelPart: one late file for both). */
+/**
+ * The game's footage, its player and the phone's footage that follows it, for the page's section «Игра в классе»
+ * (home3/reelPart: one late file for both).
+ */
 export { default as Footage } from '../film/Footage';
+export { follow } from '../../lib/footageSync';
 export const GAME_FOOTAGE = STAND_RUN;
+export const GAME_PHONE_FOOTAGE = STAND_RUN_PHONE;
 
 declare global {
   interface Window {
@@ -127,12 +132,13 @@ function Stage({ clock, layout, scale }: { clock: ReelClock; layout: Layout; sca
       }),
     [clock],
   );
-  // The game's frames and its footage are fetched a chapter ahead (the group), so its projector is ready when it comes.
+  // The game's frames and its two footages are fetched a chapter ahead (the group), so its projector and its phone are
+  // ready when it comes.
   const soon = scenes.includes('group') || scenes.includes('game');
   useEffect(() => {
     if (!soon) return;
     preloadGameFrames();
-    if (canPlayFootage(STAND_RUN)) loadFootage(STAND_RUN).catch(() => undefined);
+    for (const footage of [STAND_RUN, STAND_RUN_PHONE]) if (canPlayFootage(footage)) loadFootage(footage).catch(() => undefined);
   }, [soon]);
   const size = STAGE[layout];
   return (

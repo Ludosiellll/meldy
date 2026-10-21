@@ -1,10 +1,10 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Reel3, { CAPTION, POINTER_KEYS3, TRANSCRIPT3 } from './Reel3';
 import { GAME, SAY } from '../home3/copy3';
 import { GAME_FRAMES } from '../home3/gameFrames';
 import { FOOTAGE_FROM, footageAt, timerAt } from './scenes/Game';
-import { STAND_RUN } from '../../lib/footage';
+import { STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
 import { CHAPTERS3, scene3 } from './timeline3';
 
 type Callback = (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void;
@@ -157,5 +157,55 @@ describe('Reel3', () => {
     expect(footageAt(2800)).toBeCloseTo(6.6, 5);
     expect([3.9, 4.6, 5.6, 6.4, 6.8, 7.4].map(timerAt)).toEqual([15, 14, 13, 12, 1, 0]);
     // No footage in a browser that cannot play it (jsdom): the stills are the picture.
+  });
+
+  it('shows the phone’s own footage beside the projector’s, both on the reel’s time at every frame (owner, 21.10)', async () => {
+    window.__MELDY_REEL_EXPORT__ = true;
+    // A browser that plays the footage: its parts arrive, each footage becomes one object URL.
+    const canPlay = vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({ ok: true, status: 200, headers: new Headers({ 'content-type': 'application/octet-stream' }), blob: async () => new Blob(['x']) })),
+    );
+    const ownCreate = URL.createObjectURL;
+    let made = 0;
+    URL.createObjectURL = () => `blob:reel-${(made += 1)}`;
+    try {
+      const { container } = render(<Reel3 />);
+      const game = scene3('game');
+      await act(async () => {
+        await window.__meldyReel!.seek(game.from + 1000);
+      });
+      const gate = container.querySelector('.r3-gate[data-scene="game"]')!;
+      await waitFor(() => expect(gate.querySelectorAll('video')).toHaveLength(2));
+      const projector = gate.querySelector<HTMLVideoElement>('.r3-proj video')!;
+      const phone = gate.querySelector<HTMLVideoElement>('.r3-gp video')!;
+      expect(phone).toHaveClass('r3-gp-video');
+      expect(STAND_RUN_PHONE.duration).toBe(STAND_RUN.duration);
+      // Both have their first frame now (jsdom's never do): a frame of the exporter seeks both to the same time.
+      for (const video of [projector, phone]) {
+        Object.defineProperty(video, 'readyState', { configurable: true, get: () => 4 });
+        let time = 0;
+        Object.defineProperty(video, 'currentTime', { configurable: true, get: () => time, set: (value: number) => (time = value) });
+        video.pause = vi.fn();
+        video.play = vi.fn(async () => undefined);
+      }
+      const drawn = gate.querySelector<HTMLElement>('[data-a="drawn"]')!;
+      for (const local of [2600, 3600, 4900, 1200]) {
+        await act(async () => {
+          await window.__meldyReel!.seek(game.from + local);
+        });
+        expect(projector.currentTime).toBeCloseTo(footageAt(local), 5);
+        expect(phone.currentTime).toBe(projector.currentTime);
+      }
+      // The exporter never plays them; the phone's footage shows, its drawn view under it does not.
+      expect(projector.play).not.toHaveBeenCalled();
+      expect(phone.play).not.toHaveBeenCalled();
+      expect(phone.style.opacity).toBe('1');
+      expect(drawn.style.opacity).toBe('0');
+    } finally {
+      URL.createObjectURL = ownCreate;
+      canPlay.mockRestore();
+    }
   });
 });
