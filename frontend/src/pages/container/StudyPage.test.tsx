@@ -1171,3 +1171,99 @@ describe('owner 2026-10-20: a reload keeps the session', () => {
     expect(question()).toBe(second);
   });
 });
+
+describe('owner 21.10: a reload keeps a self-check, and never starts a new session over a finished one', () => {
+  const STUDY = `/exams/c/${CONTAINER}/study`;
+  const counterText = () => plain(screen.getByRole('banner').textContent);
+  const question = () => screen.getByRole('heading', { level: 1 }).textContent;
+  const oralQuestion = (id: string, position: number, text: string, hash: string) => ({
+    question_id: id,
+    position,
+    label: String(position),
+    section: null,
+    text,
+    question_hash: hash,
+    coverage: 'none' as const,
+    coverage_method: 'llm' as const,
+    coverage_reason: '',
+    missing_note: '',
+    rubric: null,
+  });
+  const sheet = {
+    examId: ORAL_EXAM,
+    mappingState: 'done',
+    toWrite: 0,
+    units: 0,
+    unwritable: 0,
+    job: null,
+    questions: [
+      oralQuestion('11111111-1111-4111-8111-111111111111', 17, 'Понятие и виды сделок.', 'a'.repeat(32)),
+      oralQuestion('33333333-3333-4333-8333-333333333333', 18, 'Форма сделки.', 'b'.repeat(32)),
+      oralQuestion('44444444-4444-4444-8444-444444444444', 19, 'Недействительность сделок.', 'c'.repeat(32)),
+    ],
+  };
+  function oralData() {
+    const base = summary({ subjects: [...summary().subjects, subject({ id: SUBJECT_ORAL, title: 'Гражданское право', keyed: 0, topics: [], oral: { exam_id: ORAL_EXAM, questions: 3 } })] });
+    return containerData({
+      summary: base,
+      plan: dayPlan({ sessions: [{ subjectId: SUBJECT_ORAL, kind: 'self_check', ids: sheet.questions.map((q) => q.question_id), estSec: 180 }] }),
+    });
+  }
+  function open(data: ContainerData, search: string) {
+    window.history.replaceState(null, '', `${STUDY}${search}`);
+    return renderStudy(data, search);
+  }
+  function reload(data: ContainerData) {
+    window.dispatchEvent(new Event('pagehide'));
+    cleanup();
+    expect(window.location.pathname).toBe(STUDY);
+    return renderStudy(data, window.location.search);
+  }
+  afterEach(() => window.history.replaceState(null, '', '/'));
+
+  it('a self-check goes on at the same question after a reload, with its ratings so far', async () => {
+    mocks.fetchSheet.mockResolvedValue(sheet);
+    const data = oralData();
+    open(data, `?s=${SUBJECT_ORAL}`);
+    await waitFor(() => expect(question()).toBe('Понятие и виды сделок.'));
+    expect(new URLSearchParams(window.location.search).get('sid')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Показать пункты' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Знаю' }));
+    await waitFor(() => expect(question()).toBe('Форма сделки.'));
+    expect(counterText()).toContain('2 из 3');
+
+    reload(data);
+    await waitFor(() => expect(question()).toBe('Форма сделки.'));
+    expect(counterText()).toContain('2 из 3');
+    fireEvent.click(screen.getByRole('button', { name: 'Показать пункты' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Плаваю' }));
+    await waitFor(() => expect(question()).toBe('Недействительность сделок.'));
+    fireEvent.click(screen.getByRole('button', { name: 'Показать пункты' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    // The tally counts the rating made before the reload too.
+    await waitFor(() => expect(plain(document.querySelector('.ct-end-p')?.textContent)).toContain('«Знаю» — 1, «плаваю» — 1, «не знаю» — 1.'));
+    expect(mocks.recordSelfRating).toHaveBeenCalledTimes(3);
+  });
+
+  it('a reload of a finished session says it is over; a new one starts only when asked', async () => {
+    const data = dataWith(dbItems().map((entry) => entry.id));
+    open(data, `?s=${SUBJECT_DB}`);
+    fireEvent.click(screen.getByRole('button', { name: 'Не знаю' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    await waitFor(() => expect(counterText()).toContain('2 из 5'));
+    fireEvent.click(screen.getByRole('button', { name: 'Закончить' }));
+    await waitFor(() => expect(document.querySelector('.ct-end')).not.toBeNull());
+    const sid = new URLSearchParams(window.location.search).get('sid');
+    expect(sid).toBeTruthy();
+    const started = () => mocks.track.mock.calls.filter((call) => call[0] === 'container.session_started').length;
+    const before = started();
+
+    reload(data);
+    expect(question()).toBe('Занятие закончено.');
+    expect(started()).toBe(before);
+    expect(screen.getByRole('link', { name: 'Вернуться к экзамену' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}`);
+    fireEvent.click(screen.getByRole('button', { name: 'Начать новое занятие' }));
+    await waitFor(() => expect(counterText()).toContain('1 из 5'));
+    expect(started()).toBe(before + 1);
+  });
+});

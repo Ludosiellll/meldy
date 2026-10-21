@@ -7,6 +7,7 @@
 import type { LocalDay } from '../../types/container';
 import type { QueueEntry } from '../../lib/containers/session';
 import type { StudyRecord } from './model';
+import { setAddressParams } from '../../lib/urlState';
 
 export interface SavedSession {
   v: 1;
@@ -21,6 +22,27 @@ export interface SavedSession {
   pos: number;
   startedAt: number;
   records: StudyRecord[];
+  /** A self-check (OralRun): its ratings so far and the questions rated, so a reload goes on with them. */
+  oral?: SavedOral;
+}
+
+export interface SavedOral {
+  know: number;
+  unsure: number;
+  dontKnow: number;
+  questions: number;
+  rated: string[];
+}
+
+function isOral(value: unknown): value is SavedOral {
+  const oral = value as SavedOral | null;
+  return Boolean(
+    oral &&
+      typeof oral === 'object' &&
+      [oral.know, oral.unsure, oral.dontKnow, oral.questions].every((n) => Number.isInteger(n) && n >= 0) &&
+      Array.isArray(oral.rated) &&
+      oral.rated.every((id) => typeof id === 'string'),
+  );
 }
 
 const PREFIX = 'meldy_container_session:';
@@ -64,7 +86,8 @@ export function loadSession(userId: string, containerId: string): SavedSession |
       !Array.isArray(value.queue) ||
       !value.queue.every(isEntry) ||
       typeof value.pos !== 'number' ||
-      !Array.isArray(value.records)
+      !Array.isArray(value.records) ||
+      (value.oral !== undefined && !isOral(value.oral))
     ) {
       return null;
     }
@@ -106,14 +129,34 @@ export function sessionOf(session: SavedSession | null, sid: string, today: Loca
  * The router's own state on the history entry is kept.
  */
 export function nameInAddress(sid: string): void {
+  setAddressParams({ resume: null, sid });
+}
+
+const ENDED_KEY = 'meldy_container_sessions_ended';
+
+/**
+ * The sessions this tab finished (their ids, the last few): a reload of a finished session's end screen (its address
+ * still names it) does not start a new session by itself — StudyPage says it is over and shows the way on.
+ */
+export function markSessionEnded(sid: string): void {
   try {
-    const url = new URL(window.location.href);
-    if (url.searchParams.get('sid') === sid && !url.searchParams.has('resume')) return;
-    url.searchParams.delete('resume');
-    url.searchParams.set('sid', sid);
-    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    const raw = window.sessionStorage.getItem(ENDED_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown) : [];
+    const ids = Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string' && id !== sid) : [];
+    window.sessionStorage.setItem(ENDED_KEY, JSON.stringify([...ids.slice(-9), sid]));
   } catch {
-    // The address stays as it is: a reload starts a new session, as before.
+    // A reload of the end screen starts a new session, as before.
+  }
+}
+
+export function sessionEnded(sid: string | null): boolean {
+  if (!sid) return false;
+  try {
+    const raw = window.sessionStorage.getItem(ENDED_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(list) && list.includes(sid);
+  } catch {
+    return false;
   }
 }
 
