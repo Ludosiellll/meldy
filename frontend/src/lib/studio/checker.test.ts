@@ -356,11 +356,13 @@ describe('the studio’s own checks (release 47.2)', () => {
       ],
     };
     const hints = checkTest(doc, []);
+    // Covers and no question: the page cannot be sent, and that comes first (UX audit of 21.10).
     expect(hints.map((hint) => [hint.id, hint.level, hint.blockId])).toEqual([
+      ['no_keyed', 'fix', undefined],
       ['title', 'think', undefined],
       ['cover_title:cover1', 'think', 'cover1'],
     ]);
-    expect(hints[0].message).toMatch(/^Тест называется «Контрольная · 18 октября», так его увидят участники/);
+    expect(hints[1].message).toMatch(/^Тест называется «Контрольная · 18 октября», так его увидят участники/);
     expect(checkTest({ ...doc, title: ' ', blocks: [] }, [])[0].message).toBe('У теста нет названия. Назовите его в настройках страницы.');
   });
 });

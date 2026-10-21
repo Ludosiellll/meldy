@@ -26,6 +26,7 @@ import { mostlyNone, nextReadyWhen } from '../components/exams/examStatus';
 import { useOralToday } from '../components/learnLeft/useOralToday';
 import { learnedQuestionsLine, learnLeftLine, readyTodayLine } from '../lib/containers/topics';
 import DailyReminder from '../components/reminders/DailyReminder';
+import GoalDoors from '../components/quick/GoalDoors';
 import QuestionOfDay from '../components/exams/share/QuestionOfDay';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
@@ -1385,7 +1386,10 @@ function FirstStepsCard({ steps, folded, lead, onToggle }: { steps: FirstSteps; 
           {folded ? 'Развернуть' : 'Свернуть'}
         </button>
       </div>
-      {folded ? null : (
+      {folded ? null : steps.neutral && !views[0].done ? (
+        // Nothing done yet: the goal first, an exam or a test for students (UX audit of 21.10, P2).
+        <GoalDoors id={listId} lead={lead} />
+      ) : (
         <ol className="td-fs-list" id={listId} data-steps={views.length === 3 ? undefined : views.length}>
           {views.map((view, index) => {
             const state = view.done ? 'done' : index === next ? 'next' : 'later';

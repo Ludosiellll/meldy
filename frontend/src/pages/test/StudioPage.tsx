@@ -19,7 +19,7 @@ import { bottomBarShown, hasBottomBar, sendWords, useTyping } from '../../compon
 import Preview from '../../components/studio/Preview';
 import Side from '../../components/studio/Side';
 import TextView from '../../components/studio/TextView';
-import Tour, { tourSeen } from '../../components/studio/Tour';
+import Tour, { useStudioTour } from '../../components/studio/Tour';
 import { useDark } from '../../components/studio/useDark';
 import { useStudio, type SaveState } from '../../components/studio/useStudio';
 import Workspace from '../../components/studio/Workspace';
@@ -27,6 +27,8 @@ import type { Uuid } from '../../types/container';
 import type { TestDoc } from '../../types/testDoc';
 import '../../components/exams/exams.css';
 import '../../components/studio/studio.css';
+import { STUDIO_PASTE } from '../../components/quick/copyQuick';
+import '../../components/quick/studioPaste.css';
 
 /**
  * /exams/c/:id/studio — «Студия теста» (spec meldy-notes 10_Project/Test_Builder_Spec_2026-10-18.md §47.6; plan
@@ -152,10 +154,12 @@ export default function StudioPage() {
     return out;
   }, [studio.doc.blocks, studio.rows]);
 
-  // The first visit's tour, once the page is there.
+  // The first visit's tour, once the page has its first block (UX audit of 21.10: it covered the empty page's starters),
+  // when neither this device nor the profile says it was seen.
+  const tourDue = useStudioTour(user?.id, studio.phase === 'ready' && studio.doc.blocks.length > 0);
   useEffect(() => {
-    if (studio.phase === 'ready' && user?.id && !tourSeen(user.id)) setTouring(true);
-  }, [studio.phase, user?.id]);
+    if (tourDue) setTouring(true);
+  }, [tourDue]);
 
   // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y: the page's steps (the question editor and the text field keep their own).
   const { undo, redo } = studio;
@@ -438,9 +442,10 @@ export default function StudioPage() {
         </p>
       ) : null}
       {studio.overflow > 0 ? <p className="st-line">{STUDIO.cap}</p> : null}
+      {/* Why «Отправить по ссылке» waits, said on the page (UX audit of 21.10: it was a tooltip, and a phone hid the button). */}
       {keyed === 0 ? (
-        <p id="st-send-why" className="sr-only">
-          {STUDIO.sendWhy}
+        <p id="st-send-why" className="st-line st-send-why">
+          {items.length === 0 ? STUDIO_PASTE.sendWaitsEmpty : STUDIO.sendWhy}
         </p>
       ) : null}
       {sendNote ? (
@@ -501,7 +506,7 @@ export default function StudioPage() {
               </button>
             </>
           ) : null}
-          {keyed > 0 || !phone ? sendButton : null}
+          {sendButton}
         </div>
       ) : null}
 

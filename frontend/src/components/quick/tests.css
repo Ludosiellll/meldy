@@ -1,0 +1,130 @@
+/* «Экзамены | Тесты» on «Экзамены» (TestsView.tsx; UX audit of 21.10, mockups m1 and m4): the switch as a white pill of
+ * two segments (the current one dark), the two doors at the heading's right (the blue «Быстрая контрольная»), the tests
+ * as white cards (radius 40), two a row on a computer, their контрольные as rows inside with two white pills. Tokens
+ * of index.css and exams.css only, so both themes follow. */
+
+/* ---------------------------------------------------------------- the switch */
+.tv-switch {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 18px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+}
+.tv-switch-b {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sf-ink);
+  font: 500 16px/1 var(--ph-sans);
+  cursor: pointer;
+  transition: background-color .35s var(--m-ease), color .35s ease;
+}
+.tv-switch-n { font-size: 14px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.tv-switch-b[aria-pressed='true'] { background: var(--sf-ink); color: var(--sf-canvas); }
+.tv-switch-b[aria-pressed='true'] .tv-switch-n { color: color-mix(in srgb, var(--sf-canvas) 70%, transparent); }
+@media (hover: hover) {
+  .tv-switch-b[aria-pressed='false']:hover { background: var(--sf-surface-soft); }
+}
+.tv-switch-b:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 2px; }
+
+/* The two doors are one size: the blue pill as the white one beside it (48 px, a 36 px circle). */
+.sf-page .tv-doors .sf-primary { height: 48px; gap: 12px; padding: 0 6px 0 22px; font-size: 16px; }
+.sf-page .tv-doors .sf-primary::after { width: 36px; height: 36px; background-size: 16px; }
+
+/* ---------------------------------------------------------------- the tests */
+.tv { margin-top: 28px; }
+.tv-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin: 0; padding: 0; list-style: none; }
+.sf-page:is([data-frame='xl'], [data-frame='l']) .tv-list { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.tv-card {
+  min-width: 0;
+  padding: 28px 32px 26px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card, 0 0 0 1px var(--sf-line));
+}
+.tv-card-t { margin: 0; font-size: 26px; line-height: 1.15; font-weight: 500; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.tv-card-t a { color: var(--sf-ink); text-decoration: none; }
+@media (hover: hover) {
+  .tv-card-t a:hover { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+}
+.tv-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.tv-tag { padding: 4px 10px; border-radius: 999px; background: var(--sf-surface-soft); box-shadow: 0 0 0 1px var(--sf-line); font-size: 14px; line-height: 1.2; color: var(--sf-muted); }
+
+.tv-quizzes { margin: 18px 0 0; padding: 0; list-style: none; }
+.tv-quiz { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 14px 0; border-top: 1px solid var(--sf-line); }
+.tv-quiz-text { min-width: 0; flex: 1 1 200px; }
+.tv-quiz-t { font-size: 16px; line-height: 1.3; font-weight: 600; color: var(--sf-ink); text-decoration: none; overflow-wrap: anywhere; }
+@media (hover: hover) {
+  .tv-quiz-t:hover { text-decoration: underline; text-underline-offset: 3px; }
+}
+.tv-quiz-m { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
+.tv-state[data-state='open']::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin: 0 7px 1px 0;
+  border-radius: 50%;
+  background: var(--m-green);
+  vertical-align: middle;
+}
+.tv-quiz-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.tv-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-ink);
+  font: 500 15px/1.2 var(--ph-sans);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color .35s var(--m-ease);
+}
+@media (hover: hover) {
+  .tv-pill:hover { background: var(--sf-surface-soft); }
+}
+.tv-pill:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 2px; }
+.tv-none { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
+.tv-none .tv-note { margin: 0; }
+.tv-note { margin: 18px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
+.tv-more { margin: 4px 0 0; font-size: 15px; }
+.tv-empty {
+  margin: 0;
+  padding: 24px 28px 26px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card, 0 0 0 1px var(--sf-line));
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--sf-ink);
+}
+.sf-page .tv-lede { max-width: 640px; }
+
+/* A phone (mockup m4): the switch under the wordmark line, the doors one under the other, cards in one column. */
+.sf-page[data-frame='s'] .tv-switch { margin-bottom: 14px; }
+.sf-page[data-frame='s'] .tv-switch-b { padding: 0 16px; font-size: 15px; }
+.sf-page[data-frame='s'] .tv-doors .sf-primary { width: 100%; justify-content: space-between; }
+.sf-page[data-frame='s'] .tv-doors .ex-new { width: 100%; justify-content: space-between; }
+.sf-page[data-frame='s'] .tv-card { padding: 22px 20px 18px; border-radius: 30px; }
+.sf-page[data-frame='s'] .tv-card-t { font-size: 22px; }
+.sf-page[data-frame='s'] .tv { margin-top: 20px; }
+.sf-page[data-frame='s'] .tv-quiz-acts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+.sf-page[data-frame='s'] .tv-quiz-acts .tv-pill { padding: 6px 10px; font-size: 14px; white-space: normal; text-align: center; }
+.sf-page[data-frame='s'] .tv-quiz-acts .tv-pill:only-child { grid-column: 1 / -1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .tv-switch-b,
+  .tv-pill { transition: none; }
+}

@@ -852,23 +852,38 @@ describe('«Сегодня» with exam containers: failures fall back', () => {
 });
 
 describe('«Первые шаги» with the exam container in the database (spec decisions 25, 33)', () => {
-  it('a new account: one neutral step into /exams/import, no lectures or ticket, no «Сделано 0 из 1»', async () => {
+  it('a new account: the goal first, an exam into /exams/import or a test into «Быстрая контрольная» (UX audit of 21.10)', async () => {
     db.tables.materials = () => ({ data: [] });
     db.tables.exams = () => ({ data: [] });
     db.countDueCards.mockResolvedValue(0);
     db.getDueCards.mockResolvedValue([]);
     await renderPage({ steps: null });
     const card = (await screen.findByRole('heading', { name: 'Первые шаги' })).closest('section')!;
-    const steps = within(card).getAllByRole('listitem');
-    expect(steps).toHaveLength(1);
-    expect(within(steps[0]).getByRole('heading', { level: 3 })).toHaveTextContent(/^Добавьте вопросы к экзамену/);
-    expect(plainText(steps[0].querySelector('.td-fs-p')?.textContent)).toBe('Один общий файл или по файлу на предмет. Если у вопросов есть варианты, ключ Meldy возьмёт из файла.');
-    const action = within(steps[0]).getByRole('link', { name: 'Новый экзамен' });
-    expect(action).toHaveAttribute('href', '/exams/import');
-    expect(action).toHaveClass('sf-primary');
+    const goals = within(card).getAllByRole('listitem');
+    expect(goals).toHaveLength(2);
+    expect(within(goals[0]).getByRole('heading', { level: 3 })).toHaveTextContent('Готовлюсь к экзамену');
+    const exam = within(goals[0]).getByRole('link', { name: 'Новый экзамен' });
+    expect(exam).toHaveAttribute('href', '/exams/import');
+    expect(exam).toHaveClass('sf-primary');
+    expect(within(goals[1]).getByRole('heading', { level: 3 })).toHaveTextContent('Даю тест ученикам');
+    const test = within(goals[1]).getByRole('link', { name: 'Быстрая контрольная' });
+    expect(test).toHaveAttribute('href', '/tests/quick');
+    expect(test).not.toHaveClass('sf-primary');
     expect(within(card).getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
     expect(card.textContent).not.toMatch(/Сделано|Добавьте лекции|Вытяните билет/);
-    expect(card.querySelector('.td-fs-list')).toHaveAttribute('data-steps', '1');
+  });
+
+  it('a new account that chose «Даю тест ученикам» in the guide: the test’s door comes first and is the blue pill', async () => {
+    db.tables.materials = () => ({ data: [] });
+    db.tables.exams = () => ({ data: [] });
+    db.countDueCards.mockResolvedValue(0);
+    db.getDueCards.mockResolvedValue([]);
+    window.localStorage.setItem('meldy_goal:user-1', 'test');
+    await renderPage({ steps: null });
+    const card = (await screen.findByRole('heading', { name: 'Первые шаги' })).closest('section')!;
+    const goals = within(card).getAllByRole('listitem');
+    expect(within(goals[0]).getByRole('link', { name: 'Быстрая контрольная' })).toHaveClass('sf-primary');
+    expect(within(goals[1]).getByRole('link', { name: 'Новый экзамен' })).not.toHaveClass('sf-primary');
   });
 
   it('an account with a container only: step 1 is done, so the card is gone and remembered as done', async () => {

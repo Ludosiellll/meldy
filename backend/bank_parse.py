@@ -2360,7 +2360,10 @@ def _glued_mark(option: Option) -> Optional[re.Match]:
     return None if _mono(option.runs) else GLUED_MARK_RE.match(option.text)
 
 
-def detect_markers(items: list[Item]) -> set[str]:
+def detect_markers(items: list[Item], least: int = 2) -> set[str]:
+    """Маркеры ключа во всём документе. В файле маркер должен стоять хотя бы у двух вопросов (и у половины): одна
+    «*» в большом файле бывает просто текстом. Текст быстрой контрольной учитель отмечает сам (hand): хватает одного
+    вопроса (least=1)."""
     counts: Counter = Counter()
     for item in items:
         if not item.options:
@@ -2375,7 +2378,7 @@ def detect_markers(items: list[Item]) -> set[str]:
         if 1 <= suffix < len(item.options):
             counts["suffix"] += 1
     with_options = sum(1 for item in items if item.options) or 1
-    chosen = {symbol for symbol, n in counts.items() if n >= max(2, with_options * 0.5)}
+    chosen = {symbol for symbol, n in counts.items() if n >= max(least, with_options * 0.5 if least > 1 else 1)}
     if "*" in chosen and counts.get("#"):
         chosen.add("#")  # Indigo: «*» — один правильный вариант, «#» — несколько
     if "#" in chosen and counts.get("*"):
@@ -2582,8 +2585,9 @@ def _open_up(item: Item) -> None:
 
 
 def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None,
-           format_mode: str = "auto") -> dict:
-    """Ключи, виды, флаги, предметы и темы найденных вопросов → словарь предпросмотра."""
+           format_mode: str = "auto", hand: bool = False) -> dict:
+    """Ключи, виды, флаги, предметы и темы найденных вопросов → словарь предпросмотра. hand — текст быстрой
+    контрольной: маркер ключа («*», «+») засчитывается и у одного вопроса."""
     use_file = key_mode == "auto"
     items = [item for item in reader.items if item.text or item.options]
     if len(items) > MAX_ITEMS:  # дальше число вопросов не меняется: отказ до разбора ключей
@@ -2613,7 +2617,7 @@ def finish(reader: Reader, *, key_mode: str = "auto", user_keys: Optional[dict[s
             item.explicit, item.explicit_from = user_key, "key_text"
         else:
             item.explicit = file_key
-    markers = detect_markers(items)
+    markers = detect_markers(items, least=1 if hand else 2)
     signal, table = choose_signal(items)
     if markers and signal:
         marker_items = sum(1 for item in items if any(_symbol_marked(o.text) for o in item.options))
@@ -3153,11 +3157,12 @@ def _heading_above_table(item: Item) -> bool:
 
 def parse_blocks(blocks: list[Block], *, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None,
                  line_word: str = "абзац", format_mode: str = "auto", key_file: Optional[list[dict]] = None,
-                 key_section: Optional[int] = None, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> dict:
+                 key_section: Optional[int] = None, pictures: Optional[dict[str, tuple[str, bytes]]] = None,
+                 hand: bool = False) -> dict:
     """Блоки документа (абзацы и таблицы по порядку) → словарь предпросмотра (finish). pictures — картинки DOCX."""
     reader = read_bank(blocks, line_word=line_word, format_mode=format_mode, pictures=pictures)
     return _finish_with_key_file(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode,
-                                 key_file=key_file, key_section=key_section)
+                                 key_file=key_file, key_section=key_section, hand=hand)
 
 
 def read_bank(blocks: list[Block], *, line_word: str = "абзац", format_mode: str = "auto",
@@ -3194,16 +3199,17 @@ def read_bank(blocks: list[Block], *, line_word: str = "абзац", format_mode
 
 
 def _finish_with_key_file(reader: Reader, *, key_mode: str, user_keys: Optional[dict[str, str]], format_mode: str,
-                          key_file: Optional[list[dict]], key_section: Optional[int]) -> dict:
+                          key_file: Optional[list[dict]], key_section: Optional[int], hand: bool = False) -> dict:
     """finish, а ключ из файла ключа (раздел варианта этого теста) — как ключ списком: старше отметок файла,
     несогласие с ними — key_conflict. Строки, вставленные руками, старше файла ключа."""
     if key_file is None:
-        return finish(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode)
+        return finish(reader, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode, hand=hand)
     used, warning = pick_key_section(key_file, reader.variant, key_section)
     keys = dict(key_file[used]["keys"]) if used is not None else None
     if keys is not None and user_keys:
         keys.update(user_keys)
-    result = finish(reader, key_mode=key_mode, user_keys=keys if keys is not None else user_keys, format_mode=format_mode)
+    result = finish(reader, key_mode=key_mode, user_keys=keys if keys is not None else user_keys, format_mode=format_mode,
+                    hand=hand)
     if warning:
         result["warnings"].append(warning)
     result["key_file"] = {
@@ -3423,13 +3429,36 @@ def forms_text(text: str) -> str:
     return "\n".join(out)
 
 
+# «(Ответ: б)» строкой под вариантами (в быстрой контрольной так пишут, как и в конце строки вопроса): «Ответ: б».
+HAND_ANSWER_LINE_RE = re.compile(
+    r"^[ \t]*\((правильн\w*\s+ответ\w*|верн\w*\s+ответ\w*|ответ|answer)[ \t]*[:\-–—][ \t]*([^()\n]{1,40}?)[ \t]*\)[ \t]*$",
+    re.I | re.M)
+# «*» после верного варианта: в конце строки («б) лакмус *», «b) 4*») и перед следующей подписью в строке вариантов
+# («а) HCl б) H2SO4* в) HNO3»). Не «**» (жирный Markdown) и не «*» одна в строке.
+HAND_STAR_END_RE = re.compile(r"(?<=[^\s*])[ \t]*\*[ \t]*$", re.M)
+HAND_STAR_INLINE_RE = re.compile(r"(?<=[^\s*])[ \t]*\*(?=[ \t]+\(?[а-иА-Иa-hA-H] ?\))")
+
+
+def hand_text(text: str) -> str:
+    """Текст быстрой контрольной перед разбором: «*» после варианта — отметка «(верно)» (её разбор знает и в файлах),
+    «(Ответ: б)» строкой — «Ответ: б»."""
+    text = HAND_ANSWER_LINE_RE.sub(lambda m: f"{m.group(1)}: {m.group(2)}", text)
+    text = HAND_STAR_INLINE_RE.sub(" (верно)", text)
+    return HAND_STAR_END_RE.sub(" (верно)", text)
+
+
 def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str] = None, format_mode: str = "auto",
-                    key_file: Optional[list[dict]] = None, key_section: Optional[int] = None, markdown: bool = False) -> dict:
-    """Вставленный текст (или текст TXT/MD) → предпросмотр банка. markdown — файл .md. Ошибки — BankError."""
+                    key_file: Optional[list[dict]] = None, key_section: Optional[int] = None, markdown: bool = False,
+                    hand: bool = False) -> dict:
+    """Вставленный текст (или текст TXT/MD) → предпросмотр банка. markdown — файл .md. Ошибки — BankError.
+    hand — текст быстрой контрольной (paste_api.py): учитель отмечает ответы сам (hand_text), «*» у одного вопроса —
+    уже ключ."""
     _check_modes(key_mode, format_mode)
     text = clean_text(text or "")
     if len(text) > MAX_TOTAL_CHARS:
         raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL)
+    if hand:
+        text = hand_text(text)
     user_keys = _user_keys(key_text)
     if looks_like_gift(text):
         return _checked(finish(read_gift(text), key_mode=key_mode, user_keys=user_keys, format_mode=format_mode), format_mode)
@@ -3437,7 +3466,7 @@ def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str
     table = tsv_table(text)
     blocks: list[Block] = [table] if table is not None else list(text_blocks(text, markdown=markdown))
     result = parse_blocks(blocks, key_mode=key_mode, user_keys=user_keys, line_word="строка", format_mode=format_mode,
-                          key_file=key_file, key_section=key_section)
+                          key_file=key_file, key_section=key_section, hand=hand)
     return _checked(result, format_mode)
 
 

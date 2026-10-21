@@ -126,7 +126,8 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
   }
 
   return (
-    <div className="sf-page ct-page th-page" data-view="test">
+    // «?» here opens the guide on «Тесты» (the address /exams/c/:id is an exam's as well).
+    <div className="sf-page ct-page th-page" data-view="test" data-guide-chapter="tests">
       <PageHead
         title={summary.title}
         meta={meta}
