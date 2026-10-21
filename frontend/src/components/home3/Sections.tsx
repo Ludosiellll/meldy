@@ -12,8 +12,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { glue } from '../../lib/containers/words';
 import { CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, LECTURE_SECTION, PICTURES, bind } from './copy3';
 import { GAME_FRAME, GAME_FRAMES } from './gameFrames';
-import Footage from '../film/Footage';
-import { STAND_RUN } from '../../lib/footage';
+import { lazyPart, useLazyPart } from '../../lib/lazyPart';
 import { ArrowIcon } from './HeroTop';
 import Swap from './Swap';
 import TicketAloud from './TicketAloud';
@@ -418,6 +417,20 @@ export function GroupSection() {
 /** «Провести игру»: sign up, then «Тесты», where every test has «Провести игру» (Register honours ?next=). */
 export const GAME_URL = `/register?next=${encodeURIComponent('/exams?view=tests')}`;
 
+/** The footage player and the game's footage: one file of their own, fetched when the game's section comes near. */
+const footagePart = lazyPart(() =>
+  Promise.all([import('../film/Footage'), import('../../lib/footage')]).then(([player, footage]) => ({ Player: player.default, footage: footage.STAND_RUN })),
+);
+
+/** The projector's footage once its file is here (the projector's own dark until then). */
+function GameFootage({ near }: { near: boolean }) {
+  useEffect(() => {
+    if (near) void footagePart.load().catch(() => undefined);
+  }, [near]);
+  const part = useLazyPart(footagePart, near);
+  return part ? <part.Player footage={part.footage} fit="cover" /> : null;
+}
+
 /** What the projector's picture shows, for those who do not see it. */
 export const GAME_ALT = 'Игра «Встань на ответ» на проекторе. Класс бежит к ответам, потом пол под неверными ответами проваливается. Устояли 18 из 30.';
 
@@ -425,12 +438,14 @@ export const GAME_ALT = 'Игра «Встань на ответ» на прое
  * «Игра в классе» (owner, 21.10: the real game running, not a drawing): the recorded game on the projector, the class
  * running to the answers and the floor dropping (lib/footage STAND_RUN, a silent loop while on screen; its poster with
  * reduced motion), the bot's post in the class chat with «Играть», and a student's phone in Telegram, «Верно +980».
- * Nothing moves on a press, and its one link is the only thing to press. The player fetches its poster and its parts only
- * as the section comes near, and the phone's still loads lazily, so the page's first load fetches none of it.
+ * Nothing moves on a press, and its one link is the only thing to press. The player is its own file, fetched as the
+ * section comes near (then its poster and its parts); the phone's still loads lazily: the page's first load carries none
+ * of it.
  */
 export function GameSection() {
   const stage = useRef<HTMLDivElement>(null);
   const seen = useInView(stage);
+  const near = useInView(stage, { margin: '900px 0px' });
   return (
     <section id="game" className="h3-wrap p3-sec p3-split" aria-labelledby="game-h">
       <SectionHead id="game-h" title={GAME_SECTION.title} text={GAME_SECTION.text}>
@@ -445,7 +460,7 @@ export function GameSection() {
       </SectionHead>
       <div ref={stage} className="p3-stage p3-stage--violet p3-game-stage" data-reveal={seen ? 'in' : 'wait'}>
         <div className="p3-proj p3-l" role="img" aria-label={GAME_ALT}>
-          <Footage footage={STAND_RUN} fit="cover" />
+          <GameFootage near={near} />
         </div>
         <div className="p3-gpost p3-l" style={delay(160)} aria-hidden="true">
           <p className="p3-tg-top">
