@@ -122,8 +122,13 @@ export function crowned(look: Look): Look {
   return out;
 }
 
-/** How long the names stay out while the class walks to its new places (the walk: 0.85 s + the stagger). */
-export const WALK_MS = 1300;
+/** The walk: 0.85 s, each character 14 ms after the one before (host.css .lvh-slot, --i). */
+export const WALK_STEP_MS = 14;
+/**
+ * How long the names stay out while the class walks to its new places: until the last of `n` characters has sat down
+ * (the walk, its stagger, and a beat).
+ */
+export const walkMs = (n: number) => 850 + WALK_STEP_MS * Math.max(0, Math.min(n, 40) - 1) + 200;
 
 export interface CrowdProps {
   view: CrowdView;
@@ -138,6 +143,8 @@ export interface CrowdProps {
 export function Crowd({ view, rows, places, store, onPick, first }: CrowdProps) {
   const box = useRef<HTMLDivElement>(null);
   const seen = useRef(view);
+  const rowsCount = useRef(rows.length);
+  rowsCount.current = rows.length;
   // A change of view walks the class: the names step out until everyone stands (an attribute, no render).
   useLayoutEffect(() => {
     if (seen.current === view) return undefined;
@@ -145,7 +152,7 @@ export function Crowd({ view, rows, places, store, onPick, first }: CrowdProps) 
     const el = box.current;
     if (!el) return undefined;
     el.setAttribute('data-walk', '');
-    const t = setTimeout(() => el.removeAttribute('data-walk'), WALK_MS);
+    const t = setTimeout(() => el.removeAttribute('data-walk'), walkMs(rowsCount.current));
     return () => clearTimeout(t);
   }, [view]);
   return (

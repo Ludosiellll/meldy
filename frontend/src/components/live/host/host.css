@@ -131,7 +131,9 @@ a.lvh-btn { text-decoration: none; }
 
 /* The class (Crowd.tsx): each character is a box of 72 units scaled to its place's size (.lvh-body) and a name label
    beside it at a fixed 24 units, cut with «…» at its place's width. Between the lobby, the arena and the podium both
-   walk (a transition of transform, staggered by --i); the names fade out for the walk (data-walk). Kicked players
+   walk (a transition of transform, staggered by --i); the names go at once for the walk and come back when the last
+   character sits (data-walk). Into the arena the lowest rows of the lobby leave first, so nobody is still low
+   on the screen when the question's panel comes in (.lvh-panel--late). Kicked players
    leave; joiners pop in once (on mount). No hover look: a mouse resting on the projector changes nothing. */
 .lvh-crowd { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
 .lvh-slot { position: absolute; left: 0; top: 0; width: 0; height: 0; transition: transform 0.85s var(--lvh-out) calc(var(--i, 0) * 14ms), opacity 0.4s ease; }
@@ -143,7 +145,7 @@ a.lvh-btn { text-decoration: none; }
   transition: transform 0.85s var(--lvh-out) calc(var(--i, 0) * 14ms), opacity 0.3s ease 0.1s;
 }
 .lvh-slot[data-noname] .lvh-name,
-.lvh-crowd[data-walk] .lvh-name { opacity: 0; transition: transform 0.85s var(--lvh-out) calc(var(--i, 0) * 14ms), opacity 0.15s ease; }
+.lvh-crowd[data-walk] .lvh-name { opacity: 0; transition: transform 0.85s var(--lvh-out) calc(var(--i, 0) * 14ms), opacity 0s; }
 .lvh-slot[role='button'] { pointer-events: auto; cursor: pointer; }
 .lvh-slot[role='button']:focus-visible { outline: none; }
 .lvh-slot[role='button']:focus-visible .lvh-body { outline: 3px solid var(--lvh-yellow); outline-offset: 4px; border-radius: 18px; }
@@ -183,6 +185,8 @@ a.lvh-btn { text-decoration: none; }
 
 /* ───────── panel: question, tiles, top five ───────── */
 .lvh-panel { position: absolute; left: 36px; right: 36px; bottom: 28px; height: 332px; background: var(--lvh-card); border-radius: 36px; box-shadow: inset 0 0 0 1.5px var(--lvh-line); padding: 20px 30px; z-index: 4; animation: lvh-panel-in 0.45s var(--lvh-out) backwards; }
+/* The first question, as the class walks in from the lobby: the panel waits until the walkers are up in the arena. */
+.lvh-panel--late { animation-delay: 0.6s; }
 .lvh-q-head { display: flex; align-items: center; gap: 22px; height: 88px; }
 .lvh-q-text { flex: 1; min-width: 0; margin: 0; font-weight: 700; line-height: 1.13; letter-spacing: -0.015em; text-wrap: balance; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .lvh-q-pic { flex: none; max-width: 180px; max-height: 88px; object-fit: contain; border-radius: 12px; }

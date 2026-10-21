@@ -94,9 +94,10 @@ export function crowdPlaces(view: CrowdView, rows: RosterRow[], seats: Seats, ar
     return { places, more: lobby.more };
   }
   if (view === 'battle') {
+    // into the arena the last seats leave first: they stood lowest in the lobby, where the question's panel comes in
     rows.forEach((r) => {
       const slot = arenaAt(r);
-      if (slot) places.set(r.player_id, at(slot, seatOf(r)));
+      if (slot) places.set(r.player_id, at(slot, Math.max(0, seats.count - 1 - seatOf(r))));
     });
     return { places, more: 0 };
   }
@@ -472,6 +473,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
           ) : q ? (
             <QuestionPanel
               key={q.qi}
+              late={enter && q.qi === 0}
               question={q}
               result={s.state === 'reveal' && beat !== 'all' ? s.result : null}
               closing={beat}

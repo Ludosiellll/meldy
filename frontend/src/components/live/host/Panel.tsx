@@ -151,6 +151,8 @@ interface QuestionPanelProps {
   /** countdown / open / reveal (the reveal brings `result`). */
   result: HostResult | null;
   closing?: Closing;
+  /** Comes in after the class's walk from the lobby (the first question). */
+  late?: boolean;
   players: number;
   answered: number;
   /** This device's ms of the question's open and close. */
@@ -158,7 +160,7 @@ interface QuestionPanelProps {
   closesAt: number;
 }
 
-export function QuestionPanel({ question, result, closing = null, players, answered, opensAt, closesAt }: QuestionPanelProps) {
+export function QuestionPanel({ question, result, closing = null, late = false, players, answered, opensAt, closesAt }: QuestionPanelProps) {
   const revealed = !!result && result.qi === question.qi;
   const beat = revealed ? null : closing;
   // once the time ran out on this question, the ring reads 0 until the panel goes (the reveal included)
@@ -166,7 +168,7 @@ export function QuestionPanel({ question, result, closing = null, players, answe
   if (closing === 'time') timeUp.current = true;
   const total = useMemo(() => (result ? Math.max(1, players, result.counts.reduce((a, b) => a + b, 0)) : 1), [result, players]);
   return (
-    <section className="lvh-panel lvh-question" aria-label="Вопрос">
+    <section className={`lvh-panel lvh-question${late ? ' lvh-panel--late' : ''}`} aria-label="Вопрос">
       <div className="lvh-q-head">
         <Ring opensAt={opensAt} closesAt={closesAt} stopped={revealed || beat !== null} timeUp={timeUp.current} />
         <h2 className="lvh-q-text" style={{ fontSize: questionFont(question.text) }}>

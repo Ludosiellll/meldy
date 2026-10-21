@@ -32,7 +32,9 @@ describe('host.css', () => {
     expect(name).toMatch(/text-overflow: ellipsis/);
     expect(name).toMatch(/white-space: nowrap/);
     expect(name).toMatch(/font: 600 24px/);
-    expect(css).toMatch(/\.lvh-crowd\[data-walk\] \.lvh-name \{ opacity: 0;/);
+    // at once: no half-faded names crossing each other (r2, N7)
+    expect(css).toMatch(/\.lvh-crowd\[data-walk\] \.lvh-name \{ opacity: 0; transition: [^}]*opacity 0s; \}/);
+    expect(css).toMatch(/\.lvh-panel--late \{ animation-delay: 0\.6s; \}/);
   });
 
   it('the lobby’s post list opens at --tg-pop-x (over the panel), not over the QR code', async () => {

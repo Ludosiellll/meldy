@@ -285,7 +285,13 @@ describe('teacher screen against the fake server', () => {
     space();
     await tick(50);
     expect(crowd).toHaveAttribute('data-walk');
-    await tick(1400);
+    // the panel waits for the walkers; the last seat leaves first (it stood lowest in the lobby) (r2, N7)
+    expect(view.container.querySelector('.lvh-question')).toHaveClass('lvh-panel--late');
+    const order = [...view.container.querySelectorAll<HTMLElement>('.lvh-slot')].map((el) => Number(el.style.getPropertyValue('--i')));
+    expect(order).toEqual([3, 2, 1, 0]);
+    await tick(1000);
+    expect(crowd).toHaveAttribute('data-walk'); // the names wait until the last one sits
+    await tick(400);
     expect(crowd).not.toHaveAttribute('data-walk');
   });
 
