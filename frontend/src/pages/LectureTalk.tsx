@@ -47,6 +47,7 @@ import { displayMaterialTitle } from '../utils/materialTitle';
 import { glue } from '../lib/oral/format';
 import { minutesBucket, track, waitBucket } from '../lib/telemetry';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { useSessionDraft } from '../lib/urlState';
 import { fragmentIdNumber, useFragmentPanel } from '../components/summary/FragmentPanel';
 
 /**
@@ -63,7 +64,9 @@ import { fragmentIdNumber, useFragmentPanel } from '../components/summary/Fragme
  * voice (sentence by sentence, the tutor's own voice only), the microphone (it opens 300 ms after
  * the voice, never while it speaks), the turn request with «Так…» at 700 ms and «Отвечаю дольше
  * обычного» at 6 s, Space and Esc, the statistics. Nothing is saved: the conversation counts toward
- * neither mastery nor readiness.
+ * neither mastery nor readiness, and it lives on this page only — a reload starts it again from «Начать».
+ * What was typed and not sent is kept in this tab under its card (lib/urlState.ts drafts) and comes back
+ * in the field when that card is asked again.
  */
 
 /** The tutor's voice (Светлана); the examiner of «Ответ вслух» keeps the professor's. */
@@ -167,6 +170,18 @@ function bringIntoView(block: HTMLElement) {
   } else if (rect.bottom + below > room) {
     block.scrollIntoView({ block: 'end', behavior });
   }
+}
+
+/** Typed and not sent under one card: `asking` when it is the student's own question («Спросить»). */
+interface TalkDraft {
+  text: string;
+  asking: boolean;
+}
+const NO_DRAFT: TalkDraft = { text: '', asking: false };
+
+function isTalkDraft(value: unknown): value is TalkDraft {
+  const draft = value as TalkDraft | null;
+  return Boolean(draft && typeof draft === 'object' && typeof draft.text === 'string' && typeof draft.asking === 'boolean');
 }
 
 function typingInto(target: EventTarget | null): boolean {
@@ -470,6 +485,27 @@ function TalkRoom({ materialId }: { materialId: string }) {
   const focusTextRef = useRef(false);
   const voice = voiceActive(state);
   const back = `/library/${materialId}`;
+
+  // What is typed and not sent, kept in this tab under the card it answers (owner, 21.10: a reload lost it) until it
+  // is sent; the field empties as the reply goes. After a reload the card's words come back in the field.
+  const draftKey = state.startedAt && card ? `talk:${materialId}:${card.target.id}` : null;
+  const [kept, keep] = useSessionDraft<TalkDraft>(draftKey, NO_DRAFT, isTalkDraft);
+  const keptKeyRef = useRef(draftKey);
+  useEffect(() => {
+    // A new card: nothing is typed for it yet (its own draft comes back below).
+    if (keptKeyRef.current !== draftKey) {
+      keptKeyRef.current = draftKey;
+      return;
+    }
+    keep(state.typed.trim() ? { text: state.typed, asking: state.asking } : NO_DRAFT);
+  }, [draftKey, state.typed, state.asking, keep]);
+  useEffect(() => {
+    const current = stateRef.current;
+    if (!kept.text || current.typed || !inTurn(current)) return;
+    focusTextRef.current = true;
+    dispatch({ type: 'mode', mode: 'text', text: kept.text });
+    if (kept.asking) dispatch({ type: 'ask', on: true });
+  }, [kept]);
 
   /** tutor_finished, once per session: done | left | limit | error. */
   const report = useCallback((current: TutorState, reason?: EndReason) => {

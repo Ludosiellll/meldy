@@ -227,6 +227,7 @@ beforeEach(() => {
   Object.assign(voice, { supported: true, engine: 'browser', status: 'idle', error: null, text: '', interim: '', starts: 0, stops: 0, pauses: 0, resets: [] });
   telemetry.events = [];
   window.localStorage.clear();
+  window.sessionStorage.clear();
 });
 
 afterEach(() => {
@@ -467,6 +468,59 @@ describe('a turn in writing', () => {
     await waitFor(() => expect(api.turns).toHaveLength(1));
     expect(api.turns[0].body).toMatchObject({ kind: 'answer', utterance: 'фрикционная' });
     expect(voice.starts).toBe(0);
+  });
+});
+
+describe('owner 21.10: a reload keeps what was typed and not sent', () => {
+  it('comes back in the field of its card when the conversation starts again; a sent answer leaves nothing', async () => {
+    await started('text');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ваш ответ' }), { target: { value: 'фрикционная и структурная' } });
+    cleanup();
+
+    // The conversation itself is on the page only: it starts again from «Начать».
+    await started('text');
+    expect(screen.getByRole('textbox', { name: 'Ваш ответ' })).toHaveValue('фрикционная и структурная');
+    fireEvent.click(pill('Готово'));
+    await waitFor(() => expect(api.turns).toHaveLength(1));
+    expect(api.turns[0].body).toMatchObject({ kind: 'answer', target_id: 'c1', utterance: 'фрикционная и структурная' });
+    cleanup();
+
+    await started('text');
+    expect(screen.getByRole('textbox', { name: 'Ваш ответ' })).toHaveValue('');
+  });
+
+  it('started aloud, the card opens in writing with the words; a question of one’s own stays a question', async () => {
+    await started('text');
+    fireEvent.click(pill('Спросить'));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ваш вопрос' }), { target: { value: 'Что такое NAIRU?' } });
+    cleanup();
+
+    await started('voice');
+    const field = await screen.findByRole('textbox', { name: 'Ваш вопрос' });
+    expect(field).toHaveValue('Что такое NAIRU?');
+    hearAll();
+    fireEvent.click(pill('Готово'));
+    await waitFor(() => expect(api.turns).toHaveLength(1));
+    expect(api.turns[0].body).toMatchObject({ kind: 'question', utterance: 'Что такое NAIRU?' });
+  });
+
+  it('is kept per card: another card’s words wait for that card', async () => {
+    await started('text');
+    fireEvent.click(pill('Не знаю'));
+    await waitFor(() => expect(api.turns).toHaveLength(1));
+    await answerWith(reply());
+    expect(within(tutorCard()).getByText(QUESTIONS[1])).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Ваш ответ' }), { target: { value: 'чтобы сдержать инфляцию' } });
+    cleanup();
+    api.turns = [];
+
+    await started('text');
+    expect(screen.getByRole('textbox', { name: 'Ваш ответ' })).toHaveValue('');
+    fireEvent.click(pill('Не знаю'));
+    await waitFor(() => expect(api.turns).toHaveLength(1));
+    await answerWith(reply());
+    expect(within(tutorCard()).getByText(QUESTIONS[1])).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Ваш ответ' })).toHaveValue('чтобы сдержать инфляцию');
   });
 });
 
