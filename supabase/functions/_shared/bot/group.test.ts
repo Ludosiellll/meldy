@@ -252,7 +252,7 @@ test('G3: a member right → the line «Верно.» and one tgq row with bot_g
   assert.deepEqual([right.text, right.show_alert], ['Верно.', undefined]);
   assert.deepEqual(h.fg.records, [{ clientEventId: `tgq:${POST}:${MEMBER.tg}`, userId: MEMBER.userId, itemId: DHCP.id, chosen: 1, source: 'bot_group', correct: true, shownOrder: shownOf(DHCP) }]);
   const wrong = await tap(h, buttonOf(DHCP, 'ARP'), AUTHOR.tg);
-  assert.deepEqual([wrong.text, wrong.show_alert], ['Неверно. В файле — DHCP. Вопрос вернётся в ваших занятиях завтра.', true]);
+  assert.deepEqual([wrong.text, wrong.show_alert], ['Неверно. В файле — DHCP. Повторим вопрос в ваших занятиях завтра.', true]);
   assert.equal(h.fg.records.length, 2, 'the author is in the exam too');
   const call = h.fdb.of('bot_group_answer').at(-1)!.args as Params;
   assert.deepEqual(call, { p_post_id: POST, p_tg_user_id: AUTHOR.tg, p_shown: buttonOf(DHCP, 'ARP'), p_chat_id: GROUP, p_message_id: 1000 });
@@ -264,7 +264,7 @@ test('G3: «Верно» on the two_days step names the new figure', async () =>
   await posted(h);
   h.fg.twoDays.set(MEMBER.tg, { twoDays: 144, inPlan: 960 });
   const reply = await tap(h, keyButton(DHCP), MEMBER.tg);
-  assert.equal(reply.text, 'Верно. Теперь 144 из 960 — верно в два разных дня.');
+  assert.equal(reply.text, 'Верно. Выучено 144 из 960.');
   assert.equal(reply.show_alert, undefined);
 });
 
@@ -273,7 +273,7 @@ test('G3: not linked, and linked but not in the exam: only the counter; the wind
   await posted(h);
   assert.equal((await tap(h, keyButton(DHCP), STRANGER.tg)).text, 'Верно.');
   const stranger = await tap(h, buttonOf(DHCP, 'DNS'), STRANGER.tg + 1);
-  assert.deepEqual([stranger.text, stranger.show_alert], ['Неверно. В файле — DHCP. Чтобы такие ответы шли в план Meldy, подключите Telegram в профиле.', true]);
+  assert.deepEqual([stranger.text, stranger.show_alert], ['Неверно. В файле — DHCP. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.', true]);
   assert.equal((await tap(h, keyButton(DHCP), OUTSIDER.tg)).text, 'Верно.');
   const h2 = groupHarness();
   await posted(h2);
@@ -321,13 +321,13 @@ test('G3 windows stay within 200 characters: a long option is cut with «…»',
   const unlinked = await tap(h, wrong, STRANGER.tg);
   assert.equal(unlinked.show_alert, true);
   assert.ok([...unlinked.text].length <= 200, `${[...unlinked.text].length}`);
-  assert.match(unlinked.text, /^Неверно\. В файле — Каждый неключевой атрибут .+[а-яё]… Чтобы такие ответы шли в план Meldy, подключите Telegram в профиле\.$/);
+  assert.match(unlinked.text, /^Неверно\. В файле — Каждый неключевой атрибут .+[а-яё]… Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy\.$/);
   const again = await tap(h, order.indexOf(0), STRANGER.tg);
   assert.ok([...again.text].length <= 200, `${[...again.text].length}`);
   assert.match(again.text, /^Вы уже ответили: Каждое значение атрибута .+[а-яё]… В файле — Каждый неключевой атрибут .+[а-яё]…$/);
   const member = await tap(h, wrong, MEMBER.tg);
   assert.ok([...member.text].length <= 200);
-  assert.match(member.text, /[а-яё]… Вопрос вернётся в ваших занятиях завтра\.$/);
+  assert.match(member.text, /[а-яё]… Повторим вопрос в ваших занятиях завтра\.$/);
 });
 
 test('a database failure on a press: the line «Meldy сейчас не отвечает…» and 200; Telegram does not retry it', async () => {
@@ -584,7 +584,7 @@ test('5 posts in a row without answers → no more posts and one G4 to the autho
   assert.equal(toChat(h, GROUP).length, 0, 'no post');
   const g4 = toChat(h, AUTHOR.tg);
   assert.equal(g4.length, 1);
-  assert.equal(words(g4[0].text), 'В беседе «3-ПО» пять дней подряд никто не ответил на вопрос дня — бот перестал его присылать. Включить снова можно на сайте, в «Пригласить группу».');
+  assert.equal(words(g4[0].text), 'В беседе «3-ПО» пять дней подряд никто не ответил на вопрос дня, поэтому бот перестал его присылать. Включить снова можно на сайте, в «Пригласить группу».');
   assert.deepEqual([g4[0].disable_notification, g4[0].protect_content], [true, true]);
   assert.deepEqual(keyboardOf(g4[0].reply_markup), [[{ text: 'Открыть в Meldy', url: `https://ludosiel-studyforge.hf.space/exams/c/${CID}/settings?invite=1` }]]);
   lintPrivate(g4[0].text, keyboardOf(g4[0].reply_markup), ['3-ПО']);
@@ -660,11 +660,11 @@ test('G1: the author\'s code → G1 in the group (silent, no buttons) and the pr
   assert.deepEqual(claim, { p_code: CODE, p_chat_id: GROUP, p_chat_type: 'supergroup', p_title: '3-ПО', p_from_tg_user_id: AUTHOR.tg, p_message_date: new Date(update.message!.date * 1000).toISOString() });
   const [g1, line] = sends(h);
   assert.equal(g1.chat_id, GROUP);
-  assert.equal(words(g1.text), 'Вопрос дня из экзамена «Осенняя сессия»\nРаз в день, в 12:00, без звука — один вопрос. Что вы нажали и ответ из файла видите только вы.\nПереписку бот не читает. Убрать вопрос дня — удалить бота из беседы.');
+  assert.equal(words(g1.text), 'Вопрос дня из экзамена «Осенняя сессия»\nРаз в день, в 12:00, без звука придёт один вопрос. Ваш ответ и ответ из файла видите только вы.\nПереписку бот не читает. Чтобы убрать вопрос дня, удалите бота из беседы.');
   assert.match(plain(g1.text), /^<b>Вопрос дня из экзамена «Осенняя сессия»<\/b>\n/);
   assert.deepEqual([g1.disable_notification, g1.protect_content, g1.reply_markup], [true, true, undefined]);
   assert.equal(line.chat_id, AUTHOR.tg);
-  assert.equal(words(line.text), 'Беседа «3-ПО» подключена: вопрос дня — каждый день в 12:00. Час и отключение — на сайте, в «Пригласить группу».');
+  assert.equal(words(line.text), 'Беседа «3-ПО» подключена. Вопрос дня будет приходить каждый день в 12:00. Изменить время или отключить можно на сайте, в «Пригласить группу».');
   assert.equal(h.tg.of('leaveChat').length, 0);
   assert.equal(h.fg.groups.get(GROUP)!.postHour, 12);
   // Another chat with the same code: used → the bot leaves it quietly, the author hears why.
@@ -742,7 +742,7 @@ test('/start g<chat>: a member or the author → K1 of that exam; linked, not in
   assert.deepEqual(h.fdb.of('bot_group_entry').map((x) => x.args), [{ p_tg_user_id: MEMBER.tg, p_chat_id: GROUP }]);
   const k1 = sends(h).at(-1)!;
   assert.equal(k1.chat_id, MEMBER.tg);
-  assert.match(words(k1.text), /^Сегодня около \d+ минут: .+\nОсенняя сессия · 3 ноября, через 18 дней/);
+  assert.match(words(k1.text), /^Сегодня .+, около \d+ минут\.\nОсенняя сессия · 3 ноября, через 18 дней/);
   assert.deepEqual(h.tg.of('deleteMessage').map((c) => c.params.message_id), [start.message!.message_id], 'the typed command goes, as /today');
   await h.post(privateText(`/start g${GROUP}`, { from: AUTHOR.tg }));
   assert.match(words(sends(h).at(-1)!.text), /Осенняя сессия · 3 ноября/);
@@ -750,7 +750,7 @@ test('/start g<chat>: a member or the author → K1 of that exam; linked, not in
   await h.post(privateText(`/start g${GROUP}`, { from: OUTSIDER.tg }));
   const card = sends(h).at(-1)!;
   assert.match(card.text, /^<b>Экзамен «Осенняя сессия»<\/b>\n/);
-  assert.equal(words(card.text), 'Экзамен «Осенняя сессия»\nОн приходит по ссылке группы — её даёт автор экзамена. Войдите по ней на сайте, и план появится здесь.');
+  assert.equal(words(card.text), 'Экзамен «Осенняя сессия»\nВойти в него можно по ссылке группы, её даёт автор экзамена. Откройте ссылку на сайте, и план появится здесь.');
   lintPrivate(card.text, null, ['Осенняя сессия']);
 
   await h.post(privateText(`/start g${GROUP}`, { from: STRANGER.tg }));
@@ -838,7 +838,7 @@ test('the texts T7 returns are raw: < > & are escaped in every message and stay 
   const params = sends(h).at(-1)!;
   await tap(h, shownOf(RAW).indexOf(3), STRANGER.tg);
   const toast = lastAnswer(h);
-  assert.equal(toast.text, 'Неверно. В файле — a & b. Чтобы такие ответы шли в план Meldy, подключите Telegram в профиле.', 'a window is plain text');
+  assert.equal(toast.text, 'Неверно. В файле — a & b. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.', 'a window is plain text');
   await h.tick();
   h.set(AT_2101);
   await h.tick();

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { Link } from 'react-router-dom';
+import { useUrlState } from '../lib/urlState';
 import { ArrowRight, MoreHorizontal, Plus, RotateCcw, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -140,7 +141,7 @@ export function lectureMeta(entry: LibraryEntry, followups = 0, short = false): 
   if (entry.summary && !short) parts.push('конспект');
   if (!entry.summary && short) parts.push('без конспекта');
   if (cards) parts.push(cards);
-  if (entry.quiz) parts.push('тест');
+  if (entry.quiz) parts.push('самопроверка');
   if (entry.cheatsheet) parts.push('выжимка');
   if (entry.talk) parts.push('подкаст');
   return parts.join(DOT);
@@ -497,10 +498,13 @@ export default function Library() {
   const [loading, setLoading] = useState(true);
   const [loadingLine, setLoadingLine] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [search, setSearch] = useState('');
+  // The search and the folder chosen live in the address (?q=, ?folder=; lib/urlState.ts): a reload and «Назад» keep them.
+  const [search, setSearch] = useUrlState<string>('q', '');
   const [folders, setFolders] = useState<Folder[]>([]);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
-  const [folderFilter, setFolderFilter] = useState('');
+  const [folderChoice, setFolderFilter] = useUrlState<string>('folder', '');
+  // A folder this device does not have (deleted, or a link from another device) filters nothing.
+  const folderFilter = folders.some((folder) => folder.id === folderChoice) ? folderChoice : '';
   const [openMenu, setOpenMenu] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
 
@@ -680,7 +684,7 @@ export default function Library() {
             <h1 id="library-empty-title" className="sf-h1">
               Здесь будут ваши лекции
             </h1>
-            <p className="lib-empty-p">Загрузите первую — Meldy сделает конспект, карточки и тест и сошлётся на её фрагменты.</p>
+            <p className="lib-empty-p">Загрузите первую. Meldy сделает конспект, карточки и самопроверку со ссылками на её фрагменты.</p>
             <Link className="sf-primary" to="/analyze">
               Разобрать лекцию
             </Link>

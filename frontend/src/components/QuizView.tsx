@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { CheckCircle2, RotateCcw, X, XCircle } from 'lucide-react';
 import SourceReferences from './SourceReferences';
 import { pluralRu } from './conversation/visuals';
-import { stripSourceMarkers } from './summary/fragmentModel';
+import { stemsOf, stripSourceMarkers } from './summary/fragmentModel';
 import {
   LearningSaveError,
   SAVE_FAILED_MESSAGE,
@@ -13,6 +13,9 @@ import {
   type QuizAttemptAnswer,
 } from '../api/learning';
 import './QuizView.css';
+
+/** What the fragment panel says over a question's fragments: they are found by shared words, not checked. */
+export const QUESTION_SOURCE_NOTE = 'Здесь в лекции больше всего общих слов с вопросом.';
 
 /**
  * The test of a material («Тест» after analysis and on the material page).
@@ -333,7 +336,7 @@ function PresentationMode({ questions, onExit }: { questions: NormalizedQuestion
               onClick={() => (index + 1 < total ? setIndex(index + 1) : setFinished(true))}
               className="sf-primary qz-pres-next"
             >
-              {index + 1 < total ? 'Следующий вопрос' : 'Завершить тест'}
+              {index + 1 < total ? 'Следующий вопрос' : 'Завершить'}
             </button>
           )}
         </div>
@@ -441,7 +444,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
   if (questions.length === 0) {
     return (
       <div className="qz-empty">
-        <p className="qz-empty-h">Теста нет</p>
+        <p className="qz-empty-h">Самопроверки нет</p>
         <p className="qz-empty-p">В этом результате нет ни одного вопроса.</p>
       </div>
     );
@@ -488,7 +491,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
     <div className="qz">
       <div className="qz-head">
         <div>
-          <h3 className="qz-title">Проверочный тест</h3>
+          <h3 className="qz-title">Самопроверка</h3>
           <p className="qz-sub">
             {total} {pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])} по материалу
           </p>
@@ -497,7 +500,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
 
       {submitted && (
         <motion.section
-          aria-label="Результат теста"
+          aria-label="Результат самопроверки"
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2 }}
@@ -578,7 +581,14 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
                   <span className="qz-explain-h">Пояснение:</span> {q.explanation}
                 </p>
               )}
-              <SourceReferences ids={q.sourceIds} sources={sources} compact />
+              <SourceReferences
+                ids={q.sourceIds}
+                sources={sources}
+                note={QUESTION_SOURCE_NOTE}
+                panelKey={`q-${i + 1}`}
+                stems={[...stemsOf(`${q.question} ${q.explanation}`)]}
+                compact
+              />
             </li>
           );
         })}

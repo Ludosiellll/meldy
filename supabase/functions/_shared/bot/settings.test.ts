@@ -68,10 +68,10 @@ test('the lines of §4.8 (presses that fail, old buttons) pass the toast rules; 
 
 test('S1 (release 47): the exams in the plan; «Экзамены» under the time and the pause', () => {
   const words = (out: Out) => visibleText(out.text).replace(/ /g, ' ').split('\n');
-  assert.equal(words(s1(linkOf(), EXAM, ONE))[2], 'Экзамен — «Осенняя сессия», 3 ноября.');
+  assert.equal(words(s1(linkOf(), EXAM, ONE))[2], 'Экзамен «Осенняя сессия», 3 ноября.');
   assert.equal(words(s1(linkOf(), EXAM, TWO))[2], 'Экзамены в плане: «Осенняя сессия», «Зимняя сессия».');
-  assert.equal(words(s1(linkOf(), EXAM, [TWO[0], { ...TWO[1], on: false }]))[2], 'Экзамен — «Осенняя сессия», 3 ноября.', 'one of two in the plan');
-  assert.equal(words(s1(linkOf(), null, TWO.map((e) => ({ ...e, on: false }))))[2], 'Ни один экзамен не выбран — план не приходит.');
+  assert.equal(words(s1(linkOf(), EXAM, [TWO[0], { ...TWO[1], on: false }]))[2], 'Экзамен «Осенняя сессия», 3 ноября.', 'one of two in the plan');
+  assert.equal(words(s1(linkOf(), null, TWO.map((e) => ({ ...e, on: false }))))[2], 'Ни один экзамен не выбран, поэтому план не приходит.');
   // passed exams are not «in the plan»; without a current one the lead exam's line stays
   const passed = TWO.map((e) => ({ ...e, state: 'after' as const }));
   assert.equal(words(s1(linkOf(), null, passed))[2], W.NO_EXAM);

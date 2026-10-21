@@ -3,7 +3,7 @@
  * same mapping; it is repeated here so the map does not load the diary page).
  */
 export function mistakeOriginWords(origin: string | null | undefined): string {
-  if (origin === 'quiz') return 'Тест';
+  if (origin === 'quiz') return 'Самопроверка';
   if (origin === 'oral_ticket') return 'Ответ на билет';
   return 'Устный экзамен';
 }

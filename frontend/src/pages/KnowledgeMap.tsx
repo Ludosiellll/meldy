@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { flushSync } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
+import { setAddressParams } from '../lib/urlState';
 import { Search } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useFrame } from '../components/exams/useFrame';
@@ -125,9 +126,22 @@ export default function KnowledgeMap() {
   const [params] = useSearchParams();
   const initialExam = params.get('exam');
   const [examChoice, setExamChoice] = useState<string | null | undefined>(initialExam === 'all' ? null : initialExam || undefined);
-  const [subject, setSubject] = useState<string | null>(null);
-  const [showAll, setShowAll] = useState(false);
-  const [mode, setMode] = useState<Mode>(() => (isPhone() ? 'list' : 'map'));
+  // The exam, the subject, «всё» and the map or the list live in the address too (?exam=, ?subject=, ?all=1,
+  // ?view=; lib/urlState.ts): a reload and «Назад» find the same map.
+  const [subject, setSubject] = useState<string | null>(() => params.get('subject') || null);
+  const [showAll, setShowAll] = useState(() => params.get('all') === '1');
+  const [mode, setMode] = useState<Mode>(() => {
+    const asked = params.get('view');
+    return asked === 'list' || asked === 'map' ? asked : isPhone() ? 'list' : 'map';
+  });
+  useEffect(() => {
+    setAddressParams({
+      exam: examChoice === undefined ? null : examChoice === null ? 'all' : examChoice,
+      subject: subject || null,
+      all: showAll ? '1' : null,
+      view: mode === (isPhone() ? 'list' : 'map') ? null : mode,
+    });
+  }, [examChoice, subject, showAll, mode]);
   const [selected, setSelected] = useState<NodeId | null>(null);
   const [hover, setHover] = useState<NodeId | null>(null);
   const [focused, setFocused] = useState<NodeId | null>(null);

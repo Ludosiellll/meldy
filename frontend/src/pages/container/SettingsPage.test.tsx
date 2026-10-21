@@ -183,17 +183,17 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
   it('says what the minutes need to see every question by the date (the exam page’s «Время в день» leads here)', async () => {
     api.feasibility.mockReturnValue({ neededMin: 70, option: 90, seenByDateEst: 960 });
     renderAt(`/exams/c/${ID}/settings#minutes`);
-    expect(screen.getByText(/^Чтобы увидеть все 960\sвопросов к 12\sянваря, нужно около 70\sминут в день\.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Чтобы пройти все 960\sвопросов к 12\sянваря, нужно около 70\sминут в день\.$/)).toBeInTheDocument();
     expect(api.feasibility).toHaveBeenLastCalledWith(expect.objectContaining({ budgetMin: SUMMARY.settings.minutes_per_day }));
     // The line follows the form: a new date counts before it is saved.
     fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '2027-01-14' } });
-    expect(screen.getByText(/^Чтобы увидеть все 960\sвопросов к 14\sянваря, нужно около 70\sминут в день\.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Чтобы пройти все 960\sвопросов к 14\sянваря, нужно около 70\sминут в день\.$/)).toBeInTheDocument();
     const input = api.feasibility.mock.calls[api.feasibility.mock.calls.length - 1][0] as PlanInput;
     expect(input.subjects.find((subject) => subject.id === SUMMARY.subjects[0].id)?.date).toBe('2027-01-14');
     // Without a date there is nothing to count to.
     fireEvent.change(screen.getByLabelText('Дата экзамена'), { target: { value: '' } });
-    expect(screen.queryByText(/Чтобы увидеть все/)).not.toBeInTheDocument();
-    expect(screen.getByText(/Без даты — по 15\sновых вопросов в день на предмет\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Чтобы пройти все/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Дата не указана\. Пока по 15\sновых вопросов в день на предмет\./)).toBeInTheDocument();
   });
 
   it('says honestly what the minutes reach when they fall short, the final window under «Подробнее»', async () => {
@@ -201,19 +201,19 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     renderAt();
     fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
     fireEvent.click(await screen.findByRole('option', { name: /^30\sминут$/ }));
-    expect(screen.getByText(/^При 30\sминутах к 12\sянваря вы увидите около 700 из 960\. Чтобы увидеть все, нужно около 75\sминут\./)).toBeInTheDocument();
-    expect(screen.queryByText(/в день\.$/)).not.toBeInTheDocument();
+    expect(screen.getByText(/^Если заниматься 30\sминут в день, к 12\sянваря вы пройдёте около 700 из 960\. Чтобы пройти все, нужно около 75\sминут в день\./)).toBeInTheDocument();
+    expect(screen.queryByText(/^Чтобы пройти все \d/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
-    expect(screen.getByText(/С 8\sянваря новых вопросов не будет: последние 4\sдня — только знакомые, сначала ошибки\./)).toBeInTheDocument();
+    expect(screen.getByText(/С 8\sянваря новых вопросов не будет\. В последние 4\sдня только знакомые, сначала ошибки\./)).toBeInTheDocument();
   });
 
   it('even 90 minutes falling short is said at 90 only: at fewer minutes the line names the minutes chosen', async () => {
     api.feasibility.mockImplementation((input: PlanInput) => ({ neededMin: 120, option: null, seenByDateEst: input.budgetMin === 90 ? 812 : 455 }));
     renderAt();
-    expect(screen.getByText(/^При 45\sминутах к 12\sянваря вы увидите около 450 из 960\. Чтобы увидеть все, нужно около 120\sминут\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Если заниматься 45\sминут в день, к 12\sянваря вы пройдёте около 450 из 960\. Чтобы пройти все, нужно около 120\sминут в день\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
     fireEvent.click(await screen.findByRole('option', { name: /^90\sминут$/ }));
-    expect(screen.getByText(/^Даже при 90\sминутах в день к 12\sянваря вы увидите около 810 из 960\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Даже если заниматься 90\sминут в день, к 12\sянваря вы пройдёте около 810 из 960\./)).toBeInTheDocument();
   });
 
   it('«Все вопросы» after 90 (the owner, 2026-10-14): the line says the new ones and the time a day; the save sends 300', async () => {
@@ -221,7 +221,7 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     renderAt();
     fireEvent.click(screen.getByRole('combobox', { name: 'Время в день' }));
     fireEvent.click(await screen.findByRole('option', { name: 'Все вопросы' }));
-    expect(screen.getByText(/^Все 960\sвопросов — к \d+\s\S+: около \d+ новых в\sдень, около 120\sминут в\sдень\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Все 960\sвопросов к \d+\s\S+\. Около \d+ новых в\sдень, около 120\sминут в\sдень\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 300, study_weekdays: 127, tempo: 'date' }));
   });
@@ -231,7 +231,7 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     expect(screen.getByRole('combobox', { name: 'Новые вопросы' })).toHaveTextContent('Равномерно до даты');
     fireEvent.click(screen.getByRole('combobox', { name: 'Новые вопросы' }));
     fireEvent.click(await screen.findByRole('option', { name: 'Как можно быстрее' }));
-    expect(screen.getByText(/^При \d+\sминутах в\sдень все 960\sвопросов вы увидите (сегодня|завтра|к \d+\s\S+ — за \d+\s\S+ занятий)\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Если заниматься \d+\sминут\S* в\sдень, вы пройдёте все 960\sвопросов (сегодня|завтра|к \d+\s\S+, за \d+\s\S+ занятий)\./)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, expect.objectContaining({ tempo: 'fast' })));
   });
@@ -413,16 +413,16 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     // The minutes reach every question on every day (saved), not on Пн–Пт.
     api.feasibility.mockImplementation((input: PlanInput) => ({ neededMin: 75, option: 90, seenByDateEst: input.studyWeekdays === 31 ? 704 : 960 }));
     renderAt();
-    expect(screen.getByText(/^Чтобы увидеть все 960\sвопросов к 12\sянваря, нужно около 75\sминут в день\.$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Чтобы пройти все 960\sвопросов к 12\sянваря, нужно около 75\sминут в день\.$/)).toBeInTheDocument();
     const days = within(screen.getByRole('group', { name: SETTINGS.days }));
     fireEvent.click(days.getByRole('button', { name: 'суббота' }));
     fireEvent.click(days.getByRole('button', { name: 'воскресенье' }));
     expect(api.feasibility).toHaveBeenLastCalledWith(expect.objectContaining({ studyWeekdays: 31 }));
-    expect(screen.getByText(/^При 45\sминутах к 12\sянваря вы увидите около 700 из 960\. Чтобы увидеть все, нужно около 75\sминут\./)).toBeInTheDocument();
+    expect(screen.getByText(/^Если заниматься 45\sминут в день, к 12\sянваря вы пройдёте около 700 из 960\. Чтобы пройти все, нужно около 75\sминут в день\./)).toBeInTheDocument();
     // The final 4 days are the last study days before Tuesday 12 January: 6, 7, 8 and 11 January.
     expect(api.windowDays).toHaveBeenLastCalledWith(PLAN.firstPlanDay, '2027-01-12', 31);
     fireEvent.click(screen.getByRole('button', { name: 'Подробнее' }));
-    expect(screen.getByText(/С 6\sянваря новых вопросов не будет: последние 4\sдня — только знакомые, сначала ошибки\./)).toBeInTheDocument();
+    expect(screen.getByText(/С 6\sянваря новых вопросов не будет\. В последние 4\sдня только знакомые, сначала ошибки\./)).toBeInTheDocument();
     expect(api.saveSettings).not.toHaveBeenCalled();
     // Saturday back on (Пн–Сб): 7, 8, 9 and 11 January.
     fireEvent.click(days.getByRole('button', { name: 'суббота' }));
@@ -531,7 +531,7 @@ describe('SettingsPage: «Моя дата экзамена» (release 47)', () =
     expect(field().value).toBe('');
     expect(field().min).toBe('2026-12-21');
     expect(field().max).toBe('2028-12-20');
-    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора — 12\sянваря\.$/);
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора 12\sянваря\.$/);
     // Nothing to take away yet.
     expect(screen.queryByRole('button', { name: SETTINGS.ownDateClear })).toBeNull();
     fireEvent.change(field(), { target: { value: '2027-01-26' } });
@@ -548,7 +548,7 @@ describe('SettingsPage: «Моя дата экзамена» (release 47)', () =
     renderAt();
     expect(field().value).toBe('2027-01-26');
     // Their own date stands in for the summary's: the note still names the author's.
-    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора — 12\sянваря\.$/);
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У автора 12\sянваря\.$/);
     expect(screen.queryByRole('button', { name: 'Сохранить' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: SETTINGS.ownDateClear }));
     await waitFor(() => expect(api.moveExamDate).toHaveBeenCalledWith(ID, null, 'me'));
@@ -590,7 +590,7 @@ describe('SettingsPage: «Моя дата экзамена» (release 47)', () =
     };
     renderAt();
     expect(field().value).toBe('2027-01-26');
-    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У участников — 12\sянваря\.$/);
+    expect(field()).toHaveAccessibleDescription(/^Только для вас\. У участников 12\sянваря\.$/);
     expect((screen.getByLabelText('Дата экзамена') as HTMLInputElement).value).toBe('2027-01-12');
     // The subjects' own dates are not known here: no «У предметов разные даты», and nothing to clear.
     expect(screen.queryByRole('button', { name: SETTINGS.dates })).toBeNull();

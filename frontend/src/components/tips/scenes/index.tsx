@@ -146,7 +146,7 @@ function Talk() {
 // bar like a screen recording. Telegram's own metrics, one stage pixel a dp of a 400 dp wide phone (TMessagesProj:
 // ChatMessageCell, BotButton, MessageDrawable, ChatAvatarContainer, ChatActivityEnterView, BotCommandsMenuView).
 //
-// What the bot does, step by step (supabase/functions/_shared/bot): yesterday's «Готово: план на день — в 20:00.» (M3,
+// What the bot does, step by step (supabase/functions/_shared/bot): yesterday's «Готово. План будет приходить в 20:00.» (M3,
 // link.ts — the bot removes the «/start» it was linked with, so the chat starts there); at 20:00 the day's card comes
 // as a new message (card.ts dayCard, a reminder: the plan, the exam with its date, the figure, the blue «Начать: 20
 // вопросов» — style «primary»); «Начать» is answered without a line and the same message becomes the first question
@@ -175,7 +175,7 @@ export const TG_UI = {
 /** M3 of the day before (link.ts m3: the time was picked; the day's work was done, so no «Начать»). */
 export const TG_HISTORY = {
   /** words.ts m3Title(timeText(20 × 60)). */
-  title: 'Готово: план на день — в 20:00.',
+  title: 'Готово. План будет приходить в 20:00.',
   /** The plan's line of a finished day (planSentence → lib/containers/words.ts lineText «done»). */
   line: lineText({ key: 'done', n: [65, 31] }),
   time: '19:42',
@@ -183,13 +183,13 @@ export const TG_HISTORY = {
 
 /** The bot's day card (card.ts dayCard, a reminder): the plan, the exam with its date, the figure, «Начать». */
 export const TG_CARD = {
-  /** planLine of a study day («Сегодня около … : planDetail»), ended with a period as card.ts `sentence` does. */
-  plan: `Сегодня около ${glue(30, 'минуты', 'минут', 'минут')}: ${glue(20, 'новый', 'новых', 'новых')} и ${glue(45, 'знакомый', 'знакомых', 'знакомых')}.`,
+  /** planLine of a study day («Сегодня planDetail, около …»), ended with a period as card.ts `sentence` does. */
+  plan: `Сегодня ${glue(20, 'новый', 'новых', 'новых')} и ${glue(45, 'знакомый', 'знакомых', 'знакомых')}, около ${glue(30, 'минуты', 'минут', 'минут')}.`,
   /** words.ts examLine + dateWhen: the exam's title · its date, the days to it. */
   exam: `Микроэкономика · ${dayText('2026-11-01')}, через ${glue(19, 'день', 'дня', 'дней')}`,
   figure: (() => {
     const words = figureLines({ inPlan: 400, twoDays: 12, seen: 90, errors: 7, selfKnow: 0 }, null);
-    return `${words.big} ${words.of} — ${words.label}`;
+    return `Выучено ${words.big} ${words.of}`;
   })(),
   start: startLabel(20, null, null),
   /** The reminder's time (link.remindAt), the message's time in the chat. */

@@ -27,12 +27,13 @@ import {
 import './room.css';
 
 /**
- * The end of a «занятие» (decision 49; Concept 1 §3.9 with the critique's lines): one headline — the figure's change
- * («Теперь 147 из 960 — верно в два разных дня»), or, when it did not move, «20 вопросов за 11 минут» — then one muted
+ * The end of a «занятие» (decision 49; Concept 1 §3.9 with the critique's lines; the owner's plain words, 2026-10-21):
+ * one headline — the figure's change («Выучено 147 вопросов из 960»), or, when it did not move, the result
+ * («17 из 20 верно за 11 минут») — then one muted
  * paragraph, then what is left today and the one pill: the next session, or «Готово» when the day is done. The headline
  * and the paragraph say the server's results once every answer of the session has come back; what is left is the exam
  * page's own count, from the plan read again then (useReplan), so the page after the screen says the same (usability
- * check 2026-10-11, D2), and so is the paragraph's «Первые войдут в счёт …» while the figure is 0. Each appears once —
+ * check 2026-10-11, D2), and so is the paragraph's «Ответьте верно ещё раз …» while the figure is 0. Each appears once —
  * held in its place, invisible, for at most LEFT_WAIT.ms while its numbers come — and never changes under the finger;
  * the headline takes the focus when it is shown. After the first session ever: the daily reminder (the calendar until
  * the Telegram bot), and «Готово» opens the guide (decision 33). No confetti: the figure's change is the reward.
@@ -56,7 +57,7 @@ interface LeftToday {
 
 /** What the end screen says from the plan: what is left today, and while the figure is 0 the first count. */
 interface Said extends LeftToday {
-  /** «Первые войдут в счёт сегодня после 14:35 — если снова ответите верно.» (decision 40), the paragraph's last sentence. */
+  /** «Ответьте верно ещё раз сегодня после 14:35, и первые вопросы будут выучены.» (decision 40), the last sentence. */
   first: string | null;
 }
 
@@ -247,12 +248,14 @@ export default function SessionEnd({
   const movedBy = (s: SessionSummary | null) => Boolean(s && s.known && (s.gained > 0 || s.dropped > 0));
   const headOf = (s: SessionSummary | null): Head => {
     const moved = movedBy(s);
-    const time = copy.sessionTime(s?.questions ?? oral?.questions ?? 0, s?.retries ?? 0, minutes);
+    let time = copy.sessionTime(s?.questions ?? oral?.questions ?? 0, s?.retries ?? 0, minutes);
     const figure = moved && s ? copy.nowFigureParts(Math.max(0, base.twoDays + s.gained - s.dropped), base.total) : null;
     const parts: string[] = [];
     if (s) {
-      if (moved) parts.push(`${time}.`);
-      if (s.questions > 0) parts.push(copy.firstRight(s.firstRight, s.questions));
+      // The result and its time in one line («17 из 20 верно за 11 минут»): the headline, or under «Выучено …».
+      const score = s.questions > 0 ? copy.rightIn(s.firstRight, s.questions, minutes) : null;
+      if (moved) parts.push(`${score ?? time}.`);
+      else if (score) time = score;
       // What comes back after today comes back on a study day (input.studyWeekdays): «завтра», or the next one
       // («в понедельник»), the word of the verdicts in the session.
       const back = comesBackWhen(today, input?.studyWeekdays);

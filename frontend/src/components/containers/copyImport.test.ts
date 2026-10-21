@@ -17,7 +17,6 @@ const BANNED = [
   'засчитан',
   'сгорел',
   'готов на',
-  'выучен',
   'сдашь',
   'отстаёте',
   'преподавател',
@@ -126,14 +125,14 @@ describe('copyImport: the words of the import, keys, settings and group screens'
 
   it('uses the corrected lines of the design table, not the concept’s', () => {
     expect(IMPORT.lede).toBe('Один общий файл или по файлу на предмет.');
-    expect(IMPORT.problems(11)).toBe(`Проверьте 11${NBSP}вопросов — можно и после сохранения.`);
+    expect(IMPORT.problems(11)).toBe(`Проверьте 11${NBSP}вопросов. Можно и после сохранения.`);
     expect(IMPORT.spotCheck).toBe('Сверить ключ на трёх вопросах');
     expect(IMPORT.minutes).toBe('Время в день');
     expect(IMPORT.readAsOral).toBe('Прочитать как устные вопросы ›');
     expect(IMPORT.partTitle('Гражданское право', 2)).toBe('Гражданское право, часть 2');
     expect(QUEUE.pickKey).toBe('Какой вариант верный? Нажмите его.');
     expect(QUEUE.imageOk).toBe('Вопрос понятен без картинки');
-    expect(QUEUE.noKey).toBe('Ответ в файле не отмечен. Отметьте верный, если знаете, или пропустите — вопрос подождёт.');
+    expect(QUEUE.noKey).toBe('Ответ в файле не отмечен. Отметьте верный, если знаете, или пропустите и вернитесь к нему позже.');
     expect(IMPORT.tgIphone).toBe('Файл из Telegram сначала сохраните в «Файлы».');
     expect(IMPORT.tgAndroid).toContain('Сохранить в загрузки');
     expect(IMPORT.updateSave(12)).toBe(`Добавить 12${NBSP}вопросов`);

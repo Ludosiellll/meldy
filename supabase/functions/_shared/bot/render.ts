@@ -37,7 +37,7 @@ export const S = {
   mark: 'Отметить',
   cancel: 'Отмена',
   done: 'Готово',
-  retryTag: 'повтор — не в счёт',
+  retryTag: 'повтор, не считается',
   /** Container decision 50 (over the bot spec's «Выберите все верные ответы.»). */
   multipleHint: 'Верных ответов несколько — отметьте все.',
   shortHint: 'Напишите ответ сообщением.',
@@ -47,25 +47,25 @@ export const S = {
   right: 'Верно.',
   wrong: 'Неверно.',
   markOne: 'Отметьте хотя бы один вариант.',
-  doubtDone: 'Отложено. Когда автор ответит, вопрос вернётся в занятия.',
-  manualByAuthor: 'В файле ответ не был выделен — ключ поставил автор.',
-  manualByYou: 'В файле ответ не был выделен — ключ поставили вы.',
+  doubtDone: 'Вопрос отложен. Когда автор ответит, он снова будет в занятиях.',
+  manualByAuthor: 'В файле ответ не был выделен. Ключ поставил автор.',
+  manualByYou: 'В файле ответ не был выделен. Ключ поставили вы.',
   moved: 'Занятие продолжено ниже.',
 } as const;
 
 /**
- * «Вернётся через пару вопросов и завтра.» while the session still brings it back, else «Вернётся завтра.» `when` is
+ * «Повторим через пару вопросов и завтра.» while the session still brings it back, else «Повторим завтра.» `when` is
  * the exam's next study day after today («в понедельник» before a day off: today.ts `comesBackOn`), as the site's
  * answer, the record (summary.ts `back`) and `misclickDone` say it.
  */
-export const comesBack = (again: boolean, when = 'завтра') => (again ? `Вернётся через пару вопросов и ${when}.` : `Вернётся ${when}.`);
+export const comesBack = (again: boolean, when = 'завтра') => (again ? `Повторим через пару вопросов и ${when}.` : `Повторим ${when}.`);
 /** Z9, «Нажали не туда?»: the answer was seen, so the question comes back on `when` (as `comesBack`). */
-export const misclickDone = (when = 'завтра') => `Отменили: ошибку не считаем. Ответ вы уже видели — вопрос вернётся ${when}.`;
+export const misclickDone = (when = 'завтра') => `Ошибку не считаем. Ответ вы уже видели, поэтому повторим вопрос ${when}.`;
 /** The longest `when` (a weekday of `comesBackOn`): what `fitsTelegram` measures a review with. */
 const LONGEST_WHEN = 'в воскресенье';
 export const doubtAsk = (no: string) =>
-  `Сомневаетесь в ключе к № ${no}? Автор экзамена увидит, сколько участников сомневаются, — без имён. Вопрос отложим у вас, пока автор не ответит.`;
-export const keyFixedOn = (day: string) => `Ключ исправлен автором ${dayText(day)}.`;
+  `Сомневаетесь в ключе к № ${no}? Автор увидит, сколько участников сомневаются, но не их имена. Вопрос отложим, пока автор не ответит.`;
+export const keyFixedOn = (day: string) => `Автор исправил ключ ${dayText(day)}.`;
 /** «Верно.», «Верно: оба.», «Верно: все 3.» (several correct: the site's verdictRightAll). */
 export function rightLine(kind: QuestionItem['kind'], keyCount: number): string {
   if (kind !== 'multiple' || keyCount < 2) return S.right;
@@ -76,7 +76,7 @@ export function rightToast(kind: QuestionItem['kind'], keyCount: number, figure:
   const head = rightLine(kind, keyCount);
   if (!figure || figure.twoDays <= 0) return head;
   const words = figureLines({ inPlan: figure.inPlan, twoDays: figure.twoDays, seen: 0, errors: 0, selfKnow: 0 }, null);
-  return `${head} Теперь ${words.big} ${words.of} — ${words.label}.`;
+  return `${head} Выучено ${words.big} ${words.of}.`;
 }
 /** «Верно: 32.» — the file's form the typed answer matched (the normalisation shown). */
 export const shortRight = (form: string) => `Верно: ${form}.`;
@@ -129,7 +129,7 @@ const own = (text: string) => esc(text);
 /** A typed answer shown back: at most 200 characters. */
 const typedShown = (text: string) => ([...text].length > 200 ? `${[...text].slice(0, 199).join('').trimEnd()}…` : text);
 
-/** «Компьютерные сети · 3 из 20», a retry «… · повтор — не в счёт». */
+/** «Компьютерные сети · 3 из 20», a retry «… · повтор, не считается». */
 export function headerText(v: Pick<QuestionView, 'subject' | 'n' | 'of' | 'retry'>): string {
   return `${oneLine(v.subject)} · ${v.n} из ${v.of}${v.retry ? ` · ${S.retryTag}` : ''}`;
 }

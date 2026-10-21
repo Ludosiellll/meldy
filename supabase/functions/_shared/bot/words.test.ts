@@ -37,8 +37,8 @@ test('release 47: the words of «Экзамены» and «Перенести э�
   assert.equal(plain(W.examChoice(true, 'Осенняя сессия', '2026-11-03')), '✓ Осенняя сессия · 3 ноября');
   assert.equal(plain(W.examChoice(false, 'Зимняя сессия', '2026-12-20')), '— Зимняя сессия · 20 декабря');
   assert.equal(W.examToday('Зимняя сессия'), 'Сегодня экзамен: «Зимняя сессия».');
-  assert.equal(plain(W.examMoved('Осенняя сессия', '2026-10-25')), 'Экзамен «Осенняя сессия» перенесён на 25 октября. План пересчитан.');
-  assert.equal(W.K3_MOVE, 'Если экзамен перенесли — нажмите, план пересчитается.');
+  assert.equal(plain(W.examMoved('Осенняя сессия', '2026-10-25')), 'Экзамен «Осенняя сессия» перенесён на 25 октября. План обновлён.');
+  assert.equal(W.K3_MOVE, 'Экзамен перенесли? Нажмите «Перенести экзамен», и план обновится.');
   assert.deepEqual([W.MOVE_EXAM, W.MOVE_WEEK, W.MOVE_2_WEEKS, W.MOVE_DATE, W.MOVE_FOR_ALL, W.MOVE_FOR_ME],
     ['Перенести экзамен', 'Перенести на неделю', 'На 2 недели', 'Другая дата', 'Для всех участников', 'Только для меня']);
 });
@@ -55,8 +55,8 @@ test('every string of the bot passes the copy rules (forbidden words, emoji, «!
 
 test('the container\'s overrides, word for word (BUILD_BRIEF «Copy rules»)', () => {
   assert.equal(W.S3_BODY, 'До какого дня ничего не присылать? Вопросы разойдутся по следующим дням.');
-  assert.equal(W.k2Body(15, 70).replace(/ /g, ' '), 'Три дня он оставался без ответа. До экзамена 15 дней, сегодня около 70 минут.');
-  assert.equal(W.k2Body(null, 70).replace(/ /g, ' '), 'Три дня он оставался без ответа. Сегодня около 70 минут.');
+  assert.equal(W.k2Body(15, 70).replace(/ /g, ' '), 'Вы не открывали план три дня. До экзамена 15 дней, сегодня около 70 минут.');
+  assert.equal(W.k2Body(null, 70).replace(/ /g, ' '), 'Вы не открывали план три дня. Сегодня около 70 минут.');
 });
 
 test('numbers are worded by the copied words.ts (no plural rules of the bot\'s own)', () => {
@@ -66,24 +66,24 @@ test('numbers are worded by the copied words.ts (no plural rules of the bot\'s o
   assert.equal(plain(W.dateWhen('2026-11-03', 3)), '3 ноября, через 3 дня');
   assert.equal(plain(W.dateWhen('2026-11-03', 1)), '3 ноября, завтра');
   assert.equal(plain(W.dateWhen('2026-11-03', 0)), '3 ноября, сегодня');
-  assert.equal(plain(W.keysFixed(1)), 'Автор исправил ключ в 1 вопросе — он начнётся заново.');
-  assert.equal(plain(W.keysFixed(2)), 'Автор исправил ключ в 2 вопросах — они начнутся заново.');
-  assert.equal(plain(W.keysFixed(5)), 'Автор исправил ключ в 5 вопросах — они начнутся заново.');
+  assert.equal(plain(W.keysFixed(1)), 'Автор исправил ключ в 1 вопросе. Его нужно выучить заново.');
+  assert.equal(plain(W.keysFixed(2)), 'Автор исправил ключ в 2 вопросах. Их нужно выучить заново.');
+  assert.equal(plain(W.keysFixed(5)), 'Автор исправил ключ в 5 вопросах. Их нужно выучить заново.');
   assert.equal(plain(W.aboutMinutes(21)), 'около 21 минуты');
   assert.equal(plain(W.aboutMinutes(0)), 'около 1 минуты');
   // «Все вопросы»: a day of hours reads in hours, as on the site
   assert.equal(plain(W.aboutMinutes(455)), 'около 7,5 часа');
   assert.equal(plain(W.aboutMinutes(420)), 'около 7 часов');
-  assert.equal(plain(W.k3Days(26, 21, '6 480', 6480)), 'За 26 дней — 21 с занятиями, 6 480 ответов.');
-  assert.equal(plain(W.k3Days(1, 1, '1', 1)), 'За 1 день — 1 с занятиями, 1 ответ.');
-  assert.equal(plain(W.alsoToday('Зимняя сессия', 20)), 'Ещё сегодня: «Зимняя сессия» — около 20 минут.');
+  assert.equal(plain(W.k3Days(26, 21, '6 480', 6480)), 'За 26 дней вы занимались 21 день и дали 6 480 ответов.');
+  assert.equal(plain(W.k3Days(1, 1, '1', 1)), 'За 1 день вы занимались 1 день и дали 1 ответ.');
+  assert.equal(plain(W.alsoToday('Зимняя сессия', 20)), 'Ещё сегодня «Зимняя сессия», около 20 минут.');
 });
 
 test('the pause\'s days and zones', () => {
   assert.equal(W.pauseUntil('2026-10-17', '2026-10-17'), 'Пауза до завтра.');
   assert.equal(W.pauseUntil('2026-10-19', '2026-10-17').replace(/ /g, ' '), 'Пауза до понедельника, 19 октября.');
   assert.equal(W.pauseUntil('2026-10-21', '2026-10-17').replace(/ /g, ' '), 'Пауза до среды, 21 октября.');
-  assert.equal(W.pauseBack('2026-10-20', '2026-10-17', 4, '20:00'), 'Во вторник план снова придёт в 20:00. Заниматься можно и раньше — /today.');
+  assert.equal(W.pauseBack('2026-10-20', '2026-10-17', 4, '20:00'), 'Во вторник план снова придёт в 20:00. Заниматься можно и раньше: /today.');
   assert.equal(W.zoneText('Europe/Minsk'), 'по Минску');
   assert.equal(W.zoneText('Asia/Vladivostok'), 'по Владивостоку');
   assert.equal(W.zoneText('Pacific/Auckland'), '(Pacific/Auckland)');

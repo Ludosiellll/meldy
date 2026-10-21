@@ -20,7 +20,7 @@ export const DRAW_CAPTIONS: Record<DrawMode, string> = {
 export const DRAW_HINTS: Record<DrawMode, string> = {
   // In the answer screen's own words for «Как на экзамене»: «пункты ответа и цитаты — только в протоколе».
   exam: 'Случайный билет; пункты ответа и цитаты — только в протоколе.',
-  weak: 'Чаще вопросы без ответов и те, где названо недостаточно.',
+  weak: 'Чаще вопросы без ответов и с неполными ответами.',
   answered: 'Только вопросы, на которые вы уже отвечали.',
   awaiting: 'Вопросы, которые сегодня можно выучить.',
 };

@@ -192,10 +192,10 @@ export const FILTER_NAMES: Record<SheetFilter, string> = {
   'cov:none': 'нет ни в одной лекции',
   'cov:unverified': 'найдено только по словам',
   'cov:unmapped': 'ещё не сверено',
-  'rd:confirmed': 'подтверждено',
+  'rd:confirmed': 'выучено',
   'rd:once': READINESS_LABELS.once,
   'rd:not_passed': READINESS_LABELS.not_passed,
-  'rd:untested': 'не проверялось',
+  'rd:untested': 'ещё не отвечали',
   'sr:know': '«знаю»',
   'sr:unsure': '«плаваю»',
   'sr:dont_know': '«не знаю»',
@@ -475,7 +475,7 @@ export interface AnswerSummary {
  */
 export function confirmedSentence(summary: AnswerSummary): string | null {
   if (summary.confirmed + summary.once + summary.notPassed === 0) return null;
-  return endSentence(`Подтверждено ответами — ${summary.confirmed} из ${summary.total}`);
+  return endSentence(`Выучено ${summary.confirmed} из ${summary.total}`);
 }
 
 export const NO_ANSWERS_SENTENCE = 'Ответов по билетам ещё не было. Каждый ответ проверяется по вашим лекциям.';
@@ -483,9 +483,9 @@ export const NO_ANSWERS_SENTENCE = 'Ответов по билетам ещё н
  * A typed answer counts as a spoken one. No «засчитано» since Ф1: «названо достаточно» is the
  * protocol's words for an answer that counts (its «Как считается» says how much is enough).
  */
-export const CONFIRMED_MEANING = 'Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.';
+export const CONFIRMED_MEANING = 'Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно.';
 export const NOT_ENOUGH_CONFIDENCE =
-  'Сравнить уверенность с ответами пока нельзя: нужно хотя бы три ответа на вопросы с отметкой «знаю».';
+  'Пока мало ответов, чтобы сравнить их с вашими отметками «знаю». Нужно хотя бы три.';
 
 /**
  * «Вы отметили «знаю» у 18 вопросов. Из 10 таких, на которые вы ответили, в 8 названо достаточно.» —
@@ -500,7 +500,7 @@ export function confidenceSentence(value: { ratedKnow: number; ratedKnowAnswered
 /** «Из 10 вопросов с отметкой «знаю», на которые вы ответили, в 8 названо достаточно.» (the self-rating column). */
 export function knowPassedSentence(value: { ratedKnowAnswered: number; ratedKnowPassed: number }, withMark = false): string {
   const which = withMark ? ` ${genitiveOf(value.ratedKnowAnswered, 'вопроса', 'вопросов')} с отметкой «знаю»,` : ' таких,';
-  return `Из ${value.ratedKnowAnswered}${which} на которые вы ответили, в ${value.ratedKnowPassed} названо достаточно.`;
+  return `Из ${value.ratedKnowAnswered}${which} на которые вы ответили, полный ответ в ${value.ratedKnowPassed}.`;
 }
 
 /** Calendar days from a local day to today (0 for today), or null. */
@@ -517,11 +517,11 @@ export function daysAgo(key: string | null | undefined, now: Date = new Date()):
 export function confirmedAgeSentence(state: Pick<QuestionState, 'readiness' | 'lastPassDate' | 'stale'>, now: Date = new Date()): string | null {
   if (state.readiness !== 'confirmed') return null;
   const days = daysAgo(state.lastPassDate, now);
-  if (days === null) return 'Подтверждено.';
-  if (state.stale) return `Подтверждено ${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад — пора проверить.`;
-  if (days <= 0) return 'Подтверждено сегодня.';
-  if (days === 1) return 'Подтверждено вчера.';
-  return `Подтверждено ${formatDay(state.lastPassDate, now)} — ${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад.`;
+  if (days === null) return 'Выучено.';
+  if (state.stale) return `Выучено ${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад. Пора проверить.`;
+  if (days <= 0) return 'Выучено сегодня.';
+  if (days === 1) return 'Выучено вчера.';
+  return `Выучено ${formatDay(state.lastPassDate, now)}, ${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад.`;
 }
 
 /**
@@ -534,7 +534,7 @@ export function readinessWords(state: Pick<QuestionState, 'readiness' | 'lastPas
   const days = daysAgo(state.lastPassDate, now);
   if (days === null) return READINESS_LABELS.confirmed;
   const age = days <= 0 ? 'сегодня' : days === 1 ? 'вчера' : `${days} ${pluralRu(days, ['день', 'дня', 'дней'])} назад`;
-  return `подтверждено ${age}${state.stale ? ', пора проверить' : ''}`;
+  return `выучено ${age}${state.stale ? ', пора проверить' : ''}`;
 }
 
 /** Question states with the student's latest self-rating taps applied over the journal. */

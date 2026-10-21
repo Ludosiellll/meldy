@@ -16,6 +16,7 @@ import { resumeIndex, useAttempt, type AttemptRun } from './useAttempt';
 import { useFieldInView } from './fieldInView';
 import GuardLayer, { GuardLine } from './GuardLayer';
 import { useGuard, type GuardView } from './useGuard';
+import { readDraftValue, writeDraftValue } from '../../lib/urlState';
 import '../containers/room.css';
 import './quizTake.css';
 
@@ -47,6 +48,20 @@ import './quizTake.css';
 export { RETRY_MS, SEND_DELAY_MS, readPending, resumeIndex, storeKey, type QuizAnswer } from './useAttempt';
 
 const TEXT_MAX = 200;
+
+/** The question on screen of an attempt, kept in this tab: «Продолжить» after a reload opens that question. */
+const placeKey = (attemptId: string) => `quiz-place:${attemptId}`;
+const isIndex = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0;
+
+/**
+ * Where «Продолжить» opens an attempt: the question it was on in this tab (owner, 21.10), else resumeIndex. An attempt
+ * that only goes forward never opens before resumeIndex (the one after the last answered).
+ */
+export function placeOf(attemptId: string, total: number, start: number, allowBack: boolean): number {
+  const kept = readDraftValue(placeKey(attemptId), isIndex);
+  if (kept === null || kept >= total) return start;
+  return allowBack ? kept : Math.max(kept, start);
+}
 
 /** QuestionCard reads a TestItem: the attempt's question with no key and no file number. */
 export function asTestItem(item: QuizAttemptItem, index: number): TestItem {
@@ -146,12 +161,20 @@ function ClassicRun({
   }, [items, id, attempt.shuffle_options]);
 
   const [pos, setPos] = useState(() =>
-    resumeIndex(
-      items.map((item) => item.id),
-      run.startAnswers,
+    placeOf(
+      id,
+      total,
+      resumeIndex(
+        items.map((item) => item.id),
+        run.startAnswers,
+        attempt.allow_back,
+      ),
       attempt.allow_back,
     ),
   );
+  useEffect(() => {
+    writeDraftValue(placeKey(id), pos);
+  }, [id, pos]);
   const [allOpen, setAllOpen] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const stemRef = useRef<HTMLHeadingElement | null>(null);

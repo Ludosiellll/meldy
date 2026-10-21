@@ -7,11 +7,14 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import SourceReferences from './SourceReferences';
-import { stripSourceMarkers } from './summary/fragmentModel';
+import { stemsOf, stripSourceMarkers } from './summary/fragmentModel';
 import { repairMathEscapes } from '../lib/mathEscapes';
 import { cardsLine } from '../lib/followupCards';
 import 'katex/dist/katex.min.css';
 import './FlashcardsView.css';
+
+/** What the fragment panel says over a card's fragments: they are found by shared words, not checked. */
+export const CARD_SOURCE_NOTE = 'Здесь в лекции больше всего общих слов с карточкой.';
 
 /** Inside the question's button only inline text: no links, pictures, headings or lists from the model's Markdown. */
 const NOT_IN_A_QUESTION = ['a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'pre', 'table', 'hr', 'ul', 'ol', 'li'];
@@ -294,7 +297,14 @@ export default function FlashcardsView({ data, sources = [], reviewHref, followu
                 </motion.div>
               )}
             </AnimatePresence>
-            <SourceReferences ids={c.source_ids} sources={sources} compact />
+            <SourceReferences
+              ids={c.source_ids}
+              sources={sources}
+              note={CARD_SOURCE_NOTE}
+              panelKey={`card-${i + 1}`}
+              stems={[...stemsOf(`${c.question ?? ''} ${c.answer ?? ''}`)]}
+              compact
+            />
             {!revealed[i] && (
               <p className="fc-hint">
                 <Eye aria-hidden="true" strokeWidth={1.75} />

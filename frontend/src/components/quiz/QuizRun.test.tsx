@@ -95,6 +95,7 @@ const TOKEN = 'A'.repeat(42) + 'g';
 beforeEach(() => {
   vi.useFakeTimers({ now: DEVICE_NOW });
   window.localStorage.clear();
+  window.sessionStorage.clear();
   onResult = vi.fn<(result: QuizResult) => void>();
   onLost = vi.fn<(message: string) => void>();
   api.sendAnswers.mockReset().mockImplementation(async () => saved());
@@ -386,6 +387,26 @@ describe('QuizRun: a reload (review focus 1)', () => {
   });
 
   it('only forward: goes on after the last answered question', () => {
+    renderRun(attempt({ allow_back: false, answers: [{ item_id: 'i2', chosen: [1], text: null }] }));
+    expect(bar()).toContain('3 из 3');
+  });
+
+  it('owner 21.10: «Продолжить» after a reload opens the question that was on screen in this tab', () => {
+    const first = renderRun(attempt({ answers: [{ item_id: 'i1', chosen: [1], text: null }, { item_id: 'i2', chosen: [1], text: null }] }));
+    // The first without an answer is the third; the student went back to the first.
+    expect(bar()).toContain('3 из 3');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(bar()).toContain('1 из 3');
+    first.unmount();
+    renderRun(attempt({ answers: [{ item_id: 'i1', chosen: [1], text: null }, { item_id: 'i2', chosen: [1], text: null }] }));
+    expect(bar()).toContain('1 из 3');
+  });
+
+  it('only forward: the place kept in this tab never opens a question before the one after the last answered', () => {
+    const first = renderRun(attempt({ allow_back: false }));
+    expect(bar()).toContain('1 из 3');
+    first.unmount();
     renderRun(attempt({ allow_back: false, answers: [{ item_id: 'i2', chosen: [1], text: null }] }));
     expect(bar()).toContain('3 из 3');
   });

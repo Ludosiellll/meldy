@@ -43,30 +43,30 @@ function glue(text: string): string {
 /** Every line of the card (spec §3: «ёлочки», « — », no «!»; the bot's own words where it has them). */
 export const TELEGRAM_COPY = {
   title: 'План на день в Telegram',
-  about: 'Раз в день — план на сегодня. Вопросы экзамена можно решать прямо в чате, по 20 за раз.',
-  aboutPhone: 'План на день и вопросы — по 20 за раз.',
+  about: 'Раз в день бот пришлёт план на сегодня. Вопросы экзамена можно решать прямо в чате, по 20 за раз.',
+  aboutPhone: 'План на день и вопросы, по 20 за раз.',
   connect: 'Подключить Telegram',
   openApp: 'Открыть Telegram',
   openHere: 'Открыть Telegram на компьютере',
-  appStep: 'В Telegram откроется чат с Meldy — нажмите в нём «Запустить».',
+  appStep: 'В Telegram откроется чат с Meldy. Нажмите в нём «Запустить».',
   scanStep: 'Наведите камеру телефона на код и в Telegram нажмите «Запустить».',
   lifetime: 'Ссылка действует 15 минут.',
-  expired: 'Ссылка устарела: она действует 15 минут.',
+  expired: 'Ссылка устарела, она действует 15 минут.',
   cancel: 'Отмена',
   linked: 'Telegram подключён',
   linkedNow: 'Telegram подключён.',
   disconnect: 'Отключить',
   ask: 'Отключить Telegram от Meldy?',
-  askText: 'План перестанет приходить в Telegram. Экзамен и счёт останутся в Meldy.',
+  askText: 'План перестанет приходить в Telegram. Экзамен и ваши результаты останутся в Meldy.',
   unlinked: 'Telegram отключён от Meldy.',
   noExam: 'В Meldy пока нет экзамена с планом на день.',
   exams: 'Экзамены в плане',
-  noneChosen: 'Ни один экзамен не выбран — план не приходит.',
+  noneChosen: 'Ни один экзамен не выбран, поэтому план не приходит.',
   off: 'План на день не приходит.',
   resume: 'Присылать снова',
-  blocked: 'Бот остановлен в Telegram — план не приходит.',
+  blocked: 'Бот остановлен в Telegram, поэтому план не приходит.',
   openChat: 'Открыть чат с ботом',
-  settingsHint: 'Время и пауза — в боте: /settings.',
+  settingsHint: 'Время и паузу можно поменять в боте: /settings.',
   readFailed: 'Не получилось узнать, подключён ли Telegram.',
   retry: 'Повторить',
   remind: 'Напоминать в Telegram',
@@ -86,7 +86,7 @@ export function clockWords(at: string): string {
 /** «Экзамен — «Осенняя сессия», 3 ноября.»; without a date «…, дата не указана.» (bot S1). */
 export function examLine(exam: TelegramExam): string {
   const when = exam.date && isLocalDay(exam.date) ? dayText(exam.date) : 'дата не указана';
-  return `Экзамен — «${exam.title}», ${when}.`;
+  return `Экзамен «${exam.title}», ${when}.`;
 }
 
 /** The day of an exam in «Экзамены в плане»: «3 ноября», «сегодня экзамен», «прошёл 17 октября», «дата не указана». */

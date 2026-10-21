@@ -46,7 +46,7 @@ describe('day 1 of 1120 questions three days before the test', () => {
     const plan = planDay(input(90));
     expect(plan.counts.newItems).toBeLessThan(150);
     const short = plan.lines.find((line) => line.key === 'short_max');
-    expect(short && lineText(short)).toMatch(/Чтобы увидеть все, выберите «Все вопросы»\.$/);
+    expect(short && lineText(short)).toMatch(/Чтобы пройти все, выберите «Все вопросы»\.$/);
   });
 
   it('feasibility: everything seen, no option, the hours a study day takes on average', () => {

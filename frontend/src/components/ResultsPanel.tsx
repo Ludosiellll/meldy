@@ -338,7 +338,7 @@ ${flashcardsHtml}
 </div>` : ''}
 
 ${quiz.length > 0 ? `<div class="section">
-<h2>Тест (${quiz.length})</h2>
+<h2>Самопроверка (${quiz.length})</h2>
 ${quizHtml}
 </div>` : ''}
 
@@ -351,13 +351,13 @@ type CoreSection = CoreSectionName;
 const RECREATE_LABEL: Record<CoreSection, string> = {
   summarizer: 'Создать конспект заново',
   flashcards: 'Создать карточки заново',
-  quiz: 'Создать тест заново',
+  quiz: 'Создать самопроверку заново',
 };
 
 const RECREATE_RUNNING: Record<CoreSection, string> = {
   summarizer: 'Создаём конспект…',
   flashcards: 'Создаём карточки…',
-  quiz: 'Создаём тест…',
+  quiz: 'Создаём самопроверку…',
 };
 
 /** Сервер принимает до 300 000 символов: столько же видел и сам анализ. */
@@ -385,7 +385,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 type GroundedPart = 'summary' | 'flashcards' | 'quiz';
-const GROUNDED_WORDS: Record<GroundedPart, string> = { summary: 'конспект', flashcards: 'карточки', quiz: 'тест' };
+const GROUNDED_WORDS: Record<GroundedPart, string> = { summary: 'конспект', flashcards: 'карточки', quiz: 'самопроверка' };
 
 /**
  * «Конспект, карточки и тест опираются на 4 фрагмента лекции»: only the materials the result has (QA 2026-10-11: a lone
@@ -548,6 +548,7 @@ export default function ResultsPanel({
   initialTab,
   followupCards = 0,
   pageTabs,
+  onTabChange,
 }: {
   results: AnalysisResults;
   /** «Новый анализ» на странице анализа; без него кнопки нет (пример результата /try/lecture). */
@@ -601,6 +602,8 @@ export default function ResultsPanel({
     onSection: (section: ResultTab) => void;
     exportItems: MutableRefObject<ResultExportItem[]>;
   };
+  /** The section the student chose in the panel's own row: the lecture page keeps it in its address (?section=). */
+  onTabChange?: (section: ResultTab) => void;
 }) {
   const { user } = useAuth();
   // В режиме просмотра у результата нет материала, в который можно писать.
@@ -695,6 +698,7 @@ export default function ResultsPanel({
   const tab: Tab = pageSection && tabs.some(t => t.id === pageSection) ? pageSection : ownTab;
   const setTab = (next: Tab) => {
     setOwnTab(next);
+    if (next !== ownTab) onTabChange?.(next);
     if (pageTabs && next !== pageSection) pageTabs.onSection(next);
   };
 
@@ -927,7 +931,7 @@ export default function ResultsPanel({
     { key: 'copy', label: copied ? 'Скопировано' : 'Копировать', run: handleCopy },
     ...(sectionShown ? [{ key: 'print', label: 'Печать или PDF', run: handlePrintPdf }] : []),
     ...(tab === 'flashcards' && flashcardCount > 0 ? [{ key: 'anki', label: 'Файл для Anki', run: handleExportAnki }] : []),
-    ...(tab === 'quiz' && quizCount > 0 && !isFailed('quiz') ? [{ key: 'present', label: 'Показать тест на экране', run: () => setPresentingQuiz(true) }] : []),
+    ...(tab === 'quiz' && quizCount > 0 && !isFailed('quiz') ? [{ key: 'present', label: 'Показать самопроверку на экране', run: () => setPresentingQuiz(true) }] : []),
     ...(sectionShown ? [{ key: 'html', label: 'Скачать HTML', run: handleDownloadHtml }] : []),
   ];
   // The page reads them when its «⋯» opens; a text-only material offers no export.

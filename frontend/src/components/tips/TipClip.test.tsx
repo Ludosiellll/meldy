@@ -139,10 +139,10 @@ describe('the Telegram tip’s clip', () => {
     // Yesterday: «Готово: план на день — в 20:00.» and the plan's line of a finished day; today the card at 20:00.
     expect(TG_HISTORY.line).toBe(lineText({ key: 'done', n: [65, 31] }));
     expect(plain(TG_HISTORY.line)).toBe('На сегодня всё: 65 вопросов за 31 минуту.');
-    expect(plain(TG_CARD.plan)).toBe('Сегодня около 30 минут: 20 новых и 45 знакомых.');
+    expect(plain(TG_CARD.plan)).toBe('Сегодня 20 новых и 45 знакомых, около 30 минут.');
     expect(plain(TG_CARD.exam)).toBe('Микроэкономика · 1 ноября, через 19 дней');
-    expect(plain(TG_CARD.figure)).toBe('12 из 400 — верно в два разных дня');
-    expect(figureLines({ inPlan: 400, twoDays: 12, seen: 90, errors: 7, selfKnow: 0 }, null).label).toBe('верно в два разных дня');
+    expect(plain(TG_CARD.figure)).toBe('Выучено 12 из 400');
+    expect(figureLines({ inPlan: 400, twoDays: 12, seen: 90, errors: 7, selfKnow: 0 }, null).label).toBe('выучено');
     expect(TG_CARD.start).toBe(startLabel(20, null, null));
     for (const line of [TG_HISTORY.title, TG_HISTORY.line, TG_HISTORY.time, TG_CARD.plan, TG_CARD.exam, TG_CARD.figure, TG_CARD.start, TG_CARD.time]) {
       expect(words).toContain(plain(line));
@@ -179,8 +179,8 @@ describe('the Telegram tip’s clip', () => {
     expect(botRender).toMatch(/t\(headerText\(v\)\),\s*'',\s*stemBlock\(item, true\),/);
     expect(TG_QUESTIONS.map((q) => q.head)).toEqual(['Микроэкономика · 1 из 20', 'Микроэкономика · 2 из 20']);
     // words.ts: M3's title, the exam's line and its date.
-    expect(botWords).toContain('export const m3Title = (time: string) => `Готово: план на день — в ${time}.`;');
-    expect(TG_HISTORY.title).toBe('Готово: план на день — в 20:00.');
+    expect(botWords).toContain('export const m3Title = (time: string) => `Готово. План будет приходить в ${time}.`;');
+    expect(TG_HISTORY.title).toBe('Готово. План будет приходить в 20:00.');
     expect(botWords).toContain('export const examLine = (title: string, when: string | null) => `${title} · ${when ?? NO_DATE}`;');
     expect(botWords).toContain("return `${dayText(date)}, через ${glue(daysLeft, 'день', 'дня', 'дней')}`;");
     // card.ts: «Начать» is the card's blue button; session.ts: a press on it is answered without a line and the card

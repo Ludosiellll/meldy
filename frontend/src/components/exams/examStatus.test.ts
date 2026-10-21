@@ -219,17 +219,17 @@ describe('examStatus: before and during the mapping', () => {
     const three = examStatus(input({ coverage: { full: 11, partial: 1, none: 3, unmapped: 3 } }));
     expect(three.key).toBe('some-unmapped');
     expect(title(three)).toBe('3 вопроса ещё не сверены с лекциями');
-    expect(three.text).toBe('Их добавили или изменили после сверки. Meldy проверит только их — это стоит 10 единиц ИИ.');
+    expect(three.text).toBe('Их добавили или изменили после сверки. Meldy проверит только их, это стоит 10 единиц ИИ.');
     const one = examStatus(input({ coverage: { full: 14, none: 3, unmapped: 1 } }));
     expect(title(one)).toBe('1 вопрос ещё не сверен с лекциями');
-    expect(one.text).toBe('Его добавили или изменили после сверки. Meldy проверит только его — это стоит 10 единиц ИИ.');
+    expect(one.text).toBe('Его добавили или изменили после сверки. Meldy проверит только его, это стоит 10 единиц ИИ.');
   });
 
   it('questions found only by words: «Проверить снова» with its own price, until the answers begin', () => {
     const status = examStatus(input({ coverage: { full: 14, unverified: 4 } }));
     expect(status.key).toBe('unverified');
     expect(title(status)).toBe('4 вопроса проверены только по словам');
-    expect(status.text).toBe('Сервис был занят, и Meldy сравнил их с лекциями только по совпадению слов. Проверьте их снова — это стоит 10 единиц ИИ.');
+    expect(status.text).toBe('Сервис был занят, и Meldy сравнил их с лекциями только по совпадению слов. Проверьте их снова, это стоит 10 единиц ИИ.');
     expect(status.action).toEqual({ kind: 'recheck', label: 'Проверить снова' });
     expect(examStatus(input({ coverage: { full: 14, unverified: 4 }, answers: { answered: 2 } })).key).toBe('answering');
   });
@@ -312,9 +312,9 @@ describe('examStatus: a phone’s one line (Phone_Declutter_2026-10-08)', () => 
     expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'running', progress: { checked: 7, total: 18 } } })).toBe('Проверено 7 из 18. Не закрывайте вкладку.');
     expect(brief({ coverage: { unmapped: 18 }, mapping: { phase: 'waiting' } })).toBe('Список обновится сам, когда она закончится.');
     expect(brief({ coverage: { full: 7, unmapped: 11 }, mapping: { phase: 'interrupted', progress: { checked: 7, total: 18 } } })).toBe('Проверено 7 из 18. Продолжение стоит 10 единиц ИИ.');
-    expect(brief({ coverage: MAPPED, mapping: { added: 2 } })).toBe('Сверьте заново — это стоит 10 единиц ИИ.');
-    expect(brief({ coverage: { ...MAPPED, none: 1, unmapped: 3 } })).toBe('Meldy проверит только их — это стоит 10 единиц ИИ.');
-    expect(brief({ coverage: { ...MAPPED, none: 0, unverified: 4 } })).toBe('Проверьте их снова — это стоит 10 единиц ИИ.');
+    expect(brief({ coverage: MAPPED, mapping: { added: 2 } })).toBe('Сверьте заново, это стоит 10 единиц ИИ.');
+    expect(brief({ coverage: { ...MAPPED, none: 1, unmapped: 3 } })).toBe('Meldy проверит только их, это стоит 10 единиц ИИ.');
+    expect(brief({ coverage: { ...MAPPED, none: 0, unverified: 4 } })).toBe('Проверьте их снова, это стоит 10 единиц ИИ.');
     expect(brief({ coverage: MAPPED })).toBe('Тяните билет и отвечайте вслух.');
     expect(brief({ coverage: MAPPED, learn: { ready: 4 }, answers: { answered: 6 } })).toBe('Ответьте на них снова.');
     expect(brief({ coverage: MAPPED, learn: { learned: 10, inPlan: 14 }, answers: { answered: 6 } })).toBe('Отвечайте дальше.');

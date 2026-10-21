@@ -269,8 +269,8 @@ function Excerpt({ item, matched = [], seedKey, actions = null }: { item: Eviden
  */
 export function attemptLabel(event: LearningEvent): string {
   const when = formatShortMoment(event.created_at) || formatShortDay(event.local_date);
-  if (event.correct === true) return `${when} · названо достаточно`;
-  if (event.correct === false) return `${when} · названо недостаточно`;
+  if (event.correct === true) return `${when} · ответ полный`;
+  if (event.correct === false) return `${when} · ответ неполный`;
   return when;
 }
 
@@ -288,16 +288,16 @@ export function attemptLabel(event: LearningEvent): string {
 export function readinessLine(state: QuestionState, answers: LearningEvent[], now: Date = new Date()): string | null {
   if (state.readiness === 'confirmed') return confirmedAgeSentence(state, now);
   if (state.readiness === 'once') {
-    const passed = state.seriesStartAt ? `Ответ ${formatShortMoment(state.seriesStartAt, now)} — названо достаточно.` : 'Названо достаточно.';
-    if (state.awaiting) return `${passed} Такой же ответ сейчас подтвердит вопрос.`;
+    const passed = state.seriesStartAt ? `Ответ ${formatShortMoment(state.seriesStartAt, now)} был полным.` : 'Ответ полный.';
+    if (state.awaiting) return `${passed} Ответьте так же сейчас, и вопрос выучен.`;
     const from = formatShortMoment(state.confirmableFrom, now);
-    return `${passed} Подтвердит такой же ответ на другой день${from ? `, не раньше ${from}` : ''}.`;
+    return `${passed} Ответьте так же в другой день${from ? `, не раньше ${from}` : ''}, и вопрос выучен.`;
   }
   if (state.readiness === 'not_passed') {
     const failed = answers.filter((event) => event.kind === 'exam_answer' && event.correct === false).sort(compareEventTime);
     const last = failed[failed.length - 1];
     const day = last ? formatShortDay(last.local_date, now) : '';
-    return `Последний ответ${day ? ` ${day}` : ''} — названо недостаточно. Серия начнётся заново со следующего ответа, где названо достаточно.`;
+    return `Последний ответ${day ? ` ${day}` : ''} был неполным. Нужны два полных ответа в разные дни.`;
   }
   return null;
 }

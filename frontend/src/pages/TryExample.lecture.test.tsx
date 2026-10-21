@@ -145,9 +145,9 @@ describe('/try/lecture: what Meldy made of the example’s first lecture, with n
     const meta = Array.from(document.querySelector('.rp-meta')?.children ?? []).map((part) => plain(part.textContent));
     expect(meta).toEqual(['2 943 символа', '·', 'около 4 мин чтения', '·', '11 заданий для практики']);
     const grounding = Array.from(document.querySelector('.rp-grounding')?.children ?? []).map((part) => plain(part.textContent));
-    expect(grounding).toEqual(['Конспект, карточки и тест опираются на 7 фрагментов лекции ·', 'у 32 пунктов есть ссылка на похожий фрагмент']);
+    expect(grounding).toEqual(['Конспект, карточки и самопроверка опираются на 7 фрагментов лекции ·', 'у 32 пунктов есть ссылка на похожий фрагмент']);
     const tabs = within(screen.getByRole('navigation', { name: 'Разделы результата' })).getAllByRole('button');
-    expect(tabs.map((button) => plain(button.textContent))).toEqual(['Конспект', 'Карточки6', 'Тест5', 'Выжимка', 'Подкаст16']);
+    expect(tabs.map((button) => plain(button.textContent))).toEqual(['Конспект', 'Карточки6', 'Самопроверка5', 'Выжимка', 'Подкаст16']);
 
     // Nothing that saves, makes anew or analyses again.
     expect(screen.queryByRole('button', { name: 'Новый анализ' })).toBeNull();
@@ -181,7 +181,7 @@ describe('/try/lecture: what Meldy made of the example’s first lecture, with n
     expect(screen.getByText('Ответы здесь не сохраняются и не двигают повторение.')).toBeInTheDocument();
 
     // «Тест»: five questions; answered, it is checked here with an explanation under each, and nothing is recorded.
-    fireEvent.click(tab(/^Тест/));
+    fireEvent.click(tab(/^Самопроверка/));
     const items = Array.from(document.querySelectorAll<HTMLElement>('.qz-card'));
     expect(items).toHaveLength(5);
     // The right answers are B, C, B, C, B; the last one is answered wrongly.

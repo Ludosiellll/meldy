@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useUrlState } from '../../lib/urlState';
 import { closeQuiz, deleteQuiz, quizMarks, quizResults } from '../../api/quizzes';
 import { copyText } from '../../lib/clipboard';
 import { useContainerData } from '../../lib/containers/hooks';
@@ -36,6 +37,7 @@ export const POLL_WRITING_MS = 5000;
 export const POLL_IDLE_MS = 30000;
 
 type Tab = 'people' | 'questions';
+const STATS_TABS: readonly Tab[] = ['people', 'questions'];
 type Ask = 'close' | 'remove' | null;
 
 const pageVisible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
@@ -246,7 +248,8 @@ export default function QuizStatsPage() {
   };
 
   // ── the tabs ──
-  const [tab, setTab] = useState<Tab>('people');
+  // The tab lives in the address (?tab=questions; lib/urlState.ts): a reload and «Назад» keep it.
+  const [tab, setTab] = useUrlState<Tab>('tab', 'people', STATS_TABS);
   const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ people: null, questions: null });
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;

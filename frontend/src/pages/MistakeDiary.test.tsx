@@ -261,7 +261,7 @@ describe('Mistake diary list', () => {
     api.from.mockReturnValue(listQuery({ data: rows, error: null }));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
 
-    expect(await screen.findByText(/^Тест · Физика/)).toBeInTheDocument();
+    expect(await screen.findByText(/^Самопроверка · Физика/)).toBeInTheDocument();
     // A ticket answered by voice or in writing is the same answer (Jury_Check 11): no «вслух».
     expect(screen.getByText(/^Ответ на билет · Макроэкономика/)).toBeInTheDocument();
     expect(screen.queryByText(/вслух/)).not.toBeInTheDocument();
@@ -285,11 +285,11 @@ describe('Mistake diary list', () => {
     api.from.mockReturnValue(listQuery({ data: rows, error: null }));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
 
-    expect(await screen.findByText('Ошибки из тестов и ответов на билеты. Нажмите на строку — откроется, что нужно было сказать.')).toBeInTheDocument();
+    expect(await screen.findByText('Ошибки из самопроверок и ответов на билеты. Нажмите на строку, чтобы увидеть верный ответ.')).toBeInTheDocument();
     // The old oral exam is gone: the intro does not promise it (its old mistakes still say where they came from).
     expect(screen.queryByText(/устных экзаменов/)).toBeNull();
     expect(mistakeOriginLabel('oral_ticket')).toBe('Ответ на билет');
-    expect(mistakeOriginLabel('quiz')).toBe('Тест');
+    expect(mistakeOriginLabel('quiz')).toBe('Самопроверка');
     expect(mistakeOriginLabel('professor')).toBe('Устный экзамен');
     expect(mistakeOriginLabel(null)).toBe('Устный экзамен');
     expect(document.title).toBe('Дневник ошибок — Meldy');
@@ -298,7 +298,7 @@ describe('Mistake diary list', () => {
   it('says what the practice costs from the plan’s prices', async () => {
     api.from.mockReturnValue(listQuery({ data: rows, error: null }));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
-    expect(await screen.findByText(/Расходует 2 единицы дневного лимита ИИ, если задания получились\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Это 2 единицы из дневного лимита ИИ, только если задания получились\./)).toBeInTheDocument();
   });
 
   it('keeps the right answer hidden until the row is opened', async () => {
@@ -313,7 +313,7 @@ describe('Mistake diary list', () => {
     await user.click(row);
 
     expect(screen.getByText('Беспорядок системы — мера беспорядка')).toBeInTheDocument();
-    expect(screen.getByText('Правильный ответ')).toBeInTheDocument();
+    expect(screen.getByText('Верный ответ')).toBeInTheDocument();
     expect(screen.getByText('Массу тела')).toBeInTheDocument();
   });
 
@@ -393,7 +393,7 @@ describe('the points of a ticket answer (LIB-11) and the row actions (LIB-29)', 
       'Домен — множество допустимых значений атрибута',
     ]);
     // A test's mistake stays a row of its own, with its date as «6 окт.», never «06.10.2026».
-    expect(screen.getByText('Тест · Базы данных · 6 окт.')).toBeInTheDocument();
+    expect(screen.getByText('Самопроверка · Базы данных · 6 окт.')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\d{2}\.\d{2}\.\d{4}/);
   });
 
@@ -510,9 +510,9 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
   it('keeps the intro and the price to one short line each', async () => {
     api.from.mockReturnValue(rowsQuery(open));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
-    expect(await screen.findByText('Нажмите на строку — откроется ответ.')).toBeInTheDocument();
-    expect(screen.queryByText(/Ошибки из тестов и ответов на билеты/)).toBeNull();
-    expect(await screen.findByText('Задания по 2 ошибкам · 2 единицы лимита ИИ')).toBeInTheDocument();
+    expect(await screen.findByText('Нажмите на строку, чтобы увидеть ответ.')).toBeInTheDocument();
+    expect(screen.queryByText(/Ошибки из самопроверок и ответов на билеты/)).toBeNull();
+    expect(await screen.findByText('Задания по 2 ошибкам, 2 единицы ИИ')).toBeInTheDocument();
     // A phone does not draw «Обновить»: the diary reads itself when the app comes back to the screen.
     expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();
   });
@@ -551,11 +551,31 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     expect(await names()).toEqual(['Все 2', 'Открытые 2']);
   });
 
+  it('owner 21.10: a reload keeps the filter (?filter=)', async () => {
+    const fixed = { ...open[1], id: 'c', question: 'Что такое дефляция?', is_resolved: true };
+    api.from.mockImplementation(diaryTable([...open, fixed]));
+    window.history.replaceState(null, '', '/mistakes');
+    try {
+      const first = render(<MemoryRouter initialEntries={['/mistakes']}><MistakeDiary /></MemoryRouter>);
+      await screen.findByText('Что такое ВВП?');
+      fireEvent.click(screen.getByRole('button', { name: 'Исправленные 1' }));
+      expect(window.location.search).toBe('?filter=resolved');
+      first.unmount();
+
+      render(<MemoryRouter initialEntries={[`/mistakes${window.location.search}`]}><MistakeDiary /></MemoryRouter>);
+      expect(await screen.findByRole('button', { name: 'Исправленные 1' })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.queryByText('Что такое ВВП?')).toBeNull();
+      expect(screen.getByText('Что такое дефляция?')).toBeInTheDocument();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('words the price on a phone and on a computer', () => {
-    expect(practiceNote(17, true)).toBe('Задания по 5 ошибкам · 2 единицы лимита ИИ');
-    expect(practiceNote(1, true)).toBe('Задания по 1 ошибке · 2 единицы лимита ИИ');
-    expect(practiceNote(17, false)).toBe('Задания по 5 открытым ошибкам. Расходует 2 единицы дневного лимита ИИ, если задания получились.');
-    expect(practiceNote(1, false)).toBe('Задания по 1 открытой ошибке. Расходует 2 единицы дневного лимита ИИ, если задания получились.');
+    expect(practiceNote(17, true)).toBe('Задания по 5 ошибкам, 2 единицы ИИ');
+    expect(practiceNote(1, true)).toBe('Задания по 1 ошибке, 2 единицы ИИ');
+    expect(practiceNote(17, false)).toBe('Задания по 5 открытым ошибкам. Это 2 единицы из дневного лимита ИИ, только если задания получились.');
+    expect(practiceNote(1, false)).toBe('Задания по 1 открытой ошибке. Это 2 единицы из дневного лимита ИИ, только если задания получились.');
   });
 });
 

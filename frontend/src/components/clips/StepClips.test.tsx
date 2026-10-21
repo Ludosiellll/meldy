@@ -437,7 +437,7 @@ describe('«Экзамены в Telegram»: the bot’s own screens', () => {
     expect(flatKeys(BOT_WORDS.k3.keys)).toEqual(snapKeys(cardSnap, 'k3_move'));
     // «Перенести на неделю» is 7 days from the link's day: K3 on 4 November moves the exam to 11 November.
     expect(botExamsSource).toContain("cb.act === 'w1' ? 7 : 14");
-    expect(BOT_WORDS.moved.lines[0]).toBe('Экзамен «Осенняя сессия» перенесён на 11 ноября. План пересчитан.');
+    expect(BOT_WORDS.moved.lines[0]).toBe('Экзамен «Осенняя сессия» перенесён на 11 ноября. План обновлён.');
     // The snapshot's own move (a link's day of 3 November) in the same words.
     expect(plain(BOT_WORDS.moved.lines[0])).toBe(snapLines(examsSnap, 'moved')[0].replace('10 ноября', '11 ноября'));
     expect(flatKeys(BOT_WORDS.moved.keys)).toEqual(snapKeys(examsSnap, 'moved'));

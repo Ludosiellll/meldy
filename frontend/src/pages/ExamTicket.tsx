@@ -88,6 +88,7 @@ import PasteNotice from '../components/oral/PasteNotice';
 import { useAnswerTopic } from '../components/learnLeft/useAnswerTopic';
 import { FINISH_SHORTCUTS, finishKeysLabel, isFinishKey, useDeskColumn } from '../components/oral/roomDesk';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { setAddressParams } from '../lib/urlState';
 
 /** The examiner's short lines, prefetched with the follow-ups (contracts §7.2). */
 export const FILLER_LINE = 'Так…';
@@ -130,29 +131,29 @@ export function serverVoiceLine(settling: boolean, pending: number, paused: bool
   if (settling) return 'Распознаём последние слова…';
   if (pending > 0) return 'Распознаём сказанное…';
   if (paused) return 'Пауза.';
-  if (lost > 0) return 'Часть сказанного не распознана — можно повторить или дописать текстом.';
+  if (lost > 0) return 'Часть сказанного не распознана. Повторите или допишите текстом.';
   return 'Слушаю. Текст появляется после каждой паузы.';
 }
 
 /** Said once when the server takes over the recognition. */
-export const SWITCHED_TO_SERVER_NOTICE = 'Браузер не смог распознать речь — дальше её распознаёт сервер Meldy. Сказанное сохранено.';
-export const CHOSE_SERVER_NOTICE = 'Браузер не присылает распознанный текст — дальше речь распознаёт сервер Meldy: текст появляется после каждой паузы.';
+export const SWITCHED_TO_SERVER_NOTICE = 'Браузер не смог распознать речь. Дальше её распознаёт сервер Meldy. Сказанное сохранено.';
+export const CHOSE_SERVER_NOTICE = 'Браузер не присылает распознанный текст. Дальше речь распознаёт сервер Meldy, текст появляется после каждой паузы.';
 
 /** The examiner's voice starts this long after the follow-up appears: the brace, then the words, then the voice. */
 export const FOLLOWUP_VOICE_DELAY_MS = 300;
 
-const EVALUATION_FAILED_MESSAGE = 'Не удалось проверить ответ: сервис занят. Ответ сохранён на этой странице — попробуйте через минуту.';
+const EVALUATION_FAILED_MESSAGE = 'Не удалось проверить ответ, сервис занят. Ответ сохранён на этой странице. Попробуйте через минуту.';
 /** The server refused the check (429 ai_limit): a repeat helps only after the reset, so the line says when. */
 export function evaluationLimitMessage(resetAt: Date = nextLimitReset()): string {
-  return `Дневной лимит ИИ исчерпан — ответ не проверен. Он сохранён на этой странице: «Проверить снова» сработает после ${clockTime(resetAt)}.`;
+  return `Дневной лимит ИИ закончился, ответ не проверен. Он сохранён на этой странице. «Проверить снова» сработает после ${clockTime(resetAt)}.`;
 }
-const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».';
+const EMPTY_ANSWER_NOTICE = 'Ответ пустой. Скажите или напишите ответ, потом нажмите «Готово».';
 
 /**
  * «Как на экзамене» (decision 3 of 2026-10-08, Jury_Check item 11): no rows of the answer and no count before
  * the protocol — the grey bars looked like a page still loading and told how many points there are (EX-28).
  */
-export const EXAM_MODE_LINE = 'Как на экзамене: пункты ответа и цитаты — только в протоколе.';
+export const EXAM_MODE_LINE = 'Как на экзамене. Пункты ответа и цитаты будут только в протоколе.';
 
 /**
  * Before the first answer, above the two ways to answer: what «Готово» leads to and what the check costs
@@ -160,7 +161,7 @@ export const EXAM_MODE_LINE = 'Как на экзамене: пункты отв
  * protocol together).
  */
 export function nextStepLine(units: number = AI_COSTS.answer): string {
-  return `После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа — ${units} ${plural(units, 'единица', 'единицы', 'единиц')} дневного лимита ИИ.`;
+  return `После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа стоит ${units} ${plural(units, 'единицу', 'единицы', 'единиц')} из дневного лимита ИИ.`;
 }
 
 /**
@@ -220,6 +221,7 @@ export default function ExamTicket() {
       requestedNumber={requestedNumber}
       mode={mode}
       fromContainer={fromContainer}
+      askedIndex={Number(params.get('i')) - 1}
     />
   );
 }
@@ -336,29 +338,29 @@ const SELF_RATINGS: Rating[] = ['know', 'unsure', 'dont_know'];
 /** Why nobody checked the answer, in the reference's own terms (headline and the line under it). */
 function uncheckedWhy(rubric: RubricState, limitSpent: boolean): { title: string; text: string; after: string; fix: string | null } {
   if (rubric.status === 'not_in_lectures') {
-    return { title: rubric.message, text: '', after: 'Этого вопроса нет в ваших лекциях — сверять было не с чем.', fix: 'Добавить лекции' };
+    return { title: rubric.message, text: '', after: 'Этого вопроса нет в ваших лекциях, поэтому сверять не с чем.', fix: 'Добавить лекции' };
   }
   if (rubric.status === 'unverifiable') {
     if (rubric.code === 'no_lectures') {
       return {
         title: 'К экзамену не выбраны лекции',
-        text: 'Meldy сверяет ответ с лекциями экзамена. Выберите их — и ответы будут проверяться.',
-        after: 'К экзамену не выбраны лекции — сверять было не с чем.',
+        text: 'Meldy сверяет ответ с лекциями экзамена. Выберите их, и ответы будут проверяться.',
+        after: 'К экзамену не выбраны лекции, поэтому сверять не с чем.',
         fix: 'Выбрать лекции',
       };
     }
     if (rubric.code === 'no_text') {
       return {
         title: 'У лекций этого экзамена нет текста',
-        text: 'Похоже, это сканы или файлы без текста. Добавьте лекции текстом — PDF, DOCX, TXT или MD, — и ответы будут проверяться.',
-        after: 'У лекций экзамена нет текста — сверять было не с чем.',
+        text: 'Похоже, это сканы или файлы без текста. Добавьте лекции текстом (PDF, DOCX, TXT или MD), и ответы будут проверяться.',
+        after: 'У лекций экзамена нет текста, поэтому сверять не с чем.',
         fix: 'Добавить лекции',
       };
     }
     return { title: 'Пункты ответа не собрались', text: rubric.message, after: 'Пункты ответа по лекциям не собрались.', fix: null };
   }
-  if (rubric.status === 'failed') return { title: 'Пункты ответа не готовы', text: rubric.message, after: 'Пункты ответа не были готовы — сервис не ответил.', fix: null };
-  if (limitSpent) return { title: '', text: '', after: 'Проверки на сегодня закончились — сравните ответ с пунктами из лекций сами.', fix: null };
+  if (rubric.status === 'failed') return { title: 'Пункты ответа не готовы', text: rubric.message, after: 'Пункты ответа не готовы, сервис не ответил.', fix: null };
+  if (limitSpent) return { title: '', text: '', after: 'Проверки на сегодня закончились. Сравните ответ с пунктами из лекций сами.', fix: null };
   return { title: 'Пунктов ответа нет', text: rubric.status === 'blocked' ? rubric.message : '', after: '', fix: null };
 }
 
@@ -407,9 +409,12 @@ interface TicketRoomProps {
   mode: TicketMode;
   /** ?from=c:<id>: sent by an exam container's «занятие»; after the result the way is back to it (spec decision 29г). */
   fromContainer?: string | null;
+  /** ?i= of the address less one: the question of the ticket a reload goes on at (the first when it names none). */
+  askedIndex?: number;
 }
 
-function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer = null }: TicketRoomProps) {
+function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer = null, askedIndex = 0 }: TicketRoomProps) {
+  const [startAt] = useState(() => (Number.isInteger(askedIndex) && askedIndex > 0 ? askedIndex : 0));
   // Only with ?from=c:<id>: every link to this exam's pages keeps it, and the end of the ticket leads back to the
   // «занятие» instead of another random ticket. Without it, nothing changes.
   const withFrom = (path: string) => keepFrom(path, fromContainer);
@@ -525,7 +530,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     }
     loadTicket(examId, questionIds).then(
       (result) => {
-        if (active) dispatch({ type: 'loaded', exam: result.exam, questions: result.questions });
+        // A reload goes on at the question of the ticket the address names (?i=2, written as the student moves on).
+        if (active) dispatch({ type: 'loaded', exam: result.exam, questions: result.questions, index: startAt });
       },
       (error: unknown) => {
         if (!active) return;
@@ -536,7 +542,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     return () => {
       active = false;
     };
-  }, [examId, questionIds]);
+  }, [examId, questionIds, startAt]);
 
   const loadRubric = useCallback(
     async (run: number, target: TicketQuestion, signal: AbortSignal) => {
@@ -546,7 +552,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
         const response = await fetchRubric({ examId, questionId: target.id }, { signal });
         rubric =
           response.rubric.coverage === 'none' || response.rubric.points.length === 0
-            ? { status: 'not_in_lectures', message: 'Этого вопроса нет в ваших лекциях — оценить ответ не по чему.', nearest: nearestFromRubric(response.rubric) }
+            ? { status: 'not_in_lectures', message: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.', nearest: nearestFromRubric(response.rubric) }
             : { status: 'ready', response };
       } catch (error) {
         if (signal.aborted) return;
@@ -568,6 +574,12 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     },
     [alive, examId],
   );
+
+  // ── The question of the ticket on screen is named in the address (?i=2; the first leaves it out): a reload goes on there ──
+  useEffect(() => {
+    if (state.run === 0 || state.questions.length < 2) return;
+    setAddressParams({ i: state.index > 0 ? String(state.index + 1) : null });
+  }, [state.run, state.index, state.questions.length]);
 
   // ── Each question: rubric, history, limit, a restored attempt or draft ──
   useEffect(() => {
@@ -1567,8 +1579,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
                     <ReviewCard question={followupForProtocol.question} />
                     <p className="or-back-line">
                       {askedStatus === 'wrong'
-                        ? 'Пункт с ошибкой стал карточкой — она вернётся в повторении завтра.'
-                        : 'Пропущенный пункт стал карточкой — она вернётся в повторении завтра.'}
+                        ? 'Пункт с ошибкой стал карточкой. Повторим её завтра.'
+                        : 'Пропущенный пункт стал карточкой. Повторим её завтра.'}
                     </p>
                   </>
                 ) : null}
@@ -1618,7 +1630,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
   const answering = state.phase === 'answering';
   const ready = rubric.status === 'ready';
   // «Обновится в 3:00» (spec 3.10, 5.11): local time of 00:00 UTC, the hour without a leading zero.
-  const limitLine = state.limit === 'exhausted' ? `Дневной лимит исчерпан. Обновится в ${clockTime(nextLimitReset())}.` : null;
+  const limitLine = state.limit === 'exhausted' ? `Дневной лимит закончился. Снова можно в ${clockTime(nextLimitReset())}.` : null;
   const shownNamed = liveMarksOn ? named : new Set<string>();
   const namedCount = named.size;
   const asked = followup ? followup.pointId : null;
@@ -1759,9 +1771,9 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
           {rated.status === 'saving'
             ? 'Сохраняем…'
             : rated.status === 'saved' && rated.rating
-              ? `Отмечено «${SELF_RATING_LABELS[rated.rating]}» — видно на листе экзамена.`
+              ? `Отмечено «${SELF_RATING_LABELS[rated.rating]}». Отметка видна на листе экзамена.`
               : rated.status === 'failed'
-                ? 'Отметка не сохранилась — нажмите ещё раз.'
+                ? 'Отметка не сохранилась. Нажмите ещё раз.'
                 : 'Отметка появится на листе экзамена у этого вопроса.'}
         </p>
         <div className="or-acts" data-wide="">
@@ -1833,8 +1845,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
         {!checkable ? (
           <p className="or-message or-message-muted">
             {ready
-              ? 'Можно ответить без проверки — после ответа сравните его с пунктами из лекций сами.'
-              : 'Можно ответить без проверки — голосом или текстом. После ответа отметьте, как получилось: отметка появится на листе экзамена.'}
+              ? 'Можно ответить без проверки. После ответа сравните его с пунктами из лекций сами.'
+              : 'Можно ответить без проверки, голосом или текстом. После ответа отметьте, как получилось. Отметка появится на листе экзамена.'}
           </p>
         ) : (
           // What «Готово» leads to and what it costs, before the first answer (EX-32).
@@ -1864,7 +1876,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
       <>
         {/* Secondary on purpose: a count by key words, not the result (Jury_Check item 7). */}
         {points.length === 0 ? (
-          <p className="or-message or-message-muted">Ответ без проверки: после него оцените себя сами.</p>
+          <p className="or-message or-message-muted">Ответ без проверки. После него оцените себя сами.</p>
         ) : liveMarksOn ? (
           <div className="or-count">
             <p className="or-count-line">
@@ -1879,7 +1891,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
           </div>
         ) : examMode ? null : (
           // «Как на экзамене» says it once, under the ticket (EXAM_MODE_LINE).
-          <p className="or-message or-message-muted">Отметки во время ответа выключены: пункты откроются в протоколе.</p>
+          <p className="or-message or-message-muted">Отметки во время ответа выключены. Пункты откроются в протоколе.</p>
         )}
         {state.draftAt ? (
           <p className="or-draft">
@@ -1900,7 +1912,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
             Текст не появляется? Проверьте, что браузеру разрешён нужный микрофон, или ответьте текстом.
           </p>
         ) : silence ? (
-          <p className="or-hint">Говорите — я слушаю.</p>
+          <p className="or-hint">Говорите, я слушаю.</p>
         ) : null}
         {voiceAnswer && speech.engine === 'server' ? (
           <p className="or-voice" role="status">

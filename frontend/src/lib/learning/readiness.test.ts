@@ -65,12 +65,12 @@ function rating(hash: string, at: string, confidence: 1 | 2 | 3): LearningEvent 
 describe('labels', () => {
   it('uses the agreed words and the confidence scale', () => {
     expect(READINESS_LABELS).toEqual({
-      untested: 'не проверялось',
+      untested: 'ещё не отвечали',
       // Under the 20-hour rule 23:59 and 0:01 are two days and still not a confirmation, so the
       // label never names a day. No «засчитано» on screen since Ф1: it read as a credit from an AI.
-      once: 'названо достаточно, не подтверждено',
-      confirmed: 'подтверждено',
-      not_passed: 'названо недостаточно',
+      once: 'ответ полный, ещё не выучено',
+      confirmed: 'выучено',
+      not_passed: 'ответ неполный',
     });
     for (const label of Object.values(READINESS_LABELS)) expect(label).not.toMatch(/засчит|зачт/);
     expect(SELF_RATING_LABELS).toEqual({ know: 'знаю', unsure: 'плаваю', dont_know: 'не знаю' });
@@ -242,7 +242,7 @@ describe('the rule «подтверждено» (Jury_Check item 3)', () => {
     expect(questionState(answers.slice(0, 2), []).readiness).toBe('once');
     const state = questionState(answers, []);
     expect(state.readiness).toBe('confirmed');
-    expect(READINESS_LABELS[state.readiness]).toBe('подтверждено');
+    expect(READINESS_LABELS[state.readiness]).toBe('выучено');
     expect(state).toMatchObject({
       seriesStartAt: answers[0].created_at,
       seriesStartDate: '2026-10-07',
@@ -258,7 +258,7 @@ describe('the rule «подтверждено» (Jury_Check item 3)', () => {
   it('does not confirm 23:59 and 0:01: two days, but two minutes apart', () => {
     const state = questionState([pass(HASH_A, '2026-10-07', 23, 59), pass(HASH_A, '2026-10-08', 0, 1)], []);
     expect(state.readiness).toBe('once');
-    expect(READINESS_LABELS[state.readiness]).toBe('названо достаточно, не подтверждено');
+    expect(READINESS_LABELS[state.readiness]).toBe('ответ полный, ещё не выучено');
   });
 
   it('does not confirm 1:00 and 21:00 of one day: 20 hours, but one day', () => {

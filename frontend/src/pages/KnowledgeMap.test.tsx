@@ -98,7 +98,7 @@ describe('KnowledgeMap zoom', () => {
     expect(screen.getByRole('heading', { name: 'Инфляция' })).toBeInTheDocument();
     expect(zoomValue()).toBe('120 %');
 
-    await user.click(within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /названо недостаточно/ }));
+    await user.click(within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /ответ неполный/ }));
     expect(zoomValue()).toBe('120 %');
 
     await user.type(screen.getByRole('searchbox', { name: 'Найти лекцию или понятие' }), 'денеж');
@@ -118,7 +118,7 @@ describe('what the map shows', () => {
     expect(lectureCards()).toHaveLength(9);
     // File names become titles; the readiness of each question is said in words.
     const money = card(/^Лекция 3: Деньги и денежный рынок/);
-    expect(money).toHaveAccessibleName(/Вопросы экзамена: 6, 7 — подтверждено, 8 — названо недостаточно, 9/);
+    expect(money).toHaveAccessibleName(/Вопросы экзамена: 6, 7 — выучено, 8 — ответ неполный, 9/);
     expect(money).toHaveAccessibleName(/1\sоткрытая ошибка, 5\sкарточек к повторению/);
     expect(card(/^Лекция 1: Предмет макроэкономики и ВВП/)).toBeInTheDocument();
     expect(money.querySelector('[data-mark="ring"]')).not.toBeNull();
@@ -163,14 +163,14 @@ describe('what the map shows', () => {
     const legend = screen.getByRole('list', { name: 'Показать на карте' });
     expect(Array.from(legend.querySelectorAll('.km-num-t')).map((sample) => sample.textContent)).toEqual(['№', '№', '№', '№']);
     // The word, then its count: one number per item.
-    expect(within(legend).getByRole('button', { name: /^подтверждено \d+$/ }).textContent).toMatch(/^№подтверждено \d+$/);
+    expect(within(legend).getByRole('button', { name: /^выучено \d+$/ }).textContent).toMatch(/^№выучено \d+$/);
     expect(document.title).toBe('Карта знаний — Meldy');
   });
 
   it('lights the lectures a legend filter is about and fades the others', async () => {
     const user = userEvent.setup();
     await renderMap();
-    const button = within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /названо недостаточно 3/ });
+    const button = within(screen.getByRole('list', { name: 'Показать на карте' })).getByRole('button', { name: /ответ неполный 3/ });
     await user.click(button);
     expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(card(/^Лекция 3:/)).toHaveAttribute('data-state', 'lit');
@@ -189,7 +189,7 @@ describe('the panel', () => {
 
     const panel = screen.getByRole('region', { name: 'Деньги и денежный рынок' });
     expect(within(panel).getByText('Денежный мультипликатор и денежная база.')).toBeInTheDocument();
-    expect(within(panel).getByText(/названо недостаточно/)).toBeInTheDocument();
+    expect(within(panel).getByText(/ответ неполный/)).toBeInTheDocument();
     expect(within(panel).getAllByRole('link', { name: /фрагмент/ })[0]).toHaveAttribute('href', '/library/macro-3');
     expect(within(panel).getByRole('button', { name: 'Центральный банк' })).toBeInTheDocument();
     expect(within(panel).getByText(/Почему рост норм обязательных резервов/)).toBeInTheDocument();
@@ -372,7 +372,7 @@ describe('on a phone', () => {
     expect(fold).toHaveAttribute('aria-controls', words.id);
     // The list view does not light anything: the items say what the marks mean.
     expect(within(words).queryAllByRole('button')).toHaveLength(0);
-    expect(within(words).getByText('подтверждено')).toBeInTheDocument();
+    expect(within(words).getByText('выучено')).toBeInTheDocument();
     expect(within(words).getByText('открытые ошибки')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Карта' }));
     const filters = screen.getByRole('list', { name: 'Показать на карте' });
@@ -414,6 +414,22 @@ describe('the words of «Понятия» (LIB-24)', () => {
 });
 
 describe('the list', () => {
+  it('owner 21.10: a reload keeps the list (?view=list)', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/knowledge-map');
+    try {
+      await renderMap();
+      await user.click(screen.getByRole('button', { name: 'Списком' }));
+      expect(new URLSearchParams(window.location.search).get('view')).toBe('list');
+      cleanup();
+      renderPage(`/knowledge-map${window.location.search}`);
+      expect(await screen.findByRole('region', { name: 'Лекции' })).toBeInTheDocument();
+      expect(screen.queryByRole('group', { name: /^Карта связей/ })).toBeNull();
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('says the same in words, and a row opens the same panel', async () => {
     const user = userEvent.setup();
     await renderMap();

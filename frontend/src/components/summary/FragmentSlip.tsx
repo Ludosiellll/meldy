@@ -1,115 +1,17 @@
-import { Fragment, useEffect, useId, useMemo, useState } from 'react';
-import { PencilUnder, seedFrom } from '../marks';
-import { normalizeForMatch, wordStem } from '../conversation/visuals';
-import { splitFragmentHeading } from '../../utils/fragmentText';
+import { Fragment } from 'react';
 import { usePhone } from '../../lib/usePhone';
-import { fragmentNumber, fragmentWord, underlineStems, type SourceFragment } from './fragmentModel';
-import MathText, { MathPiece, shortenPieces, splitMath, type TextPiece } from './MathText';
-
-/** Longer fragments open with «Показать целиком». */
-const SLIP_LIMIT = 560;
-/** Pencil underlines per slip: more turns the slip into a colouring book. */
-const MAX_MARKS = 10;
-
-/**
- * The fragment text with the words that share a stem with the section underlined by pencil, and its formulas
- * ($…$ from a web page) drawn as the конспект draws them (QA 2026-10-11: the panel showed «$\triangle ABC$»).
- */
-function MarkedText({ pieces, stems, seedKey }: { pieces: TextPiece[]; stems: Set<string>; seedKey: string }) {
-  let count = 0;
-  return (
-    <>
-      {pieces.map((piece, pieceIndex) => {
-        if (piece.kind === 'math') return <MathPiece key={pieceIndex} piece={piece} />;
-        if (stems.size === 0) return <Fragment key={pieceIndex}>{piece.value}</Fragment>;
-        const parts = piece.value.split(/([\p{L}\p{N}]+)/u);
-        return (
-          <Fragment key={pieceIndex}>
-            {parts.map((part, index) => {
-              if (index % 2 === 1 && part.length >= 4 && count < MAX_MARKS && stems.has(wordStem(normalizeForMatch(part)))) {
-                count += 1;
-                return (
-                  <PencilUnder key={index} seed={seedFrom(seedKey, count)}>
-                    {part}
-                  </PencilUnder>
-                );
-              }
-              return <Fragment key={index}>{part}</Fragment>;
-            })}
-          </Fragment>
-        );
-      })}
-    </>
-  );
-}
-
-interface FragmentSlipProps {
-  id: string;
-  text: string | undefined;
-  /** Stems of the section (or term) the fragment stands by. */
-  stems: string[];
-  caption: string;
-  onClose?: () => void;
-  className?: string;
-}
-
-/** A cut-out fragment of the lecture: a caption on the desk, the fragment on paper (spec 5.3). */
-export function FragmentSlip({ id, text, stems, caption, onClose, className = '' }: FragmentSlipProps) {
-  const [whole, setWhole] = useState(false);
-  useEffect(() => setWhole(false), [id]);
-  const parts = text ? splitFragmentHeading(text) : null;
-  const body = parts?.body ?? '';
-  const pieces = useMemo(() => splitMath(body), [body]);
-  const long = body.length > SLIP_LIMIT;
-  // A long fragment is cut at a word, never inside a formula.
-  const shown = long && !whole ? shortenPieces(pieces, SLIP_LIMIT) : pieces;
-  const marks = useMemo(() => underlineStems(text ?? '', stems), [text, stems]);
-
-  return (
-    <figure className={`sv-slipbox ${className}`.trim()} data-fragment={id}>
-      <figcaption className="sv-caption">{caption}</figcaption>
-      <blockquote className="sf-slip sv-slip">
-        {text ? (
-          <>
-            {parts?.heading && (
-              <span className="sv-slip-head">
-                <MathText text={parts.heading} />
-              </span>
-            )}
-            <MarkedText pieces={shown} stems={marks} seedKey={`${id}:${stems.length}`} />
-          </>
-        ) : (
-          'Текст фрагмента недоступен.'
-        )}
-      </blockquote>
-      {(long || onClose) && (
-        <p className="sv-slip-actions">
-          {long && (
-            <button type="button" className="sf-link" data-muted="" onClick={() => setWhole((value) => !value)}>
-              {whole ? 'Свернуть' : 'Показать целиком'}
-            </button>
-          )}
-          {onClose && (
-            <button type="button" className="sf-link" data-muted="" onClick={onClose}>
-              Закрыть
-            </button>
-          )}
-        </p>
-      )}
-    </figure>
-  );
-}
+import { useFragmentPanel } from './FragmentPanel';
+import { fragmentNumber, fragmentWord, type SourceFragment } from './fragmentModel';
 
 interface FragmentRefsProps {
   ids: string[];
   sources: SourceFragment[];
+  /** Stems of the section (or term) the fragments stand by: the panel underlines the ones a fragment shares. */
   stems: string[];
-  /** margin: the links choose the fragment on the margin; inline: each link opens its slip below. */
-  mode: 'margin' | 'inline';
-  /** The fragment on the margin now (margin mode). */
-  current?: string | null;
-  onPick?: (id: string) => void;
-  captionFor: (id: string) => string;
+  /** Why these fragments, in plain words: the panel says it over the fragment. */
+  note: string;
+  /** The item in the address while its fragment is open (`?frag=7&frag_for=term-2`): a reload opens it again. */
+  panelKey?: string;
   compact?: boolean;
 }
 
@@ -125,60 +27,47 @@ export function fragmentsLine(ids: string[]): string {
 }
 
 /**
- * A phone (10_Project/Phone_Declutter_2026-10-08): one small line «фрагменты 2, 3» under a section or a term instead
- * of a pill per fragment with its number twice; a tap opens the fragments under it, one slip each, and «Закрыть»
- * under the last puts them away.
+ * «фрагмент 1 · фрагмент 4» after a section or a term (spec 5.3: .sf-ref pills); on a phone one small line «фрагменты 2,
+ * 3» (10_Project/Phone_Declutter_2026-10-08). Each opens the fragment panel (FragmentPanel.tsx, owner 21.10): nothing
+ * opens inside the card, so a card never grows and its row never stretches. The panel has switches between the
+ * fragments of the same section or term; the chip of the fragment on screen stays marked.
  */
-function FragmentLine({ ids: given, sources, stems, captionFor, compact }: Pick<FragmentRefsProps, 'ids' | 'sources' | 'stems' | 'captionFor' | 'compact'>) {
-  const [open, setOpen] = useState(false);
-  const slipsId = useId();
-  const ids = byNumber(given);
-  const textOf = (id: string) => sources.find((source) => source.id === id)?.text;
-  return (
-    <div className={`sv-refs sv-refs-line${compact ? ' sv-refs-compact' : ''}`}>
-      <button
-        type="button"
-        className="sf-link sv-refs-link"
-        data-muted=""
-        aria-expanded={open}
-        aria-controls={open ? slipsId : undefined}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {fragmentsLine(ids)}
-      </button>
-      {open && (
-        <div id={slipsId} className="sv-refs-slips">
-          {ids.map((id, index) => (
-            <FragmentSlip
-              key={id}
-              id={id}
-              text={textOf(id)}
-              stems={stems}
-              caption={captionFor(id)}
-              onClose={index === ids.length - 1 ? () => setOpen(false) : undefined}
-              className="sv-inline-slip"
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** «фрагмент 1 · фрагмент 4» after a section or a term (spec 5.3: .sf-ref, 32 px high); on a phone one small line. */
-export function FragmentRefs({ ids, sources, stems, mode, current = null, onPick, captionFor, compact = false }: FragmentRefsProps) {
-  const [open, setOpen] = useState<string | null>(null);
-  const slipId = useId();
+export function FragmentRefs({ ids, sources, stems, note, panelKey, compact = false }: FragmentRefsProps) {
   const phone = usePhone();
   const textOf = (id: string) => sources.find((source) => source.id === id)?.text;
+  const ordered = byNumber(ids);
+  const content = () => ({
+    note,
+    fragments: ordered.map((fragmentId) => ({ id: fragmentId, number: fragmentNumber(fragmentId), text: textOf(fragmentId), stems })),
+  });
+  const { open, current, panel, anchorRef } = useFragmentPanel(panelKey, content);
   if (ids.length === 0) return null;
-  if (phone && mode === 'inline') return <FragmentLine ids={ids} sources={sources} stems={stems} captionFor={captionFor} compact={compact} />;
+  const show = (id: string, from: HTMLElement) => open({ ...content(), current: id, returnTo: from });
+
+  if (phone) {
+    return (
+      <div ref={anchorRef} className={`sv-refs sv-refs-line${compact ? ' sv-refs-compact' : ''}`}>
+        <button
+          type="button"
+          className="sf-link sv-refs-link"
+          data-muted=""
+          aria-haspopup="dialog"
+          aria-expanded={current !== null}
+          onClick={(event) => show(ordered[0], event.currentTarget)}
+        >
+          {fragmentsLine(ids)}
+        </button>
+        {panel}
+      </div>
+    );
+  }
 
   return (
-    <div className={`sv-refs${compact ? ' sv-refs-compact' : ''}`}>
+    <div ref={anchorRef} className={`sv-refs${compact ? ' sv-refs-compact' : ''}`}>
       <p className="sv-refline">
         {ids.map((id, index) => {
-          const active = mode === 'margin' ? current === id : open === id;
+          const active = current === id;
+          const number = fragmentWord(id).replace('фрагмент ', '');
           return (
             <Fragment key={id}>
               {index > 0 && <span aria-hidden="true"> · </span>}
@@ -186,16 +75,13 @@ export function FragmentRefs({ ids, sources, stems, mode, current = null, onPick
                 type="button"
                 className="sf-ref sv-ref"
                 data-active={active ? '' : undefined}
+                data-fragment-chip={id}
                 // The number again in a small circle before the words (CSS ::before, not part of the text).
-                data-n={fragmentWord(id).replace('фрагмент ', '')}
-                aria-label={`Фрагмент лекции ${fragmentWord(id).replace('фрагмент ', '')}`}
-                {...(mode === 'inline'
-                  ? { 'aria-expanded': active, 'aria-controls': active ? slipId : undefined }
-                  : { 'aria-pressed': active })}
-                onClick={() => {
-                  if (mode === 'margin') onPick?.(id);
-                  else setOpen((value) => (value === id ? null : id));
-                }}
+                data-n={number}
+                aria-label={`Фрагмент лекции ${number}`}
+                aria-haspopup="dialog"
+                aria-expanded={active}
+                onClick={(event) => show(id, event.currentTarget)}
               >
                 {fragmentWord(id)}
               </button>
@@ -203,11 +89,7 @@ export function FragmentRefs({ ids, sources, stems, mode, current = null, onPick
           );
         })}
       </p>
-      {mode === 'inline' && open && (
-        <div id={slipId}>
-          <FragmentSlip id={open} text={textOf(open)} stems={stems} caption={captionFor(open)} onClose={() => setOpen(null)} className="sv-inline-slip" />
-        </div>
-      )}
+      {panel}
     </div>
   );
 }

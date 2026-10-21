@@ -168,7 +168,7 @@ describe('UploadZone demo text', () => {
     // За демо-текст лимит не списывается, поэтому строки о расходе нет.
     expect(screen.queryByText('Анализ расходует 20 из 100 единиц дневного лимита.')).not.toBeInTheDocument();
     // The demo is analysed with its own settings: step 2 says what will be made, why it cannot be changed, and waits.
-    expect(screen.getByText('Конспект, 6 карточек и тест из 5 вопросов')).toBeInTheDocument();
+    expect(screen.getByText('Конспект, 6 карточек и самопроверка из 5 вопросов')).toBeInTheDocument();
     const change = screen.getByRole('button', { name: 'Изменить' });
     expect(change).toBeDisabled();
     expect(change).toHaveAccessibleDescription('Для демо-текста настройки не меняются.');
@@ -474,7 +474,7 @@ describe('«Разобрать лекцию»: three steps, the start on the fir
 
   it('folds what will be made into one line that «Изменить» opens and «Свернуть настройки» closes', () => {
     render(<Harness onUpload={vi.fn()} initialText={lecture(400)} />);
-    expect(screen.getByText('Конспект, 6 карточек и тест из 5 вопросов')).toBeInTheDocument();
+    expect(screen.getByText('Конспект, 6 карточек и самопроверка из 5 вопросов')).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: 'Настройки разбора' })).not.toBeInTheDocument();
     const change = screen.getByRole('button', { name: 'Изменить' });
     expect(change).toHaveAttribute('aria-expanded', 'false');

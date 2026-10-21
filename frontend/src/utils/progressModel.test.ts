@@ -180,9 +180,9 @@ describe('what to work on', () => {
 
 describe('the line under the title', () => {
   it('says what happened in the last 7 days, or when it last happened', () => {
-    expect(weekLede({ cardAnswers: 24, tests: 1, tickets: 0, lastDay: '3 октября' })).toBe('За 7 дней: 24 ответа на карточки и 1 тест.');
+    expect(weekLede({ cardAnswers: 24, tests: 1, tickets: 0, lastDay: '3 октября' })).toBe('За 7 дней: 24 ответа на карточки и 1 самопроверка.');
     expect(weekLede({ cardAnswers: 1, tests: 0, tickets: 5, lastDay: null })).toBe('За 7 дней: 1 ответ на карточки и 5 ответов на билеты.');
-    expect(weekLede({ cardAnswers: 0, tests: 0, tickets: 0, lastDay: '30 сентября' })).toBe('За 7 дней занятий не было. Последние — 30 сентября.');
+    expect(weekLede({ cardAnswers: 0, tests: 0, tickets: 0, lastDay: '30 сентября' })).toBe('За 7 дней занятий не было. Последнее занятие было 30 сентября.');
     expect(weekLede({ cardAnswers: 0, tests: 0, tickets: 0, lastDay: null })).toBe('Здесь будет видно, как вы запоминаете лекции. Начните с повторения карточек.');
   });
 
@@ -190,9 +190,9 @@ describe('the line under the title', () => {
     expect(weekLede({ cardAnswers: 0, tests: 0, tickets: 0, questions: 130, lastDay: '10 октября' })).toBe('За 7 дней: 130 ответов на вопросы экзаменов.');
     expect(weekLede({ cardAnswers: 12, tests: 0, tickets: 0, questions: 1, lastDay: null })).toBe('За 7 дней: 12 ответов на карточки и 1 ответ на вопросы экзаменов.');
     expect(weekLede({ cardAnswers: 24, tests: 2, tickets: 3, questions: 42, lastDay: null })).toBe(
-      'За 7 дней: 24 ответа на карточки, 2 теста, 3 ответа на билеты и 42 ответа на вопросы экзаменов.',
+      'За 7 дней: 24 ответа на карточки, 2 самопроверки, 3 ответа на билеты и 42 ответа на вопросы экзаменов.',
     );
     // None this week: as before, the day of the last study (counted by the caller across every kind).
-    expect(weekLede({ cardAnswers: 0, tests: 0, tickets: 0, questions: 0, lastDay: '1 октября' })).toBe('За 7 дней занятий не было. Последние — 1 октября.');
+    expect(weekLede({ cardAnswers: 0, tests: 0, tickets: 0, questions: 0, lastDay: '1 октября' })).toBe('За 7 дней занятий не было. Последнее занятие было 1 октября.');
   });
 });

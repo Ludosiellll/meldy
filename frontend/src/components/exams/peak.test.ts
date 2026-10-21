@@ -124,9 +124,9 @@ describe('peakChange', () => {
 describe('peakText: every transition', () => {
   it('untested → once: «названо достаточно» today, confirmed by such an answer on another day, 20 hours on at the earliest', () => {
     const text = textOf([answer(TODAY, true, 4)], 'untested');
-    expect(text.because).toBe('Сегодня названо достаточно. Подтвердит такой же ответ на другой день, не раньше чем через 20 часов.');
-    expect(text).toMatchObject({ title: 'Названо достаточно, не подтверждено', before: 2, after: 3, draws: true });
-    expect(text.statement).toBe('Вопрос 12: в ответе, который вы дали только что, названо достаточно пунктов.');
+    expect(text.because).toBe('Сегодня ответ полный. Ответьте так же в другой день, через 20 часов или позже, и вопрос выучен.');
+    expect(text).toMatchObject({ title: 'Ответ полный', before: 2, after: 3, draws: true });
+    expect(text.statement).toBe('Вопрос 12: ответ полный.');
     // Seven are confirmed already: the growth from history is in the column.
     expect(text.growth).toEqual({ to: 7, total: 40, days: 3, today: 1 });
   });
@@ -136,39 +136,39 @@ describe('peakText: every transition', () => {
     const again = answer(TODAY, true, 5, 'b', { hh: 11, mm: 30 });
     const text = textOf([first, again]);
     expect(plain(text.because)).toBe(
-      'Снова названо достаточно, но с первого такого ответа прошло меньше 20 часов или это тот же день. Подтвердит такой же ответ не раньше 8 окт., 5:02.',
+      'Ответ снова полный, но с первого полного ответа прошло меньше 20 часов. Ответьте так же не раньше 8 окт., 5:02, и вопрос выучен.',
     );
-    expect(text).toMatchObject({ title: 'Названо достаточно, не подтверждено', before: null, draws: false });
-    expect(text.statement).toBe('Вопрос 12: в ответе, который вы дали только что, названо достаточно пунктов.');
+    expect(text).toMatchObject({ title: 'Ответ полный', before: null, draws: false });
+    expect(text.statement).toBe('Вопрос 12: ответ полный.');
   });
 
   it('once → confirmed: the day of the series’ first pass, «дважды, в разные дни», the growth and +1 today', () => {
     const text = textOf([answer('2026-09-29', true, 4), answer(TODAY, true, 4)], null, COUNTS, 3);
-    expect(text.because).toBe('29 сентября — названо достаточно. Сегодня снова названо достаточно: дважды, в разные дни, — вопрос подтверждён.');
-    expect(text).toMatchObject({ title: 'Подтверждено ответами', before: 6, after: 7, total: 40, draws: true });
-    expect(text.statement).toBe('Вопрос 12 подтверждён ответом, который вы дали только что.');
-    expect(plain(text.fine[0])).toBe('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов. Билетов, где подтверждены оба вопроса, — 3 %.');
+    expect(text.because).toBe('29 сентября ответ был полным. Сегодня ответ снова полный. Два полных ответа в разные дни, и вопрос выучен.');
+    expect(text).toMatchObject({ title: 'Выучено', before: 6, after: 7, total: 40, draws: true });
+    expect(text.statement).toBe('Вопрос 12 выучен.');
+    expect(plain(text.fine[0])).toBe('Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно. В 3 % билетов выучены оба вопроса.');
     expect(text.growth).toEqual({ to: 7, total: 40, days: 3, today: 1 });
   });
 
   it('once → confirmed names the first pass of the current series, not an older one before a провал', () => {
     const text = textOf([answer('2026-09-20', true, 4), answer('2026-09-25', false, 3), answer('2026-09-29', true, 4), answer(TODAY, true, 5)]);
-    expect(text.because).toBe('29 сентября — названо достаточно. Сегодня снова названо достаточно: дважды, в разные дни, — вопрос подтверждён.');
+    expect(text.because).toBe('29 сентября ответ был полным. Сегодня ответ снова полный. Два полных ответа в разные дни, и вопрос выучен.');
   });
 
   it('confirmed → confirmed: one more good answer, nothing drawn', () => {
     const text = textOf([answer('2026-09-20', true, 4), answer('2026-09-29', true, 4), answer(TODAY, true, 5)]);
-    expect(text.because).toBe('Сегодня снова названо достаточно: вопрос остаётся подтверждённым.');
+    expect(text.because).toBe('Сегодня ответ снова полный. Вопрос остаётся выученным.');
     expect(text).toMatchObject({ before: null, after: 7, draws: false });
-    expect(text.statement).toBe('Вопрос 12 остаётся подтверждённым.');
+    expect(text.statement).toBe('Вопрос 12 остаётся выученным.');
   });
 
-  it('any → not_passed: «названо недостаточно», no grade word, and the growth from history without +1', () => {
+  it('any → not_passed: «ответ неполный», no grade word, and the growth from history without +1', () => {
     const counts = { ...COUNTS, confirmedBeforeToday: 7 };
     const text = textOf([answer(TODAY, false, 3)], 'untested', counts);
-    expect(text.because).toBe('Сегодня названо недостаточно пунктов. В режиме «Чаще слабые» вопрос будет выпадать чаще.');
-    expect(text).toMatchObject({ title: 'Названо недостаточно', before: 1, after: 2, total: null, draws: true });
-    expect(text.statement).toBe('Вопрос 12: в ответе, который вы дали только что, названо недостаточно пунктов.');
+    expect(text.because).toBe('Сегодня ответ неполный. В режиме «Чаще слабые» вопрос будет выпадать чаще.');
+    expect(text).toMatchObject({ title: 'Ответ неполный', before: 1, after: 2, total: null, draws: true });
+    expect(text.statement).toBe('Вопрос 12: ответ неполный.');
     // Ф1: no grade and no «засчитано» in anything the column says.
     expect(JSON.stringify(text)).not.toMatch(/засчит|удовлетвор|отлично|хорошо|готовност/i);
     expect(text.growth).toEqual({ to: 7, total: 40, days: 3, today: 0 });
@@ -176,28 +176,28 @@ describe('peakText: every transition', () => {
 
   it('confirmed → not_passed: confirmed since the day it was first confirmed, the confirmation is taken back', () => {
     const text = textOf([answer('2026-09-20', true, 4), answer('2026-09-29', true, 5), answer('2026-10-02', true, 4), answer(TODAY, false, 3)]);
-    expect(text.because).toBe('Был подтверждён с 29 сентября, сегодня названо недостаточно. Подтверждение снято, серия начнётся заново.');
-    expect(text).toMatchObject({ title: 'Подтверждено ответами', before: 8, after: 7, total: 40, draws: true });
-    expect(text.statement).toBe('Вопрос 12: в ответе, который вы дали только что, названо недостаточно пунктов. Подтверждение снято.');
+    expect(text.because).toBe('Вопрос был выучен с 29 сентября, но сегодня ответ неполный. Его нужно выучить заново.');
+    expect(text).toMatchObject({ title: 'Выучено', before: 8, after: 7, total: 40, draws: true });
+    expect(text.statement).toBe('Вопрос 12: ответ неполный. Его нужно выучить заново.');
   });
 
   it('not_passed → once: the series started over', () => {
     const text = textOf([answer('2026-10-05', false, 2), answer(TODAY, true, 4)]);
-    expect(text.because).toBe('Сегодня названо достаточно. После ответа, где названо недостаточно, серия началась заново.');
-    expect(text).toMatchObject({ title: 'Названо достаточно, не подтверждено', before: 2, after: 3, draws: true });
+    expect(text.because).toBe('Сегодня ответ полный. Прошлый был неполным, поэтому считаем заново. Ответьте так же в другой день, и вопрос выучен.');
+    expect(text).toMatchObject({ title: 'Ответ полный', before: 2, after: 3, draws: true });
   });
 
   it('not_passed → not_passed: the wavy line stays, nothing is drawn again', () => {
     const text = textOf([answer('2026-10-05', false, 2), answer(TODAY, false, 3)]);
-    expect(text.because).toBe('Сегодня названо недостаточно пунктов. В режиме «Чаще слабые» вопрос будет выпадать чаще.');
-    expect(text).toMatchObject({ title: 'Названо недостаточно', before: 2, after: 2, draws: false });
+    expect(text.because).toBe('Сегодня ответ неполный. В режиме «Чаще слабые» вопрос будет выпадать чаще.');
+    expect(text).toMatchObject({ title: 'Ответ неполный', before: 2, after: 2, draws: false });
   });
 
   it('never says «0 → 0»: with nothing confirmed the column keeps the count of the transition', () => {
     const counts = { total: 40, confirmed: 0, once: 1, notPassed: 0, since: TODAY, confirmedBeforeToday: 0 };
     const text = textOf([answer(TODAY, true, 4)], 'untested', counts);
     expect(text.growth).toBeNull();
-    expect(text).toMatchObject({ title: 'Названо достаточно, не подтверждено', before: 0, after: 1 });
+    expect(text).toMatchObject({ title: 'Ответ полный', before: 0, after: 1 });
     expect(text.fine).toEqual([]);
   });
 });
@@ -224,8 +224,8 @@ describe('the growth line', () => {
     expect(growthSentence({ confirmed: 7, since: '2026-10-04' }, NOW)).toBe('С 4 октября: 0 → 7 за 3 дня.');
     expect(growthSentence({ confirmed: 7, since: TODAY }, NOW)).toBeNull();
     expect(growthSentence({ confirmed: 0, since: '2026-10-01' }, NOW)).toBeNull();
-    expect(staleSentence(2)).toBe('Пора проверить: 2 — подтверждены больше 14 дней назад.');
-    expect(staleSentence(1)).toBe('Пора проверить: 1 — подтверждён больше 14 дней назад.');
+    expect(staleSentence(2)).toBe('2 вопроса выучены больше 14 дней назад. Пора их проверить.');
+    expect(staleSentence(1)).toBe('1 вопрос выучен больше 14 дней назад. Пора его проверить.');
     expect(staleSentence(0)).toBeNull();
   });
 });

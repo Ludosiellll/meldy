@@ -111,7 +111,7 @@ test('Z6: a right answer — «Верно.» and one edit straight to the next q
   // On the step two_days the line names the figure in the plan's words.
   s.h.fs.steps.set(s.row().items[1], { step: 'two_days' });
   await s.at(String(s.key()), 1);
-  assert.equal(s.h.toasts().at(-1), 'Верно. Теперь 144 из 960 — верно в два разных дня.');
+  assert.equal(s.h.toasts().at(-1), 'Верно. Выучено 144 из 960.');
   lintAll(s.h);
 });
 
@@ -121,7 +121,7 @@ test('Z7 → «Дальше»: nothing is recorded before it; then the miss, and
   assert.equal(s.h.fs.answers.length, 0, 'a wrong answer waits for «Дальше»');
   const review = words(s.h.message(s.card)!.text);
   assert.match(review, /В файле — Первый \d+\nВаш ответ — /);
-  assert.match(review, /Неверно\. Вернётся через пару вопросов и завтра\./);
+  assert.match(review, /Неверно\. Повторим через пару вопросов и завтра\./);
   assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Нажали не туда?'], ['Сомневаюсь в ключе']]);
   const id = s.row().items[0];
   s.h.fs.calls.length = 0;
@@ -137,17 +137,17 @@ test('Z7 → «Дальше»: nothing is recorded before it; then the miss, and
   assert.deepEqual(queue[at].shown, shownOrder(s.h.fs.bank.get(id)!.options, false, s.sid, at), 'the repeat\'s own order (seed <sid>:<its pos>)');
   assert.deepEqual(s.h.fs.answers.map((a) => [a.cid, a.step]), [[`tg:${s.sid}:0`, 'miss']]);
   assert.match(words(s.h.message(s.card)!.text), /^Компьютерные сети · 2 из 20/);
-  // At the repeat: «повтор — не в счёт»; wrong again → back once more; the third time «Вернётся завтра.» and no queue.
+  // At the repeat: «повтор, не считается»; wrong again → back once more; the third time «Вернётся завтра.» and no queue.
   for (let pos = 1; pos < at; pos += 1) await s.at(String(s.key(pos)), pos);
-  assert.match(words(s.h.message(s.card)!.text), /· повтор — не в счёт\n/);
+  assert.match(words(s.h.message(s.card)!.text), /· повтор, не считается\n/);
   await s.at(String(s.wrong(at)), at);
-  assert.match(words(s.h.message(s.card)!.text), /Неверно\. Вернётся через пару вопросов и завтра\./);
+  assert.match(words(s.h.message(s.card)!.text), /Неверно\. Повторим через пару вопросов и завтра\./);
   await s.at('n', at);
   const again = s.row().items.findIndex((x, i) => i > at && x === id);
   assert.equal(s.row().retry[again], 2);
   for (let pos = at + 1; pos < again; pos += 1) await s.at(String(s.key(pos)), pos);
   await s.at(String(s.wrong(again)), again);
-  assert.match(words(s.h.message(s.card)!.text), /Неверно\. Вернётся завтра\./, 'the second repeat does not come back');
+  assert.match(words(s.h.message(s.card)!.text), /Неверно\. Повторим завтра\./, 'the second repeat does not come back');
   s.h.fs.calls.length = 0;
   await s.at('n', again);
   assert.equal(s.h.fs.of('bot_session_resolve').length, 1, 'no queue needed after two repeats');
@@ -162,7 +162,7 @@ test('«Нажали не туда?» (Z9): recorded with misclick, the question
   await s.at('m', 0);
   assert.deepEqual(s.h.fs.answers.map((a) => [a.cid, a.step, a.misclick]), [[`tg:${s.sid}:0`, 'misclick', true]]);
   const text = words(s.h.message(s.card)!.text);
-  assert.match(text, /Отменили: ошибку не считаем\. Ответ вы уже видели — вопрос вернётся завтра\./);
+  assert.match(text, /Ошибку не считаем\. Ответ вы уже видели, поэтому повторим вопрос завтра\./);
   assert.ok(!text.includes('Ваш ответ'));
   assert.deepEqual(s.h.labels(s.card), [['Дальше']]);
   s.h.fs.calls.length = 0;
@@ -184,15 +184,15 @@ test('«Сомневаюсь в ключе» (Z11): the question under the revie
   const before = writes();
   await s.at('d', 0);
   assert.equal(writes(), before, '«Сомневаюсь в ключе» only reads');
-  assert.match(words(s.h.message(s.card)!.text), /Сомневаетесь в ключе к № \d+\? Автор экзамена увидит/);
+  assert.match(words(s.h.message(s.card)!.text), /Сомневаетесь в ключе к № \d+\? Автор увидит/);
   assert.deepEqual(s.h.labels(s.card), [['Отметить'], ['Отмена']]);
   await s.at('b', 0);
-  assert.match(words(s.h.message(s.card)!.text), /Неверно\. Вернётся через пару вопросов и завтра\./);
+  assert.match(words(s.h.message(s.card)!.text), /Неверно\. Повторим через пару вопросов и завтра\./);
   await s.at('d', 0);
   await s.at('D', 0);
   assert.deepEqual(s.h.fs.answers.map((a) => [a.cid, a.step]), [[`tg:${s.sid}:0`, 'miss']]);
   assert.equal(s.h.fs.doubts.length, 1);
-  assert.match(words(s.h.message(s.card)!.text), /Отложено\. Когда автор ответит, вопрос вернётся в занятия\./);
+  assert.match(words(s.h.message(s.card)!.text), /Вопрос отложен\. Когда автор ответит, он снова будет в занятиях\./);
   const id = s.row().items[0];
   await s.at('n', 0);
   assert.ok(!s.row().items.slice(1).includes(id), 'a doubted question does not come back in this session');
@@ -208,7 +208,7 @@ test('«Закончить» (I2): a waiting answer is recorded as given; «Пр
   await s.at('f', 1);
   assert.deepEqual(s.h.fs.answers.map((a) => [a.cid, a.step]), [[`tg:${s.sid}:0`, 'start'], [`tg:${s.sid}:1`, 'miss']]);
   const text = words(s.h.message(s.card)!.text);
-  assert.match(text, /^Компьютерные сети: 2 вопроса за 3 минуты\nВерно 1 · неверно 1\nОшибки вернутся завтра\./);
+  assert.match(text, /^Компьютерные сети: 2 вопроса за 3 минуты\n1 верно, 1 неверно\nОшибки повторим завтра\./);
   assert.deepEqual(s.h.labels(s.card), [['Продолжить: 3 из 20']]);
   assert.deepEqual(s.h.datas(s.card), [[`s|${s.sid}|2|c`]]);
   assert.equal((s.h.fdb.of('bot_card_sent').at(-1)!.args as { event: string }).event, 'last');
@@ -233,7 +233,7 @@ test('«Закончить» before a day off (I2): the mistakes come back on th
   await h.press(`s|${sid}|1|${(key(1) + 1) % row().shown[1].o.length}`, card);
   h.advance(3 * MIN);
   await h.press(`s|${sid}|1|f`, card);
-  assert.match(words(h.message(card)!.text), /^Компьютерные сети: 2 вопроса за 3 минуты\nВерно 1 · неверно 1\nОшибки вернутся в воскресенье\./);
+  assert.match(words(h.message(card)!.text), /^Компьютерные сети: 2 вопроса за 3 минуты\n1 верно, 1 неверно\nОшибки повторим в воскресенье\./);
   lintAll(h);
 });
 
@@ -249,18 +249,18 @@ test('a press before a day off (Z7, Z9, Z8): the question comes back on the exam
   const todays = () => h.fdb.of('bot_today').length;
   const read = todays();
   await h.press(`s|${sid}|0|${(key(0) + 1) % row().shown[0].o.length}`, card);
-  assert.match(words(h.message(card)!.text), /Неверно\. Вернётся через пару вопросов и в понедельник\./);
+  assert.match(words(h.message(card)!.text), /Неверно\. Повторим через пару вопросов и в понедельник\./);
   await h.press(`s|${sid}|0|m`, card);
-  assert.match(words(h.message(card)!.text), /Отменили: ошибку не считаем\. Ответ вы уже видели — вопрос вернётся в понедельник\./);
+  assert.match(words(h.message(card)!.text), /Ошибку не считаем\. Ответ вы уже видели, поэтому повторим вопрос в понедельник\./);
   assert.equal(todays(), read, 'the days of the week came with «Начать»: no plan read on a press');
   // Another instance takes the next presses: it reads the plan once, for the first screen that says the day.
   h.restart();
   await h.press(`s|${sid}|0|n`, card);
   await h.press(`s|${sid}|1|x`, card);
-  assert.match(words(h.message(card)!.text), /\nВернётся через пару вопросов и в понедельник\.\n/);
+  assert.match(words(h.message(card)!.text), /\nПовторим через пару вопросов и в понедельник\.\n/);
   await h.press(`s|${sid}|1|n`, card);
   await h.press(`s|${sid}|2|${(key(2) + 1) % row().shown[2].o.length}`, card);
-  assert.match(words(h.message(card)!.text), /Неверно\. Вернётся через пару вопросов и в понедельник\./);
+  assert.match(words(h.message(card)!.text), /Неверно\. Повторим через пару вопросов и в понедельник\./);
   assert.equal(todays(), read + 1);
   lintAll(h);
 });
@@ -269,7 +269,7 @@ test('«Закончить» before any answer: the session is abandoned and the
   const s = await started();
   await s.at('f', 0);
   assert.equal(s.h.fs.sessions.get(s.sid)!.status, 'abandoned');
-  assert.match(words(s.h.message(s.card)!.text), /^Сегодня около \d+ минут/);
+  assert.match(words(s.h.message(s.card)!.text), /^Сегодня .+, около \d+ минут/);
   assert.match(s.h.labels(s.card)[0][0], /^Начать: 20 вопросов/);
 });
 
@@ -429,7 +429,7 @@ test('4096: a question over the limit is left to the site (skip), the next one c
   assert.equal(s.row().position, 2);
   assert.match(words(s.h.message(s.card)!.text), /^Компьютерные сети · 3 из 20/);
   await s.at('f', 2);
-  assert.match(words(s.h.message(s.card)!.text), /1 вопрос — только на сайте: он не помещается в сообщение Telegram\./);
+  assert.match(words(s.h.message(s.card)!.text), /1 вопрос можно решить только на сайте, он не помещается в сообщение Telegram\./);
   lintAll(s.h);
 });
 
@@ -456,7 +456,7 @@ test('I1: the last answer turns the message into the record; «Готово» ta
     await s.at(String(s.key(pos)), pos);
   }
   const text = words(s.h.message(s.card)!.text);
-  assert.match(text, /^Компьютерные сети: 20 вопросов за 7 минут\nВерно 20\n/);
+  assert.match(text, /^Компьютерные сети: 20 вопросов за 7 минут\n20 верно\n/);
   assert.equal(s.h.fs.sessions.get(s.sid)!.status, 'finished');
   const labels = s.h.labels(s.card);
   assert.equal(labels.at(-1)![0], 'Готово');
@@ -565,7 +565,7 @@ test('one open session: «Начать» on a new card closes the one in another
   assert.equal(old.status, 'abandoned');
   assert.deepEqual(s.h.fs.answers.map((a) => [a.cid, a.step]), [[`tg:${s.sid}:0`, 'miss']], 'its waiting answer recorded as given');
   const text = words(s.h.message(s.card)!.text);
-  assert.match(text, /^Компьютерные сети: 1 вопрос за 1 минуту\nНеверно 1/);
+  assert.match(text, /^Компьютерные сети: 1 вопрос за 1 минуту\n1 неверно/);
   assert.ok(!/В файле/.test(text), 'no key stays in the chat');
   assert.equal(s.h.message(s.card)!.markup, null);
   assert.match(words(s.h.message(second)!.text), /· 1 из 20/);
@@ -593,7 +593,7 @@ test('§4.8: another session\'s button, an older message, a finished session, th
   assert.equal(s.h.toasts().at(-1), W.OLD_BUTTON, 'an old position from another message');
   s.h.fs.role(USER, CID, null);
   await s.at(String(s.key(0)), 0);
-  assert.equal(words(s.h.message(s.card)!.text), 'Экзамен «Осенняя сессия» больше недоступен — занятие закрыто.');
+  assert.equal(words(s.h.message(s.card)!.text), 'Экзамен «Осенняя сессия» больше недоступен. Занятие закрыто.');
   await s.h.press(`s|${s.sid}|0|0`, s.card);
   assert.equal(s.h.toasts().at(-1), W.SESSION_OVER);
   s.h.fdb.link(TG)!.unlinkedAt = s.h.now;
@@ -644,12 +644,12 @@ test('«Только ошибки» (go|<cid>|e) and «Ещё 20 новых» (g
   assert.ok(extra.cls.every((c) => c === 'new_fill'));
 });
 
-test('a question that reaches the rule: «Верно. Теперь 144 из 960 — …» and the record «В счёт вошёл 1 вопрос: теперь 144 из 960.»', async () => {
+test('a question that reaches the rule: «Верно. Теперь 144 из 960 — …» and the record «Выучен ещё 1 вопрос. Всего 144 из 960.»', async () => {
   const s = await started();
   s.h.fs.steps.set(s.row().items[0], { step: 'two_days' });
   await s.at(String(s.key(0)), 0);
   await s.at('f', 1);
-  assert.match(words(s.h.message(s.card)!.text), /В счёт вошёл 1 вопрос: теперь 144 из 960\./);
+  assert.match(words(s.h.message(s.card)!.text), /Выучен ещё 1 вопрос\. Всего 144 из 960\./);
 });
 
 test('Z12: the author sees «Ключ неверный?» — a link to «Ключи» on this question — instead of «Сомневаюсь в ключе»', async () => {

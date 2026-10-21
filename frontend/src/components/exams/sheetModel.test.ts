@@ -180,13 +180,13 @@ describe('rows', () => {
 });
 
 describe('answers and confidence', () => {
-  it('says «Подтверждено ответами — 6 из 40.» only after answers, with no date after the number', () => {
+  it('says «Выучено — 6 из 40.» only after answers, with no date after the number', () => {
     expect(plain(confirmedSentence({ total: 40, confirmed: 6, once: 2, notPassed: 1, untested: 31, since: '2026-10-07' }))).toBe(
-      'Подтверждено ответами — 6 из 40.',
+      'Выучено 6 из 40.',
     );
     // «0 из 40, с 1 окт.» read as a claim about the date; the date of a change is peak 3's.
     expect(plain(confirmedSentence({ total: 40, confirmed: 0, once: 1, notPassed: 0, untested: 39, since: '2026-10-01' }))).toBe(
-      'Подтверждено ответами — 0 из 40.',
+      'Выучено 0 из 40.',
     );
     expect(confirmedSentence({ total: 40, confirmed: 0, once: 0, notPassed: 0, untested: 40, since: null })).toBeNull();
   });
@@ -194,17 +194,17 @@ describe('answers and confidence', () => {
   it('compares «знаю» with answers only with enough data; a typed answer counts, a passed one «named enough» (no «засчитано», Ф1)', () => {
     expect(confidenceSentence({ ratedKnow: 18, ratedKnowAnswered: 2, ratedKnowPassed: 1, enoughData: false })).toBe(NOT_ENOUGH_CONFIDENCE);
     expect(confidenceSentence({ ratedKnow: 18, ratedKnowAnswered: 10, ratedKnowPassed: 8, enoughData: true })).toBe(
-      'Вы отметили «знаю» у 18 вопросов. Из 10 таких, на которые вы ответили, в 8 названо достаточно.',
+      'Вы отметили «знаю» у 18 вопросов. Из 10 таких, на которые вы ответили, полный ответ в 8.',
     );
     expect(confidenceSentence({ ratedKnow: 21, ratedKnowAnswered: 3, ratedKnowPassed: 3, enoughData: true })).toContain('у 21 вопроса.');
-    expect(CONFIRMED_MEANING).toBe('Подтверждено — значит, дважды, в разные дни, в ответе названо достаточно пунктов.');
-    expect(knowPassedSentence({ ratedKnowAnswered: 1, ratedKnowPassed: 1 }, true)).toBe('Из 1 вопроса с отметкой «знаю», на которые вы ответили, в 1 названо достаточно.');
+    expect(CONFIRMED_MEANING).toBe('Вопрос выучен, когда вы дважды, в разные дни, ответили на него полно.');
+    expect(knowPassedSentence({ ratedKnowAnswered: 1, ratedKnowPassed: 1 }, true)).toBe('Из 1 вопроса с отметкой «знаю», на которые вы ответили, полный ответ в 1.');
   });
 
   it('names the readiness filters with the new words', () => {
-    expect(FILTER_NAMES['rd:once']).toBe('названо достаточно, не подтверждено');
-    expect(FILTER_NAMES['rd:not_passed']).toBe('названо недостаточно');
-    expect(FILTER_NAMES['rd:confirmed']).toBe('подтверждено');
+    expect(FILTER_NAMES['rd:once']).toBe('ответ полный, ещё не выучено');
+    expect(FILTER_NAMES['rd:not_passed']).toBe('ответ неполный');
+    expect(FILTER_NAMES['rd:confirmed']).toBe('выучено');
     for (const name of Object.values(FILTER_NAMES)) expect(name).not.toMatch(/зачт[её]н|в один день|вслух/);
   });
 });
@@ -330,19 +330,19 @@ describe('the age of a confirmation', () => {
   const state = (lastPassDate: string, stale = false) => ({ readiness: 'confirmed' as const, lastPassDate, stale });
 
   it('counts from the last passed answer', () => {
-    expect(plain(confirmedAgeSentence(state('2026-10-03'), now))).toBe('Подтверждено 3 октября — 2 дня назад.');
-    expect(confirmedAgeSentence(state('2026-10-05'), now)).toBe('Подтверждено сегодня.');
-    expect(confirmedAgeSentence(state('2026-10-04'), now)).toBe('Подтверждено вчера.');
-    expect(plain(confirmedAgeSentence(state('2026-09-19', true), now))).toBe('Подтверждено 16 дней назад — пора проверить.');
+    expect(plain(confirmedAgeSentence(state('2026-10-03'), now))).toBe('Выучено 3 октября, 2 дня назад.');
+    expect(confirmedAgeSentence(state('2026-10-05'), now)).toBe('Выучено сегодня.');
+    expect(confirmedAgeSentence(state('2026-10-04'), now)).toBe('Выучено вчера.');
+    expect(plain(confirmedAgeSentence(state('2026-09-19', true), now))).toBe('Выучено 16 дней назад. Пора проверить.');
     expect(confirmedAgeSentence({ readiness: 'once', lastPassDate: '2026-10-03', stale: false }, now)).toBeNull();
   });
 
   it('gives a screen reader the same age after the number', () => {
-    expect(readinessWords(state('2026-10-03'), now)).toBe('подтверждено 2 дня назад');
-    expect(readinessWords(state('2026-10-05'), now)).toBe('подтверждено сегодня');
-    expect(readinessWords(state('2026-09-19', true), now)).toBe('подтверждено 16 дней назад, пора проверить');
-    expect(readinessWords({ readiness: 'once', lastPassDate: null, stale: false }, now)).toBe('названо достаточно, не подтверждено');
-    expect(readinessWords({ readiness: 'not_passed', lastPassDate: null, stale: false }, now)).toBe('названо недостаточно');
+    expect(readinessWords(state('2026-10-03'), now)).toBe('выучено 2 дня назад');
+    expect(readinessWords(state('2026-10-05'), now)).toBe('выучено сегодня');
+    expect(readinessWords(state('2026-09-19', true), now)).toBe('выучено 16 дней назад, пора проверить');
+    expect(readinessWords({ readiness: 'once', lastPassDate: null, stale: false }, now)).toBe('ответ полный, ещё не выучено');
+    expect(readinessWords({ readiness: 'not_passed', lastPassDate: null, stale: false }, now)).toBe('ответ неполный');
     expect(readinessWords({ readiness: 'untested', lastPassDate: null, stale: false }, now)).toBe('');
   });
 });

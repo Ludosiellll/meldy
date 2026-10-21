@@ -249,11 +249,11 @@ export function keywordNote(live: boolean, status: PointStatus): string | null {
  */
 export function askedNote(number: number, status: PointStatus, followup: Pick<ProtocolFollowup, 'status'> | null = null): string {
   if (namedAfterQuestion(status, followup)) {
-    return status === 'wrong' ? `В пункте ${number} ошибка — верно только после вопроса экзаменатора.` : `Пункт ${number} ${AFTER_QUESTION}.`;
+    return status === 'wrong' ? `В пункте ${number} ошибка. Верно только после вопроса экзаменатора.` : `Пункт ${number} ${AFTER_QUESTION}.`;
   }
-  if (status === 'missing') return `Пункт ${number} не назван — о нём спросил экзаменатор.`;
-  if (status === 'wrong') return `В пункте ${number} ошибка — о ней спросил экзаменатор.`;
-  if (status === 'partial') return `Пункт ${number} упомянут не полностью — о нём спросил экзаменатор.`;
+  if (status === 'missing') return `Пункт ${number} не назван, о нём спросил экзаменатор.`;
+  if (status === 'wrong') return `В пункте ${number} ошибка, о ней спросил экзаменатор.`;
+  if (status === 'partial') return `Пункт ${number} упомянут не полностью, о нём спросил экзаменатор.`;
   return `О пункте ${number} спросил экзаменатор.`;
 }
 
@@ -512,8 +512,8 @@ export function HowCounted() {
       </p>
       <p className="or-how-text">
         {glue(
-          'Вопрос подтверждается, когда дважды, в разные дни, в ответе названо достаточно: около двух третей пунктов, если главный ' +
-            'считать за два, а упомянутый и названный после вопроса — за половину. С двумя ошибками ответ вопрос не подтверждает. Если ' +
+          'Вопрос выучен, когда вы дважды, в разные дни, ответили полно. Полный ответ — около двух третей пунктов. Главный пункт ' +
+            'считается за два, упомянутый и названный после вопроса — за половину. С двумя ошибками ответ неполный. Если ' +
             'экзаменатор спросил о главном пункте, на его вопрос нужно ответить хотя бы частично.',
         )}
       </p>
@@ -601,7 +601,7 @@ export function ReviewCard({ question }: { question: string }) {
       <p className="or-rcard-q" data-long={question.length > 80 ? '' : undefined}>
         {question}
       </p>
-      <span className="sr-only">Вернётся в повторении завтра.</span>
+      <span className="sr-only">Повторим завтра.</span>
     </div>
   );
 }

@@ -44,7 +44,7 @@ import * as W from './words.ts';
 
 export const V = {
   ORAL: 'устный вопрос',
-  MAY_COUNT: 'Этот вопрос может войти в счёт сегодня. Ответьте голосовым, как на экзамене.',
+  MAY_COUNT: 'Сегодня этот вопрос можно выучить. Ответьте голосовым, как на экзамене.',
   DONT_KNOW: 'Не знаю',
   SELF_CHECK: 'Проверить себя без Meldy',
   MORE_OR_AGAIN: 'Можно добавить ещё голосовое или начать заново.',
@@ -52,30 +52,32 @@ export const V = {
   EXAMINER: 'Экзаменатор:',
   PROTOCOL: 'Протокол',
   ANSWER_ON_SITE: 'Ответить на сайте',
-  TEXT_REFUSAL: 'Здесь в счёт идёт только голосовое: набранный текст бот не отличит от вставленного. Текстом можно ответить на сайте.',
-  TOO_SHORT: 'Слишком короткое голосовое — проверять нечего. Запишите ответ ещё раз.',
-  NOT_RECOGNIZED: 'Не удалось распознать речь. Запишите ещё раз — ближе к телефону, без музыки рядом.',
+  TEXT_REFUSAL: 'Здесь считаем только голосовые ответы. Бот не отличит набранный текст от вставленного. Текстом можно ответить на сайте.',
+  TOO_SHORT: 'Голосовое слишком короткое. Запишите ответ ещё раз.',
+  NOT_RECOGNIZED: 'Не получилось разобрать речь. Запишите ещё раз ближе к телефону и без музыки рядом.',
   // The site's words for the quick check's limit (backend/oral_api.py CHECK_TOO_LONG_DETAIL).
   TOO_LONG: 'Ответ слишком длинный: для проверки можно до 4000 знаков.',
   // Not in the spec (for the owner's review): the shared stop, a failure, a forwarded voice, a voice over 20 MB.
-  STOP: 'Сегодня бот больше не принимает голосовые: общий лимит распознавания речи исчерпан. Ответить можно на сайте или завтра здесь.',
+  STOP: 'Сегодня бот больше не принимает голосовые, общий лимит закончился. Ответить можно на сайте или завтра здесь.',
   FAILED: 'Meldy сейчас не отвечает, голосовое не проверено. Запишите его ещё раз через минуту.',
-  FORWARDED: 'Пересланное голосовое в счёт не идёт: запишите ответ здесь.',
-  TOO_BIG: 'Голосовое больше 20 МБ — бот не может его скачать. Запишите ответ короче.',
+  FORWARDED: 'Пересланное голосовое не считаем. Запишите ответ здесь.',
+  TOO_BIG: 'Голосовое больше 20 МБ, бот не может его скачать. Запишите ответ короче.',
   // The self-check (spec §4.9; the site's «Пункты из ваших лекций» and «Как вы ответили?»).
   POINTS_TITLE: 'Пункты из ваших лекций:',
   HOW_ANSWERED: 'Как вы ответили?',
   KNOW: 'Знаю',
   UNSURE: 'Плаваю',
-  SELF_NOTE: 'Самопроверка в счёт не идёт: она решает, когда вопрос вернётся.',
+  SELF_NOTE: 'Отметка решает, когда повторим вопрос. Выученным он от неё не станет.',
 };
 
 export const header = (subject: string, n: number, of: number) => `${subject} · ${V.ORAL} · ${n} из ${of}`;
 export const questionLine = (label: string, text: string) => `Вопрос ${label}. ${text}`;
 export const units = (n: number) => glue(n, 'единица', 'единицы', 'единиц');
+/** «стоит 1 единицу», «за 3 единицы». */
+const unitsAcc = (n: number) => glue(n, 'единицу', 'единицы', 'единиц');
 const left = (n: number) => `${plural(n, 'осталась', 'осталось', 'осталось')} ${n}`;
-export const priceLine = (price: number, unitsLeft: number) => `Проверка — ${units(price)} ИИ, сегодня ${left(unitsLeft)}.`;
-export const checkButton = (price: number) => `Проверить — ${units(price)}`;
+export const priceLine = (price: number, unitsLeft: number) => `Проверка стоит ${unitsAcc(price)} ИИ. Сегодня ${left(unitsLeft)}.`;
+export const checkButton = (price: number) => `Проверить за ${unitsAcc(price)}`;
 /** «1:42»: minutes and seconds of the recorded answer. */
 export const duration = (seconds: number) => {
   const s = Math.max(0, Math.round(seconds));
@@ -85,14 +87,14 @@ export const answerTitle = (seconds: number) => `Ваш ответ · голос
 export const spent = (charged: number, unitsLeft: number) => `${plural(charged, 'Списана', 'Списано', 'Списано')} ${units(charged)}, ${left(unitsLeft)}.`;
 export const nextButton = (n: number, of: number) => `Следующий: ${n} из ${of}`;
 export const ceilingLine = (minutes: number) =>
-  `Лимит голосовых на сегодня — ${glue(minutes, 'минута', 'минуты', 'минут')} записи. Ответить можно на сайте или завтра здесь.`;
+  `Голосовые на сегодня закончились, в день можно ${glue(minutes, 'минуту', 'минуты', 'минут')} записи. Ответить можно на сайте или завтра здесь.`;
 
-/** «…вернётся завтра в 3:00»: the AI units' next reset (00:00 UTC, ai_quota_status's resets_at) on the student's clock. */
+/** «Снова можно завтра в 3:00»: the AI units' next reset (00:00 UTC, ai_quota_status's resets_at) on the student's clock. */
 export function limitLine(resetsAt: number | null, now: number, tz: string): string {
   const d = new Date(now);
   const at = resetsAt ?? Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
   const when = localDay(at, tz) === localDay(now, tz) ? 'сегодня' : 'завтра';
-  return `Лимит ИИ на сегодня закончился — проверка вернётся ${when} в ${clockText(at, tz)}. Проверить себя без Meldy можно сейчас.`;
+  return `Проверки ИИ на сегодня закончились. Снова можно ${when} в ${clockText(at, tz)}. Проверить себя без Meldy можно сейчас.`;
 }
 
 export type Rating = 'know' | 'unsure' | 'dont_know';

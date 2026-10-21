@@ -88,6 +88,7 @@ import MoreMenu, { type MoreMenuItem } from '../components/ui/MoreMenu';
 import { containerOfExam, containerTitle, onContainerTitles, type AttachedExam } from '../lib/containers/titleCache';
 import { usePhone } from '../lib/usePhone';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
+import { setAddressParams } from '../lib/urlState';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 
@@ -240,7 +241,8 @@ export default function ExamDetail() {
 function ExamSheetPage({ examId }: { examId: string }) {
   const { user } = useAuth();
   // /exams/:id?filter=cov:none opens the sheet filtered (the «Сегодня» link «9 вопросов без материала»);
-  // anything that is not a known filter shows every question.
+  // anything that is not a known filter shows every question. The sheet keeps its filter and the question open in
+  // its panel in the address as they change (?filter=, ?open=; written quietly), so a reload and «Назад» find them.
   const [searchParams] = useSearchParams();
   const [openedFilter] = useState<SheetFilter>(() => sheetFilterOf(searchParams.get('filter')));
   const userId = user?.id ?? null;
@@ -263,7 +265,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [eventsState, setEventsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [eventsError, setEventsError] = useState<string | null>(null);
   const [filter, setFilter] = useState<SheetFilter>(openedFilter);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => searchParams.get('open'));
   // A self-rating filter is pressed in the self-rating column: that mode opens with it.
   const [rateMode, setRateMode] = useState(() => openedFilter.startsWith('sr:'));
   const [howOpen, setHowOpen] = useState(false);
@@ -795,6 +797,20 @@ function ExamSheetPage({ examId }: { examId: string }) {
   };
 
   const selectedRow = selectedId ? allRows.find((row) => row.question.id === selectedId) ?? null : null;
+
+  useEffect(() => {
+    setAddressParams({ filter: filter === 'all' ? null : filter });
+  }, [filter]);
+  // The question named by the address opens once the sheet has it; one the exam no longer has is left out.
+  const sheetReady = status === 'ready';
+  useEffect(() => {
+    if (!sheetReady) return;
+    if (selectedId && !selectedRow) {
+      setSelectedId(null);
+      return;
+    }
+    setAddressParams({ open: selectedId });
+  }, [sheetReady, selectedId, selectedRow]);
 
   const closeWhy = useCallback(() => {
     const id = selectedId;

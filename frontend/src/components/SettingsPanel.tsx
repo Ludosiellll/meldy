@@ -41,7 +41,7 @@ function SegmentedControl({ options, value, onChange, disabled }: { options: { k
 const AGENTS = [
   { id: 'summarizer', label: 'Конспект', desc: 'Главное по разделам и словарь терминов', icon: FileText, tone: 'b' },
   { id: 'flashcards', label: 'Карточки', desc: 'Вопрос — ответ, для повторения по дням', icon: Layers, tone: 'y' },
-  { id: 'quiz', label: 'Тест', desc: 'Вопросы с вариантами и объяснением ошибок', icon: HelpCircle, tone: 'g' },
+  { id: 'quiz', label: 'Самопроверка', desc: 'Вопросы с вариантами и объяснением ошибок', icon: HelpCircle, tone: 'g' },
   { id: 'cheatsheet', label: 'Выжимка', desc: 'Главное на одну страницу, повторить перед экзаменом', icon: Zap, tone: 'p' },
   { id: 'podcast', label: 'Подкаст', desc: 'Два ведущих обсуждают лекцию, на экране — схемы и термины', icon: MessagesSquare, tone: 's' },
 ];
@@ -61,7 +61,7 @@ export function settingsSummary(settings: AnalysisSettings): string {
   if (on.has('flashcards')) parts.push(`${settings.flashcardCount}${nb}${pluralRu(settings.flashcardCount, ['карточка', 'карточки', 'карточек'])}`);
   if (on.has('quiz')) {
     const kind = settings.quizType === 'truefalse' ? ' «верно или неверно»' : '';
-    parts.push(`тест из${nb}${settings.quizCount}${nb}${pluralRu(settings.quizCount, ['вопроса', 'вопросов', 'вопросов'])}${kind}`);
+    parts.push(`самопроверка из${nb}${settings.quizCount}${nb}${pluralRu(settings.quizCount, ['вопроса', 'вопросов', 'вопросов'])}${kind}`);
   }
   if (on.has('cheatsheet')) parts.push('выжимка');
   if (on.has('podcast')) parts.push('подкаст');
@@ -164,7 +164,7 @@ export default function SettingsPanel({ settings, onChange, disabled = false }: 
       {settings.enabledAgents?.includes('quiz') && (
         <>
           <div className="ac-set">
-            <label htmlFor={`${ids}-quiz`} className="ac-set-l">Вопросов в тесте: {settings.quizCount}</label>
+            <label htmlFor={`${ids}-quiz`} className="ac-set-l">Вопросов в самопроверке: {settings.quizCount}</label>
             <input
               id={`${ids}-quiz`}
               type="range"
@@ -179,7 +179,7 @@ export default function SettingsPanel({ settings, onChange, disabled = false }: 
           </div>
 
           <div className="ac-set">
-            <span className="ac-set-l">Сложность теста</span>
+            <span className="ac-set-l">Сложность вопросов</span>
             <SegmentedControl
               options={Object.entries(diffLabels).map(([k, v]) => ({ key: k, label: v }))}
               value={settings.quizDifficulty}
@@ -189,7 +189,7 @@ export default function SettingsPanel({ settings, onChange, disabled = false }: 
           </div>
 
           <div className="ac-set">
-            <span className="ac-set-l">Вопросы теста</span>
+            <span className="ac-set-l">Вид вопросов</span>
             <SegmentedControl
               options={Object.entries(typeLabels).map(([k, v]) => ({ key: k, label: v }))}
               value={settings.quizType}

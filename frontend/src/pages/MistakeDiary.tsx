@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { useUrlState } from '../lib/urlState';
 import { CheckCircle2, RefreshCw, Trash2, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -40,7 +41,7 @@ const PRACTICE_FAILED = 'Не удалось подготовить задани
  * (Jury_Check item 11).
  */
 export function mistakeOriginLabel(origin: string | null | undefined): string {
-  if (origin === 'quiz') return 'Тест';
+  if (origin === 'quiz') return 'Самопроверка';
   if (origin === 'oral_ticket') return 'Ответ на билет';
   return 'Устный экзамен';
 }
@@ -130,7 +131,7 @@ function MistakeItem({ mistake, point, withDate, expanded, onToggle, onResolve, 
             </div>
           ) : (
             <div className="md-ans" data-right="">
-              <p className="md-ans-l">{fromQuiz ? 'Правильный ответ' : 'Что нужно было сказать'}</p>
+              <p className="md-ans-l">{fromQuiz ? 'Верный ответ' : 'Что нужно было сказать'}</p>
               <p className="md-ans-t">{parts ? parts.point : mistake.correct_answer}</p>
             </div>
           )}
@@ -159,6 +160,7 @@ function MistakeItem({ mistake, point, withDate, expanded, onToggle, onResolve, 
 
 const RESOLVE_FAILED = 'Не удалось отметить ошибку. Проверьте соединение и попробуйте ещё раз.';
 const DELETE_FAILED = 'Не удалось удалить ошибку. Проверьте соединение и попробуйте ещё раз.';
+const MISTAKE_FILTERS = ['all', 'open', 'resolved'] as const;
 
 /**
  * What the practice takes, under its button: «Задания по 5 открытым ошибкам. Расходует 2 единицы дневного лимита ИИ,
@@ -169,8 +171,8 @@ const DELETE_FAILED = 'Не удалось удалить ошибку. Пров
 export function practiceNote(open: number, phone: boolean): string {
   const n = Math.min(open, 5);
   const cost = AI_COSTS.mistakesPractice;
-  if (phone) return `Задания по ${n} ${n === 1 ? 'ошибке' : 'ошибкам'} · ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} лимита ИИ`;
-  return `Задания по ${n} ${n === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Расходует ${cost} ${pluralRu(cost, ['единицу', 'единицы', 'единиц'])} дневного лимита ИИ, если задания получились.`;
+  if (phone) return `Задания по ${n} ${n === 1 ? 'ошибке' : 'ошибкам'}, ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} ИИ`;
+  return `Задания по ${n} ${n === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Это ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} из дневного лимита ИИ, только если задания получились.`;
 }
 
 export default function MistakeDiary() {
@@ -181,7 +183,8 @@ export default function MistakeDiary() {
   const { verifyEnergy } = useEnergyConfirm();
   const [mistakes, setMistakes] = useState<Mistake[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all');
+  // The filter lives in the address (?filter=open | resolved; lib/urlState.ts): a reload and «Назад» keep it.
+  const [filter, setFilter] = useUrlState<'all' | 'open' | 'resolved'>('filter', 'all', MISTAKE_FILTERS);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const { playFlipSound, playSuccessSound, playErrorSound } = useSound();
@@ -506,7 +509,7 @@ export default function MistakeDiary() {
                     className="sf-link md-stop"
                     data-muted=""
                     onClick={async () => {
-                      if (await confirm({ title: 'Прервать', message: 'Вы уверены, что хотите прервать работу над ошибками? Прогресс не сохранится.', type: 'warning' })) {
+                      if (await confirm({ title: 'Прервать', message: 'Прервать работу над ошибками? Ответы не сохранятся.', type: 'warning' })) {
                         setIsPracticing(false);
                       }
                     }}
@@ -616,7 +619,7 @@ export default function MistakeDiary() {
               <h1 className="sf-h1">Дневник ошибок</h1>
               {/* A phone keeps one line: where a mistake came from is on every row. */}
               <p className="sf-lede">
-                {phone ? 'Нажмите на строку — откроется ответ.' : ty('Ошибки из тестов и ответов на билеты. Нажмите на строку — откроется, что нужно было сказать.')}
+                {phone ? 'Нажмите на строку, чтобы увидеть ответ.' : ty('Ошибки из самопроверок и ответов на билеты. Нажмите на строку, чтобы увидеть верный ответ.')}
               </p>
             </div>
           </header>
@@ -700,7 +703,7 @@ export default function MistakeDiary() {
               <div className="md-card md-state md-empty">
                 <h2 className="md-h3">Ошибок пока нет</h2>
                 <p className="md-text">
-                  {ty('Сюда попадут пункты, которые вы не назвали в ответе на билет, и вопросы тестов, на которые вы ответили неверно.')}
+                  {ty('Сюда попадут пункты, которые вы не назвали в ответе на билет, и вопросы самопроверки, на которые вы ответили неверно.')}
                 </p>
                 <Link className="sf-secondary md-state-act" to="/exams">
                   Ответить на билет

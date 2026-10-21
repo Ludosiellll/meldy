@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { clearDraftValue, readDraftValue, writeDraftValue } from '../../lib/urlState';
 import { COVER_BUCKET, coverUrl, pictureFromFile, picturePath, uploadPicture } from '../../api/itemPictures';
 import { createQuiz, listQuizzes, updateQuiz } from '../../api/quizzes';
 import { fetchTestDoc } from '../../api/testDocs';
@@ -94,6 +95,31 @@ function withCurrent(options: readonly (number | null)[], current: number | null
   return options.includes(current) ? [...options] : [...options, current].sort((a, b) => (a ?? Infinity) - (b ?? Infinity));
 }
 
+/** The form of this page not saved yet (lib/urlState.ts drafts). */
+interface SetupDraft {
+  form: QuizSettings;
+  opensMode: OpensMode;
+  closesMode: ClosesMode;
+  touched: { count: boolean; time: boolean };
+  more: boolean;
+}
+
+function isSetupDraft(value: unknown): value is SetupDraft {
+  const draft = value as SetupDraft | null;
+  return Boolean(
+    draft &&
+      typeof draft === 'object' &&
+      draft.form !== null &&
+      typeof draft.form === 'object' &&
+      Array.isArray(draft.form.subject_ids) &&
+      (draft.opensMode === 'now' || draft.opensMode === 'at') &&
+      (draft.closesMode === 'never' || draft.closesMode === 'at') &&
+      draft.touched !== null &&
+      typeof draft.touched === 'object' &&
+      typeof draft.more === 'boolean',
+  );
+}
+
 export default function QuizSetupPage() {
   const params = useParams();
   const containerId = (params.id ?? '') as Uuid;
@@ -112,7 +138,11 @@ export default function QuizSetupPage() {
     const state = location.state as { preset?: Partial<QuizSettings>; more?: boolean } | null;
     return { preset: !editing && state?.preset && typeof state.preset === 'object' ? state.preset : null, more: Boolean(state?.more) };
   });
-  const [moreOpen, setMoreOpen] = useState(quick.more);
+  // What the author set here and has not saved yet: kept in this tab until «Создать» / «Сохранить» (owner, 21.10: a
+  // reload lost the form). A new quiz's draft is its exam's, an edit's is its quiz's.
+  const draftKey = editing ? `quiz-edit:${quizId}` : `quiz-new:${containerId}`;
+  const [kept] = useState(() => readDraftValue(draftKey, isSetupDraft));
+  const [moreOpen, setMoreOpen] = useState(quick.more || Boolean(kept?.more));
   const frame = useFrame<HTMLDivElement>();
   // A computer: «Ещё настройки» stands on top of the right column and the folded settings open under both cards,
   // below the window's edge at 734 px — the window moves the least to show where they begin (bringIntoView).
@@ -205,10 +235,19 @@ export default function QuizSetupPage() {
       }
     }
     if (!start) return;
+    if (kept) {
+      start = { ...start, ...kept.form };
+      setTouched(kept.touched);
+    }
     setForm(start);
-    setOpensMode(start.opens_at ? 'at' : 'now');
-    setClosesMode(start.closes_at ? 'at' : 'never');
-  }, [form, owner, data.data, editing, quiz, subjects, counts, allAsked, designAsked, quick]);
+    setOpensMode(kept?.opensMode ?? (start.opens_at ? 'at' : 'now'));
+    setClosesMode(kept?.closesMode ?? (start.closes_at ? 'at' : 'never'));
+  }, [form, owner, data.data, editing, quiz, subjects, counts, allAsked, designAsked, quick, kept]);
+  const sent = useRef(false);
+  useEffect(() => {
+    if (!form || sent.current) return;
+    writeDraftValue(draftKey, { form, opensMode, closesMode, touched, more: moreOpen } satisfies SetupDraft);
+  }, [draftKey, form, opensMode, closesMode, touched, moreOpen]);
 
   const pool = form ? poolOf(form.subject_ids, counts) : 0;
   const designOn = form?.design === true;
@@ -337,6 +376,8 @@ export default function QuizSetupPage() {
     try {
       if (!editing) {
         const row = await createQuiz(containerId, settings);
+        sent.current = true;
+        clearDraftValue(draftKey);
         track('quiz.created', { items: settings.item_count, minutes: settings.time_limit_min ?? 0, attempts: settings.attempts ?? 0 });
         navigate(`${listPath}/${row.id}`, { replace: true, state: { quizNote: 'created' } });
         return;
@@ -346,6 +387,8 @@ export default function QuizSetupPage() {
       if (locked) for (const key of LOCKED_SETTINGS) delete patch[key];
       const changed = Object.keys(patch).length > 0;
       if (changed) await updateQuiz(quizId, patch);
+      sent.current = true;
+      clearDraftValue(draftKey);
       navigate(statsPath, { replace: true, state: { quizNote: changed ? 'saved' : null } });
     } catch (failure) {
       const code = (failure as { code?: unknown } | null)?.code;

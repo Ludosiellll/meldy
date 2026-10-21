@@ -49,10 +49,10 @@ const DAY_MS = 86_400_000;
  * keeps its own words (passed, not_passed) for the same rule.
  */
 export const READINESS_LABELS: Record<Readiness, string> = {
-  untested: 'не проверялось',
-  once: 'названо достаточно, не подтверждено',
-  confirmed: 'подтверждено',
-  not_passed: 'названо недостаточно',
+  untested: 'ещё не отвечали',
+  once: 'ответ полный, ещё не выучено',
+  confirmed: 'выучено',
+  not_passed: 'ответ неполный',
 };
 
 /** «Плаваю» is only a self-rating word; the readiness mark for a failed answer reads «названо недостаточно». */

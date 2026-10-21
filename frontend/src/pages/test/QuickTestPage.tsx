@@ -1,6 +1,7 @@
-import { useId, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
+import { clearDraftValue, readDraftValue, writeDraftValue } from '../../lib/urlState';
 import { track } from '../../lib/telemetry';
 import { useFrame } from '../../components/exams/useFrame';
 import { errorText, nb } from '../../components/containers/copyImport';
@@ -44,6 +45,29 @@ export function defaultQuickName(now: Date = new Date()): string {
  * questions and the контрольная (saveQuick) and opens the link with its QR code. «Ещё настройки» saves the test and opens
  * the full form with the pills' choices.
  */
+/** What was typed here and not saved yet: kept in this tab (lib/urlState.ts drafts) until the test is saved. */
+interface QuickDraft {
+  title: string;
+  text: string;
+  taps: QuickTaps;
+  settings: QuickSettings;
+}
+const DRAFT_KEY = 'quick-test';
+
+function isQuickDraft(value: unknown): value is QuickDraft {
+  const draft = value as QuickDraft | null;
+  return Boolean(
+    draft &&
+      typeof draft === 'object' &&
+      typeof draft.title === 'string' &&
+      typeof draft.text === 'string' &&
+      draft.taps !== null &&
+      typeof draft.taps === 'object' &&
+      draft.settings !== null &&
+      typeof draft.settings === 'object',
+  );
+}
+
 export default function QuickTestPage() {
   useDocumentTitle(QUICK.docTitle);
   const navigate = useNavigate();
@@ -51,10 +75,18 @@ export default function QuickTestPage() {
   const ids = useId();
   const side = frame.side ? 'right' : 'below';
 
-  const [title, setTitle] = useState('');
-  const [text, setText] = useState('');
-  const [taps, setTaps] = useState<QuickTaps>({});
-  const [settings, setSettings] = useState<QuickSettings>(QUICK_DEFAULTS);
+  // A reload keeps the name, the pasted questions, the taps and the pills (owner, 21.10: a reload lost what was typed).
+  const [kept] = useState(() => readDraftValue(DRAFT_KEY, isQuickDraft));
+  const [title, setTitle] = useState(kept?.title ?? '');
+  const [text, setText] = useState(kept?.text ?? '');
+  const [taps, setTaps] = useState<QuickTaps>(kept?.taps ?? {});
+  const [settings, setSettings] = useState<QuickSettings>(() => (kept ? { ...QUICK_DEFAULTS, ...kept.settings } : QUICK_DEFAULTS));
+  const sent = useRef(false);
+  useEffect(() => {
+    if (sent.current) return;
+    if (!title && !text) clearDraftValue(DRAFT_KEY);
+    else writeDraftValue(DRAFT_KEY, { title, text, taps, settings } satisfies QuickDraft);
+  }, [title, text, taps, settings]);
   const [busy, setBusy] = useState<'link' | 'more' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const save = useRef<QuickSave>(freshQuickSave());
@@ -98,6 +130,8 @@ export default function QuickTestPage() {
         save.current,
       );
       const containerId = state.containerId as string;
+      sent.current = true;
+      clearDraftValue(DRAFT_KEY);
       if (what === 'more') {
         track('quick.more', { items: items.length, keyed: count });
         navigate(`/exams/c/${containerId}/quizzes/new?all=1`, { replace: true, state: { preset: quickPreset(settings), more: true } });

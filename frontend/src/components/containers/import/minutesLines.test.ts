@@ -40,7 +40,7 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
   it('the minutes are enough: what they need to see every question by the date', () => {
     plan.feasibility.mockReturnValue({ neededMin: 35, option: 45, seenByDateEst: 476 });
     const lines = minutesLines(ONE_DATE, 45);
-    expect(lines?.line).toBe('Чтобы увидеть все 476 вопросов к 28 октября, нужно около 35 минут в день.');
+    expect(lines?.line).toBe('Чтобы пройти все 476 вопросов к 28 октября, нужно около 35 минут в день.');
     expect(lines?.short).toBe(false);
     expect(lines?.option).toBe(45);
     expect(plan.feasibility).toHaveBeenCalledWith(expect.objectContaining({ budgetMin: 45 }));
@@ -54,33 +54,33 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
   it('they fall short: what they reach, and what all would need (the design table’s line)', () => {
     plan.feasibility.mockReturnValue({ neededMin: 72, option: 90, seenByDateEst: 404 });
     expect(minutesLines(ONE_DATE, 30)?.line).toBe(
-      'При 30 минутах к 28 октября вы увидите около 400 из 476. Чтобы увидеть все, нужно около 75 минут.',
+      'Если заниматься 30 минут в день, к 28 октября вы пройдёте около 400 из 476. Чтобы пройти все, нужно около 75 минут в день.',
     );
   });
 
   it('«Даже при 90 минутах» only at 90; at fewer minutes the line names the minutes chosen', () => {
     plan.feasibility.mockReturnValue({ neededMin: 120, option: null, seenByDateEst: 300 });
-    expect(minutesLines(ONE_DATE, 45)?.line).toMatch(/^При 45 минутах к 28 октября вы увидите около 300 из 476\. Чтобы увидеть все, нужно около 120 минут\.$/);
-    expect(minutesLines(ONE_DATE, 90)?.line).toBe('Даже при 90 минутах в день к 28 октября вы увидите около 300 из 476. Чтобы увидеть все, выберите «Все вопросы».');
+    expect(minutesLines(ONE_DATE, 45)?.line).toMatch(/^Если заниматься 45 минут в день, к 28 октября вы пройдёте около 300 из 476\. Чтобы пройти все, нужно около 120 минут в день\.$/);
+    expect(minutesLines(ONE_DATE, 90)?.line).toBe('Даже если заниматься 90 минут в день, к 28 октября вы пройдёте около 300 из 476. Чтобы пройти все, выберите «Все вопросы».');
   });
 
   it('«Все вопросы»: the count, the new ones of today\'s spread, the hours a day; no option, never short', () => {
     plan.feasibility.mockReturnValue({ neededMin: 452, option: null, seenByDateEst: 476 });
     plan.planDay.mockReturnValue({ coverage: { floor: 34, lastNewDay: '2026-10-23' } });
     const lines = minutesLines(ONE_DATE, 300);
-    expect(lines?.line.replace(/\u00a0/g, ' ')).toBe('Все 476 вопросов — к 23 октября: около 34 новых в день, около 7,5 часа в день.');
+    expect(lines?.line.replace(/\u00a0/g, ' ')).toBe('Все 476 вопросов к 23 октября. Около 34 новых в день, около 7,5 часа в день.');
     expect(lines?.option).toBeNull();
     expect(lines?.short).toBe(false);
-    expect(lines?.window?.replace(/\u00a0/g, ' ')).toBe('С 24 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
+    expect(lines?.window?.replace(/\u00a0/g, ' ')).toBe('С 24 октября новых вопросов не будет. В последние 4 дня только знакомые, сначала ошибки.');
     expect(plan.planDay).toHaveBeenCalledWith(expect.objectContaining({ budgetMin: 300 }));
   });
 
   it('one date for the exam: the final days without new questions; several dates: none', () => {
     plan.feasibility.mockReturnValue({ neededMin: 35, option: 45, seenByDateEst: 476 });
-    expect(minutesLines(ONE_DATE, 45)?.window).toBe('С 24 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
+    expect(minutesLines(ONE_DATE, 45)?.window).toBe('С 24 октября новых вопросов не будет. В последние 4 дня только знакомые, сначала ошибки.');
     expect(plan.windowDays).toHaveBeenCalledWith('2026-10-08', '2026-10-28', 127);
     // Пн–Пт: the 4 final days are study days, 22–27 October (the weekend between them is not one of them)
-    expect(minutesLines({ ...ONE_DATE, studyWeekdays: 31 }, 45)?.window).toBe('С 22 октября новых вопросов не будет: последние 4 дня — только знакомые, сначала ошибки.');
+    expect(minutesLines({ ...ONE_DATE, studyWeekdays: 31 }, 45)?.window).toBe('С 22 октября новых вопросов не будет. В последние 4 дня только знакомые, сначала ошибки.');
     expect(plan.windowDays).toHaveBeenLastCalledWith('2026-10-08', '2026-10-28', 31);
     const two = input(
       [
@@ -91,7 +91,7 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
     );
     const lines = minutesLines(two, 45);
     expect(lines?.window).toBeNull();
-    expect(lines?.line).toBe('Чтобы увидеть все 480 вопросов к 3 ноября, нужно около 35 минут в день.');
+    expect(lines?.line).toBe('Чтобы пройти все 480 вопросов к 3 ноября, нужно около 35 минут в день.');
   });
 
   it('counts only the subjects still ahead, and only those with questions name the date', () => {
@@ -104,7 +104,7 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
       ],
       { a: 240, past: 100 },
     );
-    expect(minutesLines(mixed, 45)?.line).toBe('Чтобы увидеть все 240 вопросов к 28 октября, нужно около 35 минут в день.');
+    expect(minutesLines(mixed, 45)?.line).toBe('Чтобы пройти все 240 вопросов к 28 октября, нужно около 35 минут в день.');
   });
 
   it('names its count «в плане» when the exam holds more questions (usability check 2026-10-10, m6)', () => {
@@ -112,15 +112,15 @@ describe('minutesLines: the plan’s line under «Время в день»', () 
     // The QA's exam: 34 with variants and 16 oral in the plan; the exam says 54 (4 oral wait for lectures).
     const qa = { ...input([{ id: 'db', title: 'Базы данных', date: '2026-10-21' }, { id: 'cs', title: 'C#', date: '2026-10-21' }], { db: 16, cs: 34 }), examQuestions: 54 };
     plan.feasibility.mockReturnValue({ neededMin: 20, option: 30, seenByDateEst: 50 });
-    expect(words(minutesLines(qa, 30))).toBe('Чтобы увидеть все 50 вопросов в плане к 21 октября, нужно около 20 минут в день.');
+    expect(words(minutesLines(qa, 30))).toBe('Чтобы пройти все 50 вопросов в плане к 21 октября, нужно около 20 минут в день.');
     plan.feasibility.mockReturnValue({ neededMin: 40, option: 45, seenByDateEst: 41 });
-    expect(words(minutesLines(qa, 30))).toBe('При 30 минутах к 21 октября вы увидите около 41 из 50 в плане. Чтобы увидеть все, нужно около 40 минут.');
+    expect(words(minutesLines(qa, 30))).toBe('Если заниматься 30 минут в день, к 21 октября вы пройдёте около 41 из 50 в плане. Чтобы пройти все, нужно около 40 минут в день.');
     plan.feasibility.mockReturnValue({ neededMin: 120, option: null, seenByDateEst: 41 });
-    expect(words(minutesLines(qa, 90))).toBe('Даже при 90 минутах в день к 21 октября вы увидите около 41 из 50 в плане. Чтобы увидеть все, выберите «Все вопросы».');
+    expect(words(minutesLines(qa, 90))).toBe('Даже если заниматься 90 минут в день, к 21 октября вы пройдёте около 41 из 50 в плане. Чтобы пройти все, выберите «Все вопросы».');
     // the exam's size equals the count (or is not known): the words as before
     plan.feasibility.mockReturnValue({ neededMin: 35, option: 45, seenByDateEst: 476 });
-    expect(words(minutesLines({ ...ONE_DATE, examQuestions: 476 }, 45))).toBe('Чтобы увидеть все 476 вопросов к 28 октября, нужно около 35 минут в день.');
-    expect(words(minutesLines(ONE_DATE, 45))).toBe('Чтобы увидеть все 476 вопросов к 28 октября, нужно около 35 минут в день.');
+    expect(words(minutesLines({ ...ONE_DATE, examQuestions: 476 }, 45))).toBe('Чтобы пройти все 476 вопросов к 28 октября, нужно около 35 минут в день.');
+    expect(words(minutesLines(ONE_DATE, 45))).toBe('Чтобы пройти все 476 вопросов к 28 октября, нужно около 35 минут в день.');
   });
 
   it('no date, no questions or a failing estimate: no line', () => {
@@ -141,7 +141,7 @@ describe('minutesLines: «Как можно быстрее»', () => {
   it('without a date: the day all are seen at these minutes and the study days it takes', () => {
     plan.fastForecast.mockReturnValue({ total: 320, unseen: 320, lastDay: '2026-10-18', days: 9, minutes: 60 });
     const lines = minutesLines(NO_DATE, 60, 'fast');
-    expect(lines?.line.replace(/\u00a0/g, ' ')).toBe('При 60 минутах в день все 320 вопросов вы увидите к 18 октября — за 9 дней занятий.');
+    expect(lines?.line.replace(/\u00a0/g, ' ')).toBe('Если заниматься 60 минут в день, вы пройдёте все 320 вопросов к 18 октября, за 9 дней занятий.');
     expect(lines).toMatchObject({ window: null, option: null, short: false });
     expect(plan.fastForecast).toHaveBeenCalledWith(expect.objectContaining({ budgetMin: 60 }));
     expect(plan.feasibility).not.toHaveBeenCalled();
@@ -152,7 +152,7 @@ describe('minutesLines: «Как можно быстрее»', () => {
   it('on «Все вопросы»: today, and how long the day takes', () => {
     plan.fastForecast.mockReturnValue({ total: 320, unseen: 320, lastDay: '2026-10-10', days: 1, minutes: 330 });
     expect(minutesLines(NO_DATE, 300, 'fast')?.line.replace(/\u00a0/g, ' ')).toBe(
-      'Все 320 вопросов — сегодня: около 5,5 часа. На следующий день — повтор тех, на которые ответили верно.',
+      'Все 320 вопросов сегодня, около 5,5 часа. На следующий день повторим те, на которые вы ответили верно.',
     );
   });
 

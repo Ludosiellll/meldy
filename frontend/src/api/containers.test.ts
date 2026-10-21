@@ -704,7 +704,7 @@ describe('backend calls', () => {
 
 describe('words (spec §3, §16 decisions 45 and 55)', () => {
   it('no error text says what the product never says', () => {
-    const banned = /контейнер|тест|повторени|на проверку|спорн|пробн|засчитан|сгорел|готов на|выучен|сдашь|отстаёте|преподавател|колледж|аккредитац|копи/i;
+    const banned = /контейнер|тест|повторени|на проверку|спорн|пробн|засчитан|сгорел|готов на|сдашь|отстаёте|преподавател|колледж|аккредитац|копи/i;
     for (const text of [...Object.values(CONTAINER_ERROR_TEXT), LINKS_LIMIT_TEXT, NOTHING_TO_SHARE_TEXT]) {
       expect(text, text).not.toMatch(banned);
     }

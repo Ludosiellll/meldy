@@ -114,7 +114,7 @@ function Today() {
 // ---------------------------------------------------------------------------------------------
 // «Разобрать лекцию»
 
-const MODULES = ['Конспект', 'Карточки', 'Тест', 'Выжимка', 'Подкаст'];
+const MODULES = ['Конспект', 'Карточки', 'Самопроверка', 'Выжимка', 'Подкаст'];
 
 function Add() {
   const root = useRef<HTMLDivElement>(null);
@@ -190,8 +190,8 @@ function Add() {
 // «Лекции»
 
 const LECTURES = [
-  ['Эластичность спроса', 'конспект · 8 карточек · тест · подкаст', '2 окт.'],
-  ['Рынок и равновесие', 'конспект · 10 карточек · тест', '29 сент.'],
+  ['Эластичность спроса', 'конспект · 8 карточек · самопроверка · подкаст', '2 окт.'],
+  ['Рынок и равновесие', 'конспект · 10 карточек · самопроверка', '29 сент.'],
   ['Издержки фирмы', 'только текст, конспекта нет', '25 сент.'],
 ];
 
@@ -236,7 +236,7 @@ function Library() {
             <div className="gs-tabs">
               <span className="is-on">Конспект</span>
               <span>Карточки 8</span>
-              <span>Тест 5</span>
+              <span>Самопроверка 5</span>
             </div>
             <p className="gs-sum-h">Когда спрос эластичен</p>
             <p className="gs-sum-p">
@@ -319,7 +319,7 @@ function Review() {
           </span>
         </div>
         <p data-a="when" className="gs-when" style={{ opacity: 0 }}>
-          Помню — вернётся через 6 дней.
+          Помню. Повторим через 6 дней.
         </p>
       </Beat>
     </div>
@@ -704,8 +704,8 @@ function Progress() {
         <div data-a="todo" className="fm-card gs-todo" style={{ opacity: 0 }}>
           <p className="gs-tile-h">Что подтянуть</p>
           <div className="gs-todo-row">
-            <span>Тест не пройден в лекции «Эластичность спроса»</span>
-            <span className="fm-btn fm-btn--line">Пройти тест</span>
+            <span>Самопроверка не пройдена в лекции «Эластичность спроса»</span>
+            <span className="fm-btn fm-btn--line">Пройти самопроверку</span>
           </div>
         </div>
       </Beat>

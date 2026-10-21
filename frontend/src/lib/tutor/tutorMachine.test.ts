@@ -19,6 +19,7 @@ import {
   rereadFragments,
   sentences,
   slipCaption,
+  slipPanelNote,
   summaryOf,
   talkTime,
   tally,
@@ -362,7 +363,8 @@ describe('«Не знаю» and «Спросить»', () => {
       now: 9,
     });
     expect(state.line?.slip).toEqual({ sourceId: 'S04', text: 'Безработица бывает…', kind: 'nearest' });
-    expect(slipCaption(state.line!.slip!)).toBe('Фрагмент 4 — ближайший к вопросу');
+    expect(slipCaption(state.line!.slip!)).toBe('Больше всего слов из вопроса во фрагменте 4');
+    expect(slipPanelNote(state.line!.slip!)).toBe('Здесь в лекции больше всего слов из вопроса.');
     expect(lineText(state.line!)).toBe('В лекции об этом не сказано. Вернёмся к вопросу. Вопрос номер 1?');
   });
 
@@ -413,6 +415,7 @@ describe('the ladder and the cards', () => {
     expect(state.cards[0].rung).toBe(2);
     expect(state.line?.slip).toEqual({ sourceId: 'S03', text: 'кредиты дорожают, спрос снижается', kind: 'quote' });
     expect(slipCaption(state.line!.slip!)).toBe('Из лекции, фрагмент 3');
+    expect(slipPanelNote(state.line!.slip!)).toBeUndefined();
     expect(state.pending).toBeNull();
 
     const sent = say(state, 'чтобы курс был выше');

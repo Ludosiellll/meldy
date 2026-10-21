@@ -6,7 +6,7 @@ import type { AgentStatus } from '../types';
 const agents: AgentStatus[] = [
   { id: 'summarizer', label: 'Конспект', status: 'done', progress: 1 },
   { id: 'flashcards', label: 'Карточки', status: 'failed', progress: 1 },
-  { id: 'quiz', label: 'Тест', status: 'running', progress: 0 },
+  { id: 'quiz', label: 'Самопроверка', status: 'running', progress: 0 },
 ];
 
 afterEach(cleanup);
@@ -16,8 +16,8 @@ describe('AgentCards', () => {
     render(<AgentCards agents={agents} phase="analyzing" />);
     const list = screen.getByRole('list', { name: 'Разделы' });
     const rows = within(list).getAllByRole('listitem');
-    expect(rows.map(row => row.textContent)).toEqual(['КонспектГотово', 'КарточкиНе получилось', 'ТестГотовим…']);
-    expect(screen.getByRole('heading', { name: 'Готовим конспект, карточки и тест' })).toBeInTheDocument();
+    expect(rows.map(row => row.textContent)).toEqual(['КонспектГотово', 'КарточкиНе получилось', 'СамопроверкаГотовим…']);
+    expect(screen.getByRole('heading', { name: 'Готовим конспект, карточки и самопроверку' })).toBeInTheDocument();
     expect(screen.getByText(/Завершено 2 из 3/)).toBeInTheDocument();
   });
 

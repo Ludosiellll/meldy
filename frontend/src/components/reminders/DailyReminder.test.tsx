@@ -248,7 +248,7 @@ describe('«Напоминать каждый день» in «Профиль»',
     expect(mocks.track).toHaveBeenCalledWith('reminder_downloaded', { from: 'profile', time: '20:00', again: false, zone: 'fixed' });
     fireEvent.click(await screen.findByRole('button', { name: 'Готово' }));
     expect(screen.getByText('Напоминание в 20:00')).toBeInTheDocument();
-    expect(screen.getByText('Каждый день — событие в вашем календаре.')).toBeInTheDocument();
+    expect(screen.getByText('Каждый день в вашем календаре будет событие.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Изменить' })).toBeInTheDocument();
   });
 
@@ -280,8 +280,8 @@ describe('«Напоминать каждый день» in «Профиль» o
 
   it('words the row on a phone and on a computer', () => {
     expect(profileReminderNote(false, true)).toBe('Событие в вашем календаре.');
-    expect(profileReminderNote(true, true)).toBe('Каждый день — событие в календаре.');
+    expect(profileReminderNote(true, true)).toBe('Каждый день в календаре будет событие.');
     expect(profileReminderNote(false, false)).toBe('Ваш календарь будет каждый день в выбранное время напоминать ответить на билет.');
-    expect(profileReminderNote(true, false)).toBe('Каждый день — событие в вашем календаре.');
+    expect(profileReminderNote(true, false)).toBe('Каждый день в вашем календаре будет событие.');
   });
 });

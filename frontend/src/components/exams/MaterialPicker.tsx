@@ -73,7 +73,7 @@ export const PICKER_LONG_LIST = 8;
 const NO_SUBJECT = 'Без предмета';
 
 function fragmentsLine(material: PickerMaterial): string {
-  if (material.textLength === 0) return 'нет текста — не участвует';
+  if (material.textLength === 0) return 'нет текста, не участвует';
   const count = material.fragments;
   const head = `${count} ${pluralRu(count, ['фрагмент', 'фрагмента', 'фрагментов'])}`;
   return glue(material.textOnly ? `${head} · только текст` : head);
