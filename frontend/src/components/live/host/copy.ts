@@ -28,9 +28,11 @@ export const pinText = (pin: string) => (pin.length === 6 ? `${pin.slice(0, 3)}$
 /** The letters on the projector are the letters on the phones (CONTRACT §4). */
 export const LETTERS = ['А', 'Б', 'В', 'Г'] as const;
 
+const BATTLE_LEAD = 'Весь класс бьёт монстра верными ответами.';
+
 export const MODE = {
   name: 'Битва с монстром',
-  about: 'Весь класс бьёт монстра верными ответами. За ошибку игрок замерзает.',
+  about: `${BATTLE_LEAD} За ошибку игрок замерзает.`,
 };
 
 export const SETUP = {
@@ -43,6 +45,20 @@ export const SETUP = {
   failed: 'Не получилось загрузить вопросы.',
   retry: 'Повторить',
   game: 'Какая игра',
+  /** The setup's one choice of the game (docs/live/MODE_MIXED.md §1): none, every Nth question, or all of them. */
+  mini: 'Мини-игра с движением',
+  miniOption: { none: 'Нет', 3: 'Каждые 3 вопроса', 5: 'Каждые 5 вопросов', 10: 'Каждые 10 вопросов', all: 'Все вопросы' } as Record<string, string>,
+  /**
+   * The battle with movement rounds, told by its questions (`standRounds`): «На вопросах 3 и 6 ученики бегут на
+   * верный ответ.»; more than four rounds by the rule instead.
+   */
+  mixedAbout: (every: number, rounds: readonly number[]) => {
+    const run = 'ученики бегут на верный ответ.';
+    if (rounds.length === 0 || rounds.length > 4) return `${BATTLE_LEAD} На каждом ${every}-м вопросе ${run}`;
+    const n = rounds.map((qi) => qi + 1);
+    const list = n.length === 1 ? `вопросе ${n[0]}` : `вопросах ${n.slice(0, -1).join(', ')} и ${n[n.length - 1]}`;
+    return `${BATTLE_LEAD} На ${list} ${run}`;
+  },
   boss: 'Босс',
   time: 'Время на вопрос',
   timeOption: (s: number) => `${s}${NBSP}с`,

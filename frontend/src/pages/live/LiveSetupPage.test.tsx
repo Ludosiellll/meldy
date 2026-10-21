@@ -1,5 +1,6 @@
 /**
- * «Провести игру» (/live/new): «Битва с монстром» or «Встань на ответ» (its boss and 15/20/30 s); «Открыть комнату» in a
+ * «Провести игру» (/live/new): the picker «Мини-игра с движением» (none, every 3/5/10, «Все вопросы» = «Встань на ответ»
+ * with its boss and 15/20/30 s; the battle's mini-games with the arena's boss); «Открыть комнату» in a
  * footer that stays in view; the skipped questions folded with plain reasons; «Назвать в чате трёх лучших» only with
  * a chat bound to the exam.
  */
@@ -65,15 +66,18 @@ afterEach(() => {
 });
 
 describe('«Провести игру»', () => {
-  it('two games to pick from, the battle first; «Открыть комнату» in the footer that stays in view', async () => {
+  it('one picker «Мини-игра с движением», every 5th question first; «Открыть комнату» in the footer that stays in view', async () => {
     const view = await open('/live/new?c=c1');
     expect(screen.getByRole('heading', { level: 1, name: 'Игра по тесту «Базы данных»' })).toBeInTheDocument();
-    const games = screen.getByRole('radiogroup', { name: 'Какая игра' });
-    const radios = within(games).getAllByRole('radio');
-    expect(radios.map((r) => r.textContent)).toEqual([expect.stringMatching(/^Битва с монстром/), expect.stringMatching(/^Встань на ответ/)]);
-    expect(radios[0]).toHaveAttribute('aria-checked', 'true');
-    // the battle's settings as before: no boss to pick, 10/20/30 s with 20 chosen
-    expect(screen.queryByRole('radiogroup', { name: 'Босс' })).toBeNull();
+    const mini = screen.getByRole('radiogroup', { name: 'Мини-игра с движением' });
+    const radios = within(mini).getAllByRole('radio');
+    expect(radios.map((r) => r.textContent)).toEqual(['Нет', 'Каждые 3 вопроса', 'Каждые 5 вопросов', 'Каждые 10 вопросов', 'Все вопросы']);
+    expect(within(mini).getByRole('radio', { name: 'Каждые 5 вопросов' })).toHaveAttribute('aria-checked', 'true');
+    // the battle, told with its mini-game: four questions in the game, shorter than 5, so the last one is it
+    expect(screen.getByRole('heading', { level: 2, name: 'Битва с монстром' })).toBeInTheDocument();
+    expect(view.container.querySelector('.lvs-game')?.textContent).toMatch(/На вопросе 4 ученики бегут на верный ответ\./);
+    // the battle's times; the boss of the arena
+    expect(screen.getByRole('radiogroup', { name: 'Босс' })).toBeInTheDocument();
     const time = screen.getByRole('radiogroup', { name: 'Время на вопрос' });
     expect(within(time).getAllByRole('radio').map((r) => r.textContent?.replace(/\s/g, ' '))).toEqual(['10 с', '20 с', '30 с']);
     expect(within(time).getByRole('radio', { name: /^20\sс$/ })).toHaveAttribute('aria-checked', 'true');
@@ -82,10 +86,24 @@ describe('«Провести игру»', () => {
     expect(view.container.querySelector('.lvs-foot')?.textContent).toMatch(/Гости увидят верный ответ/);
   });
 
-  it('«Встань на ответ»: the boss with its picture, 15/20/30 s with 15 chosen; the game is made with mode and boss', async () => {
+  it('every 3rd question: the battle with stand_every 3 and the arena\'s boss; the line names the questions', async () => {
+    const create = vi.spyOn(server, 'create');
+    const view = await open('/live/new?c=c1');
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Каждые 3 вопроса' }));
+    expect(view.container.querySelector('.lvs-game')?.textContent).toMatch(/На вопросе 3 ученики бегут на верный ответ\./);
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Босс' })).getByRole('radio', { name: 'Скелет' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Открыть комнату' }));
+      await Promise.resolve();
+    });
+    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'boss', stand_every: 3, boss: 'skeleton', time_s: 20 });
+  });
+
+  it('«Все вопросы» is «Встань на ответ»: the boss with its picture, 15/20/30 s with 15 chosen; made with mode and boss', async () => {
     const create = vi.spyOn(server, 'create');
     await open('/live/new?c=c1');
-    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Какая игра' })).getByRole('radio', { name: /Встань на ответ/ }));
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Все вопросы' }));
+    expect(screen.getByRole('heading', { level: 2, name: 'Встань на ответ' })).toBeInTheDocument();
     const boss = screen.getByRole('radiogroup', { name: 'Босс' });
     expect(within(boss).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Будильник', 'Скелет']);
     expect(within(boss).getByRole('radio', { name: 'Будильник' })).toHaveAttribute('aria-checked', 'true');
@@ -99,28 +117,36 @@ describe('«Провести игру»', () => {
       await Promise.resolve();
     });
     expect(create).toHaveBeenCalledTimes(1);
-    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'stand', boss: 'skeleton', time_s: 15 });
+    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'stand', boss: 'skeleton', time_s: 15, stand_every: 0 });
   });
 
-  it('«Ещё раз» after a stand game opens the setup with «Встань на ответ» picked', async () => {
+  it('«Ещё раз» opens the setup with the game played: a stand game «Все вопросы», a battle its own mini-games', async () => {
     await open('/live/new?c=c1&mode=stand');
-    expect(within(screen.getByRole('radiogroup', { name: 'Какая игра' })).getByRole('radio', { name: /Встань на ответ/ })).toHaveAttribute('aria-checked', 'true');
+    expect(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Все вопросы' })).toHaveAttribute('aria-checked', 'true');
     expect(within(screen.getByRole('radiogroup', { name: 'Время на вопрос' })).getByRole('radio', { name: /^15\sс$/ })).toHaveAttribute('aria-checked', 'true');
+    cleanup();
+    await open('/live/new?c=c1&mini=10');
+    expect(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Каждые 10 вопросов' })).toHaveAttribute('aria-checked', 'true');
+    cleanup();
+    await open('/live/new?c=c1&mini=none');
+    expect(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Нет' })).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('back to the battle: its own times again, no boss in the settings', async () => {
+  it('«Нет» after «Все вопросы»: the battle\'s own times again, no boss, no mini-game', async () => {
     const create = vi.spyOn(server, 'create');
     await open('/live/new?c=c1');
-    const games = screen.getByRole('radiogroup', { name: 'Какая игра' });
-    fireEvent.click(within(games).getByRole('radio', { name: /Встань на ответ/ }));
-    fireEvent.click(within(games).getByRole('radio', { name: /Битва с монстром/ }));
+    const mini = screen.getByRole('radiogroup', { name: 'Мини-игра с движением' });
+    fireEvent.click(within(mini).getByRole('radio', { name: 'Все вопросы' }));
+    fireEvent.click(within(mini).getByRole('radio', { name: 'Нет' }));
+    expect(screen.queryByRole('radiogroup', { name: 'Босс' })).toBeNull();
+    expect(screen.getByRole('heading', { level: 2, name: 'Битва с монстром' })).toBeInTheDocument();
     const time = screen.getByRole('radiogroup', { name: 'Время на вопрос' });
     expect(within(time).getByRole('radio', { name: /^20\sс$/ })).toHaveAttribute('aria-checked', 'true');
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Открыть комнату' }));
       await Promise.resolve();
     });
-    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'boss', time_s: 20 });
+    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'boss', time_s: 20, stand_every: 0 });
     expect(create.mock.calls[0][1]).not.toHaveProperty('boss');
   });
 
