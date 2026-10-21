@@ -84,7 +84,7 @@ export default function AnswerTextsSetting() {
   const remove = async () => {
     const yes = await confirm({
       title: 'Удалить сохранённые тексты ответов?',
-      message: 'Удалятся только тексты. Ответы, протоколы и шпаргалка останутся.',
+      message: 'Удалятся только тексты. Ответы и протоколы останутся.',
       confirmText: 'Удалить',
       cancelText: 'Отмена',
       type: 'danger',

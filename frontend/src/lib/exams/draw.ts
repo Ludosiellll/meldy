@@ -32,7 +32,7 @@ export const DRAW_MODE_LABELS: Record<DrawMode, string> = {
   exam: 'Как на экзамене',
   weak: 'Чаще слабые',
   answered: 'Из уже отвеченных',
-  awaiting: 'Ждут подтверждения',
+  awaiting: 'Можно выучить сегодня',
 };
 
 /** Weights of «Чаще слабые». */
@@ -92,7 +92,7 @@ export const DRAW_FAILURE_MESSAGES: Record<DrawFailureCode, string> = {
   no_weak: 'Тянуть не из чего: всех вопросов этого экзамена нет в ваших лекциях.',
   // A typed answer counts as much as a spoken one: «отвечали», not «отвечали вслух» (Jury_Check 11).
   no_answered: 'Вы ещё не отвечали ни на один вопрос этого экзамена. Выберите «Как на экзамене».',
-  no_awaiting: 'Сейчас нет вопросов, которые ждут подтверждения. Выберите «Как на экзамене».',
+  no_awaiting: 'Сегодня нет вопросов, которые можно выучить. Выберите «Как на экзамене».',
 };
 
 /** A uniform number in [0, 1) from crypto.getRandomValues (Math.random only without crypto). */
@@ -287,7 +287,7 @@ export function poolLine(input: { mode: DrawMode; layout: DrawLayout; questions:
     }
     return pool.length === 1
       ? 'Единственный вопрос, который ждёт подтверждения.'
-      : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, которые ждут подтверждения.`;
+      : `Случайно из ${pool.length} ${genitive(pool.length, 'вопроса', 'вопросов')}, которые можно выучить сегодня.`;
   }
   if (mode === 'weak') {
     const pool = questions.filter((question) => question.coverage !== 'none');

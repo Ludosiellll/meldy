@@ -20,7 +20,8 @@ import DrawModeMenu, { drawModeOf } from '../components/exams/DrawModeMenu';
 import { glue, numberOf } from '../components/exams/sheetModel';
 import { subjectOf } from '../lib/exams/format';
 import { track } from '../lib/telemetry';
-import { readSheetToday } from '../components/exams/sheet/sheetCount';
+import { fetchLearnLeft } from '../api/learnLeft';
+import { readyNow } from '../lib/containers/topics';
 import { fetchSheet } from '../api/cheatSheet';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import '../styles/paper.css';
@@ -134,9 +135,11 @@ export default function ExamDraw() {
     }
     let alive = true;
     const owner = bundle.exam.id;
-    readSheetToday(owner, bundle.exam.exam_date).then(
-      (today) => {
-        if (alive) setSheetPool({ examId: owner, ids: new Set(today?.erasable.questions ?? []) });
+    // The questions an answer now makes learned (public.learn_left: every main point named on another day).
+    fetchLearnLeft([owner], { fresh: true }).then(
+      (exams) => {
+        const exam = exams.find((item) => item.examId === owner);
+        if (alive) setSheetPool({ examId: owner, ids: new Set(exam ? readyNow(exam, Date.now()) : []) });
       },
       () => {
         if (alive) setSheetPool({ examId: owner, ids: 'failed' });
@@ -297,7 +300,7 @@ export default function ExamDraw() {
         {failure && !waiting && <p className="dw-msg">{glue(failure.message)}</p>}
         {waiting && (
           <p className="dw-msg" role="status">
-            Смотрим, какие строки шпаргалки можно стереть…
+            Смотрим, какие вопросы можно выучить сегодня…
           </p>
         )}
         {card && !answerHref && examMode && (
@@ -358,7 +361,7 @@ export default function ExamDraw() {
         )}
         {historyFailed && <p className="dw-note">История ответов не загрузилась: тянем без неё.</p>}
         {mode === 'awaiting' && erasableIds === 'failed' && (
-          <p className="dw-note">Шпаргалка не загрузилась: тянем вопросы, где раньше названо достаточно.</p>
+          <p className="dw-note">Не получилось узнать, что можно выучить сегодня. Тянем вопросы, где раньше названо достаточно.</p>
         )}
         </section>
         </div>
