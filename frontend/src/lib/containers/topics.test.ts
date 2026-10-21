@@ -5,6 +5,9 @@ import {
   buildTopics,
   closedFoldLine,
   closedSince,
+  bareTitle,
+  topicClosedLine,
+  topicLeftLine,
   countWords,
   howLines,
   learnLeftLine,
@@ -299,6 +302,13 @@ describe('words', () => {
     expect(plain(closedFoldLine(3))).toBe('Выучены 3 темы');
     expect(plain(closedFoldLine(5))).toBe('Выучено 5 тем');
     expect(howLines({ kind: 'test', sources: ['file'] })).toContain('Темы взяты из файла с вопросами.');
+    // A sentence that says «тема» drops the file's «Тема 1.4.»: never «тема «Тема 1.4…»».
+    expect(bareTitle('Тема 1.4. Массивы и коллекции')).toBe('Массивы и коллекции');
+    expect(bareTitle('Тема 3')).toBe('Тема 3');
+    expect(bareTitle('Язык SQL: выборка данных')).toBe('Язык SQL: выборка данных');
+    const [topic] = buildTopics({ subjectId: S, items: items([6], { 1: 'done', 2: 'done', 3: 'done', 4: 'done' }), titles: ['Тема 1.2. Операторы'] }).topics;
+    expect(plain(topicLeftLine(topic))).toBe('В теме «Операторы» осталось 2 вопроса из 6.');
+    expect(plain(topicClosedLine(topic))).toBe('Тема «Операторы» выучена.');
   });
 
   it('use none of the words the app dropped', () => {

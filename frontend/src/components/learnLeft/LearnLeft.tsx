@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ALL_CLOSED_LINE,
@@ -51,7 +51,13 @@ export interface LearnLeftProps {
 
 function Segments({ questions, label }: { questions: TopicQuestion[]; label?: string }) {
   return (
-    <span className="ll-segs" aria-hidden={label ? undefined : 'true'} role={label ? 'img' : undefined} aria-label={label}>
+    <span
+      className="ll-segs"
+      aria-hidden={label ? undefined : 'true'}
+      role={label ? 'img' : undefined}
+      aria-label={label}
+      style={{ '--ll-n': questions.length } as CSSProperties}
+    >
       {questions.map((q) => (
         <i key={q.id} data-s={q.step} />
       ))}
@@ -288,7 +294,7 @@ export default function LearnLeft({ list, status, now, tz, phone = false, onOpen
       ) : (
         <p className="ll-all">{ALL_CLOSED_LINE}</p>
       )}
-      <ul className="ll-list">
+      <ul className="ll-list" aria-label="Темы">
         {t.open.map((topic) => (
           <TopicRow
             key={topic.key}

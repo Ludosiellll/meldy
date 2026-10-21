@@ -550,28 +550,42 @@ export function closedTopicLine(topic: Topic): string {
 /** «В теме «Массивы и коллекции» осталось 3 вопроса.» */
 export function nearLine(topic: Topic): string {
   const left = leftIn(topic);
-  return `В теме «${topic.title}» ${left === 1 ? 'остался' : 'осталось'} ${questionsWord(left)}.`;
+  return `В теме «${bareTitle(topic.title)}» ${left === 1 ? 'остался' : 'осталось'} ${questionsWord(left)}.`;
+}
+
+/**
+ * A topic's title inside a sentence that already says «тема»: «Тема 1.4. Массивы и коллекции» reads «Массивы и
+ * коллекции» (never «тема «Тема 1.4…»»); a title that is only its number stays whole.
+ */
+export function bareTitle(title: string): string {
+  const rest = title.replace(/^тема\s+[\d.]+\.?\s*/iu, '').trim();
+  return rest || title;
 }
 
 /** After «Осталось 9 тем из 12.»: «Почти готова тема «Массивы и коллекции», в ней ещё 3 вопроса.» */
 export function nearestLine(topic: Topic): string {
-  return `Почти готова тема «${topic.title}», в ней ещё ${questionsWord(leftIn(topic))}.`;
+  return `Почти готова тема «${bareTitle(topic.title)}», в ней ещё ${questionsWord(leftIn(topic))}.`;
 }
 
 /** «Из-за ошибки тема «…» снова не выучена.» */
 export function reopenedLine(topic: Topic): string {
-  return `Из-за ошибки тема «${topic.title}» снова не выучена.`;
+  return `Из-за ошибки тема «${bareTitle(topic.title)}» снова не выучена.`;
 }
 
 /** The oral answer's protocol and the bot: «Тема «…» выучена.» */
 export function topicClosedLine(topic: Pick<Topic, 'title'>): string {
-  return `Тема «${topic.title}» выучена.`;
+  return `Тема «${bareTitle(topic.title)}» выучена.`;
 }
 
 /** The oral answer's protocol: «В теме «…» осталось 2 вопроса из 6.» */
 export function topicLeftLine(topic: Topic): string {
   const left = leftIn(topic);
-  return `В теме «${topic.title}» ${left === 1 ? 'остался' : 'осталось'} ${questionsWord(left)} из${NBSP}${topic.questions.length}.`;
+  return `В теме «${bareTitle(topic.title)}» ${left === 1 ? 'остался' : 'осталось'} ${questionsWord(left)} из${NBSP}${topic.questions.length}.`;
+}
+
+/** «Выучено 10 вопросов из 18.» («Выучен 1 вопрос из 18.»): oral questions learned of those counted. */
+export function learnedQuestionsLine(learned: number, inPlan: number): string {
+  return `${plural(learned, 'Выучен', 'Выучено', 'Выучено')} ${questionsWord(learned)} из${NBSP}${inPlan}.`;
 }
 
 /** «Сегодня можно выучить 4 вопроса.» — questions whose main points were all named on another day, ready now. */

@@ -172,6 +172,6 @@ describe('TopicClosed: the end of a session', () => {
     expect(screen.getByRole('heading', { name: 'Тема 1.2. Операторы и выражения' })).toBeInTheDocument();
     expect(document.querySelectorAll('.ll-won-segs i')).toHaveLength(20);
     expect(plain(screen.getByText(/Все 20/).textContent)).toBe('Все 20 вопросов выучены.');
-    expect(plain(screen.getByText(/Осталась/).textContent)).toBe('Осталась 1 тема из 2. Почти готова тема «Тема 1.4. Массивы и коллекции», в ней ещё 3 вопроса.');
+    expect(plain(screen.getByText(/Осталась/).textContent)).toBe('Осталась 1 тема из 2. Почти готова тема «Массивы и коллекции», в ней ещё 3 вопроса.');
   });
 });

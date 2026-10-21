@@ -8,6 +8,8 @@
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
   color: var(--sf-ink);
+  /* A narrow card (a tablet's column) puts «Ответить» under the question: beside it the words broke word by word. */
+  container-type: inline-size;
 }
 .dark .ll {
   --ll-seg-empty: #313b4b;
@@ -17,7 +19,7 @@
 }
 .ll-h { margin: 0; font-size: 20px; line-height: 1.3; font-weight: 500; letter-spacing: -.012em; }
 .ll-n { margin: 6px 0 0; display: flex; align-items: baseline; gap: 12px; }
-.ll-n b { font-size: 60px; line-height: 1; font-weight: 500; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+.ll-n b { font-size: 60px; line-height: 1; font-weight: 500; letter-spacing: -.03em; }
 .ll-n span { font-size: 20px; font-weight: 500; letter-spacing: -.01em; }
 .ll-all { margin: 10px 0 0; font-size: 17px; line-height: 1.45; }
 
@@ -58,7 +60,8 @@
 .ll-chev[data-open] { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .ll-chev { transition: none; } }
 
-.ll-segs { display: flex; gap: 3px; margin-top: 10px; max-width: 360px; }
+/* One segment per question, at most 28 px each: a wide card keeps short bars short. */
+.ll-segs { display: flex; gap: 3px; margin-top: 10px; max-width: min(100%, calc(var(--ll-n, 12) * 28px)); }
 .ll-segs i { flex: 1; min-width: 2px; height: 6px; border-radius: 3px; background: var(--ll-seg-empty); }
 .ll-segs i[data-s='done'] { background: var(--ll-seg-done); }
 .ll-segs i[data-s='started'] { background: var(--ll-seg-half); }
@@ -96,6 +99,11 @@
 .ll-skel-m { width: 40%; height: 14px; margin-top: 8px; }
 .ll-skel-bar { width: 100%; max-width: 360px; height: 6px; margin-top: 12px; }
 .ll[data-loading] .ll-list { opacity: .72; }
+
+@container (max-width: 400px) {
+  .ll-qs li { grid-template-columns: 30px minmax(0, 1fr); }
+  .ll-go { grid-column: 2; padding-top: 0; }
+}
 
 @media (max-width: 639px) {
   .ll { padding: 20px 20px 16px; border-radius: 28px; }
