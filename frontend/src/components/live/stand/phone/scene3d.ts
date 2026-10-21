@@ -308,7 +308,8 @@ export class PhoneScene implements Backdrop {
         }
       }
     }
-    this.govern(dt);
+    // the phone's ladder (quality.ts) was tuned on frames of at most 100 ms: it keeps judging them so
+    this.govern(Math.min(dt, 0.1));
   }
 
   private move(t: Tracked, x: number, y: number, flags: number, dt: number, now: number, arena: Arena): void {

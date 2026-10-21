@@ -447,15 +447,15 @@ export class ArenaImpl {
     this.animating = true;
   }
 
-  /** Height of the tile top at index i now, map units. */
-  private heightOf(i: number): number {
-    if (this.riseAt[i] !== Infinity) return riseHeight(this.now, this.riseAt[i], this.riseFrom[i]);
-    return dropHeight(this.now, this.drop[i]);
+  /** Height of the tile top at index i at kit second `at` (default: the last update), map units. */
+  private heightOf(i: number, at = this.now): number {
+    if (this.riseAt[i] !== Infinity) return riseHeight(at, this.riseAt[i], this.riseFrom[i]);
+    return dropHeight(at, this.drop[i]);
   }
 
-  floorAt(x: number, y: number): number {
+  floorAt(x: number, y: number, at?: number): number {
     const i = tileIndexAt(this.layout, x, y);
-    return i < 0 ? 0 : this.heightOf(i);
+    return i < 0 ? 0 : this.heightOf(i, at);
   }
 
   fallsAt(x: number, y: number): number {

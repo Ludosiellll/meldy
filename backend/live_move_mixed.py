@@ -252,7 +252,13 @@ class MixedGame(stand.StandGame):
         iced: set[str] = set()
         thawed: list[int] = []
         froze: list[int] = []
-        fastest: tuple[float, int, int | None, int | None] | None = None
+        hits = [h for h in res.get("hits") or [] if isinstance(h, dict)]
+        # «Быстрее всех» is the first hit in the order the database stored them (time, then player id), the order the
+        # projector lands them in: on a tie in time it names the hit that lands first (docs/live/MODE_MIXED.md §4.2)
+        hit_at: dict[Any, int] = {}
+        for i, h in enumerate(hits):
+            hit_at.setdefault(h.get("player_id"), i)
+        fastest: tuple[float, float, int, int | None, int | None] | None = None   # (hit no, ms, −dmg, id, ms)
         for r in rows:
             pid = r["p"]
             p = room.by_pid.get(pid)
@@ -267,8 +273,9 @@ class MixedGame(stand.StandGame):
                 froze.append(eid)
             if ok and dmg > 0 and eid is not None:
                 ms = r.get("ms")
-                cand = (float(ms) if isinstance(ms, (int, float)) else math.inf, -dmg, eid, int(ms) if isinstance(ms, (int, float)) else None)
-                if fastest is None or cand[:2] < fastest[:2]:
+                timed = isinstance(ms, (int, float))
+                cand = (float(hit_at.get(pid, math.inf)), float(ms) if timed else math.inf, -dmg, eid, int(ms) if timed else None)
+                if fastest is None or cand[:3] < fastest[:3]:
                     fastest = cand
             self.me[pid] = {
                 "ghost": False, "pts": int(r.get("total") or 0), "streak": int(r.get("streak") or 0),
@@ -287,12 +294,11 @@ class MixedGame(stand.StandGame):
         self.floor = "up" if void else "down"
         self.back_at = now_ms if void else now_ms + stand.FLOOR_MS
         by_pid = {pid: p.id for pid, p in room.by_pid.items()}
-        hits = [h for h in res.get("hits") or [] if isinstance(h, dict)]
         boss = res.get("boss") if isinstance(res.get("boss"), dict) else {}
         self.res = {
             "qi": qi, "key": key, "counts": res.get("counts") if isinstance(res.get("counts"), list) else [],
             "stood": int(res.get("right") or 0), "of": int(res.get("active") or 0),
-            "fastest": None if fastest is None else {"id": fastest[2], "pts": -fastest[1], "ms": fastest[3]},
+            "fastest": None if fastest is None else {"id": fastest[3], "pts": -fastest[2], "ms": fastest[4]},
             "fell": fell, "back": list(fell), "at": int(now_ms), "back_at": int(self.back_at),
             "thawed": thawed, "froze": froze, "hp": boss.get("hp"), "hp_max": boss.get("hp_max"),
             "phase": boss.get("phase"), "defeated": bool(boss.get("defeated")), "healed": int(res.get("healed") or 0),

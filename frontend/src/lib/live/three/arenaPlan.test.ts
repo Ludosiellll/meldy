@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   COLLAPSE,
+  DOWN_SEEN_S,
+  collapseDownAfter,
   dropHeight,
   dropStart,
   impactOf,
@@ -161,5 +163,25 @@ describe('mode A on the map the server sends (contracts/live/stand_arena.json)',
     const near = t0[tileIndexAt(l, 900, 520)];
     const far = t0[tileIndexAt(l, 1550, 860)];
     expect(near).toBeLessThan(far);
+  });
+
+  it('says when the whole gap is down: every dropping tile at least DOWN_SEEN_S into its fall, whatever the seed', () => {
+    const l = layoutTiles(map, 100, shape);
+    const after = collapseDownAfter(map, shape);
+    // the far corner is ~860 units from the stage: about 1.3 s, well inside the 4 s the floor stays down
+    expect(after).toBeGreaterThan(1.2);
+    expect(after).toBeLessThan(1.4);
+    let latest = 0;
+    for (const zone of ['А', 'Б', 'В', 'Г', 'none']) {
+      for (let seed = 1; seed < 40; seed++) {
+        const t0 = planCollapse(map, l, zone, 10, seed, undefined, impactOf(map, shape));
+        for (const start of t0) if (Number.isFinite(start)) latest = Math.max(latest, start);
+        for (const start of t0) if (Number.isFinite(start)) expect(dropHeight(10 + after, start)).toBeLessThanOrEqual(dropHeight(start + DOWN_SEEN_S, start));
+      }
+    }
+    expect(10 + after - latest).toBeGreaterThanOrEqual(DOWN_SEEN_S);
+    expect(dropHeight(10 + after, latest)).toBeLessThan(-50);
+    // a map without a shape: the stomp lands above the top edge, the whole map is the floor
+    expect(collapseDownAfter(MAP)).toBeCloseTo(COLLAPSE.lead + Math.hypot(800, 925) * COLLAPSE.perUnit + COLLAPSE.jitter + DOWN_SEEN_S, 9);
   });
 });

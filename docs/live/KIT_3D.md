@@ -63,8 +63,9 @@ interface Kit {
   createArena(map: MoveMap, shape?: { floor?: FloorGrid; stage?: [x, y, r] }, look?: ArenaLook): Arena
                                                       // look: { signScale?: 0.3…1 (default 1), tileSegments?: 1 | 2 (default 2) }
   mount(canvas: HTMLCanvasElement, options?: ViewOptions): View
-  now(): number                                       // seconds of the kit's clock (the loop advances it)
-  update(dt: number): void                            // the loop calls it; call it yourself only without view.start
+  now(): number                                       // seconds of the kit's clock: real seconds (the loop advances it)
+  update(dt: number): void                            // the loop calls it with the real time between frames, however
+                                                      // long; call it yourself only without view.start
   dispose(): void
 }
 interface Player {
@@ -93,7 +94,8 @@ interface Arena {
   setClosedZones(ids: readonly string[]): void                   // zones that take no answer now: plain tiles, no sign
   collapse(correctZoneId: string, tStart?: number): void         // tStart in kit.now() seconds (default: now)
   restore(): void
-  floorAt(x: number, y: number): number               // map units: 0 intact, negative while the tile falls
+  floorAt(x: number, y: number, at?: number): number  // map units: 0 intact, negative while the tile falls; at kit
+                                                      // second `at` (default now: a slow frame asks for its draw time)
   fallsAt(x: number, y: number): number               // kit.now() second the tile starts to drop, Infinity if it stays
   update(dt: number): void; dispose(): void
 }
@@ -182,8 +184,15 @@ laptop or phone is checked, since this container has no GPU.
 `collapse(id, t)`: every tile outside zone `id` shakes for 0.3 s, then drops with gravity (1300 units/s²) at
 `t + 0.12 s + 0.0009 s × distance from the impact point + up to 0.1 s` (a seeded jitter): a ripple from under the stage
 that crosses the 1600 × 900 floor in ~1.5 s. A shock ring and a camera jolt mark `t`. `restore()` brings the tiles back up
-in ~0.5 s. The timing is pure and tested (`arenaPlan.ts`). A projector turns a server time into the kit's clock with
-`kit.now() + (serverT − serverNow) / 1000`.
+in ~0.5 s. The timing is pure and tested (`arenaPlan.ts`; `collapseDownAfter` is when the whole gap is down, ~1.3 s on
+the stand arena). A projector turns a server time into the kit's clock with `kit.now() + (serverT − serverNow) / 1000`.
+
+The kit's clock is real time. Each frame advances it, the boss and every character by the real time since the last
+frame, however long (`onFrame(dt, now)`: the frame is drawn at `now + dt`). Until 47.23 a frame advanced it by at most
+0.1 s: on a projector without a GPU (1–2 frames a second) the stomp, the blow and the drop ran at a tenth of real time,
+and the room's `floor: up`, 4 real seconds after the result, restored the floor before the drop was ever drawn (live
+check 21.10, three games and the stand check of 47.19: no frame showed the gap). The phone's quality ladder still judges
+frames capped at 100 ms, as it was tuned.
 
 ## 5. Performance budgets (owner, 21.10: «чтобы лагов не было ни на телефоне ни на ноуте»)
 

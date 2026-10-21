@@ -1,9 +1,10 @@
 /**
  * The projector's rules of mode A that need no 3D and no React (docs/live/MODE_STAND.md §5, §8, §9): what the timer
- * shows, how a state change plays (a stomp, a return of the floor, or drawn as it is after a reconnect), the live
- * counts from the snapshot flags. Pure, tested in plan.test.ts.
+ * shows, how a state change plays (a stomp, a return of the floor, or drawn as it is after a reconnect), the floor and
+ * the fallen frame by frame on any frame rate, the live counts from the snapshot flags. Pure, tested in plan.test.ts.
  */
 import { F_GHOST, F_ICE, KIND_PLAYER, ZONE_SHIFT, type StandState } from '../../../lib/live/move';
+import { COLLAPSE, dropHeight } from '../../../lib/live/three/arenaPlan';
 
 /** How long after the stomp a state is still played as news (older: drawn as it is, MODE_STAND §4.2). */
 export const STALE_MS = 1000;
@@ -64,6 +65,118 @@ export function changeOf(prev: StandState | null, next: StandState, now: number 
   if ((next.phase === 'countdown' || next.phase === 'open') && !(sameQ && (prev!.phase === 'countdown' || prev!.phase === 'open'))) return 'question';
   if (prev && prev.floor === 'down' && next.floor === 'up') return 'up';
   return 'still';
+}
+
+/** What a frame does about the floor (FloorShow.frame). */
+export type FloorStep =
+  | { act: 'none' }
+  /** The room's `floor: up` waits and this frame would still come before the floor is down: drop it `by` seconds earlier. */
+  | { act: 'hurry'; by: number }
+  /** The `up` that waited: a frame has shown the floor down, bring it back now. */
+  | { act: 'restore' };
+
+const NONE: FloorStep = { act: 'none' };
+const RESTORE: FloorStep = { act: 'restore' };
+
+/**
+ * The floor between the stomp and its return as the projector draws it, on any frame rate (MODE_STAND §9). The room
+ * says `floor: up` 4 s (room time) after the result; the scene draws the drop on the kit's clock, one frame at a time.
+ * A frame drawn at or after `downBy` (kit seconds) shows the floor down. The room's `up` waits for such a frame; a
+ * frame that would still come before `downBy` while it waits (the loop was stopped: a hidden tab) moves the drop to
+ * itself, so that it shows the floor down with the fallen in their fall, and the frame after it brings the floor back.
+ * So the floor is drawn down at least once, however slow or late the frames, and for its whole down time when the kit's
+ * clock keeps real time.
+ */
+export class FloorShow {
+  private downBy = Infinity;
+  private drawn = false;
+  private waiting = false;
+
+  /** A collapse is planned: from kit second `downBy` a frame shows the floor down. */
+  drop(downBy: number): void {
+    this.downBy = downBy;
+    this.drawn = false;
+    this.waiting = false;
+  }
+
+  /** Nothing dropped (a new question; the arena's screens off; the floor back). */
+  reset(): void {
+    this.downBy = Infinity;
+    this.drawn = false;
+    this.waiting = false;
+  }
+
+  /** The room's `floor: up`: true when the floor may come back now; false when it waits for a frame showing it down. */
+  up(): boolean {
+    if (this.downBy === Infinity || this.drawn) {
+      this.reset();
+      return true;
+    }
+    this.waiting = true;
+    return false;
+  }
+
+  /** The room's `up` is waiting for a frame. */
+  get waits(): boolean {
+    return this.waiting;
+  }
+
+  /** Before a frame that will be drawn at kit second `at`. */
+  frame(at: number): FloorStep {
+    if (this.downBy === Infinity) return NONE;
+    if (this.waiting && this.drawn) {
+      this.reset();
+      return RESTORE;
+    }
+    if (at >= this.downBy) {
+      this.drawn = true;
+      return NONE;
+    }
+    if (!this.waiting) return NONE;
+    const by = this.downBy - at;
+    this.downBy = at;
+    this.drawn = true;
+    return { act: 'hurry', by };
+  }
+}
+
+/** A fallen character drops this long before it rises as a ghost, seconds. */
+export const FALL_S = 0.75;
+/** How long a ghost takes to climb out of the pit, seconds. */
+export const RISE_S = 1.0;
+/** A fall is seen once a frame shows it this far in (~70 map units down); a frame that would skip that shows it so. */
+const FALL_SEEN_S = 0.33;
+
+/** A character of `res.fell`, kit seconds: its tile starts to drop; it rises as a ghost; whether its tile drops at all. */
+export interface FallPlan {
+  start: number;
+  rise: number;
+  tile: boolean;
+  /** A frame has drawn it at least FALL_SEEN_S into its fall. */
+  drawn: boolean;
+}
+
+/** How a fallen character is drawn in one frame: in the pit (held where it stood) at height `z`, or climbing out. */
+export type FallFrame = { pit: true; z: number; falling: boolean } | { pit: false; climb: number };
+
+/**
+ * A fallen character in the frame drawn at kit second `at`: still on its shaking tile, dropping with it (or by itself
+ * when its tile stays: a phone gone away), then climbing out as a ghost (`climb` 0…1). Every fallen character is
+ * drawn falling in at least one frame: a frame that comes after its whole fall without one (a slow projector) shows
+ * it in the fall, and its climb starts from that frame.
+ */
+export function fallFrame(f: FallPlan, at: number): FallFrame {
+  if (at < f.start) return { pit: true, z: 0, falling: false };
+  let u = at - f.start;
+  if (at >= f.rise) {
+    if (f.drawn) return { pit: false, climb: (at - f.rise) / RISE_S };
+    // no frame showed its fall deep enough (it fell between two frames): this one does, the climb starts after it
+    f.rise = at;
+    u = FALL_SEEN_S;
+  }
+  if (u >= FALL_SEEN_S) f.drawn = true;
+  const z = f.tile ? dropHeight(f.start + u, f.start) : -650 * u * u;
+  return { pit: true, z: Math.max(COLLAPSE.gone, z), falling: true };
 }
 
 /**
