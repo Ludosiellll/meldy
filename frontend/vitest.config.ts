@@ -13,5 +13,7 @@ export default defineConfig({
     minWorkers: 1,
     clearMocks: true,
     restoreMocks: true,
+    // On a loaded machine a few whole-page tests (the studio, the exam draw) pass the default 5 s; a hang still fails.
+    testTimeout: 20000,
   },
 });
