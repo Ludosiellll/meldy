@@ -35,6 +35,12 @@ describe('host.css', () => {
     expect(css).toMatch(/\.lvh-crowd\[data-walk\] \.lvh-name \{ opacity: 0;/);
   });
 
+  it('the lobby’s post list opens at --tg-pop-x (over the panel), not over the QR code', async () => {
+    const css = await read('host.css');
+    expect(css).toMatch(/\.lvh-lobby-foot \.lvh-tg \{ position: static; \}/);
+    expect(css).toMatch(/\.lvh-lobby-foot \.lvh-tg-pop \{ left: var\(--tg-pop-x/);
+  });
+
   it('has no glow, gradients or blur in the chrome, and stands still for reduced motion', async () => {
     const css = await read('host.css');
     expect(css).not.toMatch(/gradient\(|text-shadow|drop-shadow|blur\(|backdrop-filter|filter:/);

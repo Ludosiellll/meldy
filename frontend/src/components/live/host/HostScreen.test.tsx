@@ -66,6 +66,11 @@ describe('teacher screen against the fake server', () => {
     // for the room: the short address; nothing of the teacher's setup on the projector
     expect(view.container.querySelector('.lvh-lobby-site')?.textContent).toBe('ludosiel-studyforge.hf.space/play');
     expect(view.container.textContent).not.toMatch(/Пригласить группу|Нажмите на игрока/);
+    // the post's list or note opens over the class's panel, clear of the card with the PIN and the QR (r2, N6)
+    const foot = view.container.querySelector<HTMLElement>('.lvh-lobby-foot')!;
+    const card = view.container.querySelector<HTMLElement>('.lvh-lobby-card')!;
+    const popX = parseFloat(foot.style.getPropertyValue('--tg-pop-x')) + 40;
+    expect(popX).toBeGreaterThan(parseFloat(card.style.left) + parseFloat(card.style.width));
     // the post into the chat: the class is told where its «Играть» is
     fireEvent.click(screen.getByRole('button', { name: 'Отправить в беседу «3-ПО»' }));
     await tick(50);

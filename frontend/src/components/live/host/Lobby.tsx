@@ -22,6 +22,9 @@ function Qr({ text }: { text: string }) {
 
 const box = (b: { x: number; y: number; w: number; h: number }) => ({ left: b.x, top: b.y, width: b.w, height: b.h });
 
+/** The teacher's line under the card and the panel starts here (host.css .lvh-lobby-foot). */
+export const FOOT_X = 40;
+
 export interface LobbyProps {
   state: HostState;
   players: number;
@@ -88,7 +91,8 @@ export function Lobby({ state, players, more, morePoint, moreW, joinUrl, width, 
           {LOBBY.more(more)}
         </div>
       ) : null}
-      <div className="lvh-lobby-foot">
+      {/* the post's list or note opens over the class's panel, never over the PIN and the QR code */}
+      <div className="lvh-lobby-foot" style={{ ['--tg-pop-x' as string]: `${panel.x - FOOT_X + 28}px` }}>
         <span className="lvh-lobby-settings">{LOBBY.settings(state.time_s, state.speed, state.settings.who === 'members')}</span>
         {telegram}
         <span className="lvh-grow" />
