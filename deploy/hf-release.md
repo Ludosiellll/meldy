@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.21: the phone looks like the projector; the game on the landing and in the reel (from the commit of this entry)
+
+- **The phone in «Встань на ответ» shows the projector's game** (owner, comparing a phone shot with the projector video:
+  «даже не похожая на то что видно там»): the same 3/4 camera following the student's hero, a ring and «Вы» on the own
+  hero, the projector's wall signs, the floor falls at the same moment. A weak phone steps down inside 3D (glows off,
+  render scale 0.85 → 0.72 → 0.6, 30 fps cap); the flat view only without WebGL. Kit: camera shift, frame cap, own-hero
+  ring, phone quality ladder.
+- **The landing** gets the section «Игра в классе» (real projector footage, the bot's post, a phone) between «Группа» and
+  «Конструктор», link «Провести игру»; **the reel** gets the 7.4 s scene `game` after `group` on the same footage (83 s).
+- Gate on 67a3e9f (clean worktree): pytest 2472 (one wall-clock budget test, «960-question session parses in under
+  1.5 s», failed in the full run at load 15 on 4 cores; it passes alone 3/3 under the same load), bot 393, sync ok,
+  Vitest 407 files / 6633 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.20: «Провести игру» everywhere, real game footage in the guide (from the commit of this entry)
 
 - **Where to start the game** (owner, 21.10: «а где на сайте указать что ты хочешь такую игру? и обучение по тому как ее
