@@ -78,11 +78,11 @@ export function dayColumnTitle(days: number): string {
   return `Через ${days} ${pluralRu(days, ['день', 'дня', 'дней'])}`;
 }
 
-/** «вернётся завтра», «вернётся через 6 дней». */
+/** «повторим завтра», «повторим через 6 дней». */
 export function returnsIn(days: number): string {
-  if (days <= 0) return 'вернётся сегодня';
-  if (days === 1) return 'вернётся завтра';
-  return `вернётся через ${days} ${pluralRu(days, ['день', 'дня', 'дней'])}`;
+  if (days <= 0) return 'повторим сегодня';
+  if (days === 1) return 'повторим завтра';
+  return `повторим через ${days} ${pluralRu(days, ['день', 'дня', 'дней'])}`;
 }
 
 /** «лекция «Эластичность спроса», фрагмент 5» for the back of a card, or ''. */
@@ -145,7 +145,7 @@ function MistakesEntry({ count }: { count: number | null }) {
         </h2>
         <p className="rv-diary-p">
           {line ? <b>{line}</b> : null}
-          {line ? ' ' : null}Ошибки из тестов и ответов на билеты, правильный ответ открывается по нажатию.
+          {line ? ' ' : null}Ошибки из самопроверок и ответов на билеты. Нажмите на ошибку, чтобы увидеть верный ответ.
         </p>
       </div>
       <Link className="sf-secondary rv-diary-go" to="/mistakes">
@@ -243,7 +243,7 @@ function laterTodaySentence(later: number, nextAt: string | null, now: Date): st
   if (later <= 0) return '';
   const time = nextAt && localDateKey(new Date(nextAt)) === localDateKey(now) ? format(new Date(nextAt), 'H:mm') : '';
   if (later === 1) return `Ещё одна карточка придёт сегодня${time ? ` в ${time}` : ''}.`;
-  return `Ещё ${later} ${pluralRu(later, ['карточка придёт', 'карточки придут', 'карточек придут'])} сегодня${time ? `, первая — в ${time}` : ''}.`;
+  return `Ещё ${later} ${pluralRu(later, ['карточка придёт', 'карточки придут', 'карточек придут'])} сегодня${time ? `, первая в ${time}` : ''}.`;
 }
 
 /**
@@ -259,10 +259,10 @@ export function emptyQueueCopy(
   const later = outlook?.laterToday ?? 0;
   const next = outlook?.nextAt ? nextReviewWords(outlook.nextAt, now) : '';
   if (material) {
-    if (outlook?.total === 0) return { kind: 'none', title: 'Карточек этой лекции в повторении нет', text: 'Карточки попадают в повторение после разбора лекции.' };
-    const title = 'Карточек этой лекции к повторению сейчас нет';
+    if (outlook?.total === 0) return { kind: 'none', title: 'У этой лекции нет карточек в повторении', text: 'Карточки появятся после разбора лекции.' };
+    const title = 'Сейчас эту лекцию повторять не нужно';
     if (later > 0) return { kind: 'later', title, text: laterTodaySentence(later, outlook?.nextAt ?? null, now) };
-    return { kind: next ? 'done' : 'unknown', title, text: next ? `Следующее повторение — ${next}.` : 'Срок следующего повторения ещё не наступил.' };
+    return { kind: next ? 'done' : 'unknown', title, text: next ? `Следующее повторение ${next}.` : 'Пока повторять нечего.' };
   }
   if (outlook?.total === 0) {
     return {
@@ -273,10 +273,10 @@ export function emptyQueueCopy(
   }
   if (later > 0) return { kind: 'later', title: 'Сейчас повторять нечего', text: laterTodaySentence(later, outlook?.nextAt ?? null, now) };
   if (outlook && outlook.total !== null && outlook.laterToday === 0) {
-    return { kind: 'done', title: 'На сегодня всё', text: next ? `Следующее повторение — ${next}.` : 'Карточек с наступившим сроком повторения нет.' };
+    return { kind: 'done', title: 'На сегодня всё', text: next ? `Следующее повторение ${next}.` : 'Сейчас нет карточек, которые пора повторить.' };
   }
   // The counts could not be read: only what is certain.
-  return { kind: 'unknown', title: 'Сейчас повторять нечего', text: 'Карточек с наступившим сроком повторения нет.' };
+  return { kind: 'unknown', title: 'Сейчас повторять нечего', text: 'Сейчас нет карточек, которые пора повторить.' };
 }
 
 /** Titles of the cards' lectures, for the face and the back of a card; nothing when they cannot be read. */
@@ -402,7 +402,7 @@ export default function Review() {
       if (seq !== loadSeq.current) return;
       console.error('Error loading due cards:', error);
       setCards([]);
-      setLoadError('Карточки на месте — повторите через минуту.');
+      setLoadError('Карточки не загрузились, но они на месте. Попробуйте через минуту.');
     } finally {
       // A newer load owns the page now.
       if (seq === loadSeq.current) setLoading(false);
@@ -498,7 +498,7 @@ export default function Review() {
       }, NEXT_CARD_MS);
     } catch (error) {
       console.error('Error saving card progress:', error);
-      setSaveError('Ответ не сохранён. Проверьте соединение и попробуйте ещё раз.');
+      setSaveError('Ответ не сохранился. Проверьте интернет и попробуйте ещё раз.');
     } finally {
       processingRef.current = false;
       setProcessing(false);
@@ -643,7 +643,7 @@ export default function Review() {
               </h1>
               <p className="rv-done-line">
                 {`Помню — ${counts.remember}, с трудом — ${counts.hard}, не помню — ${counts.forgot}.`}
-                {tomorrow > 0 ? ` Завтра ${tomorrow === 1 ? 'вернётся' : 'вернутся'} ${tomorrow}.` : ''}
+                {tomorrow > 0 ? ` Завтра повторим ${tomorrow} ${pluralRu(tomorrow, ['карточку', 'карточки', 'карточек'])}.` : ''}
               </p>
               <p className="rv-saved">Ответы сохранены.</p>
               <div className="rv-acts">

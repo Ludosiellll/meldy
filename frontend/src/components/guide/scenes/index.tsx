@@ -114,7 +114,7 @@ function Today() {
 // ---------------------------------------------------------------------------------------------
 // «Разобрать лекцию»
 
-const MODULES = ['Конспект', 'Карточки', 'Тест', 'Выжимка', 'Подкаст'];
+const MODULES = ['Конспект', 'Карточки', 'Самопроверка', 'Выжимка', 'Подкаст'];
 
 function Add() {
   const root = useRef<HTMLDivElement>(null);
@@ -236,7 +236,7 @@ function Library() {
             <div className="gs-tabs">
               <span className="is-on">Конспект</span>
               <span>Карточки 8</span>
-              <span>Тест 5</span>
+              <span>Самопроверка 5</span>
             </div>
             <p className="gs-sum-h">Когда спрос эластичен</p>
             <p className="gs-sum-p">
@@ -704,7 +704,7 @@ function Progress() {
         <div data-a="todo" className="fm-card gs-todo" style={{ opacity: 0 }}>
           <p className="gs-tile-h">Что подтянуть</p>
           <div className="gs-todo-row">
-            <span>Тест не пройден в лекции «Эластичность спроса»</span>
+            <span>Самопроверка не пройдена в лекции «Эластичность спроса»</span>
             <span className="fm-btn fm-btn--line">Пройти тест</span>
           </div>
         </div>

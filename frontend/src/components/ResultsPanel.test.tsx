@@ -121,7 +121,7 @@ describe('header', () => {
     renderPanel();
     expect(screen.getByText('Обработан частично')).toBeInTheDocument();
     expect(screen.queryByText('Материал обработан')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^Тест/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Самопроверка/ })).toBeInTheDocument();
     expect(screen.queryByText(/Остальные результаты доступны/)).not.toBeInTheDocument();
   });
 
@@ -153,7 +153,7 @@ describe('header', () => {
   it('a legacy material without sections shows no failure lines', () => {
     renderPanel({ results: { summarizer: summary, flashcards: cards, quiz: { quiz: [] } } as AnalysisResults });
     expect(screen.getByText('Материал обработан')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^Тест/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Самопроверка/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/не получил/)).not.toBeInTheDocument();
   });
 
@@ -172,14 +172,14 @@ describe('header', () => {
     const { unmount } = renderPanel({
       results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 23, citable_items: 9 } },
     });
-    expect(screen.getByText('Конспект, карточки и тест опираются на 23 фрагмента лекции')).toBeInTheDocument();
+    expect(screen.getByText('Конспект, карточки и самопроверка опираются на 23 фрагмента лекции')).toBeInTheDocument();
     // Links found by matching words, not checked: «похожий фрагмент».
     expect(screen.getByText('у 9 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/подтвержд|исходник|наиболее похож/i);
     unmount();
 
     renderPanel({ results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 21, citable_items: 1 } } });
-    expect(screen.getByText('Конспект, карточки и тест опираются на 21 фрагмент лекции')).toBeInTheDocument();
+    expect(screen.getByText('Конспект, карточки и самопроверка опираются на 21 фрагмент лекции')).toBeInTheDocument();
     expect(screen.getByText('у 1 пункта есть ссылка на похожий фрагмент')).toBeInTheDocument();
   });
 
@@ -198,9 +198,9 @@ describe('header', () => {
   it('builds the line from what exists, with the verb in the right number', () => {
     expect(restsOnLine(['summary'], 4)).toBe('Конспект опирается на 4\u00a0фрагмента лекции');
     expect(restsOnLine(['flashcards'], 1)).toBe('Карточки опираются на 1\u00a0фрагмент лекции');
-    expect(restsOnLine(['quiz'], 11)).toBe('Тест опирается на 11\u00a0фрагментов лекции');
-    expect(restsOnLine(['summary', 'quiz'], 2)).toBe('Конспект и тест опираются на 2\u00a0фрагмента лекции');
-    expect(restsOnLine(['summary', 'flashcards', 'quiz'], 5)).toBe('Конспект, карточки и тест опираются на 5\u00a0фрагментов лекции');
+    expect(restsOnLine(['quiz'], 11)).toBe('Самопроверка опирается на 11\u00a0фрагментов лекции');
+    expect(restsOnLine(['summary', 'quiz'], 2)).toBe('Конспект и самопроверка опираются на 2\u00a0фрагмента лекции');
+    expect(restsOnLine(['summary', 'flashcards', 'quiz'], 5)).toBe('Конспект, карточки и самопроверка опираются на 5\u00a0фрагментов лекции');
     expect(restsOnLine([], 5)).toBe('');
     expect(restsOnLine(['summary'], 0)).toBe('');
   });
@@ -211,7 +211,7 @@ describe('header', () => {
       initialTab: 'flashcards',
       results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 17, citable_items: 17 } },
     });
-    expect(screen.getByText('Карточки и тест опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
+    expect(screen.getByText('Карточки и самопроверка опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/исходник|наиболее похож/i);
     unmount();
 
@@ -250,7 +250,7 @@ describe('header', () => {
       embedded: true,
       results: { ...partialResults(), quiz, sections: { summarizer: { status: 'ok' }, quiz: { status: 'ok' }, podcast: { status: 'busy' } } },
     });
-    expect(screen.getByRole('button', { name: /^Тест/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Самопроверка/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Подкаст|Разговор/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/(Подкаст|Разговор) не получился/)).not.toBeInTheDocument();
   });
@@ -282,7 +282,7 @@ describe('«Выжимка» on the result screen (QA 2026-10-11: made, and show
   it('is a tab of its own, named as the picker and the lecture page name it, between the test and the podcast', () => {
     renderPanel({ results: withBrief() });
     const row = screen.getByRole('navigation', { name: 'Разделы результата' });
-    expect(Array.from(row.querySelectorAll('.sf-sectab-label')).map(label => label.textContent)).toEqual(['Конспект', 'Карточки', 'Тест', 'Выжимка', 'Подкаст']);
+    expect(Array.from(row.querySelectorAll('.sf-sectab-label')).map(label => label.textContent)).toEqual(['Конспект', 'Карточки', 'Самопроверка', 'Выжимка', 'Подкаст']);
     fireEvent.click(screen.getByRole('button', { name: 'Выжимка' }));
     expect(screen.getByRole('heading', { level: 2, name: 'Выжимка' })).toBeInTheDocument();
     expect(screen.getByText('Главное из материала для быстрого повторения')).toBeInTheDocument();
@@ -412,7 +412,7 @@ describe('opening tab', () => {
 
   it('opens on the tab a link from «Прогресс» asks for (?section=quiz) when it has content', () => {
     renderPanel({ embedded: true, results: full(), initialTab: 'quiz' });
-    expect(screen.getByRole('button', { name: /^Тест/ })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('button', { name: /^Самопроверка/ })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('button', { name: /^Конспект/ })).not.toHaveAttribute('aria-current');
   });
 
@@ -426,14 +426,14 @@ describe('preview of an unsaved result (repeat demo run)', () => {
   it('writes nothing: no recreate, no title edit, no quiz journal', async () => {
     renderPanel({ preview: true });
     expect(screen.queryByRole('button', { name: 'Изменить название' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    expect(await screen.findByText('Тест не получился: сервис ИИ был перегружен.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать тест заново' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    expect(await screen.findByText('Самопроверка не получилась: сервис ИИ был перегружен.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать самопроверку заново' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Станет доступно/)).not.toBeInTheDocument();
     cleanup();
 
     renderPanel({ preview: true, results: { ...partialResults(), quiz, sections: { quiz: { status: 'ok' } } } });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     await screen.findByText('Тест на экране');
     // Без materialId QuizView не ведёт журнал и не пишет «не сохранён».
     expect(db.quizProps).not.toBeNull();
@@ -449,8 +449,8 @@ describe('a section that arrives after the panel closed', () => {
     fetchMock.mockImplementation(() => new Promise<Response>(resolve => (release = resolve)));
     const onResultsChange = vi.fn();
     const view = renderPanel({ onResultsChange });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     view.unmount();
 
@@ -468,9 +468,9 @@ describe('«Создать … заново»', () => {
   it('shows one plain sentence and recreates the test as a repair of the saved material', async () => {
     const onResultsChange = vi.fn();
     renderPanel({ onResultsChange, analysisSettings: { summaryDetail: 'medium', flashcardCount: 6, quizCount: 5, quizDifficulty: 'mixed', quizType: 'multiple', enabledAgents: ['summarizer', 'flashcards', 'quiz'] } });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    expect(await screen.findByText('Тест не получился: сервис ИИ был перегружен.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    expect(await screen.findByText('Самопроверка не получилась: сервис ИИ был перегружен.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Создать самопроверку заново' }));
 
     expect(await screen.findByText('Тест на экране')).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -498,8 +498,8 @@ describe('«Создать … заново»', () => {
 
   it('sends how the lecture was got: a recording gets its section as its analysis did (recheck of 44.2)', async () => {
     renderPanel({ recognized: 'recording' });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('Тест на экране')).toBeInTheDocument();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe('/api/analyze/section');
@@ -563,10 +563,10 @@ describe('«Создать … заново»', () => {
   it('shows the server detail on failure and keeps the button', async () => {
     fetchMock.mockImplementation(async () => jsonResponse(422, { detail: 'Модель вернула непригодный тест. Попробуйте ещё раз.' }));
     renderPanel();
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('Модель вернула непригодный тест. Попробуйте ещё раз.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Создать тест заново' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Создать самопроверку заново' })).toBeEnabled();
     expect(db.updates).toHaveLength(0);
     expect(db.notify).not.toHaveBeenCalled(); // a refused section is not charged
   });
@@ -574,8 +574,8 @@ describe('«Создать … заново»', () => {
   it('a 502 HTML page gives a readable message, not parser text', async () => {
     fetchMock.mockImplementation(async () => new Response('<html>502 Bad Gateway</html>', { status: 502, headers: { 'content-type': 'text/html' } }));
     renderPanel();
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('Сервер сейчас недоступен. Повторите попытку через минуту.')).toBeInTheDocument();
   });
 
@@ -584,12 +584,12 @@ describe('«Создать … заново»', () => {
       jsonResponse(429, { detail: 'Сервис ИИ сейчас занят. Подождите минуту и попробуйте ещё раз.', code: 'ai_busy' }),
     );
     renderPanel();
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('Сервис ИИ сейчас занят. Подождите минуту и попробуйте ещё раз.')).toBeInTheDocument();
 
     fetchMock.mockImplementation(async () => jsonResponse(504, { detail: 'ИИ-сервис не ответил вовремя. Попробуйте ещё раз.', code: 'ai_timeout' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('ИИ-сервис не ответил вовремя. Попробуйте ещё раз.')).toBeInTheDocument();
     expect(db.updates).toHaveLength(0);
   });
@@ -597,8 +597,8 @@ describe('«Создать … заново»', () => {
   it('does not show a section that could not be saved', async () => {
     db.updateError = { message: 'network' };
     renderPanel();
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
     expect(await screen.findByText('Раздел создан, но сохранить его не удалось. Попробуйте ещё раз.')).toBeInTheDocument();
     expect(screen.queryByText('Тест на экране')).not.toBeInTheDocument();
     // The server made the section before the save failed: the ring reads what it charged.
@@ -607,8 +607,8 @@ describe('«Создать … заново»', () => {
 
   it('is disabled until the material is saved and while a section is being created', async () => {
     const { rerender } = renderPanel({ materialId: undefined });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    expect(await screen.findByRole('button', { name: 'Создать тест заново' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    expect(await screen.findByRole('button', { name: 'Создать самопроверку заново' })).toBeDisabled();
     expect(screen.getByText('Станет доступно, когда материал сохранится в библиотеке.')).toBeInTheDocument();
 
     let release: (value: Response) => void = () => undefined;
@@ -618,8 +618,8 @@ describe('«Создать … заново»', () => {
         <ResultsPanel results={partialResults()} onReset={() => undefined} materialId="m1" originalText="Энтропия — мера беспорядка системы." />
       </MemoryRouter>,
     );
-    fireEvent.click(await screen.findByRole('button', { name: 'Создать тест заново' }));
-    const busy = await screen.findByRole('button', { name: 'Создаём тест…' });
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать самопроверку заново' }));
+    const busy = await screen.findByRole('button', { name: 'Создаём самопроверку…' });
     expect(busy).toBeDisabled();
     fireEvent.click(busy);
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -629,16 +629,16 @@ describe('«Создать … заново»', () => {
 
   it('is not offered on someone else’s material', async () => {
     renderPanel({ canEdit: false });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
-    expect(await screen.findByText('Тест не получился: сервис ИИ был перегружен.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Создать тест заново' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
+    expect(await screen.findByText('Самопроверка не получилась: сервис ИИ был перегружен.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать самопроверку заново' })).not.toBeInTheDocument();
   });
 });
 
 describe('quiz journal props', () => {
   it('passes materialId, topic and surface to QuizView', async () => {
     renderPanel({ results: { ...partialResults(), quiz, sections: { quiz: { status: 'ok' } } } });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     await screen.findByText('Тест на экране');
     expect(db.quizProps).toMatchObject({ materialId: 'm1', topic: 'Физика', surface: 'analysis' });
   });
@@ -650,7 +650,7 @@ describe('quiz journal props', () => {
       sourceFileName: 'Лекция про энтропию.pdf',
       results: { summarizer: { content: 'Текст' }, flashcards: { flashcards: [] }, quiz },
     });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     await screen.findByText('Тест на экране');
     expect(db.quizProps).toMatchObject({ materialId: null, topic: 'Лекция про энтропию', surface: 'material' });
   });
@@ -659,12 +659,12 @@ describe('quiz journal props', () => {
 describe('the test on a screen for an audience (finding LIB-17)', () => {
   it('opens from «Экспорт» on the test tab, not from inside the student’s test', async () => {
     renderPanel({ results: { ...partialResults(), quiz, sections: { quiz: { status: 'ok' } } } });
-    fireEvent.click(screen.getByRole('button', { name: /^Тест/ }));
+    fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     await screen.findByText('Тест на экране');
     expect(db.quizProps).toMatchObject({ presenting: false });
 
     fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Показать тест на экране' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Показать самопроверку на экране' }));
     expect(db.quizProps).toMatchObject({ presenting: true });
     expect(screen.queryByRole('menu', { name: 'Экспорт' })).not.toBeInTheDocument();
 
@@ -676,7 +676,7 @@ describe('the test on a screen for an audience (finding LIB-17)', () => {
     renderPanel({ results: { ...partialResults(), quiz, sections: { quiz: { status: 'ok' } } } });
     fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
     expect(screen.getByRole('menu', { name: 'Экспорт' })).toBeInTheDocument();
-    expect(screen.queryByRole('menuitem', { name: 'Показать тест на экране' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Показать самопроверку на экране' })).not.toBeInTheDocument();
   });
 });
 
@@ -746,7 +746,7 @@ describe('the lecture page’s own row on a phone (pageTabs, Phone_Declutter_202
     expect(screen.queryByRole('button', { name: 'Экспорт' })).toBeNull();
     // On a phone each card and question keeps its «фрагмент N»: no sentence about all of them above.
     expect(screen.queryByText(/опираются на/)).toBeNull();
-    expect(exportItems.current.map(item => item.label)).toEqual(['Копировать', 'Печать или PDF', 'Показать тест на экране', 'Скачать HTML']);
+    expect(exportItems.current.map(item => item.label)).toEqual(['Копировать', 'Печать или PDF', 'Показать самопроверку на экране', 'Скачать HTML']);
     act(() => exportItems.current.find(item => item.key === 'present')?.run());
     expect(db.quizProps).toMatchObject({ presenting: true });
   });
@@ -768,7 +768,7 @@ describe('the lecture page’s own row on a phone (pageTabs, Phone_Declutter_202
     renderPanel({ embedded: true, results: allOk() });
     expect(screen.getByRole('navigation', { name: 'Разделы результата' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Карточки/ }));
-    expect(screen.getByText(/Карточки и тест опираются на 1/)).toBeInTheDocument();
+    expect(screen.getByText(/Карточки и самопроверка опираются на 1/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
     expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Копировать', 'Печать или PDF', 'Файл для Anki', 'Скачать HTML']);
   });

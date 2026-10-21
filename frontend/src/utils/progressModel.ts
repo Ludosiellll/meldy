@@ -343,10 +343,10 @@ export function weekLede(input: { cardAnswers: number; tests: number; tickets: n
   const parts: string[] = [];
   const questions = input.questions ?? 0;
   if (input.cardAnswers > 0) parts.push(`${count(input.cardAnswers, ['ответ', 'ответа', 'ответов'])} на карточки`);
-  if (input.tests > 0) parts.push(count(input.tests, ['тест', 'теста', 'тестов']));
+  if (input.tests > 0) parts.push(count(input.tests, ['самопроверка', 'самопроверки', 'самопроверок']));
   if (input.tickets > 0) parts.push(`${count(input.tickets, ['ответ', 'ответа', 'ответов'])} на билеты`);
   if (questions > 0) parts.push(`${count(questions, ['ответ', 'ответа', 'ответов'])} на вопросы экзаменов`);
   if (parts.length > 0) return `За 7 дней: ${listRu(parts)}.`;
-  if (input.lastDay) return `За 7 дней занятий не было. Последние — ${input.lastDay}.`;
+  if (input.lastDay) return `За 7 дней занятий не было. Последнее занятие было ${input.lastDay}.`;
   return 'Здесь будет видно, как вы запоминаете лекции. Начните с повторения карточек.';
 }

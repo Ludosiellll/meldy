@@ -140,7 +140,7 @@ export function lectureMeta(entry: LibraryEntry, followups = 0, short = false): 
   if (entry.summary && !short) parts.push('конспект');
   if (!entry.summary && short) parts.push('без конспекта');
   if (cards) parts.push(cards);
-  if (entry.quiz) parts.push('тест');
+  if (entry.quiz) parts.push('самопроверка');
   if (entry.cheatsheet) parts.push('выжимка');
   if (entry.talk) parts.push('подкаст');
   return parts.join(DOT);
@@ -680,7 +680,7 @@ export default function Library() {
             <h1 id="library-empty-title" className="sf-h1">
               Здесь будут ваши лекции
             </h1>
-            <p className="lib-empty-p">Загрузите первую — Meldy сделает конспект, карточки и тест и сошлётся на её фрагменты.</p>
+            <p className="lib-empty-p">Загрузите первую. Meldy сделает конспект, карточки и самопроверку со ссылками на её фрагменты.</p>
             <Link className="sf-primary" to="/analyze">
               Разобрать лекцию
             </Link>

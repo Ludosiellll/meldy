@@ -115,7 +115,7 @@ describe('Review answer persistence', () => {
 
     await revealAndChooseKnownCard();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ответ не сохранён');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ответ не сохранился');
     expect(screen.getByText('Что такое интервальное повторение?')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Помню' })).toBeEnabled();
     expect(screen.queryByRole('heading', { name: /^Повторили/ })).not.toBeInTheDocument();
@@ -168,7 +168,7 @@ describe('Review answer persistence', () => {
     renderReview();
 
     await revealAndChoose(user, 'Помню');
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ответ не сохранён');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ответ не сохранился');
     await user.click(screen.getByRole('button', { name: 'Помню' }));
     await screen.findByRole('heading', { name: 'Повторили 1 карточку' });
 
@@ -271,7 +271,7 @@ describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
     for (const word of ['Не помню', 'С трудом', 'Помню']) expect(screen.getByRole('button', { name: word })).toBeInTheDocument();
     expect(container.innerHTML).not.toMatch(/bg-(rose|amber|emerald|cyan)-|animate-spin|uppercase/);
     await user.click(screen.getByRole('button', { name: 'Не помню' }));
-    expect(await screen.findByText('Не помню — вернётся завтра.')).toBeInTheDocument();
+    expect(await screen.findByText('Не помню — повторим завтра.')).toBeInTheDocument();
     expect(api.playFlipSound).not.toHaveBeenCalled();
     expect(api.playSuccessSound).not.toHaveBeenCalled();
   });
@@ -281,7 +281,7 @@ describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
     const user = userEvent.setup();
     const { container, unmount } = renderReview();
     await revealAndChoose(user, 'Не помню');
-    await screen.findByText('Не помню — вернётся завтра.');
+    await screen.findByText('Не помню — повторим завтра.');
     expect(container.querySelector('.rv-when')?.textContent).toBe('завтра');
     expect(container.querySelector('.rv-face svg')).toBeNull();
     unmount();
@@ -289,7 +289,7 @@ describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
     api.updateCardProgress.mockResolvedValueOnce({ card_id: 'card-1', interval_days: 9, duplicate: false });
     const second = renderReview();
     await revealAndChoose(user, 'Помню');
-    await screen.findByText('Помню — вернётся через 9 дней.');
+    await screen.findByText('Помню — повторим через 9 дней.');
     expect(second.container.querySelector('.rv-when')?.textContent).toBe('через 9 дней');
     expect(second.container.querySelector('.rv-face svg')).toBeNull();
   });
@@ -304,7 +304,7 @@ describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
     expect(await screen.findByRole('button', { name: 'Помню' })).toBeInTheDocument();
     await user.keyboard('3');
     expect(api.updateCardProgress).toHaveBeenCalledWith('card-1', 5, expect.objectContaining({ clientEventId: expect.any(String) }));
-    expect(await screen.findByText('Помню — вернётся через 6 дней.')).toBeInTheDocument();
+    expect(await screen.findByText('Помню — повторим через 6 дней.')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Повторили 1 карточку' })).toBeInTheDocument();
   });
 
@@ -322,7 +322,7 @@ describe('Review on paper (redesign spec 5.13, QA round 1)', () => {
     await screen.findByRole('button', { name: 'Перевернуть' });
     await revealAndChoose(user, 'Помню');
     expect(await screen.findByRole('heading', { name: 'Повторили 2 карточки' })).toBeInTheDocument();
-    expect(screen.getByText('Помню — 1, с трудом — 0, не помню — 1. Завтра вернётся 1.')).toBeInTheDocument();
+    expect(screen.getByText('Помню — 1, с трудом — 0, не помню — 1. Завтра повторим 1 карточку.')).toBeInTheDocument();
   });
 
   it('lays the answered cards out by the day they come back, as the server set it', async () => {
@@ -374,7 +374,7 @@ describe('Review of one material', () => {
     api.getDueCards.mockResolvedValue([]);
     renderReview(`/review?material=${MATERIAL_ID}`);
 
-    expect(await screen.findByRole('heading', { name: typeset('Карточек этой лекции к повторению сейчас нет') })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: typeset('Сейчас эту лекцию повторять не нужно') })).toBeInTheDocument();
     expect(screen.queryByText('На сегодня всё')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Все карточки к повторению' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'К лекции' })).toBeInTheDocument();
@@ -383,7 +383,7 @@ describe('Review of one material', () => {
   it('does not query with a material id that is not a uuid', async () => {
     renderReview('/review?material=abc');
 
-    expect(await screen.findByRole('heading', { name: typeset('Карточек этой лекции к повторению сейчас нет') })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: typeset('Сейчас эту лекцию повторять не нужно') })).toBeInTheDocument();
     expect(api.getDueCards).not.toHaveBeenCalled();
   });
 });
@@ -442,7 +442,7 @@ describe('an empty queue says what it means (LIB-14)', () => {
     withOutlook({ total: 26, later: 2, next: at.toISOString() });
     renderReview();
     expect(await screen.findByRole('heading', { name: 'Сейчас повторять нечего' })).toBeInTheDocument();
-    expect(screen.getByText('Ещё 2 карточки придут сегодня, первая — в 23:40.')).toBeInTheDocument();
+    expect(screen.getByText('Ещё 2 карточки придут сегодня, первая в 23:40.')).toBeInTheDocument();
   });
 
   it('says «На сегодня всё» only when nothing else comes today, with the next review', async () => {
@@ -452,16 +452,16 @@ describe('an empty queue says what it means (LIB-14)', () => {
     withOutlook({ total: 26, later: 0, next: at.toISOString() });
     renderReview();
     expect(await screen.findByRole('heading', { name: typeset('На сегодня всё') })).toBeInTheDocument();
-    expect(screen.getByText('Следующее повторение — завтра.')).toBeInTheDocument();
+    expect(screen.getByText('Следующее повторение завтра.')).toBeInTheDocument();
   });
 
   it('words each case', () => {
     const now = new Date(2026, 9, 8, 15, 0);
     const today = new Date(2026, 9, 8, 18, 40).toISOString();
     expect(emptyQueueCopy({ total: 5, laterToday: 1, nextAt: today }, false, now).text).toBe('Ещё одна карточка придёт сегодня в 18:40.');
-    expect(emptyQueueCopy({ total: 5, laterToday: 0, nextAt: new Date(2026, 9, 12, 9).toISOString() }, false, now).text).toBe('Следующее повторение — 12 октября.');
-    expect(emptyQueueCopy({ total: 0, laterToday: 0, nextAt: null }, true, now).title).toBe('Карточек этой лекции в повторении нет');
-    expect(emptyQueueCopy(null, false, now)).toEqual({ kind: 'unknown', title: 'Сейчас повторять нечего', text: 'Карточек с наступившим сроком повторения нет.' });
+    expect(emptyQueueCopy({ total: 5, laterToday: 0, nextAt: new Date(2026, 9, 12, 9).toISOString() }, false, now).text).toBe('Следующее повторение 12 октября.');
+    expect(emptyQueueCopy({ total: 0, laterToday: 0, nextAt: null }, true, now).title).toBe('У этой лекции нет карточек в повторении');
+    expect(emptyQueueCopy(null, false, now)).toEqual({ kind: 'unknown', title: 'Сейчас повторять нечего', text: 'Сейчас нет карточек, которые пора повторить.' });
     expect(nextReviewWords(today, now)).toBe('сегодня в 18:40');
     expect(nextReviewWords(new Date(2026, 9, 9, 7).toISOString(), now)).toBe('завтра');
   });

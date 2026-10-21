@@ -24,7 +24,7 @@ const STATUSES: readonly SectionStatus[] = ['ok', 'empty', 'busy', 'failed', 'ti
 export const SECTION_LABELS: Record<SectionName, string> = {
   summarizer: 'Конспект',
   flashcards: 'Карточки',
-  quiz: 'Тест',
+  quiz: 'Самопроверка',
   cheatsheet: 'Выжимка',
   podcast: 'Подкаст',
 };
@@ -33,7 +33,7 @@ export const SECTION_LABELS: Record<SectionName, string> = {
 export const SECTION_ACCUSATIVE: Record<SectionName, string> = {
   summarizer: 'конспект',
   flashcards: 'карточки',
-  quiz: 'тест',
+  quiz: 'самопроверку',
   cheatsheet: 'выжимку',
   podcast: 'подкаст',
 };
@@ -41,7 +41,7 @@ export const SECTION_ACCUSATIVE: Record<SectionName, string> = {
 const FAILED_VERB: Record<SectionName, string> = {
   summarizer: 'не получился',
   flashcards: 'не получились',
-  quiz: 'не получился',
+  quiz: 'не получилась',
   cheatsheet: 'не получилась',
   podcast: 'не получился',
 };

@@ -350,15 +350,15 @@ export function ledgerFootParts(exam: Pick<ExamBlock, 'summary' | 'confidence' |
   }
   if (summary.confirmed > 0 && exam.confirmedTickets !== null && exam.perTicket > 1) {
     const word = exam.perTicket === 2 ? 'оба вопроса' : exam.perTicket === 3 ? 'все три вопроса' : 'все четыре вопроса';
-    parts.push({ key: 'tickets', text: `Билетов, где подтверждены ${word}, — ${exam.confirmedTickets} %.` });
+    parts.push({ key: 'tickets', text: `В ${exam.confirmedTickets} % билетов выучены ${word}.` });
   }
   parts.push(
     confidence.enoughData
       ? {
           key: 'self',
-          text: `Вы отметили «знаю» у ${count(confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}; из ${confidence.ratedKnowAnswered} таких, на которые вы ответили, в ${confidence.ratedKnowPassed} названо достаточно.`,
+          text: `Вы отметили «знаю» у ${count(confidence.ratedKnow, ['вопроса', 'вопросов', 'вопросов'])}. Вы ответили на ${confidence.ratedKnowAnswered} из них, и в ${confidence.ratedKnowPassed} ответ был полным.`,
         }
-      : { key: 'self', text: 'Самооценка против ответов: мало данных.', empty: true },
+      : { key: 'self', text: 'Пока мало ответов, чтобы сравнить их с вашими отметками «знаю».', empty: true },
   );
   return parts;
 }
@@ -369,11 +369,11 @@ export function ledgerFoot(exam: Pick<ExamBlock, 'summary' | 'confidence' | 'con
     .join(' ');
 }
 
-/** «Есть в лекциях: 24 из 40 · частично 7 · нет 9», or that the list was not checked against the lectures yet. */
+/** «Есть в ваших лекциях 24 из 40 · частично 7 · нет 9», or that the list was not checked against the lectures yet. */
 function coverageLine(exam: ExamBlock): string {
   if (exam.total === 0) return 'Вопросов в списке пока нет.';
   if (exam.coverage.unmapped >= exam.total) return 'Сверки с лекциями ещё не было.';
-  const parts = [`Есть в ваших лекциях: ${exam.coverage.full} из ${exam.total}`, `частично ${exam.coverage.partial}`, `нет ${exam.coverage.none}`];
+  const parts = [`Есть в ваших лекциях ${exam.coverage.full} из ${exam.total}`, `частично ${exam.coverage.partial}`, `нет ${exam.coverage.none}`];
   if (exam.coverage.unverified > 0) parts.push(`только по словам ${exam.coverage.unverified}`);
   if (exam.coverage.unmapped > 0) parts.push(`не сверено ${exam.coverage.unmapped}`);
   const date = mappingDateText(exam.mappedAt);
@@ -456,7 +456,7 @@ function ContainerLedgerRow({ container, questions, phone }: { container: Overvi
               <span className="sf-ledger-fig">
                 {figure.twoDays} <span className="sf-of">из {figure.keyed}</span>
               </span>
-              <span className="sf-ledger-cap">верно в два разных дня</span>
+              <span className="sf-ledger-cap">выучено</span>
             </span>
           </span>
         ) : null}
@@ -808,7 +808,7 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
                 <span className="sf-ledger-fig">
                   {exam.summary.confirmed} <span className="sf-of">из {exam.total}</span>
                 </span>
-                <span className="sf-ledger-cap">вопросов подтверждено ответами</span>
+                <span className="sf-ledger-cap">вопросов выучено</span>
               </span>
             </span>
           ) : null}
@@ -874,15 +874,15 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
             <div className="pg-todo-empty">
               <Quiet>
                 {materials.status === 'ok' && materials.data.length > 0
-                  ? 'Пока нечего подтягивать: у лекций, загруженных только текстом, нет карточек и теста. Разберите лекцию, и здесь появятся её пробелы.'
-                  : 'Пока нечего подтягивать — разберите первую лекцию, и здесь появятся её пробелы.'}
+                  ? 'Пока нечего подтягивать. У лекций, загруженных только текстом, нет карточек и самопроверки. Разберите лекцию, и здесь появятся её пробелы.'
+                  : 'Пока нечего подтягивать. Разберите первую лекцию, и здесь появятся её пробелы.'}
               </Quiet>
               <Link className="sf-secondary" to="/analyze">
                 Разобрать лекцию
               </Link>
             </div>
           ) : everythingRead ? (
-            <Quiet>Пробелов не видно: карточки в повторении, тесты пройдены, открытых ошибок нет.</Quiet>
+            <Quiet>Пробелов нет. Карточки в повторении, самопроверки пройдены, открытых ошибок нет.</Quiet>
           ) : (
             <Quiet>Часть данных не загрузилась, поэтому список может быть неполным.</Quiet>
           )}
@@ -909,7 +909,7 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
           hasContainers ? null : <Quiet>Загружаем…</Quiet>
         ) : examRows.length === 0 ? (
           <div className="pg-card pg-exam-empty">
-            <p>Добавьте список вопросов к экзамену — здесь будет видно, какие из них уже подтверждены ответами.</p>
+            <p>Добавьте список вопросов к экзамену, и здесь будет видно, какие из них вы уже выучили.</p>
             <Link className="sf-secondary" to="/exams/new">
               Новый экзамен
             </Link>
@@ -940,7 +940,7 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
         ) : (
           <>
             {cards.status === 'error' && <ErrorLine text="Карточки не загрузились, их счётчики не показаны." onRetry={() => reload('cards')} />}
-            {quiz.status === 'error' && <ErrorLine text="Результаты тестов не загрузились." onRetry={() => reload('quiz')} />}
+            {quiz.status === 'error' && <ErrorLine text="Результаты самопроверок не загрузились." onRetry={() => reload('quiz')} />}
             {active.length > 0 ? (
               <ul className="pg-card pg-lectures">
                 {active.map((row) => (
@@ -964,7 +964,7 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
                 <summary>
                   Только текст — {count(textOnly.length, ['лекция', 'лекции', 'лекций'])}
                 </summary>
-                <p className="pg-quiet">Загружены для сверки с вопросами экзаменов: конспекта, карточек и теста у них нет.</p>
+                <p className="pg-quiet">Загружены для сверки с вопросами экзаменов. Конспекта, карточек и самопроверки у них нет.</p>
                 <ul>
                   {textOnly.map((row) => (
                     <li key={row.id}>
@@ -1029,18 +1029,18 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
           <p>
             «Повторения на неделю» — сколько карточек придёт на повторение в каждый из ближайших дней по их расписанию; в «сегодня»
             входят и пропущенные, и те, что придут позже сегодня. Карточки из ответов на билеты — вопросы экзаменатора, на которые вы
-            не ответили; они считаются вместе с карточками лекций. «Тест» — первая попытка теста лекции, повторные показаны отдельно.
-            Вопрос экзамена «подтверждён», когда дважды, в разные дни, в ответе на него названо достаточно пунктов.
+            не ответили; они считаются вместе с карточками лекций. «Самопроверка» — первая попытка самопроверки лекции, повторные
+            показаны отдельно. Вопрос экзамена выучен, когда дважды, в разные дни, в ответе на него названо достаточно пунктов.
           </p>
           {examQuestions ? (
             <p>
               «Занятия по дням» — ответы на карточки, на билеты и на вопросы экзаменов (в занятиях и в «Как на экзамене») за
-              каждый день; день, когда вы проходили тест, тоже считается днём занятий. День с ответами разных видов считается
+              каждый день; день, когда вы проходили самопроверку, тоже считается днём занятий. День с ответами разных видов считается
               один раз.
             </p>
           ) : (
             <p>
-              «Занятия по дням» — ответы на карточки и на билеты за каждый день; день, когда вы проходили тест, тоже считается днём
+              «Занятия по дням» — ответы на карточки и на билеты за каждый день; день, когда вы проходили самопроверку, тоже считается днём
               занятий.
             </p>
           )}
@@ -1125,7 +1125,7 @@ function weekSentence(week: ForecastDay[]): string {
   const later = week.slice(1).reduce((sum, day) => sum + day.count, 0);
   const total = later + (week[0]?.count ?? 0);
   const tomorrow = week[1]?.count ?? 0;
-  return later > 0 ? `${tomorrow > 0 ? `Завтра — ${tomorrow}` : 'Завтра повторений нет'}, всего на неделю — ${total}.` : 'На следующие 6 дней повторений нет.';
+  return later > 0 ? `${tomorrow > 0 ? `Завтра ${count(tomorrow, CARD_FORMS)}` : 'Завтра повторений нет'}, всего на неделю ${total}.` : 'На следующие 6 дней повторений нет.';
 }
 
 /** «Закреплено 3 из 8 · учатся 2 · новых 3»: the cards by state in one line, only the states that have cards. */
@@ -1275,7 +1275,7 @@ function MemoryTile({
             {typeset(
               recall.answers === 0
                 ? `Ответов на карточки ${periodText(span)} пока нет.`
-                : `Пока ${count(recall.answers, ANSWER_FORMS)} на карточки — долю покажем с ${RECALL_MIN_ANSWERS}, осталось ${RECALL_MIN_ANSWERS - recall.answers}.`,
+                : `Пока ${count(recall.answers, ANSWER_FORMS)} на карточки. Долю покажем после ${RECALL_MIN_ANSWERS}, осталось ${RECALL_MIN_ANSWERS - recall.answers}.`,
             )}
           </p>
           <p className="pg-note pg-note--small">
@@ -1480,15 +1480,15 @@ function TodoLine({
       const [first] = item.lectures;
       text =
         item.lectures.length === 1 ? (
-          <>{title(first)}: тест ещё не пройден</>
+          <>{title(first)}: самопроверка ещё не пройдена</>
         ) : (
           <>
-            Тесты не пройдены в {item.lectures.length} {pluralRu(item.lectures.length, ['лекции', 'лекциях', 'лекциях'])}. Начните с {title(first)}
+            Самопроверка не пройдена в {item.lectures.length} {pluralRu(item.lectures.length, ['лекции', 'лекциях', 'лекциях'])}. Начните с {title(first)}
           </>
         );
       action = (
-        <Link className="pg-act" to={`/library/${first.id}?section=quiz`} aria-label={`Пройти тест: ${displayMaterialTitle(first.title)}`}>
-          Пройти тест
+        <Link className="pg-act" to={`/library/${first.id}?section=quiz`} aria-label={`Пройти самопроверку: ${displayMaterialTitle(first.title)}`}>
+          Пройти самопроверку
         </Link>
       );
       break;
@@ -1512,14 +1512,14 @@ function nextReviewText(iso: string, now: Date): string {
   return `повторение ${format(date, 'd MMM', { locale: ru })}`;
 }
 
-/** «тест 4 из 5, 2 окт. · повторно 5 из 5 · 1 ошибка» — only what exists. */
+/** «самопроверка 4 из 5, 2 окт. · повторно 5 из 5 · 1 ошибка» — only what exists. */
 function lectureMeta(row: LectureRow, quizKnown: boolean): string {
   const parts: string[] = [];
   if (quizKnown) {
     if (row.metrics.quiz) {
-      parts.push(`тест ${row.metrics.quiz.correct} из ${row.metrics.quiz.total}, ${dayLabel(row.metrics.quiz.date)}`);
+      parts.push(`самопроверка ${row.metrics.quiz.correct} из ${row.metrics.quiz.total}, ${dayLabel(row.metrics.quiz.date)}`);
       if (row.metrics.quizRepeat) parts.push(`повторно ${row.metrics.quizRepeat.correct} из ${row.metrics.quizRepeat.total}`);
-    } else if (row.hasQuiz) parts.push('тест не пройден');
+    } else if (row.hasQuiz) parts.push('самопроверка не пройдена');
   }
   if (row.mistakes > 0) parts.push(count(row.mistakes, ['открытая ошибка', 'открытые ошибки', 'открытых ошибок']));
   return parts.join(' · ');
@@ -1567,8 +1567,8 @@ function LectureLine({
     );
   } else if (quizKnown && row.action?.kind === 'quiz') {
     action = (
-      <Link className="pg-act" to={`/library/${row.id}?section=quiz`} aria-label={`Пройти тест: ${name}`}>
-        Пройти тест
+      <Link className="pg-act" to={`/library/${row.id}?section=quiz`} aria-label={`Пройти самопроверку: ${name}`}>
+        Пройти самопроверку
       </Link>
     );
   } else if (cardsKnown && row.states.total > 0 && row.states.solid === row.states.total) {
@@ -1680,7 +1680,7 @@ function ActivitySection({
     if (cardAnswers > 0) summaryParts.push(`${count(cardAnswers, ANSWER_FORMS)} на карточки`);
     if (ticketAnswers > 0) summaryParts.push(`${count(ticketAnswers, ANSWER_FORMS)} на билеты`);
     if (questionAnswers > 0) summaryParts.push(`${count(questionAnswers, ANSWER_FORMS)} на вопросы экзаменов`);
-    if (tests > 0) summaryParts.push(count(tests, ['тест', 'теста', 'тестов']));
+    if (tests > 0) summaryParts.push(count(tests, ['самопроверка', 'самопроверки', 'самопроверок']));
     if (studyDays > 0) summaryParts.push(`занятия в ${studyDays} из ${ACTIVITY_DAYS} дней`);
     const streak = studyStreak({ sessions: activity.data, events, examQuestionDays });
     if (streak > 0) summaryParts.push(`сейчас ${count(streak, ['день', 'дня', 'дней'])} подряд`);

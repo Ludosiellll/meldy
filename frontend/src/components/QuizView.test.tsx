@@ -254,7 +254,7 @@ describe('QuizView journal', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: /Да/ }));
     fireEvent.click(within(dialog).getByRole('button', { name: 'Следующий вопрос' }));
     fireEvent.click(within(dialog).getByRole('button', { name: /Клаузиус/ }));
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Завершить тест' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Завершить' }));
 
     expect(within(dialog).getByText('3 из 3')).toBeInTheDocument();
     expect(journal.record).not.toHaveBeenCalled();

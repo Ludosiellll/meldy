@@ -221,7 +221,7 @@ export function lectureMeta(material: Pick<LectureDetail, 'summary_json' | 'flas
   const cards = analysisCards(material.flashcards_json).length;
   if (cards > 0) parts.push(`${cards} ${pluralRu(cards, CARD_FORMS)}`);
   const quiz = isRecord(material.quiz_json) && Array.isArray(material.quiz_json.quiz) ? material.quiz_json.quiz.length : 0;
-  if (quiz > 0) parts.push('тест');
+  if (quiz > 0) parts.push('самопроверка');
   if (hasCheatsheet(summary)) parts.push('выжимка');
   if (Array.isArray(summary.podcast) && summary.podcast.length > 0) parts.push('подкаст');
   return parts.join(' · ');
@@ -254,7 +254,7 @@ export function lectureMetaShort(
     const cards = analysisCards(material.flashcards_json).length;
     if (cards > 0) parts.push(`${cards} ${pluralRu(cards, CARD_FORMS)}`);
     const quiz = isRecord(material.quiz_json) && Array.isArray(material.quiz_json.quiz) ? material.quiz_json.quiz.length : 0;
-    if (quiz > 0) parts.push('тест');
+    if (quiz > 0) parts.push('самопроверка');
     if (hasCheatsheet(summary)) parts.push('выжимка');
     if (Array.isArray(summary.podcast) && summary.podcast.length > 0) parts.push('подкаст');
     if (parts.length === 0 && typeof summary.content === 'string' && summary.content.trim() !== '') parts.push('конспект');
@@ -602,8 +602,8 @@ export function withoutMaterialLine(none: number): { link: string; note: string 
     link: `${none} ${pluralRu(none, QUESTION_FORMS)} без материала`,
     note:
       none === 1
-        ? 'Добавьте к нему лекцию — после новой сверки он вернётся в тренировку.'
-        : 'Добавьте к ним лекции — после новой сверки они вернутся в тренировку.',
+        ? 'Добавьте к нему лекцию. После сверки с ней он снова будет в тренировке.'
+        : 'Добавьте к ним лекции. После сверки с ними они снова будут в тренировке.',
   };
 }
 
@@ -649,9 +649,9 @@ export function shareSentence(questions: TodayQuestion[], layout: TicketLayout):
   const share = shareCount(questions, layout);
   if (!share) return '';
   if (share.kind === 'unmapped') return 'Сверки с лекциями ещё не было.';
-  if (share.kind === 'fixed') return `Билетов кафедры, где ${share.word} есть в ваших лекциях, — ${share.count} из ${share.tickets}.`;
-  if (share.perTicket <= 1) return `Вопросов, которые есть в ваших лекциях, — ${share.value}.`;
-  return `Билетов, где ${allQuestionsWord(share.perTicket)} есть в ваших лекциях, — ${share.value}.`;
+  if (share.kind === 'fixed') return `В ${share.count} из ${share.tickets} билетов кафедры ${share.word} есть в ваших лекциях.`;
+  if (share.perTicket <= 1) return `${share.value} вопросов есть в ваших лекциях.`;
+  return `В ${share.value} билетов ${allQuestionsWord(share.perTicket)} есть в ваших лекциях.`;
 }
 
 /**
@@ -668,14 +668,14 @@ export function shareFigure(questions: TodayQuestion[], layout: TicketLayout): {
   return { figure: share.value, caption: `билетов, где ${allQuestionsWord(share.perTicket)} есть в ваших лекциях` };
 }
 
-/** «Подтверждено ответами — 6 вопросов из 40.», or that there were no answers yet. */
+/** «Выучено 6 вопросов из 40.», or that there were no answers yet. */
 export function answersSentence(questions: TodayQuestion[], events: LearningEvent[] | null): string {
   if (questions.length === 0) return '';
   if (events === null) return 'История ответов не загрузилась.';
   const hashes = questions.map((question) => question.hash).filter((hash): hash is string => hash !== null);
   const summary = examSummary(hashes, statesByHash(events));
   if (summary.confirmed + summary.once + summary.notPassed === 0) return 'Ответов по билетам ещё не было.';
-  return `Подтверждено ответами — ${summary.confirmed} ${pluralRu(summary.confirmed, QUESTION_FORMS)} из ${questions.length}.`;
+  return `${pluralRu(summary.confirmed, ['Выучен', 'Выучено', 'Выучено'])} ${summary.confirmed} ${pluralRu(summary.confirmed, QUESTION_FORMS)} из ${questions.length}.`;
 }
 
 function joinNumbers(numbers: string[]): string {
@@ -714,8 +714,8 @@ export function recentNote(questions: TodayQuestion[], events: LearningEvent[] |
   }
   if (confirmed.length === 0) return head;
   return confirmed.length === 1
-    ? `${head} Вопрос ${confirmed[0]} подтверждён.`
-    : `${head} Вопросы ${joinNumbers(confirmed)} подтверждены.`;
+    ? `${head} Вопрос ${confirmed[0]} выучен.`
+    : `${head} Вопросы ${joinNumbers(confirmed)} выучены.`;
 }
 
 /** «около 6 минут» at 30 seconds a card; «около минуты» for one or two cards. */
@@ -774,11 +774,11 @@ export function dueLead(count: number): { count: string; time: string } {
   return { count: `${count} ${pluralRu(count, CARD_FORMS)} ${pluralRu(count, ['ждёт', 'ждут', 'ждут'])} повторения.`, time: reviewTime(count) };
 }
 
-/** «6 дней подряд. Сегодня — 4 карточки.» (a streak of one day is not called a streak). */
+/** «6 дней подряд. Сегодня повторили 4 карточки.» (a streak of one day is not called a streak). */
 export function activityLine(streak: number, today: number): string {
   const parts: string[] = [];
   if (streak >= 2) parts.push(`${streak} ${pluralRu(streak, ['день', 'дня', 'дней'])} подряд.`);
-  parts.push(today > 0 ? `Сегодня — ${today} ${pluralRu(today, CARD_FORMS)}.` : 'Сегодня карточки ещё не повторялись.');
+  parts.push(today > 0 ? `Сегодня повторили ${today} ${pluralRu(today, ['карточку', 'карточки', 'карточек'])}.` : 'Сегодня карточки ещё не повторялись.');
   return parts.join(' ');
 }
 
@@ -1326,13 +1326,13 @@ function todaysStepViews(steps: FirstSteps): StepView[] {
     {
       key: 'lecture',
       title: 'Добавьте лекции',
-      text: 'Файлы лекций с текстом: PDF, DOCX, PPTX, TXT или MD. Meldy возьмёт текст без расхода лимита и сверит с ним каждый вопрос: есть, частично или нет.',
+      text: 'Файлы лекций с текстом: PDF, DOCX, PPTX, TXT или MD. Это бесплатно. Meldy проверит, есть ли каждый вопрос в лекциях.',
       done: steps.lecture,
       // Free and straight to the core: the lectures of the exam in its editor, with their text-only import — not
       // the analysis (/analyze: 20 units a lecture, live run of 07.10 — three answers left on FREE after it).
       // Without an exam the lectures come in the new exam itself, right after its list.
       action: steps.drawExamId ? { to: `/exams/${steps.drawExamId}/edit#lectures`, label: 'Добавить лекции' } : null,
-      wait: 'Их добавляют в новом экзамене — сразу после списка вопросов.',
+      wait: 'Их добавляют в новом экзамене, сразу после списка вопросов.',
     },
     {
       key: 'answer',
