@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { FONT, roundRect } from './materials';
 import { uploadFirst } from './upload';
+import { declutter, type DeclutterBuffers } from '../declutter';
 
 const ATLAS_W = 1024;
 const ATLAS_H = 1408;
@@ -76,14 +77,17 @@ export class Tags {
   private readonly fDepth = new Float32Array(TAG_CAPACITY);
   private readonly order = new Int32Array(TAG_CAPACITY);
   // decluttering: screen boxes, the order they are placed in, who is left out, who was shown in the last frame
-  private readonly bx0 = new Float32Array(TAG_CAPACITY);
-  private readonly bx1 = new Float32Array(TAG_CAPACITY);
-  private readonly by0 = new Float32Array(TAG_CAPACITY);
-  private readonly by1 = new Float32Array(TAG_CAPACITY);
-  private readonly rank = new Float32Array(TAG_CAPACITY);
-  private readonly place = new Int32Array(TAG_CAPACITY);
-  private readonly placed = new Int32Array(TAG_CAPACITY);
-  private readonly hidden = new Uint8Array(TAG_CAPACITY);
+  private readonly boxes: DeclutterBuffers = {
+    x0: new Float32Array(TAG_CAPACITY),
+    x1: new Float32Array(TAG_CAPACITY),
+    y0: new Float32Array(TAG_CAPACITY),
+    y1: new Float32Array(TAG_CAPACITY),
+    rank: new Float32Array(TAG_CAPACITY),
+    order: new Int32Array(TAG_CAPACITY),
+    placed: new Int32Array(TAG_CAPACITY),
+    hidden: new Uint8Array(TAG_CAPACITY),
+  };
+  private readonly hidden = this.boxes.hidden;
   private readonly shownLast = new Uint8Array(TAG_CAPACITY);
   private readonly pv = new THREE.Matrix4();
   private vw = 1;
@@ -265,50 +269,29 @@ export class Tags {
     const kpx = (this.vh / 1080) * this.scale * (TAG_PX / CELL_H);
     const h = (CELL_H - 14) * kpx;
     const lift = 7 * kpx;
+    const b = this.boxes;
     for (let i = 0; i < n; i++) {
       const x = this.fX[i];
       const y = this.fY[i];
       const z = this.fZ[i];
       const cw = e[3] * x + e[7] * y + e[11] * z + e[15];
-      this.hidden[i] = 0;
+      b.hidden[i] = 0;
       if (cw <= 1e-6) {
-        this.hidden[i] = 1;
-        this.rank[i] = Infinity;
+        b.hidden[i] = 1;
+        b.rank[i] = Infinity;
         continue;
       }
       const sx = (((e[0] * x + e[4] * y + e[8] * z + e[12]) / cw + 1) / 2) * this.vw;
       const sy = ((1 - (e[1] * x + e[5] * y + e[9] * z + e[13]) / cw) / 2) * this.vh;
       const half = ((this.widths[this.fCell[i]] - 6) * kpx) / 2;
-      this.bx0[i] = sx - half;
-      this.bx1[i] = sx + half;
-      this.by1[i] = sy - lift;
-      this.by0[i] = sy - lift - h;
+      b.x0[i] = sx - half;
+      b.x1[i] = sx + half;
+      b.y1[i] = sy - lift;
+      b.y0[i] = sy - lift - h;
       // smaller is placed first: shown last frame, alive, near (view depth is negative, nearer is bigger)
-      this.rank[i] = (this.shownLast[this.fCell[i]] ? 0 : 2e6) + (this.fGhost[i] ? 1e6 : 0) - this.fDepth[i];
+      b.rank[i] = (this.shownLast[this.fCell[i]] ? 0 : 2e6) + (this.fGhost[i] ? 1e6 : 0) - this.fDepth[i];
     }
-    for (let i = 0; i < n; i++) {
-      let j = i;
-      while (j > 0 && this.rank[this.place[j - 1]] > this.rank[i]) {
-        this.place[j] = this.place[j - 1];
-        j--;
-      }
-      this.place[j] = i;
-    }
-    let m = 0;
-    for (let o = 0; o < n; o++) {
-      const i = this.place[o];
-      if (this.hidden[i]) continue;
-      let clear = true;
-      for (let q = 0; q < m; q++) {
-        const p = this.placed[q];
-        if (this.bx0[i] < this.bx1[p] && this.bx1[i] > this.bx0[p] && this.by0[i] < this.by1[p] && this.by1[i] > this.by0[p]) {
-          clear = false;
-          break;
-        }
-      }
-      if (clear) this.placed[m++] = i;
-      else this.hidden[i] = 1;
-    }
+    declutter(n, b);
     for (let i = 0; i < n; i++) this.shownLast[this.fCell[i]] = this.hidden[i] ? 0 : 1;
   }
 
