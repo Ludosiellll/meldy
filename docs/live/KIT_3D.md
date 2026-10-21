@@ -6,7 +6,11 @@ colour with a small accessory; the boss «Дедлайн» is the teacher's pick
 alarm clock on its chest and red eyes) or **`clock`** (our own alarm-clock brute). Code: `frontend/src/lib/live/three/`.
 Files: `frontend/public/game/` (licences there, `LICENSES.md`). The server and the wire format: `MOVE.md`.
 
-**Phones never run a 3D scene during play.** The picker shows pre-rendered pictures (§6).
+**Phones** (owner, 21.10: the phone shows its own view of the arena, as in the prototype): during a question the phone
+draws the arena with this kit, lighter than the projector (`maxPixelRatio: 1.25`, quality level 1 at best: no outlines,
+`tagHeight: 2.3`), its camera on the own character (`components/live/stand/phone/scene3d.ts`). A phone without WebGL 2,
+or one still late at the cheapest level, plays the light view: the pictures of §6 as sprites from above
+(`sprites.ts`). The hero picker shows the pictures (§6).
 
 ## 1. Use
 
@@ -149,7 +153,7 @@ in ~0.5 s. The timing is pure and tested (`arenaPlan.ts`). A projector turns a s
 | name tags without layout | drawn once into a canvas atlas, all tags one instanced draw sorted far to near | — |
 | hidden tab | the loop stops on `visibilitychange` | — |
 | first frame without a hitch | `view.warmUp()`: compileAsync on every material, one render with every batch visible | — |
-| phone: no 3D during play | pictures per body × hat, tinted by a mask (§6) | 5 KB at most each (budget 15) |
+| phone: light 3D, a 2D fallback | pixel ratio ≤ 1.25, no outlines, the phone's own governor; the light view with the pictures (§6) | 5 KB at most per picture (budget 15) |
 | load ≤ 2 s | 3D chunk (628 KB, 166 KB gz) only on game routes, not in the service worker's precache; models 0.43 MB gz without the skeleton, 0.59 MB with it; immutable caching | 1.1–2.3 s to the first frame locally (§5.1) |
 
 ### 5.1 Measured

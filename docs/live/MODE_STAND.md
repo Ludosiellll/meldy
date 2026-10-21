@@ -225,6 +225,14 @@ Texts follow the plain-words rules (short, no exclamation marks, numbers first).
 
 Ghosts are drawn translucent and floating on both screens; a character with `F_AWAY` is drawn faded.
 
+The phone (`components/live/stand/phone`): during countdown, open and reveal its own 3D view of the arena (the kit,
+camera on the own character; KIT_3D.md), the question card on top with the four answers in the floor's layout, the
+stick bottom left, a small map and «Вы на ответе Б» bottom right, the result cards over the arena; the lobby, the
+leaderboard and the podium are pages with the 2D map. Others carry no name tag on a phone (§5 of CONTRACT.md). The
+database is read at the join, at the podium (`final.unlocked_now`) and when the room is gone, never while it works.
+The hero picker shows the kit's pictures before the join when the link says `mode=stand` (else after the join, in the
+lobby).
+
 ## 9. Smooth movement on a 150 ms phone (rules for both clients)
 
 - **Own character: prediction.** Draw `frame().me` every animation frame; never wait for a snapshot. The predictor
