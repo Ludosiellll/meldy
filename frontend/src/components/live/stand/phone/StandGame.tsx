@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PlayerController, PlayerSnapshot } from '../../player/controller';
 import { NBSP, plural } from '../../player/copy';
 import type { HapticKind, PlayerPlatform } from '../../player/platform';
+import { PhoneScene } from './scene3d';
 import { StandSession } from './session';
 import StandBuilder from './StandBuilder';
 import { StandPlay } from './StandPlay';
@@ -36,6 +37,47 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   }, [session]);
   const v = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const st = s.state;
+
+  // The 3D arena: loaded and warmed up while the player waits in the lobby, so the first question does not stall.
+  // A phone without WebGL 2, or one too slow even at the cheapest level, plays on the 2D screen.
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [scene, setScene] = useState<PhoneScene | null>(null);
+  const [slow, setSlow] = useState(false);
+  const bossKind = v.hello?.boss ?? null;
+  const roomMap = v.ready ? session.client.welcome?.map ?? null : null;
+  useEffect(() => {
+    if (!bossKind || !roomMap || typeof WebGL2RenderingContext === 'undefined') return undefined;
+    let alive = true;
+    let made: PhoneScene | null = null;
+    PhoneScene.load(bossKind)
+      .then(async (sc) => {
+        made = sc;
+        const canvas = canvasRef.current;
+        if (!alive || !canvas || !sc.mount(canvas)) {
+          sc.dispose();
+          made = null;
+          return;
+        }
+        sc.setMap(roomMap);
+        await sc.warmUp();
+        if (alive) setScene(sc);
+      })
+      .catch(() => {
+        // No 3D on this phone (no WebGL 2, the models did not come): the 2D screen plays.
+      });
+    return () => {
+      alive = false;
+      made?.dispose();
+      setScene(null);
+    };
+  }, [bossKind, roomMap]);
+  useEffect(() => {
+    if (!scene || slow) return undefined;
+    const t = setInterval(() => {
+      if (scene.slow) setSlow(true);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [scene, slow]);
 
   // The database's watch: off while the room works, on again when the room is gone or silent for long.
   useEffect(() => {
@@ -142,8 +184,10 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
     );
   }
 
+  const live3d = !!scene && !slow && (phase === 'countdown' || phase === 'open' || phase === 'reveal');
   return (
     <>
+      <canvas className="sp-3d" ref={canvasRef} data-on={live3d ? 'true' : undefined} aria-hidden="true" />
       <StandPlay
         session={session}
         view={v}
@@ -155,6 +199,7 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
         canEdit={!s.busy && (phase ?? st?.state) === 'lobby'}
         onEdit={() => ctl.editLook()}
         haptic={haptic}
+        scene={slow ? null : scene}
       />
       {v.lost && (
         <div className="sp-lost" role="alert">

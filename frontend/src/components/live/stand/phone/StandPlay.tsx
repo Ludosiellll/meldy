@@ -3,6 +3,11 @@
  * the question and its options with the projector's letters and floor colours, the big timer, where the own
  * character stands («Вы на Б»), a small map of the arena, and the floating stick on the lower part of the screen.
  *
+ * During a question (countdown, open, reveal) the arena itself is drawn in 3D behind it all when the phone can
+ * (scene3d.ts, the projector's kit, the camera on the own character): the question card on top, the stick bottom
+ * left, the small map and «Вы на ответе Б» bottom right, the results over the arena. Elsewhere, or on a phone too
+ * weak for 3D, the 2D screen with the bigger map.
+ *
  * Smoothness (owner, 21.10: no lag on the phone): React renders only when the room's phase, the question or the
  * player's numbers change (about seven times a question). Everything that moves runs in one requestAnimationFrame loop
  * through refs: the map's dots (the own one predicted, the others 150 ms behind), the stick, the zone line, the option
@@ -16,6 +21,7 @@ import type { Look } from '../../../../lib/live/types';
 import { optionSize, questionSize } from '../../player/options';
 import type { HapticKind } from '../../player/platform';
 import { ArenaMap, mapHeight } from './map';
+import type { PhoneScene } from './scene3d';
 import type { StandSession, StandView } from './session';
 import { FloatingStick } from './stick';
 import { Thumb } from './Thumb';
@@ -34,6 +40,8 @@ export interface StandPlayProps {
   canEdit: boolean;
   onEdit: () => void;
   haptic: (kind: HapticKind) => void;
+  /** The 3D arena, loaded and mounted (null: the 2D screen only). */
+  scene?: PhoneScene | null;
 }
 
 const PHASES: readonly StandState['phase'][] = ['lobby', 'countdown', 'open', 'reveal', 'leaderboard', 'podium', 'ended'];
@@ -132,9 +140,10 @@ function OutcomeCard({ outcome, look, fell }: { outcome: Outcome; look: Look; fe
   );
 }
 
-export function StandPlay({ session, view, fallbackPhase, look, name, pin, players, canEdit, onEdit, haptic }: StandPlayProps) {
+export function StandPlay({ session, view, fallbackPhase, look, name, pin, players, canEdit, onEdit, haptic, scene = null }: StandPlayProps) {
   const st = view.state;
   const phase = st?.phase ?? fallbackPhase;
+  const use3d = !!scene && (phase === 'countdown' || phase === 'open' || phase === 'reveal');
   const q = st && (phase === 'countdown' || phase === 'open' || phase === 'reveal') ? st.q : null;
   const options = q?.options ?? [];
   const res = phase === 'reveal' ? (st?.res ?? null) : null;
@@ -152,14 +161,29 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   const timerRef = useRef<HTMLSpanElement>(null);
   const clockRef = useRef<HTMLDivElement>(null);
   const rows = useRef<Array<HTMLLIElement | null>>([]);
+  const hereRef = useRef<HTMLDivElement>(null);
+  const hereLRef = useRef<HTMLSpanElement>(null);
+  const hereKRef = useRef<HTMLSpanElement>(null);
+  const hereTRef = useRef<HTMLSpanElement>(null);
+  const placeRef = useRef<(() => void) | null>(null);
+  const modeRef = useRef(use3d);
+  modeRef.current = use3d;
 
   const [stick] = useState(() => new FloatingStick({ onMove: (x, y) => session.stick(x, y), onPress: () => hint.current?.setAttribute('data-gone', 'true') }));
   const hint = useRef<HTMLParagraphElement>(null);
   const [arena, setArena] = useState<ArenaMap | null>(null);
 
   // What the loop needs from the last render (read each frame, never a reason to restart it).
-  const live = useRef({ phase, options: options.length, closes: st?.closes ?? null, timeS: view.hello?.time_s ?? 15, myColour: clothesHex(look.colour), haptic, revealKey: res?.key ?? null, ghost });
-  live.current = { phase, options: options.length, closes: st?.closes ?? null, timeS: view.hello?.time_s ?? 15, myColour: clothesHex(look.colour), haptic, revealKey: res?.key ?? null, ghost };
+  const now = { phase, options: options.length, texts: options, closes: st?.closes ?? null, timeS: view.hello?.time_s ?? 15, myColour: clothesHex(look.colour), haptic, ghost, scene: use3d ? scene : null };
+  const live = useRef(now);
+  live.current = now;
+
+  // The 3D arena follows the room: the stomp, the floor, the answers on the banners.
+  useEffect(() => {
+    if (!scene || !st) return;
+    scene.setState(st, session.client.serverNow());
+    scene.setOptions(st.q ? st.q.options : null);
+  }, [scene, st, session]);
 
   // The floor picture follows the question and the stomp.
   useEffect(() => {
@@ -182,9 +206,16 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
     let mapBottom = 0;
     let fieldH = 0;
     const place = () => {
-      const y = Math.max(70, Math.min(fieldH - 76, mapBottom + 92));
-      stick.rest(field.clientWidth / 2, y);
-      if (hint.current) hint.current.style.transform = `translateY(${Math.round(y + 64)}px)`;
+      // 3D: the stick rests bottom left, the small map takes the right. 2D: under the map, in the middle.
+      const flat = !modeRef.current;
+      const y = flat ? Math.max(70, Math.min(fieldH - 76, mapBottom + 92)) : Math.max(70, fieldH - 92);
+      stick.rest(flat ? field.clientWidth / 2 : 92, y);
+      if (hint.current) hint.current.style.transform = `translateY(${Math.round(flat ? y + 64 : y - 128)}px)`;
+    };
+    placeRef.current = () => {
+      fieldH = field.clientHeight;
+      mapBottom = box.offsetTop + canvas.clientHeight;
+      place();
     };
     const ro = typeof ResizeObserver !== 'undefined'
       ? new ResizeObserver((entries) => {
@@ -209,21 +240,25 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
       ro?.disconnect();
       detach();
       field.removeEventListener('gesturestart', noGesture);
+      placeRef.current = null;
     };
   }, [stick]);
+
+  // The stick's resting place moves with the screen's mode (one layout read per switch).
+  useLayoutEffect(() => {
+    placeRef.current?.();
+  }, [use3d]);
 
   // The loop: positions, the stick, the zone, the seconds. Nothing here makes React render.
   useEffect(() => {
     if (!arena) return undefined;
     const client = session.client;
-    let frame = 0;
     let zoneShown = -2;
     let keyShown = -1;
     let secShown = -1;
     let alarmOn = false;
     let mapSet = false;
-    const tick = () => {
-      frame = requestAnimationFrame(tick);
+    const step = () => {
       const L = live.current;
       if (!mapSet && client.map) {
         arena.setMap(client.map);
@@ -259,6 +294,13 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
           const here = question && i === zone ? 'true' : '';
           if ((row.dataset.here ?? '') !== here) row.dataset.here = here;
         }
+        // The card next to the small map (3D): the letter, «Вы на ответе» and the answer.
+        if (hereRef.current) {
+          hereRef.current.dataset.zone = onAnswer ? String(zone) : '';
+          if (hereLRef.current) hereLRef.current.textContent = onAnswer ? LETTERS[zone] : '';
+          if (hereKRef.current) hereKRef.current.textContent = holding ? 'Время вышло' : onAnswer ? 'Вы на ответе' : question ? zoneLine(zone, L.options) : L.ghost ? 'Вы призрак' : 'Ждём';
+          if (hereTRef.current) hereTRef.current.textContent = onAnswer ? (L.texts[zone] ?? '') : '';
+        }
         stick.setEnabled(!holding);
       }
       // The big timer from the room's clock: the full time until the question opens, then down to zero.
@@ -272,6 +314,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
           if (alarm !== alarmOn) {
             alarmOn = alarm;
             if (clockRef.current) clockRef.current.dataset.alarm = alarm ? 'true' : '';
+            L.scene?.setAlarm(alarm);
           }
         }
       } else if (secShown !== -1) {
@@ -280,10 +323,24 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
       }
       stick.paint();
       arena.draw(f.others, me, client.roster, L.myColour);
+      return f;
+    };
+    // One loop for the whole screen: the 3D view's own frame when it draws, else ours.
+    if (use3d && scene) {
+      scene.start((dt) => {
+        const f = step();
+        scene.frame(dt, { me: f.me, others: f.others, roster: client.roster });
+      });
+      return () => scene.stop();
+    }
+    let frame = 0;
+    const tick = () => {
+      frame = requestAnimationFrame(tick);
+      step();
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [arena, session, stick]);
+  }, [arena, session, stick, use3d, scene]);
 
   // Haptics of the result, once per question.
   const felt = useRef(-1);
@@ -347,6 +404,14 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
         <p className="sp-q__text" data-size={questionSize(q.text)}>
           {q.text}
         </p>
+        <ol className="sp-qopts" aria-hidden="true">
+          {q.options.map((text, i) => (
+            <li key={i} style={{ '--zone': ZONE_COLOURS[i] } as React.CSSProperties}>
+              <b>{LETTERS[i]}</b>
+              <span>{text}</span>
+            </li>
+          ))}
+        </ol>
       </section>
     );
   } else {
@@ -358,7 +423,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   }
 
   return (
-    <div className="sp sp-play" data-phase={phase} data-ghost={ghost ? 'true' : undefined}>
+    <div className="sp sp-play" data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
       {head}
       {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? res.key : null} choice={last?.choice ?? null} rows={rows} />}
       {phase === 'leaderboard' && st?.top && st.top.length > 0 && <Board top={st.top} you={you} />}
@@ -369,6 +434,13 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
         </p>
         <div className="sp-mapbox" ref={boxRef}>
           <canvas className="sp-map" ref={canvasRef} aria-label="Карта зала: где вы стоите" role="img" />
+        </div>
+        <div className="sp-here" ref={hereRef} aria-hidden="true">
+          <span className="sp-here__l" ref={hereLRef} />
+          <span className="sp-here__w">
+            <span className="sp-here__k" ref={hereKRef} />
+            <span className="sp-here__t" ref={hereTRef} />
+          </span>
         </div>
         <p className="sp-hint" ref={hint}>
           Ведите пальцем, чтобы бежать

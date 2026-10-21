@@ -4,6 +4,7 @@ import { FloatingStick } from './stick';
 import { LOST_MS, StandSession } from './session';
 
 const GAME = '11111111-2222-4333-8444-555555555555';
+const last = <T,>(list: T[]): T => list[list.length - 1];
 const TOKEN = 'P'.repeat(43);
 
 /** A WebSocket the test plays the room with. */
@@ -152,13 +153,13 @@ describe('FloatingStick', () => {
     el.dispatchEvent(ev('pointerdown', 190, 600));
     expect(stick.active).toBe(true);
     el.dispatchEvent(ev('pointermove', 215, 600));
-    expect(moves.at(-1)).toEqual([0.5, 0]);
+    expect(last(moves)).toEqual([0.5, 0]);
     el.dispatchEvent(ev('pointermove', 190, 500));
-    expect(moves.at(-1)![1]).toBeCloseTo(-1);
+    expect(last(moves)[1]).toBeCloseTo(-1);
     stick.paint();
     expect(knob.style.transform).toContain('translate3d');
     el.dispatchEvent(ev('pointerup', 190, 500));
-    expect(moves.at(-1)).toEqual([0, 0]);
+    expect(last(moves)).toEqual([0, 0]);
     expect(stick.active).toBe(false);
   });
 
@@ -169,9 +170,9 @@ describe('FloatingStick', () => {
     stick.attach(el, base, knob);
     el.dispatchEvent(ev('pointerdown', 190, 600));
     stick.setEnabled(false);
-    expect(moves.at(-1)).toEqual([0, 0]);
+    expect(last(moves)).toEqual([0, 0]);
     el.dispatchEvent(ev('pointermove', 260, 600));
-    expect(moves.at(-1)).toEqual([0, 0]);
+    expect(last(moves)).toEqual([0, 0]);
     stick.paint();
     expect(base.dataset.state).toBe('off');
   });

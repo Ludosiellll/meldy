@@ -99,7 +99,7 @@ beforeEach(() => {
   const api: LiveApi = Object.assign(Object.create(fake) as LiveApi, {
     state: async (game: string, token: string, since?: number | null) => {
       reads += 1;
-      const st = await fake.state(game, token, since);
+      const st = await fake.state(game, token, since ?? undefined);
       return 'mode' in st ? ({ ...(st as PlayerState), mode: 'stand' } as PlayerState) : st;
     },
   });

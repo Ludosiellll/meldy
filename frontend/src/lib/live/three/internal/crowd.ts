@@ -249,7 +249,8 @@ export class CrowdPlayer {
     this.color.set(hex);
     this.phase = ((seed * 0.6180339887) % 1 + 1) % 1;
     this.machine = new PoseMachine(crowd.baked.clips, this.phase);
-    this.tag = crowd.tags.add(name, hex);
+    // No name, no tag: a phone knows only its own player's name (CONTRACT §5), so the others carry none there.
+    this.tag = name.trim() ? crowd.tags.add(name, hex) : -1;
     this.attach();
     crowd.players.push(this);
   }

@@ -190,6 +190,61 @@
 }
 .sp-lost i { width: 10px; height: 10px; border-radius: 50%; background: var(--lp-coral); animation: lp-blink 1s ease-in-out infinite alternate; }
 
+/* ─── the 3D arena behind a question ─── */
+.sp-3d { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; visibility: hidden; display: block; touch-action: none; }
+.sp-3d[data-on='true'] { visibility: visible; }
+.sp-play { z-index: 1; }
+.sp-play[data-view='3d'] { background: transparent; gap: 0; }
+.sp-play[data-view='3d'] .sp-card { box-shadow: 0 6px 22px rgba(10, 12, 40, 0.28); }
+.sp-play[data-view='3d'] .sp-opts,
+.sp-play[data-view='3d'] .sp-status,
+.sp-play[data-view='3d'] .sp-ghostline { display: none; }
+.sp-qopts { display: none; }
+.sp-play[data-view='3d'] .sp-qopts { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; list-style: none; margin: 10px 0 0; padding: 0; }
+.sp-qopts li { display: flex; align-items: center; gap: 6px; min-width: 0; font: 600 13px/1.2 var(--ph-sans, sans-serif); }
+.sp-qopts b { flex: none; width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; background: var(--zone); color: #0b121c; font: 800 12px/1 var(--ph-sans, sans-serif); }
+.sp-qopts span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-play[data-view='3d'] .sp-field { padding: 0; }
+.sp-play[data-view='3d'] .sp-mapbox {
+  position: absolute;
+  right: 0;
+  bottom: 74px;
+  width: 152px;
+  height: 84px;
+  flex: none;
+}
+.sp-play[data-view='3d'] .sp-map { border-radius: 12px; box-shadow: 0 0 0 3px rgba(17, 19, 38, 0.82), 0 6px 18px rgba(10, 12, 40, 0.3); }
+.sp-here { display: none; }
+.sp-play[data-view='3d'] .sp-here {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 216px;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 10px;
+  border-radius: 18px;
+  background: var(--lp-card);
+  color: var(--lp-ink);
+  box-shadow: 0 6px 22px rgba(10, 12, 40, 0.28);
+  pointer-events: none;
+}
+.sp-here__l { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--lp-soft); color: #0b121c; font: 800 22px/1 var(--ph-sans, sans-serif); }
+.sp-here[data-zone='0'] .sp-here__l { background: var(--sp-red); }
+.sp-here[data-zone='1'] .sp-here__l { background: var(--sp-blue); }
+.sp-here[data-zone='2'] .sp-here__l { background: var(--sp-yellow); }
+.sp-here[data-zone='3'] .sp-here__l { background: var(--sp-green); }
+.sp-here:not([data-zone='0']):not([data-zone='1']):not([data-zone='2']):not([data-zone='3']) .sp-here__l { display: none; }
+.sp-here__w { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sp-here__k { font: 600 12.5px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.sp-here:not([data-zone='0']):not([data-zone='1']):not([data-zone='2']):not([data-zone='3']) .sp-here__k { font-size: 15px; color: var(--lp-ink); font-weight: 700; }
+.sp-here__t { font: 750 15px/1.15 var(--ph-sans, sans-serif); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+.sp-play[data-view='3d'] .sp-hint { left: 0; right: auto; width: 184px; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.sp-play[data-view='3d'] .sp-stick { background: rgba(255, 255, 255, 0.16); box-shadow: inset 0 0 0 2.5px rgba(255, 255, 255, 0.75); }
+.sp-play[data-view='3d'] .sp-stick[data-state='rest'], .sp-play[data-view='3d'] .sp-knob[data-state='rest'] { opacity: 0.85; }
+
 /* A phone on its side: the game is drawn for a phone held upright. */
 .sp-turn { display: none; }
 @media (orientation: landscape) and (max-height: 520px) {
