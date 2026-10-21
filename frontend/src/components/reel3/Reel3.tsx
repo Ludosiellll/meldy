@@ -1,7 +1,7 @@
 import { startTransition, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties, type ReactNode } from 'react';
 import { ReelClock } from '../reel/clock';
 import { ClockProvider, SceneProvider, StageScaleProvider, opacity, put, useFrame } from '../reel/engine';
-import { ease, seg } from '../reel/timeline';
+import { ease, plural, seg } from '../reel/timeline';
 import { usePageVisible } from '../landing/usePageVisible';
 import { usePrefersReducedMotion } from '../landing/usePrefersReducedMotion';
 import { SAY } from '../home3/copy3';
@@ -11,11 +11,18 @@ import { BUILD_KEYS, BuildScene, LOOK_KEYS, LookScene, MEDIA_KEYS, MediaScene } 
 import { EndScene, END_CTA } from './scenes/End';
 import { FILE_KEYS, FileScene, PLAN_KEYS, PlanScene, SESSION_KEYS, SessionScene } from './scenes/Exam';
 import { GROUP_KEYS, GroupScene } from './scenes/Group';
+import { GAME_KEYS, GameScene } from './scenes/Game';
+import { preloadGameFrames } from '../home3/gameFrames';
+import { STAND_RUN, canPlayFootage, loadFootage } from '../../lib/footage';
 import { LectureScene } from './scenes/Lecture';
 import { SEND_KEYS, SendScene, StatsScene, TAKE_KEYS, TakeScene } from './scenes/Share';
 import { TicketScene } from './scenes/Oral';
 import { LEARN_KEYS, LearnScene } from './scenes/Learn';
 import './reel3.css';
+
+/** The game's footage and its player, for the page's section «Игра в классе» (home3/reelPart: one late file for both). */
+export { default as Footage } from '../film/Footage';
+export const GAME_FOOTAGE = STAND_RUN;
 
 declare global {
   interface Window {
@@ -40,6 +47,7 @@ const VIEWS: Record<SceneId3, ComponentType> = {
   ticket: TicketScene,
   learn: LearnScene,
   group: GroupScene,
+  game: GameScene,
   build: BuildScene,
   media: MediaScene,
   look: LookScene,
@@ -56,12 +64,17 @@ export const POINTER_KEYS3: Partial<Record<SceneId3, readonly CursorKey[]>> = {
   session: SESSION_KEYS,
   learn: LEARN_KEYS,
   group: GROUP_KEYS,
+  game: GAME_KEYS,
   build: BUILD_KEYS,
   media: MEDIA_KEYS,
   look: LOOK_KEYS,
   send: SEND_KEYS,
   take: TAKE_KEYS,
 };
+
+const SECONDS = Math.round(TOTAL3 / 1000);
+/** The figure's caption: what it is, how long, that it has no sound. */
+export const CAPTION = `Ролик о Meldy, ${SECONDS} ${plural(SECONDS, ['секунда', 'секунды', 'секунд'])}, без звука.`;
 
 /** Every sentence of the reel, in order: read to screen readers (the stage itself is hidden from them). */
 export const TRANSCRIPT3: readonly string[] = Object.values(SAY).flatMap((lines) => lines.map((line) => `${line}.`));
@@ -114,6 +127,13 @@ function Stage({ clock, layout, scale }: { clock: ReelClock; layout: Layout; sca
       }),
     [clock],
   );
+  // The game's frames and its footage are fetched a chapter ahead (the group), so its projector is ready when it comes.
+  const soon = scenes.includes('group') || scenes.includes('game');
+  useEffect(() => {
+    if (!soon) return;
+    preloadGameFrames();
+    if (canPlayFootage(STAND_RUN)) loadFootage(STAND_RUN).catch(() => undefined);
+  }, [soon]);
   const size = STAGE[layout];
   return (
     <ClockProvider value={clock}>
@@ -333,7 +353,7 @@ export default function Reel3({ onCta, layoutOverride }: { onCta?: () => void; l
   return (
     <figure className="r3" aria-labelledby={captionId}>
       <figcaption id={captionId} className="r3-sr">
-        Ролик о Meldy, 76 секунд, без звука.
+        {CAPTION}
       </figcaption>
       <ol className="r3-sr">
         {TRANSCRIPT3.map((line) => (

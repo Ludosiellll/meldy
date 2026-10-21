@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as COPY from './copy3';
-import { BUILDER_SECTION, CHAPTER_LABELS, EXAM_SECTION, FACE, FINAL, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, SAMPLE_TEST_URL, SAY, SITE_TITLE_V3, bind } from './copy3';
+import { BUILDER_SECTION, CHAPTER_LABELS, CTA, EXAM_SECTION, FACE, FINAL, GAME, GAME_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, SAMPLE_TEST_URL, SAY, SITE_TITLE_V3, bind } from './copy3';
 
 /** Every string of the landing's words, nested objects and arrays included. */
 function strings(value: unknown): string[] {
@@ -21,6 +21,7 @@ const HEADINGS = [
   EXAM_SECTION.ticket.title,
   EXAM_SECTION.left.title,
   GROUP_SECTION.title,
+  GAME_SECTION.title,
   BUILDER_SECTION.title,
   BUILDER_SECTION.tryTitle,
   BUILDER_SECTION.sendTitle,
@@ -51,6 +52,8 @@ describe('the landing v3 words (owner, 2026-10-19: plain, no AI-looking lines)',
       COPY.EXAM_SECTION,
       ticket,
       COPY.GROUP_SECTION,
+      COPY.GAME_SECTION,
+      COPY.GAME,
       COPY.BUILDER_SECTION,
       COPY.PICTURES,
       COPY.FINAL,
@@ -97,6 +100,28 @@ describe('the landing v3 words (owner, 2026-10-19: plain, no AI-looking lines)',
     expect(FACE).toBe('Подготовка к экзамену и конструктор тестов');
     expect(LEAD).toMatch(/лекци/);
     expect(LEAD).toMatch(/по ссылке/);
+  });
+
+  it('tell the game in class plainly: where it is played, what happens at zero, a verb on its button (owner, 21.10)', () => {
+    expect(GAME_SECTION.title).toBe('Игра в классе');
+    expect(CHAPTER_LABELS.game).toBe(GAME_SECTION.title);
+    // One thought a sentence, each short: the projector, the phone, the fall, the site and Telegram.
+    const sentences = GAME_SECTION.text.split(/(?<=\.)\s+/);
+    expect(sentences).toHaveLength(4);
+    for (const sentence of sentences) expect(sentence.length, sentence).toBeLessThanOrEqual(50);
+    expect(GAME_SECTION.text).toMatch(/проектор/);
+    expect(GAME_SECTION.text).toMatch(/Telegram/);
+    expect(CTA.game).toBe('Провести игру');
+    // The reel says it in two lines: where the class plays, and who falls.
+    expect(SAY.game).toHaveLength(2);
+    expect(SAY.game[0]).toMatch(/Telegram/);
+    expect(SAY.game[1]).toMatch(/провалива/);
+    // The bot's post is the stand game's own (supabase/functions/_shared/bot/live.ts), with the PIN the recorded
+    // projector shows in its lobby and corner (the footage loops through it on the page); the PIN never splits.
+    expect(GAME.post.join(' ')).toContain('Заходите по PIN\u00a0123\u00a0456.');
+    expect(GAME.mode).toBe('Встань на ответ');
+    // No game words of our own on the page: no «режим», «раунд», «лобби», «зона», «босс».
+    for (const text of strings([GAME_SECTION, GAME, SAY.game])) expect(text, text).not.toMatch(/режим|раунд|лобби|зон[аеуы]|босс/i);
   });
 
   it('send «Пройти тест без входа» to the public example test on this site', () => {

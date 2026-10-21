@@ -10,6 +10,7 @@
   --p3-blue: #e1eafb;
   --p3-green: #dcefe1;
   --p3-pink: #f8dfe9;
+  --p3-violet: #e7e3f8;
   --p3-ink: #0b121c;
   --p3-card-shadow: 0 0 0 1px rgba(11, 18, 28, 0.05), 0 44px 80px -60px rgba(16, 41, 90, 0.5);
 }
@@ -18,6 +19,7 @@
   --p3-blue: #1a2a47;
   --p3-green: #18291f;
   --p3-pink: #2e1f27;
+  --p3-violet: #221d37;
   --p3-ink: #070a0f;
   --p3-card-shadow: inset 0 0 0 1px #262e3b;
 }
@@ -146,6 +148,9 @@
 }
 .p3-stage--pink {
   background: var(--p3-pink);
+}
+.p3-stage--violet {
+  background: var(--p3-violet);
 }
 .p3-stage--ink {
   background: var(--p3-ink);
@@ -1168,6 +1173,221 @@
   .p3-phone {
     justify-self: center;
     margin-top: 200px;
+  }
+}
+
+/* ——— the game in class: the recorded game on the projector, the bot's post, a phone in Telegram ———
+   One grid cell: the projector at the top, the post below it on the left, the phone over the projector's corner.
+   The phone is drawn in em of its own width (1em = a fifteenth of it), so it keeps its look at every size. */
+.p3-game-acts {
+  margin-top: 26px;
+}
+.p3-game-stage {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+.p3-game-stage > * {
+  grid-area: 1 / 1;
+}
+.p3-proj {
+  align-self: start;
+  width: 84%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #262250;
+  box-shadow: 0 0 0 1px rgba(11, 18, 28, 0.08), 0 36px 60px -36px rgba(16, 41, 90, 0.6);
+}
+.dark .p3-proj {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 36px 60px -30px rgba(0, 0, 0, 0.7);
+}
+.p3-gpost {
+  align-self: end;
+  justify-self: start;
+  width: 46%;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #dfe8d4;
+  color: #0b121c;
+  font-size: 12px;
+  box-shadow: 0 30px 60px -34px rgba(16, 41, 90, 0.45);
+}
+.p3-gpost p,
+.p3-gphone p {
+  margin: 0;
+}
+.p3-gpost-in {
+  display: grid;
+  gap: 6px;
+  padding: 12px 0;
+}
+.p3-gpost .p3-tg-b {
+  display: grid;
+}
+.p3-gpost-from {
+  color: #2f7ac0;
+  font-size: 11px;
+  font-weight: 600;
+}
+.p3-gphone {
+  position: relative;
+  align-self: start;
+  justify-self: end;
+  width: 28%;
+  margin-top: 24%;
+  padding: 0.6em;
+  border-radius: 2.6em;
+  background: #0b121c;
+  font-size: 10px;
+  font-size: calc(28cqw / 15);
+  box-shadow: 0 36px 60px -30px rgba(16, 41, 90, 0.6);
+}
+.p3-gphone-in {
+  position: relative;
+  height: 28.8em;
+  overflow: hidden;
+  border-radius: 2em;
+  background: #1e1b3f;
+  color: #0b121c;
+}
+.p3-gphone-in > img {
+  position: absolute;
+  left: -14.2em;
+  top: -3em;
+  width: 72em;
+  max-width: none;
+  height: auto;
+}
+/* the top under Telegram's buttons stays dark (the projector's board is not the phone's) */
+.p3-gphone-in::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(#1e1b3f 0, #1e1b3f 20%, rgba(30, 27, 63, 0) 38%);
+}
+.p3-gphone-bar,
+.p3-gphone-win,
+.p3-gphone-stick,
+.p3-gphone-on {
+  position: absolute;
+  z-index: 1;
+}
+.p3-gphone-bar {
+  left: 0.6em;
+  right: 0.6em;
+  top: 0.6em;
+  display: flex;
+  justify-content: space-between;
+}
+.p3-gphone-bar span {
+  padding: 0.25em 0.8em 0.35em;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 0.8em;
+  font-weight: 500;
+}
+.p3-gphone-bar span::before {
+  content: '×';
+  margin-right: 0.3em;
+}
+.p3-gphone-bar i {
+  width: 1.6em;
+  height: 1.6em;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0 0.1em, transparent 0.14em) 0.4em 50% / 0.4em 0.4em repeat-x, rgba(255, 255, 255, 0.16);
+}
+.p3-gphone-win {
+  left: 0.6em;
+  right: 0.6em;
+  top: 2.7em;
+  padding: 0.8em 1em 0.9em;
+  border-radius: 1.2em;
+  background: #6cc28a;
+}
+.p3-gphone-win b {
+  display: block;
+  font-size: 1em;
+  font-weight: 700;
+}
+.p3-gphone-win strong {
+  display: block;
+  font-size: 2.4em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+.p3-gphone-stick {
+  left: 0.6em;
+  bottom: 1.2em;
+  width: 4em;
+  height: 4em;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 0 0 0.2em rgba(255, 255, 255, 0.4);
+}
+.p3-gphone-stick i {
+  position: absolute;
+  left: 1.1em;
+  top: 1.1em;
+  width: 1.8em;
+  height: 1.8em;
+  border-radius: 50%;
+  background: #e7e7ee;
+}
+.p3-gphone-on {
+  right: 0.6em;
+  bottom: 1.2em;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  width: 8em;
+  height: 4em;
+  padding: 0 0.6em;
+  border-radius: 1em;
+  background: #fff;
+}
+.p3-gphone-on i {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 1.7em;
+  height: 1.7em;
+  border-radius: 0.5em;
+  background: #ff6f61;
+  color: #fff;
+  font-size: 1em;
+  font-style: normal;
+  font-weight: 750;
+}
+.p3-gphone-on span {
+  display: grid;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.15;
+}
+.p3-gphone-on small {
+  color: #6b7079;
+  font-size: 0.76em;
+  font-weight: 500;
+}
+@container (max-width: 560px) {
+  .p3-proj {
+    width: 100%;
+    border-radius: 12px;
+  }
+  /* under the projector, the phone beside it reaching lower */
+  .p3-gpost {
+    align-self: start;
+    width: 56%;
+    margin-top: calc(56.25% + 12px);
+    border-radius: 16px;
+    font-size: 11px;
+  }
+  .p3-gphone {
+    width: 40%;
+    margin-top: 50%;
+    font-size: calc(40cqw / 15);
   }
 }
 

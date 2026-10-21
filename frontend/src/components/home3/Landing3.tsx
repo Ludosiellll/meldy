@@ -1,23 +1,21 @@
 /**
  * The landing v3 «Один вопрос» (owner, 2026-10-19): one ticket question goes through the whole of Meldy in the reel,
- * and the page follows the reel's order — the lecture, the exam, the group, then the test constructor, the longest
- * part, with a small studio to touch. The first screen is also in index.html as plain HTML (#static-hero), so it paints
+ * and the page follows the reel's order — the lecture, the exam, the group, the game in class, then the test
+ * constructor, the longest part, with a small studio to touch. The first screen is also in index.html as plain HTML (#static-hero), so it paints
  * before any script; this page takes its place without a visible change.
  */
 import { startTransition, useEffect, useLayoutEffect, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { lazyPart, useLazyPart } from '../../lib/lazyPart';
+import { useLazyPart } from '../../lib/lazyPart';
 import { prefetchLink } from '../../lib/prefetch';
 import Builder from './Builder';
 import { CTA, FINAL, FOOTER, FOOTER_NOTE, SAMPLE_TEST_URL, bind } from './copy3';
 import HeroTop, { ArrowIcon } from './HeroTop';
-import { ExamSection, GroupSection, LectureSection } from './Sections';
+import { reelPart } from './reelPart';
+import { ExamSection, GameSection, GroupSection, LectureSection } from './Sections';
 import './hero3.css';
 import './home3.css';
-
-/** The reel: its own file, fetched once the page has loaded (the largest paint is the headline, not the reel). */
-const reelPart = lazyPart(() => import('../reel3/Reel3').then((module) => module.default));
 
 function ReelSlot({ onCta }: { onCta: () => void }) {
   useEffect(() => {
@@ -29,8 +27,8 @@ function ReelSlot({ onCta }: { onCta: () => void }) {
     window.addEventListener('load', load, { once: true });
     return () => window.removeEventListener('load', load);
   }, []);
-  const Reel = useLazyPart(reelPart, true);
-  return Reel ? <Reel onCta={onCta} /> : <div className="h3-reel-wait" aria-hidden="true" />;
+  const part = useLazyPart(reelPart, true);
+  return part ? <part.Reel onCta={onCta} /> : <div className="h3-reel-wait" aria-hidden="true" />;
 }
 
 function FinalSection() {
@@ -116,6 +114,7 @@ export default function Landing3() {
             <LectureSection />
             <ExamSection />
             <GroupSection />
+            <GameSection />
             <Builder />
             <FinalSection />
           </>
