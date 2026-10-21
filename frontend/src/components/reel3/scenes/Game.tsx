@@ -6,14 +6,18 @@
  * Telegram: the bot's post in the class chat, «Играть», and the game opens in the chat; the student stands on «А»,
  * then «Верно +980».
  *
- * The frames are stills: one after another, each coming in over the one before, under a slow push of the camera and a
- * short shake at the stomp (transform and opacity only). The phone's view is the same frame, nearer.
+ * The projector plays the recorded game itself (lib/footage STAND_RUN, the 10.8 s cut from 3.8 s at 1×) under the
+ * reel's clock: it plays while the reel plays, stops when it stops, and in the frame exporter it is sought to every
+ * frame's time. Under it lie stills of the same moments, each coming in over the one before: what shows until the video
+ * has its first frame, or if this browser cannot play it. A slow push of the camera and a short shake at the stomp
+ * (transform and opacity only). The phone's view is the same moment, nearer (a still).
  */
-import { useRef } from 'react';
-import { opacity, text, useEls, useFrame } from '../../reel/engine';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { opacity, text, useClock, useEls, useFrame } from '../../reel/engine';
+import { STAND_RUN, canPlayFootage, loadFootage } from '../../../lib/footage';
 import { GAME, SAY } from '../../home3/copy3';
 import { GAME_FRAMES, type GameFrame } from '../../home3/gameFrames';
-import { Say, appear, ease, mix, move, seg } from '../kit3';
+import { Say, appear, clamp, ease, mix, move, seg } from '../kit3';
 import { Cursor, pressAt, usePointer, type CursorKey } from '../pointer3';
 
 /** «Играть» under the bot's post; the pointer waits below it, then goes. */
@@ -54,11 +58,80 @@ const VIEWS: ReadonlyArray<{ frame: GameFrame; at: number; fade: number }> = [
 
 const LETTERS = ['А', 'Б', 'В', 'Г'] as const;
 
+/** The recorded cut is played from here (s) at the scene's first moment, at 1×, until the scene leaves. */
+export const FOOTAGE_FROM = 3.8;
+const FOOTAGE_UNTIL = 7000;
+/** A playing video further than this from the reel's time is sought back to it (s). */
+const DRIFT = 0.25;
+
+/** The cut's time at scene ms `l`: still before the scene and after it (no seeking while hidden). */
+export function footageAt(l: number): number {
+  return Math.min(FOOTAGE_FROM + clamp(l, 0, FOOTAGE_UNTIL) / 1000, STAND_RUN.duration - 0.04);
+}
+
+/** The game's own timer at the cut's time `s` (read off the recording). */
+export function timerAt(s: number): number {
+  if (s < 4.25) return 15;
+  if (s < 5.25) return 14;
+  if (s < 6.25) return 13;
+  if (s < 6.6) return 12;
+  if (s < 7.05) return 1;
+  return 0;
+}
+
 export function GameScene() {
   const root = useRef<HTMLDivElement>(null);
   const { one, all } = useEls(root);
   const pointer = usePointer(GAME_KEYS);
+  const clock = useClock();
+  const video = useRef<HTMLVideoElement | null>(null);
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!canPlayFootage(STAND_RUN)) return undefined;
+    let alive = true;
+    loadFootage(STAND_RUN).then(
+      (url) => {
+        if (alive) setSrc(url);
+      },
+      () => undefined,
+    );
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // The reel stopped (its pause, the page scrolled away, the tab hidden): so does the footage.
+  useEffect(
+    () =>
+      clock.watch(() => {
+        const v = video.current;
+        if (v && !clock.isPlaying && !v.paused) v.pause();
+      }),
+    [clock],
+  );
+  const attach = useCallback((el: HTMLVideoElement | null) => {
+    // As properties too: React does not always write `muted`, and only a muted video may start by itself.
+    if (el) {
+      el.muted = true;
+      el.defaultMuted = true;
+    }
+    video.current = el;
+  }, []);
   useFrame((l) => {
+    // The footage follows the reel: it plays while the reel plays and the scene is on, else it waits on the frame.
+    const v = video.current;
+    const live = !!v && v.readyState >= 2;
+    if (v && live) {
+      const want = footageAt(l);
+      if (clock.isPlaying && l >= 0 && l < FOOTAGE_UNTIL && window.__MELDY_REEL_EXPORT__ !== true) {
+        if (v.paused) v.play()?.catch(() => undefined);
+        if (Math.abs(v.currentTime - want) > DRIFT) v.currentTime = want;
+      } else {
+        if (!v.paused) v.pause();
+        if (Math.abs(v.currentTime - want) > 0.02) v.currentTime = want;
+      }
+    }
+    opacity(v, live ? 1 : 0);
+
     // The projector: in first, the camera pushing in all the way; a shake as the boss stomps.
     appear(one('proj'), l, 120, 480, 18);
     const shots = all('shot');
@@ -83,7 +156,8 @@ export function GameScene() {
     // The thumb on the stick: up and to the left while running, back when standing.
     const lean = Math.sin(Math.PI * seg(l, OPEN + 120, ON - OPEN - 80));
     move(one('knob'), -9 * lean, -10 * lean);
-    text(one('sec'), l < LAST ? '14' : '1');
+    // The phone's timer is the projector's: the footage's, or the still's on show.
+    text(one('sec'), String(live ? timerAt(footageAt(l)) : l < LAST ? 14 : 1));
     appear(one('running'), l, OPEN, 10, 0, ON - 130);
     appear(one('stand'), l, ON, 260, 6);
     appear(one('qcard'), l, OPEN, 10, 0, RIGHT - 160);
@@ -102,6 +176,7 @@ export function GameScene() {
               {SHOTS.map((shot) => (
                 <img key={shot.frame} data-a="shot" src={GAME_FRAMES[shot.frame]} width={800} height={450} alt="" decoding="async" draggable={false} />
               ))}
+              {src ? <video ref={attach} src={src} width={800} height={450} muted playsInline preload="auto" disablePictureInPicture style={{ opacity: 0 }} /> : null}
             </div>
           </div>
         </div>

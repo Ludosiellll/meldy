@@ -12,6 +12,8 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { glue } from '../../lib/containers/words';
 import { CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, LECTURE_SECTION, PICTURES, bind } from './copy3';
 import { GAME_FRAME, GAME_FRAMES } from './gameFrames';
+import Footage from '../film/Footage';
+import { STAND_RUN } from '../../lib/footage';
 import { ArrowIcon } from './HeroTop';
 import Swap from './Swap';
 import TicketAloud from './TicketAloud';
@@ -417,13 +419,14 @@ export function GroupSection() {
 export const GAME_URL = `/register?next=${encodeURIComponent('/exams?view=tests')}`;
 
 /** What the projector's picture shows, for those who do not see it. */
-export const GAME_ALT = 'Игра «Встань на ответ» на проекторе. Класс стоит на верном ответе, остальной пол провалился. Устояли 18 из 30.';
+export const GAME_ALT = 'Игра «Встань на ответ» на проекторе. Класс бежит к ответам, потом пол под неверными ответами проваливается. Устояли 18 из 30.';
 
 /**
- * «Игра в классе» (owner, 21.10): the real recorded game on the projector (the floor has dropped, the fallen are ghosts),
- * the bot's post in the class chat with «Играть», and a student's phone in Telegram, «Верно +980». A still picture:
- * nothing on it moves, and its one link is the only thing to press. The frame is fetched only as the section comes
- * near (loading=lazy; the phone's view is the same file).
+ * «Игра в классе» (owner, 21.10: the real game running, not a drawing): the recorded game on the projector, the class
+ * running to the answers and the floor dropping (lib/footage STAND_RUN, a silent loop while on screen; its poster with
+ * reduced motion), the bot's post in the class chat with «Играть», and a student's phone in Telegram, «Верно +980».
+ * Nothing moves on a press, and its one link is the only thing to press. The player fetches its poster and its parts only
+ * as the section comes near, and the phone's still loads lazily, so the page's first load fetches none of it.
  */
 export function GameSection() {
   const stage = useRef<HTMLDivElement>(null);
@@ -441,8 +444,8 @@ export function GameSection() {
         </div>
       </SectionHead>
       <div ref={stage} className="p3-stage p3-stage--violet p3-game-stage" data-reveal={seen ? 'in' : 'wait'}>
-        <div className="p3-proj p3-l">
-          <img src={GAME_FRAMES.drop} width={GAME_FRAME.w} height={GAME_FRAME.h} alt={GAME_ALT} loading="lazy" decoding="async" />
+        <div className="p3-proj p3-l" role="img" aria-label={GAME_ALT}>
+          <Footage footage={STAND_RUN} fit="cover" />
         </div>
         <div className="p3-gpost p3-l" style={delay(160)} aria-hidden="true">
           <p className="p3-tg-top">

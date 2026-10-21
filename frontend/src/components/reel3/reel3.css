@@ -1205,6 +1205,7 @@
   will-change: transform;
 }
 .r3-proj-cam img,
+.r3-proj-cam video,
 .r3-gp-track img {
   position: absolute;
   left: 0;

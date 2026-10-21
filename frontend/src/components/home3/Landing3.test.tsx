@@ -6,6 +6,7 @@ import { BUILD_URL } from './Builder';
 import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, PICTURES, SAMPLE_TEST_URL, bind } from './copy3';
 import { GAME_ALT, GAME_URL } from './Sections';
 import { GAME_FRAMES } from './gameFrames';
+import { STAND_RUN } from '../../lib/footage';
 import { returnToFromSearch } from '../../lib/returnTo';
 
 const auth = vi.hoisted(() => ({ requestSession: vi.fn() }));
@@ -101,10 +102,15 @@ describe('the landing v3', () => {
     expect(within(section).getByRole('heading', { level: 2 })).toHaveTextContent(GAME_SECTION.title);
     expect(section.querySelector('.p3-text')!.textContent).toBe(bind(GAME_SECTION.text));
     for (const line of ['на проекторе', 'с телефона', 'проваливается', 'в Telegram']) expect(GAME_SECTION.text).toContain(line);
-    // The projector is a frame of the real game, said in words; the post and the phone are pictures beside it.
+    // The projector is the recorded game, said in words: its player shows the poster (lazily) until it is near and
+    // plays. The post and the phone are pictures beside it; the phone's still loads lazily.
     const projector = within(section).getByRole('img', { name: GAME_ALT });
-    expect(projector).toHaveAttribute('src', GAME_FRAMES.drop);
+    expect(projector).toHaveClass('p3-proj');
+    expect(projector.querySelector('img')).toHaveAttribute('src', STAND_RUN.poster);
     for (const img of section.querySelectorAll('img')) expect(img).toHaveAttribute('loading', 'lazy');
+    const still = section.querySelector('.p3-gphone img')!;
+    expect(still).toHaveAttribute('src', GAME_FRAMES.drop);
+    expect(still).toHaveAttribute('loading', 'lazy');
     for (const picture of section.querySelectorAll('.p3-gpost, .p3-gphone')) expect(picture).toHaveAttribute('aria-hidden', 'true');
     expect(section.querySelector('.p3-gpost')).toHaveTextContent(GAME.play);
     expect(section.querySelector('.p3-gphone')).toHaveTextContent(`${GAME.right}${GAME.points}`);

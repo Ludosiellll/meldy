@@ -13,6 +13,7 @@ import { FILE_KEYS, FileScene, PLAN_KEYS, PlanScene, SESSION_KEYS, SessionScene 
 import { GROUP_KEYS, GroupScene } from './scenes/Group';
 import { GAME_KEYS, GameScene } from './scenes/Game';
 import { preloadGameFrames } from '../home3/gameFrames';
+import { STAND_RUN, canPlayFootage, loadFootage } from '../../lib/footage';
 import { LectureScene } from './scenes/Lecture';
 import { SEND_KEYS, SendScene, StatsScene, TAKE_KEYS, TakeScene } from './scenes/Share';
 import { TicketScene } from './scenes/Oral';
@@ -122,10 +123,12 @@ function Stage({ clock, layout, scale }: { clock: ReelClock; layout: Layout; sca
       }),
     [clock],
   );
-  // The game's frames are fetched a chapter ahead (the group), so its projector is never empty when it comes in.
+  // The game's frames and its footage are fetched a chapter ahead (the group), so its projector is ready when it comes.
   const soon = scenes.includes('group') || scenes.includes('game');
   useEffect(() => {
-    if (soon) preloadGameFrames();
+    if (!soon) return;
+    preloadGameFrames();
+    if (canPlayFootage(STAND_RUN)) loadFootage(STAND_RUN).catch(() => undefined);
   }, [soon]);
   const size = STAGE[layout];
   return (

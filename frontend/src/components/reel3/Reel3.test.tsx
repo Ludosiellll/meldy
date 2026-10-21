@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Reel3, { CAPTION, POINTER_KEYS3, TRANSCRIPT3 } from './Reel3';
 import { GAME, SAY } from '../home3/copy3';
 import { GAME_FRAMES } from '../home3/gameFrames';
+import { FOOTAGE_FROM, footageAt, timerAt } from './scenes/Game';
+import { STAND_RUN } from '../../lib/footage';
 import { CHAPTERS3, scene3 } from './timeline3';
 
 type Callback = (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void;
@@ -143,5 +145,17 @@ describe('Reel3', () => {
     for (const part of [GAME.mode, GAME.play, GAME.question, GAME.onAnswer, GAME.right, GAME.points]) expect(words).toContain(part);
     expect(words).toContain('Заходите по PIN');
     expect(CHAPTERS3.find((chapter) => chapter.id === 'game')).toMatchObject({ label: 'Игра в классе', from: game.from, to: scene3('build').from });
+  });
+
+  it('plays the recorded game on the projector at 1× from 3.8 s, and the phone’s timer reads the game’s', () => {
+    expect(footageAt(0)).toBe(FOOTAGE_FROM);
+    // Before the scene and after it the footage waits on one frame (no seeking while hidden).
+    expect(footageAt(-800)).toBe(FOOTAGE_FROM);
+    expect(footageAt(1000)).toBeCloseTo(FOOTAGE_FROM + 1, 5);
+    expect(footageAt(60000)).toBeLessThan(STAND_RUN.duration);
+    // The cut to the last second is the scene's own moment (2.8 s in): 6.6 s of the recording.
+    expect(footageAt(2800)).toBeCloseTo(6.6, 5);
+    expect([3.9, 4.6, 5.6, 6.4, 6.8, 7.4].map(timerAt)).toEqual([15, 14, 13, 12, 1, 0]);
+    // No footage in a browser that cannot play it (jsdom): the stills are the picture.
   });
 });
