@@ -8,11 +8,15 @@ import {
   planCollapse,
   riseHeight,
   shakeAmount,
+  floorRect,
   stageOf,
   tileIndexAt,
   zoneAt,
+  type ArenaShape,
   type MoveMap,
 } from './arenaPlan';
+import { STAND_ARENA } from '../move/protocol';
+import arenaJson from '../../../../../contracts/live/stand_arena.json';
 
 const MAP: MoveMap = {
   w: 1600,
@@ -119,5 +123,43 @@ describe('the collapse', () => {
     let over = false;
     for (let t = 2; t <= 2 + COLLAPSE.rise; t += 0.01) if (riseHeight(t, 2, -650) > 0) over = true;
     expect(over).toBe(true);
+  });
+});
+
+describe('mode A on the map the server sends (contracts/live/stand_arena.json)', () => {
+  const map = STAND_ARENA as MoveMap;
+  const shape: ArenaShape = { floor: arenaJson.floor, stage: arenaJson.stage };
+
+  it('lays the grid of the server: 26 × 12 tiles of 60 from (20, 160), each zone exactly 10 × 4 tiles', () => {
+    const l = layoutTiles(map, 100, shape);
+    expect([l.cols, l.rows, l.sx, l.sy, l.x0, l.y0, l.tiles.length]).toEqual([26, 12, 60, 60, 20, 160, 312]);
+    const count = (z: number) => l.tiles.filter((t) => t.zone === z).length;
+    expect([count(0), count(1), count(2), count(3)]).toEqual([40, 40, 40, 40]);
+    expect(floorRect(map, shape)).toEqual({ x: 20, y: 160, w: 1560, h: 720 });
+    // the floor is exactly the space between the map's walls
+    expect(tileIndexAt(l, 19, 500)).toBe(-1);
+    expect(tileIndexAt(l, 20, 160)).toBe(0);
+    expect(tileIndexAt(l, 1579, 879)).toBe(311);
+  });
+
+  it('puts the boss on the stage in the middle; the tiles under it are never drawn and never drop', () => {
+    expect(stageOf(map, shape)).toEqual({ x: 800, y: 520 });
+    expect(impactOf(map, shape)).toEqual({ x: 800, y: 520 });
+    const l = layoutTiles(map, 100, shape);
+    const under = l.tiles.filter((t) => t.under);
+    expect(under.map((t) => [t.col, t.row])).toEqual([[12, 5], [13, 5], [12, 6], [13, 6]]);
+    const t0 = planCollapse(map, l, 'Б', 5, 3, undefined, impactOf(map, shape));
+    l.tiles.forEach((t, i) => {
+      if (t.under || t.zone === 1) expect(t0[i]).toBe(Infinity);
+      else expect(t0[i]).toBeGreaterThan(5);
+    });
+  });
+
+  it('ripples out from the stage: the tiles next to it go first', () => {
+    const l = layoutTiles(map, 100, shape);
+    const t0 = planCollapse(map, l, 'А', 0, 1, undefined, impactOf(map, shape));
+    const near = t0[tileIndexAt(l, 900, 520)];
+    const far = t0[tileIndexAt(l, 1550, 860)];
+    expect(near).toBeLessThan(far);
   });
 });
