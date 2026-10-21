@@ -275,13 +275,13 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
       </>
     );
   } else if (seen) {
-    title = `Следующий${NBSP}— ваш`;
+    title = 'Вы вошли позже';
     body = (
       <>
         <p>
           Верный ответ: <b>{keyText}</b>
         </p>
-        <p>Вы вошли во время этого вопроса. Со следующего играете со всеми.</p>
+        <p>Этот вопрос шёл без вас. Следующий{NBSP}— ваш.</p>
       </>
     );
   } else if (r.correct) {

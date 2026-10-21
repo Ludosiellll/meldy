@@ -314,7 +314,8 @@ describe('player screens on the fake server', () => {
     await until(() => gameState() === 'reveal', 40_000);
     const sheet = document.querySelector('.lp-sheet') as HTMLElement;
     expect(sheet.classList.contains('lp-sheet--seen')).toBe(true);
-    expect(within(sheet).getByRole('status').textContent).toBe('Следующий\u00a0— ваш');
+    expect(within(sheet).getByRole('status').textContent).toBe('Вы вошли позже');
+    expect(sheet.textContent).toMatch(/Этот вопрос шёл без вас/);
     expect(screen.queryByText('Не успели')).toBeNull();
     other.dispose();
   });
