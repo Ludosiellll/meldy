@@ -27,10 +27,14 @@ export const GAME_KEYS: readonly CursorKey[] = [
 const OPEN = pressAt(GAME_KEYS, 'play') + 250;
 /** The student's own character reaches «А». */
 const ON = OPEN + 650;
-/** The projector's moments (scene ms): the cut to the last second, zero and the stomp, the floor dropping. */
-const LAST = 2900;
-const STOMP = 3900;
-const DROP = 4700;
+/**
+ * The projector's moments (scene ms), as the recorded game has them when its 10.8 s cut is played from 3.8 s: the cut to
+ * the last second, the stomp at zero («Верный ответ»), the ring with «Устояли 18 из 30», the floor dropping.
+ */
+const LAST = 2800;
+const STOMP = 3600;
+const RING = 4000;
+const DROP = 4900;
 /** The phone: «Верно +980» a beat after the stomp. */
 const RIGHT = STOMP + 250;
 
@@ -38,14 +42,14 @@ const RIGHT = STOMP + 250;
 const SHOTS: ReadonlyArray<{ frame: GameFrame; at: number; fade: number }> = [
   { frame: 'run', at: 0, fade: 0 },
   { frame: 'last', at: LAST, fade: 90 },
-  { frame: 'stomp', at: STOMP, fade: 70 },
-  { frame: 'drop', at: DROP, fade: 520 },
+  { frame: 'stomp', at: RING, fade: 160 },
+  { frame: 'drop', at: DROP, fade: 600 },
 ];
 /** The phone's view: the same frames, nearer (the stomp's ring is the projector's). */
 const VIEWS: ReadonlyArray<{ frame: GameFrame; at: number; fade: number }> = [
   { frame: 'run', at: 0, fade: 0 },
   { frame: 'last', at: LAST, fade: 90 },
-  { frame: 'drop', at: DROP, fade: 520 },
+  { frame: 'drop', at: DROP, fade: 600 },
 ];
 
 const LETTERS = ['А', 'Б', 'В', 'Г'] as const;
