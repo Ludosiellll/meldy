@@ -5,6 +5,7 @@
 // and falls on the last one; the phone answers right except on question 3 (it freezes) and thaws on question 4.
 //
 //   MELDY_ULIB=<ulib.cjs> node deck/cf11/tools/record/take-game.cjs <takes dir> <test id>
+//   STILLS=1 … — the same game, stills only (no screencast), for a draft slide.
 //
 // Before the take (not filmed): the test «Спрос и предложение» on account A, six questions, made through the
 // studio's «Текст» view (questions-game.cjs). Two takes land in <takes dir>/game-host and <takes dir>/game-phone,
@@ -88,8 +89,18 @@ async function waitSig(page, re, ms = 60000) {
     phone = new R.Take(pp, path.join(DIR, 'game-phone'), { dpr: PDPR, viewport: { width: PW, height: PH }, quality: 88 });
     host.stillScale = 2 / HDPR;
     phone.stillScale = 3 / PDPR;
-    await host.start();
-    await phone.start();
+    if (process.env.STILLS) {
+      // Stills only (a draft slide): no screencast, the stills are taken as in a take.
+      for (const t of [host, phone]) {
+        fs.rmSync(t.dir, { recursive: true, force: true });
+        fs.mkdirSync(t.dir, { recursive: true });
+        t.cdp = await t.page.context().newCDPSession(t.page);
+        t.t0 = R.now();
+      }
+    } else {
+      await host.start();
+      await phone.start();
+    }
     await R.sleep(1500);
     await host.still('lobby-empty');
 
