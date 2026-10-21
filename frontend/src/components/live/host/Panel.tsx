@@ -3,7 +3,7 @@
  * shape, as on the phones), the reveal with the key and the counts, and «Больше всех урона». The ring turns by
  * transform: two half rings rotate on the compositor; only the number changes, once a second.
  */
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import type { HostResult, Question, TopRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
 import { BATTLE, BOARD, LETTERS, nb } from './copy';
@@ -91,18 +91,28 @@ const RingSweep = memo(function RingSweep({ opensAt, halfMs, paused }: { opensAt
   );
 });
 
+/** A stop this close to the end is the end: the ring reads 0, not the second its own tick had not shown yet. */
+const END_SLACK_MS = 300;
+
 /**
  * Seconds left: 3-2-1 before the answers open (yellow), then the answer time. `opensAt`/`closesAt` are this device's
- * milliseconds (the server's minus the clock offset).
+ * milliseconds (the server's minus the clock offset). `timeUp`: the time ran out (the beat «Время вышло» started a few
+ * milliseconds before the ring's own tick) — it reads 0 from then on, through the reveal. Stopped earlier (everyone
+ * answered), it keeps the seconds that were left.
  */
-export function Ring({ opensAt, closesAt, stopped }: { opensAt: number; closesAt: number; stopped: boolean }) {
-  const modeAt = (now: number): RingMode => (stopped ? 'stop' : now < opensAt ? 'ready' : now < closesAt ? 'run' : 'done');
-  const leftAt = (now: number) => Math.max(0, Math.ceil(((now < opensAt ? opensAt : closesAt) - now) / 1000));
+export function Ring({ opensAt, closesAt, stopped, timeUp = false }: { opensAt: number; closesAt: number; stopped: boolean; timeUp?: boolean }) {
+  const over = (now: number) => timeUp || (stopped && now >= closesAt - END_SLACK_MS);
+  const modeAt = (now: number): RingMode => (over(now) ? 'done' : stopped ? 'stop' : now < opensAt ? 'ready' : now < closesAt ? 'run' : 'done');
+  const leftAt = (now: number) => (over(now) ? 0 : Math.max(0, Math.ceil(((now < opensAt ? opensAt : closesAt) - now) / 1000)));
   const [tick, setTick] = useState(() => {
     const now = Date.now();
     return { mode: modeAt(now), left: leftAt(now) };
   });
   useEffect(() => {
+    if (over(Date.now())) {
+      setTick((t) => (t.mode === 'done' && t.left === 0 ? t : { mode: 'done', left: 0 }));
+      return undefined;
+    }
     if (stopped) {
       setTick((t) => ({ ...t, mode: 'stop' }));
       return undefined;
@@ -121,7 +131,7 @@ export function Ring({ opensAt, closesAt, stopped }: { opensAt: number; closesAt
     step();
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opensAt, closesAt, stopped]);
+  }, [opensAt, closesAt, stopped, timeUp]);
   const total = Math.max(1000, closesAt - opensAt);
   const ready = tick.mode === 'ready';
   return (
@@ -151,11 +161,14 @@ interface QuestionPanelProps {
 export function QuestionPanel({ question, result, closing = null, players, answered, opensAt, closesAt }: QuestionPanelProps) {
   const revealed = !!result && result.qi === question.qi;
   const beat = revealed ? null : closing;
+  // once the time ran out on this question, the ring reads 0 until the panel goes (the reveal included)
+  const timeUp = useRef(false);
+  if (closing === 'time') timeUp.current = true;
   const total = useMemo(() => (result ? Math.max(1, players, result.counts.reduce((a, b) => a + b, 0)) : 1), [result, players]);
   return (
     <section className="lvh-panel lvh-question" aria-label="Вопрос">
       <div className="lvh-q-head">
-        <Ring opensAt={opensAt} closesAt={closesAt} stopped={revealed || beat !== null} />
+        <Ring opensAt={opensAt} closesAt={closesAt} stopped={revealed || beat !== null} timeUp={timeUp.current} />
         <h2 className="lvh-q-text" style={{ fontSize: questionFont(question.text) }}>
           {question.text}
         </h2>

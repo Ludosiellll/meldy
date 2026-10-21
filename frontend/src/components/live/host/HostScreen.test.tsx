@@ -284,10 +284,15 @@ describe('teacher screen against the fake server', () => {
     expect(view.container.querySelector('.lvh-closing')?.textContent).toBe('Время вышло');
     expect(view.container.querySelector('.lvh-tiles')).toHaveAttribute('data-closing');
     expect(view.container.querySelector('.lvh-boss')).toHaveAttribute('data-tense');
+    // the ring reads 0, not the «1» its own tick had not shown yet (live check r2, N1)
+    expect(view.container.querySelector('.lvh-ring-num')?.textContent).toBe('0');
+    expect(view.container.querySelector('.lvh-ring')).toHaveAttribute('data-mode', 'done');
     await tick(2600);
     expect(view.container.querySelector('.lvh-closing')).toBeNull();
     expect(view.container.querySelectorAll('.lvh-tile[data-key]')).toHaveLength(1);
     expect(view.container.querySelector('.lvh-boss')).not.toHaveAttribute('data-tense');
+    // and through the reveal
+    expect(view.container.querySelector('.lvh-ring-num')?.textContent).toBe('0');
   });
 
   it('a reload in the middle of a reveal draws it as it is, without replaying', async () => {
