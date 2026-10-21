@@ -19,3 +19,4 @@ newest line is read.
 - 2026-10-18 — deploy: quiz-media
 - 2026-10-18 — deploy: telegram
 - 2026-10-20 — deploy: telegram
+- 2026-10-21 — deploy: telegram
