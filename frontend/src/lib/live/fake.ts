@@ -171,6 +171,8 @@ interface FakeGame {
   timers: unknown[];
   finals: Map<Uuid, UnlockId[]>;
   auto: boolean;
+  /** Set at the podium (live_podium): a game the host ended before it has no final (`final` null), as on the server. */
+  won: boolean | null;
 }
 
 const DEFAULT_SETTINGS: Settings = { mode: 'boss', time_s: 20, speed: true, who: 'pin', chat_names: true };
@@ -337,6 +339,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
   function toPodium(g: FakeGame) {
     const ranked = rankedPlayers(g);
     const won = g.hp === 0;
+    g.won = won;
     ranked.forEach((p, i) => {
       g.finals.set(p.id, unlocksAfter({ place: i + 1, dmg: p.dmg, best: p.best, thaws: p.thaws, games: 1, wins: won ? 1 : 0 }, []));
     });
@@ -423,6 +426,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       timers: [],
       finals: new Map(),
       auto,
+      won: null,
     };
     games.set(id, g);
     addBots(g, botCount, options.latencyMs === 0 ? 0 : 8000);
@@ -456,7 +460,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
 
   function base(g: FakeGame) {
     const q = g.questions[g.qi];
-    const shown = g.state === 'leaderboard' || g.state === 'podium';
+    const shown = g.state === 'leaderboard' || g.state === 'podium' || (g.state === 'ended' && g.won !== null);
     return {
       rev: g.rev,
       now: iso(clock.now()),
@@ -508,9 +512,9 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
           }
         : null,
       final:
-        g.state === 'podium' || g.state === 'ended'
+        (g.state === 'podium' || g.state === 'ended') && g.won !== null
           ? {
-              won: g.hp === 0,
+              won: g.won,
               place: ids.indexOf(p.id) + 1,
               dmg: p.dmg,
               best: p.best,
@@ -541,7 +545,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       result: cp
         ? { qi: g.qi, key: cp.q.key, counts: cp.c.counts, right: cp.c.right, healed: cp.c.healed, phase_changed: cp.c.phaseChanged, hits: cp.c.hits, frozen_now: cp.c.frozenNow, thawed: cp.c.thawed }
         : null,
-      final: g.state === 'podium' || g.state === 'ended' ? { won: g.hp === 0, accuracy_pct: accuracyPct(everyone.reduce((s, x) => s + x.right, 0), everyone.length, g.qi + 1) } : null,
+      final: (g.state === 'podium' || g.state === 'ended') && g.won !== null ? { won: g.won, accuracy_pct: accuracyPct(everyone.reduce((s, x) => s + x.right, 0), everyone.length, g.qi + 1) } : null,
     };
   }
 
