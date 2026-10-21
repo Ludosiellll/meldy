@@ -401,6 +401,9 @@ export interface SessionSummary {
   known: boolean;
   gained: number;
   dropped: number;
+  /** The questions that reached the figure in this session, and those an error took out of it. */
+  gainedIds: string[];
+  droppedIds: string[];
   tooEarly: number;
   tooEarlyAt: number | null;
   started: number;
@@ -442,7 +445,7 @@ export function summarize(
     if (result) list.push(result.item_id ? result : { ...result, item_id: record.id });
   }
   const known = list.some((result) => result.status === 'saved' || result.status === 'late');
-  let change = { gained: 0, dropped: 0, tooEarly: 0 };
+  let change: ReturnType<typeof figureChange> = { gained: 0, dropped: 0, tooEarly: 0, gainedIds: [], droppedIds: [] };
   try {
     change = figureChange(before, list);
   } catch {
@@ -470,6 +473,8 @@ export function summarize(
     known,
     gained: change.gained,
     dropped: change.dropped,
+    gainedIds: change.gainedIds,
+    droppedIds: change.droppedIds,
     tooEarly: change.tooEarly,
     tooEarlyAt,
     started: started.size,
