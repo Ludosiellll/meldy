@@ -13,7 +13,8 @@ import { FILE_KEYS, FileScene, PLAN_KEYS, PlanScene, SESSION_KEYS, SessionScene 
 import { GROUP_KEYS, GroupScene } from './scenes/Group';
 import { LectureScene } from './scenes/Lecture';
 import { SEND_KEYS, SendScene, StatsScene, TAKE_KEYS, TakeScene } from './scenes/Share';
-import { SheetScene, TicketScene } from './scenes/Oral';
+import { TicketScene } from './scenes/Oral';
+import { LEARN_KEYS, LearnScene } from './scenes/Learn';
 import './reel3.css';
 
 declare global {
@@ -37,7 +38,7 @@ const VIEWS: Record<SceneId3, ComponentType> = {
   plan: PlanScene,
   session: SessionScene,
   ticket: TicketScene,
-  sheet: SheetScene,
+  learn: LearnScene,
   group: GroupScene,
   build: BuildScene,
   media: MediaScene,
@@ -53,6 +54,7 @@ export const POINTER_KEYS3: Partial<Record<SceneId3, readonly CursorKey[]>> = {
   file: FILE_KEYS,
   plan: PLAN_KEYS,
   session: SESSION_KEYS,
+  learn: LEARN_KEYS,
   group: GROUP_KEYS,
   build: BUILD_KEYS,
   media: MEDIA_KEYS,

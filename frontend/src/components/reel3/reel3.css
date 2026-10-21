@@ -305,9 +305,6 @@
 .r3-flag--y {
   background: #f4c45b;
 }
-.r3-flag--p {
-  background: #f3a9c4;
-}
 /* Two words in one place; the class shows the second. */
 .r3-two,
 .r3-swap {
@@ -892,96 +889,94 @@
 .r3-pt.is-after i {
   background: #d19a1c;
 }
-.r3-sheet {
+.r3-left {
   left: 0;
   top: 0;
   width: 380px;
   height: 340px;
 }
-.r3-sheet-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.r3-sheet-count {
+/* What is left to learn: the count, a row a topic with a segment a question, the learned ones folded (learn-left). */
+.r3-left-count {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin-top: 10px !important;
-  font-size: 13px;
+  margin: 2px 0 8px !important;
+  font-size: 15px;
 }
-.r3-sheet-count b {
-  font-size: 30px;
+.r3-left-count b {
+  font-size: 34px;
   font-weight: 600;
   letter-spacing: -0.04em;
+  line-height: 1.1;
 }
-.r3-map {
-  display: grid;
-  grid-template-columns: repeat(24, 9px);
-  gap: 3px;
-  margin: 8px 0 10px;
-  padding: 8px;
-  border-radius: 12px;
-  background: #f7f7f3;
+.r3-topic {
+  position: relative;
+  padding: 9px 0 10px;
+  border-top: 1px solid #ececE6;
 }
-.r3-map i {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-  background: #0b121c;
-}
-.r3-map i.is-once {
-  background: #f4c45b;
-}
-.r3-map i.is-gone {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.2px #c9cbc6;
-}
-.r3-sheet-q {
-  margin-bottom: 4px !important;
-  font-size: 13.5px;
+.r3-topic-t {
+  font-size: 13px;
   font-weight: 600;
 }
-.r3-sl {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  padding: 4px 0;
-  font-size: 12.5px;
+.r3-topic .r3-meta {
+  margin-top: 1px;
+  font-size: 11.5px;
 }
-.r3-sl i {
-  flex: none;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #0b121c;
-  transform: translateY(-1px);
-}
-.r3-sl span {
-  position: relative;
-}
-.r3-strike {
+.r3-topic .r3-flag {
   position: absolute;
-  left: 0;
   right: 0;
-  top: 54%;
-  height: 1.5px;
-  background: #8a8f97;
+  top: 9px;
+}
+.r3-segs {
+  display: flex;
+  gap: 4px;
+  margin-top: 7px;
+}
+.r3-segs i {
+  position: relative;
+  width: 22px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #e3e3dd;
+}
+.r3-segs i.is-on {
+  background: #2869dd;
+}
+.r3-segs i.is-half {
+  background: #f4c45b;
+}
+.r3-segs i b {
+  position: absolute;
+  inset: 0;
+  background: #2869dd;
   transform: scaleX(0);
   transform-origin: 0 50%;
 }
-.r3-sl.is-once i {
-  background: #f4c45b;
+.r3-flag--g {
+  background: #8acb97;
 }
-.r3-sl.is-once span {
-  color: #5d636c;
+.r3-left-fold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #ececE6;
+  font-size: 12.5px;
+  font-weight: 500;
 }
-.r3-sl.is-gone i {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.2px #c9cbc6;
+.r3-left-fold i {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #2869dd;
+  color: #fff;
 }
-.r3-sl.is-gone span {
-  color: #a3a7ad;
+.r3-left-fold i svg {
+  width: 10px;
+  height: 10px;
 }
 
 /* ---------------------------------------------------------------- group and Telegram */

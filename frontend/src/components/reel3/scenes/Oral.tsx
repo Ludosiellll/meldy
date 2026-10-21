@@ -1,13 +1,13 @@
 /**
- * Chapters «Билет вслух» and «Шпаргалка»: ticket 7 answered aloud — the answer's points light up as they are named,
- * the examiner asks about the missed one, the protocol line; then question 7's lines on the cheat sheet, half-gone
- * after Monday and gone after Wednesday (named on two different days). Points: data/sheetExample.ts Q7.
+ * Chapter «Билет вслух»: ticket 7 answered aloud — the answer's points light up as they are named, the examiner asks
+ * about the missed one, the protocol line. Points: data/sheetExample.ts Q7. (What is left to learn follows in
+ * Learn.tsx; the cheat sheet is gone, owner 21.10.)
  */
 import { useRef } from 'react';
 import { Q7 } from '../../../data/sheetExample';
-import { flag, put, useEls, useFrame } from '../../reel/engine';
+import { flag, useEls, useFrame } from '../../reel/engine';
 import { EXAMPLE, SAY } from '../../home3/copy3';
-import { Count, Say, Wave, appear, ease, seg } from '../kit3';
+import { Say, Wave, appear, ease, seg } from '../kit3';
 import { withGlyphs } from '../../home3/glyphs';
 
 const SPOKEN =
@@ -65,76 +65,6 @@ export function TicketScene() {
             <p key={line.text} data-a="pt" className="r3-pt" style={{ opacity: 0 }}>
               <i />
               {withGlyphs(line.text)}
-            </p>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** The sheet's map: one square a line; a few change on Monday and on Wednesday. */
-const MAP = Array.from({ length: 96 }, (_, i) => {
-  const x = Math.sin(i * 12.9898) * 43758.5453;
-  const r = x - Math.floor(x);
-  return r < 0.45 ? 'gone' : r < 0.6 ? 'once' : 'fresh';
-});
-const MONDAY = 1200;
-const WEDNESDAY = 3200;
-
-export function SheetScene() {
-  const root = useRef<HTMLDivElement>(null);
-  const { one, all } = useEls(root);
-  useFrame((l) => {
-    appear(one('card'), l, 100, 450, 20);
-    const lines = all('line');
-    lines.forEach((line, index) => {
-      appear(line, l, 400 + index * 110, 360, 8);
-      const once = index < 2 ? l >= MONDAY && l < WEDNESDAY : index === 3 && l >= WEDNESDAY;
-      const gone = index < 2 && l >= WEDNESDAY;
-      flag(line, 'is-once', once);
-      flag(line, 'is-gone', gone);
-    });
-    all('strike').forEach((strike, index) => {
-      put(strike, 'transform', `scaleX(${index < 2 ? ease.inOut(seg(l, WEDNESDAY, 420)).toFixed(3) : '0'})`);
-    });
-    flag(one('date'), 'is-later', l >= WEDNESDAY - 700);
-    all('cell').forEach((cell, index) => {
-      if (index % 9 === 4) flag(cell, 'is-once', l >= MONDAY && l < WEDNESDAY);
-      if (index % 9 === 4) flag(cell, 'is-gone', l >= WEDNESDAY);
-    });
-  });
-  return (
-    <div ref={root} className="r3-scene is-flip">
-      <Say text={SAY.sheet[0]} at={300} />
-      <div className="r3-ui">
-        <div data-a="card" className="r3-card r3-sheet" style={{ opacity: 0 }}>
-          <div className="r3-sheet-top">
-            <span className="r3-flag r3-flag--p">Шпаргалка</span>
-            <span data-a="date" className="r3-meta r3-two">
-              <span>Пн, 20 октября</span>
-              <span>Ср, 22 октября</span>
-            </span>
-          </div>
-          <p className="r3-sheet-count">
-            <b>
-              <Count from={741} to={739} at={WEDNESDAY + 100} dur={260} />
-            </b>
-            <span>из 898 осталось</span>
-          </p>
-          <span className="r3-map" aria-hidden="true">
-            {MAP.map((state, index) => (
-              <i key={index} data-a="cell" className={`is-${state}`} />
-            ))}
-          </span>
-          <p className="r3-sheet-q">7. {EXAMPLE.question}</p>
-          {Q7.lines.map((line) => (
-            <p key={line.text} data-a="line" className="r3-sl" style={{ opacity: 0 }}>
-              <i />
-              <span>
-                {withGlyphs(line.text)}
-                <b data-a="strike" className="r3-strike" />
-              </span>
             </p>
           ))}
         </div>
