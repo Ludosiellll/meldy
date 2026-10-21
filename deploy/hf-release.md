@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.10: the live game's players' side, still closed (from the commit of this entry)
+
+- **«Битва с монстром», the students' side:** `/play` (PIN or link, name, a character from parts, lobby, big colour and
+  shape answers with haptics, «Ответ принят», hit or freeze, place after each question, the boss's phases, the
+  podium, review, «Поделиться»; reconnect after a reload, «Нет связи. Переподключаемся…», a removed player is told)
+  and `/tg/play` in Telegram (full screen, safe areas, haptics, BackButton, the name from Telegram, its own
+  wardrobe). The bot posts the game into the exam's group and edits the post as the game goes, then posts the
+  result; `/start play_<PIN>` answers with an «Играть» button (function deployed before this release). An answer tap
+  paints in 51–68 ms at CPU ×4.
+- **Still closed:** «Провести игру» stays hidden (`lib/live/open.ts`); `?live=1` opens it in one browser for the live
+  check on the real database before the game opens for everyone.
+- Gate on fc2fb95: pytest 2316, bot 386, sync ok, Vitest 365 files / 6276 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.9: smoothness outside the studio, the 47.8 live check's fixes, the live game's base (from the commit of this entry)
 
 - **Smoothness** (owner, 20.10: «никаких пролагиваний… нигде»), phone 390×844 with CPU ×4: typing in the question
