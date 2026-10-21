@@ -271,6 +271,52 @@ def test_a_room_that_learns_of_a_round_late_still_lines_everyone_up_and_a_closed
     assert [w.room.map.zone_index(p.x, p.y) for p in w.ps] == [1, 2, 3]
 
 
+def test_the_fastest_is_the_first_hit_the_projector_lands_when_hits_tie_in_time():
+    """Live check 47.23: hits tied at 0 ms; «Быстрее всех» named the first right player in the result's rows (the
+    place order) while the HP animation lands the stored hits (time, then player id) — two different names."""
+    w = World()
+    w.start()                                                  # q0: p1 taps first (more damage, placed higher)
+    q = w.db.questions[w.db.qi]
+    w.t[0] = q["opens"] + 0.5
+    w.db.answer(pid(1), 1)
+    w.t[0] = q["opens"] + 9.0
+    w.db.answer(pid(0), 1)
+    w.t[0] = q["closes"] + 2
+    w.db.settle()
+    w.game.tap(w.db.qi, "reveal")
+    w.next()
+    w.start(); w.taps({0: 2, 1: 2}); w.next()                 # q1: both right again, streak 2 each
+    w.start()                                                  # q2: a movement round (key Б)
+    for i in (0, 1):
+        w.ps[i].x, w.ps[i].y = CENTRE[1]                       # there before the open: both 0 ms
+    w.ps[2].x, w.ps[2].y = CENTRE[0]
+    w.to_deadline()
+    res = w.close()
+    ids = {p.pid: p.id for p in w.ps}
+    tied = [r for r in res["rows"] if r["ok"] and r["dmg"] > 0]
+    assert {r["p"] for r in tied} == {pid(0), pid(1)} and {r["ms"] for r in tied} == {0} and len({r["dmg"] for r in tied}) == 1
+    assert res["rows"][0]["p"] == pid(1)                       # the rows put p1 first (more damage in total) …
+    assert res["hits"][0]["player_id"] == pid(0)               # … the stored hits p0 (a tie in time: the player id)
+    r = w.game.state(True)["res"]
+    assert r["hits"][0][0] == ids[pid(0)]
+    assert r["fastest"] == {"id": ids[pid(0)], "pts": r["hits"][0][1], "ms": 0}
+
+
+def test_without_stored_hits_the_fastest_is_the_quickest_right_row():
+    w = World()
+    w.start(); w.taps({0: 1, 1: 1}); w.next()
+    w.start(); w.taps({0: 2, 1: 2}); w.next()
+    w.start()
+    w.ps[0].x, w.ps[0].y = CENTRE[1]
+    w.ps[1].x, w.ps[1].y = CENTRE[1]
+    qi, answers = w.to_deadline()
+    w.t[0] = w.db.questions[qi]["closes"] + 0.3
+    res = w.db.stand_close_sync(qi, answers)
+    res = dict(res, hits=[], rows=[dict(r, ms=900) if r["p"] == pid(0) else dict(r, ms=400) if r["p"] == pid(1) else r for r in res["rows"]])
+    assert w.game.apply(res, w.room.t_ms())
+    assert w.game.state(True)["res"]["fastest"]["id"] == w.ps[1].id
+
+
 def test_a_void_round_drops_nobody():
     w = World(2)
     w.start(); w.taps({0: 1}); w.next()

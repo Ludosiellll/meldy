@@ -110,7 +110,9 @@ rare `state`: `MoveClient`'s stale check (4 s without any message) is kept alive
 - `res` of a movement round:
   - `fell`: every character not on the right zone (where they stand decides, as the stomp shows it); `back` is the
     same list: everyone comes back when the floor returns;
-  - `stood`: the right answers (hits and thaws); `of`: the players of the question; `fastest`: the first hit;
+  - `stood`: the right answers (hits and thaws); `of`: the players of the question; `fastest`: the first hit in the
+    stored order of `hits` (time, then player id), the one the projector lands first (the 47.23 live check: on hits
+    tied at 0 ms it named another player);
   - `thawed` (frozen before, on the right zone: the ice breaks), `froze` (frozen now: a wrong zone or none);
   - the boss after the round: `hp`, `hp_max`, `phase`, `defeated`, and `healed`, `phase_changed`;
   - `void`: the room never wrote the round (`fell` and `back` empty, the floor stays up);
