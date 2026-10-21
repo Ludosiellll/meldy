@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { EXAM_MESSAGES, examErrorMessage, listExams, type ExamListItem } from '../api/exams';
 import { fetchQuestionEvents } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
@@ -18,6 +18,8 @@ import { containerDays, useContainerLayer } from './containerLayer';
 import { containerDateLine, containerFigure, containerFigureLine, containerQuestions, containerSizeLine } from './containerFigure';
 import { NEW_TEST, TEST_HOME } from '../components/test/copyTest';
 import { isOwnTest } from '../components/containers/model';
+import TestsView, { TestDoors, ViewSwitch } from '../components/quick/TestsView';
+import { TESTS_VIEW } from '../components/quick/copyQuick';
 
 export { containerDays };
 import '../styles/paper.css';
@@ -346,7 +348,6 @@ const NO_CONTAINERS: OverviewContainer[] = [];
  * copy.
  */
 export default function Exams() {
-  useDocumentTitle('Экзамены');
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const navigate = useNavigate();
@@ -397,7 +398,10 @@ export default function Exams() {
   const attached = useMemo(() => new Set(on ? on.overview.attached_exam_ids : []), [on]);
   // The plain exams: every exam but those inside a container, once the layer has answered (none of them flashes).
   const plain = useMemo(() => (items && settled ? items.filter((item) => !attached.has(item.id)) : null), [items, settled, attached]);
-  const rows = useMemo(() => (plain ? listRows(plain, containers) : null), [plain, containers]);
+  // «Экзамены | Тесты» (UX audit of 21.10, P2): the author's own tests are on «Тесты», the rest here.
+  const ownTests = useMemo(() => containers.filter(isOwnTest), [containers]);
+  const examContainers = useMemo(() => containers.filter((container) => !isOwnTest(container)), [containers]);
+  const rows = useMemo(() => (plain ? listRows(plain, examContainers) : null), [plain, examContainers]);
   const oralTotals = useMemo(() => oralTotalsOf(items), [items]);
 
   // «подтверждено»: the answers to the questions of the plain exams only (never the hashes of an exam in a container).
@@ -418,7 +422,7 @@ export default function Exams() {
     };
   }, [plain]);
 
-  const containerRows = containers.length > 0 ? listRows([], containers) : [];
+  const containerRows = examContainers.length > 0 ? listRows([], examContainers) : [];
   // Without network the containers come from the device's copy at once (spec decision 31, usability check m5): the
   // other exams' read waits for its retries (about 7 s), the page does not.
   const fromDevice = Boolean(on?.offline) && containerRows.length > 0;
@@ -434,15 +438,31 @@ export default function Exams() {
     </ul>
   );
   const anyRow = (rows !== null && rows.length > 0) || ((error !== null || fromDevice) && containerRows.length > 0);
+  // The switch is there with the exam container (tests are containers); without ?view= an account of tests only
+  // opens on its tests.
+  const [search, setSearch] = useSearchParams();
+  const asked = search.get('view');
+  // Only where the exam container is used, or the page is empty: an account of old exams alone keeps today's page.
+  const switchOn = Boolean(on) && (containers.length > 0 || (rows !== null && rows.length === 0));
+  const view: 'exams' | 'tests' = switchOn && (asked === 'tests' || (asked !== 'exams' && rows !== null && rows.length === 0 && ownTests.length > 0)) ? 'tests' : 'exams';
+  const chooseView = (next: 'exams' | 'tests') => {
+    const params = new URLSearchParams(search);
+    params.set('view', next);
+    setSearch(params, { replace: true });
+  };
+  useDocumentTitle(view === 'tests' ? TESTS_VIEW.title : 'Экзамены');
 
   return (
     <div className="sf-page ex-list-page" ref={frame.ref} data-frame={frame.size}>
       {probe}
       <header className="ex-head">
         <div>
-          <h1 className="ex-h1">Экзамены</h1>
+          {switchOn ? <ViewSwitch view={view} exams={rows?.length ?? null} tests={ownTests.length} onChange={chooseView} /> : null}
+          <h1 className="ex-h1">{view === 'tests' ? TESTS_VIEW.title : 'Экзамены'}</h1>
+          {view === 'tests' ? <p className="ex-meta tv-lede">{TESTS_VIEW.lede}</p> : null}
         </div>
-        {anyRow && (
+        {view === 'tests' ? <TestDoors /> : null}
+        {view === 'exams' && anyRow && (
           <div className="ex-draw" data-pair={containers.length > 0 ? '' : undefined}>
             {/* One door (spec decision 21). Without containers the old address stays (App.tsx sends it on to
                 /exams/import), so such an account's page is today's to the byte. */}
@@ -485,7 +505,9 @@ export default function Exams() {
         </p>
       ) : null}
 
-      {error && containerRows.length > 0 ? (
+      {view === 'tests' ? (
+        <TestsView tests={ownTests} />
+      ) : error && containerRows.length > 0 ? (
         <>
           {/* The containers' rows stay (from the device's copy without network); the rest is one quiet line. */}
           {list(containerRows)}

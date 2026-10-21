@@ -126,6 +126,7 @@ export const TESTS_VIEW = {
   link: 'Показать ссылку',
   results: 'Открыть результаты',
   finished: (n: number) => (n > 0 ? `Сдали ${n}` : 'Пока никто не сдал'),
+  writing: (n: number) => `Пишут ${n}`,
   loading: 'Загружаем…',
   failed: 'Не загрузилось.',
   retry: 'Повторить',
