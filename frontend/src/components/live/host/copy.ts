@@ -41,6 +41,8 @@ export const SETUP = {
   loading: 'Загружаем вопросы…',
   failed: 'Не получилось загрузить вопросы.',
   retry: 'Повторить',
+  game: 'Какая игра',
+  boss: 'Босс',
   time: 'Время на вопрос',
   timeOption: (s: number) => `${s}${NBSP}с`,
   speed: 'Очки за скорость',
