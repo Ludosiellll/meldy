@@ -547,6 +547,36 @@ describe('ExamDetail: the sheet', () => {
     expect(within(screen.getByRole('list', { name: 'Показать вопросы' })).getByRole('button', { name: 'Все 40' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('owner 21.10: a reload keeps the filter pressed and the question open (?filter=, ?open=)', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(mixed()));
+    window.history.replaceState(null, '', '/exams/exam-1');
+    try {
+      const first = renderDetail({ path: '/exams/exam-1' });
+      await opened();
+      const legend = screen.getByRole('list', { name: 'Показать вопросы' });
+      const chip = within(legend).getAllByRole('button').find((button) => button.getAttribute('data-cov')) as HTMLElement;
+      fireEvent.click(chip);
+      const shown = document.querySelectorAll('.ex-q').length;
+      const filter = new URLSearchParams(window.location.search).get('filter');
+      expect(filter).toMatch(/^cov:/);
+      const open = document.querySelector<HTMLButtonElement>('.ex-q .ex-open') as HTMLButtonElement;
+      fireEvent.click(open);
+      const openId = new URLSearchParams(window.location.search).get('open');
+      expect(openId).toBeTruthy();
+      first.unmount();
+
+      renderDetail({ path: `${window.location.pathname}${window.location.search}` });
+      await opened();
+      expect(document.querySelectorAll('.ex-q')).toHaveLength(shown);
+      expect(within(screen.getByRole('list', { name: 'Показать вопросы' })).getAllByRole('button').find((button) => button.getAttribute('aria-pressed') === 'true')?.getAttribute('data-cov')).toBe(
+        chip.getAttribute('data-cov'),
+      );
+      await waitFor(() => expect(row(openId as string)).toHaveAttribute('data-selected'));
+    } finally {
+      window.history.replaceState(null, '', '/');
+    }
+  });
+
   it('opens a readiness filter from the address too', async () => {
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     mocks.fetchQuestionEvents.mockResolvedValue([answer(3, dayKey(-1), false, 's3')]);
