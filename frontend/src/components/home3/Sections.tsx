@@ -11,7 +11,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { glue } from '../../lib/containers/words';
 import { CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, LECTURE_SECTION, PICTURES, bind } from './copy3';
-import { GAME_FRAME, GAME_FRAMES } from './gameFrames';
 import { useLazyPart } from '../../lib/lazyPart';
 import { reelPart } from './reelPart';
 import { ArrowIcon } from './HeroTop';
@@ -418,30 +417,39 @@ export function GroupSection() {
 /** «Провести игру»: sign up, then «Тесты», where every test has «Провести игру» (Register honours ?next=). */
 export const GAME_URL = `/register?next=${encodeURIComponent('/exams?view=tests')}`;
 
-/** The projector's footage once the player is here (it comes with the reel's file; the projector's own dark until then). */
-function GameFootage({ near }: { near: boolean }) {
+/**
+ * The game's player, its two footages and what keeps them in step, once the section is near (they come with the reel's
+ * file; the projector's own dark and the phone's until then).
+ */
+function useGamePart(near: boolean) {
   useEffect(() => {
     if (near) void reelPart.load().catch(() => undefined);
   }, [near]);
-  const part = useLazyPart(reelPart, near);
-  return part ? <part.Footage footage={part.footage} fit="cover" /> : null;
+  return useLazyPart(reelPart, near);
 }
 
 /** What the projector's picture shows, for those who do not see it. */
 export const GAME_ALT = 'Игра «Встань на ответ» на проекторе. Класс бежит к ответам, потом пол под неверными ответами проваливается. Устояли 18 из 30.';
 
 /**
- * «Игра в классе» (owner, 21.10: the real game running, not a drawing): the recorded game on the projector, the class
- * running to the answers and the floor dropping (lib/footage STAND_RUN, a silent loop while on screen; its poster with
- * reduced motion), the bot's post in the class chat with «Играть», and a student's phone in Telegram, «Верно +980».
- * Nothing moves on a press, and its one link is the only thing to press. The player comes with the reel's file (fetched
- * after the page has loaded, or as the section comes near), then its poster and its parts as the section comes near;
- * the phone's still loads lazily: the page's first load carries none of it.
+ * «Игра в классе» (owner, 21.10: the real game running, not a drawing; then «в телефоне тупо картинка, нет движения
+ * синхронного с экраном главным»): the recorded game on the projector, the class running to the answers and the floor
+ * dropping (lib/footage STAND_RUN, a silent loop while on screen), the bot's post in the class chat with «Играть», and
+ * one student's phone in the same game: the real phone page drawn from the same recording (STAND_RUN_PHONE), his run to
+ * «А Меркурий», «Вы на ответе», the stomp and «Верно +980». The projector's video leads and the phone's follows its time
+ * (lib/footageSync: it starts, stops and loops with it, and a gap of a frame is closed as it opens); with reduced motion
+ * both posters, of one moment. Nothing moves on a press, and its one link is the only thing to press. The player comes
+ * with the reel's file (fetched after the page has loaded, or as the section comes near), then the posters and the parts
+ * as the section comes near: the page's first load carries none of it.
  */
 export function GameSection() {
   const stage = useRef<HTMLDivElement>(null);
   const seen = useInView(stage);
   const near = useInView(stage, { margin: '900px 0px' });
+  const part = useGamePart(near);
+  const [lead, setLead] = useState<HTMLVideoElement | null>(null);
+  const [phone, setPhone] = useState<HTMLVideoElement | null>(null);
+  useEffect(() => (part && lead && phone ? part.follow(lead, phone, part.footage.duration) : undefined), [part, lead, phone]);
   return (
     <section id="game" className="h3-wrap p3-sec p3-split" aria-labelledby="game-h">
       <SectionHead id="game-h" title={GAME_SECTION.title} text={GAME_SECTION.text}>
@@ -456,7 +464,7 @@ export function GameSection() {
       </SectionHead>
       <div ref={stage} className="p3-stage p3-stage--violet p3-game-stage" data-reveal={seen ? 'in' : 'wait'}>
         <div className="p3-proj p3-l" role="img" aria-label={GAME_ALT}>
-          <GameFootage near={near} />
+          {part ? <part.Footage ref={setLead} footage={part.footage} fit="cover" /> : null}
         </div>
         <div className="p3-gpost p3-l" style={delay(160)} aria-hidden="true">
           <p className="p3-tg-top">
@@ -475,27 +483,7 @@ export function GameSection() {
           </div>
         </div>
         <div className="p3-gphone p3-l" style={delay(300)} aria-hidden="true">
-          <div className="p3-gphone-in">
-            <img src={GAME_FRAMES.drop} width={GAME_FRAME.w} height={GAME_FRAME.h} alt="" loading="lazy" decoding="async" />
-            <p className="p3-gphone-bar">
-              <span>{GAME.close}</span>
-              <i />
-            </p>
-            <p className="p3-gphone-win">
-              <b>{GAME.right}</b>
-              <strong>{GAME.points}</strong>
-            </p>
-            <span className="p3-gphone-stick">
-              <i />
-            </span>
-            <p className="p3-gphone-on">
-              <i>А</i>
-              <span>
-                <small>{GAME.onAnswer}</small>
-                {GAME.options[0]}
-              </span>
-            </p>
-          </div>
+          <div className="p3-gphone-in">{part ? <part.Footage ref={setPhone} footage={part.phone} play={false} fit="cover" /> : null}</div>
         </div>
       </div>
     </section>
