@@ -16,7 +16,9 @@ type Poses = Map<number, Pose>;
 import { changeOf, easeOutBack, tally, timerFace, type TimerFace } from './plan';
 import type { StandRoom } from './room';
 
-export type StandCue = 'tick' | 'tickLast' | 'warn' | 'stomp' | 'impact' | 'back';
+/** The moments the screen plays sounds on: the last seconds' ticks, the alarm, the boss's jump and blow, the first
+ * ghost rising, the first cheer of those who stood, the floor coming back. */
+export type StandCue = 'tick' | 'tickLast' | 'warn' | 'stomp' | 'impact' | 'rise' | 'cheer' | 'back';
 
 /** What the screen shows outside the 3D picture, told only on change. */
 export interface StandHud {
@@ -113,6 +115,9 @@ export class StandScene {
   /** kit seconds of the boss's blow on the floor (Infinity: none coming); whether its sound has played. */
   private impactAt = Infinity;
   private impactCued = true;
+  /** kit seconds of the first ghost rising and the first cheer after the blow (Infinity: none coming). */
+  private riseAt = Infinity;
+  private cheerAt = Infinity;
   private lastFace: TimerFace = { sec: null, ready: false, hot: false, left: 0 };
   private readonly sums = { counts: [0, 0, 0, 0], alive: 0, ghosts: 0 };
   private readonly shown = { counts: [-1, -1, -1, -1], alive: -1, ghosts: -1, zones: 0 };
@@ -342,6 +347,8 @@ export class StandScene {
       for (const a of this.actors.values()) a.fall = null;
       this.impactAt = Infinity;
       this.impactCued = true;
+      this.riseAt = Infinity;
+      this.cheerAt = Infinity;
     }
     if (st.q) {
       const labels: Record<string, string> = {};
@@ -359,16 +366,22 @@ export class StandScene {
       const impact = Math.max(this.impactAt, now + 0.05);
       arena.collapse(this.zoneIds[res.key] ?? '', impact);
       const fell = new Set(res.fell);
+      let rise = Infinity;
+      let cheer = Infinity;
       for (const a of this.actors.values()) {
         if (fell.has(a.id)) {
           const drops = arena.fallsAt(a.x, a.y);
           const start = Number.isFinite(drops) ? drops : impact + 0.35;
           a.fall = { x: a.x, y: a.y, start, rise: start + FALL_S, tile: Number.isFinite(drops) };
+          rise = Math.min(rise, a.fall.rise);
         } else if ((a.flags & F_GHOST) === 0 && (a.flags >> ZONE_SHIFT) - 1 === res.key) {
           a.cheerFrom = impact + 0.45 + ((a.id * 7) % 10) * 0.04;
           a.cheerUntil = impact + 3.2;
+          cheer = Math.min(cheer, a.cheerFrom);
         }
       }
+      this.riseAt = rise;
+      this.cheerAt = cheer;
     } else if (change === 'down' && res) {
       // seen late: the floor is already down, the fallen already ghosts
       arena.collapse(this.zoneIds[res.key] ?? '', now - 10);
@@ -418,6 +431,14 @@ export class StandScene {
     if (!this.impactCued && now >= this.impactAt) {
       this.impactCued = true;
       this.hud.cue('impact');
+    }
+    if (now >= this.cheerAt) {
+      this.cheerAt = Infinity;
+      this.hud.cue('cheer');
+    }
+    if (now >= this.riseAt) {
+      this.riseAt = Infinity;
+      this.hud.cue('rise');
     }
     this.updateTimer(st, t);
     const flags = this.flagsScratch;

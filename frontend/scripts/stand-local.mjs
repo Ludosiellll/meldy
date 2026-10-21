@@ -5,11 +5,15 @@
  *   node scripts/stand-local.mjs open                 the game with 30 bots; prints the page's address, waits
  *   node scripts/stand-local.mjs shots <dir>          plays a short game in Chromium and saves key frames
  *   node scripts/stand-local.mjs video <dir> [W H]    the same, recorded as a video (default 1920 × 1080)
- *   node scripts/stand-local.mjs perf                 JavaScript per frame with 40 bots, at CPU × 1 and × 4
+ *   node scripts/stand-local.mjs perf                 JavaScript per frame with 40 bots, at CPU × 1 and × 4;
+ *                                                     SOUND=off mutes the projector (compare its numbers with
+ *                                                     the sound on: the start's key press unlocks it)
  *   node scripts/stand-local.mjs replay <game.json> <dir> [W H]
  *                                                     a recorded game (live_stand_local.py --auto --record) drawn
  *                                                     frame by frame on a stopped clock into <dir>/stand-WxH.mp4
- *                                                     (25 fps, smooth however slow the machine) and key frames
+ *                                                     (25 fps, smooth however slow the machine) and key frames;
+ *                                                     SOUNDLOG=<file.json> also keeps the projector's sound calls
+ *                                                     on the video's clock (scripts/sound-render.mjs soundtrack)
  *
  * It starts backend/scripts/live_stand_local.py (the room with the database in memory and the bots; MELDY_PY names
  * the Python with the backend's packages), then Vite with VITE_SUPABASE_URL pointing at it and /api proxied with
@@ -18,7 +22,7 @@
  * Headless WebGL runs on SwiftShader (a GPU emulated on the CPU): its frame rate says nothing about a real GPU.
  */
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, realpathSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -98,12 +102,13 @@ async function openPage(browser, base, game, token, viewport, extra = {}) {
   const { query, ...options } = extra;
   const context = await browser.newContext({ viewport, deviceScaleFactor: 1, locale: 'ru-RU', ...options });
   await context.addInitScript(
-    ([g, t]) => {
+    ([g, t, sound]) => {
       sessionStorage.setItem(`meldy.live.host.${g}`, t);
       sessionStorage.setItem(`meldy.live.hostinfo.${g}`, JSON.stringify({ title: 'Повторение', joinUrl: `${location.origin}/play?pin=123456`, containerId: null, quizId: null, source: null, settings: null }));
       localStorage.setItem('meldy_supabase_route', JSON.stringify({ route: 'direct', until: Date.now() + 36e5 }));
+      if (sound === 'off') localStorage.setItem('meldy.live.sound', 'off');
     },
-    [game, token],
+    [game, token, env('SOUND', 'on')],
   );
   const page = await context.newPage();
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
@@ -330,7 +335,8 @@ async function replay(recPath, dir, W, H) {
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));
     await page.clock.install();
     // the first visit lets Vite bundle the dependencies (it may reload the page once)
-    await page.goto(`${base}/live/${rec.game}?bench${env('QUERY', '')}`, { waitUntil: 'load' });
+    const soundLog = env('SOUNDLOG', '');
+    await page.goto(`${base}/live/${rec.game}?bench${soundLog ? '&soundlog' : ''}${env('QUERY', '')}`, { waitUntil: 'load' });
     if (env('DEBUG', '')) {
       for (let i = 0; i < 6; i++) {
         await sleep(5000);
@@ -352,9 +358,10 @@ async function replay(recPath, dir, W, H) {
     const cdp = await context.newCDPSession(page);
     await cdp.send('Animation.enable');
     await cdp.send('Animation.setPlaybackRate', { playbackRate: Number(env('CSS_RATE', 0.12)) });
-    await page.evaluate(() => {
+    const goAt = await page.evaluate(() => {
       window.__standManual(true);
       window.__replayGo();
+      return performance.now();
     });
     const end = Math.min(rec.ws[rec.ws.length - 1][0] + 1500, Number(env('END_MS', Infinity)));
     const startAt = Number(env('START_MS', 0));
@@ -365,20 +372,40 @@ async function replay(recPath, dir, W, H) {
     let k = 0;
     if (startAt > 0) await page.clock.runFor(startAt);
     while (k < keys.length && keys[k][1] < startAt) k++;
-    for (let t = startAt, f = 0; t <= end; t += step, f++) {
-      await page.clock.runFor(step);
-      await page.evaluate((dt) => window.__standStep(dt), step / 1000);
-      const jpg = await page.screenshot({ type: 'jpeg', quality: 90 });
-      if (!ff.stdin.write(jpg)) await new Promise((r) => ff.stdin.once('drain', r));
-      while (k < keys.length && keys[k][1] <= t) {
-        await page.screenshot({ path: join(dir, `${keys[k][0]}-${W}x${H}.png`) });
-        k++;
+    // the sound calls are kept even if the recording stops early
+    const saveSound = async () => {
+      if (!soundLog) return;
+      // frame f shows the page at startAt + (f + 1) · step: a call at replay time T plays at T − startAt − step
+      const calls = await page.evaluate(() => window.__soundLog ?? []);
+      const shift = goAt + startAt + step;
+      writeFileSync(soundLog, JSON.stringify({ game: recPath, video: out, calls: calls.map(([t, name, args]) => [+(t - shift).toFixed(1), name, args]) }));
+      console.log('sound calls', calls.length, soundLog);
+    };
+    // a frame the browser failed to capture (a slow, crowded machine) is asked for once more
+    const frame = () =>
+      page.screenshot({ type: 'jpeg', quality: 90 }).catch(async (e) => {
+        console.log('frame retried:', String(e.message).split('\n')[0]);
+        await sleep(1000);
+        return page.screenshot({ type: 'jpeg', quality: 90 });
+      });
+    try {
+      for (let t = startAt, f = 0; t <= end; t += step, f++) {
+        await page.clock.runFor(step);
+        await page.evaluate((dt) => window.__standStep(dt), step / 1000);
+        const jpg = await frame();
+        if (!ff.stdin.write(jpg)) await new Promise((r) => ff.stdin.once('drain', r));
+        while (k < keys.length && keys[k][1] <= t) {
+          await page.screenshot({ path: join(dir, `${keys[k][0]}-${W}x${H}.png`) });
+          k++;
+        }
+        if (f % 250 === 0) console.log(`${(t / 1000).toFixed(1)} s of ${(end / 1000).toFixed(0)} s, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`);
       }
-      if (f % 250 === 0) console.log(`${(t / 1000).toFixed(1)} s of ${(end / 1000).toFixed(0)} s, ${((Date.now() - t0) / 1000).toFixed(0)} s so far`);
+    } finally {
+      await saveSound().catch((e) => console.log('sound calls not saved:', e.message));
+      ff.stdin.end();
+      await new Promise((r) => ff.on('exit', r));
+      console.log('video', out);
     }
-    ff.stdin.end();
-    await new Promise((r) => ff.on('exit', r));
-    console.log('video', out);
   } finally {
     await browser.close();
     await server.close();
@@ -454,7 +481,33 @@ async function perf(page) {
   const secs = (Date.now() - wall0) / 1000;
   const st = await page.evaluate(() => window.__stand?.stats?.() ?? null);
   const per = (k) => (1000 * (b[k] - a[k])) / secs;
-  console.log(JSON.stringify({ overlay: { styleMsPerS: +per('RecalcStyleDuration').toFixed(2), layoutMsPerS: +per('LayoutDuration').toFixed(2), scriptMsPerS: +per('ScriptDuration').toFixed(1), fps: st ? +st.fps.toFixed(1) : null, quality: st?.quality ?? null } }));
+  const readout = () => page.evaluate(() => [...document.querySelectorAll('div[aria-hidden="true"]')].map((d) => d.textContent ?? '').find((t) => t.includes(' fps')) ?? null);
+  const soundOn = await page.evaluate(() => document.querySelector('.lvst-tool[aria-pressed]')?.getAttribute('aria-pressed') ?? null);
+  // does this browser render audio at all here (a machine with no sound card may give it no output)?
+  const audio = await page.evaluate(async () => {
+    const c = new AudioContext();
+    await c.resume().catch(() => {});
+    const t0 = c.currentTime;
+    await new Promise((r) => setTimeout(r, 400));
+    const out = { state: c.state, advancedMs: Math.round((c.currentTime - t0) * 1000) };
+    await c.close();
+    return out;
+  });
+  console.log(JSON.stringify({ audio }));
+  console.log(JSON.stringify({ sound: soundOn === 'true' ? 'on' : 'off', overlay: { styleMsPerS: +per('RecalcStyleDuration').toFixed(2), layoutMsPerS: +per('LayoutDuration').toFixed(2), scriptMsPerS: +per('ScriptDuration').toFixed(1), fps: st ? +st.fps.toFixed(1) : null, quality: st?.quality ?? null, readout: await readout() } }));
+  // the busiest stretch for the sound: the boss's jump, the floor collapsing, the cheer, the ghosts (the same window)
+  await waitPhase(page, ['reveal'], 60000);
+  const c = await metrics();
+  const wall1 = Date.now();
+  const seen = [];
+  for (let i = 0; i < 4; i++) {
+    await sleep(1000);
+    seen.push(await readout());
+  }
+  const d = await metrics();
+  const secs2 = (Date.now() - wall1) / 1000;
+  const st2 = await page.evaluate(() => window.__stand?.stats?.() ?? null);
+  console.log(JSON.stringify({ sound: soundOn === 'true' ? 'on' : 'off', reveal: { scriptMsPerS: +((1000 * (d.ScriptDuration - c.ScriptDuration)) / secs2).toFixed(1), fps: st2 ? +st2.fps.toFixed(1) : null, readouts: seen } }));
   for (const rate of [1, 4]) {
     await cdp.send('Emulation.setCPUThrottlingRate', { rate });
     await sleep(1000);

@@ -218,7 +218,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     return () => {
       window.removeEventListener('pointerdown', unlock, true);
       window.removeEventListener('keydown', unlock, true);
-      sound.lobby(false);
+      sound.music(null);
       sound.roll(false);
     };
   }, [sound]);
@@ -227,11 +227,13 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     (cue: Cue, n?: number) => {
       if (cue === 'land') sound.land(n ?? 0);
       else if (cue === 'impact') sound.hit();
-      else if (cue === 'freeze') sound.freeze();
+      else if (cue === 'freeze') sound.freeze(n ?? 1);
       else if (cue === 'heal') sound.heal();
       else if (cue === 'phase') sound.growl();
       else if (cue === 'defeat') {
+        // the monster falls: the crash of its fall, the fanfare, the class cheering
         fanfared.current = true;
+        sound.boom();
         sound.fanfare();
       }
     },
@@ -280,6 +282,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         const play = () => {
           beatTimer.current = null;
           setBeat(null);
+          sound.reveal();
           director.reveal(latest.current.state === 'reveal' && latest.current.qi === s.qi ? latest.current : s, () => syncRest(store, latest.current));
         };
         // Everyone answered before the time ran out: «Все ответили», the monster braces itself, then the key.
@@ -288,11 +291,13 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         const early = beatRef.current === null && Date.now() < closesAtRef.current - 400 && answers >= answerable(s.roster, s.question?.opens_at);
         if (early) {
           setBeat('all');
+          sound.slam();
           beatTimer.current = setTimeout(play, ALL_IN_BEAT_MS);
         } else play();
         return;
       }
       setBeat(null);
+      sound.reveal();
       director.cancel();
       syncRest(store, s);
       const r = s.result!;
@@ -314,7 +319,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
       const before = new Set(prev.answered_ids);
       director.hops(s.answered_ids.filter((id) => !before.has(id) && env.current.slotMap.has(id)));
     }
-  }, [s, gameId, director, store, reduced, showBanner, setBeat]);
+  }, [s, gameId, director, store, reduced, showBanner, setBeat, sound]);
   useEffect(() => () => clearBeatTimer(), []);
 
   const toggleFull = useCallback(() => {
@@ -403,21 +408,45 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   useEffect(() => {
     if (!open || !closesAt) return undefined;
     const t = setTimeout(() => {
-      if (beatRef.current === null) setBeat('time');
+      if (beatRef.current === null) {
+        setBeat('time');
+        sound.slam();
+      }
     }, Math.max(0, closesAt - Date.now()));
-    // the last five seconds tick
+    // the last five seconds tick, and the music hurries
     const ticks = [5, 4, 3, 2, 1]
       .map((k) => ({ k, ms: closesAt - k * 1000 - Date.now() }))
       .filter((x) => x.ms >= 0)
-      .map((x) => setTimeout(() => sound.tick(x.k === 1), x.ms));
+      .map((x) =>
+        setTimeout(() => {
+          sound.tick(x.k === 1);
+          if (x.k === 5) sound.hurry(true);
+        }, x.ms),
+      );
     return () => {
       clearTimeout(t);
       ticks.forEach(clearTimeout);
     };
   }, [open, closesAt, setBeat, sound]);
-  // the drum roll of the beat; the lobby's loop and a pop for each newcomer
+  // The 3-2-1 before the answers: a beat on each number, a hit when they open.
+  const countdown = s.state === 'countdown';
+  useEffect(() => {
+    if (!countdown || !opensAt) return undefined;
+    const beats = [3, 2, 1, 0]
+      .map((k) => ({ k, ms: opensAt - k * 1000 - Date.now() }))
+      .filter((x) => x.ms >= -150)
+      .map((x) => setTimeout(() => sound.count(x.k), Math.max(0, x.ms)));
+    return () => beats.forEach(clearTimeout);
+  }, [countdown, opensAt, sound]);
+  // The music: the lobby's groove, the question's loop while the answers are open (it stops at «Время вышло»), the
+  // top five's bounce; the podium's party after the fanfare; the end fades out.
+  const track = inLobby ? 'lobby' : open && beat === null ? 'question' : s.state === 'leaderboard' ? 'board' : null;
+  const atPodium = s.state === 'podium';
+  useEffect(() => {
+    if (!atPodium) sound.music(track, s.state === 'ended' ? 1.5 : 0.6);
+  }, [track, atPodium, s.state, sound]);
+  // the drum roll of the beat; a pop for each newcomer
   useEffect(() => sound.roll(beat !== null), [beat, sound]);
-  useEffect(() => sound.lobby(inLobby), [inLobby, sound]);
   const joinedCount = useRef(joined.length);
   useEffect(() => {
     if (inLobby && joined.length > joinedCount.current) sound.join();
@@ -426,9 +455,15 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   // the end: a fanfare when the monster fell (unless its fall just had one), a low sting when it won
   const ending = s.state === 'podium' ? gameOutcome(s) : null;
   useEffect(() => {
-    if (ending === 'won' && !fanfared.current) sound.fanfare();
+    if (!ending) return undefined;
+    sound.music(null, 0.3);
+    const fanfareNow = ending === 'won' && !fanfared.current;
+    if (fanfareNow) sound.fanfare();
     if (ending === 'lost') sound.sting();
-    if (ending) fanfared.current = true;
+    fanfared.current = true;
+    if (ending !== 'won') return undefined;
+    const party = setTimeout(() => sound.music('podium'), fanfareNow ? 3300 : 600);
+    return () => clearTimeout(party);
   }, [ending, sound]);
 
   return (
