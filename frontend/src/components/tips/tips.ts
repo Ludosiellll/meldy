@@ -12,7 +12,7 @@
  * The exam's cheat sheet had a tip of its own until 2026-10-07: the exam page's status block now says what
  * erases the lines and the one next step, and a second card with its own «Тянуть билет» only repeated it.
  */
-export type TipId = 'talk' | 'telegram' | 'move';
+export type TipId = 'talk' | 'telegram' | 'move' | 'game';
 /** The tips shown as a card under their anchor (TipCard) with a clip of tips/scenes; «move» lives in its dialog. */
 export type CardTipId = Exclude<TipId, 'move'>;
 
@@ -55,6 +55,17 @@ export const TIPS: { [K in TipId]: TipDef & { id: K } } = {
     later: 'Не сейчас',
     // The bot's chat as Telegram draws it: a phone's width, from the header to the input bar — a square.
     clip: { ratio: 1, themed: true },
+  },
+  // «Провести игру» on the test's own page (TestHome): the first time a test can be played, a card under the button with
+  // the guide's clip of the game (guide/scenes/game.tsx, its 4:3 stage: the button, the game picked, the PIN and the QR
+  // code, the phones, the floor that drops). Its action is the button's own; using the button puts the tip away too.
+  game: {
+    id: 'game',
+    title: 'Игра в классе',
+    text: 'Вопросы теста идут на проекторе. Ученики играют с телефонов, на сайте или в Telegram.',
+    action: 'Провести игру',
+    later: 'Не сейчас',
+    clip: { ratio: 4 / 3, themed: false },
   },
   // «Перенести экзамен» (MoveExamDialog): the first time the dialog opens, a compact card at its top with the clip of a
   // move (components/clips «move»: the exam's day, the dialog, «Экзамен перенесён на 25 октября.» and the plan made

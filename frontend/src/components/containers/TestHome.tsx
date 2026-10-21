@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ContainerData } from '../../lib/containers/hooks';
 import { listQuizzes } from '../../api/quizzes';
@@ -13,6 +13,9 @@ import { glue, TO_EXAMS } from './copy';
 import { nb } from './copyImport';
 import { TEST_HOME } from '../test/copyTest';
 import { LIVE_ENTRY, keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../test/gameEntry';
+import TipCard from '../tips/TipCard';
+import { TIPS } from '../tips/tips';
+import { useFirstUseTip } from '../tips/useFirstUseTip';
 import './testHome.css';
 
 /**
@@ -64,14 +67,24 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
   );
   // «Провести игру» (live game «Битва с монстром», docs/live/CONTRACT.md): the setup at /live/new; shut for the same reason,
   // and hidden while the game is shut (lib/live/open: open to every author since 47.12).
+  const playable = liveGameOpen() && !why;
+  const gameRef = useRef<HTMLAnchorElement | null>(null);
+  // The first time a test can be played (its контрольные read, the page settled), a card with the guide's clip of the
+  // game points at the button (tips.ts «game»), on that one visit only.
+  const gameTip = useFirstUseTip('game', { enabled: playable && rows !== null, visits: 1 });
+  const gamePath = liveGamePath(containerId);
   const game = !liveGameOpen() ? null : why ? (
     <button type="button" className="th-send" disabled aria-describedby={whyId}>
       {LIVE_ENTRY.host}
     </button>
   ) : (
-    <Link className="th-send" to={liveGamePath(containerId)}>
-      {LIVE_ENTRY.host}
-    </Link>
+    <>
+      <Link ref={gameRef} className="th-send" to={gamePath} onClick={gameTip.done}>
+        {LIVE_ENTRY.host}
+      </Link>
+      {/* Right after the button, so Tab goes from it to its tip; the card lies over the page. */}
+      {gameTip.show ? <TipCard tip={TIPS.game} anchor={gameRef} to={gamePath} onAction={gameTip.done} onDismiss={gameTip.dismiss} /> : null}
+    </>
   );
   const lead = (
     <>
@@ -124,8 +137,9 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
   }
 
   return (
-    // «?» here opens the guide on «Тесты» (the address /exams/c/:id is an exam's as well).
-    <div className="sf-page ct-page th-page" data-view="test" data-guide-chapter="tests">
+    // «?» here opens the guide on «Игра в классе» (the address /exams/c/:id is an exam's as well): the page's own news,
+    // its «Провести игру»; «Тесты» is a step back in the guide.
+    <div className="sf-page ct-page th-page" data-view="test" data-guide-chapter="game">
       <PageHead
         title={summary.title}
         meta={meta}

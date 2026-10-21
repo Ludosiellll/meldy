@@ -12,6 +12,7 @@ import { Arrow, Statement, Wordmark, pressDepth, slideIn, slideOut } from '../..
 import { dayText, figureLines, glue, lineText, startLabel } from '../../../lib/containers/words';
 import type { TipClipDef } from '../TipClip';
 import type { CardTipId } from '../tips';
+import { GAME_CLIP, GAME_POSTER, GAME_STAGE, Game } from '../../guide/scenes/game';
 import './scenes.css';
 
 export const CLIP = 6400;
@@ -564,4 +565,6 @@ function Telegram() {
 export const TIP_CLIPS: Record<CardTipId, TipClipDef> = {
   talk: { total: CLIP, poster: 5300, Scene: Talk },
   telegram: { total: TG_TOTAL, poster: 3900, Scene: Telegram, stage: TG_STAGE, playAt: 'top' },
+  // The guide's «Игра в классе» clip on its own 4:3 stage (the chapter and the tip show the same).
+  game: { total: GAME_CLIP, poster: GAME_POSTER, Scene: Game, stage: GAME_STAGE },
 };
