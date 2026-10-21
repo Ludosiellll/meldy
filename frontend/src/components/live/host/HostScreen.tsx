@@ -9,7 +9,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { ColourId, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
-import { TelegramPost } from './TelegramPost';
+import { TelegramPost, type Chat } from './TelegramPost';
 import { BossView, CrowdCount, FxDefs, HpBar, UnderBar, byJoin } from './Arena';
 import { BANNER, MODE, NEXT } from './copy';
 import { Crowd, type CrowdView, type Place } from './Crowd';
@@ -137,6 +137,9 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   const [acting, setActing] = useState(false);
   const [full, setFull] = useState(false);
   const [log, setLog] = useState(() => readLog(gameId));
+  // The chat the game was posted to (the lobby tells the class where its «Играть» is).
+  const [tgChat, setTgChat] = useState<string | null>(null);
+  const onPosted = useCallback((chat: Chat) => setTgChat(chat.title ?? ''), []);
   // The beat between the answers and the key (D3): «Время вышло» at the timer's 0 until the reveal arrives (the server's
   // 1.5 s grace), or «Все ответили» for a moment when the reveal came early.
   const [beat, setBeatState] = useState<Closing>(null);
@@ -430,10 +433,13 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
           players={joined.length}
           more={crowd.more}
           morePoint={lobby.morePoint}
+          moreW={lobby.moreW}
           joinUrl={joinUrl}
+          width={width}
           busy={game.busy}
           onStart={next}
-          telegram={info?.containerId ? <TelegramPost api={api} gameId={gameId} containerId={info.containerId} fake={api.kind === 'fake'} /> : null}
+          tgChat={tgChat}
+          telegram={info?.containerId ? <TelegramPost api={api} gameId={gameId} containerId={info.containerId} fake={api.kind === 'fake'} onPosted={onPosted} /> : null}
         />
       ) : null}
       {inBattle ? (

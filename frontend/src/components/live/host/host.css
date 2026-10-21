@@ -85,30 +85,46 @@ a.lvh-btn { text-decoration: none; }
   .lvh-tool:hover { background: var(--lvh-card); color: var(--lvh-ink); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
 }
 
-/* ───────── lobby ───────── */
+/* ───────── lobby: for the room (the card and the panel), one line of the teacher's under both ───────── */
 .lvh-lobby { position: absolute; inset: 0; }
-.lvh-lobby-left { position: absolute; left: 56px; top: 104px; width: 480px; }
-.lvh-lobby-pin-k { font: 500 23px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
-.lvh-lobby-pin { font: 800 108px/1 var(--ph-sans, system-ui); letter-spacing: -0.02em; margin-top: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.lvh-qr { margin-top: 26px; width: 256px; height: 256px; background: #fff; border-radius: 26px; padding: 14px; box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+.lvh-lobby-card { position: absolute; display: flex; flex-direction: column; padding: 34px 40px; border-radius: 40px; background: var(--lvh-card); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+.lvh-lobby-k { font: 500 24px/1.1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lvh-lobby-k--pin { margin-top: 28px; }
+.lvh-lobby-site { margin-top: 10px; font: 700 31px/1.1 var(--ph-sans, system-ui); letter-spacing: -0.015em; white-space: nowrap; }
+.lvh-lobby-pin { margin-top: 6px; font: 800 128px/1 var(--ph-sans, system-ui); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lvh-lobby-scan { margin-top: auto; display: flex; align-items: center; gap: 26px; }
+.lvh-qr { flex: none; width: 280px; height: 280px; padding: 12px; border-radius: 22px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
 .lvh-qr-svg { display: block; width: 100%; height: 100%; }
-.lvh-lobby-how { margin: 24px 0 0; font: 400 21px/1.5 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
-.lvh-lobby-how b { color: var(--lvh-ink); font-weight: 600; }
-.lvh-tg { margin-top: 10px; font: 400 21px/1.5 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
-.lvh-tg b { color: var(--lvh-ink); font-weight: 600; }
-.lvh-tg-line { display: block; }
-.lvh-tg-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
-.lvh-tg-actions:empty { display: none; }
-.lvh-tg-note { margin: 6px 0 0; font: 500 18px/1.35 var(--ph-sans, system-ui); color: var(--lvh-green-ink); }
-.lvh-tg-note--warn { color: #6b4300; }
-.lvh-link { text-decoration: underline; text-underline-offset: 3px; color: var(--lvh-ink); }
-.lvh-lobby-settings { margin: 14px 0 0; font: 400 18px/1.4 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
-.lvh-lobby-right { position: absolute; left: 580px; right: 40px; top: 96px; bottom: 116px; background: var(--lvh-blue-soft); border-radius: 44px; overflow: hidden; }
-.lvh-lobby-count { position: absolute; left: 40px; top: 34px; font: 700 38px/1 var(--ph-sans, system-ui); font-variant-numeric: tabular-nums; }
-.lvh-lobby-count span { font-weight: 500; color: var(--lvh-ink-2); font-size: 23px; margin-left: 10px; }
-.lvh-lobby-count .lvh-lobby-wait { margin-left: 0; font-size: 30px; }
-.lvh-lobby-kick { position: absolute; right: 40px; top: 44px; margin: 0; font: 400 17px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
-.lvh-lobby-more { position: absolute; z-index: 3; width: 98px; height: 80px; display: grid; place-items: center; font: 700 22px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lvh-lobby-scan p { margin: 0; font: 500 23px/1.3 var(--ph-sans, system-ui); color: var(--lvh-ink); }
+.lvh-lobby-tg,
+.lvh-lobby-later { display: block; margin-top: 12px; }
+.lvh-lobby-later { font-size: 21px; color: var(--lvh-ink-2); }
+.lvh-lobby-panel { position: absolute; border-radius: 44px; background: var(--lvh-blue-soft); }
+.lvh-lobby-count { position: absolute; left: 40px; top: 30px; display: flex; align-items: baseline; gap: 14px; font-variant-numeric: tabular-nums; }
+.lvh-lobby-count b { font: 800 80px/1 var(--ph-sans, system-ui); letter-spacing: -0.03em; }
+.lvh-lobby-count span { font: 600 32px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lvh-lobby-wait { position: absolute; inset: 0; display: grid; place-content: center; gap: 14px; text-align: center; }
+.lvh-lobby-wait b { font: 700 52px/1.1 var(--ph-sans, system-ui); letter-spacing: -0.02em; }
+.lvh-lobby-wait span { font: 500 25px/1.3 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lvh-lobby-more { position: absolute; z-index: 3; height: 80px; display: grid; place-items: center; font: 700 26px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lvh-lobby-foot { position: absolute; left: 40px; right: 40px; bottom: 22px; height: 66px; display: flex; align-items: center; gap: 18px; }
+.lvh-lobby-settings { font: 500 20px/1.2 var(--ph-sans, system-ui); color: var(--lvh-ink-2); white-space: nowrap; }
+.lvh-btn--start { height: 66px; padding: 0 34px; font-size: 26px; }
+/* The teacher's post into the chat: one pill; a short list, or how to bind a chat, over it when pressed. */
+.lvh-tg { position: relative; display: flex; align-items: center; gap: 12px; }
+.lvh-tg-pill { display: inline-flex; align-items: center; gap: 9px; height: 46px; padding: 0 18px; border-radius: 999px; background: var(--lvh-card); box-shadow: inset 0 0 0 1.5px var(--lvh-line); font: 600 18px/1 var(--ph-sans, system-ui); color: var(--lvh-ink); white-space: nowrap; }
+.lvh-tg-pill[data-posted] { background: var(--lvh-green-soft); box-shadow: inset 0 0 0 1.5px #b9dcc2; color: var(--lvh-green-ink); }
+.lvh-tg-pill:disabled { opacity: 0.55; cursor: default; }
+@media (hover: hover) {
+  .lvh-tg-pill:not(:disabled):hover { box-shadow: inset 0 0 0 1.5px var(--lvh-ink); }
+}
+.lvh-tg-note { font: 500 18px/1.3 var(--ph-sans, system-ui); color: #6b4300; }
+.lvh-tg-pop { position: absolute; left: 0; bottom: calc(100% + 12px); z-index: 50; width: 500px; padding: 20px 56px 20px 22px; border-radius: 24px; background: var(--lvh-card); box-shadow: 0 18px 50px rgba(11, 18, 28, 0.18), inset 0 0 0 1.5px var(--lvh-line); font: 400 18px/1.45 var(--ph-sans, system-ui); color: var(--lvh-ink-2); animation: lvh-dialog-in 0.2s var(--lvh-out) backwards; }
+.lvh-tg-pop p { margin: 0; }
+.lvh-tg-pop p + .lvh-btn,
+.lvh-tg-pop p + .lvh-tg-chats { margin-top: 12px; }
+.lvh-tg-chats { display: flex; flex-wrap: wrap; gap: 8px; }
+.lvh-tg-close { position: absolute; right: 10px; top: 8px; width: 40px; height: 40px; border-radius: 50%; font: 400 28px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 
 /* The class (Crowd.tsx): each character is a box of 72 units scaled to its place's size (.lvh-body) and a name label
    beside it at a fixed 24 units, cut with «…» at its place's width. Between the lobby, the arena and the podium both
@@ -130,7 +146,6 @@ a.lvh-btn { text-decoration: none; }
 .lvh-slot[role='button']:focus-visible .lvh-body { outline: 3px solid var(--lvh-yellow); outline-offset: 4px; border-radius: 18px; }
 .lvh-hop { position: absolute; inset: 0; transform-origin: 50% 100%; animation: lvh-pop 0.52s var(--lvh-pop) backwards; }
 .lvh-crowd[data-view='podium'] .lv-char__in { animation: lv-cheer 0.7s ease-out var(--lv-delay, 0ms) infinite; }
-.lvh-lobby-foot { position: absolute; left: 580px; right: 40px; bottom: 26px; height: 64px; display: flex; align-items: center; justify-content: space-between; gap: 18px; font: 400 20px/1.3 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 
 /* ───────── arena ───────── */
 .lvh-battle { position: absolute; inset: 0; }

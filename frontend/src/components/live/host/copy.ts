@@ -98,32 +98,39 @@ export const TOP = {
 };
 
 export const LOBBY = {
+  how: 'Как войти в игру',
+  go: 'Заходите на',
   pin: 'PIN игры',
-  camera: 'Камера:',
-  cameraText: 'наведите на код',
-  site: 'Сайт:',
+  camera: 'Или наведите камеру телефона на код.',
+  tg: (title: string) => `В Telegram — кнопка «Играть» в беседе ${title ? `«${title}»` : 'группы'}.`,
+  later: 'Войти можно и после начала.',
+  players: 'Игроки',
   count: (n: number) => ({ n: nb(n), word: plural(n, PLAYERS) }),
   waiting: 'Ждём игроков',
+  waitingHint: 'Они появятся здесь, как только войдут.',
   more: (n: number) => `и ещё ${nb(n)}`,
-  foot: 'Начните, когда соберутся все. Войти можно и после начала.',
   start: 'Начать',
   settings: (time: number, speed: boolean, members: boolean) =>
     [`${time}${NBSP}с на вопрос`, speed ? 'очки за скорость' : 'только верность', members ? 'только участники экзамена' : 'все по PIN'].join(' · '),
-  kickHint: 'Нажмите на игрока, чтобы убрать его.',
 };
 
 const chatName = (title: string | null) => (title ? `«${title}»` : 'без названия');
 
-/** The game's post into the exam's Telegram group (`live_tg_post`, W1 20.10), from the lobby. */
+/**
+ * The game's post into the exam's Telegram group (`live_tg_post`, W1 20.10), from the lobby: a compact control of the
+ * teacher's. The way to bind a chat is told only when pressed with none bound — the class never reads it.
+ */
 export const TG = {
-  label: 'Telegram:',
-  play: (title: string | null) => `кнопка «Играть» в беседе ${chatName(title)}`,
-  send: (title: string | null) => `Отправить в беседу ${chatName(title)}`,
+  send: 'Отправить в беседу',
+  sendTo: (title: string | null) => `Отправить в беседу ${chatName(title)}`,
   sending: 'Отправляем…',
+  sent: (title: string | null) => `Пост в беседе ${chatName(title)}`,
   posted: (title: string | null) => `Пост отправлен в беседу ${chatName(title)}`,
-  none: 'беседа группы не подключена. Подключить её можно на странице теста: «⋯» → «Пригласить группу» → «Подключить беседу».',
+  pick: 'В какую беседу?',
+  none: 'К этому тесту не подключена ни одна беседа. Подключить: страница теста → «⋯» → «Пригласить группу» → «Подключить беседу». Ученики пока входят по PIN.',
   failed: 'Не получилось узнать, какие беседы подключены.',
   retry: 'Повторить',
+  close: 'Закрыть',
   wait: (s: number | null) => (s ? `Пост уже отправлен. Следующий можно через ${s} с.` : 'Пост уже отправлен. Следующий можно через минуту.'),
   error: {
     '28000': 'Войдите на сайт, чтобы отправить пост в беседу.',

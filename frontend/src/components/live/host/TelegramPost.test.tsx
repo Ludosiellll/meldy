@@ -28,15 +28,17 @@ afterEach(() => {
 });
 
 describe('the lobby’s Telegram post', () => {
-  it('posts into the bound chat and says so; a second post within a minute shows the wait', async () => {
+  it('one chat: the pill posts at once and says where; a second post within a minute shows the wait', async () => {
     const api = createFakeServer({ bots: 0, latencyMs: 0, demoPin: null });
     const g = await api.create({ quiz_id: 'q' }, SETTINGS);
-    const view = render(<TelegramPost api={api} gameId={g.game_id} containerId="c" fake />);
+    const posted = vi.fn();
+    const view = render(<TelegramPost api={api} gameId={g.game_id} containerId="c" fake onPosted={posted} />);
     await tick(10);
     fireEvent.click(screen.getByRole('button', { name: 'Отправить в беседу «3-ПО»' }));
     await tick(10);
     expect(screen.getByRole('status')).toHaveTextContent('Пост отправлен в беседу «3-ПО»');
-    expect(view.container.textContent).toMatch(/Telegram: кнопка «Играть» в беседе «3-ПО»/);
+    expect(screen.getByRole('button', { name: 'Пост в беседе «3-ПО»' })).toBeInTheDocument();
+    expect(posted).toHaveBeenCalledWith({ chatId: -1001234567890, title: '3-ПО' });
     view.unmount();
     // another tab of the same game: the server refuses a second post within the minute
     window.sessionStorage.clear();
@@ -51,13 +53,33 @@ describe('the lobby’s Telegram post', () => {
     expect(screen.getByRole('button', { name: 'Отправить в беседу «3-ПО»' })).toBeEnabled();
   });
 
-  it('no chat bound to the exam: how to bind one, in plain words', async () => {
+  it('no chat bound: a plain pill; how to bind one only when pressed (never on the projector by itself)', async () => {
     groups.list = [];
     const api = createFakeServer({ bots: 0, latencyMs: 0, demoPin: null });
-    render(<TelegramPost api={api} gameId="g" containerId="c" fake={false} />);
+    const view = render(<TelegramPost api={api} gameId="g" containerId="c" fake={false} />);
     await tick(10);
-    expect(screen.getByText(/беседа группы не подключена/)).toHaveTextContent('«⋯» → «Пригласить группу» → «Подключить беседу»');
-    expect(screen.queryByRole('button')).toBeNull();
+    expect(view.container.textContent).toBe('Отправить в беседу');
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить в беседу' }));
+    const pop = screen.getByRole('dialog', { name: 'Отправить в беседу' });
+    expect(pop).toHaveTextContent('«⋯» → «Пригласить группу» → «Подключить беседу»');
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('several chats: pressed, a short list to pick from', async () => {
+    groups.list = [
+      { chatId: -1, title: '3-ПО' },
+      { chatId: -2, title: '4-ИС' },
+    ];
+    const api = createFakeServer({ bots: 0, latencyMs: 0, demoPin: null });
+    const g = await api.create({ quiz_id: 'q' }, SETTINGS);
+    render(<TelegramPost api={api} gameId={g.game_id} containerId="c" fake={false} />);
+    await tick(10);
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить в беседу' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить в беседу «4-ИС»' }));
+    await tick(10);
+    expect(screen.getByRole('status')).toHaveTextContent('Пост отправлен в беседу «4-ИС»');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('names every refusal of live_tg_post', () => {

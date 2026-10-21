@@ -1,13 +1,15 @@
 /**
- * The room before the first question (prototype host-02): PIN in letters a class reads from the back, the QR code of the
- * join link (made on the device), the Telegram line, and the blue panel the characters stand on as they come in. The
- * characters themselves are the crowd's (Crowd.tsx): they stay when the game starts and walk into the arena.
+ * The room before the first question, for the class at the back of the room: a card with the short address, the PIN
+ * in the biggest letters on the screen and the QR code of the join link (made on the device); the panel the class
+ * gathers on, with their count; and one line of the teacher's under both — the settings, the post into the chat (a
+ * compact control, TelegramPost) and «Начать». The characters are the crowd's (Crowd.tsx): they stay when the game
+ * starts and walk into the arena.
  */
 import { useMemo, type ReactNode } from 'react';
 import type { HostState } from '../../../lib/live/types';
 import { qrCode, shortLink } from '../../../lib/quizzes/qr';
 import { LOBBY, NEXT, pinText } from './copy';
-import type { Point } from './layout';
+import { lobbyBoxes, type Point } from './layout';
 
 function Qr({ text }: { text: string }) {
   const qr = useMemo(() => qrCode(text), [text]);
@@ -18,61 +20,79 @@ function Qr({ text }: { text: string }) {
   );
 }
 
+const box = (b: { x: number; y: number; w: number; h: number }) => ({ left: b.x, top: b.y, width: b.w, height: b.h });
+
 export interface LobbyProps {
   state: HostState;
   players: number;
   /** Players the grid has no room for, and where «и ещё N» goes. */
   more: number;
   morePoint: Point;
+  moreW: number;
   joinUrl: string;
+  width: number;
   busy: boolean;
   onStart: () => void;
-  /** The Telegram line (TelegramPost), when the exam is known. */
+  /** The teacher's post into the chat (TelegramPost), when the exam is known. */
   telegram?: ReactNode;
+  /** The chat the game was posted to: the class is told where its «Играть» is. */
+  tgChat?: string | null;
 }
 
-export function Lobby({ state, players, more, morePoint, joinUrl, busy, onStart, telegram }: LobbyProps) {
+export function Lobby({ state, players, more, morePoint, moreW, joinUrl, width, busy, onStart, telegram, tgChat = null }: LobbyProps) {
   const n = LOBBY.count(players);
   const site = shortLink(joinUrl.replace(/\?.*$/, ''));
+  const { card, panel } = lobbyBoxes(width);
+  // the address on one line, as big as the card allows (Onest's bold letters average ~0.56 of their size)
+  const siteFont = Math.max(22, Math.min(32, Math.floor((card.w - 80) / (Math.max(1, site.length) * 0.56))));
   return (
     <div className="lvh-lobby">
-      <div className="lvh-lobby-left">
-        <div className="lvh-lobby-pin-k">{LOBBY.pin}</div>
+      <section className="lvh-lobby-card" style={box(card)} aria-label={LOBBY.how}>
+        <div className="lvh-lobby-k">{LOBBY.go}</div>
+        <div className="lvh-lobby-site" style={{ fontSize: siteFont }}>
+          {site}
+        </div>
+        <div className="lvh-lobby-k lvh-lobby-k--pin">{LOBBY.pin}</div>
         <div className="lvh-lobby-pin" aria-label={`PIN ${state.pin.split('').join(' ')}`}>
           {pinText(state.pin)}
         </div>
-        <div className="lvh-qr">
-          <Qr text={joinUrl} />
+        <div className="lvh-lobby-scan">
+          <div className="lvh-qr">
+            <Qr text={joinUrl} />
+          </div>
+          <p>
+            {LOBBY.camera}
+            {tgChat !== null ? <span className="lvh-lobby-tg">{LOBBY.tg(tgChat)}</span> : null}
+            <span className="lvh-lobby-later">{LOBBY.later}</span>
+          </p>
         </div>
-        <p className="lvh-lobby-how">
-          <b>{LOBBY.camera}</b> {LOBBY.cameraText}
-          <br />
-          <b>{LOBBY.site}</b> {site}
-        </p>
-        {telegram}
-        <p className="lvh-lobby-settings">{LOBBY.settings(state.time_s, state.speed, state.settings.who === 'members')}</p>
-      </div>
-      <section className="lvh-lobby-right" aria-label="Игроки">
+      </section>
+      <section className="lvh-lobby-panel" style={box(panel)} aria-label={LOBBY.players}>
         <div className="lvh-lobby-count" aria-live="polite">
           {players > 0 ? (
             <>
-              {n.n}
+              <b>{n.n}</b>
               <span>{n.word}</span>
             </>
-          ) : (
-            <span className="lvh-lobby-wait">{LOBBY.waiting}</span>
-          )}
+          ) : null}
         </div>
-        {players > 0 ? <p className="lvh-lobby-kick">{LOBBY.kickHint}</p> : null}
+        {players === 0 ? (
+          <div className="lvh-lobby-wait">
+            <b>{LOBBY.waiting}</b>
+            <span>{LOBBY.waitingHint}</span>
+          </div>
+        ) : null}
       </section>
       {more > 0 ? (
-        <div className="lvh-lobby-more" style={{ left: morePoint.x, top: morePoint.y }}>
+        <div className="lvh-lobby-more" style={{ left: morePoint.x, top: morePoint.y, width: moreW }}>
           {LOBBY.more(more)}
         </div>
       ) : null}
       <div className="lvh-lobby-foot">
-        <span>{LOBBY.foot}</span>
-        <button type="button" className="lvh-btn" onClick={onStart} disabled={busy || players === 0}>
+        <span className="lvh-lobby-settings">{LOBBY.settings(state.time_s, state.speed, state.settings.who === 'members')}</span>
+        {telegram}
+        <span className="lvh-grow" />
+        <button type="button" className="lvh-btn lvh-btn--start" onClick={onStart} disabled={busy || players === 0}>
           {LOBBY.start}
           <kbd className="lvh-kbd">{NEXT.key}</kbd>
         </button>

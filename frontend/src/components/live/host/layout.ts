@@ -200,31 +200,63 @@ export function podiumSlots(count: number, width: number, max = 32): Slot[] {
  */
 export const CHAR_BASE = 72;
 
-/** The lobby's grid inside its blue panel (host.css .lvh-lobby-right: left 580, right 40, top 96, bottom 116). */
-const LOBBY_GRID = { left: 610, top: 200, right: 70, bottom: 136, cellW: 98, cellH: 120 };
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * The lobby is for the room: on the left a card with the address, the PIN and the QR code; on the right the panel the
+ * class gathers on; under both, one line of the teacher's (settings, the post into the chat, «Начать»).
+ */
+export function lobbyBoxes(width: number): { card: Box; panel: Box; grid: Box } {
+  const cardW = width < 1560 ? 560 : 600;
+  const card = { x: 40, y: 92, w: cardW, h: 696 };
+  const panel = { x: card.x + cardW + 36, y: 92, w: width - 40 - (card.x + cardW + 36), h: 696 };
+  // the grid under the panel's count
+  const grid = { x: panel.x + 36, y: panel.y + 136, w: panel.w - 72, h: panel.h - 136 - 24 };
+  return { card, panel, grid };
+}
 
 export interface LobbyLayout {
   slots: Slot[];
   /** Players not drawn («и ещё N»), and where that note goes. */
   more: number;
   morePoint: Point;
+  /** The note's cell. */
+  moreW: number;
 }
 
+/** The lobby's sizes, biggest first: the class is drawn as big as its number allows. */
+const LOBBY_SIZES = [96, 88, 80, 72, 64, 56] as const;
+
 export function lobbySlots(count: number, width: number): LobbyLayout {
-  const g = LOBBY_GRID;
-  const cols = Math.max(1, Math.floor((width - g.right - g.left) / g.cellW));
-  const rows = Math.max(1, Math.floor((STAGE_H - g.bottom - g.top) / g.cellH));
-  const capacity = Math.min(LOBBY_MAX, cols * rows);
+  const { grid } = lobbyBoxes(width);
+  const n = Math.min(count, LOBBY_MAX);
+  let pick = { size: 56, cellW: 112, cellH: 56 + NAME_ROOM + 12, cols: 1, rows: 1 };
+  for (const size of LOBBY_SIZES) {
+    const cellW = Math.max(size + 26, 112);
+    const cellH = size + NAME_ROOM + 12;
+    const cols = Math.max(1, Math.floor(grid.w / cellW));
+    const rows = Math.max(1, Math.floor(grid.h / cellH));
+    pick = { size, cellW, cellH, cols, rows };
+    if (cols * rows >= n) break;
+  }
+  const capacity = Math.min(LOBBY_MAX, pick.cols * pick.rows);
   const shown = count > capacity ? capacity - 1 : count;
-  const cell = (i: number): Point => ({ x: g.left + (i % cols) * g.cellW, y: g.top + Math.floor(i / cols) * g.cellH });
+  const used = Math.max(1, Math.min(pick.cols, shown + (count > shown ? 1 : 0)));
+  const left = grid.x + (grid.w - used * pick.cellW) / 2;
+  const cell = (i: number): Point => ({ x: left + (i % pick.cols) * pick.cellW, y: grid.y + Math.floor(i / pick.cols) * pick.cellH });
   const slots: Slot[] = [];
   for (let i = 0; i < shown; i += 1) {
     const c = cell(i);
-    const x = c.x + (g.cellW - CHAR_BASE) / 2;
-    const y = c.y + 4;
-    slots.push({ x, y, size: CHAR_BASE, cx: x + CHAR_BASE / 2, cy: y + CHAR_BASE * 0.45, side: -1, nameW: g.cellW - 8 });
+    const x = c.x + (pick.cellW - pick.size) / 2;
+    const y = c.y;
+    slots.push({ x, y, size: pick.size, cx: x + pick.size / 2, cy: y + pick.size * 0.45, side: -1, nameW: pick.cellW - 8 });
   }
-  return { slots, more: count - shown, morePoint: cell(shown) };
+  return { slots, more: count - shown, morePoint: cell(shown), moreW: pick.cellW };
 }
 
 /** The podium's three places: the character's box on top of each column (1st, 2nd, 3rd). */

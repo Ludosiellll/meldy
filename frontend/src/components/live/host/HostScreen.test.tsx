@@ -63,6 +63,13 @@ describe('teacher screen against the fake server', () => {
     expect(view.container.querySelectorAll('.lvh-slot[role="button"]')).toHaveLength(23);
     expect(screen.getByRole('button', { name: /Начать/ })).toBeEnabled();
     expect(screen.getByText('Базы данных')).toBeInTheDocument();
+    // for the room: the short address; nothing of the teacher's setup on the projector
+    expect(view.container.querySelector('.lvh-lobby-site')?.textContent).toBe('ludosiel-studyforge.hf.space/play');
+    expect(view.container.textContent).not.toMatch(/Пригласить группу|Нажмите на игрока/);
+    // the post into the chat: the class is told where its «Играть» is
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить в беседу «3-ПО»' }));
+    await tick(50);
+    expect(view.container.querySelector('.lvh-lobby-card')?.textContent).toMatch(/В Telegram — кнопка «Играть» в беседе «3-ПО»\./);
   });
 
   it('the sound’s switch in the bar: on by default, remembered when turned off', async () => {

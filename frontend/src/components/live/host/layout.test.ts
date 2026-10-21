@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_MAX, BOSS_SIZE, CHAR_BASE, NAME_ROOM, STAGE_H, arenaSlots, bossBox, hpBox, lobbySlots, optionFont, podiumSlots, podiumTopSlots, questionFont, seats, stageFit, type Slot } from './layout';
+import { ARENA_MAX, BOSS_SIZE, NAME_ROOM, STAGE_H, arenaSlots, bossBox, hpBox, lobbyBoxes, lobbySlots, optionFont, podiumSlots, podiumTopSlots, questionFont, seats, stageFit, type Slot } from './layout';
 
 const WIDTHS = [1440, 1600, 1878, 2100];
 
@@ -121,19 +121,39 @@ describe('host layout', () => {
 
   it('the lobby grid fits its panel; past its room, «и ещё N» takes the last cell', () => {
     for (const width of WIDTHS) {
+      const { card, panel, grid } = lobbyBoxes(width);
+      expect(card.x + card.w).toBeLessThan(panel.x);
+      expect(panel.x + panel.w).toBe(width - 40);
       const few = lobbySlots(5, width);
       expect(few.slots).toHaveLength(5);
       expect(few.more).toBe(0);
       const many = lobbySlots(60, width);
       expect(many.slots.length + many.more).toBe(60);
       expect(many.more).toBeGreaterThan(0);
-      for (const s of many.slots) {
-        expect(s.x).toBeGreaterThanOrEqual(580);
-        expect(s.x + CHAR_BASE).toBeLessThanOrEqual(width - 40);
-        expect(s.y + CHAR_BASE + 24).toBeLessThanOrEqual(900 - 116);
+      for (const s of [...many.slots, ...lobbySlots(23, width).slots]) {
+        // the character and its name inside the grid
+        expect(s.cx - s.nameW / 2).toBeGreaterThanOrEqual(grid.x - 0.01);
+        expect(s.cx + s.nameW / 2).toBeLessThanOrEqual(grid.x + grid.w + 0.01);
+        expect(s.y).toBeGreaterThanOrEqual(grid.y);
+        expect(s.y + s.size + NAME_ROOM).toBeLessThanOrEqual(grid.y + grid.h + 0.01);
       }
-      expect(many.morePoint.y + 80).toBeLessThanOrEqual(900 - 116);
+      expect(many.morePoint.y + 80).toBeLessThanOrEqual(panel.y + panel.h);
     }
+  });
+
+  it('a class of 23 is drawn big in the lobby, names readable', () => {
+    for (const width of WIDTHS) {
+      const l = lobbySlots(23, width);
+      expect(l.more, `w=${width}`).toBe(0);
+      expect(Math.min(...l.slots.map((s) => s.size)), `w=${width}`).toBeGreaterThanOrEqual(80);
+      expect(Math.min(...l.slots.map((s) => s.nameW)), `w=${width}`).toBeGreaterThanOrEqual(104);
+    }
+    // few players: bigger still, the row centred in the panel
+    const three = lobbySlots(3, 1600);
+    expect(three.slots[0].size).toBe(96);
+    const { grid } = lobbyBoxes(1600);
+    const mid = (three.slots[0].cx + three.slots[2].cx) / 2;
+    expect(Math.abs(mid - (grid.x + grid.w / 2))).toBeLessThan(1);
   });
 
   it('the podium’s three stand on their columns', () => {
