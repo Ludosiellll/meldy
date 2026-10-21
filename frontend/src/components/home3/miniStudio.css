@@ -1,19 +1,106 @@
-/* The small studio on the landing: a light picture of the studio in both themes, as the app draws it. */
+/* The small studio on the landing: a light picture of the studio in both themes, as the app draws it.
+
+   Its size (owner, 2026-10-21: «конструктор тестов неудобно просматривать на 100 приближении … нужно сделать что-то
+   с размерами»): on a tablet or a computer the whole studio is one window tall, the page under the site's top line
+   (68 px) with a little air: 100svh − 100 px, between 500 and 700 px. A 1366×768 laptop's window (about 657 px inside
+   the browser) gets 557 px, so the palette, the page and the participant's phone are all in view at 100 % zoom. The
+   columns follow from that height, never by scaling: the phone is half as wide as it is tall, the page between takes
+   the rest and scrolls inside itself; text keeps its pixel sizes. On a phone the page and the participant's view take
+   turns in one place of a fixed height (the switch on top), so neither pushes the other down. */
 .ms {
   --ms-acc: #2869dd;
+  --ms-pad: 16px;
+  --ms-h: clamp(500px, calc(100vh - 100px), 700px);
+  --ms-h: clamp(500px, calc(100svh - 100px), 700px);
+  --ms-phone-w: min(300px, calc((var(--ms-h) - 2 * var(--ms-pad) - 30px) / 2));
   display: grid;
-  gap: 16px;
-  padding: 16px;
+  gap: 12px;
+  padding: var(--ms-pad);
   border-radius: 32px;
   background: #ecece6;
   color: #0b121c;
   font-size: 14px;
 }
-@media (min-width: 1040px) {
+/* a tablet: the palette over the page, the phone beside both */
+@media (min-width: 700px) {
   .ms {
-    grid-template-columns: 168px minmax(0, 1fr) 300px;
-    align-items: start;
-    padding: 20px;
+    --ms-phone-w: min(260px, calc((var(--ms-h) - 2 * var(--ms-pad) - 30px) / 2));
+    height: var(--ms-h);
+    grid-template-columns: minmax(0, 1fr) var(--ms-phone-w);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'pal take'
+      'work take';
+  }
+}
+/* a computer: palette, page, phone */
+@media (min-width: 1000px) {
+  .ms {
+    --ms-pad: 18px;
+    --ms-phone-w: min(300px, calc((var(--ms-h) - 2 * var(--ms-pad) - 30px) / 2));
+    gap: 14px;
+    grid-template-columns: 148px minmax(0, 1fr) var(--ms-phone-w);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: 'pal work take';
+  }
+}
+/* a phone: the switch, then the page (palette, look, page) or the participant's phone in the same place */
+@media (max-width: 699px) {
+  .ms {
+    --ms-pad: 12px;
+    height: min(680px, calc(100vh - 96px));
+    height: min(680px, calc(100svh - 96px));
+    min-height: 540px;
+    border-radius: 28px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas:
+      'views'
+      'pal'
+      'work';
+  }
+  .ms-take {
+    grid-row: 2 / 4;
+    grid-column: 1;
+  }
+  .ms-pal,
+  .ms-work,
+  .ms-take {
+    transition: opacity 0.2s ease;
+  }
+  .ms[data-view='page'] .ms-take,
+  .ms[data-view='take'] .ms-pal,
+  .ms[data-view='take'] .ms-work {
+    visibility: hidden;
+    opacity: 0;
+  }
+}
+.ms-views {
+  display: none;
+}
+@media (max-width: 699px) {
+  .ms-views {
+    grid-area: views;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    border-radius: 999px;
+    background: #fff;
+  }
+  .ms-views button {
+    flex: 1 1 0;
+    height: 36px;
+    padding: 0 6px;
+    white-space: nowrap;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .ms-views button.is-on {
+    background: #0b121c;
+    color: #fff;
   }
 }
 .ms button {
@@ -30,9 +117,12 @@
 
 /* the palette */
 .ms-pal {
+  grid-area: pal;
   display: flex;
   flex-wrap: wrap;
+  align-content: flex-start;
   gap: 6px;
+  min-width: 0;
   padding: 12px;
   border-radius: 20px;
   background: #fff;
@@ -64,7 +154,7 @@
   font-size: 12px;
   color: #4b515b;
 }
-@media (min-width: 1040px) {
+@media (min-width: 1000px) {
   .ms-pal {
     flex-direction: column;
     flex-wrap: nowrap;
@@ -73,12 +163,38 @@
     width: 100%;
   }
 }
+@media (min-width: 700px) and (max-width: 999px) {
+  .ms-pal-h,
+  .ms-pal-hint {
+    display: none;
+  }
+}
+/* a phone: the blocks in one line that scrolls sideways */
+@media (max-width: 699px) {
+  .ms-pal {
+    flex-wrap: nowrap;
+    padding: 6px;
+    overflow-x: auto;
+    border-radius: 16px;
+    scrollbar-width: none;
+  }
+  .ms-pal-h,
+  .ms-pal-hint {
+    display: none;
+  }
+  .ms-pal-i {
+    flex: none;
+  }
+}
 
 /* the look and the page */
 .ms-work {
-  display: grid;
+  grid-area: work;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   min-width: 0;
+  min-height: 0;
 }
 .ms-look {
   display: flex;
@@ -128,12 +244,29 @@
 .ms-choice button.is-on .ms-sw {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0b121c;
 }
+/* a phone: colour, font and background in one line that scrolls sideways */
+@media (max-width: 699px) {
+  .ms-look {
+    flex-wrap: nowrap;
+    padding: 8px 10px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .ms-choice {
+    flex-wrap: nowrap;
+    flex: none;
+  }
+  .ms-choice button {
+    flex: none;
+  }
+}
 /* The page scrolls inside the canvas, as the participant's phone does: a block added below is brought into view here
    (MiniStudio.showInCanvas), never by scrolling the landing. */
 .ms-canvas {
-  min-height: 420px;
-  max-height: min(560px, 70vh);
+  flex: 1 1 0;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px;
   border-radius: 22px;
   background: #f3f3f0;
@@ -147,8 +280,14 @@
 .ms-page {
   display: grid;
   gap: 8px;
-  max-width: 560px;
+  max-width: 520px;
   margin: 0 auto;
+}
+/* a short window: a lower cover, so the blocks under it are in view */
+@media (max-height: 820px) {
+  .ms-cover img {
+    aspect-ratio: 3 / 1;
+  }
 }
 .ms-cover,
 .ms-blk {
@@ -342,29 +481,53 @@
   color: #d0d4da;
 }
 .ms-said {
+  flex: none;
   min-height: 1.4em;
   margin: 0;
   font-size: 13px;
+  line-height: 1.4;
   color: #4b515b;
 }
+.ms-bands {
+  flex: none;
+  margin: -6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6b7079;
+}
 
-/* the participant's phone */
+/* the participant's phone: as tall as the studio leaves it, half as wide */
 .ms-take {
-  display: grid;
-  justify-items: center;
+  grid-area: take;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
+  min-width: 0;
+  min-height: 0;
 }
 .ms-take-h {
+  flex: none;
   margin: 0;
   font-size: 13px;
   font-weight: 600;
+  line-height: 20px;
 }
 .ms-phone {
-  width: min(100%, 300px);
-  height: 560px;
-  padding: 9px;
-  border-radius: 40px;
+  flex: 1 1 0;
+  width: 100%;
+  min-height: 0;
+  padding: 8px;
+  border-radius: 38px;
   background: #0b121c;
+}
+@media (max-width: 699px) {
+  .ms-take-h {
+    display: none;
+  }
+  .ms-phone {
+    width: min(100%, 310px);
+  }
 }
 .ms-phone-in {
   position: relative;
@@ -397,6 +560,7 @@
   inset: 0;
   display: grid;
   align-content: start;
+  grid-auto-rows: max-content; /* a card never shrinks under its content when the page is taller than the phone */
   gap: 8px;
   padding: 12px 10px 16px;
   overflow-y: auto;
@@ -533,15 +697,13 @@
   font-weight: 600;
   color: var(--ms-acc);
 }
-.ms-bands {
-  max-width: 300px;
-  margin: 0;
-  font-size: 12px;
-  color: #4b515b;
-  text-align: center;
-}
 @media (prefers-reduced-motion: reduce) {
   .ms-blk {
     animation: none;
+  }
+  .ms-pal,
+  .ms-work,
+  .ms-take {
+    transition: none;
   }
 }
