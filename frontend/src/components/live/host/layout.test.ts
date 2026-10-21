@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ARENA_MAX, BOSS_SIZE, CHAR_BASE, STAGE_H, arenaSlots, bossBox, hpBox, lobbySlots, optionFont, podiumSlots, podiumTopSlots, questionFont, stageFit } from './layout';
+import { ARENA_MAX, BOSS_SIZE, CHAR_BASE, NAME_ROOM, STAGE_H, arenaSlots, bossBox, hpBox, lobbySlots, optionFont, podiumSlots, podiumTopSlots, questionFont, seats, stageFit, type Slot } from './layout';
 
 const WIDTHS = [1440, 1600, 1878, 2100];
 
@@ -32,7 +32,7 @@ describe('host layout', () => {
           expect(s.x + s.size).toBeLessThanOrEqual(width - 20);
           expect(s.y).toBeGreaterThanOrEqual(180);
           // the names under the last row stay above the question panel (it starts at 540)
-          expect(s.y + s.size + 20).toBeLessThanOrEqual(540);
+          expect(s.y + s.size + NAME_ROOM).toBeLessThanOrEqual(540);
           // never on the monster
           expect(s.x + s.size <= boss.x + 20 || s.x >= boss.x + BOSS_SIZE - 20).toBe(true);
         }
@@ -45,6 +45,59 @@ describe('host layout', () => {
           }
       }
     }
+  });
+
+  it('gives every name its own room: no two names (or a name and a character) overlap, nor a name the monster', () => {
+    const nameBox = (s: Slot) => ({ l: s.cx - s.nameW / 2, r: s.cx + s.nameW / 2, t: s.y + s.size, b: s.y + s.size + NAME_ROOM });
+    const bodyBox = (s: Slot) => ({ l: s.x, r: s.x + s.size, t: s.y, b: s.y + s.size });
+    const hit = (a: { l: number; r: number; t: number; b: number }, b: { l: number; r: number; t: number; b: number }) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
+    for (const width of WIDTHS) {
+      const boss = bossBox(width);
+      for (const n of [6, 12, 16, 23, 24, 30, 31, 36, 40]) {
+        const slots = arenaSlots(n, width);
+        for (const s of slots) {
+          expect(s.nameW, `n=${n} w=${width}`).toBeGreaterThanOrEqual(84);
+          const nb = nameBox(s);
+          expect(nb.r <= boss.x + 4 || nb.l >= boss.x + BOSS_SIZE - 4, `name on the monster n=${n} w=${width}`).toBe(true);
+        }
+        for (let i = 0; i < slots.length; i += 1)
+          for (let j = 0; j < slots.length; j += 1) {
+            if (i === j) continue;
+            expect(hit(nameBox(slots[i]), nameBox(slots[j])), `names n=${n} w=${width} ${i}/${j}`).toBe(false);
+            expect(hit(nameBox(slots[i]), bodyBox(slots[j])), `name/body n=${n} w=${width} ${i}/${j}`).toBe(false);
+          }
+      }
+      const pod = podiumSlots(40, width);
+      for (let i = 0; i < pod.length; i += 1)
+        for (let j = i + 1; j < pod.length; j += 1) expect(hit(nameBox(pod[i]), nameBox(pod[j])), `podium w=${width} ${i}/${j}`).toBe(false);
+    }
+  });
+
+  it('seats: by joining order in the lobby; in the game a leaver leaves an empty seat, a newcomer takes it', () => {
+    const lobby = seats(['a', 'b', 'c', 'd'], null);
+    expect([...lobby.of]).toEqual([['a', 0], ['b', 1], ['c', 2], ['d', 3]]);
+    expect(lobby.count).toBe(4);
+    // b is kicked during the game: nobody moves, the arena keeps its four seats
+    const kicked = seats(['a', 'c', 'd'], lobby);
+    expect([...kicked.of]).toEqual([['a', 0], ['c', 2], ['d', 3]]);
+    expect(kicked.count).toBe(4);
+    expect(arenaSlots(kicked.count, 1600)[2]).toEqual(arenaSlots(lobby.count, 1600)[2]);
+    // nothing changed: the same object (no re-render)
+    expect(seats(['a', 'c', 'd'], kicked)).toBe(kicked);
+    // a late joiner takes the empty seat; the next one a new seat
+    const late = seats(['a', 'c', 'd', 'e'], kicked);
+    expect(late.of.get('e')).toBe(1);
+    expect(late.count).toBe(4);
+    const later = seats(['a', 'c', 'd', 'e', 'f'], late);
+    expect(later.of.get('f')).toBe(4);
+    expect(later.count).toBe(5);
+    // past the arena's 40 seats nobody is seated; a leaver's seat goes to the first one waiting
+    const many = Array.from({ length: 45 }, (_, i) => `p${i}`);
+    const full = seats(many, null);
+    expect(full.of.size).toBe(ARENA_MAX);
+    const left = seats(many.filter((id) => id !== 'p7'), full);
+    expect(left.of.get('p40')).toBe(7);
+    expect(left.of.has('p41')).toBe(false);
   });
 
   it('keeps a class of 24 big enough to read from the back', () => {

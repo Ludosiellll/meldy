@@ -15,7 +15,7 @@ import { BANNER, MODE, NEXT } from './copy';
 import { Crowd, type CrowdView, type Place } from './Crowd';
 import { Director, type BannerSpec } from './director';
 import { logState, readLog, type HostInfo } from './hostSession';
-import { ARENA_MAX, CHAR_BASE, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, type LobbyLayout, type Slot } from './layout';
+import { NO_SEATS, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, seats as seatsFor, type LobbyLayout, type Seats, type Slot } from './layout';
 import { Lobby } from './Lobby';
 import { QuestionPanel, TopFive } from './Panel';
 import { ClosedScreen, Podium, gameOutcome, podiumTop, rankRoster, type PodiumRow } from './Podium';
@@ -55,32 +55,41 @@ function useReducedMotion(): boolean {
 const BATTLE_STATES = new Set(['countdown', 'open', 'reveal', 'leaderboard']);
 const NO_ROWS: RosterRow[] = [];
 
-const at = (s: Slot, hidden = false, name = true): Place => ({ x: s.x, y: s.y, k: s.size / CHAR_BASE, hidden, name });
+const at = (s: Slot, i: number, hidden = false, name = true): Place => ({ x: s.x, y: s.y, size: s.size, hidden, name, nameW: s.nameW, i });
 
 /**
  * Where each drawn character stands in this view. Characters the view has no room for keep their arena place, hidden,
- * so that they come in from where they will stand.
+ * so that they come in from where they will stand. `rows` are the seated players (joining order), `seats` their arena
+ * seats.
  */
-export function crowdPlaces(view: CrowdView, rows: RosterRow[], arena: Slot[], lobby: LobbyLayout, top: PodiumRow[], width: number): { places: Map<string, Place>; more: number } {
+export function crowdPlaces(view: CrowdView, rows: RosterRow[], seats: Seats, arena: Slot[], lobby: LobbyLayout, top: PodiumRow[], width: number): { places: Map<string, Place>; more: number } {
   const places = new Map<string, Place>();
-  const hide = (r: RosterRow, i: number) => places.set(r.player_id, at(arena[i] ?? arena[arena.length - 1], true));
+  const seatOf = (r: RosterRow) => seats.of.get(r.player_id) ?? 0;
+  const arenaAt = (r: RosterRow) => arena[seatOf(r)] ?? arena[arena.length - 1];
+  const hide = (r: RosterRow) => {
+    const slot = arenaAt(r);
+    if (slot) places.set(r.player_id, at(slot, seatOf(r), true));
+  };
   if (view === 'lobby') {
-    rows.forEach((r, i) => (lobby.slots[i] ? places.set(r.player_id, at(lobby.slots[i])) : hide(r, i)));
+    rows.forEach((r, i) => (lobby.slots[i] ? places.set(r.player_id, at(lobby.slots[i], i)) : hide(r)));
     return { places, more: lobby.more };
   }
   if (view === 'battle') {
-    rows.forEach((r, i) => places.set(r.player_id, at(arena[i])));
+    rows.forEach((r) => {
+      const slot = arenaAt(r);
+      if (slot) places.set(r.player_id, at(slot, seatOf(r)));
+    });
     return { places, more: 0 };
   }
-  const index = new Map(rows.map((r, i) => [r.player_id, i]));
   const spots = podiumTopSlots(width);
+  const seated = new Set(rows.map((r) => r.player_id));
   const onTop = new Set(top.map((r) => r.player_id));
   top.forEach((r, i) => {
-    if (index.has(r.player_id)) places.set(r.player_id, at(spots[i], false, false));
+    if (seated.has(r.player_id)) places.set(r.player_id, at(spots[i], i, false, false));
   });
   const rest = rankRoster(rows).filter((r) => !onTop.has(r.player_id));
   const sides = podiumSlots(rest.length, width);
-  rest.forEach((r, i) => (sides[i] ? places.set(r.player_id, at(sides[i])) : hide(r, index.get(r.player_id) ?? 0)));
+  rest.forEach((r, i) => (sides[i] ? places.set(r.player_id, at(sides[i], i + 3)) : hide(r)));
   return { places, more: Math.max(0, rest.length - sides.length) };
 }
 
@@ -126,17 +135,29 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   const [firstState] = useState(s.state);
 
   const joined = useMemo(() => byJoin(s.roster), [s.roster]);
-  const visible = useMemo(() => joined.slice(0, ARENA_MAX), [joined]);
-  const slots = useMemo(() => arenaSlots(visible.length, width), [visible.length, width]);
-  const slotMap = useMemo(() => new Map(visible.map((r, i) => [r.player_id, slots[i]])), [visible, slots]);
+  // Seats in the arena: by joining order in the lobby; from the first question on, everyone keeps theirs — a player who
+  // leaves leaves an empty seat, nobody else moves.
+  const inLobby = s.state === 'lobby';
+  const seatsRef = useRef<Seats>(NO_SEATS);
+  const seats = useMemo(() => {
+    const next = seatsFor(
+      joined.map((r) => r.player_id),
+      inLobby ? null : seatsRef.current,
+    );
+    seatsRef.current = next;
+    return next;
+  }, [joined, inLobby]);
+  const visible = useMemo(() => joined.filter((r) => seats.of.has(r.player_id)), [joined, seats]);
+  const slots = useMemo(() => arenaSlots(seats.count, width), [seats.count, width]);
+  const slotMap = useMemo(() => new Map(visible.map((r) => [r.player_id, slots[seats.of.get(r.player_id) ?? 0]])), [visible, slots, seats]);
   const colours = useMemo(() => new Map<string, ColourId>(s.roster.map((r) => [r.player_id, r.look.colour])), [s.roster]);
   const view: CrowdView = s.state === 'lobby' ? 'lobby' : s.state === 'podium' || s.state === 'ended' ? 'podium' : 'battle';
   const lobby = useMemo(() => lobbySlots(joined.length, width), [joined.length, width]);
   const top = useMemo(() => (view === 'podium' ? podiumTop(s) : []), [view, s]);
   const topKey = top.map((r) => r.player_id).join(',');
   const crowd = useMemo(
-    () => crowdPlaces(view, visible, slots, lobby, top, width),
-    [view, visible, slots, lobby, topKey, width], // eslint-disable-line react-hooks/exhaustive-deps
+    () => crowdPlaces(view, visible, seats, slots, lobby, top, width),
+    [view, visible, seats, slots, lobby, topKey, width], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const env = useRef({ slotMap, colours, width });

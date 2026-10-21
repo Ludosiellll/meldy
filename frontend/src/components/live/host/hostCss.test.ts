@@ -24,6 +24,17 @@ describe('host.css', () => {
     }
   });
 
+  it('a character looks the same under a resting mouse (no hover look), names are cut with «…» and step out for a walk', async () => {
+    const css = await read('host.css');
+    expect(css).not.toMatch(/line-through/);
+    expect(css).not.toMatch(/\.lvh-slot[^{]*:hover/);
+    const name = /\.lvh-name \{([^}]*)\}/.exec(css)![1];
+    expect(name).toMatch(/text-overflow: ellipsis/);
+    expect(name).toMatch(/white-space: nowrap/);
+    expect(name).toMatch(/font: 600 24px/);
+    expect(css).toMatch(/\.lvh-crowd\[data-walk\] \.lvh-name \{ opacity: 0;/);
+  });
+
   it('has no glow, gradients or blur in the chrome, and stands still for reduced motion', async () => {
     const css = await read('host.css');
     expect(css).not.toMatch(/gradient\(|text-shadow|drop-shadow|blur\(|backdrop-filter|filter:/);

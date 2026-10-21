@@ -14,7 +14,7 @@ import { Crowd } from './Crowd';
 import { Director } from './director';
 import { syncRest } from './HostScreen';
 import { shareState } from './useHostGame';
-import { CHAR_BASE, arenaSlots } from './layout';
+import { arenaSlots } from './layout';
 import { StageStore } from './stageStore';
 
 type Counts = Record<string, number>;
@@ -114,7 +114,7 @@ function revealState(rows: RosterRow[], hits: { player_id: string; dmg: number; 
 
 function Arena({ store, rows, fx, defs }: { store: StageStore; rows: RosterRow[]; fx: RefObject<HTMLDivElement>; defs: RefObject<HTMLDivElement> }) {
   const slots = arenaSlots(rows.length, 1600);
-  const places = new Map(rows.map((r, i) => [r.player_id, { x: slots[i].x, y: slots[i].y, k: slots[i].size / CHAR_BASE, hidden: false, name: true }]));
+  const places = new Map(rows.map((r, i) => [r.player_id, { x: slots[i].x, y: slots[i].y, size: slots[i].size, hidden: false, name: true, nameW: slots[i].nameW, i }]));
   return (
     <div>
       <HpBar store={store} width={1600} enter={false} />

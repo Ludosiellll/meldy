@@ -42,6 +42,16 @@ describe('live art', () => {
     expect(el.querySelector('.lv-move-idle')).not.toBeNull();
   });
 
+  it('a long name stays one line within its width, the full name in its title', async () => {
+    render(<Character look={{ body: 'round', colour: 'blue', eyes: 'dots', hat: 'none' }} size={58} name="Катя Смирнова-Остроумова" />);
+    const label = screen.getByText('Катя Смирнова-Остроумова');
+    expect(label).toHaveAttribute('title', 'Катя Смирнова-Остроумова');
+    const rule = /\.lv-char__name \{([^}]*)\}/.exec(await readCss())![1];
+    expect(rule).toMatch(/max-width:/);
+    expect(rule).toMatch(/text-overflow: ellipsis/);
+    expect(rule).toMatch(/overflow: hidden/);
+  });
+
   it('marks the locked parts the contract names, and only them', () => {
     const lockedColours = COLOURS.filter((c) => COLOUR_PARTS[c].lock);
     const lockedHats = HATS.filter((h) => HAT_PARTS[h].lock);

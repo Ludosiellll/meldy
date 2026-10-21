@@ -192,6 +192,50 @@ describe('teacher screen against the fake server', () => {
     expect(view.container.querySelectorAll('.lvh-pod-col')).toHaveLength(3);
   });
 
+  it('a kick during the game leaves an empty seat: nobody else moves', async () => {
+    const { view, server } = await start(8);
+    space();
+    await tick(50);
+    await tick(1500); // the walk into the arena
+    const where = () => new Map([...view.container.querySelectorAll<HTMLElement>('.lvh-slot')].map((el) => [el.dataset.player!, el.style.transform]));
+    const before = where();
+    expect(before.size).toBe(8);
+    fireEvent.click(screen.getByRole('button', { name: 'Игроки' }));
+    const sheet = screen.getByRole('dialog', { name: 'Игроки · 8' });
+    fireEvent.click(within(sheet).getAllByRole('button', { name: 'Убрать' })[3]);
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Убрать' }));
+    await tick(50);
+    expect((await server()).players).toBe(7);
+    const after = where();
+    expect(after.size).toBe(7);
+    for (const [id, t] of after) expect(t, id).toBe(before.get(id));
+  });
+
+  it('names: one line at their place’s width, the full name kept; they step out while the class walks', async () => {
+    const api = createFakeServer({ bots: 3, latencyMs: 0, demoPin: null, autoHost: false, fastBots: true, seed: 11 });
+    const g = await api.create({ container_id: 'c', subject_ids: ['s'], count: 6 }, SETTINGS);
+    saveHostToken(g.game_id, g.host_token);
+    const long = 'Катя Смирнова-Остроумова';
+    await api.join(g.pin, long, 'L'.repeat(43), null);
+    const view = render(
+      <MemoryRouter>
+        <LiveHostView gameId={g.game_id} api={api} />
+      </MemoryRouter>,
+    );
+    await tick(50);
+    const label = [...view.container.querySelectorAll<HTMLElement>('.lvh-name')].find((el) => el.textContent === long)!;
+    expect(label).toHaveAttribute('title', long);
+    expect(parseFloat(label.style.width)).toBeLessThanOrEqual(130);
+    expect(screen.getByRole('button', { name: long })).toBeInTheDocument();
+    const crowd = view.container.querySelector('.lvh-crowd')!;
+    expect(crowd).not.toHaveAttribute('data-walk');
+    space();
+    await tick(50);
+    expect(crowd).toHaveAttribute('data-walk');
+    await tick(1400);
+    expect(crowd).not.toHaveAttribute('data-walk');
+  });
+
   it('a reload in the middle of a reveal draws it as it is, without replaying', async () => {
     const { view, ui, server } = await start();
     space();

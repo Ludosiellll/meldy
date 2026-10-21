@@ -46,12 +46,19 @@ export interface Slot {
   cy: number;
   /** -1 on the left of the monster, 1 on the right. */
   side: -1 | 1;
+  /** The widest the name under it may be (it is cut with «…» beyond). */
+  nameW: number;
 }
+
+/** Names under the characters: 24 units (≈ 2.7 % of the screen's height), one line. */
+export const NAME_FONT = 24;
+/** The room a name takes under a character: the gap and its line. */
+export const NAME_ROOM = 34;
 
 export const BOSS_SIZE = 300;
 export const BOSS_TOP = 196;
 const ARENA_TOP = 188;
-const ARENA_BOTTOM = 516;
+const ARENA_BOTTOM = 540;
 const SIDE_PAD = 44;
 const BOSS_GAP = 176;
 
@@ -85,16 +92,16 @@ function grid(perSide: number, blockW: number): Grid {
   if (perSide <= 12) cols = Math.max(1, Math.min(4, perSide));
   else cols = 5;
   const rows = Math.max(1, Math.ceil(perSide / cols));
-  // As big as the rows allow: a class of 24 reads from the back of the room.
-  const size = rows <= 2 ? 80 : rows === 3 ? 72 : 56;
-  const stepY = rows <= 2 ? 124 : rows === 3 ? 112 : 84;
+  // As big as the rows allow: a class of 24 reads from the back of the room. Each row keeps room for its names.
+  const size = rows <= 2 ? 84 : rows === 3 ? 72 : 54;
+  const stepY = size + NAME_ROOM + (rows <= 2 ? 14 : rows === 3 ? 6 : 0);
   const stagger = rows > 1 ? 30 : 0;
-  const stepX = cols > 1 ? Math.min(size + 42, (blockW - size - stagger) / (cols - 1)) : 0;
+  const stepX = cols > 1 ? Math.min(Math.max(size + 44, 118), (blockW - size - stagger) / (cols - 1)) : 0;
   return { cols, rows, size, stepX, stepY, stagger };
 }
 
 /**
- * The arena's places: the first `ARENA_MAX` players by joining order, taking turns left and right of the monster, the
+ * The arena's places: `count` seats (players keep theirs, see seats()), taking turns left and right of the monster, the
  * nearest columns first, rows centred in the arena. The same count and width always give the same places.
  */
 export function arenaSlots(count: number, width: number): Slot[] {
@@ -103,8 +110,9 @@ export function arenaSlots(count: number, width: number): Slot[] {
   const blockW = width / 2 - BOSS_GAP - SIDE_PAD;
   const perSide = Math.ceil(n / 2);
   const g = grid(perSide, blockW);
-  const height = (g.rows - 1) * g.stepY + g.size + 18;
+  const height = (g.rows - 1) * g.stepY + g.size + NAME_ROOM;
   const top = ARENA_TOP + Math.max(0, (ARENA_BOTTOM - ARENA_TOP - height) / 2);
+  const nameW = g.cols > 1 ? Math.floor(g.stepX - 8) : 150;
   const slots: Slot[] = [];
   for (let i = 0; i < n; i += 1) {
     const side: -1 | 1 = i % 2 === 0 ? -1 : 1;
@@ -114,9 +122,51 @@ export function arenaSlots(count: number, width: number): Slot[] {
     const out = col * g.stepX + (row % 2) * g.stagger;
     const x = side < 0 ? width / 2 - BOSS_GAP - g.size - out : width / 2 + BOSS_GAP + out;
     const y = top + row * g.stepY;
-    slots.push({ x, y, size: g.size, cx: x + g.size / 2, cy: y + g.size * 0.45, side });
+    slots.push({ x, y, size: g.size, cx: x + g.size / 2, cy: y + g.size * 0.45, side, nameW });
   }
   return slots;
+}
+
+/** Seats in the arena: who sits where, and how many seats the arena is laid out for. */
+export interface Seats {
+  of: ReadonlyMap<string, number>;
+  count: number;
+}
+
+export const NO_SEATS: Seats = { of: new Map(), count: 0 };
+
+/**
+ * The arena's seats, given the players in joining order. In the lobby (`keep` null) everyone sits by joining order.
+ * During the game a player keeps their seat: one who leaves leaves an empty seat (nobody else moves), a newcomer takes
+ * the first empty seat or a new one; the count never shrinks, so the arena is never laid out again for fewer.
+ */
+export function seats(ids: readonly string[], keep: Seats | null, max = ARENA_MAX): Seats {
+  if (!keep) {
+    const of = new Map<string, number>();
+    ids.slice(0, max).forEach((id, i) => of.set(id, i));
+    return { of, count: of.size };
+  }
+  const of = new Map<string, number>();
+  const taken = new Set<number>();
+  for (const id of ids) {
+    const seat = keep.of.get(id);
+    if (seat !== undefined) {
+      of.set(id, seat);
+      taken.add(seat);
+    }
+  }
+  let free = 0;
+  let count = keep.count;
+  for (const id of ids) {
+    if (of.has(id)) continue;
+    while (free < max && taken.has(free)) free += 1;
+    if (free >= max) break;
+    of.set(id, free);
+    taken.add(free);
+    count = Math.max(count, free + 1);
+  }
+  if (of.size === keep.of.size && [...of].every(([id, seat]) => keep.of.get(id) === seat) && count === keep.count) return keep;
+  return { of, count };
 }
 
 /** The podium's crowd: everyone but the three on the podium, in two groups at the sides (up to `max`). */
@@ -126,8 +176,9 @@ export function podiumSlots(count: number, width: number, max = 32): Slot[] {
   const rows = 4;
   const inner = width / 2 - 360;
   const room = inner - 40 - SIDE_PAD - size - 30;
-  const cols = Math.max(2, Math.min(4, Math.floor(room / 84) + 1));
-  const stepX = Math.min(88, room / (cols - 1));
+  const cols = Math.max(2, Math.min(4, Math.floor(room / 90) + 1));
+  const stepX = Math.min(118, room / (cols - 1));
+  const nameW = Math.floor(stepX - 8);
   const n = Math.max(0, Math.min(max, count, cols * rows * 2));
   const slots: Slot[] = [];
   for (let i = 0; i < n; i += 1) {
@@ -137,8 +188,8 @@ export function podiumSlots(count: number, width: number, max = 32): Slot[] {
     const col = Math.floor(k / rows);
     const out = col * stepX + (row % 2) * 30;
     const x = side < 0 ? inner - size - 40 - out : width - inner + 40 + out;
-    const y = 300 + row * stepY;
-    slots.push({ x, y, size, cx: x + size / 2, cy: y + size * 0.45, side });
+    const y = 290 + row * stepY;
+    slots.push({ x, y, size, cx: x + size / 2, cy: y + size * 0.45, side, nameW });
   }
   return slots;
 }
@@ -171,7 +222,7 @@ export function lobbySlots(count: number, width: number): LobbyLayout {
     const c = cell(i);
     const x = c.x + (g.cellW - CHAR_BASE) / 2;
     const y = c.y + 4;
-    slots.push({ x, y, size: CHAR_BASE, cx: x + CHAR_BASE / 2, cy: y + CHAR_BASE * 0.45, side: -1 });
+    slots.push({ x, y, size: CHAR_BASE, cx: x + CHAR_BASE / 2, cy: y + CHAR_BASE * 0.45, side: -1, nameW: g.cellW - 8 });
   }
   return { slots, more: count - shown, morePoint: cell(shown) };
 }
@@ -189,7 +240,7 @@ export function podiumTopSlots(width: number): Slot[] {
   return PODIUM_COLUMNS.map((c) => {
     const x = width / 2 + c.dx + (220 - PODIUM_CHAR) / 2;
     const y = PODIUM_FLOOR - c.h - PODIUM_CHAR + 2;
-    return { x, y, size: PODIUM_CHAR, cx: x + PODIUM_CHAR / 2, cy: y + PODIUM_CHAR * 0.45, side: -1 as const };
+    return { x, y, size: PODIUM_CHAR, cx: x + PODIUM_CHAR / 2, cy: y + PODIUM_CHAR * 0.45, side: -1 as const, nameW: 200 };
   });
 }
 

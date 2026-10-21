@@ -276,7 +276,11 @@ export function Character({ look, size, face, frozen = false, move = 'idle', nam
       aria-hidden={name || title ? undefined : true}
     >
       <Drawing look={look} move={move} />
-      {name && <div className="lv-char__name">{name}</div>}
+      {name && (
+        <div className="lv-char__name" title={name}>
+          {name}
+        </div>
+      )}
     </div>
   );
 }
