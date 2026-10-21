@@ -4,6 +4,23 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.24: the floor drops on the projector at any frame rate; reload keeps the rest of the pages (from the commit of this entry)
+
+- **The projector shows the floor drop** in «Встань на ответ» and in the movement rounds of «Битва с монстром». The live
+  check of 47.22/47.23 (projector at 1–2 fps) never saw a tile go down: the 3D kit advanced its clock by at most 0.1 s a
+  frame, so on a slow machine the stomp and the collapse ran at a tenth of real time and the room's `floor: up` (4 real
+  seconds later) came first. The kit's clock now keeps real time; `FloorShow` (`stand/plan.ts`) holds the `up` until a
+  frame has drawn the whole gap, and `fallFrame` draws each fallen character falling at least once. Local runs at 2,
+  0.22 and 0.15 fps and with the loop stopped through the reveal all show the floor down and the fallen in the pit.
+- **No pile of characters at the arena's top-left** at the first movement round: a character appears where the room
+  first places it.
+- **Arena top bar:** a hovered tool keeps a dark icon on its white circle (it was white on white).
+- **«Быстрее всех»** in a movement round is the first hit the projector lands (a tie at 0 ms named another player).
+- **Reload keeps:** the pasted import on `/exams/import` (lists, form, fixes, a half-done save; a chosen file asks to be
+  chosen again), the card on screen in Карточки (`?card=`) and Самопроверка (`?q=`) with their state in this tab, an
+  unsent answer in «Поговорить о лекции», the name on `/tests/new`.
+- Gate on 44ff708 (clean worktree): pytest 2476, bot 393, sync ok, Vitest 411 files / 6654 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.23: the landing's phone moves with the projector; the cheat sheet's last traces gone (from the commit of this entry)
 
 - **The phone in «Игра в классе» and in the reel's game scene plays a real /play recording** of the same game, frame for
