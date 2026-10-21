@@ -114,7 +114,8 @@ export default function LiveSetupPage() {
   const chosen = amount !== null && choices.includes(amount) ? amount : cap > 10 ? 10 : cap;
   const tooFew = !!source && cap < MIN_GAME_QUESTIONS;
   // «Показывать имена тройки в чате» means something only with a chat bound to the exam
-  const { load: chatsLoad } = useBoundChats(source?.containerId ?? containerId, fake);
+  // (asked only for a signed-in teacher: signed out, the page goes to the sign-in first — no 401 on the way)
+  const { load: chatsLoad } = useBoundChats(fake || user ? (source?.containerId ?? containerId) : null, fake);
   const hasChat = chatsLoad.kind === 'ready' && chatsLoad.chats.length > 0;
 
   const open = useCallback(async () => {

@@ -12,7 +12,7 @@ const groups = vi.hoisted(() => ({ list: [] as Array<{ chatId: number; title: st
 vi.mock('../../api/telegramGroups', () => ({
   fetchTelegramGroups: vi.fn(async () => ({ telegramLinked: true, linkActive: true, bot: 'Meldyteach_bot', hours: [], defaultHour: 12, groups: groups.list })),
 }));
-const auth = vi.hoisted(() => ({ user: { id: 'u1' }, loading: false, requestSession: () => {} }));
+const auth = vi.hoisted(() => ({ user: { id: 'u1' } as { id: string } | null, loading: false, requestSession: () => {} }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => auth }));
 vi.mock('../../components/live/host/source', async (importOriginal) => {
   const real = await importOriginal<typeof import('../../components/live/host/source')>();
@@ -30,6 +30,7 @@ vi.mock('../../components/live/host/source', async (importOriginal) => {
   };
 });
 
+import { fetchTelegramGroups } from '../../api/telegramGroups';
 import LiveSetupPage from './LiveSetupPage';
 
 async function open(path: string) {
@@ -38,6 +39,7 @@ async function open(path: string) {
       <Routes>
         <Route path="/live/new" element={<LiveSetupPage />} />
         <Route path="/live/:id" element={<p>Игра открыта</p>} />
+        <Route path="/login" element={<p>Вход</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -55,6 +57,8 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   setLiveApi(null);
+  auth.user = { id: 'u1' };
+  vi.mocked(fetchTelegramGroups).mockClear();
 });
 
 describe('«Провести игру»', () => {
@@ -75,6 +79,13 @@ describe('«Провести игру»', () => {
     expect(folded.querySelector('summary')?.textContent).toMatch(/Не войдут в игру: 1\s+вопрос/);
     expect(folded.textContent).toMatch(/Сколько байт в килобайте\? — ответ вводят сами/);
     expect(view.container.textContent).not.toMatch(/пишут словами/);
+  });
+
+  it('signed out: straight to the sign-in, without asking for the chats first (live check r2, N5)', async () => {
+    auth.user = null;
+    await open('/live/new?c=c1');
+    expect(screen.getByText('Вход')).toBeInTheDocument();
+    expect(fetchTelegramGroups).not.toHaveBeenCalled();
   });
 
   it('«Показывать имена тройки в чате» only when a chat is bound to the exam', async () => {
