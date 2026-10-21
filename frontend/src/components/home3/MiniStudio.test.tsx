@@ -57,8 +57,8 @@ describe('the small studio on the landing', () => {
 
   it('moves and removes the selected block', () => {
     render(<MiniStudio />);
-    fireEvent.click(screen.getByRole('button', { name: 'Выше' }));
-    expect(screen.getByText('Блок на месте 1 из 2.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Поднять блок' }));
+    expect(screen.getByText('Блок теперь 1-й из 2.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Удалить блок' }));
     expect(within(take()).queryByText(EXAMPLE.testStem)).toBeNull();
   });
@@ -80,7 +80,7 @@ describe('the small studio on the landing', () => {
     fireEvent.click(within(view).getByLabelText('Вырастет'));
     fireEvent.click(within(view).getByRole('button', { name: 'Завершить' }));
     expect(within(view).getByText('1 из 1')).toBeInTheDocument();
-    expect(within(view).getByText('100 % · 2 из 2 баллов')).toBeInTheDocument();
+    expect(within(view).getByText('2 из 2 баллов, это 100 %')).toBeInTheDocument();
     expect(within(view).getByText('Отлично')).toBeInTheDocument();
     fireEvent.click(within(view).getByRole('button', { name: 'Пройти ещё раз' }));
     expect(within(view).getByRole('button', { name: 'Завершить' })).toBeInTheDocument();

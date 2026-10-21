@@ -17,6 +17,7 @@ import { withOralDates } from '../plan/oralParts.ts';
 import { planDay } from '../plan/plan.ts';
 import { figureLines, lineText, planLine, RULE_LINE, shownMinutes, startLabel } from '../plan/words.ts';
 import { counter } from '../plan/session.ts';
+import { buildTopics, learnLeftLine, tally } from '../plan/topics.ts';
 import { addDays, daysBetween, isStudyDay, studyDayFrom, studyMask } from '../plan/time.ts';
 import { encode } from './codec.ts';
 import type { AfterDateRow, BotExam, Link, Today } from './db.ts';
@@ -173,6 +174,26 @@ export function planSentence(exam: ExamDay): string {
   return line;
 }
 
+/**
+ * «Осталось выучить 9 тем из 12» (the site's topics.ts over the same plan input; an oral part's topics from
+ * bot_learn_left). Null with no topics, and for an exam with an oral part whose topics could not be read. The card
+ * says it once a topic is learned (as the exam page's rows): before that «48 из 48» would read as nothing done.
+ */
+export function topicsLeft(today: Today, exam: Pick<ExamDay, 'input' | 'hasOral'>): { left: number; total: number } | null {
+  const learn = today.learn ?? null;
+  if (exam.hasOral && !learn) return null;
+  let left = 0;
+  let total = 0;
+  for (const subject of exam.input.subjects) {
+    const examId = learn?.parts.get(subject.id) ?? null;
+    const oral = examId ? learn?.exams.get(examId) ?? null : null;
+    const t = tally(buildTopics({ subjectId: subject.id, items: exam.input.items, titles: learn?.titles.get(subject.id) ?? null, oral }).topics);
+    left += t.left;
+    total += t.total;
+  }
+  return total > 0 ? { left, total } : null;
+}
+
 /** «Выучено 143 из 960»; while it is 0, the dated first-count line; before any answer, the rule. */
 export function figureLine(plan: DayPlan): { line: string; under: string | null } {
   const first = plan.lines.find((l) => l.key === 'first_count');
@@ -299,6 +320,8 @@ export function dayCard(today: Today, mode: CardMode, site: string, focus?: stri
     }
     text.push(t(figure.line));
     if (mode === 'today' && figure.under) text.push(t(figure.under));
+    const topics = topicsLeft(today, main);
+    if (topics && topics.left < topics.total) text.push(t(`${learnLeftLine(topics.left, topics.total)}.`));
     const noDate = plan.lines.find((l) => l.key === 'no_date');
     if (noDate) text.push(t(lineText(noDate)));
     if (main.role === 'member' && main.keyChanges > 0) text.push(t(W.keysFixed(main.keyChanges)));

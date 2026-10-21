@@ -69,7 +69,13 @@ const BANDS = [
   { from: 50, title: 'Хороший результат' },
   { from: 80, title: 'Отлично' },
 ];
+const NBSP = String.fromCharCode(160);
+const BANDS_LINE = `После теста участник увидит сообщение по своим баллам. Например, от ${BANDS[2].from}${NBSP}% «${BANDS[2].title}».`;
 const MAX_BLOCKS = 9;
+const VIEWS = [
+  { id: 'page', label: 'Страница' },
+  { id: 'take', label: 'Как видит участник' },
+] as const;
 
 function questionsWord(n: number): string {
   const last = n % 10;
@@ -176,7 +182,7 @@ function CanvasBlock({ block }: { block: Block }) {
       return (
         <div className="ms-b-q">
           <p className="ms-b-no">
-            Вопрос ·{' '}
+            Вопрос на{' '}
             <em>
               {block.points}{'\u00a0'}{block.points === 1 ? 'балл' : block.points! < 5 ? 'балла' : 'баллов'}
             </em>
@@ -236,6 +242,8 @@ export default function MiniStudio() {
   const [finished, setFinished] = useState(false);
   const [said, setSaid] = useState('');
   const [dropAt, setDropAt] = useState<number | null>(null);
+  // On a phone the page and the participant's view take turns in one place (miniStudio.css); elsewhere both show.
+  const [view, setView] = useState<'page' | 'take'>('page');
   const dragged = useRef<{ kind?: Kind; id?: number } | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const added = useRef<number | null>(null);
@@ -273,7 +281,7 @@ export default function MiniStudio() {
     const [block] = next.splice(index, 1);
     next.splice(to, 0, block);
     setBlocks(next);
-    setSaid(`Блок на месте ${to + 1} из ${blocks.length}.`);
+    setSaid(`Блок теперь ${to + 1}-й из ${blocks.length}.`);
   };
 
   const remove = (id: number) => {
@@ -327,7 +335,14 @@ export default function MiniStudio() {
   const chosen = blocks.find((block) => block.id === selected) ?? null;
 
   return (
-    <div className="ms" data-font={font} data-bg={background} style={{ '--ms-acc': color } as CSSProperties}>
+    <div className="ms" data-font={font} data-bg={background} data-view={view} style={{ '--ms-acc': color } as CSSProperties}>
+      <div className="ms-views">
+        {VIEWS.map((item) => (
+          <button key={item.id} type="button" className={view === item.id ? 'is-on' : undefined} aria-pressed={view === item.id} onClick={() => setView(item.id)}>
+            {item.label}
+          </button>
+        ))}
+      </div>
       <div className="ms-pal" aria-label="Блоки">
         <p className="ms-pal-h">Блоки</p>
         {PALETTE.map((item) => (
@@ -364,7 +379,7 @@ export default function MiniStudio() {
               <img src={GRAPH_URL} alt="" />
               <p className="ms-cover-t">{EXAMPLE.testTitle}</p>
               <p className="ms-cover-s">
-                {EXAMPLE.author} · {questionsWord(questions.length)}
+                {EXAMPLE.author}, {questionsWord(questions.length)}
               </p>
             </div>
             {blocks.map((block, index) => (
@@ -386,18 +401,18 @@ export default function MiniStudio() {
                   <span className="ms-tools">
                     {block.kind === 'question' ? (
                       <>
-                        <button type="button" onClick={() => setPoints(block.id, -1)} aria-label="Меньше баллов">
+                        <button type="button" onClick={() => setPoints(block.id, -1)} aria-label="Убрать балл">
                           −
                         </button>
-                        <button type="button" onClick={() => setPoints(block.id, 1)} aria-label="Больше баллов">
+                        <button type="button" onClick={() => setPoints(block.id, 1)} aria-label="Добавить балл">
                           +
                         </button>
                       </>
                     ) : null}
-                    <button type="button" onClick={() => move(block.id, -1)} aria-label="Выше">
+                    <button type="button" onClick={() => move(block.id, -1)} aria-label="Поднять блок">
                       <Glyph char="↑" />
                     </button>
-                    <button type="button" onClick={() => move(block.id, 1)} aria-label="Ниже">
+                    <button type="button" onClick={() => move(block.id, 1)} aria-label="Опустить блок">
                       <Glyph char="↓" />
                     </button>
                     <button type="button" onClick={() => remove(block.id)} aria-label="Удалить блок">
@@ -411,8 +426,9 @@ export default function MiniStudio() {
           </div>
         </div>
         <p className="ms-said" aria-live="polite">
-          {said || (chosen?.kind === 'question' ? 'Выбран вопрос: баллы меняются кнопками −\u00a0и\u00a0+.' : 'Выберите блок, чтобы подвинуть или удалить его.')}
+          {said || (chosen?.kind === 'question' ? 'Баллы за вопрос меняются кнопками −\u00a0и\u00a0+.' : 'Выберите блок, чтобы подвинуть или удалить его.')}
         </p>
+        <p className="ms-bands">{BANDS_LINE}</p>
       </div>
 
       <div className="ms-take">
@@ -432,7 +448,7 @@ export default function MiniStudio() {
                     {result.right} из {questions.length}
                   </p>
                   <p className="ms-t-meta">
-                    {result.percent}{'\u00a0'}% · {result.got} из {result.max} баллов
+                    {result.got} из {result.max} баллов, это {result.percent}{NBSP}%
                   </p>
                   <p className="ms-t-band">{result.band.title}</p>
                   <button type="button" className="ms-t-again" onClick={() => { setAnswers({}); setFinished(false); }}>
@@ -458,9 +474,6 @@ export default function MiniStudio() {
             </div>
           </div>
         </div>
-        <p className="ms-bands">
-          Сообщения по баллам: {BANDS.map((band, index) => `${band.from}–${BANDS[index + 1] ? BANDS[index + 1].from - 1 : 100}\u00a0% «${band.title}»`).join(', ')}.
-        </p>
       </div>
     </div>
   );

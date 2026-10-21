@@ -15,7 +15,7 @@
 import { confirmDialogPart } from '../contexts/ConfirmContext';
 import { proWindowPart } from '../components/pro/ProWindow';
 import { guideClipPart, guideSeenHere, isNewAccount } from '../components/guide/clipPart';
-import { tryDrawPart, tryTicketPart } from '../components/example/tryParts';
+import { tryTicketPart } from '../components/example/tryParts';
 import { lazyPart } from './lazyPart';
 import { whenIdleAfterLoad } from './idle';
 import { loadSupabase, signInInAddress, storedAccountCreatedAt } from './supabaseClient';
@@ -54,6 +54,7 @@ const PAGES = {
   KeysPage: () => import('../pages/container/KeysPage'),
   BuildPage: () => import('../pages/test/BuildPage'),
   StudioPage: () => import('../pages/test/StudioPage'),
+  QuickTestPage: () => import('../pages/test/QuickTestPage'),
   SettingsPage: () => import('../pages/container/SettingsPage'),
   ExamEditor: () => import('../pages/ExamEditor'),
   ExamDraw: () => import('../pages/ExamDraw'),
@@ -87,6 +88,7 @@ const SIGNED_IN_PAGES: ReadonlyArray<readonly [RegExp, SignedInPage]> = [
   [/^\/exams\/c\/[^/]+\/keys\/?$/, 'KeysPage'],
   [/^\/exams\/c\/[^/]+\/build\/?$/, 'BuildPage'],
   [/^\/exams\/c\/[^/]+\/studio\/?$/, 'StudioPage'],
+  [/^\/tests\/quick\/?$/, 'QuickTestPage'],
   [/^\/exams\/c\/[^/]+\/settings\/?$/, 'SettingsPage'],
   [/^\/exams\/[^/]+\/edit\/?$/, 'ExamEditor'],
   [/^\/exams\/[^/]+\/draw\/?$/, 'ExamDraw'],
@@ -176,8 +178,8 @@ export function preloadAfterSignIn(): void {
 
 /** What a visitor is likely to open next from here. */
 function likelyNext(pathname: string, signedIn: boolean): Loader[] {
-  // The example's next steps, whoever opened it: the answer room and the draw (components/example/tryParts).
-  const trySteps: Loader[] = pathname.startsWith('/try') ? [() => tryTicketPart.load(), () => tryDrawPart.load()] : [];
+  // The example's next step, whoever opened it: the answer room (components/example/tryParts).
+  const trySteps: Loader[] = pathname.startsWith('/try') ? [() => tryTicketPart.load()] : [];
   if (signedIn) {
     // Not «Повторение»: it brings the formula renderer, whose stylesheet declares the formula fonts.
     // Fonts declared on a page that has shown make the browser lay out and paint all its text again,

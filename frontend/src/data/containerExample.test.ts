@@ -13,7 +13,6 @@ import {
   IMPORT_WORDS,
   INVITE_WORDS,
   MINUTES,
-  ORAL_SHEET_ROW,
   PLAN_LABEL,
   QUESTIONS,
   SEEN,
@@ -80,7 +79,6 @@ describe('the example exam of the landing and the sign-in reels', () => {
         : copy.subjectRowTest({ twoDays: subject.twoDays, keyed: subject.questions, seen: subject.seen, today: subject.today, dateText: null, passed: false });
       expect(subjectRow(subject)).toBe(row);
     }
-    expect(ORAL_SHEET_ROW).toBe(copy.oralSheetRow(12));
   });
 
   it('says the import\'s words', () => {

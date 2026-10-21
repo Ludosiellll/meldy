@@ -13,7 +13,8 @@ import './quizAuthor.css';
 
 const QUIET = 4;
 
-function QrScreen({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
+/** The code over the whole screen (also «Быстрая контрольная»'s link page, components/quick/QuickLink.tsx). */
+export function QrScreen({ url, title, onClose }: { url: string; title: string; onClose: () => void }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
   const closeWith = useRef(onClose);

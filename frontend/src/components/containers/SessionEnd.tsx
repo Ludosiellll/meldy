@@ -7,6 +7,9 @@ import { RoomBar } from './RoomParts';
 import { firstCountText, planText, safeStart, text as lineWords } from './planLines';
 import { sessionOpens } from './studySetup';
 import { budgetSeconds } from '../../lib/containers/plan';
+import { leftIn, nearLine, reopenedLine, tally, topicChange, withResults, type Topic } from '../../lib/containers/topics';
+import TopicClosed from '../learnLeft/TopicClosed';
+import { subjectTopics } from './topicsOf';
 import * as copy from './copy';
 import {
   comesBackWhen,
@@ -172,7 +175,12 @@ interface Head {
   time: string;
   figure: [string, string, string] | null;
   parts: string[];
+  /** «Тема выучена» (design learn-left §3): the topics this session closed, what is left, the nearest one. */
+  topics: { closed: Topic[]; left: number; total: number; near: Topic | null } | null;
 }
+
+/** A topic this close to closing is named at the end even when none closed. */
+const NEAR_LEFT = 3;
 
 /** What the end screen has said, each part once: the headline and the paragraph (`head`), then what the plan says. */
 interface End {
@@ -225,6 +233,16 @@ export default function SessionEnd({
 }) {
   const headRef = useRef<HTMLHeadingElement | null>(null);
   const title = subjectTitle(summary, subjectId);
+  // The subject's topics as the session began (the plan's input before its answers; test topics only: a session of
+  // tests closes no oral topic). The session's results say which questions it learned and which it lost.
+  const [topicsBefore] = useState<Topic[]>(() => {
+    const subject = summary.subjects.find((entry) => entry.id === subjectId);
+    try {
+      return subject && input ? subjectTopics(subject, input, null).topics : [];
+    } catch {
+      return [];
+    }
+  });
 
   // ── the headline and the paragraph, from the session's numbers
   const movedBy = (s: SessionSummary | null) => Boolean(s && s.known && (s.gained > 0 || s.dropped > 0));
@@ -247,7 +265,16 @@ export default function SessionEnd({
     } else if (oral) {
       parts.push(copy.selfCheckLine(oral.know, oral.unsure, oral.dontKnow));
     }
-    return { stats: s, time, figure, parts };
+    let topics: Head['topics'] = null;
+    if (s && s.known && topicsBefore.length > 0 && ((s.gainedIds?.length ?? 0) > 0 || (s.droppedIds?.length ?? 0) > 0)) {
+      const after = withResults(topicsBefore, new Set(s.gainedIds ?? []), new Set(s.droppedIds ?? []));
+      const change = topicChange(topicsBefore, after);
+      const t = tally(after);
+      if (change.closed.length > 0) topics = { closed: change.closed, left: t.left, total: t.total, near: change.near };
+      else if (change.near && leftIn(change.near) <= NEAR_LEFT) parts.push(nearLine(change.near));
+      for (const topic of change.reopened) parts.push(reopenedLine(topic));
+    }
+    return { stats: s, time, figure, parts, topics };
   };
 
   /**
@@ -309,7 +336,7 @@ export default function SessionEnd({
 
   const holdingHead = end.head === null;
   const holding = end.said === null;
-  const { stats: shownStats, time, figure, parts } = end.head ?? headOf(stats);
+  const { stats: shownStats, time, figure, parts, topics } = end.head ?? headOf(stats);
   const { line: nextLine, next, more, first } = end.said ?? say(false, start.plan, start.input, shownStats);
   const heldHead = holdingHead ? HIDDEN : undefined;
   const hidden = holding ? HIDDEN : undefined;
@@ -336,6 +363,11 @@ export default function SessionEnd({
             time
           )}
         </h1>
+        {topics ? (
+          <div aria-hidden={holdingHead || undefined} style={heldHead}>
+            <TopicClosed closed={topics.closed} left={topics.left} total={topics.total} near={topics.near} />
+          </div>
+        ) : null}
         {parts.length > 0 || first ? (
           <p className="ct-end-p" aria-hidden={holdingHead || undefined} style={heldHead}>
             {parts.join(' ')}

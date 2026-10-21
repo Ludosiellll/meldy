@@ -123,16 +123,27 @@ function progress(seen: number, total: number, twoDays: number): string[] {
 }
 /** A row's parts never break inside («сегодня / 22» on a phone): the line wraps only after « · ». */
 const rowLine = (parts: string[]) => parts.map((part) => part.replace(/ /g, NBSP)).join(SEP);
-export function subjectRowTest(p: { twoDays: number; keyed: number; seen: number; today: number; dateText: string | null; passed: boolean }): string {
+/**
+ * «Осталось выучить» in a subject's row (design learn-left §3): «осталось 9 тем из 12» once a topic is learned; before
+ * that the row keeps «видели 36 из 240», so it never says a flat «nothing» after answers.
+ */
+export interface RowTopics {
+  left: number;
+  total: number;
+  closed: number;
+}
+export const topicsLeftPart = (t: RowTopics) => `осталось ${t.left} ${pl(t.left, 'тема', 'темы', 'тем')} из ${t.total}`;
+export function subjectRowTest(p: { twoDays: number; keyed: number; seen: number; today: number; dateText: string | null; passed: boolean; topics?: RowTopics | null }): string {
   const parts: string[] = [];
   if (p.dateText) parts.push(p.passed ? `экзамен прошёл ${p.dateText}` : p.dateText);
-  parts.push(...(p.seen > 0 ? progress(p.seen, p.keyed, p.twoDays) : [q(p.keyed)]));
+  if (p.topics && p.topics.closed > 0) parts.push(topicsLeftPart(p.topics));
+  else parts.push(...(p.seen > 0 ? progress(p.seen, p.keyed, p.twoDays) : [q(p.keyed)]));
   if (p.today > 0 && !p.passed) parts.push(`сегодня ${p.today}`);
   return rowLine(parts);
 }
 /** «Устный» as «Настройки» marks an oral subject: the row of an oral part says it first (usability check 2026-10-10, m7). */
 export const ORAL_ROW = 'устный';
-export function subjectRowOral(p: { twoDays: number; seen: number; inPlan: number; questions: number; today: number; dateText: string | null }): string {
+export function subjectRowOral(p: { twoDays: number; seen: number; inPlan: number; questions: number; today: number; dateText: string | null; topics?: RowTopics | null }): string {
   const parts: string[] = [];
   if (p.inPlan === 0) {
     if (p.dateText) parts.push(p.dateText);
@@ -140,7 +151,8 @@ export function subjectRowOral(p: { twoDays: number; seen: number; inPlan: numbe
   } else {
     parts.push(ORAL_ROW);
     if (p.dateText) parts.push(p.dateText);
-    parts.push(...(p.seen > 0 ? progress(p.seen, p.inPlan, p.twoDays) : [q(p.inPlan)]));
+    if (p.topics && p.topics.closed > 0) parts.push(topicsLeftPart(p.topics));
+    else parts.push(...(p.seen > 0 ? progress(p.seen, p.inPlan, p.twoDays) : [q(p.inPlan)]));
     if (p.today > 0) parts.push(`сегодня ${p.today}`);
   }
   return rowLine(parts);
@@ -150,7 +162,9 @@ export function topicRow(p: { twoDays: number; keyed: number; seen: number; erro
   if (p.seen === 0) return 'не начинали';
   return rowLine([...progress(p.seen, p.keyed, p.twoDays), ...(p.errors > 0 ? [`${p.errors} ${pl(p.errors, 'ошибка', 'ошибки', 'ошибок')}`] : [])]);
 }
-export const oralSheetRow = (n: number) => glue(`Шпаргалка к ${n} ${pl(n, 'устному вопросу', 'устным вопросам', 'устным вопросам')}`);
+/** A mixed subject's oral part, under «Осталось выучить»: «В предмете есть 20 устных вопросов.» with «Открыть». */
+export const oralPartLine = (n: number) => glue(`В предмете есть ${n} ${pl(n, 'устный вопрос', 'устных вопроса', 'устных вопросов')}.`);
+export const OPEN_ORAL = 'Открыть';
 export const TOPICS_LABEL = 'Темы';
 export const SUBJECTS_LABEL = 'Предметы';
 

@@ -11,8 +11,6 @@ const SEP = ' · ';
 const NBSP = '\u00a0';
 /** Words that must not break apart (a date and its time). */
 const together = (text: string) => text.replace(/ /g, NBSP);
-/** The first letter small: a top line's words inside a sentence. */
-const lower = (text: string) => (text ? text[0].toLocaleLowerCase('ru') + text.slice(1) : text);
 
 export const TAKE = {
   docTitle: QUIZ.name,
@@ -36,40 +34,40 @@ export const TAKE = {
   openUntil: (when: string) => `открыта до ${together(when)}`,
   opensAt: (when: string) => `откроется ${together(when)}`,
   closedWord: 'закрыта',
-  backAllowed: 'К вопросам можно возвращаться и менять ответы до «Завершить».',
-  forwardOnly: 'Только вперёд: к прошлым вопросам вернуться нельзя.',
+  backAllowed: 'Ответы можно менять, пока не нажмёте «Завершить».',
+  forwardOnly: 'Вернуться к прошлому вопросу нельзя.',
   /** The same words as on the result: «Проходной балл 60 %». */
   passMark: (percent: number) => glue(`Проходной балл ${percent} %.`),
   grading: {
-    best: 'В зачёт идёт лучшая попытка.',
-    last: 'В зачёт идёт последняя попытка.',
+    best: 'Засчитаем лучшую попытку.',
+    last: 'Засчитаем последнюю попытку.',
   },
   review: {
     score: 'После сдачи вы увидите свой балл.',
-    mistakes: 'После сдачи вы увидите балл и где ошиблись.',
+    mistakes: 'После сдачи вы увидите балл и ошибки.',
     answers: 'После сдачи вы увидите балл, ошибки и верные ответы.',
-    mistakes_then_answers: 'После сдачи вы увидите балл и ошибки, а верные ответы — когда контрольная закроется.',
+    mistakes_then_answers: 'После сдачи вы увидите балл и ошибки. Верные ответы покажем, когда контрольная закроется.',
   },
   membersOnly: 'Писать могут только участники экзамена.',
-  privacy: 'Автор увидит имя, которое вы укажете, ваши ответы и результат.',
+  privacy: 'Автор увидит ваше имя, ответы и результат.',
   /** Without an account (release 47): the attempts live on this device, by its token. */
-  guestPrivacy: 'Автор увидит имя, которое вы укажете, ваши ответы и результат. Попытки сохраняются в этом браузере.',
+  guestPrivacy: 'Автор увидит ваше имя, ответы и результат. Ваши попытки хранятся в этом браузере.',
   haveAccount: 'Есть аккаунт?',
   signIn: 'Войти, чтобы начать',
   signInToSee: 'Войти и посмотреть свои результаты',
   register: 'Создать аккаунт',
-  signInAgain: 'Вход закончился. Войдите снова — ответы, которые уже сохранились, останутся.',
+  signInAgain: 'Нужно войти снова. Сохранённые ответы не пропадут.',
   signInShort: 'Войти',
-  /** «Имя и фамилия — их увидит Анна Петрова»; without the author's name — «автор теста». */
-  nameLabel: (author: string | null | undefined) => glue(`Имя и фамилия — их увидит ${author?.trim() || 'автор теста'}`),
+  /** «Имя и фамилия. Их увидит Анна Петрова»; without the author's name — «автор теста». */
+  nameLabel: (author: string | null | undefined) => glue(`Имя и фамилия. Их увидит ${author?.trim() || 'автор теста'}`),
   /** The author on their own page: nobody else to see the name (release 47.1). */
   nameLabelOwn: 'Имя и фамилия',
   nameHint: `Например: Иванов Иван, 9${NBSP}Б`,
-  nameBad: 'Имя — от 2 до 80 знаков.',
+  nameBad: 'Имя должно быть от 2 до 80 знаков.',
   start: 'Начать',
   resume: 'Продолжить',
-  resumeNote: 'Вы уже начали эту попытку: ответы сохранены, время идёт.',
-  authorNote: 'Это ваша контрольная. Ваша попытка будет отмечена «(вы)» и не войдёт в средний результат.',
+  resumeNote: 'Вы уже начали. Ответы сохранены, время идёт.',
+  authorNote: 'Это ваша контрольная. Ваша попытка не попадёт в средний результат.',
   reason: {
     no_attempts: 'Попытки закончились.',
     members_only: 'Эта контрольная только для участников экзамена.',
@@ -81,10 +79,12 @@ export const TAKE = {
    * the person says whose they are. The server does not give a guest's name back, so the time of the last one.
    */
   deviceAttempt: (when: string | null) =>
-    when ? glue(`На этом устройстве есть попытка без входа от ${when}.`) : 'На этом устройстве есть начатая попытка без входа.',
-  deviceMine: 'Это я — перенести в аккаунт',
-  deviceNotMine: 'Это не я',
-  deviceKept: 'Попытки без входа не перенесены: в аккаунте уже есть попытки этой контрольной.',
+    when
+      ? glue(`Эту контрольную уже писали на этом устройстве без входа, ${when}. Это были вы?`)
+      : 'На этом устройстве есть начатая попытка без входа. Это были вы?',
+  deviceMine: 'Да, перенести в мой аккаунт',
+  deviceNotMine: 'Нет, это не я',
+  deviceKept: 'Попытки не перенесли. В аккаунте уже есть попытки этой контрольной.',
   /** A guest on a device with someone else's attempts: forget them here and start as a new person. */
   otherPerson: 'Я другой человек',
   pastTitle: 'Ваши попытки',
@@ -114,34 +114,35 @@ export const RUN = {
   back: 'Назад',
   all: 'Все вопросы',
   cell: (n: number, answered: boolean) => `Вопрос ${n}${answered ? ', есть ответ' : ', без ответа'}`,
-  forwardOnly: 'Только вперёд: к прошлым вопросам не вернуться.',
+  forwardOnly: 'Вернуться к прошлым вопросам нельзя.',
   saved: 'Сохранено',
-  offline: 'Нет связи — ответы сохранятся, когда она вернётся',
-  failing: 'Ответы пока не сохранились — пробуем ещё раз',
+  offline: 'Нет связи. Ответы сохранятся, когда связь вернётся',
+  failing: 'Ответы пока не сохранились. Пробуем ещё раз',
   resumed: (pos: number, total: number, left: string | null) =>
-    glue(left ? `Попытка продолжается: ${pos} из ${total}, осталось ${left}.` : `Попытка продолжается: ${pos} из ${total}.`),
+    glue(left ? `Продолжаем с вопроса ${pos} из ${total}. Осталось ${left}.` : `Продолжаем с вопроса ${pos} из ${total}.`),
   /** The same with the top line's words («Страница 2 из 3», «Отвечено 4 из 6»). */
   resumedAt: (place: string, left: string | null) =>
-    glue(left ? `Попытка продолжается: ${lower(place)}, осталось ${left}.` : `Попытка продолжается: ${lower(place)}.`),
+    glue(left ? `Продолжаем. ${place}. Осталось ${left}.` : `Продолжаем. ${place}.`),
   finishTitle: 'Завершить контрольную?',
-  /** «Отвечено 18 из 20, без ответа: 4, 17 — они считаются ошибками.» */
+  /** «Нет ответа на вопросы 4, 17. Они засчитаются как ошибки.» */
   finishLine(answered: number, total: number, missing: number[]): string {
-    if (missing.length === 0) return glue(`Ответы есть на все ${QUIZ.questions(total)}. После этого их не изменить.`);
+    if (missing.length === 0) return glue(`Вы ответили на все ${QUIZ.questions(total)}. Потом ответы не изменить.`);
     const shown = missing.slice(0, 12);
     const more = missing.length - shown.length;
     const list = `${shown.join(', ')}${more > 0 ? ` и ещё ${more}` : ''}`;
-    const tail = missing.length > 1 ? 'они считаются ошибками' : 'он считается ошибкой';
-    return glue(`Отвечено ${answered} из ${total}, без ответа: ${list} — ${tail}.`);
+    return glue(
+      missing.length > 1 ? `Нет ответа на вопросы ${list}. Они засчитаются как ошибки.` : `Нет ответа на вопрос ${list}. Он засчитается как ошибка.`,
+    );
   },
   backToQuestions: 'Вернуться к вопросам',
   sending: 'Сдаём ответы…',
   timeUp: 'Время вышло. Сдаём ответы…',
-  endOffline: 'Нет связи — ответы сохранятся, когда она вернётся. Попробуем сдать ещё раз сами.',
-  endFailed: 'Не удалось сдать ответы. Попробуем ещё раз сами.',
+  endOffline: 'Нет связи. Сдадим ответы сами, когда связь вернётся.',
+  endFailed: 'Не получилось сдать ответы. Пробуем ещё раз.',
   retryEnd: 'Сдать ещё раз',
-  lost: 'Этой попытки больше нет: автор её сбросил. Можно начать заново.',
+  lost: 'Автор сбросил эту попытку. Можно начать заново.',
   /** The strict level ended the attempt at its limit (useGuard), while the answers go. */
-  guardEnd: (count: number) => glue(`Вы покидали страницу ${count} ${times(count)}, поэтому попытка завершается. Сдаём ответы…`),
+  guardEnd: (count: number) => glue(`Вы уходили со страницы ${count} ${times(count)}. Попытка завершена, сдаём ответы…`),
 } as const;
 
 /** «1 раз», «2 раза», «5 раз». */
@@ -166,43 +167,43 @@ export const GUARD = {
   /** Before the start, under the button: what is recorded and what happens. */
   rulesTitle: 'Защита от списывания',
   rulesNormal: [
-    'Пока идёт попытка, вопрос закрывается, если вы уходите со страницы или открываете что-то поверх неё: другое приложение, ассистента, шторку уведомлений, второе окно. Когда вы вернётесь, вопрос появится снова.',
-    'Каждый такой раз записывается. Автор увидит, когда это было и сколько длилось. Звонок или погасший экран тоже попадают в запись, но считаются одним разом.',
-    'Копирование текста и вставка в поле ответа тоже записываются.',
+    'Если вы уйдёте со страницы, вопрос скроется, пока вы не вернётесь. Уходом считается и приложение, ассистент или шторка уведомлений поверх страницы.',
+    'Автор увидит, когда и надолго ли вы уходили. Звонок и погасший экран тоже считаются уходом.',
+    'Копирование и вставка текста тоже видны автору.',
   ],
   rulesStrict: (limit: number) => [
-    'Контрольная откроется на весь экран, если браузер это умеет. Выход из полноэкранного режима считается уходом.',
-    'Пока идёт попытка, вопрос закрывается, если вы уходите со страницы или открываете что-то поверх неё: другое приложение, ассистента, шторку уведомлений, второе окно. Каждый такой раз записывается, автор увидит, когда это было и сколько длилось.',
+    'Контрольная откроется на весь экран, если браузер это умеет. Выход из него считается уходом.',
+    'Если вы уйдёте со страницы, вопрос скроется. Уходом считается и приложение, ассистент или шторка уведомлений поверх страницы. Автор увидит, когда и надолго ли вы уходили.',
     limit === 1
-      ? 'Первый же уход завершит попытку. Ответы, которые вы успели дать, засчитаются.'
-      : glue(`После ${limit}-го ухода попытка завершится сама. Ответы, которые вы успели дать, засчитаются.`),
-    'Звонок или погасший экран тоже считаются уходом, одним на каждый раз. Если это важно, предупредите автора.',
-    'Текст вопросов нельзя выделить и скопировать. Поверх вопросов будет видно ваше имя.',
+      ? 'Первый же уход завершит попытку. Ответы до него засчитаются.'
+      : glue(`После ${limit}-го ухода попытка завершится. Ответы до него засчитаются.`),
+    'Звонок и погасший экран тоже считаются уходом. Если ждёте звонка, предупредите автора.',
+    'Текст вопросов нельзя скопировать. Поверх вопросов будет видно ваше имя.',
   ],
   /** Over the start button: the rules in one line (the whole rules are under it). */
   short: (level: 'normal' | 'strict', limit: number) =>
     level === 'normal'
-      ? 'Включена защита от списывания: уходы со страницы записываются, автор их увидит.'
+      ? 'Автор увидит, если вы уйдёте со страницы.'
       : limit === 1
-        ? 'Включена строгая защита от списывания: контрольная откроется на весь экран, первый уход со страницы завершит попытку.'
-        : glue(`Включена строгая защита от списывания: контрольная откроется на весь экран, после ${limit}-го ухода со страницы попытка завершится.`),
+        ? 'Контрольная откроется на весь экран. Если уйти со страницы, попытка завершится.'
+        : glue(`Контрольная откроется на весь экран. После ${limit}-го ухода со страницы попытка завершится.`),
   /** Under the clock, once the page has been away: open about what is recorded. */
   line(count: number, level: 'normal' | 'strict', limit: number, lastMs: number | null): string {
-    const last = lastMs !== null ? ` Последний раз ${seconds(lastMs)}.` : '';
-    if (level === 'normal') return glue(`Вы покидали страницу: ${count} ${times(count)}.${last} Автор это увидит.`);
+    const last = lastMs !== null ? ` Последний раз на ${seconds(lastMs)}.` : '';
+    if (level === 'normal') return glue(`Вы уходили со страницы ${count} ${times(count)}.${last} Автор это увидит.`);
     const left = limit - count;
-    const tail = left <= 0 ? '' : left === 1 ? ' Следующий уход завершит попытку.' : ` Попытка завершится через ${aways(left)}.`;
-    return glue(`Вы покидали страницу: ${count} ${times(count)}.${last}${tail}`);
+    const tail = left <= 0 ? '' : left === 1 ? ' Следующий уход завершит попытку.' : ` Ещё ${aways(left)}, и попытка завершится.`;
+    return glue(`Вы уходили со страницы ${count} ${times(count)}.${last}${tail}`);
   },
   /** The strict level refused a copy. */
-  noCopy: 'Копировать текст вопросов в этой контрольной нельзя.',
+  noCopy: 'В этой контрольной текст вопросов не копируется.',
   /** The card over the question. */
   awayTitle: 'Вопрос скрыт',
-  awayText: 'Страница не на первом плане, поэтому вопрос закрыт. Это записано. Вернитесь на страницу, и вопрос появится.',
+  awayText: 'Страница сейчас не на первом плане. Автор это увидит. Вернитесь на страницу, и вопрос появится.',
   splitTitle: 'Окно стало меньше',
-  splitText: 'В разделённом экране и в плавающем окне вопрос не показывается. Разверните браузер на весь экран, и вопрос появится.',
+  splitText: 'В разделённом экране и плавающем окне вопрос не виден. Разверните браузер на весь экран.',
   fullscreenTitle: 'Вы вышли из полноэкранного режима',
-  fullscreenText: 'Это записано. Чтобы продолжить, вернитесь на весь экран.',
+  fullscreenText: 'Автор это увидит. Чтобы продолжить, вернитесь на весь экран.',
   fullscreenBack: 'Продолжить на весь экран',
   /** The watermark of the strict level: the name and the start of the attempt. */
   mark: (name: string, when: string) => `${name} · ${when}`,
@@ -220,13 +221,13 @@ export const RESULT = {
   /** The page's link further on the result screen, with its address. */
   ctaNote: ' (откроется в новой вкладке)',
   percent: (percent: number) => glue(`${percent} %`),
-  /** The words of the start page: «Проходной балл 60 % — сдано». */
-  pass: (threshold: number, passed: boolean) => glue(`Проходной балл ${threshold} % — ${passed ? 'сдано' : 'не сдано'}`),
-  byTime: 'Время вышло — попытка закрылась сама. Вопросы без ответа считаются ошибкой.',
+  /** The start page's «Проходной балл» first said as the outcome: «Сдано. Проходной балл 60 %». */
+  pass: (threshold: number, passed: boolean) => glue(`${passed ? 'Сдано' : 'Не сдано'}. Проходной балл ${threshold} %`),
+  byTime: 'Время вышло, попытка завершена. Вопросы без ответа считаются ошибками.',
   /** The strict level ended it (finish_reason 'protection'). */
   byGuard: (count: number) =>
-    glue(`Попытка завершилась сама: вы покидали страницу ${count} ${times(count)}. Ответы, данные до этого, засчитаны, вопросы без ответа считаются ошибкой.`),
-  byClose: 'Автор закрыл контрольную — попытка закрылась.',
+    glue(`Вы уходили со страницы ${count} ${times(count)}, и попытка завершилась. Ответы до этого засчитаны. Вопросы без ответа считаются ошибками.`),
+  byClose: 'Автор закрыл контрольную, и попытка завершилась.',
   answersAfter: (when: string) => glue(`Верные ответы откроются после ${when}.`),
   mistakesTitle: 'Где вы ошиблись',
   answersTitle: 'Ошибки и верные ответы',
@@ -237,12 +238,12 @@ export const RESULT = {
   unanswered: 'без ответа',
   /** The person's answer where the right ones are not shown yet. */
   tagMine: 'Ваш ответ',
-  tagMineWrong: 'Ваш ответ — неверно',
-  tagMineRight: 'Ваш ответ — верно',
+  tagMineWrong: 'Ваш ответ неверный',
+  tagMineRight: 'Ваш ответ верный',
   /** A right option the person did not pick: no fill, a green edge. */
-  tagMissed: 'Верный — вы не отметили',
+  tagMissed: 'Верный, но вы его не отметили',
   shortMine: (text: string) => `Ваш ответ: ${text}`,
-  shortNone: 'Ответа нет.',
+  shortNone: 'Вы не ответили.',
   shortRight: (forms: readonly string[]) => (forms.length > 1 ? `Верные ответы: ${forms.join(', ')}` : `Верный ответ: ${forms[0] ?? ''}`),
   explanation: 'Пояснение',
   /** «Повторить эти вопросы» (release 47, spec §47.5): the author offers the exam the quiz was drawn from. */
@@ -254,6 +255,6 @@ export const RESULT = {
   practiceGuest: 'Создать аккаунт и тренироваться',
   /** While a quiz of the exam is open or not yet open: no button (a member sees every answer of the exam). */
   practiceLater: 'Тренировка по всем вопросам откроется, когда контрольная закроется.',
-  /** «Ещё попытка (осталась 1)»; without a limit — «Ещё попытка». */
-  retry: (left: number | null) => (left === null ? 'Ещё попытка' : glue(`Ещё попытка (${plural(left, 'осталась', 'осталось', 'осталось')} ${left})`)),
+  /** «Пройти ещё раз (осталась 1)»; without a limit — «Пройти ещё раз». */
+  retry: (left: number | null) => (left === null ? 'Пройти ещё раз' : glue(`Пройти ещё раз (${plural(left, 'осталась', 'осталось', 'осталось')} ${left})`)),
 } as const;

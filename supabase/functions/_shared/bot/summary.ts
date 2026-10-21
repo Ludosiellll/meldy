@@ -100,6 +100,8 @@ export interface SummaryInput {
    */
   back?: string;
   rest: RestOfDay;
+  /** «Тема «…» выучена.»: the topics the session closed (topics.ts), after the figure's lines; null for none. */
+  topics?: string | null;
   /** I2: «Продолжить: 8 из 20» (today only). */
   resume: { n: number; of: number } | null;
 }
@@ -168,12 +170,13 @@ const row = (button: Button): Button[] => [button];
 /** I1 / I2: the record of the session and its buttons. */
 export function summaryOut(input: SummaryInput): Out {
   const c = input.counts;
+  const topicsLine = input.topics ?? null;
   const title = input.questions > 0 ? `${input.subject}: ${timeLine(input.questions, c.retries, input.minutes)}` : input.subject;
   const rest = input.rest;
   const restLines = [rest.line, ...rest.extra].filter((line) => line.trim() !== '');
   const text = lines(
     b(title),
-    ...[scoreLine(c), errorsLine(c, input.end, input.back), ...figureLinesOf(input)].filter((line): line is string => Boolean(line)).map(t),
+    ...[scoreLine(c), errorsLine(c, input.end, input.back), ...figureLinesOf(input), topicsLine].filter((line): line is string => Boolean(line)).map(t),
     restLines.length > 0 ? '' : null,
     ...restLines.map(t),
   );

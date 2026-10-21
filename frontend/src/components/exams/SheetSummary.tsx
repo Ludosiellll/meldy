@@ -256,7 +256,18 @@ export function readinessCounts(summary: Pick<AnswerSummary, 'confirmed' | 'once
  * and counts. Each row shows those questions (a second press shows all again). The column's readiness block and, on a
  * phone, «Обозначения» over the list use it.
  */
-export function ReadinessLegend({ counts, filter, onFilter }: { counts: Record<Readiness, number>; filter: SheetFilter; onFilter: (filter: SheetFilter) => void }) {
+export function ReadinessLegend({
+  counts,
+  filter,
+  onFilter,
+  labels = READINESS_LABELS,
+}: {
+  counts: Record<Readiness, number>;
+  filter: SheetFilter;
+  onFilter: (filter: SheetFilter) => void;
+  /** The words of the four marks (the oral page says them by «Осталось выучить»). */
+  labels?: Record<Readiness, string>;
+}) {
   return (
     <ul className="ex-rl" aria-label="Показать вопросы по ответам">
       {READINESS_ORDER.map((readiness) => {
@@ -266,7 +277,7 @@ export function ReadinessLegend({ counts, filter, onFilter }: { counts: Record<R
           <li key={readiness}>
             <button type="button" aria-pressed={active} onClick={() => onFilter(active ? 'all' : value)}>
               <LegendNumber readiness={readiness} />
-              <span className="ex-rl-word">{READINESS_LABELS[readiness]}</span>{' '}
+              <span className="ex-rl-word">{labels[readiness]}</span>{' '}
               <span className="ex-count">{counts[readiness]}</span>
             </button>
           </li>

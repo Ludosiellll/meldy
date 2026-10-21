@@ -717,6 +717,20 @@ export async function parseBank(input: ParseBankInput): Promise<BankParseResult>
 }
 
 /**
+ * POST /api/tests/paste (backend/paste_api.py): «Быстрая контрольная»'s pasted text, read by the same rules in their
+ * hand mode (one «*» is a key). Text without questions is an answer with no items, not an error.
+ */
+export async function parsePaste(text: string, signal?: AbortSignal): Promise<BankParseResult> {
+  const raw = await backend('/api/tests/paste', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ text }),
+    signal,
+  });
+  return bankResult(raw, 'tests/paste');
+}
+
+/**
  * POST /api/exams/parse-bank/ai: the same form, read again with the model on the doubtful places only (scope 'flagged')
  * or the whole file ('all'). Spends units (the answer's ai.units); 429 ai_busy, 502 ai_failed, 422 no_doubts.
  * The server charges before the model, so after its answer — the parse or an error — the top bar's AI limit is read

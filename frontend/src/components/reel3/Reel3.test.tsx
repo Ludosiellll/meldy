@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import Reel3, { TRANSCRIPT3 } from './Reel3';
+import Reel3, { POINTER_KEYS3, TRANSCRIPT3 } from './Reel3';
 import { SAY } from '../home3/copy3';
 import { CHAPTERS3, scene3 } from './timeline3';
 
@@ -70,13 +70,38 @@ describe('Reel3', () => {
   it('draws every scene at its time (the frame exporter steps the clock)', async () => {
     window.__MELDY_REEL_EXPORT__ = true;
     const { container } = render(<Reel3 />);
-    for (const id of ['lecture', 'file', 'plan', 'session', 'ticket', 'sheet', 'group', 'build', 'media', 'look', 'send', 'take', 'stats'] as const) {
+    for (const id of ['lecture', 'file', 'plan', 'session', 'ticket', 'learn', 'group', 'build', 'media', 'look', 'send', 'take', 'stats'] as const) {
       const window3 = scene3(id);
       await act(async () => {
         await window.__meldyReel!.seek(Math.round((window3.from + window3.to) / 2));
       });
       const words = (container.querySelector('.r3-stage')?.textContent ?? '').replace(/\s+/g, ' ');
       expect(words, id).toContain(SAY[id][0].split(' ')[0]);
+    }
+  });
+
+  it('aims every key of every pointer at one element of its own scene (the places come from the page, not numbers)', async () => {
+    window.__MELDY_REEL_EXPORT__ = true;
+    const { container } = render(<Reel3 />);
+    const scenes = Object.entries(POINTER_KEYS3);
+    expect(scenes.map(([id]) => id)).toEqual(['file', 'plan', 'session', 'learn', 'group', 'build', 'media', 'look', 'send', 'take']);
+    for (const [id, keys] of scenes) {
+      const window3 = scene3(id as keyof typeof POINTER_KEYS3);
+      await act(async () => {
+        await window.__meldyReel!.seek(Math.round((window3.from + window3.to) / 2));
+      });
+      const gate = container.querySelector(`.r3-gate[data-scene="${id}"]`)!;
+      expect(gate.querySelectorAll('.r3-cursor'), id).toHaveLength(1);
+      for (const key of keys!) {
+        // A key without a target is a place to rest or the pointer going away, never a press or a drag.
+        if (!key.aim) {
+          expect(key.press || key.down || key.up, `${id} @${key.t}`).toBeFalsy();
+          continue;
+        }
+        for (const aim of [key.aim, key.over].filter(Boolean)) expect(gate.querySelectorAll(`[data-aim="${aim}"]`), `${id} ${aim}`).toHaveLength(1);
+      }
+      // The keys keep their time order.
+      for (let i = 1; i < keys!.length; i += 1) expect(keys![i].t, id).toBeGreaterThanOrEqual(keys![i - 1].t);
     }
   });
 

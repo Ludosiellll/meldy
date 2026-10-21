@@ -16,7 +16,7 @@ describe('the guide on «Сегодня» and «Экзамены» (Concept 1 §
   it('sends «Экзамены» through one door and tells questions with variants from oral ones', () => {
     const exams = text('exams');
     expect(exams).toBe(
-      'Нажмите «Выбрать файлы», а если экзамены уже есть, «Новый экзамен». Подойдёт один файл на всё или по файлу на предмет. Ключ к вариантам Meldy возьмёт из файла. На устные вопросы отвечайте в «Тянуть билет».',
+      'Нажмите «Новый экзамен» и загрузите вопросы. Подойдёт один общий файл или по файлу на предмет. Ключ к вариантам Meldy возьмёт из файла. На устные вопросы отвечайте голосом или текстом в «Тянуть билет», и Meldy сверит ответ с вашими лекциями.',
     );
     // The old way in («Вставьте список вопросов») is gone: every way in is «Новый экзамен».
     expect(exams).not.toMatch(/Вставьте список/);
@@ -53,15 +53,18 @@ describe('the chapters with more than one clip (the owner, 18.10: «для но�
     expect(ids.indexOf('tests')).toBe(ids.indexOf('exams') + 1);
     const tests = chapter('tests');
     expect(tests).toMatchObject({ tab: 'Тесты', title: 'Тесты', route: '/exams', spot: 'link' });
+    // «Быстрая контрольная» first (UX audit of 21.10), then the studio and the test by its link.
     expect(tests.reels!.map((reel) => [reel.clip, reel.label, reel.title])).toEqual([
-      ['studio', 'Свой тест', 'Тесты'],
-      ['quizLink', 'Как это видит ученик', 'Тест по ссылке'],
+      ['quick', 'Контрольная', 'Быстрая контрольная'],
+      ['studio', 'Студия', 'Тесты'],
+      ['quizLink', 'Глазами ученика', 'Тест по ссылке'],
     ]);
+    expect(tests.reels![0].text).toContain('«Быстрая контрольная»');
     expect(tests.text).toContain('«Новый тест»');
     expect(tests.text).toContain('«Оформление»');
     expect(tests.text).toContain('«Отправить по ссылке»');
-    expect(tests.reels![1].text).toContain('аккаунт не нужен');
-    for (const path of ['/tests/new', '/exams/c/abc/studio', '/exams/c/abc/build', '/exams/c/abc/quizzes', '/exams/c/abc/quizzes/q1']) {
+    expect(tests.reels![2].text).toContain('аккаунт не нужен');
+    for (const path of ['/tests/new', '/tests/quick', '/exams/c/abc/quizzes/q1/link', '/exams/c/abc/studio', '/exams/c/abc/build', '/exams/c/abc/quizzes', '/exams/c/abc/quizzes/q1']) {
       expect(tests.match!.test(path)).toBe(true);
       expect(chapter('exams').match!.test(path)).toBe(false);
     }

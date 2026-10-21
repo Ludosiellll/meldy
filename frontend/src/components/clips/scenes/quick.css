@@ -1,0 +1,72 @@
+/*
+ * «Быстрая контрольная» (quick.tsx) on the 1440 × 900 stage, drawn at about twice the app's size like the other how-to
+ * clips: «Тесты» with its two doors, the quick test's two cards and its bar, the link with its QR code. Every rule sits
+ * under the clip's root, as in scenes.css (scenesScope.test.ts).
+ */
+
+/* 1 · «Тесты». */
+:where(.sx-scene) .qx-switch { position: absolute; left: 80px; top: 132px; display: flex; gap: 6px; padding: 6px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2px #e4e4de; }
+:where(.sx-scene) .qx-switch span { display: inline-flex; align-items: center; gap: 10px; height: 62px; padding: 0 28px; border-radius: 999px; font-size: 27px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+:where(.sx-scene) .qx-switch span.is-on { background: var(--ink); color: #f3f3f0; }
+:where(.sx-scene) .qx-switch small { font-size: 22px; opacity: .7; }
+:where(.sx-scene) .qx-h1 { position: absolute; left: 80px; top: 228px; font-size: 76px; }
+:where(.sx-scene) .qx-lede { position: absolute; left: 82px; top: 322px; margin: 0; font-size: 29px; white-space: nowrap; }
+:where(.sx-scene) .qx-door { position: absolute; right: 440px; top: 140px; height: 84px; padding: 0 36px; font-size: 29px; }
+:where(.sx-scene) .qx-door i { width: 62px; height: 62px; margin-right: -24px; }
+:where(.sx-scene) .qx-door2 { position: absolute; right: 80px; top: 140px; display: inline-flex; align-items: center; gap: 18px; height: 84px; padding: 0 12px 0 34px; border-radius: 999px; background: #fff; box-shadow: inset 0 0 0 2px #e4e4de; font-size: 29px; font-weight: 500; color: var(--ink); white-space: nowrap; }
+:where(.sx-scene) .qx-door2 i { display: grid; place-items: center; width: 60px; height: 60px; border-radius: 50%; background: var(--ink); color: #fff; }
+:where(.sx-scene) .qx-door2 svg { width: 26px; height: 26px; }
+:where(.sx-scene) .qx-test { top: 420px; width: 620px; height: 230px; padding: 44px 48px; }
+:where(.sx-scene) .qx-test--1 { left: 80px; }
+:where(.sx-scene) .qx-test--2 { left: 740px; }
+:where(.sx-scene) .qx-test-t { margin: 0; font-size: 40px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+:where(.sx-scene) .qx-tags { display: flex; gap: 10px; margin: 18px 0 0; }
+:where(.sx-scene) .qx-tags span { padding: 8px 18px; border-radius: 999px; background: #f7f7f3; box-shadow: 0 0 0 2px #e4e4de; font-size: 24px; color: var(--muted); white-space: nowrap; }
+
+/* 2–4 · «Быстрая контрольная». */
+:where(.sx-scene) .qx-h1--quick { top: 132px; font-size: 62px; }
+:where(.sx-scene) .qx-write { left: 80px; top: 230px; width: 500px; height: 530px; padding: 34px 36px; }
+:where(.sx-scene) .qx-label { margin: 0 0 10px; font-size: 24px; font-weight: 600; color: var(--ink); }
+:where(.sx-scene) .qx-field { margin: 0 0 22px; padding: 14px 20px; border-radius: 22px; background: #f7f7f3; box-shadow: inset 0 0 0 2px #e4e4de; font-size: 25px; color: var(--ink); white-space: nowrap; overflow: hidden; }
+:where(.sx-scene) .qx-field--text { position: relative; height: 300px; padding: 16px 20px; white-space: normal; }
+:where(.sx-scene) .qx-placeholder { position: absolute; left: 20px; top: 16px; margin: 0; font-size: 23px; color: var(--muted); }
+:where(.sx-scene) .qx-line { margin: 0; font-size: 22px; line-height: 1.22; color: var(--ink); white-space: nowrap; }
+:where(.sx-scene) .qx-found { left: 610px; top: 230px; width: 750px; height: 530px; padding: 30px 32px; }
+:where(.sx-scene) .qx-found-head { display: flex; align-items: center; gap: 18px; }
+:where(.sx-scene) .qx-h2 { position: relative; display: grid; margin: 0; font-size: 36px; font-weight: 500; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+:where(.sx-scene) .qx-h2 > span { grid-area: 1 / 1; }
+:where(.sx-scene) .qx-badge { padding: 8px 16px; border-radius: 999px; background: #fcefc9; color: #7a5a12; font-size: 21px; font-weight: 600; white-space: nowrap; }
+:where(.sx-scene) .qx-qs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 22px; }
+:where(.sx-scene) .qx-q { box-sizing: border-box; padding: 18px 20px; border-radius: 26px; box-shadow: 0 0 0 2px #e4e4de; background: #fff; }
+:where(.sx-scene) .qx-q--wide { grid-column: 1 / -1; padding: 0; box-shadow: none; background: none; }
+:where(.sx-scene) .qx-q3 { padding: 16px 20px; border-radius: 26px; }
+:where(.sx-scene) .qx-q-no { margin: 0; font-size: 20px; font-weight: 600; color: var(--ink); }
+:where(.sx-scene) .qx-ask { margin: 4px 0 0; font-size: 20px; font-weight: 600; color: #7a5a12; }
+:where(.sx-scene) .qx-q-stem { margin: 8px 0 12px; font-size: 23px; line-height: 1.25; font-weight: 500; color: var(--ink); }
+:where(.sx-scene) .qx-opt { display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 10px 16px; border-radius: 16px; background: #fff; box-shadow: inset 0 0 0 2px #e4e4de; font-size: 21px; color: var(--ink); white-space: nowrap; }
+:where(.sx-scene) .qx-opt b { color: var(--muted); }
+:where(.sx-scene) .qx-opt em { margin-left: auto; font-size: 18px; font-style: normal; font-weight: 600; color: #2c6b3a; }
+:where(.sx-scene) .qx-opt.is-right { background: #e2f2e5; box-shadow: inset 0 0 0 3px #8acb97; }
+:where(.sx-scene) .qx-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+:where(.sx-scene) .qx-row .qx-opt { margin-top: 0; }
+:where(.sx-scene) .qx-short { display: inline-block; padding: 10px 16px; border-radius: 16px; background: #e2f2e5; color: #2c6b3a; font-size: 22px; font-weight: 500; }
+:where(.sx-scene) .qx-bar { position: absolute; left: 0; right: 0; top: 790px; display: flex; align-items: center; gap: 12px; height: 110px; padding: 0 80px; border-top: 2px solid #e4e4de; background: #f6f6f2; }
+:where(.sx-scene) .qx-chip { padding: 12px 22px; border-radius: 999px; background: #fff; box-shadow: 0 0 0 2px #e4e4de; font-size: 23px; color: var(--ink); white-space: nowrap; }
+:where(.sx-scene) .qx-sum { display: grid; margin-left: auto; font-size: 22px; color: var(--muted); white-space: nowrap; }
+:where(.sx-scene) .qx-sum > span { grid-area: 1 / 1; text-align: right; }
+:where(.sx-scene) .qx-get { height: 80px; padding: 0 34px; font-size: 28px; }
+:where(.sx-scene) .qx-get i { width: 60px; height: 60px; margin-right: -24px; }
+
+/* 4 · the link. */
+:where(.sx-scene) .qx-ready { position: absolute; left: 82px; top: 140px; display: flex; align-items: center; gap: 14px; margin: 0; font-size: 28px; font-weight: 600; color: #2c6b3a; }
+:where(.sx-scene) .qx-ready::before { content: ''; width: 18px; height: 18px; border-radius: 50%; background: #8acb97; }
+:where(.sx-scene) .qx-h1--link { top: 196px; font-size: 68px; white-space: nowrap; }
+:where(.sx-scene) .qx-tags--link { position: absolute; left: 80px; top: 296px; margin: 0; }
+:where(.sx-scene) .qx-share { left: 80px; top: 380px; width: 1000px; height: 420px; padding: 40px; display: flex; gap: 48px; align-items: center; }
+:where(.sx-scene) .qx-qr { flex: none; width: 330px; height: 330px; padding: 12px; border-radius: 32px; background: #fff; box-shadow: 0 0 0 2px #e4e4de; }
+:where(.sx-scene) .qx-qr-code { display: block; width: 100%; height: 100%; }
+:where(.sx-scene) .qx-share-side { flex: 1 1 auto; min-width: 0; }
+:where(.sx-scene) .qx-field--link { margin-bottom: 24px; font-size: 28px; }
+:where(.sx-scene) .qx-copy { height: 84px; padding: 0 36px; font-size: 29px; }
+:where(.sx-scene) .qx-copy i { width: 62px; height: 62px; margin-right: -24px; }
+:where(.sx-scene) .qx-hint { margin: 26px 0 0; font-size: 25px; line-height: 1.35; }

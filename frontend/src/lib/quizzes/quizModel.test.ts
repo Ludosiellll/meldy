@@ -56,7 +56,7 @@ describe('defaults', () => {
     expect(s.item_count).toBe(20);
     expect(s.time_limit_min).toBe(20);
     expect(s.attempts).toBe(1);
-    expect(s.review).toBe('mistakes_then_answers');
+    expect(s.review).toBe('answers');
     expect(s.title).toMatch(/^Контрольная · \d{2}\.\d{2}$/);
     const closes = new Date(s.closes_at!);
     expect(closes.getTime() - NOW.getTime()).toBeGreaterThan(6 * 86400000);
@@ -165,7 +165,7 @@ describe('csvOf', () => {
     );
     expect(csv.startsWith('﻿')).toBe(true);
     const lines = csv.slice(1).split('\r\n');
-    expect(lines[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог;Вариант 1 № 3;Вариант 1 № 7');
+    expect(lines[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Проходной балл;Вариант 1 № 3;Вариант 1 № 7');
     expect(lines[1].startsWith('"Иванов; Иван";1;')).toBe(true);
     expect(lines[1].endsWith(';1;2;50;нет;0;1')).toBe(true);
   });
@@ -299,10 +299,10 @@ describe('the studio’s points (release 47.2)', () => {
     const marks = [{ attempt_id: 'a1', item_id: 'i1', correct: true }];
     const subjects = [{ id: 's1', title: 'Вопросы' }];
     const design = csvOf({ pass_percent: 80, design: true }, rows, marks, items, subjects).slice(1).split('\r\n');
-    expect(design[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;Баллы;Всего баллов;%;Порог;Вопросы № 1');
+    expect(design[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;Баллы;Всего баллов;%;Проходной балл;Вопросы № 1');
     expect(design[1].endsWith(';4;6;9;12;75;нет;1')).toBe(true);
     const plain = csvOf({ pass_percent: 80, design: false }, [attempt({ id: 'a1', correct: 4, total: 6 })], marks, items, subjects).slice(1).split('\r\n');
-    expect(plain[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Порог;Вопросы № 1');
+    expect(plain[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Проходной балл;Вопросы № 1');
     expect(plain[1].endsWith(';4;6;67;нет;1')).toBe(true);
   });
 });

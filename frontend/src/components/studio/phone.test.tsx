@@ -5,6 +5,8 @@ import { STUDIO } from './copyStudio';
 import { bottomBarShown, hasBottomBar, revealBlock, sendWords, takesKeyboard, tourClipFits } from './phone';
 import Tour from './Tour';
 
+vi.mock('../../api/social', () => ({ getProfile: vi.fn(async () => null), markOnboardingTourSeen: vi.fn(async () => undefined) }));
+
 /* The studio on a phone and a tablet (phone audit of 19.10). */
 
 function stubWindow(width: number, height: number) {
@@ -98,7 +100,7 @@ describe('the tour on a phone', () => {
     stubWindow(375, 667);
     render(<Tour userId="user-1" phone onDone={() => undefined} />);
     expect(card().querySelector('.st-tour-clip')).toBeNull();
-    expect(card()).toHaveTextContent('Нажмите «Блоки» внизу → «Заголовок»');
+    expect(card()).toHaveTextContent('Нажмите «Блоки» внизу, затем «Заголовок»');
     expect(card()).not.toHaveTextContent(/Перетащите/);
     expect(within(card()).getAllByText(/\d\s*(из|\/)\s*\d/)).toHaveLength(1);
     expect(within(card()).getByText(STUDIO.tourStep(1, 4))).toBeInTheDocument();
@@ -119,6 +121,7 @@ describe('the tour on a phone', () => {
     stubWindow(1440, 900);
     render(<Tour userId="user-1" onDone={() => undefined} />);
     expect(card().querySelector('.st-tour-clip')).not.toBeNull();
-    expect(card()).toHaveTextContent(STUDIO.tour[0].text);
+    // A computer starts with editing in place: «Блоки» is the palette's own line already.
+    expect(card()).toHaveTextContent(STUDIO.tour[1].text);
   });
 });

@@ -197,9 +197,9 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
     } catch (error) {
       const message =
         error instanceof StreamError && error.kind === 'http' && error.status === 409
-          ? 'Сейчас идёт сверка списка с лекциями. Шпаргалку можно будет написать, когда сверка закончится.'
+          ? 'Сейчас идёт сверка с лекциями. Пункты ответа можно будет подготовить после неё.'
           : error instanceof StreamError && (error.kind === 'network' || error.kind === 'timeout')
-            ? 'Связь прервалась. Шпаргалка дописывается на сервере — обновите страницу через минуту.'
+            ? 'Связь прервалась. Пункты ответа готовятся на сервере. Обновите страницу через минуту.'
             : error instanceof StreamError
               ? error.message
               : 'Не удалось начать. Повторите через минуту.';
@@ -212,7 +212,7 @@ export async function startSheetWrite(examId: string, questionIds?: string[], op
     }
     notifyAIUsageChanged(); // the server charged the written questions
     if (!terminal) {
-      set(examId, (previous) => ({ ...previous, phase: 'interrupted', message: 'Связь прервалась. Шпаргалка дописывается на сервере — обновите страницу через минуту.' }));
+      set(examId, (previous) => ({ ...previous, phase: 'interrupted', message: 'Связь прервалась. Пункты ответа готовятся на сервере. Обновите страницу через минуту.' }));
     } else if (terminal.type === 'done' && terminal.joined === false) {
       set(examId, (previous) => ({ ...idleState(examId), seq: previous.seq }));
     } else if (terminal.type === 'done') {

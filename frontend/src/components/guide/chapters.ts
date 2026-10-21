@@ -13,6 +13,7 @@ import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
 import { plural } from '../pro/planCopy';
 import type { StepClipId } from '../clips/types';
+import { GUIDE_START } from '../quick/copyQuick';
 
 export type GuideChapterId = 'today' | 'add' | 'library' | 'exams' | 'tests' | 'review' | 'progress' | 'limit';
 
@@ -55,7 +56,7 @@ export interface GuideChapter {
 }
 
 const EXAMS_TEXT =
-  'Нажмите «Выбрать файлы», а если экзамены уже есть, «Новый экзамен». Подойдёт один файл на всё или по файлу на предмет. Ключ к вариантам Meldy возьмёт из файла. На устные вопросы отвечайте в «Тянуть билет».';
+  'Нажмите «Новый экзамен» и загрузите вопросы. Подойдёт один общий файл или по файлу на предмет. Ключ к вариантам Meldy возьмёт из файла. На устные вопросы отвечайте голосом или текстом в «Тянуть билет», и Meldy сверит ответ с вашими лекциями.';
 
 /** «Тесты»: the studio (release 47.2) in the words of its screens. */
 const TESTS_TEXT =
@@ -141,15 +142,17 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     tab: 'Тесты',
     // «Новый тест» is on «Экзамены»: that page is the chapter's own, and «Экзамены» lights up in the menu.
     route: '/exams',
-    match: /^\/(?:tests\/new|exams\/c\/[^/]+\/(?:studio|build|quizzes))(?:\/|$)/,
+    match: /^\/(?:tests\/(?:new|quick)|exams\/c\/[^/]+\/(?:studio|build|quizzes))(?:\/|$)/,
     title: 'Тесты',
     text: TESTS_TEXT,
     spot: 'link',
     reels: [
-      { clip: 'studio', label: 'Свой тест', title: 'Тесты', text: TESTS_TEXT },
+      // «Быстрая контрольная» first (UX audit of 21.10): pasted questions to a link, the shortest way.
+      { clip: 'quick', label: 'Контрольная', title: GUIDE_START.test[0].title, text: GUIDE_START.test[0].text },
+      { clip: 'studio', label: 'Студия', title: 'Тесты', text: TESTS_TEXT },
       {
         clip: 'quizLink',
-        label: 'Как это видит ученик',
+        label: 'Глазами ученика',
         title: 'Тест по ссылке',
         // Release 47: a participant without an account (/k/<код>), the result after «Завершить», the author's table.
         text: 'Ученик открывает ссылку или QR-код, пишет имя и нажимает «Начать»: аккаунт не нужен. После «Завершить» он видит результат, а вы — его строку в таблице.',

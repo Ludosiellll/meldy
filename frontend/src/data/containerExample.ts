@@ -94,9 +94,6 @@ export function subjectRow(subject: ExampleSubject): string {
   return (subject.oral ? ['устный', ...parts] : parts).map((part) => part.replace(/ /g, NB)).join(`${NB}· `);
 }
 
-/** The oral subject's sheet, as its row on the exam page names it (copy.oralSheetRow). */
-export const ORAL_SHEET_ROW = 'Шпаргалка к 12 устным вопросам';
-
 /** The import's words (copyImport IMPORT): the title, the lede, what was found, a subject's line. */
 export const IMPORT_WORDS = {
   title: 'Новый экзамен',

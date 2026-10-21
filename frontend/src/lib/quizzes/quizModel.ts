@@ -53,7 +53,8 @@ export function defaultSettings(subjectIds: string[], pool: number, now: Date): 
     grading: 'best',
     allow_back: true,
     pass_percent: null,
-    review: 'mistakes_then_answers',
+    // Owner, 21.10: «нужно чтобы в конце показывало не только где ты ошибся, а еще и какой правильный ответ».
+    review: 'answers',
     members_only: false,
     guests: true,
     cover_path: null,
@@ -333,7 +334,7 @@ export function csvOf(
     'Всего',
     ...(points ? ['Баллы', 'Всего баллов'] : []),
     '%',
-    'Порог',
+    'Проходной балл',
     ...(guarded ? ['Уходы со страницы', 'Все записи защиты', 'Нарушения'] : []),
     ...asked.map((item) => `${title.get(item.subject_id) ?? ''} № ${item.file_no}`.trim()),
   ];

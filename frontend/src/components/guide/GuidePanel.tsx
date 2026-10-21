@@ -8,6 +8,9 @@ import StepClipPlaceholder from '../clips/Placeholder';
 import { track } from '../../lib/telemetry';
 import { usePhone } from '../../lib/usePhone';
 import './guide.css';
+import GuideGoal from './GuideGoal';
+import { GUIDE_START } from '../quick/copyQuick';
+import { useExamsEmpty } from './useExamsEmpty';
 
 function ArrowIcon() {
   return (
@@ -187,6 +190,10 @@ export default function GuidePanel() {
   useEffect(() => {
     if (!open) setClipAsked(false);
   }, [open]);
+  const guideRef = useRef(guide);
+  guideRef.current = guide;
+  // «Экзамены» empty shows «Выбрать файлы», not «Новый экзамен»: the chapter names the button on screen.
+  const examsEmpty = useExamsEmpty(open && guide?.index === GUIDE_CHAPTERS.findIndex((entry) => entry.id === 'exams'));
   // The clip is a file of its own (clipPart.ts): until it arrives the card keeps its empty frame.
   const GuideClip = useLazyPart(guideClipPart, open, {
     onError: (error) => console.error('Ролик раздела не загрузился:', error),
@@ -212,8 +219,10 @@ export default function GuidePanel() {
       const root = panel.current;
       if (!root) return;
       if (event.key === 'Escape') {
+        // The first run has a way out (UX audit of 21.10): Escape ends it, as × and «Пропустить знакомство».
         event.preventDefault();
         event.stopPropagation();
+        guideRef.current?.close();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -249,21 +258,36 @@ export default function GuidePanel() {
   }, [open, mandatory]);
 
   if (!guide || !open) return null;
-  const { index, go, close, finish } = guide;
+  const { index, go, close, finish, stops, at, goStop } = guide;
+  if (mandatory && guide.phase === 'goal') {
+    return (
+      <div className="gd-layer">
+        <Backdrop chapter="goal" pathname={pathname} />
+        <GuideGoal panelRef={panel} titleId={titleId} textId={textId} phone={phone} onChoose={guide.chooseGoal} onSkip={close} />
+      </div>
+    );
+  }
   const chapter = GUIDE_CHAPTERS[index];
-  const total = GUIDE_CHAPTERS.length;
-  const last = index === total - 1;
-  const reels = chapter.reels ?? null;
+  const stop = stops ? stops[at] : null;
+  // A goal's way (firstRun.ts) counts its own cards; the whole guide counts the chapters.
+  const total = stops ? stops.length : GUIDE_CHAPTERS.length;
+  const position = stops ? at : index;
+  const last = position === total - 1;
+  const goTo = (next: number) => (stops ? goStop(next) : go(next));
+  const reels = stops ? null : chapter.reels ?? null;
   const reelAt = reels && chosen.chapter === chapter.id ? Math.min(chosen.at, reels.length - 1) : 0;
   const reel = reels ? reels[reelAt] : null;
-  const title = reel?.title ?? chapter.title;
-  const text = reel?.text ?? chapter.text;
+  const examsWords = chapter.id === 'exams' && reelAt === 0 && examsEmpty ? GUIDE_START.examsEmpty : null;
+  const title = stop?.title ?? reel?.title ?? chapter.title;
+  const text = stop?.text ?? examsWords ?? reel?.text ?? chapter.text;
   // The section's page, unless the student is on it; the limit has none (its meter is in the top line).
   const sectionLink = chapter.route && !chapter.match?.test(pathname) && chapter.route !== pathname ? chapter.route : null;
   // Where the section is on a phone: said with the chapter's own clip.
   const where = reelAt > 0 ? undefined : phone && chapter.narrow ? chapter.narrow : chapter.phone;
-  const stepReel = reel?.clip ?? (chapter.id === 'tests' ? 'studio' : null);
-  const clipShown = !narrow || clipAsked;
+  const stepReel = stop && stop.clip !== undefined ? stop.clip : reel?.clip ?? (chapter.id === 'tests' ? 'studio' : null);
+  // A card of words only (a stop with clip null): no frame, no «Показать ролик».
+  const noClip = Boolean(stop && stop.clip === null);
+  const clipShown = !noClip && (!narrow || clipAsked);
 
   const card = (
     <section
@@ -279,22 +303,20 @@ export default function GuidePanel() {
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return;
         event.stopPropagation();
-        if (!mandatory) close();
+        close();
       }}
     >
       <div className="gd-top">
-        <p className="gd-kick">{mandatory ? 'Знакомство с Meldy' : 'Помощник'}</p>
+        <p className="gd-kick">{mandatory ? GUIDE_START.kicker : 'Помощник'}</p>
         <p className="gd-count">
-          {index + 1} из {total}
+          {position + 1} из {total}
         </p>
-        {mandatory ? null : (
-          <button type="button" className="gd-x" onClick={close} aria-label="Закрыть">
-            <CloseIcon />
-          </button>
-        )}
+        <button type="button" className="gd-x" onClick={close} aria-label={GUIDE_START.close}>
+          <CloseIcon />
+        </button>
       </div>
 
-      {narrow ? (
+      {narrow && !noClip ? (
         <button type="button" className="gd-clip-toggle" aria-expanded={clipAsked} onClick={() => setClipAsked((asked) => !asked)}>
           <PlayIcon />
           {clipAsked ? 'Скрыть ролик' : 'Показать ролик'}
@@ -329,18 +351,21 @@ export default function GuidePanel() {
       ) : null}
 
       <ol className="gd-steps" aria-label="Разделы">
-        {GUIDE_CHAPTERS.map((item, position) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              className="gd-step"
-              data-done={position < index ? '' : undefined}
-              aria-current={position === index ? 'step' : undefined}
-              aria-label={item.tab}
-              onClick={() => go(position)}
-            />
-          </li>
-        ))}
+        {(stops ?? GUIDE_CHAPTERS).map((item, step) => {
+          const label = 'tab' in item ? item.tab : item.title ?? GUIDE_CHAPTERS.find((entry) => entry.id === item.chapter)?.tab ?? '';
+          return (
+            <li key={`${step}-${label}`}>
+              <button
+                type="button"
+                className="gd-step"
+                data-done={step < position ? '' : undefined}
+                aria-current={step === position ? 'step' : undefined}
+                aria-label={label}
+                onClick={() => goTo(step)}
+              />
+            </li>
+          );
+        })}
       </ol>
 
       <h2 id={titleId} className="gd-h">
@@ -352,13 +377,13 @@ export default function GuidePanel() {
       </p>
 
       <div className="gd-actions">
-        {index > 0 ? (
-          <button type="button" className="gd-quiet" onClick={() => go(index - 1)}>
+        {position > 0 ? (
+          <button type="button" className="gd-quiet" onClick={() => goTo(position - 1)}>
             Назад
           </button>
-        ) : mandatory ? null : (
+        ) : (
           <button type="button" className="gd-quiet" onClick={close}>
-            Не сейчас
+            {mandatory ? GUIDE_START.skip : 'Не сейчас'}
           </button>
         )}
         {sectionLink ? (
@@ -368,10 +393,15 @@ export default function GuidePanel() {
         ) : null}
         {last ? (
           <button type="button" className="gd-next" onClick={() => { track('guide_done', { first_run: mandatory }); (mandatory ? finish : close)(); }}>
-            {mandatory ? 'Начать' : 'Готово'}
+            {mandatory ? (guide.goal === 'test' ? GUIDE_START.startTest : 'Начать') : 'Готово'}
+            {mandatory ? (
+              <i>
+                <ArrowIcon />
+              </i>
+            ) : null}
           </button>
         ) : (
-          <button type="button" className="gd-next" onClick={() => go(index + 1)}>
+          <button type="button" className="gd-next" onClick={() => goTo(position + 1)}>
             Дальше
             <i>
               <ArrowIcon />
@@ -381,7 +411,7 @@ export default function GuidePanel() {
       </div>
 
       <p className="sr-only" aria-live="polite">
-        {`Раздел ${index + 1} из ${total}: ${title}`}
+        {`Раздел ${position + 1} из ${total}: ${title}`}
       </p>
     </section>
   );

@@ -12,15 +12,13 @@
  * - The answer to the follow-up: «не знаю» (said, typed or the button) does not name the point; anything else
  *   is judged by the AI on the server, by the point, as a real ticket's reply is (tryCheck.checkTryFollowup) —
  *   and when the AI is not there, by the browser's key-word rule (followupFallback, the one a real ticket
- *   uses when the check does not answer in time), labelled «по ключевым словам» in the protocol. The key
+ *   uses when the check does not answer in time), labelled «по ключевым словам» in the check. The key
  *   words never say «назван», so only the AI can name a point after the examiner's question (PUB-2).
  * - The grade is oralGrade.gradeAnswer, the app's formula.
  */
-import { drawTicket, ticketKey, RECENT_LIMIT } from '../../lib/exams/draw';
 import { browserCandidate, chooseFollowup, decideFollowup, saysDontKnow, type FollowupChoice } from '../../lib/oral/followup';
 import { followupFallback, openingMatch, segmentText, words, type Anchors } from '../../lib/oral/rubricMatch';
 import type { CheckStatus, Evaluation, RubricPoint } from '../../lib/oral/oralApi';
-import { answerableQuestions, exampleQuestion, type ExampleQuestion } from '../../data/example';
 import type { TryFollowupCheck } from './tryCheck';
 
 /** The longest piece of the answer quoted in the protocol (backend oral.STUDENT_QUOTE_CHARS). */
@@ -118,34 +116,4 @@ export function judgeFollowupAnswer(
   if (saysDontKnow(answer)) return { status: 'missing', judgedBy: null };
   if (reply?.by === 'ai') return { status: reply.status, judgedBy: 'check' };
   return { status: followupFallback(point.anchors, question, answer), judgedBy: 'keywords' };
-}
-
-// ── The draw ──────────────────────────────────────────────────────────────────────────────
-
-/** The keys of the last tickets of this visit (newest first): «Тянуть ещё» does not repeat them. */
-let recentDraws: string[] = [];
-
-/** For tests: forget the draws of earlier tests. */
-export function resetExampleDraws(): void {
-  recentDraws = [];
-}
-
-/**
- * One question at random from the ones the example's lectures cover (lib/exams/draw, «Как на
- * экзамене» with one question per ticket), never one of the last three of this visit. A question
- * that is in no lecture has nothing to check an answer against, so it is not drawn.
- */
-export function drawExampleQuestion(rng?: () => number): ExampleQuestion | null {
-  const pool = answerableQuestions();
-  const result = drawTicket({
-    mode: 'exam',
-    layout: { mode: 'random', perTicket: 1 },
-    questions: pool.map((question) => ({ id: question.id, section: null, coverage: question.coverage, readiness: 'untested', attempts: 0 })),
-    recent: recentDraws,
-    rng,
-  });
-  if (!result.ok) return null;
-  const id = result.ticket.questionIds[0];
-  recentDraws = [ticketKey([id]), ...recentDraws.filter((key) => key !== ticketKey([id]))].slice(0, RECENT_LIMIT);
-  return exampleQuestion(id);
 }

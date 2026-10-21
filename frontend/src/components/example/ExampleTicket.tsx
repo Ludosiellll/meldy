@@ -3,68 +3,43 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { FROM_TRY } from '../../lib/returnTo';
 import { useConfirm } from '../../contexts/ConfirmContext';
-import { SPEECH_ERROR_MESSAGES, SPEECH_UNSUPPORTED_MESSAGE, joinSpeech, useSpeechAnswer } from '../../hooks/useSpeechAnswer';
+import { SPEECH_ERROR_MESSAGES, joinSpeech, useSpeechAnswer } from '../../hooks/useSpeechAnswer';
 import { Mark, seedFrom } from '../marks';
 import TicketCard, { ticketHeading } from '../oral/TicketCard';
 import RubricSlots from '../oral/RubricSlots';
 import LiveTranscript from '../oral/LiveTranscript';
 import ExaminerLine, { ExaminerThinking } from '../oral/ExaminerLine';
 import PrivacySheet from '../oral/PrivacySheet';
-import { ProtocolSheet, livePoints, type ProtocolFollowup } from '../oral/OralProtocol';
+import { livePoints, type ProtocolFollowup } from '../oral/OralProtocol';
 import { liveMarks, namedPoints, underlinedFinalWords, words } from '../../lib/oral/rubricMatch';
 import { answerTime, closingLine, initialTicketState, ticketReducer, type AnswerMode, type TicketState } from '../../lib/oral/ticketMachine';
 import type { AnswerInput } from '../../lib/oral/oralPersistence';
-import { elapsedLabel, glue, longDateTime, plural } from '../../lib/oral/format';
+import { elapsedLabel, glue, plural } from '../../lib/oral/format';
 import { exampleQuestion, exampleRubricResponse, exampleTicket, type ExampleQuestion } from '../../data/example';
-import { answerQuote, exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
-import {
-  checkLine,
-  checkSummary,
-  checkTryAnswer,
-  checkTryFollowup,
-  followupPlan,
-  keptEvaluation,
-  parseCheckSummary,
-  tryEvaluation,
-  type TryCheck,
-  type TryFollowupCheck,
-} from './tryCheck';
+import { exampleFollowup, judgeFollowupAnswer, keywordEvaluation } from './exampleFlow';
+import { checkSummary, checkTryAnswer, checkTryFollowup, followupPlan, tryEvaluation, type TryCheck, type TryFollowupCheck } from './tryCheck';
 import { saysDontKnow } from '../../lib/oral/followup';
 import { FINISH_SHORTCUTS, finishKeysLabel, isFinishKey, useDeskColumn } from '../oral/roomDesk';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
-import ExampleGrade from './ExampleGrade';
 import TryBar, { ownExamHref } from './TryBar';
+import TrySteps from './TrySteps';
+import ExampleCheck from './ExampleCheck';
+import { checkHeadline } from './exampleCheck';
+import { isSampleAnswer, sampleAnswer } from './sampleAnswers';
 import { countBucket, track } from '../../lib/telemetry';
-import { usePasteGuard } from '../oral/usePasteGuard';
+import { usePasteGuard, type PasteGuard } from '../oral/usePasteGuard';
 import PasteNotice from '../oral/PasteNotice';
-import { answerChange, type AnswerChange } from '../exams/sheet/answerChange';
-import { protocolSheetLine } from '../exams/sheet/copy';
-import type { Evaluation } from '../../lib/oral/oralApi';
-import { exampleRubric } from '../../data/example';
-import {
-  EXAMPLE_ANSWER_Q5,
-  EXAMPLE_ANSWER_QUESTION,
-  findTryAnswer,
-  isSeededSession,
-  saveTryAnswer,
-  setTryPeak,
-  trySheetQuestions,
-  tryEvents,
-  type TryAnswer,
-} from './trySheet';
+import '../oral/oral.css';
 
-/** The example's cheat sheet: the answers erase its lines (sheet spec 4.3). */
-const TRY_SHEET_PATH = '/try?view=sheet';
-
-/** «Экзаменатор слушает ответ…» stays at least this long after «Готово» (the real screen waits for its quick check). */
+/** «Экзаменатор слушает ответ…» stays at least this long after «Проверить ответ» (the real screen waits for its quick check). */
 export const EXAMINER_PAUSE_MS = 900;
 /**
  * The examiner asks about a point the AI's protocol did not find — or, when the AI is slower than this,
  * about one the key words did not find (the real ticket's quick check gets 4.5 s on the server). The
- * protocol still waits for the AI (up to tryCheck.TRY_CHECK_TIMEOUT_MS) while the follow-up is answered.
+ * check still waits for the AI (up to tryCheck.TRY_CHECK_TIMEOUT_MS) while the follow-up is answered.
  */
 export const FOLLOWUP_WAIT_MS = 4500;
-/** With nothing to ask, the examiner's closing line stays this long before the protocol. */
+/** With nothing to ask, the examiner's closing line stays this long before the check. */
 export const CLOSING_PAUSE_MS = 1400;
 /**
  * A spoken answer to the follow-up is listened to this long after the question appears. The real screen
@@ -76,20 +51,51 @@ const SILENCE_HINT_MS = 8000;
 const LONG_ANSWER_MS = 120_000;
 /** The real screen's line when the follow-up's answer was not heard (pages/ExamTicket NOT_HEARD_LINE). */
 const NOT_HEARD_LINE = 'Не расслышал ответ';
-const EMPTY_ANSWER_NOTICE = 'Ответ пустой: скажите или напишите ответ, потом нажмите «Готово».';
+const EMPTY_ANSWER_NOTICE = 'Ответ пустой. Скажите или напишите ответ и нажмите «Проверить ответ».';
+/** This browser has no speech recognition (useSpeechAnswer's own line, in short sentences). */
+const NO_SPEECH_LINE = 'В этом браузере нельзя ответить голосом. Ответьте текстом.';
 
-/** Who sees the answer in the example: the browser, then Meldy's server and the Google model that check it (try_api.py). */
-export const EXAMPLE_PRIVACY_LINE =
-  'Речь распознаёт браузер, в Chrome — через сервис Google. Для проверки текст ответа отправляется на сервер Meldy и в ИИ-сервис Google Gemini. Meldy его не сохраняет.';
+/**
+ * Step 2 in plain words: what to do and what will happen (the owner, 21.10: «просят ввести что, а что не понятно»). One
+ * thought per short sentence (the owner's plain-words rule, 21.10): these strings follow it all through /try.
+ */
+export const EXAMPLE_NEXT_LINE = 'Ответьте голосом или текстом, как на экзамене. Meldy сверит ответ с лекциями. Если чего-то не хватит, экзаменатор задаст вопрос.';
 
-/** Leaving an unfinished answer: the tab keeps finished answers (the sheet erases by them), not this one (PUB-3). */
-export const LEAVE_MESSAGE = 'Ответ пропадёт: незаконченный ответ нигде не сохраняется.';
+/**
+ * Who sees the answer in the example: the browser recognises speech (in Chrome, Google does), then Meldy's server and
+ * Google's model check the text (try_api.py); nothing is kept.
+ */
+export const EXAMPLE_PRIVACY_LINE = 'Голос распознаёт браузер. В Chrome это делает Google. Ответ проверяют сервер Meldy и Google Gemini. Мы его не сохраняем.';
 
-/** The label of the example's own answer, put in by «Вставить ответ примера» and not changed since. */
-export const EXAMPLE_ANSWER_LABEL = 'Ответ примера';
+/** Leaving an unfinished answer: the example keeps no answer anywhere. */
+export const LEAVE_MESSAGE = 'Ответ пропадёт. В примере ответы не сохраняются.';
 
-/** Before the answer, above the two ways to answer: what «Готово» leads to (EX-32 for the example; no units here). */
-export const EXAMPLE_NEXT_LINE = 'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из лекций.';
+/** The label of the ready answer, put in by «Вставить готовый ответ» and not changed since. */
+export const EXAMPLE_ANSWER_LABEL = 'Готовый ответ';
+
+/** The button that puts the ready answer in (it does not send it: «Проверить ответ» does). */
+export const INSERT_SAMPLE_LABEL = 'Вставить готовый ответ';
+
+/** «Готово» of the real screen, said as what it does. */
+export const CHECK_ANSWER_LABEL = 'Проверить ответ';
+
+/** A pasted ready text is refused, as on a real ticket («Чистый ответ», Н7); the example says where the ready one is. */
+export const EXAMPLE_PASTE_REFUSED = `Сюда нельзя вставить готовый текст. На экзамене отвечают сами. Чтобы посмотреть проверку, нажмите «${INSERT_SAMPLE_LABEL}».`;
+
+/** The closed rows of the answer sheet, said in words: what they are and when they open. */
+export const BLANK_ROW_TEXT = 'откроется, когда вы его назовёте';
+
+/** Above the rows: what they are. */
+export function examplePointsLine(question: ExampleQuestion, points: number): string {
+  const head = `В полном ответе ${points} ${plural(points, 'пункт', 'пункта', 'пунктов')} из лекций. Пока они скрыты.`;
+  return question.coverage === 'partial' && question.missing ? `${head} В лекциях нет ${question.missing}, поэтому об этом пунктов нет.` : head;
+}
+
+/** «Открыто 4 пункта из 5»: the number first, with its noun. */
+export function openedLine(count: number, total: number): string {
+  const verb = count % 10 === 1 && count % 100 !== 11 ? 'Открыт' : 'Открыто';
+  return `${verb} ${count} ${plural(count, 'пункт', 'пункта', 'пунктов')} из ${total}`;
+}
 
 function inputOf(usedSpeech: boolean, usedText: boolean): AnswerInput {
   if (usedSpeech && usedText) return 'mixed';
@@ -105,126 +111,60 @@ function setupRoom(question: ExampleQuestion): TicketState {
   return ticketReducer(state, { type: 'limit', run: state.run, limit: 'ok' });
 }
 
-/** «4 пункта ответа из лекций примера…» above the sheet before the answer. */
-export function exampleNoteLine(question: ExampleQuestion, points: number): string {
-  const head = `${points} ${plural(points, 'пункт', 'пункта', 'пунктов')} ответа из лекций примера. Они откроются, когда вы их назовёте.`;
-  return question.coverage === 'partial' && question.missing
-    ? `${head} В лекциях нет ${question.missing}, поэтому пунктов об этом тоже нет.`
-    : head;
+/**
+ * Whether this device can be heard: speech recognition, and a microphone the browser lists. Without either, the ready
+ * answer is the step's blue pill (a laptop with no microphone, a jury that does not know the subject).
+ */
+function useCanSpeak(supported: boolean): boolean {
+  const [microphone, setMicrophone] = useState(true);
+  useEffect(() => {
+    if (!supported) return undefined;
+    const devices = typeof navigator !== 'undefined' ? navigator.mediaDevices : undefined;
+    if (!devices || typeof devices.enumerateDevices !== 'function') return undefined;
+    let live = true;
+    devices
+      .enumerateDevices()
+      .then((list) => {
+        if (live) setMicrophone(list.some((device) => device.kind === 'audioinput'));
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [supported]);
+  return supported && microphone;
+}
+
+/** The paste guard's line in the example's words. */
+function examplePaste(guard: PasteGuard): PasteGuard {
+  return guard.notice ? { ...guard, notice: EXAMPLE_PASTE_REFUSED } : guard;
 }
 
 /**
- * The answer screen of the example (/try/ticket?q=…): the question from the draw. A question the
- * example cannot check (unknown, or in no lecture) gets an honest line and the way back.
+ * Steps 2 and 3 of the example (/try/ticket?q=…): the answer to the chosen question, then what the check found. A
+ * question the example cannot check (unknown, or in no lecture) gets an honest line and the way back to the list.
  */
 export default function ExampleTicket() {
-  useDocumentTitle('Билет · пример');
+  useDocumentTitle('Ответ · пример');
   const [params] = useSearchParams();
   const question = exampleQuestion(params.get('q'));
   if (!question || question.coverage === 'none' || question.points.length === 0) return <TicketMissing question={question} />;
-  // An answer kept in this tab (the line's history of the sheet): its protocol, to read.
-  const kept = findTryAnswer(params.get('answer'));
-  if (kept && kept.questionId === question.id) return <KeptProtocol question={question} answer={kept} />;
   return <ExampleRoom key={question.id} question={question} />;
-}
-
-/** What one answer of the example changed on the example's sheet («На шпаргалке: …»). */
-function sheetChangeOf(answer: TryAnswer, events = tryEvents({ v: 1, seededAt: 0, answers: [answer], peeks: [] })): AnswerChange | null {
-  const sheetQuestion = trySheetQuestions().find((item) => item.question_id === answer.questionId);
-  return sheetQuestion ? answerChange(sheetQuestion, events, answer.session, Date.now()) : null;
-}
-
-/**
- * «На шпаргалке: 3 строки стёрлись, 1 — наполовину» — in the protocol's header, where the real protocol
- * says what the answer did to the sheet (Ф1); «К шпаргалке» on the desk leads there.
- */
-function sheetNoteOf(change: AnswerChange | null): string | null {
-  return change ? glue(protocolSheetLine(change.summary, change.quiet)) : null;
-}
-
-/**
- * The protocol of an answer kept in this tab: yesterday's answers of the example, or the guest's own.
- * The same paper as after an answer, read only: the points as they were named, the result, the way
- * back to the sheet and to answering again.
- */
-function KeptProtocol({ question, answer }: { question: ExampleQuestion; answer: TryAnswer }) {
-  const deskRef = useDeskColumn();
-  const rubric = exampleRubric(question);
-  if (!rubric) return <TicketMissing question={question} />;
-  const checked = parseCheckSummary(answer.check) ?? { by: 'keywords' as const };
-  // The AI's own protocol when it checked the answer; otherwise the statuses with the key words' quotes.
-  const byAI = checked.by === 'ai' ? keptEvaluation(answer.evaluation, rubric.points.map((point) => point.id)) : null;
-  const evaluation: Evaluation = byAI ?? {
-    points: rubric.points.map((point) => {
-      const status = answer.statuses[point.id] ?? 'missing';
-      return { id: point.id, status, student_quote: status === 'missing' ? '' : answerQuote(answer.transcript, point.anchors), comment: '' };
-    }),
-    errors: [],
-    verdict: '',
-  };
-  const live = Array.isArray(answer.live) ? answer.live.filter((id): id is string => typeof id === 'string') : null;
-  const named = new Set(live ?? rubric.points.filter((point) => answer.statuses[point.id] === 'covered').map((point) => point.id));
-  const points = livePoints(rubric, evaluation, named);
-  const followup = answer.followup ? { ...answer.followup } : null;
-  const heading = ticketHeading(null, 0, 1, String(question.number));
-  const seeded = isSeededSession(answer.session);
-  const when = longDateTime(new Date(answer.at));
-  return (
-    <>
-      <TryBar where="Лист примера" back="/try" />
-      <main className="sf-page or-room tx-room" data-phase="protocol">
-        <h1 className="sr-only or-sr-title" tabIndex={-1}>
-          {`Протокол ответа, ${heading.strong}`}
-        </h1>
-        <section className="or-left" aria-label="Пункты ответа и ваш ответ">
-          <ProtocolSheet
-            heading={glue(`${heading.strong} · ответ ${when}`)}
-            points={points}
-            followup={followup}
-            checkNote={glue(checkLine(checked))}
-            seed={`example:${question.id}:${answer.session}`}
-            animate={false}
-          />
-        </section>
-        <section className="or-side" aria-label="Итог" ref={deskRef}>
-          <p className="or-readonly-note">
-            {glue(
-              seeded
-                ? `Ответ примера: считаем, что он дан вчера, ${when}. Строки названных в нём пунктов этот ответ стёр на шпаргалке наполовину.`
-                : `Ваш ответ от ${when}. Протокол только для чтения.`,
-            )}
-          </p>
-          {seeded ? <p className="or-readonly-note tx-kept-said">{`«${answer.transcript}»`}</p> : null}
-          <ExampleGrade points={points} followup={followup} checked={checked}>
-            <div className="or-acts" data-wide="">
-              <Link className="sf-primary" to={`/try/ticket?q=${encodeURIComponent(question.id)}`}>
-                Ответить на этот вопрос
-              </Link>
-              <Link className="sf-link" to={TRY_SHEET_PATH}>
-                К шпаргалке
-              </Link>
-            </div>
-          </ExampleGrade>
-        </section>
-      </main>
-    </>
-  );
 }
 
 function TicketMissing({ question }: { question: ExampleQuestion | null }) {
   return (
     <>
-      <TryBar where="Лист примера" back="/try" />
-      <main className="sf-page or-room or-room-single">
+      <TryBar />
+      <main className="sf-page or-room or-room-single tx-room">
         <div className="or-state">
           <h1 className="or-state-title">{question ? 'Этого вопроса нет в лекциях примера' : 'Такого вопроса в примере нет'}</h1>
-          <p className="or-state-text">{question ? 'Ответ на него не с чем сверить. Вытяните билет из вопросов, которые в лекциях есть.' : 'Вытяните билет из списка примера.'}</p>
+          <p className="or-state-text">
+            {question ? 'Проверить ответ не получится. Выберите другой вопрос.' : 'Выберите вопрос из списка.'}
+          </p>
           <div className="or-acts">
-            <Link className="sf-primary" to="/try/draw">
-              Тянуть билет
-            </Link>
-            <Link className="sf-link" to="/try">
-              Лист примера
+            <Link className="sf-primary" to="/try">
+              Выбрать вопрос
             </Link>
           </div>
         </div>
@@ -236,17 +176,17 @@ function TicketMissing({ question }: { question: ExampleQuestion | null }) {
 /**
  * The live room of the example: the same machine and paper as a real ticket (lib/oral/ticketMachine,
  * components/oral) — the ticket card, the answer sheet whose points open as their key words are said
- * or typed, «Готово», the examiner's follow-up on a point that was not named, the protocol with the
- * lecture quotes and the result. At «Готово» the answer goes to the AI check once (tryCheck.ts,
- * backend/try_api.py): the protocol is the AI's, as on a real ticket, and the follow-up is chosen by
- * its statuses when they come in time. Without the AI check the key words on this device decide, as the
- * example always did (exampleFlow.ts), and the protocol says so. Nothing is saved but in this tab.
+ * or typed, «Проверить ответ», the examiner's follow-up on a point that was not named, and the check. At «Проверить
+ * ответ» the answer goes to the AI check once (tryCheck.ts, backend/try_api.py): the check is the AI's, as on a real
+ * ticket, and the follow-up is chosen by its statuses when they come in time. Without the AI check the key words on
+ * this device decide (exampleFlow.ts), and step 3 says so. Nothing is saved anywhere.
  */
 function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { confirm } = useConfirm();
   const speech = useSpeechAnswer();
+  const canSpeak = useCanSpeak(speech.supported);
   const [state, dispatch] = useReducer(ticketReducer, question, setupRoom);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -256,7 +196,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [attempts, setAttempts] = useState(0);
-  /** The text in which each point first lit up: its words for the protocol when the final answer lost them. */
+  /** The text in which each point first lit up: its words for the check when the final answer lost them. */
   const namedInRef = useRef<Record<string, string>>({});
   const timersRef = useRef(new Set<ReturnType<typeof setTimeout>>());
   const mountedRef = useRef(true);
@@ -273,7 +213,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const checkRef = useRef<{ attemptId: string; result: TryCheck } | null>(null);
   /** The AI checks in flight (the answer's, then the reply's): a new attempt or leaving the page stops them. */
   const checkAbortRef = useRef<AbortController | null>(null);
-  /** The desk column follows the reader on a computer (oral.css): «Готово» and the next steps stay in view. */
+  /** The desk column follows the reader on a computer (oral.css): «Проверить ответ» and the next steps stay in view. */
   const deskRef = useDeskColumn();
 
   const rubric = state.rubric.status === 'ready' ? state.rubric.response.rubric : null;
@@ -282,6 +222,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const finalText = voiceAnswer ? speech.finalText : state.typed;
   const interimText = voiceAnswer ? speech.interimText : '';
   const answerText = joinSpeech(finalText, interimText);
+  const sample = sampleAnswer(question);
 
   const later = useCallback((callback: () => void, ms: number) => {
     const timer = setTimeout(() => {
@@ -350,45 +291,18 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     }
   }, [speech.status, speech.error]);
 
-  // ── The protocol opens once the check is done (after the closing line, when there was no follow-up) ──
+  // ── The check opens once it is done (after the closing line, when there was no follow-up) ──
   useEffect(() => {
     if (state.phase !== 'evaluating' || state.evaluation.status !== 'done') return;
     const timer = setTimeout(() => dispatch({ type: 'protocol' }), state.closing ? CLOSING_PAUSE_MS : 0);
     return () => clearTimeout(timer);
   }, [state.phase, state.evaluation.status, state.closing]);
 
-  // ── The protocol keeps the answer in this tab: the example's sheet erases by it (sheet spec 4.3) ──
-  const keptSession = useRef<{ attempt: string; session: string } | null>(null);
-  const [sheetChange, setSheetChange] = useState<AnswerChange | null>(null);
-  // «Чистый ответ» (Н7), as on a real ticket: a pasted ready text is refused; «Вставить ответ примера» is a button.
-  const answerPaste = usePasteGuard((words) => track('try_answer_paste_refused', { field: 'answer', words: countBucket(words) }));
-  const followupPaste = usePasteGuard((words) => track('try_answer_paste_refused', { field: 'followup', words: countBucket(words) }));
-  useEffect(() => {
-    if (state.phase !== 'protocol' || state.evaluation.status !== 'done' || !state.attempt) return;
-    const attemptId = state.attempt.attemptId;
-    if (keptSession.current?.attempt === attemptId) return;
-    const session = `try-${Date.now().toString(36)}-${attemptId}`;
-    keptSession.current = { attempt: attemptId, session };
-    const statuses: TryAnswer['statuses'] = {};
-    for (const point of state.evaluation.result.points) if (point.status !== 'unrated') statuses[point.id] = point.status;
-    const f = state.followup;
-    const checked = check && check.attemptId === attemptId ? check.result : null;
-    const answer: TryAnswer = {
-      session,
-      questionId: question.id,
-      at: Date.parse(state.attempt.startedAt) || Date.now(),
-      transcript: state.attempt.transcript ?? '',
-      statuses,
-      followup: f && f.status ? { pointId: f.pointId, question: f.question, answer: f.answer, status: f.status, judgedBy: f.judgedBy } : null,
-      ...(checked ? { check: checkSummary(checked), live: [...state.named] } : {}),
-      ...(checked?.by === 'ai' ? { evaluation: state.evaluation.result } : {}),
-    };
-    const store = saveTryAnswer(answer);
-    setTryPeak(question.id);
-    setSheetChange(sheetChangeOf(answer, tryEvents(store)));
-  }, [question.id, state.phase, state.evaluation, state.attempt, state.followup, state.named, check]);
+  // «Чистый ответ» (Н7), as on a real ticket: a pasted ready text is refused; «Вставить готовый ответ» is a button.
+  const answerPaste = usePasteGuard((count) => track('try_answer_paste_refused', { field: 'answer', words: countBucket(count) }));
+  const followupPaste = usePasteGuard((count) => track('try_answer_paste_refused', { field: 'followup', words: countBucket(count) }));
 
-  // ── Leaving: an answer in progress is lost (only a finished one is kept in this tab), so ask first ──
+  // ── Leaving: an answer in progress is lost, so ask first ──
   const inProgress = () => {
     const current = stateRef.current;
     if (current.phase === 'answering') return joinSpeech(current.mode === 'voice' ? speechRef.current.snapshot() : current.typed) !== '';
@@ -397,8 +311,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const leave = async (to: string) => {
     if (inProgress()) {
       const ok = await confirm({
-        title: 'Выйти из билета?',
-        // The tab keeps finished answers (the sheet erases by them): only this unfinished one is lost (PUB-3).
+        title: 'Выйти из ответа?',
         message: LEAVE_MESSAGE,
         confirmText: 'Выйти',
         cancelText: 'Остаться',
@@ -422,20 +335,22 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   };
 
   /**
-   * «Вставить ответ примера»: the example's own answer in the text field, whatever the mode was. A button,
-   * not a paste: «Чистый ответ» does not stop it, and a line about a refused paste goes away.
+   * «Вставить готовый ответ»: the question's ready answer in the text field, whatever the mode was. A button, not a
+   * paste: «Чистый ответ» does not stop it, and a line about a refused paste goes away. It does not send the answer.
    */
-  const insertExample = () => {
+  const insertSample = () => {
+    if (!sample) return;
     answerPaste.clear();
     focusTextRef.current = true;
+    track('try_sample_inserted');
     if (state.phase === 'ready') {
       dispatch({ type: 'start', mode: 'text', now: Date.now() });
     } else if (state.phase === 'answering' && voiceAnswer) {
-      speech.reset(EXAMPLE_ANSWER_Q5);
-      dispatch({ type: 'mode', mode: 'text', typed: EXAMPLE_ANSWER_Q5, now: Date.now() });
+      speech.reset(sample);
+      dispatch({ type: 'mode', mode: 'text', typed: sample, now: Date.now() });
       return;
     }
-    dispatch({ type: 'typed', text: EXAMPLE_ANSWER_Q5 });
+    dispatch({ type: 'typed', text: sample });
   };
 
   const startText = () => {
@@ -474,9 +389,9 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
 
   const restartAnswer = async () => {
     const ok = await confirm({
-      title: 'Начать ответ заново?',
-      message: 'Сказанное и написанное в этом ответе будет стёрто.',
-      confirmText: 'Начать заново',
+      title: 'Стереть ответ?',
+      message: 'Всё, что вы сказали и написали, пропадёт.',
+      confirmText: 'Стереть',
       cancelText: 'Отмена',
       type: 'warning',
     });
@@ -492,7 +407,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   }, []);
 
   /**
-   * «Готово»: the answer goes to the AI check once (key words when it is not there); the examiner asks
+   * «Проверить ответ»: the answer goes to the AI check once (key words when it is not there); the examiner asks
    * about a point the check did not find, by the key words when the AI is slow.
    */
   const finish = () => {
@@ -510,7 +425,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     for (const id of live) if (!namedInRef.current[id]) namedInRef.current[id] = snapshot;
     const input = inputOf(current.usedSpeech || (voice && words(snapshot).length > 0), current.usedText);
     dispatch({ type: 'finalize', attemptId, snapshot, live: Array.from(live), input, now: Date.now(), startedAt: new Date().toISOString() });
-    track('try_answered', { mode: voice ? 'voice' : 'text' });
+    track('try_answered', { mode: voice ? 'voice' : 'text', sample: isSampleAnswer(question, snapshot) });
     setAttempts((count) => count + 1);
     checkAbortRef.current?.abort();
     const controller = new AbortController();
@@ -522,7 +437,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
       const transcript = words(text).length > 0 ? text : snapshot;
       dispatch({ type: 'transcript', text: transcript });
       const keywords = keywordEvaluation(rubric.points, live, transcript, namedInRef.current);
-      // One AI check per answer: the protocol is the AI's, or the key words' with the reason why.
+      // One AI check per answer: the check is the AI's, or the key words' with the reason why.
       const checked = checkTryAnswer(question.id, transcript, pointIds, { signal: controller.signal });
       void checked.then((result) => {
         if (!mountedRef.current || attempt !== attemptRef.current) return;
@@ -543,7 +458,14 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           // The answer itself is kept in the attempt; the recognizer starts empty for the follow-up's answer.
           speechRef.current.reset('');
           if (mode === 'text') focusTextRef.current = true;
-          dispatch({ type: 'followup', pointId: point.id, question: point.followup.question, expected: point.followup.expected, chosenBy: choice.chosenBy, mode });
+          dispatch({
+            type: 'followup',
+            pointId: point.id,
+            question: point.followup.question,
+            expected: point.followup.expected,
+            chosenBy: choice.chosenBy,
+            mode,
+          });
           if (mode === 'voice') {
             const token = (askRef.current += 1);
             later(() => listenFollowup(token), FOLLOWUP_LISTEN_MS);
@@ -559,6 +481,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   // ── The follow-up ──
   const followup = state.followup;
   const followupVoice = followup?.mode === 'voice';
+  const askedPoint = followup ? (points.find((point) => point.id === followup.pointId) ?? null) : null;
 
   const answerFollowupNow = () => {
     const token = (askRef.current += 1);
@@ -577,10 +500,22 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const followupToText = () => {
     askRef.current += 1;
     const f = stateRef.current.followup;
-    const text = f?.mode === 'voice' ? speechRef.current.snapshot() : f?.typed ?? '';
+    const text = f?.mode === 'voice' ? speechRef.current.snapshot() : (f?.typed ?? '');
     speechRef.current.reset('');
     focusTextRef.current = true;
     dispatch({ type: 'followup_mode', mode: 'text', typed: text });
+  };
+
+  /** The ready reply to the examiner: the words the examiner waits for (the AI still judges them). */
+  const insertReply = () => {
+    const expected = askedPoint?.followup.expected ?? '';
+    if (!expected) return;
+    askRef.current += 1;
+    speechRef.current.reset('');
+    followupPaste.clear();
+    focusTextRef.current = true;
+    track('try_sample_reply_inserted');
+    dispatch({ type: 'followup_mode', mode: 'text', typed: expected });
   };
 
   const dontKnow = () => {
@@ -599,7 +534,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     const voice = f.mode === 'voice';
     const heard = voice ? speech.snapshot() : f.typed;
     if (words(heard).length === 0 && !voice) {
-      dispatch({ type: 'notice', text: 'Ответ пустой: напишите ответ или нажмите «Не знаю».' });
+      dispatch({ type: 'notice', text: 'Ответ пустой. Напишите ответ или нажмите «Не знаю».' });
       return;
     }
     if (words(heard).length === 0) {
@@ -659,63 +594,37 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
 
   // ── What the screen says ──
   const heading = ticketHeading(null, 0, 1, String(question.number));
-  // «Вставить ответ примера» put the example's own answer in: it is not the guest's (it read «Ваш ответ, 0:01»).
-  const isExampleAnswer = (text: string) => question.id === EXAMPLE_ANSWER_QUESTION && text.trim() !== '' && text.trim() === EXAMPLE_ANSWER_Q5.trim();
   const seedBase = `example:${question.id}`;
   const elapsed = answerTime(state, now);
-  // A guest signs up and lands on a new exam, as from the top bar's «Начать со своего списка».
+  // A guest signs up and lands on a new exam, as from the top line's «Начать со своего списка».
   const createHref = ownExamHref(Boolean(user));
+  const toList = () => void leave('/try');
 
-  // ── The protocol ──
+  // ── Step 3: what the check found ──
   if (state.phase === 'protocol' && rubric && state.evaluation.status === 'done') {
-    const followupForProtocol: ProtocolFollowup | null =
+    const followupForCheck: ProtocolFollowup | null =
       followup && followup.status
         ? { pointId: followup.pointId, question: followup.question, answer: followup.answer, status: followup.status, judgedBy: followup.judgedBy }
         : null;
-    const sheetHeading = glue(`${heading.strong} · ответ ${longDateTime(state.attempt?.startedAt ?? new Date())}`);
-    const protocolPoints = livePoints(rubric, state.evaluation.result, new Set(state.named));
+    const checkPoints = livePoints(rubric, state.evaluation.result, new Set(state.named));
     const checked = check && check.attemptId === state.attempt?.attemptId ? checkSummary(check.result) : null;
     return (
       <>
-        <TryBar where="Лист примера" back="/try" />
-        <main className="sf-page or-room tx-room" data-phase="protocol" ref={roomRef} onFocus={rememberFocus}>
-          <h1 className="sr-only or-sr-title" tabIndex={-1} data-anchor="">
-            {`Протокол ответа, ${heading.strong}`}
-          </h1>
-          <section className="or-left" aria-label="Пункты ответа и ваш ответ">
-            {/* Under the heading: what the answer did to the example's sheet (kept in this tab, sheet spec 4.3). */}
-            <ProtocolSheet
-              heading={sheetHeading}
-              points={protocolPoints}
-              followup={followupForProtocol}
-              sheetNote={sheetNoteOf(sheetChange)}
-              checkNote={checked ? glue(checkLine(checked)) : null}
-              seed={`${seedBase}:${attempts}`}
-              animate
-            />
-          </section>
-          <section className="or-side" aria-label="Итог" ref={deskRef}>
-            <ExampleGrade points={protocolPoints} followup={followupForProtocol} checked={checked}>
-              {/* The example's story goes on on its sheet: the answer is played there (sheet spec 4.3). */}
-              <div className="or-acts" data-wide="">
-                <Link className="sf-primary" to={TRY_SHEET_PATH}>
-                  К шпаргалке
-                </Link>
-                <button type="button" className="sf-link" onClick={() => navigate('/try/draw')}>
-                  Ещё билет
-                </button>
-              </div>
-              <p className="tx-grade-back">
-                <Link className="ex-secondary" to={createHref} state={FROM_TRY}>
-                  Создать свой экзамен
-                </Link>
-                <button type="button" className="sf-link" data-muted="" onClick={answerAgain}>
-                  Ответить ещё раз
-                </button>
-              </p>
-            </ExampleGrade>
-          </section>
+        <TryBar />
+        <main className="sf-page tx-page tx-checkpage" ref={roomRef} onFocus={rememberFocus}>
+          <TrySteps current={3} />
+          <ExampleCheck
+            question={question}
+            points={checkPoints}
+            followup={followupForCheck}
+            checked={checked}
+            seed={`${seedBase}:${attempts}`}
+            ownHref={createHref}
+            onOther={() => navigate('/try')}
+            onAgain={answerAgain}
+          />
         </main>
+        <CheckAnnouncement text={glue(checkHeadline(checkPoints, followupForCheck).title)} />
       </>
     );
   }
@@ -724,95 +633,113 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const answering = state.phase === 'answering';
   const namedCount = named.size;
   const asked = followup ? followup.pointId : null;
-  const silence = answering && voiceAnswer && !state.paused && speech.status === 'listening' && speech.lastActivityAt !== null && now - speech.lastActivityAt > SILENCE_HINT_MS;
+  const silence =
+    answering &&
+    voiceAnswer &&
+    !state.paused &&
+    speech.status === 'listening' &&
+    speech.lastActivityAt !== null &&
+    now - speech.lastActivityAt > SILENCE_HINT_MS;
   const transcriptShown = answering || state.phase === 'finalizing' || state.phase === 'examiner' || state.phase === 'followup' || state.phase === 'evaluating';
-  const shownFinal = answering ? finalText : state.attempt?.transcript ?? finalText;
+  const shownFinal = answering ? finalText : (state.attempt?.transcript ?? finalText);
   const shownInterim = answering ? interimText : '';
-  const saidText = answering ? answerText : state.attempt?.transcript ?? answerText;
-  const answerFinalWords = answering ? underlinedFinalWords(points, named, finalText) : underlinedFinalWords(points, new Set(state.named), state.attempt?.transcript ?? '');
+  const saidText = answering ? answerText : (state.attempt?.transcript ?? answerText);
+  const answerFinalWords = answering
+    ? underlinedFinalWords(points, named, finalText)
+    : underlinedFinalWords(points, new Set(state.named), state.attempt?.transcript ?? '');
+  const countLine = (count: number) => <b className="tx-count">{openedLine(count, points.length)}</b>;
 
-  // Two equal ways to answer: by voice (the blue pill) or in writing; only writing without the speech API.
-  // Below 360 px both say one word, so they share the bar's one line (PUB-8).
-  const answerChoice = (
-    <div className="or-acts or-choice">
-      {speech.supported ? (
-        <>
-          <button type="button" className="sf-primary" onClick={startVoice} data-anchor="" aria-label="Отвечать голосом">
-            <span className="or-pill-long">Отвечать голосом</span>
-            <span className="or-pill-short">Голосом</span>
-          </button>
-          <button type="button" className="or-alt" onClick={startText} aria-label="Ответить текстом">
-            <span className="or-wide">Ответить текстом</span>
-            <span className="or-narrow">Текстом</span>
-          </button>
-        </>
-      ) : (
-        <button type="button" className="sf-primary" onClick={startText} data-anchor="">
-          Ответить текстом
-        </button>
-      )}
-    </div>
+  // The ready answer is the step's blue pill where this device cannot be heard (no speech recognition, no
+  // microphone); otherwise speaking is, and the ready answer is the white pill right under it.
+  const samplePrimary = Boolean(sample) && !canSpeak;
+  const insertButton = (primary: boolean) => (
+    <button type="button" className={primary ? 'sf-primary' : 'tx-secondary tx-insert'} onClick={insertSample} data-anchor={primary ? '' : undefined}>
+      {INSERT_SAMPLE_LABEL}
+    </button>
   );
 
   let side: ReactNode;
   if (state.phase === 'ready') {
     side = (
       <>
-        {!speech.supported ? <p className="or-message or-message-muted">{SPEECH_UNSUPPORTED_MESSAGE}</p> : null}
-        {/* What «Готово» leads to, before the first answer (EX-32 in the example's words: nothing is charged here). */}
-        <p className="or-next">{glue(EXAMPLE_NEXT_LINE)}</p>
-        {answerChoice}
-        {question.id === EXAMPLE_ANSWER_QUESTION ? (
-          <button type="button" className="ex-secondary tx-insert" onClick={insertExample}>
-            Вставить ответ примера
-          </button>
+        {!speech.supported ? <p className="or-message or-message-muted">{NO_SPEECH_LINE}</p> : null}
+        <div className="or-acts or-choice" data-wide="">
+          {samplePrimary ? (
+            insertButton(true)
+          ) : canSpeak ? (
+            <button type="button" className="sf-primary" onClick={startVoice} data-anchor="">
+              Ответить голосом
+            </button>
+          ) : (
+            <button type="button" className="sf-primary" onClick={startText} data-anchor="">
+              Написать ответ
+            </button>
+          )}
+        </div>
+        {sample && !samplePrimary ? (
+          <div className="tx-sample">
+            <p className="tx-sample-q">Не знаете тему?</p>
+            {insertButton(false)}
+          </div>
         ) : null}
-        <p className="or-privacy">{EXAMPLE_PRIVACY_LINE}</p>
+        <p className="tx-alt">
+          {samplePrimary ? <span className="tx-alt-lead">Или ответьте сами.</span> : null}
+          {samplePrimary && speech.supported ? (
+            <button type="button" className="sf-link" onClick={startVoice}>
+              Ответить голосом
+            </button>
+          ) : null}
+          {samplePrimary || canSpeak ? (
+            <button type="button" className="sf-link" onClick={startText}>
+              Написать ответ
+            </button>
+          ) : null}
+        </p>
+        <p className="or-privacy">{glue(EXAMPLE_PRIVACY_LINE)}</p>
         <p className="or-links">
-          <Link className="sf-link" data-muted="" to="/try/draw">
-            Тянуть другой билет
-          </Link>
-          <Link className="sf-link tx-narrow-only" data-muted="" to="/try">
-            Лист примера
+          <Link className="sf-link" data-muted="" to="/try">
+            Выбрать другой вопрос
           </Link>
         </p>
       </>
     );
   } else if (answering) {
+    const holdsSample = !voiceAnswer && isSampleAnswer(question, state.typed);
     side = (
       <>
-        {/* Secondary on purpose: a count by key words, not the result (Jury_Check item 7). */}
         <div className="or-count">
-          <p className="or-count-line">
-            По ключевым словам:{' '}
-            <b>
-              {namedCount}
-              {' '}из{' '}
-              {points.length}
-            </b>
+          <p className="or-count-line">{countLine(namedCount)}</p>
+          <p className="or-count-fine">
+            {glue(
+              holdsSample
+                ? `Это готовый ответ. Нажмите «${CHECK_ANSWER_LABEL}». ИИ проверит его, а экзаменатор спросит о том, чего в нём нет.`
+                : `Пункты открываются по словам из ответа. Точную проверку сделает ИИ после кнопки «${CHECK_ANSWER_LABEL}».`,
+            )}
           </p>
-          <p className="or-count-fine">итог — после ответа</p>
         </div>
         {state.notice ? (
           <p className="or-message" role="status">
             {state.notice}
           </p>
         ) : null}
-        {silence ? <p className="or-hint">Говорите — я слушаю.</p> : null}
-        {voiceAnswer && question.id === EXAMPLE_ANSWER_QUESTION && !answerText.trim() ? (
-          <button type="button" className="ex-secondary tx-insert" onClick={insertExample}>
-            Вставить ответ примера
-          </button>
-        ) : null}
+        {silence ? <p className="or-hint">Говорите, я слушаю.</p> : null}
+        {voiceAnswer && sample && !answerText.trim() ? <div className="tx-sample">{insertButton(false)}</div> : null}
         {elapsed >= LONG_ANSWER_MS ? <p className="or-hint">Обычно на ответ дают 2–3 минуты.</p> : null}
-        <div className="or-acts">
-          <button type="button" className="sf-primary" onClick={finish} data-anchor={voiceAnswer ? '' : undefined} aria-keyshortcuts={voiceAnswer ? undefined : FINISH_SHORTCUTS}>
-            Готово
+        <div className="or-acts" data-wide="">
+          <button
+            type="button"
+            className="sf-primary"
+            onClick={finish}
+            data-anchor={voiceAnswer ? '' : undefined}
+            aria-keyshortcuts={voiceAnswer ? undefined : FINISH_SHORTCUTS}
+          >
+            {CHECK_ANSWER_LABEL}
           </button>
           {voiceAnswer ? (
             <>
-              <button type="button" className="sf-link" onClick={startText}>
-                Текстом
+              <button type="button" className="sf-link" onClick={startText} aria-label="Писать текстом">
+                <span className="or-wide">Писать текстом</span>
+                <span className="or-narrow">Текстом</span>
               </button>
               {state.paused ? (
                 <button type="button" className="sf-link" onClick={resume}>
@@ -825,13 +752,12 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
               )}
             </>
           ) : speech.supported ? (
-            <button type="button" className="sf-link" onClick={startVoice} aria-label="Отвечать голосом">
-              <span className="or-wide">Отвечать голосом</span>
-              <span className="or-narrow">Голосом</span>
+            <button type="button" className="sf-link" onClick={startVoice} aria-label="Ответить голосом">
+              Ответить голосом
             </button>
           ) : null}
           <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void restartAnswer()}>
-            Сначала
+            Стереть ответ
           </button>
         </div>
         <button type="button" className="sf-link or-privacy-link" onClick={() => setPrivacyOpen(true)}>
@@ -844,14 +770,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     // finalizing, examiner, followup, evaluating: the count stays, the examiner's question is the largest thing on the desk.
     side = (
       <>
-        <p className="or-count-line">
-          По ключевым словам:{' '}
-          <b>
-            {state.named.length}
-            {' '}из{' '}
-            {points.length}
-          </b>
-        </p>
+        <p className="or-count-line">{countLine(state.named.length)}</p>
         {state.phase === 'finalizing' || state.phase === 'examiner' ? <ExaminerThinking /> : null}
         {state.phase === 'followup' && followup ? (
           <ExaminerLine question={followup.question} alignTo={followup.pointId}>
@@ -859,6 +778,13 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
               <ExaminerThinking text="Экзаменатор слушает ответ…" />
             ) : (
               <>
+                <p className="tx-why-asked">
+                  {glue(
+                    askedPoint
+                      ? `В ответе не было пункта ${points.indexOf(askedPoint) + 1}. Экзаменатор спрашивает о нём.`
+                      : 'Экзаменатор спрашивает о том, чего не было в ответе.',
+                  )}
+                </p>
                 {followup.notHeard && followup.stage === 'asking' ? <p className="or-hint">{`${NOT_HEARD_LINE}.`}</p> : null}
                 {state.notice ? <p className="or-hint">{state.notice}</p> : null}
                 {followup.stage === 'answering' && followup.mode === 'text' ? (
@@ -880,11 +806,15 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
                       {...followupPaste.fieldProps}
                       data-anchor=""
                     />
-                    <PasteNotice guard={followupPaste} />
+                    <PasteNotice guard={examplePaste(followupPaste)} />
                   </>
                 ) : null}
                 {followup.mode === 'voice' && (followup.stage === 'answering' || followup.stage === 'asking') ? (
-                  <div className="or-examiner-listen" data-waiting={followup.stage === 'asking' ? '' : undefined} aria-hidden={followup.stage === 'asking' ? true : undefined}>
+                  <div
+                    className="or-examiner-listen"
+                    data-waiting={followup.stage === 'asking' ? '' : undefined}
+                    aria-hidden={followup.stage === 'asking' ? true : undefined}
+                  >
                     <LiveTranscript
                       className="or-examiner-answer"
                       label="Ваш ответ на вопрос"
@@ -892,32 +822,42 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
                       interimText={speech.interimText}
                       underlined={new Set()}
                       seed={seedFrom(seedBase, 'followup')}
-                      emptyText="Говорите — я слушаю."
+                      emptyText="Говорите, я слушаю."
                     />
                   </div>
                 ) : null}
-                <div className="or-acts">
+                {askedPoint?.followup.expected && !(followup.mode === 'text' && followup.typed.trim()) ? (
+                  <div className="tx-sample tx-sample-reply">
+                    <button type="button" className="tx-secondary tx-insert" onClick={insertReply}>
+                      {INSERT_SAMPLE_LABEL}
+                    </button>
+                  </div>
+                ) : null}
+                <div className="or-acts" data-wide="">
                   {followup.stage === 'asking' ? (
                     <button type="button" className="sf-primary" onClick={answerFollowupNow} data-anchor="">
-                      Отвечать
+                      Ответить голосом
                     </button>
                   ) : (
                     <button type="button" className="sf-primary" onClick={() => void finishFollowup()} data-anchor={followup.mode === 'text' ? undefined : ''}>
-                      Готово
+                      Отправить ответ
                     </button>
                   )}
-                  {followupVoice ? (
-                    <button type="button" className="sf-link" onClick={followupToText}>
-                      Текстом
-                    </button>
-                  ) : speech.supported && speech.status !== 'error' ? (
-                    <button type="button" className="sf-link" onClick={answerFollowupNow}>
-                      Голосом
-                    </button>
-                  ) : null}
+                  {/* «Не знаю» first: it is the honest answer of a visitor who does not know the subject. */}
                   <button type="button" className="sf-link" onClick={dontKnow}>
                     Не знаю
                   </button>
+                  {followupVoice ? (
+                    <button type="button" className="sf-link" onClick={followupToText} aria-label="Писать текстом">
+                      <span className="or-wide">Писать текстом</span>
+                      <span className="or-narrow">Текстом</span>
+                    </button>
+                  ) : speech.supported && speech.status !== 'error' ? (
+                    <button type="button" className="sf-link" onClick={answerFollowupNow} aria-label="Ответить голосом">
+                      <span className="or-wide">Ответить голосом</span>
+                      <span className="or-narrow">Голосом</span>
+                    </button>
+                  ) : null}
                 </div>
               </>
             )}
@@ -927,7 +867,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           <>
             {state.closing ? <p className="or-line or-line-ink">{`${state.closing}.`}</p> : null}
             <p className="or-line" role="status">
-              Сверяем ответ с пунктами…
+              Сверяем ответ с лекциями…
             </p>
           </>
         ) : null}
@@ -935,14 +875,14 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
     );
   }
 
-  const noteLine = state.phase === 'ready' && points.length > 0 ? exampleNoteLine(question, points.length) : null;
+  const pointsLine = points.length > 0 ? examplePointsLine(question, points.length) : null;
 
   // The answer itself: the field while typing, the transcript otherwise.
   const answerBody =
     answering && state.mode === 'text' ? (
       <div className="or-said">
         <label className="or-said-label" htmlFor="tx-answer-text">
-          {isExampleAnswer(state.typed) ? EXAMPLE_ANSWER_LABEL : `Ваш ответ, ${elapsedLabel(elapsed)}`}
+          {isSampleAnswer(question, state.typed) ? EXAMPLE_ANSWER_LABEL : `Ваш ответ, ${elapsedLabel(elapsed)}`}
         </label>
         <textarea
           id="tx-answer-text"
@@ -961,57 +901,60 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           {...answerPaste.fieldProps}
           data-anchor=""
         />
-        <PasteNotice guard={answerPaste} />
-        {/* The example's own answer to the question its sheet asks for (sheet spec 4.3). */}
-        {question.id === EXAMPLE_ANSWER_QUESTION && !state.typed.trim() ? (
-          <button type="button" className="ex-secondary tx-insert" onClick={insertExample}>
-            Вставить ответ примера
-          </button>
-        ) : null}
-        {/* On a computer the hands are on the keys: «Готово» without the mouse (PUB-1). */}
-        <p className="or-keys">{`Готово — ${finishKeysLabel()}`}</p>
+        <PasteNotice guard={examplePaste(answerPaste)} />
+        {sample && !state.typed.trim() ? <div className="tx-sample">{insertButton(false)}</div> : null}
+        {/* On a computer the hands are on the keys: «Проверить ответ» without the mouse (PUB-1). */}
+        <p className="or-keys">{`Проверить ответ можно клавишами ${finishKeysLabel()}.`}</p>
       </div>
     ) : (
       <LiveTranscript
         label={
-          isExampleAnswer(shownFinal) ? EXAMPLE_ANSWER_LABEL : `Ваш ответ, ${elapsedLabel(state.attempt ? state.attempt.durationSeconds * 1000 : elapsed)}`
+          isSampleAnswer(question, shownFinal)
+            ? EXAMPLE_ANSWER_LABEL
+            : `Ваш ответ, ${elapsedLabel(state.attempt ? state.attempt.durationSeconds * 1000 : elapsed)}`
         }
         finalText={shownFinal}
         interimText={shownInterim}
         underlined={answerFinalWords}
         drawNew={answering}
         seed={seedFrom(seedBase, 'said')}
-        emptyText={answering && voiceAnswer ? (state.paused ? 'Пауза.' : 'Говорите — расшифровка появится здесь.') : undefined}
+        emptyText={answering && voiceAnswer ? (state.paused ? 'Пауза.' : 'Говорите. Текст ответа появится здесь.') : undefined}
       />
     );
 
   return (
     <>
-      <TryBar where="Лист примера" back="/try" onLeave={(to) => void leave(to)} />
+      <TryBar onLeave={(to) => void leave(to)} />
       <main className="sf-page or-room tx-room" data-phase={state.phase} ref={roomRef} onFocus={rememberFocus}>
-        <section className="or-left" aria-label="Билет и пункты ответа">
+        <TrySteps current={2} onLeave={(to) => void leave(to)} />
+        <section className="or-left" aria-label="Вопрос и пункты ответа">
           <TicketCard heading={heading} question={question.text} />
-          {noteLine ? <p className="or-note">{glue(noteLine)}</p> : null}
-          <div className="sf-sheet or-sheet" data-collapsed={sheetOpen ? undefined : ''} data-empty={transcriptShown ? undefined : ''}>
-            {/* Phones: «По ключевым словам: 2 из 4» heads the answer sheet (as on the real ticket). */}
+          {state.phase === 'ready' ? <p className="tx-next">{glue(EXAMPLE_NEXT_LINE)}</p> : null}
+          <div className="sf-sheet or-sheet" data-collapsed={sheetOpen ? undefined : ''}>
+            {pointsLine ? <p className="tx-pts-line">{glue(pointsLine)}</p> : null}
+            {/* A phone, before the answer: the closed points as numbered blanks (the rows open with the answer). */}
+            {state.phase === 'ready' ? (
+              <p className="tx-pts-chips" aria-hidden="true">
+                {points.map((point, index) => (
+                  <span key={point.id}>{index + 1}</span>
+                ))}
+              </p>
+            ) : null}
+            {/* Phones: «Открыто 2 пункта из 4» heads the answer sheet once the answer starts. */}
             {state.phase !== 'ready' ? (
               <div className="or-strip">
-                <p className="or-strip-count">
-                  По ключевым словам:{' '}
-                  <b>
-                    {namedCount}
-                    {' '}из{' '}
-                    {points.length}
-                  </b>{' '}
-                  <span className="or-strip-fine">итог — после ответа</span>
-                </p>
+                <p className="or-strip-count">{countLine(namedCount)}</p>
                 <div className="or-strip-marks" aria-hidden="true">
                   {points.map((point) =>
-                    named.has(point.id) ? <Mark key={point.id} kind="dot" seed={seedFrom(seedBase, point.id)} /> : <span key={point.id} className="or-strip-blank" />,
+                    named.has(point.id) ? (
+                      <Mark key={point.id} kind="dot" seed={seedFrom(seedBase, point.id)} />
+                    ) : (
+                      <span key={point.id} className="or-strip-blank" />
+                    ),
                   )}
                 </div>
                 <button type="button" className="sf-link" data-muted="" aria-expanded={sheetOpen} onClick={() => setSheetOpen((open) => !open)}>
-                  {sheetOpen ? 'Скрыть пункты' : 'Пункты ответа'}
+                  {sheetOpen ? 'Скрыть пункты' : 'Показать пункты'}
                 </button>
               </div>
             ) : null}
@@ -1023,11 +966,12 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
               seed={seedBase}
               announcement={state.announcement}
               said={saidText}
+              blankText={BLANK_ROW_TEXT}
             />
             {transcriptShown ? answerBody : null}
           </div>
         </section>
-        <section className="or-side" aria-label="Экзаменатор" ref={deskRef}>
+        <section className="or-side" aria-label={state.phase === 'ready' ? 'Как ответить' : 'Экзаменатор'} ref={deskRef}>
           {/* The follow-up is said once to screen readers too: the example shows it as text only. */}
           <p className="sr-only" aria-live="polite" aria-atomic="true">
             {state.phase === 'followup' && followup ? `Экзаменатор спрашивает: «${followup.question}»` : ''}
@@ -1035,6 +979,19 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
           {side}
         </section>
       </main>
+      <CheckAnnouncement text="" />
     </>
+  );
+}
+
+/**
+ * The live region that says the check is ready: the same node before and after (a region that appears with its text is
+ * not read), outside the room, whose content changes from step 2 to step 3.
+ */
+function CheckAnnouncement({ text }: { text: string }) {
+  return (
+    <p className="sr-only" role="status" aria-live="polite" aria-atomic="true" data-try-announce="">
+      {text ? `Проверка готова. ${text}.` : ''}
+    </p>
   );
 }

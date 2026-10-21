@@ -10,7 +10,7 @@ export const DRAW_CAPTIONS: Record<DrawMode, string> = {
   exam: 'Как на экзамене',
   weak: 'Чаще слабые',
   answered: 'Из вопросов, на которые вы уже отвечали',
-  awaiting: 'Из вопросов с одним полным ответом',
+  awaiting: 'Из вопросов, которые можно выучить сегодня',
 };
 
 /**
@@ -22,7 +22,7 @@ export const DRAW_HINTS: Record<DrawMode, string> = {
   exam: 'Случайный билет; пункты ответа и цитаты — только в протоколе.',
   weak: 'Чаще вопросы без ответов и с неполными ответами.',
   answered: 'Только вопросы, на которые вы уже отвечали.',
-  awaiting: 'Вопросы, где ответ сегодня может стереть строку шпаргалки.',
+  awaiting: 'Вопросы, которые сегодня можно выучить.',
 };
 
 /** 'exam' is the default and stays out of the address: /draw, /draw?mode=weak|answered|awaiting. */

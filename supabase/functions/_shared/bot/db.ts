@@ -16,6 +16,7 @@
  */
 import type { ContainersOverview, LocalDay, PlanInputsWire, PlanItem } from '../plan/container.ts';
 import { oralPartsFromInputs, type OralPlanPart } from '../plan/oralParts.ts';
+import { parseLearnLeft, type LearnLeftExam } from '../plan/topics.ts';
 import { localDay } from '../plan/time.ts';
 import { errorName, log, type LogRoute } from './log.ts';
 import type { FetchLike } from './tg.ts';
@@ -179,6 +180,38 @@ export interface Today {
   session: OpenSession | null;
   /** Today's bot.days row: the card and the last summary. */
   day: { cardMessageId: number | null; cardUsed: boolean; lastMessageId: number | null } | null;
+  /**
+   * «Осталось выучить» of the exams with an oral part (bot_learn_left, read with the oral parts): each oral part's
+   * exam, the file's topic titles of each subject, and the oral exams' facts. Absent without an oral part (the test
+   * topics need no read) and when the read failed (then the card says no topics line for such an exam).
+   */
+  learn?: BotLearn | null;
+}
+
+export interface BotLearn {
+  /** subject id → its oral exam id. */
+  parts: Map<string, string>;
+  /** subject id → the titles of the file's topics. */
+  titles: Map<string, string[]>;
+  /** oral exam id → its facts. */
+  exams: Map<string, LearnLeftExam>;
+}
+
+/** bot_learn_left → BotLearn; null when not linked or unreadable. */
+export function toLearn(raw: unknown): BotLearn | null {
+  const r = obj(raw);
+  if (r.linked !== true) return null;
+  const parts = new Map<string, string>();
+  for (const p of Array.isArray(r.parts) ? r.parts : []) {
+    const e = obj(p);
+    if (typeof e.subject_id === 'string' && typeof e.exam_id === 'string' && !parts.has(e.subject_id)) parts.set(e.subject_id, e.exam_id);
+  }
+  const titles = new Map<string, string[]>();
+  for (const s of Array.isArray(r.subjects) ? r.subjects : []) {
+    const e = obj(s);
+    if (typeof e.id === 'string') titles.set(e.id, (Array.isArray(e.topics) ? e.topics : []).map((t) => (typeof t === 'string' ? t : '')));
+  }
+  return { parts, titles, exams: new Map(parseLearnLeft(r.exams).map((exam) => [exam.examId, exam])) };
 }
 
 export interface ReminderRow { deliveryId: number; chatId: number; localDay: LocalDay; tz: string }
@@ -502,9 +535,16 @@ export function createDb(options: DbOptions): BotDb {
     if (!today || !today.exams.some((exam) => exam.hasOral)) return today;
     const started = Date.now();
     try {
-      const raw = await rpc('bot_oral_inputs', { p_tg_user_id: today.link.tgUserId });
+      const [raw, learnRaw] = await Promise.all([
+        rpc('bot_oral_inputs', { p_tg_user_id: today.link.tgUserId }),
+        // «Осталось выучить»: its failure only drops the topics line (logged by name).
+        rpc('bot_learn_left', { p_tg_user_id: today.link.tgUserId }).catch((error: unknown) => {
+          log({ route, kind: 'learn_left', outcome: 'failed', error_name: errorName(error), ms: Date.now() - started });
+          return null;
+        }),
+      ]);
       const oralParts = oralPartsFromInputs(raw, today.now, { today: localDay(today.now, today.link.tz) });
-      return { ...today, oralParts, oral: oralParts.flatMap((part) => part.items) };
+      return { ...today, oralParts, oral: oralParts.flatMap((part) => part.items), learn: learnRaw === null ? null : toLearn(learnRaw) };
     } catch (error) {
       log({ route, kind: 'oral_inputs', outcome: 'failed', error_name: errorName(error), ms: Date.now() - started });
       return today;

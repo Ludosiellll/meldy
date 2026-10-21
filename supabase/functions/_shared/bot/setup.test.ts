@@ -133,10 +133,10 @@ test('/status: public, no secret; the webhook as Telegram sees it, the last tick
   assert.equal((await h.app(new Request(`${TEST_FUNCTION_URL}/status`, { method: 'POST' }))).status, 405);
 });
 
-test('the profile: «Meldy», 81 of 120 and 388 of 512 characters, three commands, clean copy', () => {
+test('the profile: «Meldy», 81 of 120 and 377 of 512 characters, three commands, clean copy', () => {
   assert.equal(PROFILE.name, 'Meldy');
   assert.equal([...PROFILE.shortDescription].length, 81);
-  assert.equal([...PROFILE.description].length, 388);
+  assert.equal([...PROFILE.description].length, 377);
   assert.deepEqual(PROFILE.commands.map((c) => c.command), ['today', 'settings', 'help']);
   assert.deepEqual(PROFILE.commands.map((c) => c.description), ['План на сегодня', 'Время и пауза', 'Как это работает']);
   assert.deepEqual(lintProfile(PROFILE), []);

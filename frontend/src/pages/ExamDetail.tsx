@@ -13,13 +13,12 @@ import {
   type ExamQuestion,
   type TicketLayout,
 } from '../api/exams';
-import { fetchQuestionEvents, fetchSessionPoints, localDate, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
+import { fetchQuestionEvents, fetchSessionPoints, recordSelfRating, type LearningEvent, type SelfRating as Rating } from '../api/learning';
 import { useAuth } from '../hooks/useAuth';
 import { checkAILimit, FREE_DAILY_LIMIT, formatLimitReset, nextLimitReset } from '../api/limits';
 import { examMappingCost } from '../lib/plans';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { confidenceVsConfirmed, examSummary, statesByHash, type QuestionState, type Readiness } from '../lib/learning/readiness';
-import { erasableNow } from '../lib/exams/cheatSheet';
 import { percent } from '../lib/exams/ticketMath';
 import type { DrawMode } from '../lib/exams/draw';
 import { daysUntil, formatClock, formatDay, formatMappedAt, KIND_LABELS, relativeDays, sheetHeader, subjectOf } from '../lib/exams/format';
@@ -27,7 +26,7 @@ import { usePrefersReducedMotion } from '../components/landing/usePrefersReduced
 import { Mark } from '../components/marks';
 import ExamSheet, { type SheetPeak, type SheetRowView } from '../components/exams/ExamSheet';
 import ExamStatusCard, { type StatusNote } from '../components/exams/ExamStatus';
-import { allDrawLabel, examStatus, isNothingFound, mappingLimitLine } from '../components/exams/examStatus';
+import { allDrawLabel, examStatus, isNothingFound, mappingLimitLine, nextReadyWhen } from '../components/exams/examStatus';
 import { useExamLectureFit } from '../components/exams/examLectureFit';
 import WhyPanel from '../components/exams/WhyPanel';
 import { warmGenericReason } from '../lib/exams/genericReason';
@@ -37,22 +36,18 @@ import {
   PhoneSummary,
   peakCountLine,
   RateSummary,
-  ReadinessBlock,
   ReadinessLegend,
-  readinessCounts,
   useShownAfter,
   type PeakView,
 } from '../components/exams/SheetSummary';
 import { checkedCount, getMapJob, MAPPING_COST, mappingTargets, startMapping, useMapJob, watchMapping, type MapPhase } from '../components/exams/mapJobs';
 import { COVERAGE_MARK, COVERAGE_MARK_SIZE, PILL_MARK_SCALE, type SheetCoverage } from '../components/exams/marks';
 import {
-  growthSentence,
   peakChange,
   peakText,
   secondAnswerAfterReview,
   secondAnswerSentence,
   secondAnswerSessions,
-  staleSentence,
   takePeakFlags,
   type PeakFlag,
 } from '../components/exams/peak';
@@ -83,10 +78,10 @@ import {
 } from '../components/exams/sheetModel';
 import { useFrame } from '../components/exams/useFrame';
 import DrawModeMenu, { DRAW_CAPTIONS } from '../components/exams/DrawModeMenu';
-import { useSheetView } from '../components/exams/sheet/useSheetPage';
-import { useCheatSheet } from '../components/exams/sheet/useCheatSheet';
-import { useUnitsLeft } from '../components/exams/sheet/SheetColumn';
-import { nextErasableLine } from '../components/exams/sheet/copy';
+import LearnLeft from '../components/learnLeft/LearnLeft';
+import PrepareLine from '../components/learnLeft/PrepareLine';
+import { useLearnLeft } from '../api/learnLeft';
+import { buildTopics, nextReady, ORAL_IN_PLAN, oralQuestion, oralStateLine, readyNow, type LearnLeftQuestion } from '../lib/containers/topics';
 import AnswerTextConsent from '../components/exams/AnswerTextConsent';
 import InviteGroup, { InviteGroupDialog } from '../components/exams/share/InviteGroup';
 import MoreMenu, { type MoreMenuItem } from '../components/ui/MoreMenu';
@@ -119,29 +114,20 @@ function hashKey(question: ExamQuestion): string {
 }
 
 /**
- * «Шпаргалка · Вопросы» (cheat sheet spec 4.1): the view chosen last on this exam is remembered
- * (`meldy_sheet_view_<examId>`); until the sheet has a written question the page opens on «Вопросы»,
- * after that on «Шпаргалка» — from the next visit, never in the middle of one. A link with a filter
- * («почему», coverage) opens «Вопросы»; `?view=sheet` (the protocol, «Сегодня») opens the sheet.
+ * The list's dots follow «Осталось выучить» (decision 2026-10-21, the points rule of the plan and the bot): learned —
+ * the ring, started (main points named, waiting for another day) — the line, a miss in the last answer — the wave.
  */
-export type PageView = 'sheet' | 'questions';
-export const SHEET_VIEW_PREFIX = 'meldy_sheet_view_';
+export const LEARN_LABELS: Record<Readiness, string> = {
+  confirmed: 'выучен',
+  once: 'начат',
+  not_passed: 'в прошлый раз ответ был неполным',
+  untested: 'ещё не отвечали',
+};
 
-function storedView(examId: string): PageView | null {
-  try {
-    const value = window.localStorage.getItem(SHEET_VIEW_PREFIX + examId);
-    return value === 'sheet' || value === 'questions' ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function storeView(examId: string, view: PageView) {
-  try {
-    window.localStorage.setItem(SHEET_VIEW_PREFIX + examId, view);
-  } catch {
-    // Private mode: the view is chosen again next time.
-  }
+function learnReadiness(q: Pick<LearnLeftQuestion, 'state' | 'missed'>): Readiness {
+  if (q.state === 3) return 'confirmed';
+  if (q.state > 0) return 'once';
+  return q.missed ? 'not_passed' : 'untested';
 }
 
 /** Phases of a run started in this tab (a wait for another tab's run is 'waiting', then 'idle'). */
@@ -255,14 +241,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const { user } = useAuth();
   // /exams/:id?filter=cov:none opens the sheet filtered (the «Сегодня» link «9 вопросов без материала»);
   // anything that is not a known filter shows every question.
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [openedFilter] = useState<SheetFilter>(() => sheetFilterOf(searchParams.get('filter')));
-  const [view, setView] = useState<PageView>(() => {
-    if (searchParams.get('filter')) return 'questions';
-    const asked = searchParams.get('view');
-    if (asked === 'sheet' || asked === 'questions') return asked;
-    return storedView(examId) ?? 'questions';
-  });
   const userId = user?.id ?? null;
   const { confirm } = useConfirm();
   const reduced = usePrefersReducedMotion();
@@ -465,6 +445,39 @@ function ExamSheetPage({ examId }: { examId: string }) {
     return cancel;
   }, []);
 
+  // ------------------------------------------------------------------ what is left to learn
+  // One read (public.learn_left), with the page's other reads: the topics card, the dots of the list and the status's
+  // «Сегодня можно выучить 3 вопроса». A mapping run that ended, or points written, change it: it is read again.
+  const learn = useLearnLeft(userId ? [examId] : [], Boolean(userId));
+  const learnExam = learn.exams.find((item) => item.examId === examId) ?? null;
+  const topicList = useMemo(() => (learnExam ? buildTopics({ oral: learnExam }) : null), [learnExam]);
+  const learnReload = learn.reload;
+  const learnRunSeq = useRef(job.finishedSeq);
+  useEffect(() => {
+    if (job.finishedSeq === learnRunSeq.current) return;
+    learnRunSeq.current = job.finishedSeq;
+    learnReload();
+  }, [job.finishedSeq, learnReload]);
+  const learnNow = useMemo(() => Date.now(), [learnExam]);
+  const learnFacts = useMemo(() => {
+    if (!learnExam) return null;
+    const inPlan = learnExam.questions.filter((q) => ORAL_IN_PLAN.has(q.kind));
+    return {
+      byId: new Map(learnExam.questions.map((q) => [q.id, q])),
+      ready: readyNow(learnExam, learnNow),
+      next: nextReady(learnExam, learnNow),
+      learned: inPlan.filter((q) => q.state === 3).length,
+      inPlan: inPlan.length,
+    };
+  }, [learnExam, learnNow]);
+
+  // «почему» says where the question stands by the same rule as its dot (nothing for a question not counted).
+  const whyStateLine = (id: string): string | null | undefined => {
+    const fact = learnFacts?.byId.get(id);
+    if (!fact) return undefined;
+    return ORAL_IN_PLAN.has(fact.kind) ? oralStateLine(oralQuestion(fact), learnNow) || null : null;
+  };
+
   // ------------------------------------------------------------------ rows
   // This tab's run is going on, or ended during this visit.
   const ownRun = OWN_RUN_PHASES.has(job.phase) && (running || job.finishedSeq !== openedSeq);
@@ -509,14 +522,15 @@ function ExamSheetPage({ examId }: { examId: string }) {
       questions.map((question) => {
         const state = states.get(hashKey(question));
         const coverage = sheetCoverage(question, checkingIds.has(question.id));
-        const readiness = peakReadiness(question, state);
+        // The dots follow «Осталось выучить» (decision 2026-10-21): learned, started, a miss last time, not yet.
+        const fact = learnFacts?.byId.get(question.id);
+        const readiness = fact ? learnReadiness(fact) : 'untested';
         return {
           question,
           number: numberOf(question),
           coverage,
           readiness,
-          // «подтверждено 2 дня назад» for a screen reader, the age the 14-day rule counts.
-          readinessWords: state && state.readiness === readiness ? readinessWords(state, now) : undefined,
+          readinessWords: readiness === 'untested' ? undefined : LEARN_LABELS[readiness],
           selfRating: state?.selfRating ?? null,
           footnote: footnoteOf(question),
           // Only a judgement arriving now is drawn in; marks of a finished or earlier run are simply there.
@@ -524,7 +538,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [questions, states, checkingIds, job.marks, peak, running, now],
+    [questions, states, checkingIds, job.marks, running, learnFacts],
   );
   const rows = useMemo(
     () => allRows.filter((row) => matchesFilter(filter, { coverage: row.coverage, readiness: row.readiness, selfRating: row.selfRating })),
@@ -542,12 +556,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const closed = useMemo(() => closedPartialShares(shareSubjects, layout), [shareSubjects, layout]);
   const hashes = useMemo(() => questions.map(hashKey), [questions]);
   const summary = useMemo(() => examSummary(hashes, states), [hashes, states]);
-  const today = localDate(now);
-  // Confirmed by the same rule before today: «+1 сегодня» is the net change of the day.
-  const confirmedBeforeToday = useMemo(
-    () => examSummary(hashes, statesByHash(events.filter((event) => event.local_date && event.local_date < today), now)).confirmed,
-    [hashes, events, today, now],
-  );
   const examAnswers = useMemo(() => {
     const own = new Set(hashes.map((hash) => `q:${hash}`));
     return events.filter((event) => event.kind === 'exam_answer' && own.has(event.item_key));
@@ -568,59 +576,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
   );
   const ratings = useMemo(() => ratingCounts(allRows), [allRows]);
 
-  // ------------------------------------------------------------------ peak 3
+  // ------------------------------------------------------------------ after an answer
+  // The flags a saved answer left are taken, so they never replay later; what the answer changed is in the topics card
+  // («Осталось выучить») and the answer's own protocol.
   useEffect(() => {
-    // On the cheat sheet its own show plays the answer (one controller of the flag, sheet spec 4.2).
-    if (view === 'sheet') return;
-    const flags = peakFlags.current;
-    if (!flags || flags.length === 0 || eventsState !== 'ready' || !bundle) return;
     peakFlags.current = null;
-    for (const flag of flags) {
-      const question = bundle.questions.find(
-        (item) => (flag.hash && item.question_hash === flag.hash) || (flag.questionId && item.id === flag.questionId),
-      );
-      if (!question || !question.question_hash) continue;
-      const answers = answersByHash.get(question.question_hash) ?? [];
-      const ratingsOf = events.filter((event) => event.kind === 'self_rating' && event.item_key === `q:${question.question_hash}`);
-      const change = peakChange(answers, ratingsOf, flag.before);
-      if (!change) continue;
-      const text = peakText({
-        change,
-        answers,
-        number: numberOf(question),
-        counts: {
-          total: summary.total,
-          confirmed: summary.confirmed,
-          once: summary.once,
-          notPassed: summary.notPassed,
-          since: summary.since,
-          confirmedBeforeToday,
-        },
-        confirmedTicketsPct: confirmed.low.ok && confirmed.low.mode !== 'fixed' && layout.per_ticket === 2 ? percent(confirmed.low.all) : null,
-        now,
-      });
-      setFilter('all');
-      setPeak({
-        questionId: question.id,
-        hash: question.question_hash,
-        before: change.before.readiness,
-        phase: text.draws ? 'scroll' : 'still',
-        dim: true,
-        view: {
-          title: text.title,
-          before: text.before,
-          after: text.after,
-          total: text.total,
-          statement: text.statement,
-          fine: text.fine,
-          growth: text.growth,
-        },
-        because: text.because,
-        draws: text.draws,
-      });
-      break;
-    }
-  }, [view, eventsState, bundle, answersByHash, events, summary, confirmed, layout.per_ticket, confirmedBeforeToday, now]);
+  }, []);
 
   useEffect(() => {
     if (!peak || peak.phase !== 'scroll') return;
@@ -687,21 +648,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
     ? examMappingCost(mappingTargets({ questions: bundle.questions, materialIds: bundle.materialIds, mappedMaterialIds: bundle.exam.mapped_material_ids }))
     : 0;
 
-  // ------------------------------------------------------------------ cheat sheet
-  const sheetData = useCheatSheet(examId, { examDate: bundle?.exam.exam_date ?? null, enabled: Boolean(userId) });
-  // The units left today, read once for the page and its sheet: the status names the price of writing the sheet.
-  const unitsLeft = useUnitsLeft(sheetData.status === 'ready' && sheetData.toWrite > 0 ? userId : null);
-  const sheetKnown = sheetData.status === 'ready' && sheetData.journalRead;
-  const erasable = useMemo(() => (sheetKnown ? erasableNow(sheetData.sheet, sheetData.now) : null), [sheetKnown, sheetData.sheet, sheetData.now]);
-  // A mapping run that ended changes what can be written: the sheet is read again.
-  const sheetReload = sheetData.reload;
-  const sheetRunSeq = useRef(job.finishedSeq);
-  useEffect(() => {
-    if (job.finishedSeq === sheetRunSeq.current) return;
-    sheetRunSeq.current = job.finishedSeq;
-    sheetReload();
-  }, [job.finishedSeq, sheetReload]);
-
   // ------------------------------------------------------------------ the status at the top (owner, 2026-10-07)
   // What Meldy did with this exam, what it found and the one thing to do next (components/exams/examStatus.ts).
   const drawLabel = bundle && bundle.exam.ticket_layout.per_ticket <= 1 && bundle.exam.ticket_layout.mode !== 'fixed' ? 'Тянуть вопрос' : 'Тянуть билет';
@@ -709,12 +655,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const fitQuestionTexts = useMemo(() => (bundle?.questions ?? []).map((question) => question.text), [bundle?.questions]);
   const lectureFit = useExamLectureFit({ userId, wanted: nothingFound, questions: fitQuestionTexts, own: bundle?.materialIds ?? [] });
   const answered = summary.confirmed + summary.once + summary.notPassed;
-  const sheetState: 'loading' | 'ready' | 'error' =
-    sheetData.status === 'loading' || (sheetData.status === 'ready' && !sheetData.journalRead && sheetData.eventsState !== 'error')
-      ? 'loading'
-      : sheetData.status === 'error' || !sheetData.journalRead
-        ? 'error'
-        : 'ready';
   const pageStatus = bundle
     ? examStatus({
         total: questions.length,
@@ -730,17 +670,12 @@ function ExamSheetPage({ examId }: { examId: string }) {
           cost: nextRunCost,
           limit: limit ? { remaining: limit.remaining, resetAt: formatClock(new Date(limit.resetAt).toISOString()) } : null,
         },
-        sheet: {
-          state: sheetState,
-          written: sheetData.written,
-          toWrite: sheetData.toWrite,
-          units: sheetData.units,
-          writing: sheetData.write.phase === 'running' ? { done: sheetData.write.done, total: sheetData.write.total || sheetData.toWrite } : null,
-          unitsLeft,
-          resetAt: formatLimitReset(nextLimitReset()),
-          lines: { left: sheetData.sheet.counts.left, total: sheetData.sheet.counts.total },
-          erasable: erasable?.questions.length ?? 0,
-          nextErasable: erasable ? nextErasableLine(erasable.next, sheetData.now) : null,
+        learn: {
+          state: learn.status === 'error' ? 'error' : learnFacts || learn.status === 'ready' ? 'ready' : 'loading',
+          ready: learnFacts?.ready.length ?? 0,
+          nextReady: learnFacts ? nextReadyWhen(learnFacts.next, learnNow) : null,
+          learned: learnFacts?.learned ?? 0,
+          inPlan: learnFacts?.inPlan ?? 0,
         },
         answers: { state: eventsState, answered, untested: summary.untested, confirmed: summary.confirmed },
         drawLabel,
@@ -748,7 +683,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       })
     : null;
   const hideShare = pageStatus?.hideCoverage ?? false;
-  // The bar at the bottom of a phone or a tablet waits for the first status while the sheet and the answers are
+  // The bar at the bottom of a phone or a tablet waits for the first status while what is left and the answers are
   // read: it stood as «Тянуть билет» with «Как на экзамене · изменить» and turned into «Тянуть билет из 4 вопросов»
   // or another action half a second later. The bar keeps its room (nothing moves); a slow read shows it after
   // BAR_WAIT_MS as before; a later read (after a run, a retry) leaves it in place.
@@ -762,81 +697,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const barLate = useShownAfter(firstRead, BAR_WAIT_MS);
   const barWaits = firstRead && !barLate;
 
-  // «35 % билетов, где оба вопроса есть в лекциях» beside the sheet's counter, as «Вопросы» says it — not while the
-  // share says nothing (nothing checked, almost nothing found: the status says that).
-  const sheetShareLine = useMemo(() => {
-    const low = shares.low;
-    if (hideShare || !low.ok || counts.total === 0 || counts.unmapped + counts.checking >= counts.total) return null;
-    if ((low.mode === 'random' || low.mode === 'sections') && low.q <= 1) return `${questionShareText(counts)} вопросов есть в лекциях`;
-    const ticketShare = shareText(shares, 'all');
-    if (!ticketShare) return null;
-    const label = low.mode === 'fixed' ? 'билетов, где все вопросы есть в лекциях' : `билетов, где ${allQuestionsWord(perTicketOf(low, layout.per_ticket))} есть в лекциях`;
-    return `${ticketShare} ${label}`;
-  }, [hideShare, shares, counts, layout.per_ticket]);
-  const sheetPage = useSheetView(
-    {
-      examId,
-      userId,
-      examDate: bundle?.exam.exam_date ?? null,
-      sectionTitles: bundle?.exam.ticket_layout.section_titles ?? [],
-      lectureCount: bundle?.materials.length ?? 0,
-      active: view === 'sheet' && status === 'ready',
-      side: frame.side,
-      frameBox: frame.box,
-      peakFlags,
-      shareLine: sheetShareLine,
-      mappingRunning: running || job.phase === 'waiting',
-      unmapped: questions.length > 0 && questions.every((question) => question.coverage === null),
-      onQuestion: (id) => {
-        setManualError(null);
-        setSelectedId((currentId) => (currentId === id ? null : id));
-      },
-      // A line's details take the column: «почему» of a question closes (it would stand in front of them).
-      onLineOpen: () => setSelectedId(null),
-      openQuestionId: view === 'sheet' ? selectedId : null,
-      questionPanelId: `exam-why-${examId}`,
-      // The status offers «Написать шпаргалку»: the column's card says what the sheet is, without a second button.
-      writeFromStatus: pageStatus?.action?.kind === 'write',
-      quietGaps: pageStatus?.quietGaps ?? false,
-      unitsLeft,
-      oneBlock: phone,
-    },
-    sheetData,
-  );
-  // Once something is written, the page opens on the sheet from the next visit (unless the student chose).
-  const sheetWritten = sheetPage.data.status === 'ready' && sheetPage.data.written > 0;
-  useEffect(() => {
-    if (sheetWritten && storedView(examId) === null) storeView(examId, 'sheet');
-  }, [sheetWritten, examId]);
-  const closeSheetLine = sheetPage.closeLine;
-  const chooseView = useCallback(
-    (next: PageView) => {
-      storeView(examId, next);
-      if (next === view) return;
-      setView(next);
-      setSelectedId(null);
-      setPeak(null);
-      if (next === 'sheet') {
-        setRateMode(false);
-        setFilter('all');
-      } else {
-        closeSheetLine();
-      }
-      // A ?view= that brought the student here (the protocol, «Сегодня») must not win over this choice on
-      // reload or Back.
-      if (searchParams.has('view')) {
-        setSearchParams(
-          (current) => {
-            const updated = new URLSearchParams(current);
-            updated.set('view', next);
-            return updated;
-          },
-          { replace: true },
-        );
-      }
-    },
-    [examId, view, closeSheetLine, searchParams, setSearchParams],
-  );
 
   // ------------------------------------------------------------------ actions
   /*
@@ -1060,27 +920,13 @@ function ExamSheetPage({ examId }: { examId: string }) {
   // The column: nothing that says nothing (owner, 2026-10-07). The ticket share only once something is found; the
   // answers only once there are answers; confidence vs answers only after «Самооценка».
   const showCoverage = !pageStatus.hideCoverage;
-  const showReadiness = eventsState === 'ready' && answered > 0;
+  // The key to the dots counts them as the list shows them («Осталось выучить»'s rule).
+  const dotCounts: Record<Readiness, number> = { confirmed: 0, once: 0, not_passed: 0, untested: 0 };
+  for (const row of allRows) dotCounts[row.readiness] += 1;
+  const dotsShown = allRows.some((row) => row.readiness !== 'untested');
   const selfRated = ratings.know + ratings.unsure + ratings.dont_know > 0;
   const closeLine = showCoverage ? closePartialLine(counts.partial, shares, closed) : null;
 
-  const readinessProps = {
-    summary,
-    confidence,
-    selfRated,
-    answers: eventsState,
-    answersError: eventsState === 'error' ? eventsError : null,
-    filter,
-    onFilter: setFilter,
-    onRateMode: () => {
-      setSelectedId(null);
-      setRateMode(true);
-    },
-    growth: growthSentence(summary, now),
-    staleLine: staleSentence(summary.stale),
-    secondAnswer,
-  };
-  const readiness = (part: 'all' | 'head' | 'rest') => <ReadinessBlock part={part} {...readinessProps} />;
   const coverage = (part: 'all' | 'head' | 'rest') => (
     <CoverageSummary
       part={part}
@@ -1099,11 +945,75 @@ function ExamSheetPage({ examId }: { examId: string }) {
       }}
     />
   );
+  // «Осталось выучить» heads the column (it took the place of «Подтверждено ответами»); the ticket share under it. Not while
+  // the list is empty, unchecked or in no lecture: the status says that, and the card would say nothing more.
+  const textById = new Map(bundle.questions.map((question) => [question.id, question.text]));
+  let zone = 'Europe/Minsk';
+  try {
+    zone = Intl.DateTimeFormat().resolvedOptions().timeZone || zone;
+  } catch {
+    // The plan's default zone.
+  }
+  const learnShown = Boolean(topicList) ? topicList!.topics.length > 0 || topicList!.noLectures : learn.status !== 'ready' && mappedCount > 0;
+  const learnCard =
+    questions.length > 0 && !pageStatus.quietGaps && learnShown ? (
+      <LearnLeft
+        list={topicList}
+        status={learn.status}
+        now={learnNow}
+        tz={zone}
+        phone={phone}
+        answerHref={(q) => `/exams/${exam.id}/ticket?q=${encodeURIComponent(q.id)}`}
+        questionText={(q) => textById.get(q.id) ?? ''}
+        lecturesHref={`/exams/${exam.id}/edit#lectures`}
+        prepare={
+          learnExam && learnExam.toWrite > 0 && !copy ? (
+            <PrepareLine examId={exam.id} toWrite={learnExam.toWrite} units={learnExam.units} onDone={learnReload} />
+          ) : null
+        }
+        onRetry={learnReload}
+      />
+    ) : null;
+  // The key to the dots, once answers marked them: its rows filter the list. After «Самооценка», how sure you were
+  // against your answers. A phone opens the key from «Обозначения» over the list instead.
+  const dotsBlock =
+    !phone && (dotsShown || (eventsState === 'ready' && selfRated)) ? (
+      <div className="ex-blk ex-dots">
+        {dotsShown && (
+          <ReadinessLegend
+            counts={dotCounts}
+            labels={LEARN_LABELS}
+            filter={filter}
+            onFilter={(next) => {
+              setRateMode(false);
+              setFilter(next);
+            }}
+          />
+        )}
+        {eventsState === 'ready' && selfRated && (
+          <p className="ex-fine ex-dots-sure">
+            {glue(confidenceSentence(confidence))}{' '}
+            <button
+              type="button"
+              className="sf-link"
+              data-stage-hide=""
+              onClick={() => {
+                setSelectedId(null);
+                setRateMode(true);
+              }}
+            >
+              Самооценка
+            </button>
+          </p>
+        )}
+      </div>
+    ) : null;
   const summaryColumn =
-    showCoverage || showReadiness ? (
+    learnCard || showCoverage || dotsBlock ? (
       <>
+        {learnCard}
         {showCoverage && coverage('all')}
-        {showReadiness && readiness('all')}
+        {dotsBlock}
       </>
     ) : null;
   // Phones and tablets: the figure with «Как считается» and «Подтверждено ответами» above the sheet, so the
@@ -1111,11 +1021,11 @@ function ExamSheetPage({ examId }: { examId: string }) {
   // the answers' count as two lines; everything else — the lectures and the mapping of the meta line, the action
   // line, the formulas, what «подтверждено» means and the legend — behind «Как считается».
   const compactColumn =
-    showCoverage || showReadiness ? (
+    showCoverage ? (
       phone ? (
         <PhoneSummary
           coverage={showCoverage ? { counts, shares, closed, layout: exam.ticket_layout } : null}
-          readiness={showReadiness ? readinessProps : null}
+          readiness={null}
           facts={`${lecturesPhrase(bundle.materials.length)} · ${mappingMeta}`}
           filter={filter}
           onFilter={(next) => {
@@ -1127,10 +1037,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
           id={`${whyId}-how`}
         />
       ) : (
-        <>
-          {showCoverage && coverage('head')}
-          {showReadiness && readiness('head')}
-        </>
+        <>{showCoverage && coverage('head')}</>
       )
     ) : null;
   const rateColumn = (
@@ -1166,11 +1073,11 @@ function ExamSheetPage({ examId }: { examId: string }) {
         examMaterialIds={current}
         answers={answersByHash.get(selectedRow.question.question_hash ?? '') ?? []}
         answersError={eventsState === 'error' ? eventsError : null}
+        stateLine={whyStateLine(selectedRow.question.id)}
         now={now}
         variant={variant}
         frameBox={frame.box}
         headingId={`${whyId}-title`}
-        focusHeading={view === 'sheet'}
         onClose={closeWhy}
         onManualMark={() => void onManualMark()}
         manualPending={manualPending}
@@ -1192,12 +1099,9 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const sheetTitle = sheetHeader(exam.title, exam.kind);
   const column = selectedRow ? whyPanel('column') : rateMode ? rateColumn : showPeak ? peakColumn : summaryColumn;
 
-  const onSheet = view === 'sheet';
   // The column offers its own filled pill («Ответить на этот вопрос»): the status's action steps down to the white pill.
-  const drawSteps = whyAnswers || (onSheet && sheetPage.primaryInColumn);
-  // Nothing found and nothing written: the sheet's column would hold only its name.
-  const sheetColumnQuiet = pageStatus.quietGaps && sheetPage.data.written === 0 && !sheetPage.lineOpen;
-  const sideColumn = onSheet ? (selectedRow ? whyPanel('column') : sheetColumnQuiet ? null : sheetPage.column) : column;
+  const drawSteps = whyAnswers;
+  const sideColumn = column;
 
   // ------------------------------------------------------------------ the status's action
   // The one filled pill of the page: in the status block beside its words (1024 px and wider), in the bar at the
@@ -1224,23 +1128,6 @@ function ExamSheetPage({ examId }: { examId: string }) {
             }}
             onBlur={() => {
               mapPillFocused.current = false;
-            }}
-          >
-            {action.label}
-          </button>
-        );
-        break;
-      case 'write':
-        primary = (
-          <button
-            type="button"
-            className={pillClass}
-            aria-disabled={pageStatus.blocked ? true : undefined}
-            onClick={() => {
-              if (pageStatus.blocked) return;
-              // The pen writes on the paper: the student sees the lines come.
-              chooseView('sheet');
-              sheetPage.write(action.count);
             }}
           >
             {action.label}
@@ -1300,46 +1187,13 @@ function ExamSheetPage({ examId }: { examId: string }) {
     quietDraw
   );
 
-  const viewTabs = (
-    <>
-      <div className="ex-views" role="tablist" aria-label="Вид листа экзамена">
-        {(['sheet', 'questions'] as const).map((item) => (
-          <button
-            key={item}
-            type="button"
-            role="tab"
-            id={`ex-view-${item}`}
-            aria-selected={view === item}
-            aria-controls="ex-view-panel"
-            tabIndex={view === item ? 0 : -1}
-            onClick={() => chooseView(item)}
-            onKeyDown={(event) => {
-              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-              event.preventDefault();
-              const next = item === 'sheet' ? 'questions' : 'sheet';
-              chooseView(next);
-              window.setTimeout(() => document.getElementById(`ex-view-${next}`)?.focus(), 0);
-            }}
-          >
-            {item === 'sheet' ? 'Шпаргалка' : 'Вопросы'}
-          </button>
-        ))}
-      </div>
-    </>
-  );
-
   // Tablets: «Изменить список · Лекции · Самооценка · Пригласить группу · Отчёт для преподавателя» took three or four
   // rows above the status (audit 2026-10-08); they go under the list, as under the paper on «Шпаргалка». A phone has
   // them in the «⋯» of the heading.
-  const linksBelow = !frame.side && !phone && (onSheet || frame.size === 's');
+  const linksBelow = !frame.side && !phone && frame.size === 's';
   const startRate = () => {
     setSelectedId(null);
     setFilter('all');
-    if (onSheet) {
-      chooseView('questions');
-      setRateMode(true);
-      return;
-    }
     // From the links under the list, or a phone's «⋯» at the top: the list's top, with its «Отметьте…» line, comes into view.
     if ((linksBelow || phone) && !rateMode) {
       window.setTimeout(() => document.querySelector('.ex-sheet')?.scrollIntoView?.({ block: 'start', behavior: reduced ? 'auto' : 'smooth' }), 0);
@@ -1353,7 +1207,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     ...(drawInMore ? [{ key: 'draw', label: allDrawLabel(drawLabel), to: drawHref }] : []),
     ...(copy || editLocked ? [] : [{ key: 'edit', label: 'Изменить список', to: `/exams/${exam.id}/edit` }]),
     { key: 'lectures', label: 'Лекции', to: `/exams/${exam.id}/edit#lectures` },
-    { key: 'rate', label: rateMode && !onSheet ? 'Закончить самооценку' : 'Самооценка', onSelect: startRate },
+    { key: 'rate', label: rateMode ? 'Закончить самооценку' : 'Самооценка', onSelect: startRate },
     ...(copy || attached ? [] : [{ key: 'invite', label: 'Пригласить группу', onSelect: () => setInviteOpen(true) }]),
     { key: 'report', label: 'Отчёт для преподавателя', to: `/exams/${exam.id}/report` },
   ];
@@ -1377,7 +1231,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
       <Link className="sf-link" to={`/exams/${exam.id}/edit#lectures`}>
         Лекции
       </Link>
-      <button type="button" className="sf-link" aria-pressed={rateMode && !onSheet} onClick={startRate}>
+      <button type="button" className="sf-link" aria-pressed={rateMode} onClick={startRate}>
         Самооценка
       </button>
       {/* «Группа по ссылке»: the author's link for the group (components/exams/share/InviteGroup); a copy is not
@@ -1393,15 +1247,21 @@ function ExamSheetPage({ examId }: { examId: string }) {
 
   // Phones and tablets under the sheet: the action line of the share and the readiness legend, when there are any.
   // A phone has them behind «Как считается» (PhoneSummary) and «Обозначения».
-  const answersBelow = !frame.side && !phone && !onSheet && !rateMode && !showPeak && (Boolean(closeLine) || showReadiness);
-  const topColumn = onSheet ? sheetPage.top : rateMode ? rateColumn : showPeak ? peakColumn : compactColumn;
+  const answersBelow = !frame.side && !phone && !rateMode && !showPeak && (Boolean(closeLine) || Boolean(dotsBlock));
+  // Phones and tablets: the topics card (rows folded on a phone) over the list, then the share.
+  const topColumn = rateMode ? rateColumn : showPeak ? peakColumn : learnCard || compactColumn ? (
+    <>
+      {learnCard}
+      {compactColumn}
+    </>
+  ) : null;
 
   // A phone: the line over the list says that a question opens its place in the lectures — once something was found
   // there (before a mapping, or for a list in no lecture, a tap shows none). «Обозначения» at its end opens the key to
   // the number circles, once answers have marked them; its rows still filter the list.
   const foundInLectures = counts.full + counts.partial + counts.unverified > 0;
   const rowHint = phone && !rateMode && rows.length > 0 && foundInLectures ? ROW_HINT : null;
-  const keysShown = phone && !rateMode && showReadiness;
+  const keysShown = phone && !rateMode && dotsShown;
   const keysId = `${whyId}-keys`;
   const keysLink = keysShown ? (
     <button
@@ -1418,7 +1278,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const keysPanel =
     keysShown && keysOpen ? (
       <div className="ex-keys" id={keysId}>
-        <ReadinessLegend counts={readinessCounts(summary)} filter={filter} onFilter={setFilter} />
+        <ReadinessLegend counts={dotCounts} labels={LEARN_LABELS} filter={filter} onFilter={setFilter} />
       </div>
     ) : null;
 
@@ -1432,8 +1292,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   );
 
   return (
-    <div className="sf-page ex-detail" ref={frame.ref} data-frame={frame.size} data-view={view}>
-      {onSheet && sheetPage.status}
+    <div className="sf-page ex-detail" ref={frame.ref} data-frame={frame.size} data-view="questions">
       <header className="ex-head">
         <div style={{ minWidth: 0 }}>
           <p className="ex-crumb">
@@ -1460,7 +1319,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
               {glue(
                 phone
                   ? phoneMetaLine(exam.kind, exam.exam_date, questions.length, exam.ticket_layout)
-                  : (onSheet && !frame.side ? metaParts.slice(0, 1) : metaParts).join(' · '),
+                  : metaParts.join(' · '),
               )}
             </p>
           )}
@@ -1472,11 +1331,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
       {/* What Meldy did, what it found, the one thing to do next — above everything that details it. */}
       <ExamStatusCard ref={statusHeadingRef} id={`ex-st-${exam.id}`} status={pageStatus} actions={statusActions} notes={statusNotes} brief={phone} />
 
-      {/* Phones and tablets: the two views right under the status, above everything they change. */}
-      {!frame.side && !phoneEmpty && <div className="ex-viewbar ex-viewbar-top">{viewTabs}</div>}
-
       {!frame.side && !phoneEmpty && topColumn && (
-        <section className="ex-col" aria-label={onSheet ? 'Шпаргалка: сколько осталось' : 'Сводка'}>
+        <section className="ex-col" aria-label="Сводка">
           {topColumn}
         </section>
       )}
@@ -1484,9 +1340,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
       {phoneEmpty ? null : (
         <div className="ex-body" data-solo={frame.side && !sideColumn ? '' : undefined}>
           <div style={{ minWidth: 0 }}>
-            <div className="ex-viewbar" data-empty={!frame.side && onSheet ? '' : undefined}>
-              {frame.side && viewTabs}
-              {!onSheet && (
+            <div className="ex-viewbar">
+              {(
                 <ul className="ex-filter" aria-label="Показать вопросы">
                   <li>
                     <button type="button" aria-pressed={filter === 'all'} onClick={() => setFilter('all')}>
@@ -1528,10 +1383,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
                 </ul>
               )}
             </div>
-            <div id="ex-view-panel" role="tabpanel" aria-labelledby={`ex-view-${view}`}>
-              {onSheet ? (
-                (sheetPage.paper ?? (sheetPage.data.status === 'loading' ? <p className="ex-loading">Загружаем шпаргалку…</p> : null))
-              ) : (
+            <div>
+              {(
                 <ExamSheet
                   examId={exam.id}
                   title={sheetTitle}
@@ -1572,36 +1425,25 @@ function ExamSheetPage({ examId }: { examId: string }) {
             </div>
           </div>
           {frame.side && sideColumn && (
-            <aside className="ex-col" aria-label={onSheet ? 'Колонка шпаргалки' : 'Что это значит для билетов'} id={selectedRow ? whyId : undefined}>
+            <aside className="ex-col" aria-label="Что осталось выучить и что это значит для билетов" id={selectedRow ? whyId : undefined}>
               {sideColumn}
             </aside>
           )}
         </div>
       )}
 
-      {/* With the paper, not before it: the paper's arrival would push this down under the eye. A phone's links are in the
-          heading's «⋯»: there the section holds at most the write card, and an empty one is not shown (exams.css). */}
-      {!frame.side && !phoneEmpty && onSheet && sheetPage.settled && (
-        <section className="ex-col ex-col-after">
-          {sheetPage.after}
-          {!phone && examLinks}
-        </section>
-      )}
-
-      {!frame.side && onSheet && sheetPage.overlay}
-
       {answersBelow && (
         <section className="ex-col ex-col-after" aria-label="Ответы по билетам">
           {closeLine && coverage('rest')}
-          {showReadiness && readiness('rest')}
+          {dotsBlock}
         </section>
       )}
 
-      {linksBelow && !onSheet && <div className="ex-col-after ex-links-after">{examLinks}</div>}
+      {linksBelow && <div className="ex-col-after ex-links-after">{examLinks}</div>}
 
       {!frame.side && selectedRow && <div id={whyId}>{whyPanel('sheet')}</div>}
 
-      {phoneEmpty ? null : <AnswerTextConsent ready={!onSheet || sheetPage.settled} short={phone} />}
+      {phoneEmpty ? null : <AnswerTextConsent ready short={phone} />}
 
       {inviteOpen && (
         <InviteGroupDialog

@@ -207,7 +207,7 @@ describe('drawTicket «Ждут подтверждения»', () => {
   it('says so when no question is waiting for its confirmation', () => {
     const result = drawTicket({ mode: 'awaiting', layout: { mode: 'random', perTicket: 2 }, questions: questions(4, () => ({ readiness: 'once' })), rng: lcg(1) });
     expect(result).toMatchObject({ ok: false, code: 'no_awaiting', message: DRAW_FAILURE_MESSAGES.no_awaiting });
-    expect(DRAW_FAILURE_MESSAGES.no_awaiting).toBe('Сейчас нет вопросов, которые ждут подтверждения. Выберите «Как на экзамене».');
+    expect(DRAW_FAILURE_MESSAGES.no_awaiting).toBe('Сегодня нет вопросов, которые можно выучить. Выберите «Как на экзамене».');
   });
 });
 
@@ -250,11 +250,11 @@ describe('poolLine: what a draw takes its questions from', () => {
       'Случайно из 6 вопросов, на которые вы уже отвечали.',
     );
     expect(poolLine({ mode: 'awaiting', layout: { mode: 'random', perTicket: 2 }, questions: list })).toBe(
-      'Случайно из 4 вопросов, которые ждут подтверждения.',
+      'Случайно из 4 вопросов, которые можно выучить сегодня.',
     );
     const one = forty((index) => ({ attempts: index === 3 ? 2 : 0, awaiting: index === 3 }));
     expect(poolLine({ mode: 'answered', layout: { mode: 'random', perTicket: 2 }, questions: one })).toBe('Единственный вопрос, на который вы уже отвечали.');
-    expect(poolLine({ mode: 'awaiting', layout: { mode: 'random', perTicket: 2 }, questions: one })).toBe('Единственный вопрос, который ждёт подтверждения.');
+    expect(poolLine({ mode: 'awaiting', layout: { mode: 'random', perTicket: 2 }, questions: one })).toBe('Единственный вопрос, который можно выучить сегодня.');
     // Nothing to draw from: the failure message speaks instead.
     expect(poolLine({ mode: 'answered', layout: { mode: 'random', perTicket: 2 }, questions: forty() })).toBeNull();
     expect(poolLine({ mode: 'exam', layout: { mode: 'random', perTicket: 2 }, questions: [] })).toBeNull();

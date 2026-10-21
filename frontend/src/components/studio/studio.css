@@ -1126,7 +1126,8 @@
   cursor: pointer;
 }
 .st-syntax dl { display: grid; gap: 6px; margin: 0; }
-.st-syntax-row { display: grid; grid-template-columns: 92px minmax(0, 1fr); align-items: baseline; gap: 10px; }
+/* A long mark («[видео](https://…)») widens its own row's first column instead of running over its words. */
+.st-syntax-row { display: grid; grid-template-columns: minmax(92px, max-content) minmax(0, 1fr); align-items: baseline; gap: 10px; }
 .st-syntax dt { margin: 0; }
 .st-syntax dd { margin: 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
 .st-syntax code { display: inline-block; padding: 2px 8px; border-radius: 8px; background: var(--sf-surface); box-shadow: inset 0 0 0 1px var(--sf-line); font: 600 13px/1.4 var(--st-mono); white-space: nowrap; }

@@ -218,7 +218,7 @@ describe('Exams', () => {
     const entry = screen.getByRole('link', { name: 'Новый тест' });
     expect(entry).toHaveAttribute('href', '/tests/new');
     expect(entry).toHaveClass('sf-link');
-    expect(entry.closest('p')).toHaveTextContent('Файла нет? Напишите вопросы сами: Новый тест');
+    expect(entry.closest('p')).toHaveTextContent('Нет файла? Напишите вопросы сами: Новый тест');
     expect(document.querySelectorAll('.sf-primary')).toHaveLength(1);
     fireEvent.click(entry);
     expect(await screen.findByRole('heading', { level: 1, name: 'Новый тест' })).toBeInTheDocument();

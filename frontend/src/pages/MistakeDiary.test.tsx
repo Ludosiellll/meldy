@@ -511,7 +511,7 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     api.from.mockReturnValue(rowsQuery(open));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
     expect(await screen.findByText('Нажмите на строку, чтобы увидеть ответ.')).toBeInTheDocument();
-    expect(screen.queryByText(/Ошибки из тестов и ответов на билеты/)).toBeNull();
+    expect(screen.queryByText(/Ошибки из самопроверок и ответов на билеты/)).toBeNull();
     expect(await screen.findByText('Задания по 2 ошибкам, 2 единицы ИИ')).toBeInTheDocument();
     // A phone does not draw «Обновить»: the diary reads itself when the app comes back to the screen.
     expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();

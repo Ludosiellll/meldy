@@ -152,7 +152,7 @@ functions answer statuses and raise only 42501 (not the service role) and 22023 
 | `ML001` | 400 | game full (300 players) |
 | `ML002` | 400 | game not joinable (`ended`, `expired`) |
 | `ML003` | 403 | members only |
-| `ML004` | 400 | answer refused: `early`, `late`, `not_open`, `twice`, `bad_qi`, `not_joined_yet` |
+| `ML004` | 400 | answer refused: `early`, `late`, `not_open`, `twice`, `bad_qi`, `not_joined_yet`, `stand` (a movement game: answers come from the room, MODE_STAND.md) |
 | `ML005` | 429 | rate limit (`join`, `create`, `post`), with `Retry-After` |
 | `ML006` | 400 | name refused (`length`, `rude`) |
 | `ML007` | 400 | look refused (`unknown_part`, `locked`) |
@@ -167,6 +167,7 @@ functions answer statuses and raise only 42501 (not the service role) and 22023 
 ```jsonc
 // p_source: {"quiz_id": "uuid"}  or  {"container_id": "uuid", "subject_ids": ["uuid"], "count": 6}
 // p_settings: {"mode": "boss", "time_s": 20, "speed": true, "who": "pin" | "members", "chat_names": true}
+// mode "stand" («Встань на ответ», docs/live/MODE_STAND.md): + "boss": "clock" | "skeleton", time_s 15 | 20 | 30
 { "game_id": "uuid", "pin": "482913", "topic": "Q2xz…22", "host_token": "43 chars", "q_count": 6, "skipped": 0,
   "join_url": "https://ludosiel-studyforge.hf.space/play?pin=482913",
   "tg_url": "https://t.me/Meldyteach_bot/play?startapp=482913" }

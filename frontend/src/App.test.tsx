@@ -324,7 +324,7 @@ describe('library', () => {
     expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-1');
     const rows = screen.getAllByRole('listitem');
     expect(rows.map((row) => within(row).getByRole('link').getAttribute('href'))).toEqual(['/library/m-1', '/library/m-2']);
-    expect(within(rows[0]).getByText('конспект · 2 карточки · тест · подкаст')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('конспект · 2 карточки · самопроверка · подкаст')).toBeInTheDocument();
     expect(container.innerHTML).not.toMatch(/uppercase|tracking-wider|Только для меня|Пакетный выбор|Статистика/);
     expect(screen.queryByText('Экономика')).toBeNull();
   });

@@ -95,60 +95,6 @@ export function Wave({ at, until, bars = 14, className }: { at: number; until: n
   );
 }
 
-export interface CursorKey {
-  t: number;
-  x: number;
-  y: number;
-  /** A press at this key (the cursor dips). */
-  press?: boolean;
-}
-
-/** A pointer that moves between keys (UI-local px) and dips on a press. Hidden before the first key and after `until`. */
-export function Cursor({ keys, until }: { keys: readonly CursorKey[]; until?: number }) {
-  const root = useRef<HTMLSpanElement>(null);
-  useFrame((l) => {
-    const first = keys[0];
-    const shown = l >= first.t - 200 && (until === undefined || l < until);
-    opacity(root.current, shown ? clamp((l - (first.t - 200)) / 200) * (until === undefined ? 1 : 1 - seg(l, until - 200, 200)) : 0);
-    if (!shown) return;
-    let x = first.x;
-    let y = first.y;
-    let scale = 1;
-    for (let i = 0; i < keys.length; i += 1) {
-      const key = keys[i];
-      const next = keys[i + 1];
-      if (l >= key.t) {
-        x = key.x;
-        y = key.y;
-        if (key.press) scale = 1 - 0.18 * Math.sin(Math.PI * seg(l, key.t, 220));
-        if (next && l < next.t) {
-          const p = ease.inOut(seg(l, key.t + (key.press ? 220 : 0), Math.max(1, next.t - key.t - (key.press ? 220 : 0))));
-          x = mix(key.x, next.x, p);
-          y = mix(key.y, next.y, p);
-        }
-      }
-    }
-    move(root.current, x, y, scale);
-  });
-  return (
-    <span ref={root} className="r3-cursor" aria-hidden="true" style={{ opacity: 0 }}>
-      <svg viewBox="0 0 24 24">
-        <path d="M5 3l14 8-6 1.6L10 19z" fill="#0b121c" stroke="#fff" strokeWidth="1.6" strokeLinejoin="round" />
-      </svg>
-    </span>
-  );
-}
-
-/** Toggles a class from `at` (and off again from `until`): a state change, drawn by CSS. */
-export function useFlag(el: () => Element | null | undefined, name: string, at: number, until?: number) {
-  useFrame((l) => {
-    const node = el();
-    if (!node) return;
-    const on = l >= at && (until === undefined || l < until);
-    if (node.classList.contains(name) !== on) node.classList.toggle(name, on);
-  });
-}
-
 /** The arrow of a pill button. */
 export function Arrow() {
   return (

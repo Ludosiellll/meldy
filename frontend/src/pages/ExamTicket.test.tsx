@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   incrementAIUsage: vi.fn(async () => undefined),
   recordSelfRating: vi.fn(async () => undefined),
   fetchSheetEvents: vi.fn(async (): Promise<unknown[]> => []),
+  fetchLearnLeft: vi.fn(async (): Promise<unknown[]> => []),
 }));
 
 vi.mock('../lib/supabase', () => ({
@@ -31,6 +32,8 @@ vi.mock('../api/learning', async (importOriginal) => ({
   recordSelfRating: mocks.recordSelfRating,
   fetchSheetEvents: mocks.fetchSheetEvents,
 }));
+// «Осталось выучить» (public.learn_left), read once an answer is saved: nothing unless a test says.
+vi.mock('../api/learnLeft', () => ({ fetchLearnLeft: mocks.fetchLearnLeft, forgetLearnLeft: () => undefined }));
 // The server's recognition: off unless a test turns it on; the test hands out the pieces and their text.
 const media = vi.hoisted(() => ({
   supported: false,
@@ -309,6 +312,7 @@ function typeAnswer(text: string) {
 }
 
 beforeEach(() => {
+  mocks.fetchLearnLeft.mockReset().mockResolvedValue([]);
   vi.useFakeTimers({ shouldAdvanceTime: true });
   vi.setSystemTime(new Date(2026, 9, 3, 15, 0, 0));
   FakeAudio.instances = [];
@@ -656,29 +660,36 @@ describe('ExamTicket: answering by text', () => {
     await waitFor(() => expect(audiosFor('Хорошо, по существу всё')).toHaveLength(1));
   });
 
-  it('says on the protocol what the answer changed on the cheat sheet, and leads there', async () => {
+  it('says on the protocol what the answer did to its topic, and leads to the exam', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: { ...SAVED, card_added: false }, error: null })) });
     api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'covered', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: null }));
-    // p1 was named three days ago too: this answer erases it; the other four are named for the first time.
-    const point = (id: string, session: string, daysAgo: number) => {
-      const at = new Date(Date.now() - daysAgo * 86_400_000 - 60_000);
-      const title = DEMO_RUBRIC.points.find((item) => item.id === id)!.title;
-      return {
-        id: `${session}-${id}`,
-        created_at: at.toISOString(),
-        local_date: `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`,
-        material_id: null,
-        kind: 'oral_point',
-        item_key: `oral:${RUBRIC_ID}:${id}`,
-        correct: true,
-        score: null,
-        confidence: null,
-        source_ids: [],
-        session_id: session,
-        payload: { v: 1, question_hash: HASH, rubric_id: RUBRIC_ID, point_id: id, title, status: 'covered' },
-      };
-    };
-    mocks.fetchSheetEvents.mockResolvedValue([point('p1', PREVIOUS_SESSION, 3), ...['p1', 'p2', 'p3', 'p4', 'p5'].map((id) => point(id, SESSION, 0))]);
+    // The question is learned now; the other one of its lecture is not yet.
+    const fact = (id: string, position: number, state: 0 | 3) => ({
+      id,
+      position,
+      label: String(position),
+      section: null,
+      lecture: 0,
+      kind: 'lines',
+      state,
+      named: state === 3 ? 5 : 0,
+      of: 5,
+      learnedAt: state === 3 ? Date.now() : null,
+      readyAt: null,
+      missed: false,
+    });
+    mocks.fetchLearnLeft.mockResolvedValue([
+      {
+        examId: EXAM,
+        title: 'Нейронные сети',
+        mappingState: 'done',
+        lectures: [{ id: 'm1', title: 'Обучение сети' }],
+        sectionTitles: [],
+        toWrite: 0,
+        units: 0,
+        questions: [fact(Q1, 1, 3), fact(Q2, 2, 0)],
+      },
+    ]);
     await renderPage(ticketUrl());
     await readyToAnswer();
     fireEvent.click(screen.getByRole('button', { name: 'Ответить текстом' }));
@@ -686,14 +697,15 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     const line = await screen.findByText((_, element) => element?.classList.contains('or-sheet-change') === true);
-    expect(line.textContent?.replace(/\u00a0/g, ' ')).toBe('На шпаргалке: 1 строка стёрлась, 4 — наполовину · посмотреть');
-    expect(mocks.fetchSheetEvents).toHaveBeenCalledWith([HASH]);
-    expect(screen.queryByRole('button', { name: 'Лист экзамена' })).not.toBeNull(); // the top line keeps its way back
-    fireEvent.click(within(line).getByRole('button', { name: 'посмотреть' }));
-    await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}?view=sheet`));
+    expect(line.textContent?.replace(/\u00a0/g, ' ')).toBe('В теме «Обучение сети» остался 1 вопрос из 2. Все темы');
+    expect(mocks.fetchLearnLeft).toHaveBeenCalledWith([EXAM], { fresh: true });
+    expect(mocks.fetchSheetEvents).not.toHaveBeenCalled();
+    expect(line.textContent).not.toMatch(/шпаргалк/i);
+    fireEvent.click(within(line).getByRole('button', { name: 'Все темы' }));
+    await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}`));
   });
 
-  it('«К шпаргалке» on the protocol opens the exam on its cheat sheet', async () => {
+  it('«К экзамену» on the protocol opens the exam', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: { ...SAVED, card_added: false }, error: null })) });
     api['/api/oral/check'].mockImplementation(async () => json(200, { statuses: { p1: 'covered', p2: 'covered', p3: 'covered', p4: 'covered', p5: 'covered' }, ask: null }));
     await renderPage(ticketUrl());
@@ -702,10 +714,11 @@ describe('ExamTicket: answering by text', () => {
     typeAnswer(FULL_ANSWER);
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
-    // No events of this answer in the journal: no line, the link is there all the same.
+    // The question in no topic: no line, the link is there all the same.
     expect(document.querySelector('.or-sheet-change')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'К шпаргалке' }));
-    await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}?view=sheet`));
+    expect(screen.queryByRole('button', { name: 'К шпаргалке' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'К экзамену' }));
+    await waitFor(() => expect(location + search).toBe(`/exams/${EXAM}`));
   });
 
   it('refuses a pasted ready text in the answer and in the reply to the examiner, says why, and lets a term in («Чистый ответ», Н7)', async () => {
@@ -978,13 +991,13 @@ describe('ExamTicket: answering by text', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Не знаю' }));
     expect(await screen.findByText(/Результат не сохранён/)).toBeInTheDocument();
     expect(mocks.incrementAIUsage).not.toHaveBeenCalled();
-    // Not saved means nothing on the cheat sheet: the journal is not even read for its line yet.
+    // Not saved means nothing changed: what is left to learn is not even read for its line yet.
     expect(document.querySelector('.or-ph-sheet, .or-stamp')).toBeNull();
-    expect(mocks.fetchSheetEvents).not.toHaveBeenCalled();
+    expect(mocks.fetchLearnLeft).not.toHaveBeenCalled();
     fail = false;
     fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
-    await waitFor(() => expect(mocks.fetchSheetEvents).toHaveBeenCalledWith([HASH]));
+    await waitFor(() => expect(mocks.fetchLearnLeft).toHaveBeenCalledWith([EXAM], { fresh: true }));
     expect(document.querySelector('.or-stamp')).toBeNull();
     const ids = rpc.mock.calls.map((call) => (call as unknown as [string, { p_attempt: { attempt_id: string } }])[1].p_attempt.attempt_id);
     expect(ids).toHaveLength(2);
@@ -2345,13 +2358,13 @@ describe('ExamTicket from an exam container’s «занятие» (?from=c:<id>
     expect(search).toBe('?from=c:c-1');
   });
 
-  it('«К шпаргалке» keeps it too', async () => {
+  it('«К экзамену» keeps it too', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
     await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}&from=c:c-1`);
     await answerAndSave();
-    fireEvent.click(screen.getByRole('button', { name: 'К шпаргалке' }));
+    fireEvent.click(screen.getByRole('button', { name: 'К экзамену' }));
     await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
-    expect(search).toBe('?view=sheet&from=c:c-1');
+    expect(search).toBe('?from=c:c-1');
   });
 
   it('a ticket of several questions (q=a,b) still goes question by question, and only the last one leads back', async () => {

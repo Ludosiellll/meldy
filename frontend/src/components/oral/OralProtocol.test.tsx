@@ -133,10 +133,10 @@ describe('<ProtocolSheet>', () => {
   it('says under the heading what the answer did to the cheat sheet, where the «Засчитано» stamp was (Ф1)', () => {
     const points = livePoints(DEMO_RUBRIC, evaluation);
     const { container, rerender } = render(
-      <ProtocolSheet heading="h" points={points} followup={followup} sheetNote="На шпаргалке: 2 строки стёрлись наполовину, 1 вернулась" seed="a" />,
+      <ProtocolSheet heading="h" points={points} followup={followup} sheetNote="В теме «Язык SQL» осталось 2 вопроса из 6." seed="a" />,
     );
     const note = container.querySelector('.or-ph .or-ph-sheet') as HTMLElement;
-    expect(note.textContent).toBe('На шпаргалке: 2 строки стёрлись наполовину, 1 вернулась');
+    expect(note.textContent).toBe('В теме «Язык SQL» осталось 2 вопроса из 6.');
     // Right under the date, before the line about the asked point.
     expect(container.querySelector('.or-ph-date')!.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // No stamp, no oval, no verdict on the answer.
@@ -209,7 +209,7 @@ describe('<ProtocolSheet>', () => {
     expect(p3.textContent).toContain('В ответе: назван метод, про градиент по весам не сказано.');
     // The line under the sheet: the reply without a doubled full stop, and what it did — the sheet keeps the line.
     expect(container.querySelector('.or-extra')?.textContent).toBe(
-      `Дополнительный вопрос: «${followup.question}» — ответ: «${reply.slice(0, -1)}». Пункт назван после вопроса — строку шпаргалки это не стирает.`,
+      `Дополнительный вопрос: «${followup.question}» — ответ: «${reply.slice(0, -1)}». Пункт назван после вопроса, его не считаем.`,
     );
     cleanup();
 
@@ -269,7 +269,7 @@ describe('<ProtocolResult> (Ф1: no grade, no «Засчитано»)', () => {
     expect(document.querySelector('.or-grade-label')?.textContent).toBe('Итог');
     expect(document.querySelector('.or-how')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Как считается' }));
-    expect(document.querySelector('.or-how')?.textContent?.replace(/\u00a0/g, ' ')).toContain('строку шпаргалки такой пункт не стирает');
+    expect(document.querySelector('.or-how')?.textContent?.replace(/\u00a0/g, ' ')).toContain('Такой пункт не считаем.');
     // The previous answer is its own line under «Как считается» (redesign critique 4, round 2).
     const row = screen.getByRole('button', { name: 'Как считается' }).closest('.or-how-row') as HTMLElement;
     expect(row.textContent).toBe('Как считается');
@@ -551,7 +551,7 @@ describe('<ProtocolSheet>: round 2 of the stage critique', () => {
       expect(text(container, '.or-sum')).toBe('Сами назвали 3 из 4 главных пунктов, ещё 1 — после вопроса экзаменатора');
       expect(text(container, '.or-grade-why')).toBe('Раскрыто 4 пункта из 5, один назван после вопроса экзаменатора.');
       expect(text(container, '.or-extra')).toBe(
-        'Дополнительный вопрос: «А что будет, если взять слишком большую скорость обучения?» — ответ: «Начнутся колебания, и сеть может не сойтись». Пункт назван после вопроса — строку шпаргалки это не стирает.',
+        'Дополнительный вопрос: «А что будет, если взять слишком большую скорость обучения?» — ответ: «Начнутся колебания, и сеть может не сойтись». Пункт назван после вопроса, его не считаем.',
       );
       // Nothing on the sheet says it was not named.
       expect(container.textContent).not.toContain('не назван');
@@ -627,7 +627,7 @@ describe('«Как считается» without a grade (Ф1)', () => {
     const { container } = render(<HowCounted />);
     const text = (container.textContent ?? '').replace(/\s+/g, ' ');
     expect(text).toContain('Сами — пункт назван в ответе, до вопроса экзаменатора.');
-    expect(text).toContain('После вопроса — пункт назван только в ответ на вопрос экзаменатора: строку шпаргалки такой пункт не стирает.');
+    expect(text).toContain('После вопроса — пункт назван только в ответ на вопрос экзаменатора. Такой пункт не считаем.');
     expect(text).toContain('Ошибка — пункт назван неверно.');
     expect(text).toContain('Вопрос выучен, когда вы дважды, в разные дни, ответили полно');
     expect(text).toContain('С двумя ошибками ответ неполный.');

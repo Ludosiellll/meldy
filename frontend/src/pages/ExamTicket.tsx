@@ -85,8 +85,7 @@ import { displayMaterialTitle } from '../utils/materialTitle';
 import { countBucket, secondsBucket, track } from '../lib/telemetry';
 import { usePasteGuard } from '../components/oral/usePasteGuard';
 import PasteNotice from '../components/oral/PasteNotice';
-import { useAnswerSheetChange } from '../components/exams/sheet/answerChange';
-import { protocolSheetLine } from '../components/exams/sheet/copy';
+import { useAnswerTopic } from '../components/learnLeft/useAnswerTopic';
 import { FINISH_SHORTCUTS, finishKeysLabel, isFinishKey, useDeskColumn } from '../components/oral/roomDesk';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 
@@ -462,13 +461,12 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
   );
   const rubricResponse = state.rubric.status === 'ready' ? state.rubric.response : null;
   const points = useMemo(() => rubricResponse?.rubric.points ?? [], [rubricResponse]);
-  // What the saved answer changed on the cheat sheet, for the protocol (sheet spec 4.2).
-  const sheetChange = useAnswerSheetChange({
-    question,
-    response: rubricResponse,
-    sessionId: state.phase === 'protocol' && state.save.status === 'saved' ? state.save.result.sessionId : null,
-    examDate: state.exam?.examDate ?? null,
-  });
+  // What the saved answer did to its topic («Осталось выучить»), for the protocol: one read once it is saved.
+  const topicLine = useAnswerTopic(
+    examId,
+    question?.id ?? null,
+    state.phase === 'protocol' && state.save.status === 'saved' ? state.save.result.sessionId : null,
+  );
   // «Чистый ответ» (Н7): a ready text pasted into the answer or into the reply to the examiner is refused,
   // with the reason under the field — only the student's own words erase the sheet's lines.
   const answerPaste = usePasteGuard((words) => track('answer_paste_refused', { field: 'answer', words: countBucket(words) }));
@@ -1512,17 +1510,16 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     const askedPoint = followupForProtocol ? rubricResponse.rubric.points.find((point) => point.id === followupForProtocol.pointId) : null;
     const askedStatus = askedPoint && state.evaluation.status === 'done' ? state.evaluation.result.points.find((point) => point.id === askedPoint.id)?.status : null;
     const protocolPoints = livePoints(rubricResponse.rubric, state.evaluation.status === 'done' ? state.evaluation.result : null, new Set(state.named));
-    // Where the «Засчитано» stamp was (Ф1): what this answer did to the cheat sheet, once it is saved and
-    // the journal is read. The phone has no «К шпаргалке» under the result, so the line links there.
+    // Where the «Засчитано» stamp was (Ф1): what this answer did to its topic, once it is saved and read. The phone has
+    // no «К экзамену» under the result, so the line links there.
     const sheetNote =
-      saved && sheetChange ? (
+      saved && topicLine ? (
         <>
-          {glue(protocolSheetLine(sheetChange.summary, sheetChange.quiet))}
+          {glue(topicLine)}
           <span className="or-narrow">
-            {/* « · » stays on the sentence's line (glue's rule): a line never starts with it. */}
-            {'\u00a0· '}
-            <button type="button" className="sf-link" onClick={() => void leave(withFrom(`/exams/${examId}?view=sheet`))}>
-              посмотреть
+            {' '}
+            <button type="button" className="sf-link" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
+              Все темы
             </button>
           </span>
         </>
@@ -1605,8 +1602,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
                 <button type="button" className="sf-link" onClick={() => void goToQuestion(state.index)}>
                   Ответить ещё раз
                 </button>
-                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}?view=sheet`))}>
-                  К шпаргалке
+                <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
+                  К экзамену
                 </button>
               </div>
             </ProtocolResult>

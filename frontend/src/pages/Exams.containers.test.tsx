@@ -213,7 +213,7 @@ describe('«Экзамены» without containers is today’s page to the byte'
 // ------------------------------------------------------------------------------------------------
 // Part 2 — accounts with exam containers.
 
-import { within } from '@testing-library/react';
+import { fireEvent, within } from '@testing-library/react';
 import type { OverviewContainer, OverviewSubject } from '../types/container';
 import {
   containerDateLine,
@@ -383,8 +383,8 @@ describe('«Экзамены» with exam containers', () => {
     expect(entry.closest('[data-pair]')).not.toBeNull();
     expect(entry.closest('[data-pair]')).toBe(door.closest('[data-pair]'));
     // Each door says in one quiet line what it makes (release 47, M11).
-    expect(door).toHaveAccessibleDescription('Экзамен — план подготовки по вопросам и лекциям');
-    expect(entry).toHaveAccessibleDescription('Тест — свои вопросы, ученикам по ссылке');
+    expect(door).toHaveAccessibleDescription('Для себя: план по вопросам и лекциям');
+    expect(entry).toHaveAccessibleDescription('Для учеников: по ссылке, можно без входа');
     expect(screen.queryByRole('heading', { name: 'Загрузите вопросы к экзамену' })).toBeNull();
     expect(mocks.fetchQuestionEvents).not.toHaveBeenCalled();
   });
@@ -488,7 +488,7 @@ describe('«Экзамены» empty, with the exam container in the database (C
 
   it('one door: «Выбрать файлы» and «Вставить список текстом» into the import page, the example one link away', async () => {
     await renderEmpty();
-    expect(screen.getByText('Один общий файл или по файлу на предмет. С вариантами ответов Meldy возьмёт ключ из файла, а без вариантов напишет шпаргалку по вашим лекциям.')).toBeInTheDocument();
+    expect(screen.getByText('Один общий файл или по файлу на предмет. С вариантами ответов Meldy возьмёт ключ из файла, а устные ответы проверит по вашим лекциям.')).toBeInTheDocument();
     const files = screen.getByRole('link', { name: 'Выбрать файлы' });
     expect(files).toHaveAttribute('href', '/exams/import');
     expect(files).toHaveClass('sf-primary');
@@ -570,18 +570,19 @@ describe('«Экзамены»: the author’s own test and the line after «У�
     layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [own, theirs, accreditation()], attached_exam_ids: [] } });
   };
 
-  it('the author’s own test says «Тест · 12 вопросов» and opens the test’s page; a member’s test is a row to study', async () => {
+  it('the author’s own test is on «Тесты», not among the exams; a member’s test is a row to study (UX audit of 21.10)', async () => {
     tests();
     const list = await renderMixed();
-    const own = within(list).getByRole('link', { name: /^Кислоты и основания/ });
-    expect(own).toHaveAttribute('href', '/exams/c/c-t');
-    const card = own.closest('li')!;
-    expect(plain(card.querySelector('.ex-row-meta')?.textContent)).toBe('Тест · 12 вопросов');
-    expect(card.querySelector('.ex-bar')).toBeNull();
-    expect(card).toHaveAttribute('data-kind', 'test');
+    expect(within(list).queryByRole('link', { name: /^Кислоты и основания/ })).toBeNull();
     const theirs = within(list).getByRole('link', { name: /^Тест соседа/ }).closest('li')!;
     expect(plain(theirs.querySelector('.ex-row-meta')?.textContent)).toBe('Дата не указана · 12 вопросов');
     expect(theirs).not.toHaveAttribute('data-kind');
+    const switcher = screen.getByRole('group', { name: 'Что показать' });
+    expect(within(switcher).getByRole('button', { name: /^Экзамены/ })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(within(switcher).getByRole('button', { name: /^Тесты/ }));
+    expect(await screen.findByRole('link', { name: 'Кислоты и основания' })).toHaveAttribute('href', '/exams/c/c-t');
+    expect(screen.getByRole('heading', { level: 1, name: 'Тесты' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Быстрая контрольная' })).toHaveAttribute('href', '/tests/quick');
   });
 
   it('says the line the exam’s page handed over, once, with the focus', async () => {

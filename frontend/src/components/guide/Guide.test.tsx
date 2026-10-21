@@ -160,26 +160,42 @@ describe('the guide chapters', () => {
 });
 
 describe('the first run', () => {
-  it('is a blocking dialog: modal, the focus inside, no «Не сейчас», no ×, Escape does nothing', async () => {
+  const goal = () => within(panel()!).getByRole('heading', { name: 'Что вы хотите сделать?' });
+
+  it('opens on the goal: a dialog over the dimmed app, with a way out (UX audit of 21.10)', async () => {
     renderAt('/dashboard');
     const dialog = await firstRunOpen();
     expect(dialog).toHaveAttribute('role', 'dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveFocus();
-    expect(within(dialog).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Не сейчас' })).toBeNull();
-    expect(within(dialog).queryByRole('button', { name: 'Закрыть' })).toBeNull();
-    expect(within(dialog).queryByRole('button', { name: 'Назад' })).toBeNull();
-    fireEvent.keyDown(dialog, { key: 'Escape' });
-    fireEvent.keyDown(document, { key: 'Escape' });
-    expect(panel()).not.toBeNull();
+    expect(goal()).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: /Готовлюсь к экзамену/ })).toHaveTextContent('4 коротких шага');
+    expect(within(dialog).getByRole('button', { name: /Даю тест ученикам/ })).toHaveTextContent('3 коротких шага');
+    expect(within(dialog).getByRole('button', { name: 'Показать все разделы' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Пропустить знакомство' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Закрыть' })).toBeInTheDocument();
     // The app under it cannot be reached: the top line, the page and the tabs are inert, the app is dimmed.
     expect(document.querySelector('header.sf-bar')).toHaveAttribute('inert');
     expect(document.querySelector('main.sf-main')).toHaveAttribute('inert');
     expect(document.querySelector('nav.sf-tabbar')).toHaveAttribute('inert');
     expect(document.querySelector('.gd-layer .gd-dim')).not.toBeNull();
     expect(window.localStorage.getItem(GUIDE_SEEN_KEY)).toBeNull();
-    expect(mocks.markSeen).not.toHaveBeenCalled();
+  });
+
+  it('Escape, × and «Пропустить знакомство» end it at once, seen on this device and in the profile', async () => {
+    for (const leave of ['escape', 'x', 'skip'] as const) {
+      renderAt('/dashboard');
+      const dialog = await firstRunOpen();
+      if (leave === 'escape') fireEvent.keyDown(document, { key: 'Escape' });
+      else fireEvent.click(within(dialog).getByRole('button', { name: leave === 'x' ? 'Закрыть' : 'Пропустить знакомство' }));
+      expect(panel()).toBeNull();
+      expect(document.querySelector('[inert]')).toBeNull();
+      expect(window.localStorage.getItem(GUIDE_SEEN_KEY)).toBe('1');
+      await waitFor(() => expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'guide'));
+      cleanup();
+      window.localStorage.clear();
+      mocks.markSeen.mockClear();
+    }
   });
 
   it('keeps Tab and Shift+Tab inside the dialog', async () => {
@@ -198,74 +214,83 @@ describe('the first run', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 
-  it('«Дальше» takes the app through the sections and lights each one up in the menu', async () => {
+  it('«Готовлюсь к экзамену»: four cards — «Сегодня», «Экзамены», «Повторение», «Лимит ИИ» — and «Начать» ends on «Сегодня»', async () => {
     renderAt('/dashboard');
     await firstRunOpen();
+    fireEvent.click(within(panel()!).getByRole('button', { name: /Готовлюсь к экзамену/ }));
+    expect(within(panel()!).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
+    expect(panel()).toHaveTextContent('1 из 4');
+    expect(within(panel()!).getByRole('button', { name: 'Пропустить знакомство' })).toBeInTheDocument();
     expect(document.querySelector('.sf-bar-link[href="/dashboard"]')).toHaveAttribute('data-guide-spot');
-    expect(document.querySelector('.sf-tablink[href="/dashboard"]')).toHaveAttribute('data-guide-spot');
-    next();
-    expect(where()).toBe('/analyze');
-    expect(within(panel()!).getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
-    expect(document.querySelector('.sf-nav-cta')).toHaveAttribute('data-guide-spot');
-    // A computer and a tablet light «Разобрать лекцию» in the line, not the «Лекции» tab, and keep their wording.
-    expect(document.querySelector('.sf-tablink[href="/library"]')).not.toHaveAttribute('data-guide-spot');
-    expect(panel()!.querySelector('.gd-phone')).toHaveTextContent('На телефоне — кнопка «+» вверху экрана.');
-    next();
-    expect(where()).toBe('/library');
-    expect(within(panel()!).getByRole('heading', { name: 'Лекции' })).toBeInTheDocument();
     next();
     expect(where()).toBe('/exams');
+    expect(within(panel()!).getByRole('heading', { name: 'Экзамены' })).toBeInTheDocument();
     expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
     expect(within(panel()!).getByRole('button', { name: 'Назад' })).toBeInTheDocument();
-    // «Тесты» stays on «Экзамены» (its door is there), and «Экзамены» stays lit.
-    next();
-    expect(where()).toBe('/exams');
-    expect(within(panel()!).getByRole('heading', { name: 'Тесты' })).toBeInTheDocument();
-    expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
-    expect(within(panel()!).queryByRole('link', { name: 'Открыть раздел' })).toBeNull();
     next();
     expect(where()).toBe('/review');
+    expect(within(panel()!).getByRole('heading', { name: 'Повторение' })).toBeInTheDocument();
+    // The last card is the limit: the app stays put, the meter in the top line lights up.
     next();
-    expect(where()).toBe('/analytics');
-    expect(within(panel()!).getByRole('heading', { name: 'Прогресс' })).toBeInTheDocument();
-    // The last chapter is the limit: the app stays put, the meter in the top line lights up.
-    next();
-    expect(where()).toBe('/analytics');
+    expect(where()).toBe('/review');
     expect(within(panel()!).getByRole('heading', { name: 'Лимит ИИ' })).toBeInTheDocument();
     expect(screen.getByTestId('quota-meter')).toHaveAttribute('data-guide-spot');
-    expect(document.querySelectorAll('[data-guide-spot]')).toHaveLength(1);
-    expect(within(panel()!).queryByRole('link', { name: 'Открыть раздел' })).toBeNull();
     expect(within(panel()!).queryByRole('button', { name: /Дальше/ })).toBeNull();
-    expect(within(panel()!).getByRole('button', { name: 'Начать' })).toBeInTheDocument();
-  });
-
-  it('ends with «Начать»: closed, seen on this device and in the profile, the app back on «Сегодня»', async () => {
-    renderAt('/dashboard');
-    await firstRunOpen();
-    for (let step = 1; step < GUIDE_CHAPTERS.length; step += 1) next();
-    expect(where()).toBe('/analytics');
     fireEvent.click(within(panel()!).getByRole('button', { name: 'Начать' }));
     expect(panel()).toBeNull();
     expect(where()).toBe('/dashboard');
     expect(window.localStorage.getItem(GUIDE_SEEN_KEY)).toBe('1');
+    expect(window.localStorage.getItem('meldy_goal:user-1')).toBe('exam');
     await waitFor(() => expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'guide'));
     expect(document.querySelector('[inert]')).toBeNull();
 
-    // Afterwards «?» opens the card as before: not modal, with «Не сейчас», × and Escape.
+    // Afterwards «?» opens the card as before: not modal, with «Не сейчас», × and Escape, every chapter.
     fireEvent.click(screen.getByRole('button', { name: 'Как пользоваться Meldy' }));
     expect(panel()).toHaveAttribute('aria-modal', 'false');
+    expect(panel()).toHaveTextContent(`1 из ${GUIDE_CHAPTERS.length}`);
     expect(within(panel()!).getByRole('button', { name: 'Не сейчас' })).toBeInTheDocument();
     expect(within(panel()!).getByRole('button', { name: 'Закрыть' })).toBeInTheDocument();
     expect(document.querySelector('.gd-dim')).toBeNull();
-    expect(document.querySelector('[inert]')).toBeNull();
     fireEvent.keyDown(panel()!, { key: 'Escape' });
     expect(panel()).toBeNull();
   });
 
-  it('starts from «Сегодня» when the app opens on another section, and waits out the ticket room', async () => {
+  it('«Даю тест ученикам»: three cards on «Тесты», and the last one opens «Быстрая контрольная»', async () => {
+    renderAt('/dashboard');
+    await firstRunOpen();
+    fireEvent.click(within(panel()!).getByRole('button', { name: /Даю тест ученикам/ }));
+    await waitFor(() => expect(where()).toBe('/exams'));
+    expect(within(panel()!).getByRole('heading', { name: 'Быстрая контрольная' })).toBeInTheDocument();
+    expect(panel()).toHaveTextContent('1 из 3');
+    expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
+    next();
+    expect(within(panel()!).getByRole('heading', { name: 'Как ученик пишет' })).toBeInTheDocument();
+    next();
+    expect(within(panel()!).getByRole('heading', { name: 'Результаты' })).toBeInTheDocument();
+    // The last card is words only.
+    expect(panel()!.querySelector('.gd-clip')).toBeNull();
+    fireEvent.click(within(panel()!).getByRole('button', { name: 'Сделать контрольную' }));
+    expect(panel()).toBeNull();
+    await waitFor(() => expect(where()).toBe('/tests/quick'));
+    expect(window.localStorage.getItem('meldy_goal:user-1')).toBe('test');
+    await waitFor(() => expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'guide'));
+  });
+
+  it('«Показать все разделы»: every chapter in the menu’s order, from «Сегодня»', async () => {
+    renderAt('/dashboard');
+    await firstRunOpen();
+    fireEvent.click(within(panel()!).getByRole('button', { name: 'Показать все разделы' }));
+    expect(within(panel()!).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
+    expect(panel()).toHaveTextContent(`1 из ${GUIDE_CHAPTERS.length}`);
+    next();
+    expect(where()).toBe('/analyze');
+    expect(within(panel()!).getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
+  });
+
+  it('starts on the goal from «Сегодня» when the app opens on another section, and waits out the ticket room', async () => {
     renderAt('/exams');
-    const dialog = await firstRunOpen();
-    expect(within(dialog).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
+    await firstRunOpen();
+    expect(goal()).toBeInTheDocument();
     cleanup();
 
     renderAt('/exams/e-1/ticket');
@@ -275,6 +300,16 @@ describe('the first run', () => {
     });
     expect(panel()).toBeNull();
     expect(where()).toBe('/exams/e-1/ticket');
+  });
+
+  it('waits on «Быстрая контрольная»: a teacher signed up from the landing for it', async () => {
+    renderAt('/tests/quick');
+    await waitFor(() => expect(mocks.getProfile).toHaveBeenCalled());
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(panel()).toBeNull();
+    expect(where()).toBe('/tests/quick');
   });
 
   it('is not shown once seen: in the profile (another device) or on this device', async () => {
@@ -295,13 +330,12 @@ describe('the first run', () => {
     expect(panel()).toBeNull();
   });
 
-  it('is the same for an account marked as a teacher: no card in the corner', async () => {
+  it('is the same for an account marked as a teacher: the goal first, no card in the corner', async () => {
     mocks.getProfile.mockResolvedValue({ is_pro: false, role: 'teacher', onboarding_status: {} });
     renderAt('/exams');
     const dialog = await firstRunOpen();
     expect(dialog).toHaveAttribute('aria-modal', 'true');
-    expect(within(dialog).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Не сейчас' })).toBeNull();
+    expect(goal()).toBeInTheDocument();
     expect(document.querySelector('header.sf-bar')).toHaveAttribute('inert');
   });
 });
@@ -341,6 +375,7 @@ describe('the guide on a phone (max-width 639px; its top line holds the wordmark
   it('lights the «Лекции» tab for «Разобрать лекцию» and says where it is on a phone', async () => {
     renderAt('/dashboard');
     await firstRunOpen();
+    fireEvent.click(within(panel()!).getByRole('button', { name: 'Показать все разделы' }));
     next();
     expect(where()).toBe('/analyze');
     expect(within(panel()!).getByRole('heading', { name: 'Разобрать лекцию' })).toBeInTheDocument();
