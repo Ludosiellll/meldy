@@ -367,7 +367,9 @@ describe('player screens on the fake server', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Разбор' }));
     });
     expect(screen.getByRole('heading', { name: 'Разбор' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Назад к итогу' }));
+    // There is no final to go back to: «Назад» to «Игра закончилась».
+    expect(screen.queryByRole('button', { name: 'Назад к итогу' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
     expect(screen.getByRole('heading', { name: 'Игра закончилась' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Войти по PIN' }));
     expect(screen.getByRole('heading', { name: 'Битва с монстром' })).toBeInTheDocument();

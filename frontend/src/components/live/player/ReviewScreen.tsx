@@ -6,7 +6,17 @@ import type { Review } from '../../../lib/live/types';
 import type { PlayerController } from './controller';
 import { OPTION_STYLES } from './options';
 
-export function ReviewScreen({ ctl, review, error, standalone }: { ctl: PlayerController; review: Review | null; error: string | null; standalone: boolean }) {
+export interface ReviewScreenProps {
+  ctl: PlayerController;
+  review: Review | null;
+  error: string | null;
+  /** Opened from a link (Telegram `r_<game>`): no screen behind it, no way back. */
+  standalone: boolean;
+  /** Where «Назад» goes: the final («итог») after a podium, the «Игра закончилась» screen after an early end. */
+  back: 'final' | 'ended';
+}
+
+export function ReviewScreen({ ctl, review, error, standalone, back }: ReviewScreenProps) {
   const right = review ? review.items.filter((i) => i.correct).length : 0;
   return (
     <>
@@ -62,7 +72,7 @@ export function ReviewScreen({ ctl, review, error, standalone }: { ctl: PlayerCo
       {!standalone && (
         <div className="lp-bar">
           <button type="button" className="lp-btn lp-btn--second" onClick={() => ctl.closeReview()}>
-            Назад к итогу
+            {back === 'final' ? 'Назад к итогу' : 'Назад'}
           </button>
         </div>
       )}

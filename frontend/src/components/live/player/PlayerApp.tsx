@@ -77,7 +77,8 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
         guest={s.guest && platform.kind === 'web'}
       />
     );
-  else if (s.step === 'review') screen = <ReviewScreen ctl={ctl} review={s.review} error={s.reviewError} standalone={s.reviewOnly} />;
+  else if (s.step === 'review')
+    screen = <ReviewScreen ctl={ctl} review={s.review} error={s.reviewError} standalone={s.reviewOnly} back={st?.final ? 'final' : 'ended'} />;
   else if (s.step === 'gone')
     screen = (
       <>
