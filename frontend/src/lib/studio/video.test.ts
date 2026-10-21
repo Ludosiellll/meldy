@@ -120,7 +120,7 @@ describe('the server’s pattern is the client’s', () => {
 describe('the site lets exactly these players in (nginx.conf frame-src)', () => {
   const policies = Array.from(nginxConf.matchAll(/add_header Content-Security-Policy "([^"]+)" always;/g), (match) => match[1]);
   it('every location names the three origins as frame-src, and nothing more', () => {
-    expect(policies).toHaveLength(3);
+    expect(policies).toHaveLength(4);
     for (const policy of policies) {
       const frame = policy
         .split(';')

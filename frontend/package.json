@@ -31,7 +31,8 @@
     "react-router-dom": "7.18.4",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
-    "remark-math": "^6.0.0"
+    "remark-math": "^6.0.0",
+    "three": "0.160.1"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
@@ -39,6 +40,7 @@
     "@testing-library/user-event": "^14.6.7",
     "@types/react": "^18.3.14",
     "@types/react-dom": "^18.3.5",
+    "@types/three": "0.160.0",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
     "jsdom": "^29.1.1",
