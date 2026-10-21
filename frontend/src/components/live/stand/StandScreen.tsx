@@ -31,6 +31,9 @@ import type { HostGame } from '../host/useHostGame';
 import '../host/host.css';
 import './stand.css';
 
+/** When the podium's blocks land (3rd, 2nd, 1st), ms from the podium: stand.css rises each over 0.6 s, 0.25 s apart. */
+const PODIUM_HITS_MS = [300, 550, 800] as const;
+
 /** The board's bottom edge and the buttons' top edge, stage units (900 high): the 3D floor is framed between. */
 const BOARD_BOTTOM = 196;
 const FOOT_TOP = 812;
@@ -150,9 +153,22 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
   // the reveal shows the room's counts; the live ones from the flags only while the question runs
   const liveCounts = useRef(true);
   liveCounts.current = phase !== 'reveal';
+  // what the sound needs from the room's state without a render: how many stood (the cheer), the boss (its alarm)
+  const stoodRef = useRef(0);
+  stoodRef.current = rs?.res?.stood ?? 0;
+  const bossRef = useRef(bossKind);
+  bossRef.current = bossKind;
+  const faceRef = useRef<TimerFace>({ sec: null, ready: false, hot: false, left: 0 });
+  const placesRef = useRef(3);
+  placesRef.current = Math.min(3, (rs?.top ?? dbTop(s))?.length ?? 3);
   const hud = useMemo<StandHud>(
     () => ({
       timer(face: TimerFace) {
+        // the 3-2-1 on its seconds, and the open when it ends
+        const was = faceRef.current;
+        faceRef.current = face;
+        if (face.ready && face.sec !== null && face.sec !== was.sec) sound.count(face.sec);
+        else if (was.ready && !face.ready && face.sec !== null && face.sec > 0) sound.count(0);
         const el = timerRef.current;
         if (!el) return;
         if (face.hot) el.dataset.hot = '';
@@ -176,10 +192,16 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
       },
       cue(c: StandCue) {
         if (c === 'tick' || c === 'tickLast') sound.tick(c === 'tickLast');
-        else if (c === 'warn') sound.roll(true);
-        else if (c === 'stomp') sound.roll(false);
-        else if (c === 'impact') sound.hit();
-        else if (c === 'back') sound.heal();
+        else if (c === 'warn') {
+          // the last seconds: the loop hurries, the clock rings (the skeleton roars)
+          sound.hurry(true);
+          if (bossRef.current === 'clock') sound.alarm();
+          else sound.roar();
+        } else if (c === 'stomp') sound.stomp();
+        else if (c === 'impact') sound.collapse();
+        else if (c === 'cheer') sound.cheer(stoodRef.current);
+        else if (c === 'rise') sound.rise();
+        else if (c === 'back') sound.restore();
       },
     }),
     [sound],
@@ -231,18 +253,33 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
     return () => {
       window.removeEventListener('pointerdown', unlock, true);
       window.removeEventListener('keydown', unlock, true);
-      sound.lobby(false);
+      sound.music(null);
       sound.roll(false);
     };
   }, [sound]);
-  useEffect(() => sound.lobby(phase === 'lobby'), [phase, sound]);
+  // The music by phase: the lobby's groove, quiet for the 3-2-1, the question's loop from the open (the boss's jump
+  // stops it), the top five's bounce; the podium's party after its fanfare; the end fades out.
+  useEffect(() => {
+    if (phase === 'podium') return;
+    sound.music(phase === 'lobby' ? 'lobby' : phase === 'open' ? 'question' : phase === 'leaderboard' ? 'board' : null, phase === 'ended' ? 1.5 : 0.6);
+    if (phase === 'leaderboard') sound.whoosh(0);
+  }, [phase, sound]);
   const joinedRef = useRef(s.roster.length);
   useEffect(() => {
     if (phase === 'lobby' && s.roster.length > joinedRef.current) sound.join();
     joinedRef.current = s.roster.length;
   }, [phase, s.roster.length, sound]);
+  // The podium: a hit as each block lands (3rd, 2nd, 1st: stand.css rises them 0.25 s apart), the fanfare, the party.
   useEffect(() => {
-    if (phase === 'podium') sound.fanfare();
+    if (phase !== 'podium') return undefined;
+    sound.music(null, 0.3);
+    const places = placesRef.current;
+    const timers = [
+      ...[3, 2, 1].filter((p) => p <= places).map((p, i) => setTimeout(() => sound.podium(p), PODIUM_HITS_MS[3 - places + i])),
+      setTimeout(() => sound.fanfare(), PODIUM_HITS_MS[2] + 250),
+      setTimeout(() => sound.music('podium'), PODIUM_HITS_MS[2] + 3300),
+    ];
+    return () => timers.forEach(clearTimeout);
   }, [phase, sound]);
 
   // The room saw the phase change before this screen's poll: read the database's state now (the «Дальше» needs it).
