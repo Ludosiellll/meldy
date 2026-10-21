@@ -24,6 +24,8 @@ const box = (b: { x: number; y: number; w: number; h: number }) => ({ left: b.x,
 
 /** The teacher's line under the card and the panel starts here (host.css .lvh-lobby-foot). */
 export const FOOT_X = 40;
+/** The post's list or note (host.css .lvh-tg-pop). */
+const TG_POP_W = 500;
 
 export interface LobbyProps {
   state: HostState;
@@ -91,8 +93,9 @@ export function Lobby({ state, players, more, morePoint, moreW, joinUrl, width, 
           {LOBBY.more(more)}
         </div>
       ) : null}
-      {/* the post's list or note opens over the class's panel, never over the PIN and the QR code */}
-      <div className="lvh-lobby-foot" style={{ ['--tg-pop-x' as string]: `${panel.x - FOOT_X + 28}px` }}>
+      {/* the post's list or note opens over the class's panel at its right — the PIN and the QR code stay in view, and
+          the class fills the panel from the top left */}
+      <div className="lvh-lobby-foot" style={{ ['--tg-pop-x' as string]: `${panel.x + panel.w - FOOT_X - 28 - TG_POP_W}px` }}>
         <span className="lvh-lobby-settings">{LOBBY.settings(state.time_s, state.speed, state.settings.who === 'members')}</span>
         {telegram}
         <span className="lvh-grow" />
