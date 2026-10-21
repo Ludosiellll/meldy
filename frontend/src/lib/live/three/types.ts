@@ -27,6 +27,11 @@ export interface Player {
    * see-through body for one player would need a sorted transparent pass of its own.
    */
   setAway(on: boolean): void;
+  /**
+   * The phone's own character: a white ring with a dark edge round its feet, bigger than everyone's colour ring, shown
+   * on any tile and while it is a ghost, so the player finds themselves at a glance.
+   */
+  setOwn(on: boolean): void;
   /** Map angle: 0 faces +y (down the map, towards the viewer), π/2 faces +x. Turns smoothly unless `instant`. */
   setFacing(rad: number, instant?: boolean): void;
   /** Map units; `z` is the height over the floor (negative while falling: see Arena.floorAt). */
@@ -76,6 +81,14 @@ export interface Arena {
   dispose(): void;
 }
 
+/** How an arena is drawn (the projector's look by default; a phone wants smaller signs and lighter tiles). */
+export interface ArenaLook {
+  /** Size of the zones' signs (upright and on the floor) against the projector's, 0.3…1 (default 1). */
+  signScale?: number;
+  /** Rounding steps of a tile's edges (default 2; 1 draws a third of the triangles, alike at phone size). */
+  tileSegments?: number;
+}
+
 export interface ViewOptions {
   /** Cap on the pixel ratio (default 1.5). */
   maxPixelRatio?: number;
@@ -92,6 +105,8 @@ export interface ViewOptions {
   tagHeight?: number;
   /** Keep the picture after drawing (screenshots only: it costs speed). */
   preserveDrawingBuffer?: boolean;
+  /** Draw at most this many frames a second (0, the default: every animation frame). See View.setMaxFps. */
+  maxFps?: number;
 }
 
 export interface CameraSpec {
@@ -104,6 +119,11 @@ export interface CameraSpec {
   eye?: { x: number; y: number; z: number };
   target?: { x: number; y: number; z: number };
   fov?: number;
+  /**
+   * With eye and target: moves the picture on the screen without turning the camera (a lens shift), in shares of the
+   * view's width (x, to the right) and height (y, down). The phone puts the arena between its cards this way.
+   */
+  shift?: { x?: number; y?: number };
 }
 
 export interface FrameStats {
@@ -135,6 +155,11 @@ export interface View {
   warmUp(): Promise<void>;
   /** 'auto' (default): drops outlines, then effects, then resolution when frames run late. */
   setQuality(level: 'auto' | number): void;
+  /**
+   * Draws at most `fps` frames a second (0: every animation frame); frames in between are skipped whole (your
+   * onFrame too). A weak phone's last resort: 30 steady frames rather than 40 uneven ones.
+   */
+  setMaxFps(fps: number): void;
   stats(): FrameStats;
   resize(): void;
   dispose(): void;
@@ -155,8 +180,11 @@ export interface Kit {
   /** The skeleton needs loadKit({ boss: 'skeleton' }) or kit.loadBoss('skeleton') first. */
   createBoss(kind: BossKind, options?: BossOptions): Boss;
   loadBoss(kind: BossKind): Promise<void>;
-  /** The server's map; `shape` (mode A: the hello's floor and stage) lays the tiles on its grid and the stage in it. */
-  createArena(map: MoveMap, shape?: ArenaShape): Arena;
+  /**
+   * The server's map; `shape` (mode A: the hello's floor and stage) lays the tiles on its grid and the stage in it;
+   * `look` draws it lighter (a phone: smaller signs, simpler tiles).
+   */
+  createArena(map: MoveMap, shape?: ArenaShape, look?: ArenaLook): Arena;
   /** Draws the kit's scene on a canvas. One view per kit. */
   mount(canvas: HTMLCanvasElement, options?: ViewOptions): View;
   /** Seconds since the kit was made, advanced by update (the view's loop does it). */

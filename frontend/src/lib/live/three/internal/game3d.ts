@@ -7,7 +7,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { ANIMS_FILE, BODY_FILES, SKELETON_FILE } from '../assets.gen';
 import { MODELS, toPlayerLook, type PlayerLook } from '../look';
 import type { ArenaShape, MoveMap } from '../arenaPlan';
-import type { Arena, Boss, BossKind, BossOptions, BossPhase, Kit, LoadOptions, Player, View, ViewOptions } from '../types';
+import type { Arena, ArenaLook, Boss, BossKind, BossOptions, BossPhase, Kit, LoadOptions, Player, View, ViewOptions } from '../types';
 import { buildBodies } from './bodies';
 import { Blobs } from './blobs';
 import { BossImpl } from './boss';
@@ -210,8 +210,8 @@ export class KitImpl implements Kit {
     return boss;
   }
 
-  createArena(map: MoveMap, shape?: ArenaShape): Arena {
-    const impl = new ArenaImpl(map, this.ramp, this.shared, (s) => this.view?.shake(s), shape);
+  createArena(map: MoveMap, shape?: ArenaShape, look?: ArenaLook): Arena {
+    const impl = new ArenaImpl(map, this.ramp, this.shared, (s) => this.view?.shake(s), shape, look);
     impl.setOutlines(this.outlines);
     impl.effects = this.effects;
     this.scene.add(impl.group);

@@ -41,6 +41,10 @@ export class ViewImpl {
   private shakeStrength = 0;
   private readonly base = { eye: new THREE.Vector3(), target: new THREE.Vector3() };
   private fitTo: { map: MoveMap; margins: Required<NonNullable<CameraSpec['margins']>>; tilt: number } | null = null;
+  /** The lens shift of an eye/target camera, shares of the view (CameraSpec.shift). */
+  private readonly shift = { x: 0, y: 0 };
+  /** Least ms between two drawn frames (setMaxFps; 0: every animation frame). */
+  private minGap = 0;
   private lastCalls = 0;
   private lastTris = 0;
   private width = 1;
@@ -65,6 +69,7 @@ export class ViewImpl {
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setClearColor(0x000000, options.transparent ? 0 : 1);
     if (typeof options.quality === 'number') this.setQuality(options.quality);
+    if (options.maxFps) this.setMaxFps(options.maxFps);
     this.kit.tags.scale = options.tagScale ?? 1;
     this.kit.tags.declutter = options.tagDeclutter ?? true;
     if (options.tagHeight !== undefined) this.kit.crowd.tagY = options.tagHeight;
@@ -96,11 +101,24 @@ export class ViewImpl {
     this.kit.shared.kitAspect.value = w / h;
     this.kit.tags.setViewport(w, h);
     if (this.fitTo) this.fit();
+    else this.applyShift();
+  }
+
+  /** The eye/target camera's lens shift for the current size (a view offset; none when there is no shift). */
+  private applyShift(): void {
+    const { x, y } = this.shift;
+    if (x === 0 && y === 0) {
+      if (this.camera.view?.enabled) this.camera.clearViewOffset();
+      return;
+    }
+    this.camera.setViewOffset(this.width, this.height, -x * this.width, -y * this.height, this.width, this.height);
   }
 
   /** Puts the camera in map units: eye and target (x, y on the map, z the height), field of view in degrees. */
   setCamera(spec: CameraSpec): void {
     if (spec.arena) {
+      this.shift.x = 0;
+      this.shift.y = 0;
       this.fitTo = {
         map: spec.arena,
         margins: { top: 0, bottom: 0, left: 0, right: 0, ...(spec.margins ?? {}) },
@@ -112,9 +130,15 @@ export class ViewImpl {
       return;
     }
     this.fitTo = null;
-    this.camera.clearViewOffset();
     if (spec.fov) this.camera.fov = spec.fov;
-    this.camera.updateProjectionMatrix();
+    this.shift.x = spec.shift?.x ?? 0;
+    this.shift.y = spec.shift?.y ?? 0;
+    if (this.shift.x === 0 && this.shift.y === 0) {
+      this.camera.clearViewOffset();
+      this.camera.updateProjectionMatrix();
+    } else {
+      this.applyShift();
+    }
     const eye = spec.eye ?? { x: 0, y: 1000, z: 500 };
     const target = spec.target ?? { x: 0, y: 0, z: 0 };
     this.base.eye.set(eye.x / UNITS, eye.z / UNITS, eye.y / UNITS);
@@ -247,6 +271,8 @@ export class ViewImpl {
     const loop = (now: number) => {
       this.raf = requestAnimationFrame(loop);
       const interval = now - this.last;
+      // capped: skip this animation frame whole (2 ms of slack for a display's uneven timing)
+      if (this.minGap > 0 && interval < this.minGap - 2) return;
       this.last = now;
       const dt = Math.min(0.1, interval / 1000);
       const cpu = this.frame(dt);
@@ -271,6 +297,10 @@ export class ViewImpl {
   /** Records a frame measured outside the loop (the perf harness). */
   recordFrame(interval: number, cpu: number): void {
     this.record(interval, cpu);
+  }
+
+  setMaxFps(fps: number): void {
+    this.minGap = fps > 0 ? 1000 / fps : 0;
   }
 
   /** 'auto' lets frame times choose; a number pins a level (0 best … 5 cheapest). */

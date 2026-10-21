@@ -5,6 +5,8 @@
  *   ?scene=lineup              8 characters and both bosses
  *   ?scene=arena&boss=clock    mode A: 30 players run to the zones, the stomp, the collapse, ghosts (a 9 s loop)
  *   ?scene=bench&players=40    the perf scene: players run about, the floor drops and comes back
+ *     &grid                    on the server's map and floor grid (MODE_STAND §3) instead of the style board's
+ *     &look=phone              the phone's arena: smaller signs, simpler tiles (stand/phone/scene3d.ts)
  *   ?scene=thumbs              renders the phone's pictures (scripts/game-thumbs.mjs drives it)
  *   ?scene=bossthumbs          renders the bosses' pictures for the game's setup (game-kit.mjs bosses)
  *   &capture                   no loop: window.__render(t) draws the state at t seconds (screenshots)
@@ -20,6 +22,7 @@ import { toon, hullMaterial, FONT } from '../internal/materials';
 import type { Boss, BossKind, Player, View } from '../types';
 import type { ColourId } from '../../types';
 import { paintThumb, thumbUrl } from '../thumbs';
+import { STAGE_BOSS_HEIGHT } from '../constants';
 
 const Q = new URLSearchParams(location.search);
 const SCENE = Q.get('scene') ?? 'lineup';
@@ -54,6 +57,21 @@ export const MODE_A_MAP: MoveMap = {
   solids: [],
   spawns: [[800, 450]],
 };
+
+/** The room's map of mode A and the hello's floor and stage (MODE_STAND.md §3): what the projector and phones draw. */
+export const SERVER_MAP: MoveMap = {
+  w: 1600,
+  h: 900,
+  solids: [{ rect: [0, 0, 1600, 160] }, { rect: [0, 160, 20, 740] }, { rect: [1580, 160, 20, 740] }, { rect: [0, 880, 1600, 20] }, { circle: [800, 520, 80] }],
+  zones: [
+    { id: 'A', rect: [80, 220, 600, 240] },
+    { id: 'B', rect: [920, 220, 600, 240] },
+    { id: 'C', rect: [80, 580, 600, 240] },
+    { id: 'D', rect: [920, 580, 600, 240] },
+  ],
+  spawns: [[560, 520], [1040, 520], [800, 360], [800, 680]],
+};
+const SERVER_SHAPE = { floor: { x: 20, y: 160, tile: 60, cols: 26, rows: 12 }, stage: [800, 520, 80] };
 
 const NAMES = [
   'Алина', 'Артём', 'Ева', 'Миша', 'Соня', 'Тимур', 'Вера', 'Глеб', 'Даша', 'Егор', 'Катя', 'Лёва', 'Маша', 'Никита', 'Оля',
@@ -190,10 +208,11 @@ async function arena(count: number, bench: boolean): Promise<void> {
   const kit = (await KitImpl.load({ boss: bossKind })) as KitImpl;
   window.__kit = kit;
   const view = kit.mount(canvas, { preserveDrawingBuffer: CAPTURE, quality: Q.has('q') ? Number(Q.get('q')) : 'auto' });
-  const map = MODE_A_MAP;
-  const ar = kit.createArena(map);
+  const grid = Q.has('grid');
+  const map = grid ? SERVER_MAP : MODE_A_MAP;
+  const ar = kit.createArena(map, grid ? SERVER_SHAPE : undefined, Q.get('look') === 'phone' ? { signScale: 0.7, tileSegments: 1 } : undefined);
   ar.setZoneLabels({ A: 'Меркурий', B: 'Венера', C: 'Марс', D: 'Земля' });
-  const boss: Boss = kit.createBoss(bossKind);
+  const boss: Boss = kit.createBoss(bossKind, grid ? { height: STAGE_BOSS_HEIGHT[bossKind] } : {});
   view.setCamera({ arena: map, margins: { top: bench ? 0 : 0.11 } });
   const r = rng(42);
   const zones = map.zones ?? [];
