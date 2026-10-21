@@ -11,12 +11,12 @@ const people = (n: number) => `${n} ${plural(n, 'человек', 'челове�
 /** «После сдачи участник видит»: the names of the four choices. */
 const REVIEW_OPTIONS: Record<QuizReview, string> = {
   score: 'только балл',
-  mistakes: 'балл и где ошибся',
+  mistakes: 'балл и ошибки',
   answers: 'балл, ошибки и верные ответы',
   /** The safe default: the explanations come with the right answers, after the closing (fits a phone's list). */
-  mistakes_then_answers: 'балл и ошибки сразу; верные ответы и пояснения — после закрытия',
+  mistakes_then_answers: 'балл и ошибки сразу, ответы и пояснения после закрытия',
 };
-const keyed = (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} с ключом`;
+const keyed = (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} с верным ответом`;
 /** «6 баллов», «1 балл», «3 балла». */
 export const pointsWord = (n: number) => `${n} ${plural(n, 'балл', 'балла', 'баллов')}`;
 
@@ -27,13 +27,13 @@ export const QA_LIST = {
   loading: 'Загружаем контрольные…',
   loadFailed: 'Не получилось загрузить контрольные.',
   retry: 'Повторить',
-  authorOnly: 'Контрольные собирает и смотрит автор экзамена: участникам он присылает ссылку.',
+  authorOnly: 'Контрольные видит только автор экзамена.',
   toExam: 'К экзамену',
-  empty: 'Контрольных пока нет. Соберите контрольную из вопросов экзамена и пришлите ссылку: здесь будет видно, кто как ответил.',
+  empty: 'Контрольных пока нет. Контрольная — это вопросы экзамена по ссылке, со сроком сдачи. Создайте её, и здесь появятся результаты.',
   /** The same of a test (containers.kind 'test', release 47.3): the questions and the author are the test's. */
-  authorOnlyTest: 'Контрольные собирает и смотрит автор теста: участникам он присылает ссылку.',
+  authorOnlyTest: 'Контрольные видит только автор теста.',
   toTest: 'К тесту',
-  emptyTest: 'Контрольных пока нет. Соберите контрольную из вопросов теста и пришлите ссылку: здесь будет видно, кто как ответил.',
+  emptyTest: 'Контрольных пока нет. Контрольная — это ваш тест по ссылке, со сроком сдачи. Создайте её, и здесь появятся результаты.',
   /** «пишут 2 · сдали 5 · средний 71 %» (attempts; the average leaves the author out); nobody but the author — «пока никто не писал». */
   counts: (writing: number, finished: number, avg: number | null, anyone: boolean) =>
     anyone ? [`пишут ${writing}`, `сдали ${finished}`, avg === null ? null : `средний ${Math.round(avg)} %`].filter(Boolean).join(' · ') : 'пока никто не писал',
@@ -44,40 +44,45 @@ export const QA_LIST = {
 export const QA_SETUP = {
   newTitle: 'Новая контрольная',
   editTitle: 'Настройки контрольной',
+  /** Under «Новая контрольная»: the word said once where it first appears (UX audit 21.10). */
+  newLede: (test: boolean) =>
+    test
+      ? 'Контрольная — это ваш тест по ссылке, со сроком сдачи. Выберите настройки и получите ссылку.'
+      : 'Контрольная — это вопросы экзамена по ссылке, со сроком сдачи. Выберите настройки и получите ссылку.',
   loading: 'Загружаем…',
   loadFailed: 'Не получилось загрузить контрольную.',
-  notFound: 'Такой контрольной нет: возможно, её удалили.',
+  notFound: 'Такой контрольной нет. Возможно, её удалили.',
   retry: 'Повторить',
   toList: 'К списку контрольных',
   partQuestions: 'Вопросы',
-  partWhen: 'Когда и как',
+  partWhen: 'Срок и правила',
   name: 'Название',
   subjects: 'Вопросы из',
-  subjectMeta: (n: number) => (n > 0 ? keyed(n) : 'нет вопросов с ключом'),
-  pool: (n: number) => `В контрольную идут только вопросы с ключом: в выбранных предметах их ${n}.`,
+  subjectMeta: (n: number) => (n > 0 ? keyed(n) : 'нет вопросов с верным ответом'),
+  pool: (n: number) => `Возьмём только вопросы с верным ответом. В выбранных предметах их ${n}.`,
   /** One subject: no «Вопросы из», the count's hint says the pool. */
-  poolOne: (n: number) => `В контрольную идут только вопросы с ключом: их ${n}.`,
+  poolOne: (n: number) => `Возьмём только вопросы с верным ответом. Их ${n}.`,
   /** The part of a quiz of all the questions (?all=1) with the five settings that matter first. */
   partMain: 'Основное',
   /** The rest of the settings of ?all=1, folded. */
   more: 'Ещё настройки',
-  moreNote: 'вопросы и порядок, попытки, проходной балл, что ученик видит после сдачи, защита от списывания',
-  noPool: 'В экзамене нет вопросов с ключом: контрольную пока не из чего собрать.',
+  moreNote: 'вопросы, попытки, проходной балл, что видно после сдачи, защита от списывания',
+  noPool: 'В экзамене нет вопросов с верным ответом. Отметьте ответы, и можно собрать контрольную.',
   toKeys: 'Вопросы и ключи',
   count: 'Сколько вопросов',
   countAll: (n: number) => `все (${n})`,
   countOption: (n: number) => `${n}`,
-  set: 'Набор',
+  set: 'Набор вопросов',
   setOwn: 'свой у каждого',
   setSame: 'одинаковый у всех',
-  setOwnHint: 'Каждая попытка берёт новый набор вопросов.',
+  setOwnHint: 'В каждой попытке будут другие вопросы.',
   order: 'Порядок вопросов',
   orderShuffle: 'вперемешку',
   orderFile: 'как в экзамене',
   options: 'Варианты ответа',
   optionsShuffle: 'вперемешку',
   optionsFile: 'как в файле',
-  optionsHint: 'Вопросы с пометкой «Не перемешивать варианты» всегда идут как в файле.',
+  optionsHint: 'Где стоит «Не перемешивать варианты», порядок останется как в файле.',
   time: 'Время на попытку',
   timeNone: 'без ограничения',
   timeOption: (n: number) => `${n} мин`,
@@ -89,58 +94,58 @@ export const QA_SETUP = {
   closesAt: 'дата и время',
   closesNever: 'пока не закрою',
   closesField: 'Дата и время закрытия',
-  closesPast: 'Это время уже прошло: контрольная будет закрыта.',
+  closesPast: 'Это время уже прошло. Контрольная сразу закроется.',
   /** Beside the date field: the date in words («до 25 октября, 23:59»). */
   opensWords: (when: string) => `с ${when}`,
   closesWords: (when: string) => `до ${when}`,
-  attempts: 'Попыток',
-  attemptsNone: 'без ограничения (до 50)',
+  attempts: 'Сколько попыток',
+  attemptsNone: 'сколько угодно (до 50)',
   attemptsOption: (n: number) => `${n}`,
-  grading: 'В зачёт',
-  gradingOption: (g: QuizGrading) => (g === 'best' ? 'лучшая попытка' : 'последняя попытка'),
-  back: 'Возврат к вопросам',
+  grading: 'Засчитать',
+  gradingOption: (g: QuizGrading) => (g === 'best' ? 'лучшую попытку' : 'последнюю попытку'),
+  back: 'Вернуться к прошлым вопросам',
   backYes: 'можно',
-  backNo: 'только вперёд',
+  backNo: 'нельзя',
   pass: 'Проходной балл',
   passNone: 'нет',
   passOption: (n: number) => `${n} %`,
-  review: 'После сдачи участник видит',
+  review: 'После сдачи ученик видит',
   reviewOption: (r: QuizReview) => REVIEW_OPTIONS[r],
   /** Without an account and with the right answers at once: a second browser is a fresh start that shows them. */
-  reviewGuests: `Без входа тест можно открыть заново в другом браузере и увидеть ответы до своей попытки. Для контрольной лучше «${REVIEW_OPTIONS.mistakes_then_answers}».`,
+  reviewGuests: `Без входа ученик может открыть тест в другом браузере и заранее увидеть ответы. Лучше выбрать «${REVIEW_OPTIONS.mistakes_then_answers}».`,
   /** A question of the set has the author's explanation: when the takers see it (it comes with the right answers). */
   reviewExplain: (review: QuizReview) =>
     review === 'answers'
-      ? 'В тесте есть пояснения. Ученики увидят их вместе с верными ответами — сразу.'
+      ? 'Пояснения ученики увидят сразу, вместе с верными ответами.'
       : review === 'mistakes_then_answers'
-        ? 'В тесте есть пояснения. Ученики увидят их вместе с верными ответами — после закрытия.'
-        : 'В тесте есть пояснения. При этой настройке ученики их не увидят: пояснения показываются вместе с верными ответами.',
+        ? 'Пояснения ученики увидят после закрытия, вместе с верными ответами.'
+        : 'При этой настройке пояснения не видны. Их показываем только с верными ответами.',
   who: 'Кто может писать',
   /** `test`: the quiz is a test's (containers.kind 'test', release 47.3), its members are the test's. */
   whoOption: (who: QuizWho, test = false) =>
     ({
       guests: 'все по ссылке, без входа',
-      link: 'все по ссылке, со входом',
+      link: 'все по ссылке, после входа',
       members: test ? 'только участники этого теста' : 'только участники этого экзамена',
     })[who],
   whoHint: (who: QuizWho, test = false) =>
     ({
-      guests: 'Участнику не нужен аккаунт. Его попытки считаются по браузеру: в другом браузере можно начать заново.',
-      link: 'Чтобы начать, участник входит в Meldy или создаёт аккаунт. Попытки считаются по аккаунту.',
-      members: `Писать могут только те, кто уже вступил в этот ${test ? 'тест' : 'экзамен'}. Остальные увидят, что контрольная только для участников.`,
+      guests: 'Аккаунт не нужен. Попытки считаем по браузеру, в другом браузере можно начать заново.',
+      link: 'Ученик войдёт в Meldy или создаст аккаунт. Попытки считаем по аккаунту.',
+      members: `Только те, кто уже вступил в этот ${test ? 'тест' : 'экзамен'}.`,
     })[who],
   /** The words of the participant's button «Тренировать эти вопросы» (copyTake RESULT.practiceJoin; release 47.1). */
   practice: 'После сдачи предложить тренировать эти вопросы в Meldy',
   /** The button waits until no quiz of the exam is open or not yet open (20261018130000_quiz_guards). */
-  practiceNote: 'После закрытия ученикам предложат тренировать вопросы экзамена в Meldy (в тренировке видны все ответы).',
-  practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его прогресс вам не виден.',
+  practiceNote: 'Кнопка появится после закрытия контрольной. В тренировке видны все ответы экзамена.',
+  practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его прогресс вы не увидите.',
   /** The same of a test (containers.kind 'test', release 47.3). */
-  practiceNoteTest: 'После закрытия ученикам предложат тренировать вопросы теста в Meldy (в тренировке видны все ответы).',
-  practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его прогресс вам не виден.',
+  practiceNoteTest: 'Кнопка появится после закрытия контрольной. В тренировке видны все ответы теста.',
+  practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его прогресс вы не увидите.',
   partLook: 'Оформление',
   cover: 'Обложка',
   // Release 47.4 shrinks a big photo itself (api/itemPictures pictureFromFile): only a GIF keeps the 3 MB limit.
-  coverHint: 'Картинка над названием на странице контрольной: JPEG, PNG, WebP или GIF. Большое фото Meldy уменьшит само, GIF — до 3 МБ.',
+  coverHint: 'Картинка над названием: JPEG, PNG, WebP или GIF. Большое фото уменьшим сами, GIF до 3 МБ.',
   coverUpload: 'Загрузить обложку',
   coverReplace: 'Заменить',
   coverRemove: 'Убрать',
@@ -148,11 +153,11 @@ export const QA_SETUP = {
   coverUploading: 'Загружаем обложку…',
   coverType: 'Это не картинка. Подойдут JPEG, PNG, GIF, WebP и фото с телефона.',
   coverSize: 'Картинка больше 3 МБ даже после сжатия.',
-  coverHeic: 'Этот формат телефон не отдаёт браузеру. Сохраните фото как JPEG или сделайте снимок экрана.',
-  coverRefused: 'Хранилище не приняло эту картинку. Подойдут PNG, JPEG, GIF, WebP до 3 МБ.',
+  coverHeic: 'Браузер не может открыть этот формат. Сохраните фото как JPEG или сделайте снимок экрана.',
+  coverRefused: 'Эту картинку не получилось сохранить. Подойдут PNG, JPEG, GIF, WebP до 3 МБ.',
   coverFailed: 'Обложка не загрузилась. Попробуйте ещё раз.',
   accent: 'Цвет',
-  accentHint: 'Цвет кнопок и полосы времени на странице контрольной.',
+  accentHint: 'Цвет кнопок и полосы времени.',
   accentName: (accent: QuizAccent) =>
     ({
       blue: 'Синий',
@@ -162,40 +167,46 @@ export const QA_SETUP = {
       pink: 'Розовый',
       graphite: 'Графит',
     })[accent],
-  locked: 'Контрольную уже начали писать: предметы, число вопросов, набор, порядок, время и защита от списывания больше не меняются. Остальное можно.',
+  locked: 'Контрольную уже начали писать. Вопросы, их порядок, время и защиту от списывания поменять нельзя. Остальное можно.',
   /** A quiz «как в студии» (release 47.2). */
-  lockedDesign: 'Контрольную уже начали писать: «Как в студии», порядок вариантов, время и защита от списывания больше не меняются. Остальное можно.',
-  /** «Защита от списывания» (20261020120000_quiz_protection): three levels, each with what it does and cannot catch. */
+  lockedDesign: 'Контрольную уже начали писать. «Как в студии», порядок вариантов, время и защиту от списывания поменять нельзя. Остальное можно.',
+  /**
+   * «Защита от списывания» (20261020120000_quiz_protection): three levels, each in one short line (UX audit 21.10: the
+   * three descriptions were 25–45 words); what counts as leaving and what a web page cannot catch is under «Подробнее».
+   */
   protection: 'Защита от списывания',
   protectionOption: (level: QuizProtection) => ({ off: 'выключена', normal: 'обычная', strict: 'строгая' })[level],
   protectionHint: (level: QuizProtection, limit: number) =>
     ({
-      off: 'Ничего не записывается: если ученик откроет другое приложение или ассистента, вы об этом не узнаете.',
-      normal:
-        'Вопрос закрывается, когда ученик уходит со страницы или открывает что-то поверх неё: другое приложение, ассистента вроде Gemini, шторку уведомлений, разделённый экран. Каждый раз записывается, вы увидите, когда это было и сколько длилось. Второй телефон и фото экрана сайт заметить не может.',
-      strict: `То же, что обычная, и ещё: на Android контрольная открывается на весь экран, текст вопросов не копируется, поверх вопросов видно имя ученика. ${
-        limit === 1 ? 'Первый же уход' : `${limit}-й уход`
-      } завершает попытку, ответы до него засчитываются. Второй телефон и фото экрана сайт заметить не может.`,
+      off: 'Уходы со страницы не записываем.',
+      normal: 'Вопрос скрывается, если ученик уходит со страницы. Вы увидите каждый уход.',
+      strict: `Как обычная, плюс весь экран и запрет копирования. ${limit === 1 ? 'Первый же уход' : `${limit}-й уход`} завершит попытку.`,
     })[level],
-  /** Under the levels when one is on: what else lands in the record. */
-  protectionLimits: 'Звонок или погасший экран у ученика тоже попадают в запись. Смотрите, сколько длился уход.',
+  /** Under the levels when one is on: what a web page cannot catch, then the rest folded under «Подробнее». */
+  protectionLimits: 'Второй телефон и фото экрана сайт не заметит.',
+  protectionMore: 'Подробнее',
+  protectionDetails: [
+    'Уходом считается другое приложение, ассистент вроде Gemini, шторка уведомлений или разделённый экран. Вы увидите, когда был каждый уход и сколько он длился.',
+    'Звонок или погасший экран у ученика тоже записываются. Смотрите, сколько длился уход.',
+    'Строгая защита на Android открывает контрольную на весь экран. Текст вопросов не копируется, поверх вопросов видно имя ученика. Ответы до последнего ухода засчитываются.',
+  ],
   protectionLimit: 'Завершить попытку после',
   protectionLimitOption: (n: number) => `${n} ${plural(n, 'ухода', 'уходов', 'уходов')}`,
   design: 'Как в студии',
-  designLine: 'Вопросы, порядок и оформление — как в студии.',
-  designOff: 'Вопросы — из предметов экзамена, как в обычной контрольной.',
+  designLine: 'Вопросы, порядок и оформление берём из студии.',
+  designOff: 'Вопросы берём из предметов экзамена.',
   toStudio: 'Открыть студию',
-  moreNoteDesign: 'варианты ответа, попытки, проходной балл, что ученик видит после сдачи, защита от списывания',
+  moreNoteDesign: 'варианты ответа, попытки, проходной балл, что видно после сдачи, защита от списывания',
   problems: {
     title: 'Напишите название, до 120 знаков.',
     subjects: 'Отметьте хотя бы один предмет.',
-    count: 'В выбранных предметах нет вопросов с ключом.',
-    page: 'На странице студии нет вопросов с ключом.',
+    count: 'В выбранных предметах нет вопросов с верным ответом.',
+    page: 'В студии нет вопросов с верным ответом. Отметьте ответ хотя бы в одном.',
     window: '«Открыта до» должно быть позже, чем «Открыта с».',
     when: 'Укажите дату и время.',
   },
-  create: 'Создать',
-  creating: 'Создаём…',
+  create: 'Получить ссылку',
+  creating: 'Готовим ссылку…',
   save: 'Сохранить',
   saving: 'Сохраняем…',
   cancel: 'Отмена',
@@ -205,19 +216,19 @@ export const QA_SETUP = {
 export const QA_STATS = {
   loading: 'Загружаем результаты…',
   loadFailed: 'Не получилось загрузить результаты.',
-  notFound: 'Такой контрольной нет: возможно, её удалили.',
+  notFound: 'Такой контрольной нет. Возможно, её удалили.',
   retry: 'Повторить',
   toList: 'К списку контрольных',
-  created: 'Контрольная создана. Пришлите ссылку участникам.',
+  created: 'Ссылка готова. Отправьте её ученикам.',
   saved: 'Настройки сохранены.',
-  closedHint: 'Чтобы открыть снова, поставьте в настройках новое время в «Открыта до».',
+  closedHint: 'Чтобы открыть снова, поменяйте «Открыта до» в настройках.',
   link: 'Ссылка для участников',
   copy: 'Скопировать',
   copied: 'Скопировано',
   copiedLine: 'Ссылка скопирована.',
-  copyFailed: 'Не получилось скопировать: выделите ссылку в поле и скопируйте её.',
+  copyFailed: 'Не получилось скопировать. Выделите ссылку в поле и скопируйте сами.',
   /** Sharing the link (release 47): a QR on the whole screen, the phone's sharing, the page as a taker sees it. */
-  qr: 'Показать QR',
+  qr: 'Показать QR-код',
   qrTitle: 'QR-код ссылки на контрольную',
   qrHint: 'Наведите камеру телефона на код или наберите адрес.',
   qrClose: 'Закрыть',
@@ -225,59 +236,59 @@ export const QA_STATS = {
   asTaker: 'Открыть как ученик',
   asTakerLabel: 'Открыть как ученик (в новой вкладке)',
   edit: 'Изменить настройки',
-  close: 'Закрыть сейчас',
+  close: 'Закрыть контрольную',
   closeAsk: (writing: number) =>
     writing > 0
-      ? `Закрыть контрольную сейчас? Кто пишет (${people(writing)}), закончит с теми ответами, что успел дать.`
+      ? `Закрыть контрольную сейчас? Ещё ${plural(writing, 'пишет', 'пишут', 'пишут')} ${people(writing)}. Засчитаем ответы, которые уже есть.`
       : 'Закрыть контрольную сейчас? Начать новую попытку будет нельзя.',
   closeYes: 'Закрыть',
   remove: 'Удалить',
-  removeAsk: (title: string) => `Удалить «${title}»? Попытки, ответы и результаты участников пропадут.`,
+  removeAsk: (title: string) => `Удалить «${title}»? Все попытки и результаты пропадут.`,
   removeYes: 'Удалить',
   no: 'Отмена',
   summary: (writing: number, done: number, avg: number | null, passed: number | null) =>
     [
-      `Пишут сейчас: ${writing}`,
-      `Сдали: ${done}`,
-      avg === null ? null : `Средний результат: ${avg} %`,
-      passed === null || done === 0 ? null : `Прошли порог: ${passed} из ${done}`,
+      `Пишут ${writing}`,
+      `Сдали ${done}`,
+      avg === null ? null : `Средний результат ${avg} %`,
+      passed === null || done === 0 ? null : `Набрали проходной балл ${passed} из ${done}`,
     ]
       .filter(Boolean)
       .join(' · '),
-  nobody: 'Пока никто не писал. Пришлите ссылку участникам: результаты появятся здесь сами.',
-  onlyOwn: 'Пока писали только вы — ваши попытки в итоги не идут. Пришлите ссылку участникам: их результаты появятся здесь сами.',
+  nobody: 'Пока никто не писал. Отправьте ссылку, и результаты появятся здесь.',
+  onlyOwn: 'Пока писали только вы, ваши попытки не считаем. Отправьте ссылку, и результаты появятся здесь.',
   tabs: 'Результаты',
   tabPeople: 'Участники',
   tabQuestions: 'Вопросы',
   download: 'Скачать таблицу',
   downloading: 'Готовим таблицу…',
   downloadFailed: 'Не получилось собрать таблицу. Попробуйте ещё раз.',
-  stale: (time: string) => `Нет связи с сервером: показаны результаты на ${time}. Обновим, когда связь вернётся.`,
+  stale: (time: string) => `Нет связи. Результаты на ${time}. Обновим, когда связь вернётся.`,
 } as const;
 
 /** «Участники»: one row a person, their answers in a sheet. */
 export const QA_PEOPLE = {
   title: 'Участники',
   own: '(вы)',
-  ownHint: 'Ваши собственные попытки помечены «(вы)» и в средний результат не идут.',
+  ownHint: 'Ваши попытки отмечены «(вы)», в средний результат они не входят.',
   /** Beside the name of somebody who wrote without an account (release 47). */
   guest: 'без входа',
   guestHint: 'Попытки без входа считаются по браузеру.',
   sort: 'Порядок',
   sortOption: (key: 'name' | 'result' | 'time') => ({ name: 'по имени', result: 'по результату', time: 'по времени' })[key],
-  head: { name: 'Имя', status: 'Сейчас', result: 'Результат', minutes: 'Время', attempts: 'Попытки' },
-  writing: (answered: number, total: number, left: string | null) => `пишет — ${answered} из ${total}${left ? `, осталось ${left}` : ''}`,
+  head: { name: 'Имя', status: 'Статус', result: 'Результат', minutes: 'Время', attempts: 'Попытки' },
+  writing: (answered: number, total: number, left: string | null) => `пишет, ${answered} из ${total}${left ? `, осталось ${left}` : ''}`,
   done: (time: string) => `сдано ${time}`,
   time: 'время вышло',
   /** Still unfinished, the clock at 00:00: the server takes the last answers for 20 s more, then closes it. */
   timeOver: 'время вышло, ответы сдаются',
   closed: 'закрыта',
   /** The strict level ended the attempt (finish_reason 'protection'). */
-  guardEnded: 'завершена: уходы со страницы',
+  guardEnded: 'завершена из-за уходов со страницы',
   /** The mark of an attempt with events (a counted one, a copy or a paste). */
   flag: (counted: number) => (counted > 0 ? `${counted} ${plural(counted, 'уход', 'ухода', 'уходов')}` : 'копирование'),
   flagLabel: (counted: number) =>
-    counted > 0 ? `Покидал страницу: ${counted} ${plural(counted, 'раз', 'раза', 'раз')}` : 'Пытался копировать или вставлял текст',
+    counted > 0 ? `Уходил со страницы ${counted} ${plural(counted, 'раз', 'раза', 'раз')}` : 'Копировал или вставлял текст',
   onlyFlagged: 'Только с нарушениями',
   noneFlagged: 'Попыток с нарушениями нет.',
   /** The timeline of «Защита от списывания» in the answers sheet. */
@@ -285,17 +296,17 @@ export const QA_PEOPLE = {
   eventsLoading: 'Загружаем записи…',
   eventsFailed: 'Не получилось загрузить записи.',
   eventsNone: 'Ничего не записано.',
-  eventsCount: (n: number) => `Уходов со страницы: ${n}.`,
-  eventsLimits: 'Сайт видит только эту страницу. Второй телефон или фото экрана он не заметит, а звонок или погасший экран записывает так же, как уход.',
+  eventsCount: (n: number) => `${n} ${plural(n, 'уход', 'ухода', 'уходов')} со страницы.`,
+  eventsLimits: 'Второй телефон и фото экрана сайт не заметит. Звонок и погасший экран записываются как уход.',
   eventKind: (kind: QuizGuardKind) =>
     ({
-      hidden: 'Страница скрыта: другое приложение, блокировка экрана или звонок',
-      blur: 'Поверх страницы открыто другое окно: ассистент, поиск по экрану, шторка уведомлений',
-      split: 'Окно уменьшено: разделённый экран или плавающее окно',
-      fullscreen: 'Выход из полноэкранного режима',
-      copy: 'Попытка скопировать текст',
-      paste: 'Вставка текста в ответ',
-      reload: 'Страница открыта заново',
+      hidden: 'Ушёл со страницы: другое приложение, блокировка экрана или звонок',
+      blur: 'Открыл окно поверх страницы: ассистент, поиск по экрану, шторка уведомлений',
+      split: 'Уменьшил окно: разделённый экран или плавающее окно',
+      fullscreen: 'Вышел из полноэкранного режима',
+      copy: 'Пытался скопировать текст',
+      paste: 'Вставил текст в ответ',
+      reload: 'Открыл страницу заново',
     })[kind],
   /** «вопрос 2» with a no-break space: on a phone the number never wraps alone. */
   eventQ: (n: number) => `вопрос ${n}`,
@@ -315,20 +326,20 @@ export const QA_PEOPLE = {
   attemptTab: (n: number) => `Попытка ${n}`,
   loading: 'Загружаем ответы…',
   loadFailed: 'Не получилось загрузить ответы.',
-  attemptGone: 'Этой попытки уже нет: её сбросили или удалили вместе с контрольной.',
+  attemptGone: 'Этой попытки уже нет. Её сбросили или удалили.',
   retry: 'Повторить',
   noAnswers: 'В этой попытке пока нет ответов.',
-  unanswered: (n: number) => `Без ответа: ${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')}.`,
+  unanswered: (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} без ответа.`,
   context: (subject: string, no: string) => `${subject} · № ${no}`.replace(/^ · /, ''),
-  gone: 'Этого вопроса больше нет в экзамене.',
+  gone: 'Этот вопрос удалили.',
   answer: (text: string) => `Ответ: ${text}`,
-  key: (text: string) => `Ключ: ${text}`,
-  forms: (text: string) => `Принимается: ${text}`,
-  noKey: 'Ключа сейчас нет.',
+  key: (text: string) => `Верный ответ: ${text}`,
+  forms: (text: string) => `Принимаем: ${text}`,
+  noKey: 'Верный ответ не отмечен.',
   right: 'верно',
   wrong: 'неверно',
   reset: 'Сбросить попытку',
-  resetAsk: (n: number) => `Сбросить попытку ${n}? Её ответы пропадут, а человек сможет написать её заново.`,
+  resetAsk: (n: number) => `Сбросить попытку ${n}? Ответы пропадут, человек сможет пройти заново.`,
   resetYes: 'Сбросить',
   resetNo: 'Отмена',
 } as const;
@@ -336,21 +347,21 @@ export const QA_PEOPLE = {
 /** «Вопросы»: the hardest first, the picks of each option, the common wrong short answers. */
 export const QA_QUESTIONS = {
   title: 'Вопросы',
-  hint: 'От самого трудного к лёгкому. Попытки автора не считаются.',
+  hint: 'Сначала самые трудные. Ваши попытки не считаем.',
   line: (context: string, correct: number, shown: number, percent: number | null) =>
-    shown > 0 ? `${context} — верно ${correct} из ${shown}${percent === null ? '' : ` (${percent} %)`}` : `${context} — пока никто не отвечал`,
-  gone: 'Этого вопроса больше нет в экзамене.',
-  picks: 'Выборы по вариантам',
-  keyWord: 'ключ',
-  noAnswer: (n: number) => `без ответа: ${n}`,
+    shown > 0 ? `${context}: ${correct} из ${shown} ответили верно${percent === null ? '' : ` (${percent} %)`}` : `${context}: пока никто не отвечал`,
+  gone: 'Этот вопрос удалили.',
+  picks: 'Кто что выбрал',
+  keyWord: 'верный',
+  noAnswer: (n: number) => `${n} без ответа`,
   wrongTexts: 'Частые неверные ответы',
-  wrongText: (text: string, n: number) => `«${text}» — ${n}`,
+  wrongText: (text: string, n: number) => `«${text}» · ${n} ${plural(n, 'раз', 'раза', 'раз')}`,
   edit: 'Изменить',
-  empty: 'Вопросы появятся здесь, когда участники начнут писать. Ваши собственные попытки сюда не идут.',
+  empty: 'Вопросы появятся здесь, когда ученики начнут писать. Ваши попытки не считаем.',
 } as const;
 
 /** P0002 of a quiz function: the quiz, not the exam, is gone. */
 export const QA_ERRORS: Record<string, string> = {
-  P0002: 'Такой контрольной нет: возможно, её удалили.',
-  '42501': 'Это может только автор экзамена.',
+  P0002: 'Такой контрольной нет. Возможно, её удалили.',
+  '42501': 'Это может сделать только автор.',
 };

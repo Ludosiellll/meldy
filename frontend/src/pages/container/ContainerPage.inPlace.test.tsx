@@ -323,7 +323,7 @@ describe('the author’s own test opens as the test’s page (release 47.3)', ()
 
   it('no контрольная yet: one line of what will be here', async () => {
     renderPage(loaded(containerData({ summary: testSummary() })));
-    expect(await screen.findByText((_, node) => node?.className === 'th-empty')).toHaveTextContent(/Контрольных пока нет/);
+    expect(await screen.findByText((_, node) => node?.className === 'th-empty')).toHaveTextContent(/Контрольная — это ваш тест по ссылке/);
     expect(page()).toContain('Тест · 12 вопросов');
     expect(page()).not.toContain('контрольные ·');
   });

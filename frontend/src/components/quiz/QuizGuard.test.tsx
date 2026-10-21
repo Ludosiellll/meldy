@@ -174,7 +174,7 @@ describe('the cover', () => {
     regainFocus();
     expect(covered()).toBe(false);
     expect(document.documentElement.hasAttribute('data-qg-away')).toBe(false);
-    expect(plain(screen.getByText(/Вы покидали страницу/).textContent)).toBe(plain(GUARD.line(1, 'normal', 2, 12_000)));
+    expect(plain(screen.getByText(/Вы уходили со страницы/).textContent)).toBe(plain(GUARD.line(1, 'normal', 2, 12_000)));
   });
 
   it('a focus moved into the page’s own frame (a video) is not a loss, until the whole page loses it', async () => {
@@ -219,7 +219,7 @@ describe('one time away is one event', () => {
     expect(new Set(all.map((event) => event.id)).size).toBe(1);
     expect(all[all.length - 1]).toMatchObject({ kind: 'hidden', ms: expect.any(Number) });
     expect(all[all.length - 1].ms).toBeGreaterThanOrEqual(30_000);
-    expect(plain(screen.getByText(/Вы покидали страницу/).textContent)).toContain('1 раз.');
+    expect(plain(screen.getByText(/Вы уходили со страницы/).textContent)).toContain('1 раз.');
   });
 
   it('a second time away later is a second event', async () => {
@@ -231,7 +231,7 @@ describe('one time away is one event', () => {
     regainFocus();
     await advance(SEND_DELAY_MS + SEND_GAP_MS);
     expect(new Set(sent.flat().map((event) => event.id)).size).toBe(2);
-    expect(plain(screen.getByText(/Вы покидали страницу/).textContent)).toContain('2 раза.');
+    expect(plain(screen.getByText(/Вы уходили со страницы/).textContent)).toContain('2 раза.');
   });
 });
 
@@ -254,7 +254,7 @@ describe('a reload is not a time away', () => {
     await advance(SEND_DELAY_MS * 2);
     expect(api.sendGuardEvents).not.toHaveBeenCalled();
     expect(window.localStorage.getItem(guardKey('att-g'))).toBeNull();
-    expect(screen.queryByText(/Вы покидали страницу/)).toBeNull();
+    expect(screen.queryByText(/Вы уходили со страницы/)).toBeNull();
   });
 
   it('a page left for a minute and then reloaded keeps that time away, with its duration', async () => {
@@ -325,7 +325,7 @@ describe('copy and paste', () => {
     await advance(SEND_DELAY_MS);
     expect(sent.flat()).toEqual([expect.objectContaining({ kind: 'copy', q: 1 })]);
     // a copy is not a time away
-    expect(screen.queryByText(/Вы покидали страницу/)).toBeNull();
+    expect(screen.queryByText(/Вы уходили со страницы/)).toBeNull();
   });
 
   it('the normal level lets a copy through and records it', async () => {
@@ -361,7 +361,7 @@ describe('the strict level', () => {
     expect(decodeURIComponent(mark?.style.maskImage ?? mark?.style.getPropertyValue('-webkit-mask-image') ?? '')).toContain('Вера Иванова');
     loseFocus();
     regainFocus();
-    expect(plain(screen.getByText(/Вы покидали страницу/).textContent)).toContain('Попытка завершится через 2 ухода.');
+    expect(plain(screen.getByText(/Вы уходили со страницы/).textContent)).toContain('Ещё 2 ухода, и попытка завершится.');
   });
 
   it('ends the attempt at the limit: the waiting events go first, then the result', async () => {
@@ -408,7 +408,7 @@ describe('the strict level', () => {
       await advance(5000);
     }
     expect(api.finishQuiz).not.toHaveBeenCalled();
-    expect(plain(screen.getByText(/Вы покидали страницу/).textContent)).toContain('4 раза.');
+    expect(plain(screen.getByText(/Вы уходили со страницы/).textContent)).toContain('4 раза.');
   });
 });
 

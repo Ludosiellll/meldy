@@ -49,8 +49,8 @@ import { dateTimeText } from '../../lib/quizzes/quizModel';
 const NB = String.fromCharCode(0xa0);
 const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
 const page = () => plain(document.body.textContent);
-/** «Имя и фамилия — их увидит Анна Петрова» (the preview's author). */
-const NAME_LABEL = /^Имя и фамилия — их увидит /;
+/** «Имя и фамилия. Их увидит Анна Петрова» (the preview's author). */
+const NAME_LABEL = /^Имя и фамилия\. Их увидит /;
 const labelOf = (field: HTMLElement) => plain((field as HTMLInputElement).labels?.[0]?.textContent);
 const bar = () => plain(document.querySelector('.ct-rb-long')?.textContent);
 const options = () => Array.from(document.querySelectorAll<HTMLButtonElement>('.ct-opts .ct-opt'));
@@ -140,7 +140,7 @@ function Where() {
 /** «Me» of a visitor without an account, by the device's token (release 47). */
 const GUEST_ME: QuizPreviewMe = { ...ME, name_hint: null, guest: true };
 const GUEST_PREVIEW: QuizPreview = { ...PREVIEW, guests: true, me: GUEST_ME };
-const GUEST_PRIVACY = 'Автор увидит имя, которое вы укажете, ваши ответы и результат. Попытки сохраняются в этом браузере.';
+const GUEST_PRIVACY = 'Автор увидит ваше имя, ответы и результат. Ваши попытки хранятся в этом браузере.';
 const BACK_HERE = `/login?next=${encodeURIComponent(`/k/${CODE}`)}`;
 
 function renderAt(code = CODE, search = '') {
@@ -194,8 +194,8 @@ describe('/k/<код> before the start (spec §2.2)', () => {
     expect(page()).toContain('автор: Анна Петрова');
     expect(page()).toContain('экзамен «Зимняя сессия»');
     expect(page()).toContain('20 вопросов · 30 минут · открыта до 24 окт., 18:00 · 1 попытка');
-    expect(page()).toContain('К вопросам можно возвращаться');
-    const privacy = screen.getByText('Автор увидит имя, которое вы укажете, ваши ответы и результат.');
+    expect(page()).toContain('Ответы можно менять, пока не нажмёте «Завершить».');
+    const privacy = screen.getByText('Автор увидит ваше имя, ответы и результат.');
     const signIn = screen.getByRole('link', { name: 'Войти, чтобы начать' });
     expect(signIn).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/k/${CODE}`)}`);
     expect(signIn).toHaveClass('sf-primary');
@@ -215,10 +215,10 @@ describe('/k/<код> before the start (spec §2.2)', () => {
     api.previewQuiz.mockResolvedValue({ ...PREVIEW, time_limit_s: null, attempts: null, allow_back: false, pass_percent: 60, closes_at: null });
     renderAt();
     await screen.findByRole('heading', { level: 1, name: 'Контрольная по базам данных' });
-    expect(page()).toContain('20 вопросов · без ограничения времени · попыток сколько угодно');
-    expect(page()).toContain('Только вперёд: к прошлым вопросам вернуться нельзя.');
+    expect(page()).toContain('20 вопросов · без ограничения времени · сколько угодно попыток');
+    expect(page()).toContain('Вернуться к прошлому вопросу нельзя.');
     expect(page()).toContain('Проходной балл 60 %.');
-    expect(page()).toContain('В зачёт идёт лучшая попытка.');
+    expect(page()).toContain('Засчитаем лучшую попытку.');
   });
 
   it('a link the database does not know', async () => {
@@ -249,10 +249,10 @@ describe('/k/<код> signed in', () => {
     const field = await screen.findByLabelText(NAME_LABEL);
     expect(field).toHaveValue('Иван Иванов');
     // The field's label says who sees the name; what else the author sees comes under «Начать».
-    expect(labelOf(field)).toBe('Имя и фамилия — их увидит Анна Петрова');
+    expect(labelOf(field)).toBe('Имя и фамилия. Их увидит Анна Петрова');
     expect(field).toHaveAccessibleDescription(/^Например: Иванов Иван, 9\sБ$/);
     const start = screen.getByRole('button', { name: 'Начать' });
-    expect(screen.getByText('Автор увидит имя, которое вы укажете, ваши ответы и результат.').compareDocumentPosition(start) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    expect(screen.getByText('Автор увидит ваше имя, ответы и результат.').compareDocumentPosition(start) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
     fireEvent.change(field, { target: { value: '  Иванов Иван, гр. 21 ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
     await waitFor(() => expect(api.startQuiz).toHaveBeenCalledWith(CODE, 'Иванов Иван, гр. 21', null));
@@ -266,7 +266,7 @@ describe('/k/<код> signed in', () => {
     renderAt();
     fireEvent.change(await screen.findByLabelText(NAME_LABEL), { target: { value: ' И ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
-    expect(await screen.findByText('Имя — от 2 до 80 знаков.')).toBeInTheDocument();
+    expect(await screen.findByText('Имя должно быть от 2 до 80 знаков.')).toBeInTheDocument();
     expect(screen.getByLabelText(NAME_LABEL)).toHaveAttribute('aria-invalid', 'true');
     expect(api.startQuiz).not.toHaveBeenCalled();
   });
@@ -306,7 +306,7 @@ describe('/k/<код> signed in', () => {
     renderAt();
     await screen.findByLabelText(NAME_LABEL);
     fireEvent.click(screen.getByRole('button', { name: 'Начать' }));
-    expect(await screen.findByText(/Вход закончился/)).toBeInTheDocument();
+    expect(await screen.findByText(/Нужно войти снова/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Войти' })).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/k/${CODE}`)}`);
   });
 
@@ -379,10 +379,10 @@ describe('/k/<код>: the attempt to its result', () => {
     fireEvent.click(options()[1]);
     await waitFor(() => expect(api.quizResult).toHaveBeenCalledWith('att-1', null), { timeout: 2000 });
     await waitFor(() => expect(plain(document.querySelector('.qt-score')?.textContent)).toBe('1 из 3 · 33 %'));
-    expect(page()).toContain('Время вышло — попытка закрылась сама.');
+    expect(page()).toContain('Время вышло, попытка завершена.');
   });
 
-  it('the time runs out: the attempt finishes by itself; «Ещё попытка» goes back to the start', async () => {
+  it('the time runs out: the attempt finishes by itself; «Пройти ещё раз» goes back to the start', async () => {
     signedIn({ attempts_used: 0 }, { attempts: 2 });
     renderAt();
     await screen.findByLabelText(NAME_LABEL);
@@ -392,7 +392,7 @@ describe('/k/<код>: the attempt to its result', () => {
       vi.setSystemTime(Date.parse('2026-10-16T10:32:00.000Z'));
     });
     await waitFor(() => expect(api.finishQuiz).toHaveBeenCalledWith('att-1', null), { timeout: 3000 });
-    const retry = await screen.findByRole('button', { name: (name) => plain(name) === 'Ещё попытка (осталась 1)' });
+    const retry = await screen.findByRole('button', { name: (name) => plain(name) === 'Пройти ещё раз (осталась 1)' });
     fireEvent.click(retry);
     expect(await screen.findByLabelText(NAME_LABEL)).toBeInTheDocument();
     await waitFor(() => expect(api.previewQuiz).toHaveBeenCalledTimes(2));
@@ -544,7 +544,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     });
   }
   const card = () => document.querySelector('.qt-device');
-  const LINE = () => `На этом устройстве есть попытка без входа от ${plain(dateTimeText(LATER))}.`;
+  const LINE = () => `Эту контрольную уже писали на этом устройстве без входа, ${plain(dateTimeText(LATER))}. Это были вы?`;
 
   it('nothing moves by itself: a card above the start asks whose they are, with the time of the last one', async () => {
     const token = ensureGuestToken(CODE);
@@ -557,26 +557,26 @@ describe('/k/<код> signed in on a device with attempts written here without a
     expect(api.previewQuiz).toHaveBeenCalledWith(CODE);
     expect(api.previewAsGuest).toHaveBeenCalledWith(CODE, token);
     expect(plain(card()?.querySelector('.qt-device-t')?.textContent)).toBe(LINE());
-    expect(within(card() as HTMLElement).getByRole('button', { name: 'Это я — перенести в аккаунт' })).toBeInTheDocument();
-    expect(within(card() as HTMLElement).getByRole('button', { name: 'Это не я' })).toBeInTheDocument();
+    expect(within(card() as HTMLElement).getByRole('button', { name: 'Да, перенести в мой аккаунт' })).toBeInTheDocument();
+    expect(within(card() as HTMLElement).getByRole('button', { name: 'Нет, это не я' })).toBeInTheDocument();
     expect((card()?.compareDocumentPosition(field) ?? 0) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(guestToken(CODE)).toBe(token);
   });
 
-  it('«Это я — перенести в аккаунт»: the claim, then the token goes, the card too, and «me» comes again', async () => {
+  it('«Да, перенести в мой аккаунт»: the claim, then the token goes, the card too, and «me» comes again', async () => {
     const token = ensureGuestToken(CODE);
     signedIn();
     deviceHas();
     api.claimGuestAttempts.mockResolvedValue({ claimed: 2 });
     renderAt();
-    fireEvent.click(await screen.findByRole('button', { name: 'Это я — перенести в аккаунт' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Да, перенести в мой аккаунт' }));
     await waitFor(() => expect(api.claimGuestAttempts).toHaveBeenCalledWith(CODE, token));
     await waitFor(() => expect(api.previewQuiz).toHaveBeenCalledTimes(2));
     expect(guestToken(CODE)).toBeNull();
     expect(card()).toBeNull();
     expect(api.previewAsGuest).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(page()).not.toContain('не перенесены');
+    expect(page()).not.toContain('не перенесли');
   });
 
   it('nothing moved (the account writes this quiz itself): said; the token stays, not asked again on this page', async () => {
@@ -585,8 +585,8 @@ describe('/k/<код> signed in on a device with attempts written here without a
     deviceHas();
     api.startQuiz.mockRejectedValue(new ContainerApiError('MC014', 'Попытки закончились.', { status: 400, detail: 'attempts' }));
     renderAt();
-    fireEvent.click(await screen.findByRole('button', { name: 'Это я — перенести в аккаунт' }));
-    expect(await screen.findByText('Попытки без входа не перенесены: в аккаунте уже есть попытки этой контрольной.')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Да, перенести в мой аккаунт' }));
+    expect(await screen.findByText('Попытки не перенесли. В аккаунте уже есть попытки этой контрольной.')).toBeInTheDocument();
     expect(card()).toBeNull();
     expect(guestToken(CODE)).toBe(token);
     // Another preview (after a refused start) does not bring the card back.
@@ -597,12 +597,12 @@ describe('/k/<код> signed in on a device with attempts written here without a
     expect(api.claimGuestAttempts).toHaveBeenCalledTimes(1);
   });
 
-  it('«Это не я»: the token goes, the card too; nothing is claimed', async () => {
+  it('«Нет, это не я»: the token goes, the card too; nothing is claimed', async () => {
     ensureGuestToken(CODE);
     signedIn();
     deviceHas();
     renderAt();
-    fireEvent.click(await screen.findByRole('button', { name: 'Это не я' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Нет, это не я' }));
     expect(card()).toBeNull();
     expect(guestToken(CODE)).toBeNull();
     expect(api.claimGuestAttempts).not.toHaveBeenCalled();
@@ -615,7 +615,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     deviceHas();
     api.claimGuestAttempts.mockRejectedValueOnce(new ContainerApiError('network', 'Нет сети', { status: 0 })).mockResolvedValue({ claimed: 2 });
     renderAt();
-    const mine = await screen.findByRole('button', { name: 'Это я — перенести в аккаунт' });
+    const mine = await screen.findByRole('button', { name: 'Да, перенести в мой аккаунт' });
     fireEvent.click(mine);
     expect(await screen.findByRole('alert')).toHaveTextContent('Нет сети');
     expect(card()).not.toBeNull();
@@ -632,7 +632,7 @@ describe('/k/<код> signed in on a device with attempts written here without a
     deviceHas({ attempts_used: 1, open_attempt: 'g-1', can_start: true, reason: null, results: [] });
     renderAt();
     await screen.findByLabelText(NAME_LABEL);
-    expect(plain(card()?.querySelector('.qt-device-t')?.textContent)).toBe('На этом устройстве есть начатая попытка без входа.');
+    expect(plain(card()?.querySelector('.qt-device-t')?.textContent)).toBe('На этом устройстве есть начатая попытка без входа. Это были вы?');
   });
 
   it('no attempts behind the token (a start that did not happen): no card', async () => {
@@ -866,20 +866,20 @@ describe('/k/<код>: the start in view (release 47 design fixes)', () => {
     // «24 окт., 18:00» never splits: the spaces inside the date and the time are non-breaking.
     expect(meta.textContent).toContain(`открыта до${NB}24${NB}окт.,${NB}18:00`);
     const field = screen.getByLabelText(NAME_LABEL);
-    expect(labelOf(field)).toBe('Имя и фамилия — их увидит Анна Петрова');
+    expect(labelOf(field)).toBe('Имя и фамилия. Их увидит Анна Петрова');
     expect(screen.getByText('Например: Иванов Иван, 9 Б')).toHaveClass('qt-hint');
     // The rules (the pass mark in the result's words) and what the author sees: under «Начать».
     const start = screen.getByRole('button', { name: 'Начать' });
     const rules = document.querySelector('.qt-facts')!;
     expect(start.compareDocumentPosition(rules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(plain(rules.textContent)).toContain('Проходной балл 60 %.');
-    expect(plain(rules.textContent)).toContain('Автор увидит имя, которое вы укажете, ваши ответы и результат.');
+    expect(plain(rules.textContent)).toContain('Автор увидит ваше имя, ответы и результат.');
   });
 
   it('without the author’s name the label names «автор теста»', async () => {
     signedIn({}, { author_name: undefined });
     renderAt();
-    expect(labelOf(await screen.findByLabelText(NAME_LABEL))).toBe('Имя и фамилия — их увидит автор теста');
+    expect(labelOf(await screen.findByLabelText(NAME_LABEL))).toBe('Имя и фамилия. Их увидит автор теста');
   });
 
   it('a guest: the same label, the browser line under the button', async () => {
@@ -896,7 +896,7 @@ describe('/k/<код>: the start in view (release 47 design fixes)', () => {
     renderAt();
     const field = await screen.findByLabelText('Имя и фамилия');
     expect(labelOf(field)).toBe('Имя и фамилия');
-    expect(page()).not.toContain('их увидит');
+    expect(page()).not.toContain('Их увидит');
   });
 });
 
@@ -1044,7 +1044,7 @@ describe('/k/<код> with «Защита от списывания» (202610201
     const rules = screen.getByRole('region', { name: GUARD.rulesTitle });
     for (const rule of GUARD.rulesNormal) expect(plain(rules.textContent)).toContain(plain(rule));
     // the rules come before the other facts under the button
-    const privacy = screen.getByText('Автор увидит имя, которое вы укажете, ваши ответы и результат.');
+    const privacy = screen.getByText('Автор увидит ваше имя, ответы и результат.');
     expect(rules.compareDocumentPosition(privacy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     api.startQuiz.mockResolvedValue({ ...ATTEMPT, protection: 'normal', protection_limit: 3, guard_count: 0, taker_name: 'Иван Иванов' });
     fireEvent.click(start);
@@ -1066,7 +1066,7 @@ describe('/k/<код> with «Защита от списывания» (202610201
     renderAt();
     const start = await screen.findByRole('button', { name: 'Начать' });
     expect(screen.getByText(plain(GUARD.short('strict', 2)), { normalizer: plain })).toBeInTheDocument();
-    expect(plain(screen.getByRole('region', { name: GUARD.rulesTitle }).textContent)).toContain('После 2-го ухода попытка завершится сама.');
+    expect(plain(screen.getByRole('region', { name: GUARD.rulesTitle }).textContent)).toContain('После 2-го ухода попытка завершится.');
     fireEvent.click(start);
     expect(fullscreen).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(api.startQuiz).toHaveBeenCalled());

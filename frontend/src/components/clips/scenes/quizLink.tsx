@@ -11,7 +11,7 @@ import { clamp, ease, mix, seg } from '../../reel/timeline';
 import { slideIn, Wordmark } from '../../film/kit';
 import { STUDIO } from '../../studio/copyStudio';
 import { StudioStill } from './studio';
-import { QA_PEOPLE, QA_STATS } from '../../quiz/copyAuthor';
+import { QA_PEOPLE, QA_SETUP, QA_STATS } from '../../quiz/copyAuthor';
 import { QUIZ } from '../../quiz/copyQuiz';
 import { RESULT, RUN, TAKE } from '../../quiz/copyTake';
 import type { ClipStep } from '../types';
@@ -95,10 +95,10 @@ export const QZ = {
 } as const;
 
 export const QUIZ_STEPS: readonly ClipStep[] = [
-  { at: 0, caption: `«${STUDIO.send}» даст ссылку и QR-код.`, still: 3700 },
+  { at: 0, caption: `Нажмите «${STUDIO.send}», затем «${QA_SETUP.create}».`, still: 3700 },
   { at: QZ.phone, caption: 'Ученик открывает ссылку: без аккаунта, только имя.', still: 5900 },
   { at: QZ.question, caption: `Отвечает на вопросы и нажимает «${RUN.finish}».`, still: 7800 },
-  { at: QZ.result, caption: 'Сразу видит ошибки и пояснение.', still: 10500 },
+  { at: QZ.result, caption: 'Видит ошибки, а ответы и пояснения после закрытия.', still: 10500 },
   { at: QZ.table, caption: 'А у вас в таблице — его строка.', still: 12800 },
 ];
 

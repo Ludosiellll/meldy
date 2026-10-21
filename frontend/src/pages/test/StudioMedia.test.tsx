@@ -175,7 +175,7 @@ describe('the studio: own pictures in every way', () => {
     const added = order()[2];
     await waitFor(() => expect(within(frame(added)).getByRole('alert')).toHaveTextContent(`${STUDIO.pictureFailed} ${STUDIO.pictureNotSaved}`));
     fireEvent.click(screen.getByRole('button', { name: /Проверка/ }));
-    expect(within(side()).getByText('Блок «Картинка» без картинки не сохраняется — загрузите её или уберите блок.')).toBeInTheDocument();
+    expect(within(side()).getByText('Блок «Картинка» без картинки не сохранится. Загрузите картинку или уберите блок.')).toBeInTheDocument();
   });
 
   it('words pasted stay words; a picture pasted into the question editor stays the editor’s', async () => {

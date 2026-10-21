@@ -47,7 +47,7 @@ describe('checkTest', () => {
   it('a question block whose row is gone', () => {
     const doc: TestDoc = { ...emptyDoc('Т'), blocks: [question({ id: 'gone' }, 'block1')] };
     expect(checkTest(doc, [])).toEqual([
-      { id: 'gone:block1', blockId: 'block1', level: 'fix', message: 'Вопрос этого блока удалён — уберите блок.', fix: { kind: 'remove_block', blockId: 'block1' } },
+      { id: 'gone:block1', blockId: 'block1', level: 'fix', message: 'Вопрос этого блока удалили. Уберите блок.', fix: { kind: 'remove_block', blockId: 'block1' } },
     ]);
   });
 
@@ -57,7 +57,7 @@ describe('checkTest', () => {
     const blank = row({ stem: '  ' });
     const hints = checkTest(pageOf([picture, pictured, blank]), [picture, pictured, blank]);
     expect(ids(hints)).toEqual([`no_stem:${picture.id}`, `no_stem:${blank.id}`]);
-    expect(hints[0].message).toBe('Вопрос 1: нет текста — напишите его.');
+    expect(hints[0].message).toBe('Вопрос 1: напишите текст вопроса.');
   });
 
   it('no key', () => {
@@ -65,8 +65,8 @@ describe('checkTest', () => {
     const short = row({ kind: 'short', options: [], correct: [], answers: [] });
     const hints = checkTest(pageOf([single, short]), [single, short]);
     expect(hints.map((hint) => [hint.id, hint.message, hint.blockId, hint.itemId])).toEqual([
-      [`no_key:${single.id}`, 'Вопрос 1: нет верного ответа — отметьте его.', `b-${single.id}`, single.id],
-      [`no_key:${short.id}`, 'Вопрос 2: нет верного ответа — впишите его.', `b-${short.id}`, short.id],
+      [`no_key:${single.id}`, 'Вопрос 1: отметьте верный ответ.', `b-${single.id}`, single.id],
+      [`no_key:${short.id}`, 'Вопрос 2: впишите верный ответ.', `b-${short.id}`, short.id],
     ]);
   });
 
@@ -81,7 +81,7 @@ describe('checkTest', () => {
       [`same_option:${ticked.id}:2`, { kind: 'drop_option', itemId: ticked.id, index: 0 }],
       [`same_option:${two.id}:1`, undefined],
     ]);
-    expect(hints[0].message).toBe('Вопрос 1: вариант «париж.» повторяется — уберите лишний.');
+    expect(hints[0].message).toBe('Вопрос 1: вариант «париж.» повторяется. Уберите лишний.');
   });
 
   it.each(['Все перечисленные', 'всё вышеперечисленное', 'Нет верного ответа', 'А и Б', 'а, б и в', 'Оба варианта', 'Ни один из них', 'Все ответы верны', 'Первый и второй'])(
@@ -90,7 +90,7 @@ describe('checkTest', () => {
       const item = row({ options: ['Один', 'Два', words], correct: [2] });
       const [hint] = checkTest(pageOf([item]), [item]);
       expect(hint).toMatchObject({ id: `order:${item.id}`, level: 'fix', fix: { kind: 'keep_order', itemId: item.id } });
-      expect(hint.message).toContain('закрепите порядок');
+      expect(hint.message).toContain('Закрепите порядок');
       expect(checkTest(pageOf([{ ...item, keep_order: true }]), [{ ...item, keep_order: true }])).toEqual([]);
     },
   );
@@ -101,7 +101,7 @@ describe('checkTest', () => {
     const fixed = row({ options: ['Верно', 'Неверно'], correct: [0], keep_order: true });
     const hints = checkTest(pageOf([yes, right, fixed]), [yes, right, fixed]);
     expect(ids(hints)).toEqual([`true_false:${yes.id}`, `true_false:${right.id}`]);
-    expect(hints[1].message).toBe('Вопрос 2: варианты «Неверно» и «Верно» лучше не перемешивать — закрепите их порядок.');
+    expect(hints[1].message).toBe('Вопрос 2: варианты «Неверно» и «Верно» лучше не перемешивать. Закрепите их порядок.');
   });
 
   it('a short answer whose only form is a number', () => {
@@ -112,14 +112,14 @@ describe('checkTest', () => {
     const words = row({ kind: 'short', options: [], correct: [], answers: ['Москва'] });
     const hints = checkTest(pageOf([comma, unit, year, two, words]), [comma, unit, year, two, words]);
     expect(hints.map((hint) => [hint.id, hint.level, hint.message, hint.fix])).toEqual([
-      [`short_number:${comma.id}`, 'think', 'Вопрос 1: единственный ответ «12,5» — число. Добавьте и другую запись: «12.5».', { kind: 'add_forms', itemId: comma.id, forms: ['12.5'] }],
+      [`short_number:${comma.id}`, 'think', 'Вопрос 1: ответ «12,5» записан цифрами. Добавьте и другую запись: «12.5».', { kind: 'add_forms', itemId: comma.id, forms: ['12.5'] }],
       [
         `short_number:${unit.id}`,
         'think',
-        'Вопрос 2: единственный ответ «3.5 кг» — число. Добавьте и другие записи: «3,5 кг», «3.5».',
+        'Вопрос 2: ответ «3.5 кг» записан цифрами. Добавьте и другие записи: «3,5 кг», «3.5».',
         { kind: 'add_forms', itemId: unit.id, forms: ['3,5 кг', '3.5'] },
       ],
-      [`short_number:${year.id}`, 'think', 'Вопрос 3: единственный ответ «1945» — число. Подумайте, как ещё его могут записать, и добавьте эти записи.', undefined],
+      [`short_number:${year.id}`, 'think', 'Вопрос 3: ответ «1945» записан цифрами. Добавьте, как ещё его могут записать.', undefined],
     ]);
   });
 
@@ -133,9 +133,9 @@ describe('checkTest', () => {
     const items = [first, twin, cousin, shortTwin, picA, picB];
     const hints = checkTest(pageOf(items), items);
     expect(hints.map((hint) => [hint.id, hint.level, hint.message, hint.fix])).toEqual([
-      [`repeat:${twin.id}`, 'fix', 'Вопрос 2: повторяет вопрос 1 — удалите повтор.', { kind: 'delete_question', itemId: twin.id, blockId: `b-${twin.id}` }],
-      [`repeat:${cousin.id}`, 'think', 'Вопрос 3: такой же текст у вопроса 1 — проверьте, не повтор ли это.', undefined],
-      [`repeat:${shortTwin.id}`, 'think', 'Вопрос 4: такой же текст у вопроса 1 — проверьте, не повтор ли это.', undefined],
+      [`repeat:${twin.id}`, 'fix', 'Вопрос 2: повторяет вопрос 1. Удалите повтор.', { kind: 'delete_question', itemId: twin.id, blockId: `b-${twin.id}` }],
+      [`repeat:${cousin.id}`, 'think', 'Вопрос 3: такой же текст, как у вопроса 1. Проверьте, не повтор ли это.', undefined],
+      [`repeat:${shortTwin.id}`, 'think', 'Вопрос 4: такой же текст, как у вопроса 1. Проверьте, не повтор ли это.', undefined],
     ]);
   });
 
@@ -156,7 +156,7 @@ describe('checkTest', () => {
     const even = () => row({ options: ['Красный', 'Зелёный', 'Синий'], correct: [1] });
     const most = [long(0), long(1), long(2), even()];
     const [hint] = checkTest(pageOf(most), most);
-    expect(hint).toEqual({ id: 'longest', level: 'think', message: 'Верный ответ — самый длинный в 3 из 4 вопросов: его можно угадать по длине. Допишите неверные варианты.' });
+    expect(hint).toEqual({ id: 'longest', level: 'think', message: 'В 3 из 4 вопросов верный ответ самый длинный, его можно угадать. Допишите неверные варианты.' });
     const half = [long(0), long(1), even(), even()];
     expect(checkTest(pageOf(half), half)).toEqual([]);
     const few = [long(0), long(1), long(2)];
@@ -172,7 +172,7 @@ describe('checkTest', () => {
     const under = (key: number) => row({ correct: [key] });
     const most = [1, 1, 1, 1, 1, 0, 2, 3].map(under);
     expect(checkTest(pageOf(most), most)).toEqual([
-      { id: 'letter', level: 'think', message: 'Верный ответ почти всегда под буквой «Б» — в 5 из 8 вопросов. Поменяйте варианты местами.' },
+      { id: 'letter', level: 'think', message: 'В 5 из 8 вопросов верный ответ под буквой «Б». Поменяйте варианты местами.' },
     ]);
     const half = [1, 1, 1, 1, 0, 0, 2, 3].map(under);
     expect(checkTest(pageOf(half), half)).toEqual([]);
@@ -204,7 +204,7 @@ describe('checkTest', () => {
       {
         id: 'contrast',
         level: 'fix',
-        message: 'Свой цвет слишком светлый: белый текст на кнопках читается плохо. Возьмите чуть темнее.',
+        message: 'Свой цвет слишком светлый, белый текст на кнопках плохо видно. Возьмите темнее.',
         fix: { kind: 'theme_accent', value: { custom: readableAccent('#ffee00', '#ffffff').color } },
       },
     ]);
@@ -313,7 +313,7 @@ describe('the studio’s own checks (release 47.2)', () => {
       [`kind:${asks.id}`, 'think', { kind: 'set_kind', itemId: asks.id, value: 'multiple' }],
     ]);
     expect(hints[0].message).toBe(
-      'Вопрос 1: выбран тип «несколько ответов», а верный отмечен один — участник будет искать второй. Отметьте остальные верные или сделайте вопрос с одним ответом.',
+      'Вопрос 1: тип «несколько ответов», но верный отмечен один. Отметьте остальные верные или сделайте вопрос с одним ответом.',
     );
     expect(hints[1].message).toMatch(/^Вопрос 2: в тексте просят отметить все верные/);
   });
@@ -335,10 +335,10 @@ describe('the studio’s own checks (release 47.2)', () => {
     const items = [stem, options, form, statement];
     const hints = checkTest(pageOf(items), items).filter((hint) => hint.id.startsWith('draft:'));
     expect(hints.map((hint) => [hint.id, hint.level])).toEqual(items.map((item) => [`draft:${item.id}`, 'fix']));
-    expect(hints[2].message).toBe('Вопрос 3: это заготовка — напишите вопрос и принятые ответы.');
+    expect(hints[2].message).toBe('Вопрос 3: напишите вопрос и принятые ответы.');
     const unkeyed = row({ stem: DRAFT_WORDS.stem, correct: [] });
     expect(checkTest(pageOf([unkeyed]), [unkeyed]).map((hint) => [hint.id, hint.message])).toEqual([
-      [`draft:${unkeyed.id}`, 'Вопрос 1: это заготовка — напишите вопрос и варианты ответа, отметьте верный.'],
+      [`draft:${unkeyed.id}`, 'Вопрос 1: напишите вопрос и варианты ответа, отметьте верный.'],
     ]);
     expect(isDraftQuestion(row({ options: ['Вариант 1', 'Медь'] }))).toBe(false);
     expect(isDraftQuestion(row({ kind: 'short', options: [], answers: ['ответ', 'другой'] }))).toBe(false);
@@ -360,7 +360,7 @@ describe('the studio’s own checks (release 47.2)', () => {
       ['title', 'think', undefined],
       ['cover_title:cover1', 'think', 'cover1'],
     ]);
-    expect(hints[0].message).toMatch(/^Название теста «Контрольная · 18 октября» — черновое/);
+    expect(hints[0].message).toMatch(/^Тест называется «Контрольная · 18 октября», так его увидят участники/);
     expect(checkTest({ ...doc, title: ' ', blocks: [] }, [])[0].message).toBe('У теста нет названия. Назовите его в настройках страницы.');
   });
 });
@@ -380,8 +380,8 @@ describe('a picture or a video block still empty (live check of 47.4: it vanishe
       ['img000000001', 'fix', { kind: 'remove_block', blockId: 'img000000001' }],
       ['video0000001', 'fix', { kind: 'remove_block', blockId: 'video0000001' }],
     ]);
-    expect(found[0].message).toBe('Блок «Картинка» без картинки не сохраняется — загрузите её или уберите блок.');
-    expect(found[1].message).toBe('Блок «Видео» без ссылки не сохраняется — вставьте ссылку или уберите блок.');
+    expect(found[0].message).toBe('Блок «Картинка» без картинки не сохранится. Загрузите картинку или уберите блок.');
+    expect(found[1].message).toBe('Блок «Видео» без ссылки не сохранится. Вставьте ссылку или уберите блок.');
     expect(applyFix(found[0].fix as Fix, doc, []).doc.blocks.map((block) => block.id)).toEqual(['video0000001', 'video0000002']);
   });
 });

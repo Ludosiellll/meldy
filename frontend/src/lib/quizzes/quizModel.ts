@@ -333,7 +333,7 @@ export function csvOf(
     'Всего',
     ...(points ? ['Баллы', 'Всего баллов'] : []),
     '%',
-    'Порог',
+    'Проходной балл',
     ...(guarded ? ['Уходы со страницы', 'Все записи защиты', 'Нарушения'] : []),
     ...asked.map((item) => `${title.get(item.subject_id) ?? ''} № ${item.file_no}`.trim()),
   ];
