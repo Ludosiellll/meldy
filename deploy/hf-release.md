@@ -4,6 +4,33 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.9: smoothness outside the studio, the 47.8 live check's fixes, the live game's base (from the commit of this entry)
+
+- **Smoothness** (owner, 20.10: «никаких пролагиваний… нигде»), phone 390×844 with CPU ×4: typing in the question
+  editor — one layout per key (forced layouts 26 → 12 for 12 keys); opening a lecture — longest task 419 → 185 ms, the
+  summary's Markdown parsed once, non-composited animations 14 → 0; «Подкаст» — layouts 27 → 4; the exam sheet and
+  «Сегодня» — no forced layout; the guide's ring and cut-out move by transform (Layerize 39 → 4 ms); the cards come in
+  on the compositor; one shared size observer (`lib/observeSize.ts`). Guards in every test run: render budgets
+  (`src/test/renderBudget.test.tsx`) and a CSS smoothness lint whose baseline only shrinks.
+- **The studio on a phone without lag** (owner: «в конструкторе тоже пролагивание с телефона идет»), 30 blocks, CPU ×4:
+  a typed key re-renders 10 components instead of 489 (one commit, no forced layout from our code, 43 → 59 fps); a tap
+  to edit 292 → 152 ms; a drag 57–60 fps, a slot change redraws two gaps and the handle; a 12 MP photo is prepared in a
+  worker (no long task). Toolbar buttons 44×44; in landscape the canvas gets 214 px instead of 179. Screenshots of
+  every view are pixel-identical before and after.
+- **The 47.8 live check's fixes:** «Отсюда новый вопрос» in «Сомнительные места» no longer marks a glued question
+  checked — each part keeps a doubt while it still looks glued, and a key the file gave the whole glued block is
+  dropped with «Отметьте верный вариант»; after the model pass the questions are numbered by their place, show their
+  file lines, «Другая версия» says when only the key differs, and a saved question no longer takes the model's line
+  number as its label; the AI-limit ring updates after the pass; the training clips' styles no longer leak into the
+  lecture «Тест» tab and the «Перенести экзамен» dialog; the landing's static first screen leaves the page once the app
+  is drawn; the landing mini studio scrolls a new block into view; «вопрос 2» keeps its number on a phone; no focus
+  frame on the question after reloading a session.
+- **Live game «Битва с монстром» — the base, not open yet:** database and Telegram routes (migration
+  `20261021090000_live_game` applied before this release, run 39514709631; `telegram` deployed, `/setup` ok) and the
+  teacher's screen (`/live/new`, `/live/:id`). «Провести игру» stays hidden until the students' side is out
+  (`lib/live/open.ts`).
+- Gate on 7567e0a: pytest 2316, bot 376, sync ok, Vitest 360 files / 6236 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.8: the new main page, «Защита от списывания», the studio on a phone (from the commit of this entry)
 
 - **Main page v3 «Один вопрос»** (owner, 19.10: «переделать основную страницу… видео, так как там нет ничего про
