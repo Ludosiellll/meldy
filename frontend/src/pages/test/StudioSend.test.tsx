@@ -69,7 +69,7 @@ async function open(width: number) {
       </Routes>
     </MemoryRouter>,
   );
-  return screen.findByText(STUDIO_PASTE.sendWaitsKey);
+  return screen.findByText(STUDIO.sendWhy);
 }
 
 beforeEach(() => {
@@ -94,7 +94,7 @@ describe('«Отправить по ссылке» waits, and says why', () => {
     expect(line).not.toHaveClass('sr-only');
     const send = screen.getByRole('button', { name: STUDIO.send });
     expect(send).toBeDisabled();
-    expect(send).toHaveAccessibleDescription(STUDIO_PASTE.sendWaitsKey);
+    expect(send).toHaveAccessibleDescription(STUDIO.sendWhy);
   });
 
   it('on a phone the button stays in the bottom bar, shut, with the same line', async () => {

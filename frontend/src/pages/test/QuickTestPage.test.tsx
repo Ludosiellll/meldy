@@ -84,15 +84,15 @@ describe('QuickTestPage', () => {
     await typeText('1. Какой индикатор…');
     expect(api.parsePaste).toHaveBeenCalledWith('1. Какой индикатор…', expect.any(AbortSignal));
     expect(await screen.findByRole('heading', { name: 'Нашли 4\u00a0вопроса' })).toBeInTheDocument();
-    expect(screen.getByText('1 вопрос без ответа')).toBeInTheDocument();
+    expect(screen.getByText('1 вопрос без верного ответа')).toBeInTheDocument();
     const cards = screen.getAllByRole('listitem').filter((item) => item.classList.contains('qk-q'));
     expect(cards).toHaveLength(4);
     expect(cards[3]).toHaveAttribute('data-state', 'no_key');
     expect(within(cards[3]).getByText(QUICK.tapRight)).toBeInTheDocument();
     expect(within(cards[0]).getByRole('button', { name: /лакмус/ })).toHaveAttribute('aria-pressed', 'true');
     expect(within(cards[2]).getByText('Ответ: 2')).toBeInTheDocument();
-    expect(screen.getByText(/1 строка не похожа на вопросы/)).toBeInTheDocument();
-    expect(document.querySelector('.qk-sum')).toHaveTextContent('В контрольной 3 вопроса. 1 вопрос без ответа не войдёт.');
+    expect(screen.getByText(/Часть текста не похожа на вопросы/)).toBeInTheDocument();
+    expect(document.querySelector('.qk-sum')).toHaveTextContent('В контрольной 3 вопроса. 1 вопрос без верного ответа не войдёт.');
     expect(submit()).toBeEnabled();
   });
 
@@ -120,7 +120,7 @@ describe('QuickTestPage', () => {
     fireEvent.click(within(cards[3]).getByRole('button', { name: /соляная/ }));
     expect(within(cards[3]).getByRole('button', { name: /соляная/ })).toHaveAttribute('aria-pressed', 'true');
     expect(cards[3]).toHaveAttribute('data-state', 'ok');
-    expect(screen.queryByText('1 вопрос без ответа')).toBeNull();
+    expect(screen.queryByText('1 вопрос без верного ответа')).toBeNull();
     expect(document.querySelector('.qk-sum')).toHaveTextContent(/^В контрольной 4 вопроса\.$/);
     expect(document.querySelector('.qk-page > .sr-only[role="status"]')).toHaveTextContent('Вопрос 4. Верный вариант А.');
   });

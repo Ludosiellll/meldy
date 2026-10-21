@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import StepClip from './StepClip';
 import { STEP_CLIPS } from './index';
 import { QUICK, QUICK_LINK, TESTS_VIEW } from '../quick/copyQuick';
+import { STUDIO } from '../studio/copyStudio';
 
 /* «Быстрая контрольная» as a how-to clip (UX audit of 21.10, P4): the teacher's first card of the first run. */
 
@@ -32,5 +33,16 @@ describe('the quick test’s clip', () => {
       'Нажмите «Получить ссылку». Ссылка и QR-код готовы.',
     ]);
     for (const caption of captions) expect(caption).not.toMatch(/—|·/);
+  });
+});
+
+describe('«Как ученик пишет» of the teacher’s first run', () => {
+  it('starts at the student’s phone: the studio’s «Отправить по ссылке» is not the quick test’s way', () => {
+    const captions = STEP_CLIPS.quizStudent.steps.map((step) => step.caption);
+    expect(captions).toEqual(STEP_CLIPS.quizLink.steps.slice(1).map((step) => step.caption));
+    expect(captions.join(' ')).not.toContain(STUDIO.send);
+    expect(STEP_CLIPS.quizStudent.steps[0].at).toBe(0);
+    expect(STEP_CLIPS.quizStudent.total).toBeLessThan(STEP_CLIPS.quizLink.total);
+    for (const step of STEP_CLIPS.quizStudent.steps) expect(step.still).toBeLessThan(STEP_CLIPS.quizStudent.total);
   });
 });

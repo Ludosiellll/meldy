@@ -23,7 +23,7 @@ export const GOAL_STOPS: Record<Goal, readonly GuideStop[]> = {
   exam: [{ chapter: 'today' }, { chapter: 'exams' }, { chapter: 'review' }, { chapter: 'limit' }],
   test: [
     { chapter: 'tests', ...GUIDE_START.test[0], clip: 'quick', route: '/exams?view=tests' },
-    { chapter: 'tests', ...GUIDE_START.test[1], clip: 'quizLink', route: '/exams?view=tests' },
+    { chapter: 'tests', ...GUIDE_START.test[1], clip: 'quizStudent', route: '/exams?view=tests' },
     { chapter: 'tests', ...GUIDE_START.test[2], clip: null, route: '/exams?view=tests' },
   ],
 };

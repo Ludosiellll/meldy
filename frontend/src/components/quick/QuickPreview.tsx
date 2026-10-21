@@ -132,7 +132,7 @@ export default function QuickPreview({ questions, empty, reading, failed, skippe
       {skipped.length > 0 && questions.length > 0 ? (
         <div className="qk-skipped">
           <p>
-            {QUICK.skipped(skipped.length)}{' '}
+            {QUICK.skipped}{' '}
             <button type="button" className="sf-link" aria-expanded={showSkipped} onClick={() => setShowSkipped((open) => !open)}>
               {showSkipped ? QUICK.skippedHide : QUICK.skippedShow}
             </button>

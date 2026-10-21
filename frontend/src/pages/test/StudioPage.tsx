@@ -445,7 +445,7 @@ export default function StudioPage() {
       {/* Why «Отправить по ссылке» waits, said on the page (UX audit of 21.10: it was a tooltip, and a phone hid the button). */}
       {keyed === 0 ? (
         <p id="st-send-why" className="st-line st-send-why">
-          {items.length === 0 ? STUDIO_PASTE.sendWaitsEmpty : STUDIO_PASTE.sendWaitsKey}
+          {items.length === 0 ? STUDIO_PASTE.sendWaitsEmpty : STUDIO.sendWhy}
         </p>
       ) : null}
       {sendNote ? (

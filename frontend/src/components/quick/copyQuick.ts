@@ -36,12 +36,12 @@ export const QUICK = {
   found: (n: number) => (n > 0 ? `Нашли ${questions(n)}` : 'Вопросов пока нет'),
   waiting: (side: 'right' | 'below') => `Вставьте вопросы, и они появятся ${side === 'right' ? 'здесь' : 'ниже'}.`,
   waitingPhone: 'Вставьте вопросы выше, и они появятся здесь.',
-  nothing: 'Здесь нет вопросов. Начните вопрос с номера «1.». Варианты пишите с новой строки: «а)», «б)».',
+  nothing: 'Здесь нет вопросов. Начните вопрос с номера «1.». Вариант начните с буквы «а)».',
   reading: 'Читаем вопросы…',
   readFailed: 'Не получилось прочитать вопросы. Проверьте интернет.',
   retry: 'Повторить',
   /** The badge over the questions: how many still need their answer. */
-  noKey: (n: number) => `${questions(n)} без ответа`,
+  noKey: (n: number) => `${questions(n)} без верного ответа`,
   number: (n: number) => `Вопрос ${n}`,
   kinds: { single: 'Один ответ', multiple: 'Несколько ответов', short: 'Короткий ответ' } as const,
   tapRight: 'Нажмите на верный вариант',
@@ -50,7 +50,7 @@ export const QUICK = {
   blocked: 'Нет вариантов. Допишите варианты или строку «Ответ: …».',
   marked: (n: number, letter: string) => `Вопрос ${n}. Верный вариант ${letter}.`,
   /** Lines of the text that are not questions («Удачи!», the class's name). */
-  skipped: (n: number) => `${count(n, 'строка', 'строки', 'строк')} не ${plural(n, 'похожа', 'похожи', 'похожи')} на вопросы.`,
+  skipped: 'Часть текста не похожа на вопросы.',
   skippedShow: 'Показать',
   skippedHide: 'Скрыть',
 
@@ -59,14 +59,14 @@ export const QUICK = {
   who: { label: 'Кто пишет', guests: 'Без входа', link: 'Со входом в Meldy' },
   time: { label: 'Время', none: 'Время не ограничено', some: (n: number) => (n === 60 ? '1 час' : minutes(n)) },
   open: { label: 'Сколько открыта', days: (n: number) => `Открыта ${days(n)}`, never: 'Без срока' },
-  tries: { label: 'Попытки', some: (n: number) => attempts(n), any: 'Попыток сколько угодно' },
+  tries: { label: 'Попытки', some: (n: number) => attempts(n), any: 'Сколько угодно попыток' },
   more: 'Ещё настройки',
 
   // the button and why it waits
   submit: 'Получить ссылку',
   saving: 'Сохраняем…',
   inQuiz: (n: number) => `В контрольной ${questions(n)}.`,
-  leftOut: (n: number) => `${questions(n)} без ответа не ${plural(n, 'войдёт', 'войдут', 'войдут')}.`,
+  leftOut: (n: number) => `${questions(n)} без верного ответа не ${plural(n, 'войдёт', 'войдут', 'войдут')}.`,
   needText: 'Сначала вставьте вопросы.',
   needKey: 'Отметьте верный ответ хотя бы в одном вопросе.',
   saveFailed: 'Не получилось сохранить. Попробуйте ещё раз.',
@@ -128,7 +128,7 @@ export const TESTS_VIEW = {
   finished: (n: number) => (n > 0 ? `Сдали ${n}` : 'Пока никто не сдал'),
   writing: (n: number) => `Пишут ${n}`,
   loading: 'Загружаем…',
-  failed: 'Не загрузилось.',
+  failed: 'Не получилось загрузить тесты.',
   retry: 'Повторить',
   empty: 'Тестов пока нет. Начните с быстрой контрольной.',
   more: (n: number) => `Ещё ${quizzes(n)}`,
@@ -181,21 +181,20 @@ export const GUIDE_START = {
   ],
   /** «Экзамены» as an empty page shows it: the button there is «Выбрать файлы». */
   examsEmpty:
-    'Нажмите «Выбрать файлы» и загрузите вопросы к экзамену. Можно один общий файл или по файлу на предмет. Ключ к вариантам Meldy возьмёт из файла.',
+    'Нажмите «Выбрать файлы» и загрузите вопросы к экзамену. Можно один общий файл или по файлу на предмет. Верные ответы Meldy возьмёт из файла.',
 } as const;
 
-/** The studio: a paste that gave no questions, and why «Отправить по ссылке» waits. */
+/** The studio: a paste that gave no questions, and why «Отправить по ссылке» waits (with no key, STUDIO.sendWhy says it). */
 export const STUDIO_PASTE = {
   noneTitle: 'Вопросов не нашлось',
   noneText: 'Похоже на вопросы из Word. Meldy может сделать из них вопросы с вариантами.',
   make: 'Сделать вопросами',
   making: 'Делаем вопросы…',
   asText: 'Оставить текстом',
-  notFound: 'В тексте нет вопросов. Начните вопрос с номера «1.», варианты пишите с новой строки: «а)», «б)».',
+  notFound: 'В тексте нет вопросов. Начните вопрос с номера «1.». Вариант начните с буквы «а)».',
   failed: 'Не получилось сделать вопросы. Попробуйте ещё раз.',
   /** Why «Отправить по ссылке» waits, said on the page. */
   sendWaitsEmpty: 'Чтобы отправить тест, добавьте в него вопросы.',
-  sendWaitsKey: 'Чтобы отправить тест, отметьте верный ответ хотя бы в одном вопросе.',
   /** «Проверка теста»: no question has its key. */
   checkNoKeyed: 'В тесте нет вопросов с верным ответом. Без них тест не отправить.',
 } as const;

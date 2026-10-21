@@ -91,7 +91,7 @@ afterEach(() => {
 describe('the four clips: length, steps and lines', () => {
   it('are the features of release 47 and the quick test, each 8–14 s, its steps in order from the start', () => {
     // «quick» and «studioTour» (UX audit of 21.10): the teacher's first card and the studio's tour from the studio on.
-    expect(IDS.sort()).toEqual(['botExams', 'move', 'quick', 'quizLink', 'studio', 'studioTour']);
+    expect(IDS.sort()).toEqual(['botExams', 'move', 'quick', 'quizLink', 'quizStudent', 'studio', 'studioTour']);
     for (const id of IDS) {
       const { total, steps } = STEP_CLIPS[id];
       expect(total).toBeGreaterThanOrEqual(8000);
@@ -225,7 +225,7 @@ describe('the player', () => {
     for (const id of IDS) {
       const seek = renderExport(id);
       const { total, steps } = STEP_CLIPS[id];
-      const cover = id === 'botExams' ? (document.querySelector('.bx-paper') as HTMLElement) : id === 'studioTour' ? one('tourfade') : one('loop');
+      const cover = id === 'botExams' ? (document.querySelector('.bx-paper') as HTMLElement) : id === 'studioTour' || id === 'quizStudent' ? one('laterfade') : one('loop');
       const hidden = () => (id === 'botExams' ? seen(cover) : gone(cover));
       seek(0);
       expect(hidden()).toBe(true);
