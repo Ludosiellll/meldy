@@ -9,14 +9,22 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import type { PlayerController, PlayerSnapshot } from '../../player/controller';
 import { NBSP, plural } from '../../player/copy';
-import type { HapticKind, PlayerPlatform } from '../../player/platform';
+import { readStore, type HapticKind, type PlayerPlatform } from '../../player/platform';
+import { mapFromJson } from '../../../../lib/live/move/sim';
 import { PhoneScene } from './scene3d';
+import { SpriteView } from './sprites';
 import { StandSession } from './session';
 import StandBuilder from './StandBuilder';
 import { StandPlay } from './StandPlay';
 import { Thumb } from './Thumb';
 import { OPENED, placeLine, points } from './words';
 import './stand.css';
+
+/**
+ * A device can pin the arena's view (QA on a real phone, a recording): localStorage `meldy.live.view` = `3d` (never
+ * the light view) or `light` (never 3D). Unset: 3D when the phone can, the light view when it cannot keep up.
+ */
+const VIEW_KEY = 'meldy.live.view';
 
 /** The room silent this long (a dead Space, a phone between networks): the database tells how the game goes on. */
 const DB_AFTER_MS = 8000;
@@ -43,10 +51,19 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [scene, setScene] = useState<PhoneScene | null>(null);
   const [slow, setSlow] = useState(false);
+  const [pinned] = useState(() => readStore('local', VIEW_KEY));
+  /** No 3D here at all (no WebGL 2, the models did not come, or the device pinned the light view). */
+  const [no3d, setNo3d] = useState(pinned === 'light');
+  const spritesRef = useRef<HTMLCanvasElement>(null);
+  const [sprites, setSprites] = useState<SpriteView | null>(null);
   const bossKind = v.hello?.boss ?? null;
   const roomMap = v.ready ? session.client.welcome?.map ?? null : null;
   useEffect(() => {
-    if (!bossKind || !roomMap || typeof WebGL2RenderingContext === 'undefined') return undefined;
+    if (!bossKind || !roomMap || pinned === 'light') return undefined;
+    if (typeof WebGL2RenderingContext === 'undefined') {
+      setNo3d(true);
+      return undefined;
+    }
     let alive = true;
     let made: PhoneScene | null = null;
     PhoneScene.load(bossKind)
@@ -56,6 +73,7 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
         if (!alive || !canvas || !sc.mount(canvas)) {
           sc.dispose();
           made = null;
+          if (alive) setNo3d(true);
           return;
         }
         sc.setMap(roomMap);
@@ -63,21 +81,34 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
         if (alive) setScene(sc);
       })
       .catch(() => {
-        // No 3D on this phone (no WebGL 2, the models did not come): the 2D screen plays.
+        // No 3D on this phone (no WebGL 2, the models did not come): the light view plays.
+        if (alive) setNo3d(true);
       });
     return () => {
       alive = false;
       made?.dispose();
       setScene(null);
     };
-  }, [bossKind, roomMap]);
+  }, [bossKind, roomMap, pinned]);
+  // The light view: on a phone with no 3D, or one too slow for it even at the cheapest level.
+  const light = slow || no3d;
   useEffect(() => {
-    if (!scene || slow) return undefined;
+    const canvas = spritesRef.current;
+    if (!light || !roomMap || !canvas) return undefined;
+    const view = new SpriteView(canvas, mapFromJson(roomMap));
+    setSprites(view);
+    return () => {
+      view.dispose();
+      setSprites(null);
+    };
+  }, [light, roomMap]);
+  useEffect(() => {
+    if (!scene || slow || pinned === '3d') return undefined;
     const t = setInterval(() => {
       if (scene.slow) setSlow(true);
     }, 1000);
     return () => clearInterval(t);
-  }, [scene, slow]);
+  }, [scene, slow, pinned]);
 
   // The database's watch: off while the room works, on again when the room is gone or silent for long.
   useEffect(() => {
@@ -184,10 +215,12 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
     );
   }
 
-  const live3d = !!scene && !slow && (phase === 'countdown' || phase === 'open' || phase === 'reveal');
+  const backdrop = light ? sprites : scene;
+  const question = phase === 'countdown' || phase === 'open' || phase === 'reveal';
   return (
     <>
-      <canvas className="sp-3d" ref={canvasRef} data-on={live3d ? 'true' : undefined} aria-hidden="true" />
+      <canvas className="sp-3d" ref={canvasRef} data-on={!light && !!scene && question ? 'true' : undefined} aria-hidden="true" />
+      <canvas className="sp-3d" ref={spritesRef} data-on={light && !!sprites && question ? 'true' : undefined} aria-hidden="true" />
       <StandPlay
         session={session}
         view={v}
@@ -199,7 +232,7 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
         canEdit={!s.busy && (phase ?? st?.state) === 'lobby'}
         onEdit={() => ctl.editLook()}
         haptic={haptic}
-        scene={slow ? null : scene}
+        scene={backdrop}
       />
       {v.lost && (
         <div className="sp-lost" role="alert">

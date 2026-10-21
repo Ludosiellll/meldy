@@ -21,7 +21,7 @@ import type { Look } from '../../../../lib/live/types';
 import { optionSize, questionSize } from '../../player/options';
 import type { HapticKind } from '../../player/platform';
 import { ArenaMap, mapHeight } from './map';
-import type { PhoneScene } from './scene3d';
+import type { Backdrop } from './sprites';
 import type { StandSession, StandView } from './session';
 import { FloatingStick } from './stick';
 import { Thumb } from './Thumb';
@@ -40,8 +40,8 @@ export interface StandPlayProps {
   canEdit: boolean;
   onEdit: () => void;
   haptic: (kind: HapticKind) => void;
-  /** The 3D arena, loaded and mounted (null: the 2D screen only). */
-  scene?: PhoneScene | null;
+  /** The arena behind a question: the 3D scene, or the light view on a weak phone (null: the 2D screen only). */
+  scene?: Backdrop | null;
 }
 
 const PHASES: readonly StandState['phase'][] = ['lobby', 'countdown', 'open', 'reveal', 'leaderboard', 'podium', 'ended'];

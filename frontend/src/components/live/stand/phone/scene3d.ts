@@ -16,6 +16,7 @@ import { QUALITY_LEVELS, QualityGovernor } from '../../../../lib/live/three/qual
 import type { Pose as Sample } from '../../../../lib/live/move/interp';
 import { F_AWAY, isGhost, kindOf, KIND_PLAYER, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
 import type { MapJson } from '../../../../lib/live/move/sim';
+import type { Backdrop, FrameInput } from './sprites';
 
 /** The best quality level a phone draws at: no outlines (QUALITY_LEVELS[1]). */
 export const PHONE_BEST_LEVEL = 1;
@@ -26,7 +27,7 @@ const SLOW_AFTER_S = 4;
 const CAM_BACK = 760;
 const CAM_UP = 1080;
 const CAM_AHEAD = 110;
-const CAM_FOV = 42;
+const CAM_FOV = 54;
 /** A character this fast (map units/s) runs; slower, it stands. */
 const RUN_SPEED = 25;
 
@@ -39,13 +40,7 @@ interface Tracked {
   fallUntil: number;
 }
 
-export interface FrameInput {
-  me: { id: number; x: number; y: number; flags: number } | null;
-  others: Map<number, Sample> | null;
-  roster: ReadonlyMap<number, RosterEntry>;
-}
-
-export class PhoneScene {
+export class PhoneScene implements Backdrop {
   private view: View | null = null;
   private arena: Arena | null = null;
   private boss: Boss | null = null;
@@ -80,7 +75,7 @@ export class PhoneScene {
   mount(canvas: HTMLCanvasElement): boolean {
     try {
       const dense = (window.devicePixelRatio || 1) >= 2;
-      this.view = this.kit.mount(canvas, { maxPixelRatio: PHONE_PIXEL_RATIO, quality: PHONE_BEST_LEVEL, antialias: !dense, tagScale: 1.6 });
+      this.view = this.kit.mount(canvas, { maxPixelRatio: PHONE_PIXEL_RATIO, quality: PHONE_BEST_LEVEL, antialias: !dense, tagScale: 1.4, tagHeight: 2.3 });
       return true;
     } catch {
       this.view = null;
@@ -240,7 +235,10 @@ export class PhoneScene {
   private placeCamera(x: number, y: number, snap: boolean, dt = 0): void {
     if (!this.view) return;
     const k = snap || !this.cam.ready ? 1 : 1 - Math.exp(-dt * 7);
-    this.cam.x += (x - this.cam.x) * k;
+    // On an answer zone the camera centres the zone, so its banner stays whole on a narrow phone.
+    const zone = this.arena?.map.zones?.find((z) => x >= z.rect[0] && x <= z.rect[0] + z.rect[2] && y >= z.rect[1] && y <= z.rect[1] + z.rect[3]);
+    const cx = zone ? zone.rect[0] + zone.rect[2] / 2 : x;
+    this.cam.x += (cx - this.cam.x) * (zone ? k * 0.5 : k);
     this.cam.y += (y - this.cam.y) * k;
     this.cam.ready = true;
     this.view.setCamera({

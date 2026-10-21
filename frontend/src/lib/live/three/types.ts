@@ -79,6 +79,8 @@ export interface ViewOptions {
   antialias?: boolean;
   /** Name tag size: 1 = 34 px tall on a 1080-high screen. */
   tagScale?: number;
+  /** How high over the feet the name tags sit, metres (default 2.95; a close phone camera wants them lower). */
+  tagHeight?: number;
   /** Keep the picture after drawing (screenshots only: it costs speed). */
   preserveDrawingBuffer?: boolean;
 }
