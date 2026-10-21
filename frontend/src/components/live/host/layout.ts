@@ -247,16 +247,16 @@ export function podiumTopSlots(width: number): Slot[] {
 /** Font size of an option by its length (no measuring): long options get smaller letters, never a third line. */
 export function optionFont(text: string): number {
   const n = [...text].length;
-  if (n > 70) return 18;
-  if (n > 44) return 20;
-  if (n > 28) return 22;
-  return 25;
+  if (n > 70) return 21;
+  if (n > 44) return 23;
+  if (n > 28) return 25;
+  return 28;
 }
 
 export function questionFont(text: string): number {
   const n = [...text].length;
-  if (n > 160) return 23;
-  if (n > 110) return 26;
-  if (n > 64) return 29;
-  return 33;
+  if (n > 160) return 25;
+  if (n > 110) return 28;
+  if (n > 64) return 31;
+  return 36;
 }

@@ -133,10 +133,14 @@ export function Ring({ opensAt, closesAt, stopped }: { opensAt: number; closesAt
   );
 }
 
+/** The beat between the answers and the key: the time ran out, or everyone answered (the key comes a moment later). */
+export type Closing = 'time' | 'all' | null;
+
 interface QuestionPanelProps {
   question: Question;
   /** countdown / open / reveal (the reveal brings `result`). */
   result: HostResult | null;
+  closing?: Closing;
   players: number;
   answered: number;
   /** This device's ms of the question's open and close. */
@@ -144,13 +148,14 @@ interface QuestionPanelProps {
   closesAt: number;
 }
 
-export function QuestionPanel({ question, result, players, answered, opensAt, closesAt }: QuestionPanelProps) {
+export function QuestionPanel({ question, result, closing = null, players, answered, opensAt, closesAt }: QuestionPanelProps) {
   const revealed = !!result && result.qi === question.qi;
+  const beat = revealed ? null : closing;
   const total = useMemo(() => (result ? Math.max(1, players, result.counts.reduce((a, b) => a + b, 0)) : 1), [result, players]);
   return (
     <section className="lvh-panel lvh-question" aria-label="Вопрос">
       <div className="lvh-q-head">
-        <Ring opensAt={opensAt} closesAt={closesAt} stopped={revealed} />
+        <Ring opensAt={opensAt} closesAt={closesAt} stopped={revealed || beat !== null} />
         <h2 className="lvh-q-text" style={{ fontSize: questionFont(question.text) }}>
           {question.text}
         </h2>
@@ -162,7 +167,7 @@ export function QuestionPanel({ question, result, players, answered, opensAt, cl
           </span>
         </div>
       </div>
-      <div className="lvh-tiles" data-n={question.options.length}>
+      <div className="lvh-tiles" data-n={question.options.length} data-closing={beat ? '' : undefined}>
         {question.options.map((text, k) => (
           <Tile
             key={k}
@@ -174,6 +179,11 @@ export function QuestionPanel({ question, result, players, answered, opensAt, cl
             share={revealed ? (result!.counts[k] ?? 0) / total : 0}
           />
         ))}
+        {beat ? (
+          <div className="lvh-closing" role="status">
+            {beat === 'all' ? BATTLE.allIn : BATTLE.timeUp}
+          </div>
+        ) : null}
       </div>
     </section>
   );

@@ -18,6 +18,21 @@ export interface BossView {
   hurt: boolean;
   /** Fell (defeat): drawn hidden until the next game state. */
   fallen: boolean;
+  /** The beat between the end of the answers and the reveal: it braces itself. */
+  tense: boolean;
+}
+
+/** One of the three who hit hardest in this question. */
+export interface StrikeRow {
+  id: string;
+  name: string;
+  dmg: number;
+}
+
+/** The question's blow: the class's total and the three who hit hardest (shown under the HP bar after the hit). */
+export interface StrikeView {
+  total: number;
+  top: StrikeRow[];
 }
 
 export interface HpView {
@@ -34,8 +49,10 @@ export class StageStore {
   private charListeners = new Map<string, Set<Listener>>();
   private hp: HpView = { hp: 0, max: 0 };
   private hpListeners = new Set<Listener>();
-  private boss: BossView = { phase: 0, hurt: false, fallen: false };
+  private boss: BossView = { phase: 0, hurt: false, fallen: false, tense: false };
   private bossListeners = new Set<Listener>();
+  private strike: StrikeView | null = null;
+  private strikeListeners = new Set<Listener>();
   /** id → the box a character hops in (registered by the character). */
   readonly hops = new Map<string, HTMLElement>();
   /** The monster's shake box and its flash. */
@@ -93,7 +110,7 @@ export class StageStore {
 
   setBoss(patch: Partial<BossView>): void {
     const next = { ...this.boss, ...patch };
-    if (next.phase === this.boss.phase && next.hurt === this.boss.hurt && next.fallen === this.boss.fallen) return;
+    if (next.phase === this.boss.phase && next.hurt === this.boss.hurt && next.fallen === this.boss.fallen && next.tense === this.boss.tense) return;
     this.boss = next;
     this.bossListeners.forEach((fn) => fn());
   }
@@ -102,6 +119,30 @@ export class StageStore {
     this.bossListeners.add(fn);
     return () => {
       this.bossListeners.delete(fn);
+    };
+  };
+
+  getStrike = (): StrikeView | null => this.strike;
+
+  setStrike(next: StrikeView | null): void {
+    const cur = this.strike;
+    if (cur === next) return;
+    if (
+      cur &&
+      next &&
+      cur.total === next.total &&
+      cur.top.length === next.top.length &&
+      cur.top.every((r, i) => r.id === next.top[i].id && r.dmg === next.top[i].dmg && r.name === next.top[i].name)
+    )
+      return;
+    this.strike = next;
+    this.strikeListeners.forEach((fn) => fn());
+  }
+
+  subscribeStrike = (fn: Listener): (() => void) => {
+    this.strikeListeners.add(fn);
+    return () => {
+      this.strikeListeners.delete(fn);
     };
   };
 }
@@ -119,4 +160,8 @@ export function useHpView(store: StageStore): HpView {
 
 export function useBossView(store: StageStore): BossView {
   return useSyncExternalStore(store.subscribeBoss, store.getBoss, store.getBoss);
+}
+
+export function useStrike(store: StageStore): StrikeView | null {
+  return useSyncExternalStore(store.subscribeStrike, store.getStrike, store.getStrike);
 }

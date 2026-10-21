@@ -138,11 +138,13 @@ export const BATTLE = {
   boss: 'Дедлайн',
   hp: (hp: number, max: number) => `${nb(hp)} из ${nb(max)}`,
   phaseNote: ['', 'Злится: замораживает и тех, кто не ответил', 'Последняя минута: если верных меньше ⅔, лечится на 5 %'] as const,
+  strikeLabel: 'Больше всех урона за вопрос',
   ready: 'Приготовьтесь',
   answered: 'ответили',
   right: 'верно',
   of: (n: number) => `из ${nb(n)}`,
   timeUp: 'Время вышло',
+  allIn: 'Все ответили',
   more: (n: number) => `+${nb(n)}`,
 };
 

@@ -1,16 +1,20 @@
 /**
- * The reveal as a short film (prototype host.js, 20.10): thaws, stars flying from each right answer's character to
- * «Дедлайн» in the order of time (stopping at the hit that kills, CONTRACT §3), the counter-attack's ice shards, the heal,
- * the phase change, the defeat. Everything moves by the Web Animations API on transform and opacity, on elements cloned
- * from hidden templates into one effects layer — no React render, no layout read: every point comes from layout.ts.
- * Character faces, ice, HP and the monster's look go through the stage store, which re-renders only the piece it
- * touches. `cancel()` stops it all at once (the teacher pressed «Дальше»); the screen then shows the server's state.
+ * The reveal as one short film (≤ ~3.5 s, Space skips it): the key and the bars come first (the panel, by CSS); then
+ * the thaws, a star from each right answer's character into «Дедлайн» while ONE number counts the class's damage up;
+ * the number flies into the HP bar — the bar drains, the monster flinches — and the three who hit hardest are named
+ * under the bar. Then, one after another and never on top of each other: the counter-attack's ice shards, the heal or
+ * the phase change with its banner, or the defeat. Hits stop at the one that kills (CONTRACT §3).
+ *
+ * Everything moves by the Web Animations API on transform and opacity, on elements cloned from hidden templates into
+ * one effects layer — no React render, no layout read: every point comes from layout.ts. Character faces, ice, HP, the
+ * monster's look and the named three go through the stage store, which re-renders only the piece it touches.
+ * `cancel()` stops it all at once (the teacher pressed «Дальше»); the screen then shows the server's state.
  */
 import { COLOUR_PARTS } from '../art/parts';
-import type { ColourId, HostState } from '../../../lib/live/types';
-import { BANNER } from './copy';
+import type { ColourId, Hit, HostResult, HostState } from '../../../lib/live/types';
+import { BANNER, nb } from './copy';
 import { bossBox, crowdPoint, hpBox, type Point, type Slot } from './layout';
-import type { StageStore } from './stageStore';
+import type { StageStore, StrikeView } from './stageStore';
 
 export interface BannerSpec {
   title: string;
@@ -20,6 +24,9 @@ export interface BannerSpec {
   stay?: boolean;
 }
 
+/** Moments the screen may follow (sound): a star landed, the blow hit the bar, ice, heal, phase, defeat. */
+export type Cue = 'land' | 'impact' | 'freeze' | 'heal' | 'phase' | 'defeat';
+
 export interface DirectorEnv {
   store: StageStore;
   fx: () => HTMLElement | null;
@@ -28,6 +35,7 @@ export interface DirectorEnv {
   colourOf: (id: string) => ColourId;
   width: () => number;
   banner: (b: BannerSpec) => void;
+  cue?: (cue: Cue, n?: number) => void;
 }
 
 type Frames = Keyframe[];
@@ -36,11 +44,83 @@ const STAR = 34;
 const SHARD = 30;
 const BURST = 70;
 const DEBRIS = 60;
-const FLY = 520;
 
-/** Shards leave one after another; a big class's shards share 1.2 s. */
-const counterStep = (n: number) => (n > 20 ? 1200 / n : 60);
-const counterLength = (n: number) => 300 + n * counterStep(n) + 560;
+/** The film's clock (ms from the reveal's start). Exported for the tests. */
+export const FILM = {
+  /** Thaws: the ice of right answers by the frozen falls off first. */
+  thawAt: 100,
+  /** The stars leave once the class has read the key and the bars. */
+  starsAt: 500,
+  /** All the stars leave within this. */
+  starsSpread: 260,
+  fly: 420,
+  /** The total rests a moment after the last star, then flies to the bar. */
+  hold: 100,
+  toBar: 360,
+  /** After the blow: the named three, then the counter-attack. */
+  topAfter: 80,
+  counterAfter: 160,
+  shardsAfter: 120,
+  shardsSpread: 220,
+  shardFly: 380,
+  /** A heal or a phase banner (one per reveal: a heal needs phase 2 already). */
+  bannerMs: 1250,
+  /** The defeat: the shaking, the fall, the cheering. */
+  defeatMs: 2500,
+  /** A reveal without a blow (nobody right): the counter-attack starts here. */
+  emptyAt: 500,
+} as const;
+
+/** The hits that count on the screen: in order of time, up to the one that kills. */
+export function countedHits(hits: readonly Hit[]): Hit[] {
+  const out: Hit[] = [];
+  for (const h of hits) {
+    out.push(h);
+    if (h.hp_after === 0) break;
+  }
+  return out;
+}
+
+/** The question's blow: the total of the counted hits and the three who hit hardest (the faster first on a tie). */
+export function strikeOf(s: Pick<HostState, 'result' | 'roster'>): StrikeView | null {
+  const r = s.result;
+  if (!r) return null;
+  const hits = countedHits(r.hits);
+  if (!hits.length) return null;
+  const names = new Map(s.roster.map((p) => [p.player_id, p.name]));
+  const total = hits.reduce((sum, h) => sum + h.dmg, 0);
+  const top = hits
+    .map((h, i) => ({ h, i }))
+    .filter(({ h }) => h.dmg > 0 && names.has(h.player_id))
+    .sort((a, b) => b.h.dmg - a.h.dmg || a.i - b.i)
+    .slice(0, 3)
+    .map(({ h }) => ({ id: h.player_id, name: names.get(h.player_id)!, dmg: h.dmg }));
+  return { total, top };
+}
+
+/** When the film's parts happen, for a result as the screen has it (`drawn`: ids the arena shows). Pure; tested. */
+export function filmPlan(r: Pick<HostResult, 'hits' | 'thawed' | 'frozen_now' | 'healed' | 'phase_changed'>, defeated: boolean, drawn: (id: string) => boolean) {
+  const hits = countedHits(r.hits);
+  const stars = hits.length;
+  const step = stars > 1 ? FILM.starsSpread / (stars - 1) : 0;
+  const lastLand = stars ? FILM.starsAt + (stars - 1) * step + FILM.fly : 0;
+  const impact = stars ? lastLand + FILM.hold + FILM.toBar : null;
+  let t = impact !== null ? impact + FILM.counterAfter : FILM.emptyAt;
+  if (defeated) return { hits, step, impact, counter: null, banner: null, defeat: t, end: t + FILM.defeatMs };
+  const frozen = r.frozen_now.filter(drawn);
+  let counter: number | null = null;
+  if (frozen.length) {
+    counter = t;
+    t += FILM.shardsAfter + FILM.shardsSpread + FILM.shardFly;
+  }
+  let banner: number | null = null;
+  if (r.healed > 0 || r.phase_changed === 1 || r.phase_changed === 2) {
+    // after the last shard has landed: the banner comes over the monster with nothing else in the air
+    banner = t;
+    t = banner + 200;
+  }
+  return { hits, step, impact, counter, banner, defeat: null, end: Math.max(t, impact !== null ? impact + 300 : 0) };
+}
 
 export function canAnimate(el: Element | null): el is HTMLElement {
   return !!el && typeof (el as HTMLElement).animate === 'function';
@@ -85,6 +165,10 @@ export class Director {
       fn();
     }, Math.max(0, ms));
     this.timers.add(t);
+  }
+
+  private cue(name: Cue, n?: number): void {
+    this.env.cue?.(name, n);
   }
 
   /**
@@ -146,6 +230,12 @@ export class Director {
     return bossBox(this.env.width()).center;
   }
 
+  /** Where the class's total gathers: over the monster's face. */
+  private totalPoint(): Point {
+    const c = this.bossCenter();
+    return { x: c.x, y: c.y - 40 };
+  }
+
   /** A character's hop (squash, jump, land). */
   bounce(id: string, big = true): void {
     const el = this.env.store.hops.get(id);
@@ -165,7 +255,7 @@ export class Director {
     ids.slice(0, 40).forEach((id, i) => this.at(i * 30, () => this.bounce(id, false)));
   }
 
-  private bossHurt(ms = 420): void {
+  private bossHurt(ms = 460): void {
     const { store } = this.env;
     store.setBoss({ hurt: true });
     if (this.hurtTimer) clearTimeout(this.hurtTimer);
@@ -175,28 +265,29 @@ export class Director {
     }, ms);
   }
 
-  private shakeBoss(k: number): void {
+  private shakeBoss(k: number, ms = 240): void {
     this.animate(
       this.env.store.bossShake,
       [
         { transform: 'translate(0, 0) rotate(0)' },
         { transform: `translate(${k}px, -2px) rotate(${k / 6}deg)` },
         { transform: `translate(${-k * 0.6}px, 1px) rotate(${-k / 8}deg)` },
+        { transform: `translate(${k * 0.3}px, 0) rotate(${k / 14}deg)` },
         { transform: 'translate(0, 0) rotate(0)' },
       ],
-      { duration: 240, easing: 'ease-out' },
+      { duration: ms, easing: 'ease-out' },
       true,
     );
-    this.animate(this.env.store.bossFlash, [{ opacity: 0 }, { opacity: 0.22 }, { opacity: 0 }], { duration: 140, easing: 'linear' }, true);
+    this.animate(this.env.store.bossFlash, [{ opacity: 0 }, { opacity: 0.3 }, { opacity: 0 }], { duration: Math.min(ms, 200), easing: 'linear' }, true);
   }
 
-  private hit(playerId: string, dmg: number, hpAfter: number, i: number): void {
-    const { store } = this.env;
+  /** One right answer's star, from its character (or the crowd's count) into the monster; `land` when it arrives. */
+  private star(playerId: string, i: number, land: () => void): void {
     const slot = this.env.slotOf(playerId);
     const from = slot ? { x: slot.cx, y: slot.cy } : crowdPoint(this.env.width());
-    const c = this.bossCenter();
-    const to = { x: c.x + ((i * 37) % 80) - 40, y: c.y + ((i * 53) % 60) - 30 };
-    const mid = { x: (from.x + to.x) / 2, y: Math.max(120, Math.min(from.y, to.y) - 70 - ((i * 29) % 40)) };
+    const c = this.totalPoint();
+    const to = { x: c.x + ((i * 37) % 60) - 30, y: c.y + ((i * 53) % 40) - 20 };
+    const mid = { x: (from.x + to.x) / 2, y: Math.max(130, Math.min(from.y, to.y) - 70 - ((i * 29) % 40)) };
     const h = STAR / 2;
     const star = this.spawn(`star-${this.env.colourOf(playerId)}`);
     this.animate(
@@ -204,49 +295,99 @@ export class Director {
       [
         { transform: `translate(${from.x - h}px, ${from.y - h}px) rotate(0deg) scale(0.6)`, easing: 'cubic-bezier(.25,.6,.5,1)' },
         { transform: `translate(${mid.x - h}px, ${mid.y - h}px) rotate(200deg) scale(1.15)`, easing: 'cubic-bezier(.5,0,.8,.6)' },
-        { transform: `translate(${to.x - h}px, ${to.y - h}px) rotate(400deg) scale(1)` },
+        { transform: `translate(${to.x - h}px, ${to.y - h}px) rotate(400deg) scale(0.7)`, opacity: 0.9 },
       ],
-      { duration: FLY, easing: 'linear', fill: 'forwards' },
+      { duration: FILM.fly, easing: 'linear', fill: 'forwards' },
     );
     if (slot) {
-      store.setChar(playerId, { face: 'happy' });
+      this.env.store.setChar(playerId, { face: 'happy' });
       this.bounce(playerId);
     }
-    this.at(FLY, () => {
+    this.at(FILM.fly, () => {
       this.drop(star);
-      this.impact(to, dmg, i);
-      store.setHp(hpAfter);
+      land();
     });
   }
 
-  private impact(at: Point, dmg: number, i: number): void {
-    const b = this.spawn('burst');
-    const hb = BURST / 2;
-    this.animate(
-      b,
-      [
-        { transform: `translate(${at.x - hb}px, ${at.y - hb}px) scale(0.3) rotate(0deg)`, opacity: 1 },
-        { transform: `translate(${at.x - hb}px, ${at.y - hb}px) scale(1.25) rotate(20deg)`, opacity: 0 },
-      ],
-      { duration: 360, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' },
-    );
-    this.at(380, () => this.drop(b));
-    const c = this.bossCenter();
-    const label = this.spawn('lv-dmg', `−${dmg}`);
-    const dx = c.x - 40 + ((i % 5) - 2) * 62;
-    const dy = c.y - 160 + (i % 3) * 30;
-    this.animate(
-      label,
-      [
-        { transform: `translate(${dx}px, ${dy}px) scale(0.5)`, opacity: 0 },
-        { transform: `translate(${dx}px, ${dy - 26}px) scale(1.1)`, opacity: 1, offset: 0.25 },
-        { transform: `translate(${dx}px, ${dy - 70}px) scale(1)`, opacity: 0 },
-      ],
-      { duration: 950, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' },
-    );
-    this.at(980, () => this.drop(label));
-    this.shakeBoss(9);
-    this.bossHurt();
+  /**
+   * The blow: a star per counted hit; one number over the monster counts the damage up as they land, then flies into
+   * the HP bar, where the bar drains and the monster flinches. Returns nothing; times come from filmPlan.
+   */
+  private blow(s: HostState, plan: ReturnType<typeof filmPlan>): void {
+    const { store } = this.env;
+    const hits = plan.hits;
+    const total = hits.reduce((sum, h) => sum + h.dmg, 0);
+    const hpAfter = hits[hits.length - 1].hp_after;
+    const p = this.totalPoint();
+    let shown = 0;
+    let label: HTMLElement | null = null;
+    let text: Text | null = null;
+    const show = (value: number) => {
+      if (!label) {
+        label = this.spawn('lvh-total', `−${nb(value)}`);
+        text = (label?.firstElementChild?.firstChild as Text | null) ?? null;
+        // centred on its point by the label's own CSS (translate −50 %); the box moves by transform only
+        this.animate(
+          label,
+          [
+            { transform: `translate(${p.x}px, ${p.y}px) scale(0.4)`, opacity: 0 },
+            { transform: `translate(${p.x}px, ${p.y}px) scale(1.12)`, opacity: 1, offset: 0.6 },
+            { transform: `translate(${p.x}px, ${p.y}px) scale(1)`, opacity: 1 },
+          ],
+          { duration: 260, easing: 'ease-out', fill: 'forwards' },
+          true,
+        );
+      } else if (text) text.data = `−${nb(value)}`;
+    };
+    hits.forEach((h, i) => {
+      this.at(FILM.starsAt + i * plan.step, () =>
+        this.star(h.player_id, i, () => {
+          shown = i === hits.length - 1 ? total : shown + h.dmg;
+          show(shown);
+          this.shakeBoss(3, 160);
+          this.cue('land', i);
+        }),
+      );
+    });
+    const impact = plan.impact!;
+    this.at(impact - FILM.toBar, () => {
+      show(total);
+      const bar = hpBox(this.env.width());
+      const max = store.getHp().max || s.boss.hp_max || 1;
+      const to = { x: bar.x + bar.width * Math.max(0, Math.min(1, hpAfter / max)), y: bar.y + 51 };
+      this.animate(
+        label,
+        [
+          { transform: `translate(${p.x}px, ${p.y}px) scale(1)`, opacity: 1 },
+          { transform: `translate(${(p.x + to.x) / 2}px, ${p.y - 60}px) scale(0.9)`, opacity: 1, offset: 0.45 },
+          { transform: `translate(${to.x}px, ${to.y}px) scale(0.45)`, opacity: 0.2 },
+        ],
+        { duration: FILM.toBar, easing: 'cubic-bezier(.5,0,.75,.4)', fill: 'forwards' },
+        true,
+      );
+    });
+    this.at(impact, () => {
+      this.drop(label);
+      store.setHp(hpAfter);
+      const bar = hpBox(this.env.width());
+      const max = store.getHp().max || 1;
+      const at = { x: bar.x + bar.width * Math.max(0, Math.min(1, hpAfter / max)), y: bar.y + 51 };
+      const b = this.spawn('burst');
+      const hb = BURST / 2;
+      this.animate(
+        b,
+        [
+          { transform: `translate(${at.x - hb}px, ${at.y - hb}px) scale(0.3) rotate(0deg)`, opacity: 1 },
+          { transform: `translate(${at.x - hb}px, ${at.y - hb}px) scale(1.3) rotate(20deg)`, opacity: 0 },
+        ],
+        { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' },
+      );
+      this.at(400, () => this.drop(b));
+      this.shakeBoss(14, 360);
+      this.bossHurt(520);
+      this.cue('impact', total);
+    });
+    this.at(impact + FILM.topAfter, () => store.setStrike(strikeOf(s)));
   }
 
   private counter(ids: readonly string[]): void {
@@ -257,12 +398,13 @@ export class Director {
       { duration: 420, easing: 'ease-out' },
       true,
     );
+    this.cue('freeze', ids.length);
     const shown = ids.filter((id) => this.env.slotOf(id));
-    const step = counterStep(shown.length);
+    const step = shown.length > 1 ? FILM.shardsSpread / (shown.length - 1) : 0;
     const c = this.bossCenter();
     const from = { x: c.x, y: c.y - 90 };
     shown.forEach((id, i) => {
-      this.at(300 + i * step, () => {
+      this.at(FILM.shardsAfter + i * step, () => {
         const slot = this.env.slotOf(id);
         if (!slot) return;
         const to = { x: slot.cx, y: slot.cy };
@@ -275,9 +417,9 @@ export class Director {
             { transform: `translate(${(from.x + to.x) / 2 - h}px, ${Math.min(from.y, to.y) - 90 - h}px) rotate(180deg) scale(1.1)` },
             { transform: `translate(${to.x - h}px, ${to.y - h}px) rotate(360deg) scale(1)` },
           ],
-          { duration: 480, easing: 'linear', fill: 'forwards' },
+          { duration: FILM.shardFly, easing: 'linear', fill: 'forwards' },
         );
-        this.at(480, () => {
+        this.at(FILM.shardFly, () => {
           this.drop(shard);
           store.setChar(id, { frozen: true, face: 'frozen' });
           this.animate(
@@ -295,20 +437,22 @@ export class Director {
     const { store } = this.env;
     store.setHp(store.getHp().hp + amount);
     const bar = hpBox(this.env.width());
-    const label = this.spawn('lvh-heal', `+${amount}`);
-    const x = bar.x + bar.width + 14;
-    const y = bar.y + 24;
+    const label = this.spawn('lvh-heal', `+${nb(amount)}`);
+    const x = bar.x + bar.width + 18;
+    const y = bar.y + 30;
     this.animate(
       label,
       [
         { transform: `translate(${x}px, ${y}px) scale(0.6)`, opacity: 0 },
-        { transform: `translate(${x}px, ${y - 10}px) scale(1.05)`, opacity: 1, offset: 0.25 },
-        { transform: `translate(${x}px, ${y - 30}px) scale(1)`, opacity: 0 },
+        { transform: `translate(${x}px, ${y - 8}px) scale(1.05)`, opacity: 1, offset: 0.2 },
+        { transform: `translate(${x}px, ${y - 12}px) scale(1)`, opacity: 1, offset: 0.8 },
+        { transform: `translate(${x}px, ${y - 24}px) scale(1)`, opacity: 0 },
       ],
-      { duration: 1400, easing: 'ease-out', fill: 'forwards' },
+      { duration: FILM.bannerMs, easing: 'ease-out', fill: 'forwards' },
     );
-    this.at(1450, () => this.drop(label));
-    this.env.banner({ ...BANNER.heal(amount), ms: 1700 });
+    this.at(FILM.bannerMs + 40, () => this.drop(label));
+    this.cue('heal', amount);
+    this.env.banner({ ...BANNER.heal(amount), ms: FILM.bannerMs });
   }
 
   private phase(to: 1 | 2): void {
@@ -330,20 +474,21 @@ export class Director {
     const box = bossBox(this.env.width());
     for (let k = 0; k < 6; k += 1) {
       const puff = this.spawn('puff');
-      // steam from the bells, out to the sides (it stays under the HP bar and its note)
+      // steam from the bells, out to the sides (it stays under the HP bar and what is under it)
       const sx = box.x + (k % 2 ? box.size - 50 : 24);
       const sy = box.y + 30;
       this.animate(
         puff,
         [
           { transform: `translate(${sx}px, ${sy}px) scale(0.3)`, opacity: 1 },
-          { transform: `translate(${sx + (k % 2 ? 70 + k * 6 : -70 - k * 6)}px, ${sy - 28 - k * 4}px) scale(1.3)`, opacity: 0 },
+          { transform: `translate(${sx + (k % 2 ? 70 + k * 6 : -70 - k * 6)}px, ${sy - 20 - k * 3}px) scale(1.3)`, opacity: 0 },
         ],
-        { duration: 900, delay: 150 + k * 90, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' },
+        { duration: 800, delay: 100 + k * 70, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'both' },
       );
-      this.at(1100 + k * 90, () => this.drop(puff));
+      this.at(950 + k * 70, () => this.drop(puff));
     }
-    this.env.banner({ ...(to === 1 ? BANNER.phase1 : BANNER.phase2), ms: 1900 });
+    this.cue('phase', to);
+    this.env.banner({ ...(to === 1 ? BANNER.phase1 : BANNER.phase2), ms: FILM.bannerMs });
   }
 
   private defeat(everyone: readonly string[]): void {
@@ -407,6 +552,7 @@ export class Director {
           true,
         );
       });
+      this.cue('defeat');
       this.at(500, () => this.env.banner({ ...BANNER.defeated, ms: 600, stay: true }));
     });
   }
@@ -424,47 +570,39 @@ export class Director {
     }
     this.setRunning(true);
     const { store } = this.env;
-    let t = 520;
+    store.setStrike(null);
+    const plan = filmPlan(r, s.boss.defeated, (id) => !!this.env.slotOf(id));
+    const thawStep = r.thawed.length > 1 ? Math.min(30, 300 / (r.thawed.length - 1)) : 0;
     r.thawed.forEach((id, i) =>
-      this.at(t + i * 40, () => {
+      this.at(FILM.thawAt + i * thawStep, () => {
         store.setChar(id, { frozen: false, face: 'happy' });
         this.bounce(id);
       }),
     );
-    if (r.thawed.length) t += 320 + Math.min(r.thawed.length, 20) * 40;
-    const hits: typeof r.hits = [];
-    for (const h of r.hits) {
-      hits.push(h);
-      if (h.hp_after === 0) break;
-    }
-    const step = hits.length > 14 ? 90 : 140;
-    hits.forEach((h, i) => this.at(t + i * step, () => this.hit(h.player_id, h.dmg, h.hp_after, i)));
-    if (hits.length) t += (hits.length - 1) * step + FLY + 380;
+    if (plan.impact !== null) this.blow(s, plan);
     const finish = () => {
       this.setRunning(false);
       done();
     };
-    if (s.boss.defeated) {
+    if (plan.defeat !== null) {
       const everyone = s.roster.map((p) => p.player_id).filter((id) => this.env.slotOf(id));
-      this.at(t, () => this.defeat(everyone));
-      this.at(t + 3200, finish);
+      this.at(plan.defeat, () => this.defeat(everyone));
+      this.at(plan.end, finish);
       return;
     }
-    if (r.frozen_now.length) {
+    if (plan.counter !== null) {
       const frozen = r.frozen_now;
-      this.at(t, () => this.counter(frozen));
-      t += counterLength(frozen.filter((id) => this.env.slotOf(id)).length);
+      this.at(plan.counter, () => this.counter(frozen));
     }
-    if (r.healed > 0) {
-      this.at(t, () => this.heal(r.healed));
-      t += 1800;
-    }
-    if (r.phase_changed === 1 || r.phase_changed === 2) {
+    if (plan.banner !== null) {
+      const healed = r.healed;
       const to = r.phase_changed;
-      this.at(t, () => this.phase(to));
-      t += 2000;
+      this.at(plan.banner, () => {
+        if (healed > 0) this.heal(healed);
+        else if (to === 1 || to === 2) this.phase(to);
+      });
     }
-    this.at(t, finish);
+    this.at(plan.end, finish);
   }
 }
 

@@ -1,15 +1,16 @@
 /**
- * The battle's stage around the class (Crowd.tsx): the HP bar, «Дедлайн», the count of players not drawn and the
- * hidden templates of the effects. Positions come from layout.ts; the effects layer is filled by the director.
+ * The battle's stage around the class (Crowd.tsx): the HP bar, under it either the rule of the monster's phase or —
+ * after a question's blow — the three who hit hardest, «Дедлайн», the count of players not drawn and the hidden
+ * templates of the effects. Positions come from layout.ts; the effects layer is filled by the director.
  */
 import { memo, useLayoutEffect, useRef, type RefObject } from 'react';
 import type { RosterRow } from '../../../lib/live/types';
 import { Boss } from '../art/Boss';
 import { Burst, Debris, Shard, Star } from '../art/Fx';
-import { BATTLE } from './copy';
+import { BATTLE, nb } from './copy';
 import { FX_COLOURS } from './director';
 import { bossBox, crowdPoint, hpBox } from './layout';
-import { useBossView, useHpView, type StageStore } from './stageStore';
+import { useBossView, useHpView, useStrike, type StageStore } from './stageStore';
 
 export function HpBar({ store, width, enter }: { store: StageStore; width: number; enter: boolean }) {
   const { hp, max } = useHpView(store);
@@ -37,14 +38,35 @@ export function HpBar({ store, width, enter }: { store: StageStore; width: numbe
   );
 }
 
-/** The rule the monster's phase adds, under the bar (CONTRACT §3). */
-export function PhaseNote({ store, width }: { store: StageStore; width: number }) {
+/**
+ * Under the bar, one thing at a time: after a question's blow the three who hit hardest (with their damage); otherwise
+ * the rule the monster's phase adds (CONTRACT §3), as a pill.
+ */
+export function UnderBar({ store, width }: { store: StageStore; width: number }) {
   const { phase, fallen } = useBossView(store);
+  const strike = useStrike(store);
   const box = hpBox(width);
+  const style = { left: box.x - 120, width: box.width + 240, top: box.y + 76 };
+  if (strike && strike.top.length) {
+    return (
+      <ol className="lvh-strike" style={style} aria-label={BATTLE.strikeLabel}>
+        {strike.top.map((r, i) => (
+          <li key={r.id} style={{ ['--i' as string]: i }}>
+            <span className="lvh-strike-name" title={r.name}>
+              {r.name}
+            </span>
+            <b>−{nb(r.dmg)}</b>
+          </li>
+        ))}
+      </ol>
+    );
+  }
   if (phase === 0 || fallen) return null;
   return (
-    <div className="lvh-phase-note" style={{ left: box.x - 40, width: box.width + 80, top: box.y + 68 }}>
-      {BATTLE.phaseNote[phase]}
+    <div className="lvh-phase-wrap" style={style}>
+      <div className="lvh-phase-note" data-phase={phase}>
+        {BATTLE.phaseNote[phase]}
+      </div>
     </div>
   );
 }
@@ -65,11 +87,14 @@ export function BossView({ store, width, enter }: { store: StageStore; width: nu
   return (
     <div
       className={`lvh-boss${view.fallen ? ' lvh-boss--gone' : ''}${enter ? ' lvh-boss--enter' : ''}`}
+      data-tense={view.tense ? '' : undefined}
       style={{ left: box.x, top: box.y, width: box.size, height: box.size }}
     >
-      <div className="lvh-boss-shake" ref={shake}>
-        <Boss size={box.size} phase={view.phase} hurt={view.hurt} />
-        <div className="lvh-boss-flash" ref={flash} />
+      <div className="lvh-boss-pulse">
+        <div className="lvh-boss-shake" ref={shake}>
+          <Boss size={box.size} phase={view.phase} hurt={view.hurt} />
+          <div className="lvh-boss-flash" ref={flash} />
+        </div>
       </div>
     </div>
   );

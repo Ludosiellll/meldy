@@ -10,14 +10,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ColourId, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
 import { TelegramPost } from './TelegramPost';
-import { BossView, CrowdCount, FxDefs, HpBar, PhaseNote, byJoin } from './Arena';
+import { BossView, CrowdCount, FxDefs, HpBar, UnderBar, byJoin } from './Arena';
 import { BANNER, MODE, NEXT } from './copy';
 import { Crowd, type CrowdView, type Place } from './Crowd';
-import { Director, type BannerSpec } from './director';
+import { Director, strikeOf, type BannerSpec } from './director';
 import { logState, readLog, type HostInfo } from './hostSession';
 import { NO_SEATS, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, seats as seatsFor, type LobbyLayout, type Seats, type Slot } from './layout';
 import { Lobby } from './Lobby';
-import { QuestionPanel, TopFive } from './Panel';
+import { QuestionPanel, TopFive, type Closing } from './Panel';
 import { ClosedScreen, Podium, gameOutcome, podiumTop, rankRoster, type PodiumRow } from './Podium';
 import { EndConfirm, KickConfirm, PlayersSheet, ReviewSheet } from './Sheets';
 import { Stage, useStageFit } from './Stage';
@@ -38,6 +38,8 @@ export function syncRest(store: StageStore, s: HostState): void {
   }
   if (s.boss.hp_max > 0) store.setHp(s.boss.hp, s.boss.hp_max);
   store.setBoss({ phase: s.boss.phase, hurt: false, fallen: s.boss.defeated });
+  // the question's three who hit hardest stay named under the bar for the rest of the reveal
+  store.setStrike(s.state === 'reveal' ? strikeOf(s) : null);
 }
 
 function useReducedMotion(): boolean {
@@ -53,6 +55,9 @@ function useReducedMotion(): boolean {
 }
 
 const BATTLE_STATES = new Set(['countdown', 'open', 'reveal', 'leaderboard']);
+
+/** Everyone answered before the time: «Все ответили» for a beat, then the key. */
+export const ALL_IN_BEAT_MS = 700;
 const NO_ROWS: RosterRow[] = [];
 
 const at = (s: Slot, i: number, hidden = false, name = true): Place => ({ x: s.x, y: s.y, size: s.size, hidden, name, nameW: s.nameW, i });
@@ -131,6 +136,23 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
   const [acting, setActing] = useState(false);
   const [full, setFull] = useState(false);
   const [log, setLog] = useState(() => readLog(gameId));
+  // The beat between the answers and the key (D3): «Время вышло» at the timer's 0 until the reveal arrives (the server's
+  // 1.5 s grace), or «Все ответили» for a moment when the reveal came early.
+  const [beat, setBeatState] = useState<Closing>(null);
+  const beatRef = useRef<Closing>(null);
+  const beatTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setBeat = useCallback(
+    (b: Closing) => {
+      beatRef.current = b;
+      setBeatState(b);
+      store.setBoss({ tense: b !== null });
+    },
+    [store],
+  );
+  const clearBeatTimer = () => {
+    if (beatTimer.current) clearTimeout(beatTimer.current);
+    beatTimer.current = null;
+  };
   // Opened in the lobby: the monster drops in at the first question. Opened later (a reload): it is simply there.
   const [firstState] = useState(s.state);
 
@@ -199,10 +221,22 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     const closing = s.state === 'reveal' && !!s.result && !!prev && prev.qi === s.qi && (prev.state === 'open' || prev.state === 'countdown');
     if (closing) {
       setBanner(null);
+      clearBeatTimer();
       if (!reduced) {
-        director.reveal(s, () => syncRest(store, latest.current));
+        const play = () => {
+          beatTimer.current = null;
+          setBeat(null);
+          director.reveal(latest.current.state === 'reveal' && latest.current.qi === s.qi ? latest.current : s, () => syncRest(store, latest.current));
+        };
+        // Everyone answered before the time ran out: «Все ответили», the monster braces itself, then the key.
+        const early = beatRef.current === null && Date.now() < closesAtRef.current - 400;
+        if (early) {
+          setBeat('all');
+          beatTimer.current = setTimeout(play, ALL_IN_BEAT_MS);
+        } else play();
         return;
       }
+      setBeat(null);
       director.cancel();
       syncRest(store, s);
       const r = s.result!;
@@ -213,8 +247,10 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     }
     if (moved) {
       director.cancel();
+      clearBeatTimer();
+      if (beatRef.current !== null) setBeat(null);
       setBanner(null);
-    } else if (director.running) return; // a poll during the reveal: the director ends on the latest state
+    } else if (director.running || beatTimer.current) return; // a poll during the reveal: the director ends on the latest state
     syncRest(store, s);
     // Opened on a reveal that killed the monster (a reload): its banner, still.
     if (moved && s.state === 'reveal' && s.boss.defeated) showBanner({ ...BANNER.defeated, ms: 0 }, true);
@@ -222,7 +258,8 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
       const before = new Set(prev.answered_ids);
       director.hops(s.answered_ids.filter((id) => !before.has(id) && env.current.slotMap.has(id)));
     }
-  }, [s, gameId, director, store, reduced, showBanner]);
+  }, [s, gameId, director, store, reduced, showBanner, setBeat]);
+  useEffect(() => () => clearBeatTimer(), []);
 
   const toggleFull = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen?.().catch(() => {});
@@ -303,6 +340,17 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
     const o = offset();
     return [Date.parse(q.opens_at) - o, Date.parse(q.closes_at) - o];
   }, [q?.opens_at, q?.closes_at, offset]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closesAtRef = useRef(closesAt);
+  closesAtRef.current = closesAt;
+  // The timer's 0 during the answers: «Время вышло» until the reveal comes.
+  const open = s.state === 'open';
+  useEffect(() => {
+    if (!open || !closesAt) return undefined;
+    const t = setTimeout(() => {
+      if (beatRef.current === null) setBeat('time');
+    }, Math.max(0, closesAt - Date.now()));
+    return () => clearTimeout(t);
+  }, [open, closesAt, setBeat]);
 
   return (
     <Stage fit={fit} label={MODE.name}>
@@ -334,7 +382,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
       {inBattle ? (
         <div className="lvh-battle">
           <HpBar store={store} width={width} enter={enter} />
-          <PhaseNote store={store} width={width} />
+          <UnderBar store={store} width={width} />
           <BossView store={store} width={width} enter={enter} />
           <CrowdCount hidden={joined.length - visible.length} width={width} />
           {s.state === 'leaderboard' ? (
@@ -343,7 +391,8 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
             <QuestionPanel
               key={q.qi}
               question={q}
-              result={s.state === 'reveal' ? s.result : null}
+              result={s.state === 'reveal' && beat !== 'all' ? s.result : null}
+              closing={beat}
               players={s.players}
               answered={s.answered}
               opensAt={opensAt}

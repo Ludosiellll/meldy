@@ -80,7 +80,15 @@ describe('teacher screen against the fake server', () => {
     expect(view.container.querySelector('.lvh-ring')).toHaveAttribute('data-mode', 'run');
     expect(view.container.querySelector('.lvh-q-side')?.textContent).toMatch(/из 23 ответили/);
     await tick(3500);
+    // everyone answered before the time: «Все ответили» for a beat, the options step back, the monster braces itself
+    expect(view.container.querySelector('.lvh-closing')?.textContent).toBe('Все ответили');
+    expect(view.container.querySelector('.lvh-tiles')).toHaveAttribute('data-closing');
+    expect(view.container.querySelector('.lvh-boss')).toHaveAttribute('data-tense');
+    expect(view.container.querySelectorAll('.lvh-tile[data-key]')).toHaveLength(0);
+    await tick(800);
     // reveal: the key, the counts, «верно»
+    expect(view.container.querySelector('.lvh-closing')).toBeNull();
+    expect(view.container.querySelector('.lvh-boss')).not.toHaveAttribute('data-tense');
     expect(view.container.querySelectorAll('.lvh-tile[data-key]')).toHaveLength(1);
     expect(view.container.querySelector('.lvh-q-side')?.textContent).toMatch(/из 23 верно/);
     await tick(9000);
@@ -234,6 +242,32 @@ describe('teacher screen against the fake server', () => {
     expect(crowd).toHaveAttribute('data-walk');
     await tick(1400);
     expect(crowd).not.toHaveAttribute('data-walk');
+  });
+
+  it('the timer’s 0: «Время вышло» at once (no frozen «0»), until the reveal comes after the server’s grace', async () => {
+    const api = createFakeServer({ bots: 3, latencyMs: 0, demoPin: null, autoHost: false, fastBots: true, seed: 11 });
+    const g = await api.create({ container_id: 'c', subject_ids: ['s'], count: 6 }, SETTINGS);
+    saveHostToken(g.game_id, g.host_token);
+    await api.join(g.pin, 'Тихоня', 'T'.repeat(43), null); // never answers: the question runs to its end
+    const view = render(
+      <MemoryRouter>
+        <LiveHostView gameId={g.game_id} api={api} />
+      </MemoryRouter>,
+    );
+    await tick(50);
+    space();
+    await tick(3050);
+    await tick(1000); // open on the screen
+    expect(view.container.querySelector('.lvh-closing')).toBeNull();
+    await tick(9000); // SETTINGS: 10 s
+    expect((await api.hostState(g.game_id, g.host_token)) as HostState).toMatchObject({ state: 'open' });
+    expect(view.container.querySelector('.lvh-closing')?.textContent).toBe('Время вышло');
+    expect(view.container.querySelector('.lvh-tiles')).toHaveAttribute('data-closing');
+    expect(view.container.querySelector('.lvh-boss')).toHaveAttribute('data-tense');
+    await tick(2600);
+    expect(view.container.querySelector('.lvh-closing')).toBeNull();
+    expect(view.container.querySelectorAll('.lvh-tile[data-key]')).toHaveLength(1);
+    expect(view.container.querySelector('.lvh-boss')).not.toHaveAttribute('data-tense');
   });
 
   it('a reload in the middle of a reveal draws it as it is, without replaying', async () => {
