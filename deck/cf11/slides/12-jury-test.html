@@ -2,13 +2,11 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>12 · Представление блоков проекта: контрольные, тест по ссылке и игра на паре — Meldy · CodingFest-11</title>
+<title>12 · Представление блоков проекта: контрольные, тест по ссылке и игра в классе — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <link rel="stylesheet" href="../design/stage.css">
 <style>
-.qr-card { background: #ffffff; border-radius: 32px; }
-.link { font-size: 28px; line-height: 36px; color: var(--blue-fg); white-space: nowrap; }
-.proj { border-radius: 24px; object-fit: cover; object-position: top center; }
+.qr-card { background: #ffffff; border-radius: 30px; }
 </style>
 </head>
 <body>
@@ -19,33 +17,35 @@
 
 <div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Контрольную пишут по&nbsp;ссылке<br><span class="dim">или&nbsp;играют в&nbsp;неё всей группой на&nbsp;паре</span></div>
 
+<!-- The game «Встань на ответ» (release 47.19), one recorded game on both screens at once: the teacher's projector
+     on the left, one student's phone on the right, frame for frame the same moment. A real game of the real room
+     server run on our machine (backend/scripts/live_stand_local.py --auto --record, 21.10.2026), 30 bots instead of
+     students; the projector is the real projector page and the phone the real phone page (/play, 390 × 844, the 3D
+     view), each drawn frame by frame from that recording (tools/record/cut-12.json, compose_12.py,
+     stand_phone_replay.mjs). The phone follows Лиза, who runs to «Венера» and falls. Only the wait is cut (everyone
+     already stands on an answer), with a crossfade; nothing is sped up. One video, so the two screens never drift
+     apart. The poster is the floor dropping; the loop begins on it. No marks over the video. It morphs in from 11's
+     studio clip (!!s3) and starts with the slide. -->
+<img data-pptx="video" data-name="!!s3" data-src="../media/product/12-game.mp4" data-poster="../media/product/12-game.jpg" data-loop src="../media/product/12-game.jpg" aria-label="Игра «Встань на ответ»: слева проектор, справа телефон ученицы. Пол под неверными ответами провалился, на красном полу «Меркурий» стоят устоявшие, упавшие стали призраками; на проекторе «Устояли 18 из 30», на телефоне «Мимо. Теперь вы призрак»; в ролике дальше весь класс бежит к ответам" alt="" style="left:128px;top:328px;width:1362px;height:606px">
+
+<div class="t32" data-pptx="text" style="left:128px;top:955px" data-anim="fade" data-anim-dur="500" data-anim-order="2">Каждый бежит к&nbsp;ответу со&nbsp;своего телефона</div>
+<div class="t32" data-pptx="text" style="left:128px;top:997px" data-anim="fade" data-anim-trigger="with" data-anim-delay="200" data-anim-dur="500" data-anim-order="2">Пол под&nbsp;неверными ответами проваливается</div>
+
 <!-- The jury takes part: the code opens the real test «Эластичность спроса за минуту», made in the studio on
      19.10.2026 (account A, author shown as «Команда Meldy»), open to everyone by link without an account, no time
-     limit, unlimited attempts. -->
-<div class="qr-card" data-pptx="shape" style="left:128px;top:352px;width:280px;height:280px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="2"></div>
-<img data-pptx="image" data-src="../design/v2/qr-jury.svg" data-href="https://ludosiel-studyforge.hf.space/k/kb0dxmwb21fb" src="../design/v2/qr-jury.svg" aria-label="QR-код: тест «Эластичность спроса за минуту», ludosiel-studyforge.hf.space/k/kb0dxmwb21fb" alt="" style="left:152px;top:376px;width:232px;height:232px" data-anim="settle" data-anim-trigger="with" data-anim-dur="600" data-anim-order="2">
-<div class="t32" data-pptx="text" style="left:128px;top:656px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="2">Пройдите этот тест<br>из&nbsp;5&nbsp;вопросов без&nbsp;аккаунта</div>
-<div class="link" data-pptx="text" data-href="https://ludosiel-studyforge.hf.space/k/kb0dxmwb21fb" style="left:128px;top:752px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="2">ludosiel-studyforge.hf.space<br>/k/kb0dxmwb21fb</div>
+     limit, unlimited attempts. The QR is a link in the file and in the PDF. -->
+<div class="qr-card" data-pptx="shape" style="left:1522px;top:338px;width:270px;height:270px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="3"></div>
+<img data-pptx="image" data-src="../design/v2/qr-jury.svg" data-href="https://ludosiel-studyforge.hf.space/k/kb0dxmwb21fb" src="../design/v2/qr-jury.svg" aria-label="QR-код: тест «Эластичность спроса за минуту», ludosiel-studyforge.hf.space/k/kb0dxmwb21fb" alt="" style="left:1542px;top:358px;width:230px;height:230px" data-anim="settle" data-anim-trigger="with" data-anim-dur="600" data-anim-order="3">
+<div class="t32" data-pptx="text" style="left:1522px;top:632px" data-anim="fade" data-anim-trigger="with" data-anim-delay="100" data-anim-dur="500" data-anim-order="3">Пройдите тест<br>без&nbsp;аккаунта</div>
+<div class="t28m" data-pptx="text" style="left:1522px;top:730px" data-anim="fade" data-anim-trigger="with" data-anim-delay="100" data-anim-dur="500" data-anim-order="3">5&nbsp;вопросов,<br>около минуты</div>
 
-<div class="mk s" data-pptx="shape" style="left:128px;top:860px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="4">1</div>
-<div class="t28m" data-pptx="text" style="left:192px;top:866px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Вход по&nbsp;PIN или&nbsp;из&nbsp;Telegram</div>
-<div class="mk s" data-pptx="shape" style="left:128px;top:920px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">2</div>
-<div class="t28m" data-pptx="text" style="left:192px;top:926px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Верный ответ бьёт по&nbsp;монстру</div>
-<div class="mk s" data-pptx="shape" style="left:128px;top:980px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="7">3</div>
-<div class="t28m" data-pptx="text" style="left:192px;top:986px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="7">Каждый видит место и&nbsp;ошибки</div>
+<template data-pptx="notes">Четвёртая часть это контрольные. Пройти тест можно двумя способами. Первый по ссылке. Наведите камеру на код справа. Откроется настоящий тест «Эластичность спроса за минуту». Входить не нужно. Пять вопросов, около минуты. После «Завершить» вы сразу увидите балл, ошибки и пояснения. А автор увидит вашу попытку на своей странице.
 
-<!-- The game «Битва с монстром» on the live site (account A, 21.10.2026, release 47.12; the test «Спрос и
-     предложение», 6 questions, a guest phone and 22 classmates): the teacher's projector and one student's phone. -->
-<img class="proj" data-pptx="image" data-name="!!s3" data-src="../media/product/v2/game-host.png" src="../media/product/v2/game-host.png" aria-label="Экран учителя: игра «Битва с монстром», монстр «Дедлайн» с полосой здоровья, класс из 23 персонажей, вопрос и четыре цветных ответа" alt="" style="left:640px;top:352px;width:1152px;height:648px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="3">
-<div class="bezel" data-pptx="shape" style="left:1520px;top:520px;width:252px;height:540px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="6"></div>
-<img class="screen" data-pptx="image" data-src="../media/product/v2/game-phone.png" src="../media/product/v2/game-phone.png" aria-label="Телефон ученика: ответ верный, урон Дедлайну и место в классе" alt="" style="left:1526px;top:526px;width:240px;height:520px;border-radius:30px" data-anim="rise" data-anim-trigger="with" data-anim-dur="600" data-anim-order="6">
-<div class="mk" data-pptx="shape" style="left:1492px;top:492px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="7">3</div>
+Второй способ это игра на паре. Она называется «Встань на ответ». Слева проектор в классе, справа телефон одной студентки. Вопрос на проекторе и на каждом телефоне. Ответы лежат на полу, у каждого свой цвет. Каждый ведёт своего героя пальцем и встаёт на ответ, который считает верным. Время вышло, и пол под неверными ответами проваливается. Кто упал, играет дальше призраком. Верный ответ вернёт его в игру.
 
-<template data-pptx="notes">Четвёртая часть это контрольные. Пройти тест можно двумя способами. Первый по ссылке. Наведите камеру на код. Откроется настоящий тест «Эластичность спроса за минуту». Входить не нужно. Пять вопросов, около минуты. После «Завершить» вы сразу увидите балл, ошибки и пояснения. А автор увидит вашу попытку на своей странице.
+Если спросят: преподаватель нажимает «Провести игру» и выбирает «Встань на ответ». На проекторе появляется PIN. Студенты входят с телефона или кнопкой «Играть» в беседе группы в Telegram. На вопрос 15, 20 или 30 секунд. Верный ответ даёт от 500 до 1000 очков. Кто встал раньше, получает больше. За серию верных ответов подряд до 1400. Призрак на верном ответе получает половину. Вопросы проверяются без ИИ, поэтому игра не тратит лимит. Тест открыт всем по ссылке без аккаунта. Время не ограничено, попыток сколько угодно.
 
-Второй способ это игра на паре. Преподаватель нажимает «Провести игру», и на проекторе появляется PIN. Студенты входят с телефона или кнопкой «Играть» в беседе группы в Telegram. Вся группа сражается с монстром «Дедлайн». Верный ответ бьёт монстра, и чем быстрее, тем сильнее. Ошибка замораживает до следующего верного ответа. После каждого вопроса видно место в классе. В конце пьедестал и разбор ошибок у каждого на телефоне.
-
-Если спросят: игру проверили на настоящей базе 21 октября. Играли 24 игрока. От хода учителя до экрана телефона в среднем полсекунды. Медиана 0,47–0,51 с по трём переходам. На телефоне с замедленным в четыре раза процессором 60 кадров в секунду. Вопросы проверяются без ИИ, поэтому игра не тратит лимит. Тест открыт всем по ссылке без аккаунта. Время не ограничено, попыток сколько угодно.
+О записи: настоящая игра 21 октября 2026 года. Сервер игры запущен у нас на компьютере, вместо студентов 30 ботов. Проектор и телефон показывают одну и ту же игру в одно и то же время. Каждый кадр нарисован настоящей страницей проектора и настоящей страницей телефона по записи этой игры. Телефон Лизы, она встала на «Венеру» и упала. Вырезано только ожидание, когда все уже стоят на ответах. Ничего не ускорено.
 
 Адрес теста: ludosiel-studyforge.hf.space/k/kb0dxmwb21fb</template>
 </main>

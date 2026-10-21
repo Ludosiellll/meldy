@@ -384,7 +384,7 @@ class RoomRunner:
                     for c in self.conns.values():
                         c.send_text(text)
             room.events.clear()
-        if room.tick % lm.SNAP_EVERY == 0:
+        if room.tick % lm.SNAP_EVERY == 0 and (self.mode is None or self.mode.snapshots()):
             head, body = room.snapshot_parts()
             if self.hosts:
                 frame = b"".join((head, lm.pack_ack(0), body))

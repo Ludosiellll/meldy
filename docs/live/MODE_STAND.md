@@ -30,6 +30,9 @@ fix one of them in the same commit.
 - In a stand game HostState `settings` has `"boss"` and PlayerState / HostState `boss` has `"kind": "clock" |
   "skeleton"` (a battle game's JSON is unchanged).
 - In a stand game `live_answer` is refused with `ML004 stand`: answers come only from the room (§6).
+- The setup's «Мини-игра с движением» → «Все вопросы» is this mode. Its other picks make a battle whose every 3rd, 5th
+  or 10th question is a movement round (`stand_every`, docs/live/MODE_MIXED.md); a stand game takes `stand_every` 0
+  only (`22023 stand_every`).
 - No boss HP in a stand game: `boss.hp = hp_max = 0`, `phase` stays 0, no freezes or heals. Podium after the last
   question; `final.won` is always `false` (nobody beats the boss; places matter).
 
@@ -77,7 +80,8 @@ The map comes in the `welcome` (`MOVE.md` §4, unchanged format). Units: 1600 ×
 - The floor that drops: tiles of 60 from (20, 160), 26 columns × 12 rows. Zone tiles: А columns 1–10 rows 1–4,
   Б 15–24 / 1–4, В 1–10 / 7–10, Г 15–24 / 7–10. At the stomp every tile outside the right zone drops (corridors too).
 - The boss is not an entity (no snapshot entry): it stands on the stage and acts from the phase and the clock.
-- Snapshot flags gain `F_GHOST = 1 << 5` (bits 5–7 belong to the mode; bits 6–7 are free for mode B).
+- Snapshot flags gain `F_GHOST = 1 << 5` (bits 5–7 belong to the mode; a mixed room uses bit 6 for the battle's ice,
+  `F_ICE`, MODE_MIXED.md; a room has one mode, so mode B may reuse 6–7).
 
 ## 4. Messages
 
@@ -199,7 +203,8 @@ database itself closes an open stand question at `closes_at + 8 s` with no answe
   "revived", "ghost", "out", "total", "streak", "best", "right", "place"}]}` (every player not kicked). Called again
   for a closed question (a retry after a lost answer), it writes nothing and returns the same with `"again": true`.
   Refusals: `42501 host`, `P0002 game`, `22023 mode` (not a stand game), `22023 answers`, `ML004 bad_qi`,
-  `ML004 early` (countdown, or more than 1 s before `closes_at`).
+  `ML004 early` (countdown, or more than 1 s before `closes_at`). The same call writes a mixed game's movement round
+  (docs/live/MODE_MIXED.md §4.3: the battle's close, its own answer shape; `ML004 tap` on a button question).
 
 ## 7. The key never leaves before the close (CONTRACT §5)
 

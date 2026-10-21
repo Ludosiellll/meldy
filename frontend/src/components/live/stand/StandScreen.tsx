@@ -91,8 +91,10 @@ function PodiumBlocks({ rows }: { rows: StandTopEntry[] }) {
         {order.map((i) => (
           <div key={i} className={`lvst-pod lvst-pod--${i + 1}`} style={{ ['--i' as string]: i }}>
             <Thumb look={rows[i].look} size={i === 0 ? 190 : 150} />
-            <div className="lvst-pod-name">{rows[i].name}</div>
-            <div className="lvst-pod-pts">{nb(rows[i].pts)}</div>
+            <div className="lvst-pod-label">
+              <div className="lvst-pod-name">{rows[i].name}</div>
+              <div className="lvst-pod-pts">{nb(rows[i].pts)}</div>
+            </div>
             <div className="lvst-pod-block">{i + 1}</div>
           </div>
         ))}

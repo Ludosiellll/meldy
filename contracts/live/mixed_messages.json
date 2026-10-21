@@ -1,0 +1,271 @@
+{
+ "note": "The messages of a mixed room (docs/live/MODE_MIXED.md §4) in one scripted game: 4 players, 6 questions, every 3rd a movement round. Written by backend/tests/test_live_mixed.py --write-cases.",
+ "hello": {
+  "t": "stand",
+  "k": "hello",
+  "v": 1,
+  "boss": "clock",
+  "q_count": 6,
+  "time_s": 20,
+  "speed": true,
+  "stage": [
+   800,
+   520,
+   80
+  ],
+  "floor": {
+   "x": 20,
+   "y": 160,
+   "tile": 60,
+   "cols": 26,
+   "rows": 12
+  },
+  "letters": [
+   "А",
+   "Б",
+   "В",
+   "Г"
+  ],
+  "alarm_ms": 3000,
+  "fall_ms": 900,
+  "floor_ms": 4000,
+  "mixed": {
+   "every": 3,
+   "rounds": [
+    2,
+    5
+   ]
+  }
+ },
+ "tap": {
+  "t": "stand",
+  "k": "state",
+  "phase": "countdown",
+  "qi": 1,
+  "q_count": 6,
+  "players": 0,
+  "q": null,
+  "opens": null,
+  "closes": null,
+  "floor": "up",
+  "res": null,
+  "top": null,
+  "acc": null,
+  "round": "tap"
+ },
+ "countdown": {
+  "t": "stand",
+  "k": "state",
+  "phase": "countdown",
+  "qi": 2,
+  "q_count": 6,
+  "players": 0,
+  "q": {
+   "text": "Вопрос 3",
+   "options": [
+    "Ответ 1",
+    "Ответ 2",
+    "Ответ 3",
+    "Ответ 4"
+   ]
+  },
+  "opens": 3000,
+  "closes": 23000,
+  "floor": "up",
+  "res": null,
+  "top": null,
+  "acc": null,
+  "round": "stand"
+ },
+ "reveal": {
+  "t": "stand",
+  "k": "state",
+  "phase": "reveal",
+  "qi": 2,
+  "q_count": 6,
+  "players": 0,
+  "q": {
+   "text": "Вопрос 3",
+   "options": [
+    "Ответ 1",
+    "Ответ 2",
+    "Ответ 3",
+    "Ответ 4"
+   ]
+  },
+  "opens": 3000,
+  "closes": 23000,
+  "floor": "down",
+  "res": {
+   "qi": 2,
+   "key": 1,
+   "counts": [
+    1,
+    2,
+    0,
+    0
+   ],
+   "stood": 2,
+   "of": 4,
+   "fastest": {
+    "id": 1,
+    "pts": 150,
+    "ms": 0
+   },
+   "fell": [
+    2,
+    4
+   ],
+   "back": [
+    2,
+    4
+   ],
+   "at": 23250,
+   "back_at": 27250,
+   "thawed": [
+    3
+   ],
+   "froze": [
+    2,
+    4
+   ],
+   "hp": 849,
+   "hp_max": 1320,
+   "phase": 1,
+   "defeated": false,
+   "healed": 0,
+   "phase_changed": 1,
+   "void": false
+  },
+  "top": null,
+  "acc": null,
+  "round": "stand"
+ },
+ "reveal_host": {
+  "t": "stand",
+  "k": "state",
+  "phase": "reveal",
+  "qi": 2,
+  "q_count": 6,
+  "players": 0,
+  "q": {
+   "text": "Вопрос 3",
+   "options": [
+    "Ответ 1",
+    "Ответ 2",
+    "Ответ 3",
+    "Ответ 4"
+   ]
+  },
+  "opens": 3000,
+  "closes": 23000,
+  "floor": "down",
+  "res": {
+   "qi": 2,
+   "key": 1,
+   "counts": [
+    1,
+    2,
+    0,
+    0
+   ],
+   "stood": 2,
+   "of": 4,
+   "fastest": {
+    "id": 1,
+    "pts": 150,
+    "ms": 0
+   },
+   "fell": [
+    2,
+    4
+   ],
+   "back": [
+    2,
+    4
+   ],
+   "at": 23250,
+   "back_at": 27250,
+   "thawed": [
+    3
+   ],
+   "froze": [
+    2,
+    4
+   ],
+   "hp": 849,
+   "hp_max": 1320,
+   "phase": 1,
+   "defeated": false,
+   "healed": 0,
+   "phase_changed": 1,
+   "void": false,
+   "pts": [
+    [
+     1,
+     150
+    ]
+   ],
+   "hits": [
+    [
+     1,
+     150,
+     849
+    ]
+   ]
+  },
+  "top": null,
+  "acc": null,
+  "round": "stand"
+ },
+ "me_right": {
+  "t": "stand",
+  "k": "me",
+  "ghost": false,
+  "pts": 372,
+  "streak": 3,
+  "best": 3,
+  "right": 3,
+  "place": 1,
+  "of": 4,
+  "frozen": false,
+  "last": {
+   "qi": 2,
+   "choice": 1,
+   "ok": true,
+   "pts": 150,
+   "ms": 0,
+   "fell": false,
+   "revived": false,
+   "late": false,
+   "thawed": false,
+   "froze": false,
+   "void": false
+  }
+ },
+ "me_none": {
+  "t": "stand",
+  "k": "me",
+  "ghost": false,
+  "pts": 0,
+  "streak": 0,
+  "best": 0,
+  "right": 0,
+  "place": 4,
+  "of": 4,
+  "frozen": true,
+  "last": {
+   "qi": 2,
+   "choice": null,
+   "ok": false,
+   "pts": 0,
+   "ms": null,
+   "fell": true,
+   "revived": false,
+   "late": false,
+   "thawed": false,
+   "froze": true,
+   "void": false
+  }
+ }
+}
