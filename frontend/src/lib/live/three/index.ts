@@ -16,7 +16,7 @@
  */
 import type { Kit, LoadOptions } from './types';
 
-export type { Arena, Boss, BossKind, BossOptions, BossPhase, CameraSpec, FrameStats, Kit, LoadOptions, Player, View, ViewOptions } from './types';
+export type { Arena, ArenaLook, Boss, BossKind, BossOptions, BossPhase, CameraSpec, FrameStats, Kit, LoadOptions, Player, View, ViewOptions } from './types';
 export type { PlayerLook, KitHatId, ExtraHatId, BodyOption, ColourOption, HatOption, ModelId } from './look';
 export {
   ACCESSORIES,

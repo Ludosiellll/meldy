@@ -3,10 +3,11 @@
  * the question and its options with the projector's letters and floor colours, the big timer, where the own
  * character stands («Вы на Б»), a small map of the arena, and the floating stick on the lower part of the screen.
  *
- * During a question (countdown, open, reveal) the arena itself is drawn in 3D behind it all when the phone can
- * (scene3d.ts, the projector's kit, the camera on the own character): the question card on top, the stick bottom
- * left, the small map and «Вы на ответе Б» bottom right, the results over the arena. Elsewhere, or on a phone too
- * weak for 3D, the 2D screen with the bigger map.
+ * During a question (countdown, open, reveal) the arena itself is drawn behind it all: the projector's game in 3D
+ * (scene3d.ts, the camera on the own character; a weak phone draws it lighter), or the flat view on a phone without
+ * WebGL (sprites.ts). The question card on top, the stick bottom left, the small map and «Вы на ответе Б» bottom right,
+ * the results over the arena; the arena fills the band between them (setBand). Elsewhere, or while the 3D is still
+ * loading, the 2D screen with the bigger map.
  *
  * Smoothness (owner, 21.10: no lag on the phone): React renders only when the room's phase, the question or the
  * player's numbers change (about seven times a question). Everything that moves runs in one requestAnimationFrame loop
@@ -40,7 +41,7 @@ export interface StandPlayProps {
   canEdit: boolean;
   onEdit: () => void;
   haptic: (kind: HapticKind) => void;
-  /** The arena behind a question: the 3D scene, or the light view on a weak phone (null: the 2D screen only). */
+  /** The arena behind a question: the 3D scene, or the flat view on a phone without WebGL (null: the 2D screen only). */
   scene?: Backdrop | null;
 }
 
@@ -152,6 +153,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   const ghost = view.me?.ghost ?? false;
 
   // Refs the loop writes to.
+  const playRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -248,6 +250,30 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   useLayoutEffect(() => {
     placeRef.current?.();
   }, [use3d]);
+
+  // The arena behind a question fills the band between the card on top and the stick and the small map below: told
+  // after each render (about seven a question) and when a size changes, never per frame.
+  const bandRef = useRef<{ ro: ResizeObserver | null; head: Element | null; measure: () => void }>({ ro: null, head: null, measure: () => undefined });
+  useLayoutEffect(() => {
+    const root = playRef.current;
+    const box = boxRef.current;
+    const head = root?.firstElementChild ?? null;
+    const b = bandRef.current;
+    if (!use3d || !scene?.setBand || !root || !box || !head) {
+      b.measure = () => undefined;
+      return;
+    }
+    b.measure = () => scene.setBand?.(head.getBoundingClientRect().bottom, box.getBoundingClientRect().top);
+    b.measure();
+    if (b.head !== head || !b.ro) {
+      b.ro?.disconnect();
+      b.ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => bandRef.current.measure()) : null;
+      b.ro?.observe(root);
+      b.ro?.observe(head);
+      b.head = head;
+    }
+  });
+  useEffect(() => () => bandRef.current.ro?.disconnect(), []);
 
   // The loop: positions, the stick, the zone, the seconds. Nothing here makes React render.
   useEffect(() => {
@@ -423,7 +449,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   }
 
   return (
-    <div className="sp sp-play" data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
+    <div className="sp sp-play" ref={playRef} data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
       {head}
       {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? res.key : null} choice={last?.choice ?? null} rows={rows} />}
       {phase === 'leaderboard' && st?.top && st.top.length > 0 && <Board top={st.top} you={you} />}

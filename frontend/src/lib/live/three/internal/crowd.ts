@@ -235,6 +235,7 @@ export class CrowdPlayer {
   private target = 0;
   private ghost = false;
   private away = false;
+  private own = false;
   private time = 0;
   private disposed = false;
   /** The kit frame this player was last updated in. */
@@ -273,6 +274,10 @@ export class CrowdPlayer {
 
   setAway(on: boolean): void {
     this.away = on;
+  }
+
+  setOwn(on: boolean): void {
+    this.own = on;
   }
 
   setGhost(on: boolean): void {
@@ -336,6 +341,12 @@ export class CrowdPlayer {
     if (!falling) {
       const floorY = this.ghost ? 0 : this.z / UNITS;
       if (!this.ghost) this.crowd.blobs.push(wx, Math.min(0, floorY) + 0.02, wz, 0.62, 1, this.color.r, this.color.g, this.color.b, 0.95);
+      if (this.own) {
+        // a white ring with a dark edge, outside the colour ring: two blobs in the same call, no shadow of their own
+        const y = Math.min(0, floorY) + 0.025;
+        this.crowd.blobs.push(wx, y, wz, 1.06, 0, 0.012, 0.01, 0.03, 0.9);
+        this.crowd.blobs.push(wx, y + 0.002, wz, 0.98, 0, 1, 1, 1, 1);
+      }
     }
     if (!falling || this.ghost) this.crowd.tags.push(this.tag, wx, wy + this.crowd.tagY, wz, this.ghost || this.away);
   }
