@@ -68,8 +68,8 @@ def _env_int(name: str, default: int) -> int:
 
 @dataclass
 class Limits:
-    max_conns: int = 400           # sockets in the process (a few rooms of 60 + hosts, with room to reconnect)
-    max_per_ip: int = 150          # a whole class behind one school NAT is one address
+    max_conns: int = 300           # sockets in the process: ~0.2 % of a core each (load test 2026-10-21, docs/live/MOVE.md)
+    max_per_ip: int = 150          # a whole school behind one NAT is one address: a few classes at once
     max_pending: int = 64          # sockets that have not finished their hello
     max_rooms: int = 8
     max_players: int = lm.MAX_PLAYERS
@@ -175,6 +175,13 @@ def _refusal(exc: supabase_rest.SupabaseRestError, host: bool) -> Refused:
     if exc.status == 429:
         return Refused(CLOSE_SLOW_DOWN, "auth_busy")
     return Refused(CLOSE_UNAVAILABLE, "auth_unavailable")
+
+
+def _for_phones(entry: list[Any]) -> list[Any]:
+    """Another player's roster entry as a phone gets it: id, kind and look (no live_players.id, no name)."""
+    if entry[1] != lm.KIND_PLAYER:
+        return entry
+    return [entry[0], entry[1], None, "", entry[4]]
 
 
 def token_hash(token: str) -> str:
@@ -306,18 +313,18 @@ class RoomRunner:
     # ── the loop ──
 
     async def run(self) -> None:
-        loop = asyncio.get_running_loop()
+        # perf_counter, not loop.time(): uvloop's clock moves in whole milliseconds, too coarse to see jitter.
+        clock = time.perf_counter
         dt = 1.0 / self.room.tick_hz
-        due = loop.time()
+        due = clock()
         try:
             while not self.closed:
-                start = loop.time()
+                start = clock()
                 self.lateness.append(start - due)
-                t0 = time.perf_counter()
                 self.tick()
-                self.work.append(time.perf_counter() - t0)
+                now = clock()
+                self.work.append(now - start)
                 due += dt
-                now = loop.time()
                 if due < now - 0.25:          # far behind (a stalled loop): skip the missed ticks, do not burst
                     self.overruns += 1
                     due = now
@@ -336,8 +343,17 @@ class RoomRunner:
                 text = _dumps(event)
                 for c in self.hosts:
                     c.send_text(text)
-                for c in self.conns.values():
-                    c.send_text(text)
+                if event.get("t") == "add" and event["e"][1] == lm.KIND_PLAYER:
+                    # Phones learn another player's look only (CONTRACT.md §5: names are the projector's); the
+                    # newcomer itself already has its own entry from the welcome.
+                    entry = event["e"]
+                    text = _dumps({"t": "add", "e": _for_phones(entry)})
+                    for c in self.conns.values():
+                        if c.player is not None and c.player.id != entry[0]:
+                            c.send_text(text)
+                else:
+                    for c in self.conns.values():
+                        c.send_text(text)
             room.events.clear()
         if room.tick % lm.SNAP_EVERY == 0:
             head, body = room.snapshot_parts()
@@ -442,7 +458,9 @@ class RoomRunner:
             "map": room.map.to_json(), "roster": room.roster(), "frozen": room.frozen_all,
         }
         if conn.player is not None:
-            out.update({"you": conn.player.id, "pid": conn.player.pid, "resumed": resumed})
+            me = conn.player.id
+            out["roster"] = [e if e[0] == me else _for_phones(e) for e in out["roster"]]
+            out.update({"you": me, "pid": conn.player.pid, "resumed": resumed})
         return out
 
     def stats(self) -> dict[str, Any]:
@@ -748,6 +766,10 @@ class Hub:
             conn.send_json({"t": "zones", "tick": room.tick, "z": room.zones()})
         elif op == "stats":
             conn.send_json(runner.stats())
+            if obj.get("reset"):
+                runner.lateness.clear()
+                runner.work.clear()
+                runner.overruns = 0
         elif op == "end":
             runner.close(CLOSE_ENDED, "ended")
         else:

@@ -266,6 +266,34 @@ def test_a_long_queue_catches_up_two_a_tick_and_a_full_one_drops_the_oldest():
     assert p.ack == 8
 
 
+def test_a_standing_backlog_drains_one_command_a_second():
+    """A phone whose queue never empties (three commands stand in it) loses that latency one command a second;
+    a queue that empties now and then (jitter absorbed) is left alone."""
+    room = lm.Room("g")
+    p, _ = room.add_player(PID.format(1), "a", None)
+    seq = 1
+    room.push_commands(p, seq, [(1, 0, 0)] * 3)
+    seq += 3
+    left = []
+    for _ in range(4 * lm.TICK_HZ):
+        room.push_commands(p, seq, [(1, 0, 0)])
+        seq += 1
+        room.step()
+        left.append(len(p.queue))
+    assert left[0] == 3 and left[-1] == 0 and p.ack == seq - 1
+    assert left[lm.TICK_HZ] == 2 and left[2 * lm.TICK_HZ] == 1 and left.index(0) == 3 * lm.TICK_HZ
+
+    jittery = lm.Room("g")
+    p, _ = jittery.add_player(PID.format(1), "a", None)
+    seq = 1
+    for k in range(3 * lm.TICK_HZ):            # two commands every other tick: the queue empties every second tick
+        if k % 2 == 0:
+            jittery.push_commands(p, seq, [(1, 0, 0)] * 2)
+            seq += 2
+        jittery.step()
+        assert len(p.queue) == (1 if k % 2 == 0 else 0)
+
+
 def test_server_path_equals_the_prediction_path():
     """What the phone predicts (apply_command per command) is what the room computes, command by command."""
     room = lm.Room("g")

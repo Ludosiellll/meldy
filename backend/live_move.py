@@ -40,6 +40,8 @@ MAX_NPCS = 8
 MAX_CMDS_PER_MSG = 4         # one message carries at most 4 commands (200 ms)
 CMD_QUEUE_MAX = 8            # queued commands beyond this drop the oldest (their seq is still acked)
 CATCH_UP_ABOVE = 4           # more queued commands than this: two are applied in one tick
+# A command still queued after every tick of a whole second is standing backlog (it absorbs no jitter, it only adds
+# latency): one extra is applied then. The phone's prediction is unaffected (one command is still one step).
 AXIS_MAX = 127               # joystick axes are signed bytes, -127..127
 CATCH_TICKS = 40             # a caught player stays caught (and frozen) for 2 s
 
@@ -399,12 +401,15 @@ class Player:
     caught_until: int = 0
     dropped: int = 0              # commands dropped by a full queue
     queue: deque = field(default_factory=deque)
+    q_low: int = 0                # fewest commands left after a tick in this second (standing backlog)
+    q_until: int = 0              # the tick this second ends
 
     def new_connection(self) -> None:
         """A (re)connect: the phone starts its seqs again at 1, pending commands of the old socket are gone."""
         self.queue.clear()
         self.ack = 0
         self.last_rx = 0
+        self.q_low = 0
         self.connected = True
 
 
@@ -578,8 +583,14 @@ class Room:
         for p in self.players.values():
             q = p.queue
             if not q:
+                p.q_low = 0
                 continue
             n = 2 if len(q) > CATCH_UP_ABOVE else 1
+            if self.tick >= p.q_until:
+                if p.q_low >= 1 and n == 1:
+                    n = 2
+                p.q_low = CMD_QUEUE_MAX
+                p.q_until = self.tick + hz
             frozen = self.frozen(p)
             for _ in range(n):
                 if not q:
@@ -589,6 +600,8 @@ class Room:
                 p.buttons = buttons
                 if not frozen:
                     p.x, p.y = apply_command(m, p.x, p.y, jx, jy, hz)
+            if len(q) < p.q_low:
+                p.q_low = len(q)
         if self.npcs:
             self._npcs_think()
         self.hooks.on_tick(self)

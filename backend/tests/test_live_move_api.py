@@ -123,6 +123,36 @@ def test_host_opens_the_room_and_a_player_joins():
     run(scenario())
 
 
+def test_phones_get_other_players_looks_but_not_their_names_the_projector_gets_all():
+    async def scenario():
+        async with serving() as (url, hub):
+            host, _ = await joined(url, HOST_TOKEN, "host")
+            a, wa = await joined(url, TOKEN_LIST[0])
+            b, wb = await joined(url, TOKEN_LIST[1])
+            others = [e for e in wb["roster"] if e[0] != wb["you"]]
+            assert others == [[wa["you"], 0, None, "", {"body": "round"}]]
+            assert [e for e in wb["roster"] if e[0] == wb["you"]][0][2:4] == [wb["pid"], "name01"]
+
+            async def adds(ws):
+                out = []
+                while len(out) < 1:
+                    msg = await asyncio.wait_for(ws.recv(), 3)
+                    if isinstance(msg, str) and json.loads(msg)["t"] == "add":
+                        out.append(json.loads(msg)["e"])
+                return out
+
+            assert await adds(a) == [[wb["you"], 0, None, "", {"body": "round"}]]
+            host_adds = []
+            while len(host_adds) < 2:
+                msg = await asyncio.wait_for(host.recv(), 3)
+                if isinstance(msg, str) and json.loads(msg)["t"] == "add":
+                    host_adds.append(json.loads(msg)["e"])
+            assert {e[3] for e in host_adds} == {"name00", "name01"} and all(e[2] for e in host_adds)
+            for ws in (a, b, host):
+                await ws.close()
+    run(scenario())
+
+
 def test_player_before_the_host_is_told_to_retry():
     async def scenario():
         async with serving() as (url, hub):
