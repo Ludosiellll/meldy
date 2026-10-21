@@ -19,7 +19,7 @@ const HEADINGS = [
   EXAM_SECTION.plan.title,
   EXAM_SECTION.session.title,
   EXAM_SECTION.ticket.title,
-  EXAM_SECTION.sheet.title,
+  EXAM_SECTION.left.title,
   GROUP_SECTION.title,
   BUILDER_SECTION.title,
   BUILDER_SECTION.tryTitle,
@@ -36,6 +36,37 @@ describe('the landing v3 words (owner, 2026-10-19: plain, no AI-looking lines)',
       expect(text, text).not.toMatch(/!/);
       expect(text, text).not.toMatch(/не придумывает|не выдумывает|уникальн|революц|мощн|идеальн|волшебн|магия|лучш|невероятн|умн(ый|ая|ое) /i);
     }
+  });
+
+  it('on the page itself are plain: short sentences, no chains through «—», «:» or «·», none of our own terms', () => {
+    // The owner, 2026-10-21: «бесят эти надписи, ты когда их читаешь нихуя не понятно». What a student says aloud in
+    // the ticket's loop is speech and keeps its dash; the reel's words (SAY, CHAPTER_LABELS, EXAMPLE) are the reel's.
+    const { said, answer, ...ticket } = COPY.TICKET_TALK;
+    expect([...said, answer].length).toBe(4);
+    const page = strings([
+      COPY.LEAD,
+      COPY.CTA,
+      COPY.NAV,
+      COPY.LECTURE_SECTION,
+      COPY.EXAM_SECTION,
+      ticket,
+      COPY.GROUP_SECTION,
+      COPY.BUILDER_SECTION,
+      COPY.PICTURES,
+      COPY.FINAL,
+      COPY.FOOTER,
+    ]);
+    expect(page.length).toBeGreaterThan(60);
+    for (const text of page) {
+      expect(text, text).not.toMatch(/\s—\s|:|\s·\s/);
+      expect(text, text).not.toMatch(/подтвержд|в сч[её]т|пункт|строк|подсмотр|по правилу|с первого раза|вернутся|вернётся|сесси|обработан|ключ/i);
+      for (const sentence of text.split(/(?<=[.?])\s+/)) expect(sentence.length, sentence).toBeLessThanOrEqual(90);
+    }
+  });
+
+  it('say «Осталось выучить», never «шпаргалка» (owner, 2026-10-21: what is left is a part of the exam)', () => {
+    for (const text of ALL) expect(text, text).not.toMatch(/шпаргалк/i);
+    expect(EXAM_SECTION.left.title).toBe('Осталось выучить');
   });
 
   it('build no heading or statement around an em dash and no «не X, а Y» / «X не …, он …» contrast', () => {
