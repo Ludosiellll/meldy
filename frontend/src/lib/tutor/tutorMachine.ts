@@ -601,11 +601,22 @@ export function fragmentNumber(sourceId: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
-/** «Из лекции, фрагмент 4»; the nearest fragment: «Фрагмент 4 — ближайший к вопросу». */
+/**
+ * «Из лекции, фрагмент 4»; the nearest fragment, found by the words of the question (tutor.pick_fragments), says so
+ * in plain words (owner 21.10): «Больше всего слов из вопроса во фрагменте 4».
+ */
 export function slipCaption(slip: Slip): string {
   const number = fragmentNumber(slip.sourceId);
-  if (slip.kind === 'nearest') return number !== null ? `Фрагмент ${number} — ближайший к вопросу` : 'Ближайший к вопросу фрагмент';
+  if (slip.kind === 'nearest') return number !== null ? `Больше всего слов из вопроса во фрагменте ${number}` : 'Больше всего слов из вопроса в этом месте лекции';
   return number !== null ? `Из лекции, фрагмент ${number}` : 'Из лекции';
+}
+
+/**
+ * What the fragment panel says over the whole fragment of the desk: why the nearest one is there; nothing over the
+ * lecture's own words (the desk's caption «Из лекции, фрагмент 4» already said it).
+ */
+export function slipPanelNote(slip: Slip): string | undefined {
+  return slip.kind === 'nearest' ? 'Здесь в лекции больше всего слов из вопроса.' : undefined;
 }
 
 /** The main text by its length: 40 / 32 / 26 / 22 px on a computer (oral.css steps, one more for explanations). */

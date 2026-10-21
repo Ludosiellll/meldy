@@ -75,7 +75,8 @@ describe('<SummaryView> on a narrow page', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Архитектура' })).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\[S\d+/);
     expect(document.body.textContent).not.toMatch(/\b01\b/);
-    expect(screen.getByText('Под разделами — фрагменты лекции, ближайшие к ним.')).toBeInTheDocument();
+    // No line about the fragments over the text: each chip opens its fragment and the panel says why it is there.
+    expect(screen.queryByText(/фрагменты лекции, ближайшие к ним/)).toBeNull();
     expect(screen.queryByRole('complementary')).toBeNull();
 
     const architecture = screen.getByRole('heading', { name: 'Архитектура' }).closest('section') as HTMLElement;
@@ -83,7 +84,7 @@ describe('<SummaryView> on a narrow page', () => {
     expect(links.map((link) => link.textContent)).toEqual(['фрагмент 1', 'фрагмент 3']);
   });
 
-  it('opens a fragment under its section, says why it is there and closes it', () => {
+  it('opens a fragment of a section in the panel, not under the section, says why in plain words and closes it', () => {
     render(<SummaryView data={DATA} sources={SOURCES} />);
     const learning = screen.getByRole('heading', { name: 'Обучение' }).closest('section') as HTMLElement;
     // No marks in this section: the fragment nearest by words.
@@ -91,18 +92,36 @@ describe('<SummaryView> on a narrow page', () => {
     expect(link).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(link);
     expect(link).toHaveAttribute('aria-expanded', 'true');
-    expect(within(learning).getByText('Фрагмент 2 лекции — ближайший по словам к разделу «Обучение»')).toBeInTheDocument();
+    expect(learning.querySelector('.sf-slip')).toBeNull();
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 2 лекции' });
+    expect(within(panel).getByText('Здесь в лекции больше всего общих слов с разделом «Обучение».')).toBeInTheDocument();
     // The lecture's own heading keeps its line.
-    expect(within(learning).getByText('Обучение сети')).toHaveClass('sv-slip-head');
-    fireEvent.click(within(learning).getByRole('button', { name: 'Закрыть' }));
+    expect(within(panel).getByText('Обучение сети')).toHaveClass('sv-slip-head');
+    fireEvent.click(within(panel).getByRole('button', { name: 'Закрыть фрагмент' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(link).toHaveAttribute('aria-expanded', 'false');
+    expect(link).toHaveFocus();
   });
 
-  it('names a marked fragment as the one the section refers to', () => {
+  it('says that the section itself refers to a marked fragment', () => {
     render(<SummaryView data={DATA} sources={SOURCES} />);
     const architecture = screen.getByRole('heading', { name: 'Архитектура' }).closest('section') as HTMLElement;
     fireEvent.click(within(architecture).getByRole('button', { name: 'Фрагмент лекции 3' }));
-    expect(within(architecture).getByText('Фрагмент 3 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 3 лекции' });
+    expect(within(panel).getByText('Раздел «Архитектура» ссылается на это место лекции.')).toBeInTheDocument();
+    // Both fragments of the section are a switch away.
+    expect(within(panel).getByRole('button', { name: 'Фрагмент 1' })).toHaveAttribute('aria-pressed', 'false');
+    expect(within(panel).getByRole('button', { name: 'Фрагмент 3' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('opens a term’s fragment in the panel: the card of the term does not grow', () => {
+    render(<SummaryView data={DATA} sources={SOURCES} />);
+    const term = screen.getByText('Сигмоида').closest('div') as HTMLElement;
+    fireEvent.click(within(term).getByRole('button', { name: 'Фрагмент лекции 3' }));
+    expect(term.querySelector('.sf-slip')).toBeNull();
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 3 лекции' });
+    expect(within(panel).getByText('Здесь в лекции больше всего общих слов с термином «Сигмоида».')).toBeInTheDocument();
+    expect(within(term).getByRole('button', { name: 'Фрагмент лекции 3' })).toHaveAttribute('data-active');
   });
 
   it('shows no fragment links when the lecture has no fragments', () => {
@@ -159,7 +178,7 @@ describe('<SummaryView> formulas (finding LIB-2)', () => {
     render(<SummaryView data={{ content, terms: [], source_ids: ['S01'] } as never} sources={sources} />);
     const section = screen.getByRole('heading', { level: 2, name: 'Подобие треугольников' }).closest('section') as HTMLElement;
     fireEvent.click(within(section).getByRole('button', { name: 'Фрагмент лекции 1' }));
-    const slip = section.querySelector('.sv-slip') as HTMLElement;
+    const slip = screen.getByRole('dialog').querySelector('.fp-slip') as HTMLElement;
     expect(slip.querySelectorAll('.sv-math .katex')).toHaveLength(3);
     const visible = Array.from(slip.childNodes)
       .filter(node => !(node instanceof HTMLElement && (node.classList.contains('sv-math') || node.classList.contains('sv-math-run'))))
@@ -180,16 +199,14 @@ describe('<SummaryView> on a wide page', () => {
     layOut(0);
   });
 
-  it('puts the fragment of the section being read on the margin, with the list of sections', () => {
+  it('puts the list of sections on the margin and no fragment there', () => {
     render(<SummaryView data={DATA} sources={SOURCES} />);
     const margin = screen.getByRole('complementary', { name: 'Поле конспекта' });
-    expect(screen.getByText('Справа от разделов — фрагменты лекции, ближайшие к ним.')).toBeInTheDocument();
     const outline = within(margin).getByRole('navigation', { name: 'Разделы конспекта' });
     expect(within(outline).getAllByRole('link').map((link) => link.textContent)).toEqual(['Архитектура', 'Обучение', 'Активация', 'Термины']);
     expect(within(outline).getByRole('link', { name: 'Архитектура' })).toHaveAttribute('aria-current', 'true');
-    expect(within(margin).getByText('Фрагмент 1 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
-    // Following the reading there is nothing to close.
-    expect(within(margin).queryByRole('button', { name: 'Закрыть' })).toBeNull();
+    expect(margin.querySelector('.sf-slip')).toBeNull();
+    expect(screen.queryByText(/фрагменты лекции, ближайшие к ним/)).toBeNull();
   });
 
   it('follows the reading down the page', () => {
@@ -200,36 +217,19 @@ describe('<SummaryView> on a wide page', () => {
     });
     const margin = screen.getByRole('complementary', { name: 'Поле конспекта' });
     expect(within(margin).getByRole('link', { name: 'Обучение' })).toHaveAttribute('aria-current', 'true');
-    expect(within(margin).getByText('Фрагмент 2 лекции — ближайший по словам к разделу «Обучение»')).toBeInTheDocument();
   });
 
-  it('shows a chosen fragment until the reading moves on', () => {
+  it('opens a fragment in the panel on a wide page too: one way for every width', () => {
     render(<SummaryView data={DATA} sources={SOURCES} />);
     const architecture = screen.getByRole('heading', { name: 'Архитектура' }).closest('section') as HTMLElement;
     const third = within(architecture).getByRole('button', { name: 'Фрагмент лекции 3' });
-    expect(within(architecture).getByRole('button', { name: 'Фрагмент лекции 1' })).toHaveAttribute('aria-pressed', 'true');
     fireEvent.click(third);
-    expect(third).toHaveAttribute('aria-pressed', 'true');
-    const margin = screen.getByRole('complementary', { name: 'Поле конспекта' });
-    expect(within(margin).getByText('Фрагмент 3 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
-
-    fireEvent.click(within(margin).getByRole('button', { name: 'Закрыть' }));
-    expect(within(margin).getByText('Фрагмент 1 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
-
-    fireEvent.click(third);
-    layOut(700);
-    act(() => {
-      document.dispatchEvent(new Event('scroll'));
-    });
-    expect(within(margin).getByText('Фрагмент 2 лекции — ближайший по словам к разделу «Обучение»')).toBeInTheDocument();
-  });
-
-  it('opens a term’s fragment on the margin', () => {
-    render(<SummaryView data={DATA} sources={SOURCES} />);
-    const term = screen.getByText('Сигмоида').closest('div') as HTMLElement;
-    fireEvent.click(within(term).getByRole('button', { name: 'Фрагмент лекции 3' }));
-    const margin = screen.getByRole('complementary', { name: 'Поле конспекта' });
-    expect(within(margin).getByText('Фрагмент 3 лекции — ближайший по словам к термину «Сигмоида»')).toBeInTheDocument();
+    expect(third).toHaveAttribute('aria-expanded', 'true');
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 3 лекции' });
+    expect(screen.getByRole('complementary', { name: 'Поле конспекта' }).contains(panel)).toBe(false);
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(third).toHaveFocus();
   });
 
   it('keeps one column when there is nothing for the margin', () => {
@@ -264,20 +264,21 @@ describe('<SummaryView> on a phone (10_Project/Phone_Declutter_2026-10-08)', () 
     expect(within(learning).getByRole('button', { name: 'фрагменты 1, 2' })).toBeInTheDocument();
   });
 
-  it('opens the fragments of the line under it, one slip each, and «Закрыть» under the last puts them away', () => {
+  it('opens the fragments of the line in a bottom sheet, the first one shown and the next a switch away', () => {
     render(<SummaryView data={DATA} sources={SOURCES} card />);
     const architecture = screen.getByRole('heading', { name: 'Архитектура' }).closest('section') as HTMLElement;
     const line = within(architecture).getByRole('button', { name: 'фрагменты 1, 3' });
     fireEvent.click(line);
     expect(line).toHaveAttribute('aria-expanded', 'true');
-    expect(document.getElementById(line.getAttribute('aria-controls') ?? '')).not.toBeNull();
-    expect(within(architecture).getByText('Фрагмент 1 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
-    expect(within(architecture).getByText('Фрагмент 3 лекции — на него ссылается раздел «Архитектура»')).toBeInTheDocument();
-    const close = within(architecture).getAllByRole('button', { name: 'Закрыть' });
-    expect(close).toHaveLength(1);
-    fireEvent.click(close[0]);
+    expect(architecture.querySelector('.sf-slip')).toBeNull();
+    expect(document.querySelector('.fp-layer')).toHaveAttribute('data-phone');
+    const sheet = screen.getByRole('dialog', { name: 'Фрагмент 1 лекции' });
+    expect(within(sheet).getByText('Раздел «Архитектура» ссылается на это место лекции.')).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Фрагмент 3' }));
+    expect(screen.getByRole('dialog', { name: 'Фрагмент 3 лекции' })).toBeInTheDocument();
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Закрыть фрагмент' }));
     expect(line).toHaveAttribute('aria-expanded', 'false');
-    expect(within(architecture).queryByText(/Фрагмент 1 лекции/)).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('writes the numbers in order, in the sections and the terms', () => {
@@ -290,6 +291,8 @@ describe('<SummaryView> on a phone (10_Project/Phone_Declutter_2026-10-08)', () 
     expect(within(section).getByRole('button', { name: 'фрагменты 1, 3' })).toBeInTheDocument();
     const term = screen.getByText('Сигмоида').closest('div') as HTMLElement;
     fireEvent.click(within(term).getByRole('button', { name: 'фрагменты 1, 3' }));
-    expect(within(term).getByText('Фрагмент 1 лекции — ближайший по словам к термину «Сигмоида»')).toBeInTheDocument();
+    const sheet = screen.getByRole('dialog', { name: 'Фрагмент 1 лекции' });
+    expect(within(sheet).getByText('Здесь в лекции больше всего общих слов с термином «Сигмоида».')).toBeInTheDocument();
+    expect(within(sheet).getAllByRole('button', { name: /^Фрагмент \d+$/ }).map((button) => button.textContent)).toEqual(['Фрагмент 1', 'Фрагмент 3']);
   });
 });

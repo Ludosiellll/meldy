@@ -365,9 +365,29 @@ describe('a turn aloud', () => {
     expect(api.turns[1].body).toMatchObject({ kind: 'question', utterance: 'что такое бозон хиггса' });
     expect(api.turns[1].body).not.toHaveProperty('target_id');
     await answerWith(reply({ move: 'not_in_lecture', say: 'В лекции об этом не сказано.', nearest: { source_id: 'S04', text: 'Безработица бывает фрикционной.' }, done: false, rung: 0, status: null }));
-    expect(screen.getByText('Фрагмент 4 — ближайший к вопросу')).toBeInTheDocument();
+    expect(screen.getByText('Больше всего слов из вопроса во фрагменте 4')).toBeInTheDocument();
     expect(within(tutorCard()).getByText('В лекции об этом не сказано. Вернёмся к вопросу.')).toBeInTheDocument();
     expect(within(tutorCard()).getByText(QUESTIONS[0])).toBeInTheDocument();
+  });
+
+  it('opens a long fragment of the desk whole in the fragment panel; the desk keeps its start (owner 21.10)', async () => {
+    await started();
+    hearAll();
+    await answerAloud('не помню');
+    const long = `${'Безработица бывает фрикционной, структурной и циклической. '.repeat(12)}Конец фрагмента.`;
+    await answerWith(reply({ move: 'quote', say: 'Вот как сказано в лекции. Скажите своими словами.', quote: { source_id: 'S03', text: long }, done: false, rung: 2, assisted: true, status: 'missing' }));
+    expect(desk().querySelector('.lt-slip-text')?.textContent?.endsWith('…')).toBe(true);
+    const more = within(desk()).getByRole('button', { name: 'Показать целиком' });
+    fireEvent.click(more);
+    const panel = screen.getByRole('dialog', { name: 'Фрагмент 3 лекции' });
+    expect(panel.querySelector('.fp-slip')?.textContent).toContain('Конец фрагмента.');
+    expect(panel.querySelector('.fp-note')).toBeNull();
+    // Whole at once: no second «Показать целиком» in the panel; the desk does not grow.
+    expect(within(panel).queryByRole('button', { name: 'Показать целиком' })).toBeNull();
+    expect(desk().querySelector('.lt-slip-text')?.textContent?.endsWith('…')).toBe(true);
+    fireEvent.keyDown(panel, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(more).toHaveFocus();
   });
 
   it('«Не знаю» is the answer «не знаю»', async () => {
