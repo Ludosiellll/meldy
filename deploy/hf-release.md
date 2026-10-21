@@ -4,6 +4,17 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-21 — Release 47.17: lecture fragments open in one panel (from the commit of this entry)
+
+- **The fragment panel** (owner, 21.10: «в лекциях разве во время открытия фрагментов все должно так растягиваться? …
+  открывать их в виде отдельного блока слева поверх всех блоков»): on a computer a panel slides in from the left over the
+  page under the top bar; on a phone a sheet from below. Switches between an item's fragments inside the panel; closes
+  with ×, Escape or a click on the dim; the cards under it keep their heights. Used by the summary (sections, theses,
+  terms), flashcards, «Самопроверка», the podcast sheet and «Поговорить о лекции». The open fragment stays in the address
+  (`?frag=…&frag_for=…`), so a reload opens it again. Plainer lines: «Здесь в лекции больше всего общих слов с термином
+  «Природа».».
+- Gate on 212fbc2 (clean worktree): pytest 2440, bot 389, sync ok, Vitest 391 files / 6496 tests, Docker-layout build ok.
+
 ## 2026-10-21 — Release 47.16: plain words on the study side and in the bot (from the commit of this entry)
 
 - **Plain words** (owner, 21.10): about 450 strings on the study side say the result in short sentences — «Выучено 46
