@@ -83,7 +83,7 @@ const SLIP_LIMIT = 420;
 const ROW_SLIP_LIMIT = 220;
 const NO_MARKS: ReadonlySet<number> = new Set();
 
-export const LOAD_OFFLINE_MESSAGE = 'Нет интернета — разговор не начался. Проверьте подключение и нажмите «Повторить».';
+export const LOAD_OFFLINE_MESSAGE = 'Нет интернета, разговор не начался. Проверьте подключение и нажмите «Повторить».';
 export const KEYS_LINE = 'Пробел — «Отвечать» и «Готово», Esc — остановить голос.';
 
 // ── Small helpers ─────────────────────────────────────────────────────────────────
@@ -127,7 +127,7 @@ function turnErrorOf(error: unknown): TurnError {
 /** What the server's recognition is doing under «Готово» (as in «Ответ вслух»). */
 function serverVoiceLine(pending: number, lost: number): string {
   if (pending > 0) return 'Распознаём сказанное…';
-  if (lost > 0) return 'Часть сказанного не распознана — можно повторить или дописать текстом.';
+  if (lost > 0) return 'Часть сказанного не распознана. Повторите или допишите текстом.';
   return 'Слушаю. Текст появляется после каждой паузы.';
 }
 
@@ -922,7 +922,7 @@ function TalkRoom({ materialId }: { materialId: string }) {
           </h1>
           <p className="lt-start-lede">{glue(`Meldy задаст ${questionsWord(state.cards.length)} по карточкам этой лекции.`)}</p>
           <div className="lt-start-steps">
-            <p>Включите звук. Браузер спросит про микрофон — разрешите.</p>
+            <p>Включите звук. Когда браузер спросит про микрофон, разрешите его.</p>
             <p>Микрофон слушает, только пока на кнопке написано «Готово».</p>
           </div>
           <p className="lt-start-fine">Реплики пишет ИИ только по тексту этой лекции. Слова лекции — на карточках с номером фрагмента, остальное — пояснения Meldy.</p>
@@ -986,7 +986,7 @@ function TalkRoom({ materialId }: { materialId: string }) {
     const sent = thinking || errored ? state.pending?.utterance ?? '' : '';
     const voiceTurn = state.mode === 'voice' && !thinking && !errored;
     const emptyText = listening
-      ? 'Говорите — я слушаю.'
+      ? 'Говорите, я слушаю.'
       : voiceTurn && !recognising
         ? asking
           ? 'Нажмите «Отвечать» и задайте вопрос по лекции.'

@@ -1405,7 +1405,7 @@ describe('ExamDetail: mapping by lectures', () => {
     renderDetail();
     await opened();
     await statusSays('4 вопроса проверены только по словам');
-    expect(statusText()).toBe('Сервис был занят, и Meldy сравнил их с лекциями только по совпадению слов. Проверьте их снова — это стоит 10 единиц ИИ.');
+    expect(statusText()).toBe('Сервис был занят, и Meldy сравнил их с лекциями только по совпадению слов. Проверьте их снова, это стоит 10 единиц ИИ.');
     // The action lives in the status; the column keeps its one figure.
     expect(within(column()).queryByRole('button', { name: 'Проверить снова' })).toBeNull();
     fireEvent.click(within(statusCard()).getByRole('button', { name: 'Проверить снова' }));
