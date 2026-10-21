@@ -327,7 +327,8 @@ def main():
 
     moments = {name: clip_of(marks[name]) for name in marks if name != '@' and clip_of(marks[name]) is not None}
     meta = {
-        'clip': cut['clip'], 'take': str(take_dir), 'size': [W, H], 'viewport': take['viewport'], 'capture_scale': scale,
+        'clip': cut['clip'], 'take': cut['take'],  # as the cut names it: a take in the takes folder
+        'size': [W, H], 'viewport': take['viewport'], 'capture_scale': scale,
         'device_scale': take.get('dpr'), 'fps': fps, 'frames': total, 'seconds': round(total / fps, 3), 'loop_fade_frames': loop_fade,
         'stretches': [{k: v for k, v in s.items() if k != 'start'} for s in stretches],
         'swaps': [{'after': s['spec'], 'clip': clip_of(s['t'])} for s in swaps],
