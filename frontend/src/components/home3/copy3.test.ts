@@ -116,8 +116,9 @@ describe('the landing v3 words (owner, 2026-10-19: plain, no AI-looking lines)',
     expect(SAY.game).toHaveLength(2);
     expect(SAY.game[0]).toMatch(/Telegram/);
     expect(SAY.game[1]).toMatch(/провалива/);
-    // The bot's post is the stand game's own (supabase/functions/_shared/bot/live.ts): the PIN never splits.
-    expect(GAME.post.join(' ')).toMatch(/Заходите по PIN\u00a0\d{3}\u00a0\d{3}\./);
+    // The bot's post is the stand game's own (supabase/functions/_shared/bot/live.ts), with the PIN the recorded
+    // projector shows in its lobby and corner (the footage loops through it on the page); the PIN never splits.
+    expect(GAME.post.join(' ')).toContain('Заходите по PIN\u00a0123\u00a0456.');
     expect(GAME.mode).toBe('Встань на ответ');
     // No game words of our own on the page: no «режим», «раунд», «лобби», «зона», «босс».
     for (const text of strings([GAME_SECTION, GAME, SAY.game])) expect(text, text).not.toMatch(/режим|раунд|лобби|зон[аеуы]|босс/i);

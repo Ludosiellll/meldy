@@ -178,9 +178,9 @@ export const GROUP_SECTION = {
 
 /**
  * «Игра в классе» (owner, 21.10: «не забудь сделать это» for the page and the reel): the live game «Встань на ответ»,
- * shown by its real recorded frames (home3/game). The question and its options are the recorded game's; the bot's post
- * is the stand game's group post (supabase/functions/_shared/bot/live.ts livePost); the phone's words are the phone's
- * own (live/stand/phone/words.ts).
+ * shown by the real recorded game (lib/footage STAND_RUN, home3/game). The question, its options and the PIN are the
+ * recorded game's (its projector shows them), the test's title too; the bot's post is the stand game's group post
+ * (supabase/functions/_shared/bot/live.ts livePost); the phone's words are the phone's own (live/stand/phone/words.ts).
  */
 export const GAME_SECTION = {
   title: 'Игра в классе',
@@ -201,7 +201,7 @@ export const GAME = {
   chatMeta: '31 участник',
   bot: 'Meldy',
   /** The bot's lines; a number keeps to its word and the PIN stays whole (\u00a0). */
-  post: ['Игра по тесту «Повторение». 3\u00a0вопроса.', 'Заходите по PIN\u00a0482\u00a0913.', 'Играют 30'],
+  post: ['Игра по тесту «Повторение». 3\u00a0вопроса.', 'Заходите по PIN\u00a0123\u00a0456.', 'Играют 30'],
   play: 'Играть',
 } as const;
 
