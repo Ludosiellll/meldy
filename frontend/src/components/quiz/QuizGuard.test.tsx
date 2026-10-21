@@ -124,6 +124,7 @@ function renderRun(value: QuizAttempt, token: string | null = null) {
 }
 
 beforeEach(() => {
+  window.sessionStorage.clear();
   vi.useFakeTimers({ now: DEVICE_NOW });
   window.localStorage.clear();
   focused = true;
