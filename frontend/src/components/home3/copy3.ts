@@ -106,7 +106,7 @@ export const TILES = {
   /** The first screen's blue tile: a ticket answered aloud on a phone. */
   oral: 'Ответ вслух, как на экзамене',
   lecture: {
-    title: 'Лекция → конспект, карточки, тест, подкаст',
+    title: 'Лекция → конспект, карточки, самопроверка',
     text: 'У каждого раздела видно, откуда он взят в лекции.',
   },
   exam: {

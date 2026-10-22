@@ -91,7 +91,7 @@ export const LANDING_ORAL: Footage = {
   backdrop: '#f1f2ed',
 };
 
-/** «Лекция → конспект, карточки, тест, подкаст» on a computer. 1280 × 800, 14.8 s, 585 KB in 7 parts. */
+/** «Лекция → конспект, карточки, самопроверка» on a computer. 1280 × 800, 14.8 s, 585 KB in 7 parts. */
 export const LANDING_LECTURE_WIDE: Footage = {
   ...files('landing-lecture-wide', '1201809487', 7),
   width: 1280,
