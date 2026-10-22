@@ -4,6 +4,23 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-22 — Release 47.27: the main page as tiles with real recordings (from the commit of this entry)
+
+- **Main page «D — Плитки»** (owner picked D of four prototypes: «мне понравилось Д»): hero = a white tile (headline, lead,
+  «Попробовать на примере», «Пройти тест без входа») + a blue tile with a phone playing the oral answer; then tiles:
+  «Лекция → конспект, карточки, самопроверка», «Вопросы кафедры → план по дням», the game in class (projector + phone in
+  step, as before), «Тест по ссылке, без аккаунта», «План на день приходит в Telegram», the live mini constructor (as
+  before), the final CTA. The 48 s reel and the «Группа и Telegram» block are off the landing (reel code kept for its
+  other uses). Landing JS 38.0 → 17.8 KB, CSS 24.9 → 13.2 KB; the Reel3 chunk is no longer loaded there.
+- **Real recordings, new takes of 22.10** (lib/footage.ts, parts < 95 000 bytes in public/game/footage/):
+  LANDING_ORAL 600×1298 13.5 s, LANDING_LECTURE_WIDE / _PHONE (1280×800 / 680×850 4:5), LANDING_EXAM_WIDE / _PHONE;
+  hard cuts, posters are the telling frames. A computer fetches 1.56 MB of video, a phone 1.32 MB, only after the
+  load event and only near the window; wide vs phone cut chosen once by `(max-width: 640px)`.
+- `frontend/scripts/footage-parts.mjs`: an MP4 + poster → parts, poster and the TS def.
+- Page height: 1532×734 4.96 screens (was ≈ 8.6), 390 6.54 (was ≈ 11). Both themes have their own tile colours.
+- Test: the game tip test waits up to 3 s (it ran out of 1 s once under a full run's load; alone 3/3).
+- Gate on 8f6dcde/b787a12 (clean worktree): pytest 2476, bot 393, sync ok, Vitest 411 files / 6686, Docker-layout build ok.
+
 ## 2026-10-22 — Release 47.26: the landing's test builder works on phones (from the commit of this entry)
 
 - **Mini studio on phones** (owner: «конструктор на телефонах плохо отображается»): the lead names the tab
