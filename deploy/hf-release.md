@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-22 — Release 47.26: the landing's test builder works on phones (from the commit of this entry)
+
+- **Mini studio on phones** (owner: «конструктор на телефонах плохо отображается»): the lead names the tab
+  («Нажмите «Как видит участник» и пройдите тест сами») instead of «Справа видно…» under 700 px; all five block kinds in
+  two rows; the colour/font/background row runs edge to edge and fades where it scrolls; the block toolbar sits in a bar
+  under the page and names the chosen block (it covered the block before); less nesting, the test is 326 px wide at 390
+  (was 262). Fixed: «Как видит участник» on a phone showed an empty frame (a later `.ms-take` rule put the participant's
+  phone into a 16 px column). Moving a block keeps it in view; after «×» a new block goes to the end. Desktop 1280/1532
+  pixel-identical before/after.
+- Test: the lecture page's tab-title check waits for the effect (it failed once under load in the full run).
+- Gate on e3cef9a (clean worktree): pytest 2476, bot 393, sync ok, Vitest 412 files / 6679 + the one tab-title test
+  that passes alone 3/3 and is now made to wait, Docker-layout build ok.
+
 ## 2026-10-22 — Release 47.25: the phone checks a game PIN without a red 400 (from the commit of this entry)
 
 - **PIN step:** the phone asked `live_join` with an empty name and read its refusal as «there is a game», so every join
