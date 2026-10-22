@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
-import Landing3 from './Landing3';
+import Landing3, { PHONE_QUERY } from './Landing3';
 import { BUILD_URL } from './Builder';
-import { BUILDER_SECTION, CTA, EXAMPLE, EXAM_SECTION, GAME, GAME_SECTION, GROUP_SECTION, HEADLINE, LEAD, LECTURE_SECTION, PICTURES, SAMPLE_TEST_URL, bind } from './copy3';
+import { BUILDER_SECTION, CTA, FINAL, GAME_SECTION, HEADLINE, LEAD, NAV, SAMPLE_TEST_URL, TILES, bind } from './copy3';
 import { GAME_ALT, GAME_URL } from './Sections';
-import { STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
-import { reelPart } from './reelPart';
+import { LANDING_EXAM_WIDE, LANDING_LECTURE_WIDE, LANDING_ORAL, STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
 import { returnToFromSearch } from '../../lib/returnTo';
 
 interface NodeFs {
@@ -30,18 +29,22 @@ class SilentObserver {
   }
 }
 
+/** An IntersectionObserver that says at once that everything is on screen (every player near and in view). */
+class SeenObserver {
+  constructor(private callback: (entries: Array<{ isIntersecting: boolean }>) => void) {}
+  observe() {
+    this.callback([{ isIntersecting: true }]);
+  }
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+}
+
 function Where() {
   const { pathname } = useLocation();
   return <p>Адрес: {pathname}</p>;
-}
-
-/** Whether a text of a Swap is the one on screen (all of them are in the markup; the others are hidden). */
-function shown(text: string, root: HTMLElement = document.body): boolean {
-  const spans = within(root)
-    .getAllByText(text)
-    .filter((el) => el.parentElement?.classList.contains('p3-swap'));
-  expect(spans.length, text).toBe(1);
-  return spans[0].classList.contains('is-on') && !spans[0].hasAttribute('aria-hidden');
 }
 
 function renderLanding() {
@@ -55,23 +58,46 @@ function renderLanding() {
   );
 }
 
+/** matchMedia answering `phone` for the page's phone width and no to everything else (reduced motion included). */
+function stubScreen(phone: boolean) {
+  const asked: string[] = [];
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => {
+      asked.push(query);
+      return { matches: phone && query === PHONE_QUERY, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() };
+    }),
+  );
+  return asked;
+}
+
+/** The page before the window's load event (jsdom's document is already complete). */
+function beforeLoad() {
+  Object.defineProperty(document, 'readyState', { configurable: true, get: () => 'interactive' });
+  return () => {
+    delete (document as unknown as { readyState?: string }).readyState;
+    act(() => {
+      window.dispatchEvent(new Event('load'));
+    });
+  };
+}
+
 beforeEach(() => {
   vi.stubGlobal('IntersectionObserver', SilentObserver);
   vi.stubGlobal('ResizeObserver', SilentObserver);
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn() })),
-  );
+  stubScreen(false);
 });
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  delete (document as unknown as { readyState?: string }).readyState;
   document.documentElement.classList.remove('sh-off');
   document.getElementById('static-hero')?.remove();
 });
 
-describe('the landing v3', () => {
+describe('the landing «D — Плитки»', () => {
   it('says the headline and the lead and offers the example and the public test first', () => {
     renderLanding();
     expect(screen.getByRole('heading', { level: 1, name: bind(HEADLINE) })).toBeInTheDocument();
@@ -97,30 +123,79 @@ describe('the landing v3', () => {
     expect(screen.getByText('Адрес: /try')).toBeInTheDocument();
   });
 
-  it('has the sections in the reel’s order, the constructor last before the end', () => {
+  it('has its tiles in the prototype’s order, headings one level under the headline, the constructor before the end', () => {
     renderLanding();
-    const titles = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
-    expect(titles.slice(0, 5)).toEqual([LECTURE_SECTION.title, EXAM_SECTION.title, GROUP_SECTION.title, GAME_SECTION.title, BUILDER_SECTION.title].map(bind));
+    const names = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    // the drawn arrows (glyphs.tsx) are pictures with a label, not text
+    const plain = (text: string) => bind(text).replace(/ → /g, '  ');
+    expect(names).toEqual(
+      [TILES.oral, TILES.lecture.title, TILES.exam.title, GAME_SECTION.title, TILES.link, TILES.telegram, BUILDER_SECTION.title, FINAL.title].map(plain),
+    );
+    expect(screen.getByRole('heading', { level: 2, name: TILES.lecture.title })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    // the 48 s reel is no longer on the page
+    expect(document.querySelector('.r3, .h3-reel-slot, .h3-reel-wait')).toBeNull();
   });
 
-  it('shows the game in class after the group: the recorded game, the bot’s post, a phone, one link (owner, 21.10)', () => {
+  it('sends the top line’s links to their tiles: the lecture, the exam and the constructor', () => {
+    renderLanding();
+    const nav = screen.getByRole('navigation', { name: 'Главное меню' });
+    const expected = { lecture: TILES.lecture.title, exam: TILES.exam.title, builder: BUILDER_SECTION.title };
+    for (const item of NAV) {
+      const link = within(nav).getByRole('link', { name: item.label });
+      expect(link).toHaveAttribute('href', `#${item.id}`);
+      const target = document.getElementById(item.id)!;
+      expect(target, item.id).not.toBeNull();
+      expect(within(target).getAllByRole('heading', { level: 2 })[0]).toHaveAccessibleName(bind(expected[item.id]));
+    }
+  });
+
+  it('shows a recorded screen in the lecture’s and the exam’s tiles, as decoration the tile’s words explain', () => {
+    renderLanding();
+    for (const [id, cut] of [
+      ['lecture', LANDING_LECTURE_WIDE],
+      ['exam', LANDING_EXAM_WIDE],
+    ] as const) {
+      const tile = document.getElementById(id)!;
+      const frame = tile.querySelector('.p3-clip-frame') as HTMLElement;
+      expect(frame.dataset.variant).toBe('wide');
+      expect(frame.style.aspectRatio).toBe(`${cut.width} / ${cut.height}`);
+      expect(frame.querySelector('.fo')).toHaveAttribute('aria-hidden', 'true');
+      expect(frame.querySelector('.fo-poster')).toHaveAttribute('src', cut.poster);
+      expect(tile.querySelector('.p3-tile-p')!.textContent).toBe(bind(id === 'lecture' ? TILES.lecture.text : TILES.exam.text));
+    }
+    // nothing fetched or played while the tiles are not near (the observer has not said so)
+    expect(document.querySelectorAll('video')).toHaveLength(0);
+  });
+
+  it('takes the phone’s cuts on a phone, chosen once when the page opens, and never the wide ones there', () => {
+    const asked = stubScreen(true);
+    renderLanding();
+    expect(asked).toContain(PHONE_QUERY);
+    for (const id of ['lecture', 'exam']) {
+      const frame = document.getElementById(id)!.querySelector('.p3-clip-frame') as HTMLElement;
+      expect(frame.dataset.variant).toBe('phone');
+      // the frame is 4:5 in the stylesheet, whatever the cut (a wide stand-in is cropped to it)
+      expect(frame.style.aspectRatio).toBe('');
+    }
+  });
+
+  it('shows the game in class on its dark tile: the recorded projector, the phone in the same game, one link (owner, 21.10)', () => {
     renderLanding();
     const section = document.getElementById('game')!;
     expect(within(section).getByRole('heading', { level: 2 })).toHaveTextContent(GAME_SECTION.title);
-    expect(section.querySelector('.p3-text')!.textContent).toBe(bind(GAME_SECTION.text));
-    for (const line of ['на проекторе', 'с телефона', 'проваливается', 'в Telegram']) expect(GAME_SECTION.text).toContain(line);
-    // The projector is the recorded game, said in words: its player comes with the reel's late file, and fetches its
-    // poster and its parts only as the section comes near (no video here, no picture before the player). The post and
-    // the phone are pictures beside it; the phone's screen is its own footage, so nothing on it is drawn over it.
+    expect(section.querySelector('.p3-tile-p')!.textContent).toBe(bind(GAME_SECTION.text));
+    // the projector is the recorded game, said in words; the phone beside it is its own footage, nothing drawn over it
     const projector = within(section).getByRole('img', { name: GAME_ALT });
     expect(projector).toHaveClass('p3-proj');
-    expect(projector.querySelector('video')).toBeNull();
-    expect(STAND_RUN.parts.every((part) => part.startsWith('/game/footage/'))).toBe(true);
+    expect(projector.querySelector('.fo-poster')).toHaveAttribute('src', STAND_RUN.poster);
+    const phone = section.querySelector('.p3-gphone')!;
+    expect(phone).toHaveAttribute('aria-hidden', 'true');
+    expect(phone.querySelector('.fo-poster')).toHaveAttribute('src', STAND_RUN_PHONE.poster);
+    expect(phone.textContent).toBe('');
     for (const img of section.querySelectorAll('img')) expect(img).toHaveAttribute('loading', 'lazy');
-    for (const picture of section.querySelectorAll('.p3-gpost, .p3-gphone')) expect(picture).toHaveAttribute('aria-hidden', 'true');
-    expect(section.querySelector('.p3-gpost')).toHaveTextContent(GAME.play);
-    expect(section.querySelector('.p3-gphone')!.textContent).toBe('');
-    // Nothing to press but its one link: sign up, then «Тесты», where every test has «Провести игру».
+    expect(section.querySelectorAll('video')).toHaveLength(0);
+    // nothing to press but its one link: sign up, then «Тесты», where every test has «Провести игру»
     expect(section.querySelectorAll('button')).toHaveLength(0);
     const links = within(section).getAllByRole('link');
     expect(links).toHaveLength(1);
@@ -131,22 +206,41 @@ describe('the landing v3', () => {
     expect(screen.getByText('Адрес: /register')).toBeInTheDocument();
   });
 
-  it('puts the projector’s footage and the phone’s in the game once the player has come, posters only until near (owner, 21.10)', async () => {
+  it('says the two facts as headings beside the game', () => {
     renderLanding();
-    await act(async () => {
-      await reelPart.load();
-    });
-    const section = document.getElementById('game')!;
-    // Two players of one moment: the projector's cut and the phone's, frame for frame the same game.
-    const projector = section.querySelector('.p3-proj .fo-poster')!;
-    const phone = section.querySelector('.p3-gphone .fo-poster')!;
-    expect(projector).toHaveAttribute('src', STAND_RUN.poster);
-    expect(phone).toHaveAttribute('src', STAND_RUN_PHONE.poster);
-    for (const poster of [projector, phone]) expect(poster).toHaveAttribute('loading', 'lazy');
-    // Not near yet (the observer has not said so): nothing is fetched, no video, and no words drawn over the phone.
-    expect(section.querySelectorAll('video')).toHaveLength(0);
-    expect(section.querySelector('.p3-gphone')!.textContent).toBe('');
-    expect(reelPart.current()?.phone).toBe(STAND_RUN_PHONE);
+    const facts = document.querySelector('.p3-facts')!;
+    expect(within(facts as HTMLElement).getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([bind(TILES.link), bind(TILES.telegram)]);
+    for (const icon of facts.querySelectorAll('svg')) expect(icon).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('fetches no part of any video before the window’s load event; then the phone answering aloud joins its poster', () => {
+    vi.stubGlobal('IntersectionObserver', SeenObserver);
+    vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
+    const fetchMock = vi.fn(() => new Promise(() => undefined));
+    vi.stubGlobal('fetch', fetchMock);
+    const load = beforeLoad();
+    renderLanding();
+    // posters only: the static screen's own <img> in the blue tile, no player over it yet, nothing fetched
+    const phone = document.querySelector('.h3-oral-phone')!;
+    expect(phone.querySelector('.h3-oral-poster')).toHaveAttribute('src', LANDING_ORAL.poster);
+    expect(phone.querySelector('.fo')).toBeNull();
+    expect(document.querySelectorAll('.fo').length).toBeGreaterThan(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    load();
+    expect(phone.querySelector('.fo')).toHaveAttribute('aria-hidden', 'true');
+    const fetched = fetchMock.mock.calls.map((call) => (call as unknown[])[0]);
+    expect(fetched).toEqual(expect.arrayContaining([...LANDING_ORAL.parts, ...STAND_RUN.parts, ...LANDING_LECTURE_WIDE.parts]));
+    // one of the two cuts of a tile, never both
+    expect(fetched.filter((url) => String(url).includes('-phone-') && !String(url).includes('stand-run'))).toEqual([]);
+  });
+
+  it('ends on the example: one heading, one link', () => {
+    renderLanding();
+    const end = screen.getByRole('heading', { level: 2, name: bind(FINAL.title) }).closest('section')!;
+    const links = within(end).getAllByRole('link');
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName(CTA.example);
+    expect(links[0]).toHaveAttribute('href', '/try');
   });
 
   it('offers «Собрать свой тест» beside the sample test: sign up, then the quick test (UX audit 21.10)', () => {
@@ -180,41 +274,16 @@ describe('the landing v3', () => {
     expect(fs.readFileSync(`${dir}/miniStudio.css`, 'utf8')).toMatch(/@media \(max-width: 699px\) \{\n {2}\.ms \{\n {4}--ms-pad/);
   });
 
-  it('switches the lecture’s materials', () => {
-    renderLanding();
-    fireEvent.click(screen.getByRole('tab', { name: /Тест/ }));
-    expect(screen.getByRole('tab', { name: /Тест/ })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getAllByText(EXAMPLE.testStem).length).toBeGreaterThan(0);
-  });
-
-  it('moves the exam by two weeks and back', () => {
-    renderLanding();
-    expect(shown(PICTURES.examDate[0])).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: EXAM_SECTION.plan.move }));
-    expect(shown(PICTURES.examDate[1])).toBe(true);
-    expect(shown(PICTURES.examDate[0])).toBe(false);
-    expect(shown(PICTURES.today[1])).toBe(true);
-    expect(screen.getByText(PICTURES.moved)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: EXAM_SECTION.plan.back }));
-    expect(shown(PICTURES.examDate[0])).toBe(true);
-    expect(screen.queryByText(PICTURES.moved)).toBeNull();
-  });
-
-  it('answers a press in the session: the right one is learned and closes its topic, a wrong one names the answer', () => {
-    renderLanding();
-    const session = screen.getByText(PICTURES.question).closest('.p3-sess') as HTMLElement;
-    expect(shown(EXAM_SECTION.session.idle, session)).toBe(true);
-    fireEvent.click(within(session).getByRole('button', { name: /Вырастет/ }));
-    expect(shown(EXAM_SECTION.session.right, session)).toBe(true);
-    expect(shown('147', session)).toBe(true);
-    expect(shown('17 тем из 24', session)).toBe(true);
-    expect(within(session).getByText('Эластичность и выручка').closest('.p3-topic')).toHaveClass('is-done');
-    fireEvent.click(within(session).getByRole('button', { name: EXAM_SECTION.session.again }));
-    expect(shown('146', session)).toBe(true);
-    fireEvent.click(within(session).getByRole('button', { name: /Снизится/ }));
-    expect(shown(EXAM_SECTION.session.wrong, session)).toBe(true);
-    expect(EXAM_SECTION.session.wrong).toContain(`«${EXAMPLE.testOptions[EXAMPLE.testRight]}»`);
-    expect(within(session).getByText('Эластичность и выручка').closest('.p3-topic')).not.toHaveClass('is-done');
+  it('keeps its stylesheets light to paint: no blur, no backdrop filter, no drop shadow, the phone width the page’s', async () => {
+    const fs = (await import(/* @vite-ignore */ NODE_FS)) as NodeFs;
+    const dir = HERE.slice(0, HERE.lastIndexOf('/'));
+    for (const name of ['home3.css', 'hero3.css']) {
+      const css = fs.readFileSync(`${dir}/${name}`, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+      expect(css, name).not.toMatch(/filter|blur/);
+      for (const shadow of css.match(/box-shadow:[^;}]*/g) ?? []) expect(shadow, `${name}: ${shadow}`).toMatch(/inset 0 0 0 1px/);
+      expect(css, name).toContain(`max-width:${name === 'hero3.css' ? '' : ' '}640px`);
+    }
+    expect(PHONE_QUERY).toBe('(max-width: 640px)');
   });
 });
 

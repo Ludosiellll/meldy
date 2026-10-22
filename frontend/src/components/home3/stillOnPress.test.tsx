@@ -70,29 +70,21 @@ function layout(root: Element): string {
 }
 
 describe('a press on the landing moves nothing', () => {
-  it('in every section, every button: the same elements and the same words before and after', () => {
+  it('in every part with a button, every button: the same elements and the same words before and after', () => {
     render(
       <MemoryRouter>
         <Landing3 />
       </MemoryRouter>,
     );
-    const sections = [document.getElementById('lecture')!, document.getElementById('exam')!];
-    for (const section of sections) {
-      const before = layout(section);
-      const buttons = [...section.querySelectorAll('button')];
-      expect(buttons.length, section.id).toBeGreaterThan(0);
-      for (const button of buttons) {
-        fireEvent.click(button);
-        expect(layout(section), `${section.id}: «${button.textContent}»`).toBe(before);
-      }
-    }
-    // the session's answers one by one, each after «Ответить ещё раз»
-    const exam = document.getElementById('exam')!;
-    const before = layout(exam);
-    for (const name of [/Снизится/, /Вырастет/, /Не изменится/]) {
-      fireEvent.click(exam.querySelector('.p3-textbtn')!);
-      fireEvent.click(screen.getByRole('button', { name }));
-      expect(layout(exam), String(name)).toBe(before);
+    // The tiles have no button (their videos are pictures, their one link is a link); the constructor has its own.
+    for (const id of ['lecture', 'exam', 'game']) expect(document.getElementById(id)!.querySelectorAll('button'), id).toHaveLength(0);
+    const section = document.getElementById('builder')!;
+    const before = layout(section);
+    const buttons = [...section.querySelectorAll('button')];
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      fireEvent.click(button);
+      expect(layout(section), `builder: «${button.textContent}»`).toBe(before);
     }
   });
 
@@ -144,7 +136,7 @@ function stateRules(css: string): Array<{ selector: string; props: string[] }> {
 describe('the rules that answer a state take no room', () => {
   it('home3.css: the sections', async () => {
     const rules = stateRules(await sheet('home3.css'));
-    expect(rules.length).toBeGreaterThan(20);
+    expect(rules.length).toBeGreaterThanOrEqual(3);
     for (const rule of rules) for (const prop of rule.props) expect(STILL.has(prop), `${rule.selector} { ${prop} }`).toBe(true);
   });
 
