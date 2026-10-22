@@ -1312,6 +1312,18 @@
 .p3-try .p3-p {
   margin-bottom: 18px;
 }
+/* the lead names the participant's view where it is: on the right, or the studio's tab on a phone (miniStudio.css) */
+.p3-try-phone {
+  display: none;
+}
+@media (max-width: 699px) {
+  .p3-try-wide {
+    display: none;
+  }
+  .p3-try-phone {
+    display: inline;
+  }
+}
 /* the studio's place before its file arrives: the studio's own height (miniStudio.css), so nothing moves then */
 .p3-studio-wait {
   height: clamp(500px, calc(100vh - 100px), 700px);

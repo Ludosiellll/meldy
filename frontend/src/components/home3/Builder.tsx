@@ -132,7 +132,11 @@ export default function Builder() {
       <SectionHead id="builder-h" title={BUILDER_SECTION.title} text={BUILDER_SECTION.text} />
       <div className="p3-try">
         <h3 className="p3-h3">{BUILDER_SECTION.tryTitle}</h3>
-        <p className="p3-p">{bind(BUILDER_SECTION.tryText)}</p>
+        {/* Where the participant's view is: on the right of a wider screen, a tab of the studio on a phone (home3.css). */}
+        <p className="p3-p">
+          <span className="p3-try-wide">{bind(BUILDER_SECTION.tryText)}</span>
+          <span className="p3-try-phone">{bind(BUILDER_SECTION.tryTextPhone)}</span>
+        </p>
         <div ref={slot} className="p3-studio-slot">
           {MiniStudio ? <MiniStudio /> : <div className="p3-studio-wait" aria-hidden="true" />}
         </div>

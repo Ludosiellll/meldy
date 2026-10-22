@@ -9,7 +9,7 @@ import { BlockIcon, QuestionIcon } from '../studio/icons';
 import { qrCode } from '../../lib/quizzes/qr';
 import { PAPER_URL, GRAPH_URL } from './art';
 import { Glyph } from './glyphs';
-import { EXAMPLE, SAMPLE_TEST_URL, SITE } from './copy3';
+import { BUILDER_SECTION, EXAMPLE, SAMPLE_TEST_URL, SITE } from './copy3';
 import './miniStudio.css';
 
 type Kind = 'heading' | 'text' | 'image' | 'video' | 'question';
@@ -74,8 +74,23 @@ const BANDS_LINE = `После теста участник увидит сооб
 const MAX_BLOCKS = 9;
 const VIEWS = [
   { id: 'page', label: 'Страница' },
-  { id: 'take', label: 'Как видит участник' },
+  { id: 'take', label: BUILDER_SECTION.takeTab }, // the phone's lead above the studio names it (Builder)
 ] as const;
+/** The studio's phone layout (miniStudio.css has the same width). */
+const PHONE = '(max-width: 699px)';
+
+/** Whether the studio is laid out for a phone: there the selected block's tools stand under the page. */
+function usePhone(): boolean {
+  const [phone, setPhone] = useState(() => (typeof window === 'undefined' ? false : window.matchMedia?.(PHONE)?.matches ?? false));
+  useEffect(() => {
+    const list = typeof window === 'undefined' ? undefined : window.matchMedia?.(PHONE);
+    if (!list?.addEventListener) return undefined;
+    const on = () => setPhone(list.matches);
+    list.addEventListener('change', on);
+    return () => list.removeEventListener('change', on);
+  }, []);
+  return phone;
+}
 
 function questionsWord(n: number): string {
   const last = n % 10;
@@ -219,6 +234,57 @@ function showInCanvas(canvas: HTMLElement, block: HTMLElement): void {
   canvas.scrollTo({ top: canvas.scrollTop + by, behavior: still ? 'auto' : 'smooth' });
 }
 
+/**
+ * The selected block's tools: points for a question, up, down, remove. On a wider screen they stand over the block's
+ * corner; on a phone they would cover the block, so they stand in a bar under the page (inactive with no block chosen).
+ */
+function Tools({ block, onPoints, onMove, onRemove }: { block: Block | null; onPoints: (by: number) => void; onMove: (by: number) => void; onRemove: () => void }) {
+  return (
+    // a press here is the tools', not the block's: the block under them is chosen already (and «×» leaves none)
+    <span className="ms-tools" onClick={(event) => event.stopPropagation()}>
+      {block?.kind === 'question' ? (
+        <>
+          <button type="button" onClick={() => onPoints(-1)} aria-label="Убрать балл">
+            −
+          </button>
+          <button type="button" onClick={() => onPoints(1)} aria-label="Добавить балл">
+            +
+          </button>
+        </>
+      ) : null}
+      <button type="button" onClick={() => onMove(-1)} aria-label="Поднять блок" disabled={!block}>
+        <Glyph char="↑" />
+      </button>
+      <button type="button" onClick={() => onMove(1)} aria-label="Опустить блок" disabled={!block}>
+        <Glyph char="↓" />
+      </button>
+      <button type="button" onClick={onRemove} aria-label="Удалить блок" disabled={!block}>
+        ×
+      </button>
+    </span>
+  );
+}
+
+/** Whether a row that scrolls sideways has more to show on each side (its edges fade there on a phone). */
+function useEdges<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [edges, setEdges] = useState({ start: true, end: true });
+  const measure = () => {
+    const el = ref.current;
+    if (!el) return;
+    const EDGE = 10; // the row's own padding (8 px on a phone) is no more to see
+    const start = el.scrollLeft <= EDGE;
+    const end = el.scrollLeft + el.clientWidth >= el.scrollWidth - EDGE;
+    setEdges((was) => (was.start === start && was.end === end ? was : { start, end }));
+  };
+  useEffect(() => {
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  return { ref, onScroll: measure, className: `${edges.start ? '' : ' is-back'}${edges.end ? '' : ' is-more'}` };
+}
+
 function Choice<T extends string>({ items, value, onChange, label, render }: { items: ReadonlyArray<{ id: T; label: string }>; value: T; onChange: (id: T) => void; label: string; render?: (item: { id: T; label: string }) => ReactNode }) {
   return (
     <div className="ms-choice" role="radiogroup" aria-label={label}>
@@ -246,12 +312,15 @@ export default function MiniStudio() {
   const [view, setView] = useState<'page' | 'take'>('page');
   const dragged = useRef<{ kind?: Kind; id?: number } | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
-  const added = useRef<number | null>(null);
+  const follow = useRef<number | null>(null);
+  const phone = usePhone();
+  const look = useEdges<HTMLDivElement>();
 
-  // A block just added: in view on the canvas once it is drawn.
+  // A block just added or moved by its tools: in view on the canvas once it is drawn (on a phone the tools stay under
+  // the page, so a block moved past the visible part would be out of sight).
   useEffect(() => {
-    const id = added.current;
-    added.current = null;
+    const id = follow.current;
+    follow.current = null;
     const block = id === null ? null : canvas.current?.querySelector<HTMLElement>(`[data-block="${id}"]`);
     if (canvas.current && block) showInCanvas(canvas.current, block);
   }, [blocks]);
@@ -267,7 +336,7 @@ export default function MiniStudio() {
     const block = makeBlock(kind, blocks);
     const index = at ?? (selected === null ? blocks.length : blocks.findIndex((item) => item.id === selected) + 1);
     setBlocks([...blocks.slice(0, index), block, ...blocks.slice(index)]);
-    added.current = block.id;
+    follow.current = block.id;
     setSelected(block.id);
     setSaid(`Добавлен блок «${PALETTE.find((item) => item.kind === kind)!.label}».`);
     setFinished(false);
@@ -281,6 +350,7 @@ export default function MiniStudio() {
     const [block] = next.splice(index, 1);
     next.splice(to, 0, block);
     setBlocks(next);
+    follow.current = id;
     setSaid(`Блок теперь ${to + 1}-й из ${blocks.length}.`);
   };
 
@@ -368,7 +438,7 @@ export default function MiniStudio() {
       </div>
 
       <div className="ms-work">
-        <div className="ms-look">
+        <div ref={look.ref} className={`ms-look${look.className}`} onScroll={look.onScroll}>
           <Choice label="Цвет" items={ACCENTS} value={accent} onChange={setAccent} render={(item) => <i className="ms-sw" style={{ background: ACCENTS.find((a) => a.id === item.id)!.color }} aria-label={item.label} />} />
           <Choice label="Шрифт" items={FONTS} value={font} onChange={setFont} />
           <Choice label="Фон" items={BACKGROUNDS} value={background} onChange={setBackground} />
@@ -397,34 +467,32 @@ export default function MiniStudio() {
                 onClick={() => setSelected(block.id)}
               >
                 <CanvasBlock block={block} />
-                {selected === block.id ? (
-                  <span className="ms-tools">
-                    {block.kind === 'question' ? (
-                      <>
-                        <button type="button" onClick={() => setPoints(block.id, -1)} aria-label="Убрать балл">
-                          −
-                        </button>
-                        <button type="button" onClick={() => setPoints(block.id, 1)} aria-label="Добавить балл">
-                          +
-                        </button>
-                      </>
-                    ) : null}
-                    <button type="button" onClick={() => move(block.id, -1)} aria-label="Поднять блок">
-                      <Glyph char="↑" />
-                    </button>
-                    <button type="button" onClick={() => move(block.id, 1)} aria-label="Опустить блок">
-                      <Glyph char="↓" />
-                    </button>
-                    <button type="button" onClick={() => remove(block.id)} aria-label="Удалить блок">
-                      ×
-                    </button>
-                  </span>
+                {selected === block.id && !phone ? (
+                  <Tools block={block} onPoints={(by) => setPoints(block.id, by)} onMove={(by) => move(block.id, by)} onRemove={() => remove(block.id)} />
                 ) : null}
               </div>
             ))}
             <span className="ms-finish">Завершить</span>
           </div>
         </div>
+        {phone ? (
+          <div className="ms-bar">
+            <span className="ms-bar-l">
+              {chosen ? (
+                <>
+                  <Icon kind={chosen.kind} />
+                  {PALETTE.find((item) => item.kind === chosen.kind)!.label}
+                </>
+              ) : null}
+            </span>
+            <Tools
+              block={chosen}
+              onPoints={(by) => chosen && setPoints(chosen.id, by)}
+              onMove={(by) => chosen && move(chosen.id, by)}
+              onRemove={() => chosen && remove(chosen.id)}
+            />
+          </div>
+        ) : null}
         <p className="ms-said" aria-live="polite">
           {said || (chosen?.kind === 'question' ? 'Баллы за вопрос меняются кнопками −\u00a0и\u00a0+.' : 'Выберите блок, чтобы подвинуть или удалить его.')}
         </p>

@@ -205,11 +205,17 @@ export const GAME = {
   play: 'Играть',
 } as const;
 
+/** The small studio's switch on a phone (MiniStudio): the participant's view, which a wider screen shows on the right. */
+const TAKE_TAB = 'Как видит участник';
+
 export const BUILDER_SECTION = {
   title: 'Конструктор тестов',
   text: 'Соберите свой тест из текста, картинок, видео и вопросов. Отправьте ссылку. Участникам не нужен аккаунт, а их ответы вы видите сразу.',
   tryTitle: 'Попробуйте прямо здесь',
   tryText: 'Добавьте блок, смените цвет и фон. Справа видно, каким тест увидит участник.',
+  /** The same on a phone, where nothing is on the right: the participant's view is the switch's second half. */
+  tryTextPhone: `Добавьте блок, смените цвет и фон. Нажмите «${TAKE_TAB}» и пройдите тест сами.`,
+  takeTab: TAKE_TAB,
   sendTitle: 'Ссылка и QR-код',
   sendText: 'Участник открывает ссылку на телефоне и отвечает без аккаунта. Ответы приходят вам сразу.',
   /** Under the two pills: the same test as a game in class (the live game, release 47.12). */
