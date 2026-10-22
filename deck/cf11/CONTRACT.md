@@ -63,7 +63,8 @@ in Chromium at exactly 1920×1080 (device scale 1 for geometry, 2 for pictures).
 - `motion/` — sources of the moving clips: HTML pages with a deterministic timeline `window.__clip = { T, seek(ms) }`
   (no clock-driven animation), rendered frame by frame to `media/gen/*.mp4|gif|png`.
 - `media/product/` — real recordings of the live site (committed: they cannot be regenerated). `media/gen/` is generated
-  and ignored by git.
+  and ignored by git. `media/motion/` — the rendered clips a slide places (since 22.10 the title's card
+  `title-cover.gif` and its poster), copied there from `media/gen/` and committed, so a build needs no browser render.
 - `tools/` — the compiler and renderers; `tools/research/` — the tested experiments it grew from (Morph XML, video
   autoplay/loop timing, EOT font embedding, frame rendering, encoding).
 - `out/` — build output (ignored): `meldy-codingfest11.pptx`, the PDF, slide renders.
@@ -79,7 +80,7 @@ The slide root is `<main class="slide" data-transition="morph|fade|none">` (defa
 | `data-pptx="shape"` | A **native shape**: rectangle, rounded rectangle (`border-radius`), ellipse (`border-radius: 50%`), with fill (incl. alpha) and border. Its `box-shadow` becomes the shape's native shadow, which builds and travels with it (`data-shadow="bake"` keeps it in a picture instead; tools/README.md, Shadows). A radius within half a pixel of half the size makes an ellipse. |
 | `data-pptx="image"` | The element rendered as a **transparent PNG** at 2× and placed as a picture; or `data-src="../media/…"` to place a file. `alt` from `aria-label`. |
 | `data-pptx="video"` + `data-src`, `data-poster`, optional `data-loop`, `data-autoplay` (default on) | An **MP4** with that poster (the poster is what the PDF and a reader see — make it the meaningful frame). |
-| `data-pptx="gif"` + `data-src` | An animated GIF (one at most, ≤ 0.4 MB: the title; PowerPoint 365 plays it even in Normal view). |
+| `data-pptx="gif"` + `data-src` | An animated GIF (one at most, ≤ 1 MB since 22.10: the title's card; PowerPoint 365 plays it even in Normal view, in a loop). Its first frame is its static frame. |
 | `data-name="!!name"` | The **Morph pair name** (any element type). The same name on consecutive slides morphs. |
 | `data-href="https://…"` | A hyperlink on the text box or picture. |
 | `data-anim="fade|rise|wipe|zoom|appear"`, `data-anim-trigger="after|with|click"` (default `after`), `data-anim-delay` (ms), `data-anim-dur` (ms, default 500), `data-anim-order` (int, default DOM order) | An **entrance** animation. |
@@ -95,8 +96,10 @@ Keep text live wherever it carries meaning (titles, claims, numbers, sources); b
   wordmark), and the four parts «Лекции · Экзамены · Конструктор · Контрольные» (`!!nav`) on 06–12, the current part
   in ink, with «1/2» or «2/2» on the two parts that have two slides. The ten squares of rounds 2–8 («шпаргалка этой защиты») are gone: without their caption the jury could not
   read them.
+- **The title's card** (01, since 22.10): one oral answer in the app's light look, a GIF that loops by itself
+  (`motion/title-cover.html`); its first frame, the whole answer at once, is the static frame.
 - **Morph pairs**: `!!word` and `!!dot` (01 → 02 the wordmark's dot shrinks into the corner; 14 → 15 it grows back);
-  the three phones of 01 (`!!p1`…`!!p3`, screens `!!s1`…`!!s3`); the part screens of 06 (`!!s1` lectures, `!!s2`
+  the part screens of 06 (`!!s1` lectures, `!!s2`
   exams, `!!s3` the constructor, `!!s4` «Контрольные») share names with the hero of the part's first slide (07, 09,
   11; only 06 → 07 is consecutive, so only `!!s1` morphs); `!!nav` stays in place on 06–12.
 - **The jury test** (12): the QR opens a real test built in the studio on account A, «Эластичность спроса за

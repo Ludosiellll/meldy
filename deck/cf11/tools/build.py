@@ -427,8 +427,8 @@ class SlideBuilder:
     def gif(self, e: dict):
         self.picture(e)
         size = Path(e['src']['path']).stat().st_size
-        if size > 400_000:
-            self.warn(f'{e["id"]}: GIF is {size / 1e6:.2f} MB, the contract allows 0.4 MB')
+        if size > 1_000_000:
+            self.warn(f'{e["id"]}: GIF is {size / 1e6:.2f} MB, the contract allows 1 MB')
 
     # ------------------------------------------------------------------ slide
     def build(self):

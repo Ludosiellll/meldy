@@ -2,183 +2,260 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<title>title-cover — «Обложка отвечает сама»</title>
+<title>title-cover — ответ вслух</title>
 <link rel="stylesheet" href="clip.css">
 <style>
-/* The title's right card (its content area, 624 × 776 at 1×): the cheat sheet of one question answers itself.
-   Monday: an answer aloud names every line once (yellow dots). Tuesday: the second answer erases them — a strike
-   drawn left to right, the counter rolls to 0. Then the lines come back and the loop starts again.
-   Vertical rhythm: tag 32 · question 112 · lines 180 + 58·i · count baseline 652 · voice 688–748. */
-/* The GIF carries its own card: the white card on the slide's canvas with the deck's shadow, so the card can settle
-   in on the title without a baked shadow showing first. The 624 × 776 layout below is drawn at ×1.1538 (a third more
-   area): the card is 720 × 896 at (56, 16) of an 832 × 984 frame; the shadow is the deck's own at that size (its
-   values are divided by the scale), and the margins hold it down to half a level at the sides (σ = 40 px). The
-   frame's bottom is the slide's bottom edge, so the last 20 px of the shadow's tail fall outside the slide. */
-html, body { background: var(--canvas); }
-.frame { position: relative; width: 832px; height: 984px; overflow: hidden; background: var(--canvas); }
-.frame > .stage { position: absolute; left: 56px; top: 16px; border-radius: 40px; transform: scale(1.153846); transform-origin: 0 0;
-  box-shadow: 0 .867px 2.6px rgba(11, 18, 28, .05), 0 34.667px 69.333px -41.6px rgba(11, 18, 28, .30); }
-.stage { width: 624px; height: 776px; }
-.date { left: 348px; top: 32px; width: 244px; height: 48px; border-radius: 24px; background: var(--tint); overflow: hidden; }
-.date div { left: 0; right: 0; top: 0; height: 48px; line-height: 48px; text-align: center; font-size: 28px; color: var(--muted); white-space: nowrap; }
-.q { left: 32px; top: 112px; font-size: 44px; line-height: 52px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
-.row { left: 32px; width: 528px; height: 58px; }
-.row .mk { left: 4px; top: 23px; width: 12px; height: 12px; border-radius: 6px; background: var(--ink); }
-.row .tx { left: 40px; top: 0; font-size: 30px; line-height: 58px; white-space: nowrap; }
-.row .st { left: 34px; top: 30px; height: 3px; border-radius: 2px; background: var(--faint); transform-origin: 0 50%; }
-.count { left: 30px; top: 552px; width: 80px; height: 120px; overflow: hidden; }
-.count div { left: 0; right: 0; top: 0; height: 120px; font-size: 120px; line-height: 120px; font-weight: 600; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
-.cap { left: 112px; top: 622px; font-size: 30px; line-height: 40px; color: var(--muted); white-space: nowrap; }
-.map i { position: absolute; top: 626px; width: 26px; height: 26px; border-radius: 6px; }
-.voice { left: 32px; top: 688px; width: 560px; height: 60px; border-radius: 30px; background: var(--canvas); }
-.mic { left: 8px; top: 8px; width: 44px; height: 44px; border-radius: 22px; background: var(--ink); }
-.mic svg { position: absolute; left: 12px; top: 12px; width: 20px; height: 20px; }
-.vlabel { left: 68px; top: 0; line-height: 60px; font-size: 28px; font-weight: 500; white-space: nowrap; }
-.wave { left: 270px; top: 10px; width: 186px; height: 40px; }
-.wave i { position: absolute; width: 5px; border-radius: 3px; background: var(--ink); }
-.time { left: 480px; top: 0; width: 62px; line-height: 60px; font-size: 28px; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums; }
+/* The title's right card: one oral answer in Meldy, as the app draws it on the light paper (frontend/src/components/
+   oral: TicketCard, LiveTranscript, OralProtocol, ExaminerLine; tokens of index.css and oral.css). Question 18 of the
+   oral exam «Базы данных» of test account A, the answer of the recording of 21.10 (tools/record/answers-08.json,
+   media/product/08-oral-answer.mp4) and the points of its protocol (take 08-k): 1 and 3 «раскрыт», 2 «упомянут»
+   (the examiner asks about it), «Сами назвали 2 из 3 главных пунктов».
+   The GIF is the card itself at 1:1 on the slide (752 × 880), its corners the dark stage's canvas. Its first frame
+   is the poster: the whole answer at once (the ticket, the voice's 0:14, the points checked, the examiner's
+   question). From there the loop clears the sheet, the voice records and the words come in phrase by phrase, the
+   check opens the points one by one and the count rolls, the examiner's card comes up and its question is typed,
+   and the card holds on the state it started from. Nothing on it is smaller than 28 px.
+   Rendered: node deck/cf11/motion/render.mjs title-cover --gif --gif-fps 12.5 --gif-colors 64 --no-mp4, then
+   media/gen/title-cover.gif and .png copied to media/motion/ (committed: the build needs no browser render). */
+html, body { background: #0b0f16; }
+.frame { position: relative; width: 752px; height: 880px; overflow: hidden; background: #0b0f16; }
+.frame > .stage { position: absolute; left: 0; top: 0; width: 752px; height: 880px; border-radius: 40px; }
+.stage .in { position: static; }
+
+.pill { left: 40px; top: 40px; height: 56px; padding: 0 26px; border-radius: 28px; background: #10295a; color: #fff;
+  font-size: 28px; line-height: 56px; font-weight: 600; white-space: nowrap; }
+.voice { top: 40px; right: 40px; width: 356px; height: 56px; border-radius: 28px; background: var(--canvas); }
+.mic { left: 8px; top: 8px; width: 40px; height: 40px; border-radius: 20px; }
+.mic svg { position: absolute; left: 10px; top: 10px; width: 20px; height: 20px; }
+.bars { left: 62px; top: 10px; width: 196px; height: 36px; }
+.bars i { position: absolute; width: 5px; border-radius: 3px; }
+.time { right: 24px; top: 0; line-height: 56px; font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em; white-space: nowrap; }
+
+.stem { left: 40px; top: 122px; width: 672px; font-size: 40px; line-height: 48px; font-weight: 600; letter-spacing: -.026em; white-space: nowrap; }
+
+.count { left: 40px; top: 302px; width: 672px; height: 40px; font-size: 32px; line-height: 40px; font-weight: 600;
+  letter-spacing: -.015em; white-space: nowrap; }
+.roll { position: relative !important; display: inline-block; width: .62em; height: 40px; overflow: hidden; vertical-align: top; text-align: center; }
+.roll b { position: absolute; left: 0; right: 0; top: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.row { left: 28px; width: 696px; height: 80px; border-radius: 24px; }
+.row .n { left: 12px; top: 4px; width: 44px; height: 44px; border-radius: 22px; background: #efefea; color: var(--muted);
+  font-size: 28px; line-height: 44px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.row .bar { left: 72px; top: 18px; height: 16px; border-radius: 8px; background: #efefea; }
+.row .t { left: 72px; top: 4px; width: 608px; font-size: 28px; line-height: 36px; font-weight: 600; letter-spacing: -.012em; color: var(--ink); }
+.row .m { left: 12px; top: 4px; width: 44px; height: 44px; border-radius: 22px; }
+.row .m svg { position: absolute; left: 0; top: 0; width: 44px; height: 44px; overflow: visible; }
+
+.said { left: 40px; width: 672px; }
+.said .lab { left: 0; top: 0; font-size: 28px; line-height: 36px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.said .tx { left: 0; top: 44px; width: 672px; font-size: 32px; line-height: 44px; color: var(--ink); }
+.said .tx span { position: static; border-radius: 8px; }
+
+.exam { left: 28px; width: 696px; height: 228px; border-radius: 32px; background: #e8effc; box-shadow: inset 0 0 0 2px #d7e3fa; }
+.exam .av { left: 24px; top: 22px; width: 48px; height: 48px; border-radius: 24px; background: #10295a; color: #fff;
+  font-size: 28px; line-height: 48px; font-weight: 600; text-align: center; }
+.exam .who { left: 86px; top: 22px; font-size: 28px; line-height: 48px; font-weight: 600; color: #1f5bc6; white-space: nowrap; }
+.exam .q { left: 24px; top: 84px; width: 648px; font-size: 34px; line-height: 40px; font-weight: 500; letter-spacing: -.022em; color: var(--ink); }
+.exam .q span { position: static; }
 </style>
 </head>
 <body>
 <div class="frame">
 <div class="stage" id="stage">
-  <div class="tag" style="left:32px;top:32px">Шпаргалка</div>
-  <div class="date"><div id="d1">Пн, 12 октября</div><div id="d2">Вт, 13 октября</div></div>
-  <div class="q">Рыночное равновесие</div>
-  <div id="rows"></div>
-  <div class="count"><div id="n1">6</div><div id="n2"></div></div>
-  <div class="cap" id="cap">строк осталось</div>
-  <div class="map" id="map"></div>
+  <div class="pill">Вопрос 18</div>
   <div class="voice" id="voice">
-    <div class="mic"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
-    <div class="vlabel">Ответ вслух</div>
-    <div class="wave" id="wave"></div>
+    <div class="mic" id="mic"><svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" id="micsvg"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div>
+    <div class="bars" id="bars"></div>
     <div class="time" id="time">0:00</div>
   </div>
+  <div class="stem">Параллельное выполнение<br>транзакций: аномалии<br>и уровни изоляции.</div>
+
+  <div class="count" id="count"><span class="in">Сами назвали </span><span class="roll" id="roll"><b id="r1">2</b><b id="r2"></b></span><span class="in"> из 3 главных пунктов</span></div>
+  <div id="rows"></div>
+
+  <div class="said" id="said"><div class="lab">Ваш ответ</div><div class="tx" id="tx"></div></div>
+  <div class="exam" id="exam"><div class="av">Э</div><div class="who">Экзаменатор</div><div class="q" id="q"></div></div>
 </div>
 </div>
 <script src="clip.js"></script>
 <script>
 (() => {
   const { seg, mix, el, E, clamp } = window.M;
-  const LINES = [
-    ['спрос равен предложению', 'm'],
-    ['цена выше равновесной → излишек', 'm'],
-    ['цена ниже равновесной → дефицит', 'm'],
-    ['спрос растёт → цена растёт', 'd'],
-    ['предложение растёт → цена падает', 'd'],
-    ['потолок цен → дефицит', 'd'],
+  // Story time s (ms): the sheet is clear at 0, the answer is whole from HOLD on. The GIF starts at s = START, inside
+  // the hold, so its first frame (the poster) is the whole answer and the loop's seam falls inside the same hold.
+  const T = 13000;
+  const START = 10700;
+
+  // The voice: on at 600, off at 5300 («Готово»); the timer reads 0:00 → 0:14 meanwhile.
+  const V_ON = 600, V_OFF = 5300;
+  // The answer as the server's recognition writes it: a phrase after each pause, first in the muted colour of words
+  // still being recognised, then in ink. [text, shown at, final at]
+  const PHRASES = [
+    ['При параллельном выполнении', 1000, 1450],
+    ['транзакций возникают аномалии.', 1650, 2150],
+    ['Чтобы с\u00a0ними бороться,', 2550, 3000],
+    ['в стандарте SQL есть', 3250, 3700],
+    ['четыре уровня изоляции.', 3950, 4450],
   ];
-  const T = 9600;
-  const RGB = { ink: [11, 18, 28], muted: [75, 81, 91], faint: [138, 143, 151], named: [233, 177, 60] };
-  const lerp = (a, b, p) => a.map((v, i) => v + (b[i] - v) * p);
-  const css = (c) => `rgb(${c.map((v) => Math.round(v)).join(',')})`;
+  // The points of the protocol: [title, status, opens at, the transcript's words it was counted for]
+  const POINTS = [
+    ['Возникновение аномалий при\u00a0параллельном выполнении транзакций', 'ok', 5800, [0, 1]],
+    ['Четыре аномалии параллельного выполнения транзакций', 'half', 7100, null],
+    ['Уровни изоляции транзакций в\u00a0стандарте\u00a0SQL', 'ok', 6450, [3, 4]],
+  ];
+  const BARW = [420, 330, 380];
+  const COUNT_IN = 5550;
+  const ASK = 7900;           // the examiner's card comes up, the transcript goes
+  const TYPE_FROM = 8600, TYPE_CPS = 36;
+  const QUESTION = '«В чём разница между неповторяющимся чтением и\u00a0фантомным чтением?»';
+  const RESET = 12350;        // the hold ends: the sheet clears for the next answer
 
-  const rowsBox = document.getElementById('rows');
-  const rows = LINES.map(([text, kind], i) => {
-    const r = el(rowsBox, 'row');
-    r.style.top = `${180 + i * 58}px`;
-    const mk = el(r, 'mk');
-    const tx = el(r, 'tx', text);
-    const st = el(r, 'st');
-    return { mk, tx, st, detail: kind === 'd' };
+  const C = { ink: '#0b121c', muted: '#4b515b', faint: '#8a8f97', blue: '#2869dd', canvas: '#f3f3f0', okBg: '#e2f2e5',
+    okFg: '#2c6b3a', halfBg: '#fcefc9', halfFg: '#7a5a12', paper: '#ffffff' };
+
+  // ---- build
+  const stage = document.getElementById('stage');
+  const ROW_TOP = 350, ROW_H = 80, ROW_GAP = 2;
+  const rows = POINTS.map(([title, status], i) => {
+    const r = el(stage, 'row');
+    r.style.top = `${ROW_TOP + i * (ROW_H + ROW_GAP)}px`;
+    // the asked row's tint and the rule between rows
+    const n = el(r, 'n', String(i === 0 ? 1 : i === 1 ? 2 : 3));
+    const bar = el(r, 'bar');
+    bar.style.width = `${BARW[i]}px`;
+    const t = el(r, 't', title);
+    const m = el(r, 'm');
+    m.innerHTML = status === 'ok'
+      ? '<svg viewBox="0 0 44 44"><path d="M13.5 22.5 L19.5 28.5 L31 16" fill="none" stroke="#2c6b3a" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1 1"/></svg>'
+      : '<svg viewBox="0 0 44 44"><path d="M12 18.5 A10 9.5 0 0 0 32 18.5" fill="none" stroke="#7a5a12" stroke-width="3.6" stroke-linecap="round" pathLength="1" stroke-dasharray="1 1"/></svg>';
+    m.style.background = status === 'ok' ? C.okBg : C.halfBg;
+    return { r, n, bar, t, m, path: m.querySelector('path'), status };
   });
-  rows.forEach((x) => { x.st.style.width = `${x.tx.offsetWidth + 12}px`; });
-  const map = document.getElementById('map');
-  const squares = LINES.map((_, i) => { const s = document.createElement('i'); s.style.left = `${592 - (LINES.length - i) * 36 + 10}px`; map.appendChild(s); return s; });
-  const wave = document.getElementById('wave');
-  const bars = Array.from({ length: 21 }, (_, j) => { const b = document.createElement('i'); b.style.left = `${j * 9}px`; wave.appendChild(b); return b; });
-  const n1 = document.getElementById('n1'), n2 = document.getElementById('n2'), cap = document.getElementById('cap');
+  // the order on the sheet is 1, 2, 3 (the rows above are built in that order)
+  const SAID_TOP = 624;
+  const said = document.getElementById('said');
+  said.style.top = `${SAID_TOP}px`;
+  const tx = document.getElementById('tx');
+  const words = [];
+  PHRASES.forEach(([text], i) => {
+    const s = document.createElement('span');
+    s.textContent = text + (i < PHRASES.length - 1 ? ' ' : '');
+    tx.appendChild(s);
+    words.push(s);
+  });
+  const exam = document.getElementById('exam');
+  exam.style.top = `${SAID_TOP - 8}px`;
+  const q = document.getElementById('q');
+  const chars = [...QUESTION].map((ch) => { const s = document.createElement('span'); s.textContent = ch; q.appendChild(s); return s; });
+  const bars = document.getElementById('bars');
+  const BARS = 22;
+  const barEls = Array.from({ length: BARS }, (_, j) => { const b = document.createElement('i'); b.style.left = `${j * 9}px`; bars.appendChild(b); return b; });
+  const mic = document.getElementById('mic'), micsvg = document.getElementById('micsvg');
   const time = document.getElementById('time');
-  const d1 = document.getElementById('d1'), d2 = document.getElementById('d2');
+  const count = document.getElementById('count');
+  const r1 = document.getElementById('r1'), r2 = document.getElementById('r2');
 
-  // When each line is named (Monday), erased (Tuesday) and comes back (the rewind before the loop).
-  const NAMED = (i) => 1150 + i * 230;
-  const ERASED = (i) => 3850 + i * 250;
-  const BACK = (i) => 7700 + i * 170;
-  const DOWN = (i) => ERASED(i) + 190; // the count drops when the strike is half drawn
-  const UP = (i) => BACK(i) + 180;     // and rises when it is half gone
-  const plural = (n) => (n % 10 === 1 && n % 100 !== 11 ? 'строка осталась' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'строки осталось' : 'строк осталось');
+  const rgb = (h) => [1, 3, 5].map((k) => parseInt(h.slice(k, k + 2), 16));
+  const mixc = (a, b, p) => { const x = rgb(a), y = rgb(b); return `rgb(${x.map((v, k) => Math.round(v + (y[k] - v) * p)).join(',')})`; };
 
-  function seek(t) {
+  function story(s) {
+    // the reset: everything the answer added leaves together, eased, before the sheet starts again at s = 0
+    const out = s >= RESET ? seg(s, RESET, RESET + 400, E.inOut3) : 0;
+    const keep = 1 - out;
+    const sAt = s;
+
+    // ---- the voice
+    const on = seg(s, V_ON, V_ON + 300, E.inOut3) * (1 - seg(s, V_OFF, V_OFF + 350, E.inOut3));
+    mic.style.background = mixc(C.paper, C.blue, on);
+    micsvg.setAttribute('stroke', mixc(C.ink, C.paper, on));
+    const secs = s < V_ON ? 0 : s >= RESET ? 14 : clamp(Math.floor(((s - V_ON) / (V_OFF - V_ON)) * 14.999), 0, 14);
+    const shown = s >= RESET + 200 ? 0 : secs;
+    time.textContent = `0:${String(shown).padStart(2, '0')}`;
+    time.style.color = mixc(C.muted, C.ink, on);
+    // the level: louder while a phrase is spoken, low in the pauses (when the words come in)
+    let loud = 0;
+    PHRASES.forEach(([, a]) => { const from = a - 750, to = a - 80; loud = Math.max(loud, seg(s, from, from + 160, E.inOut3) * (1 - seg(s, to - 160, to, E.inOut3))); });
+    const level = on * (0.18 + 0.82 * loud);
+    barEls.forEach((b, j) => {
+      const w = s / 1000;
+      const k = 0.5 + 0.5 * Math.sin(w * 9.1 + j * 1.31) * Math.sin(w * 5.3 + j * 0.71 + 1.7);
+      const env = 0.55 + 0.45 * Math.sin(Math.PI * (j + 0.5) / BARS);
+      const h = 6 + 28 * clamp(k * env * level * 1.35);
+      b.style.height = `${h.toFixed(1)}px`;
+      b.style.top = `${(18 - h / 2).toFixed(1)}px`;
+      b.style.background = mixc('#b9bec6', C.blue, on);
+    });
+
+    // ---- the transcript: each phrase comes in muted and turns to ink; it leaves when the examiner asks
+    const away = seg(s, ASK - 150, ASK + 200, E.inOut3);
+    said.style.opacity = String((1 - away) * (s >= RESET ? 0 : 1) * seg(s, 250, 650, E.inOut3));
+    said.style.transform = `translateY(${(-10 * away).toFixed(2)}px)`;
+    PHRASES.forEach(([, a, b], i) => {
+      const w = words[i];
+      const inn = seg(s, a, a + 260, E.out3);
+      const fin = seg(s, b, b + 260, E.inOut3);
+      w.style.opacity = String(inn);
+      w.style.color = mixc(C.faint, C.ink, fin);
+      w.style.background = 'transparent';
+    });
+    // the words a point was counted for get its tint as the point opens
+    POINTS.forEach(([, st, at, span]) => {
+      if (!span) return;
+      const p = seg(s, at + 150, at + 450, E.inOut3);
+      for (let k = span[0]; k <= span[1]; k += 1) if (p > 0) words[k].style.background = mixc(C.paper, C.okBg, p);
+    });
+
+    // ---- the points: closed bars while the student speaks; the check opens them one by one
     rows.forEach((x, i) => {
-      const named = seg(t, NAMED(i), NAMED(i) + 320, E.out3);
-      const erase = seg(t, ERASED(i), ERASED(i) + 380, E.inOut3);
-      const back = seg(t, BACK(i), BACK(i) + 360, E.inOut3);
-      const n = named * (1 - back);
-      const e = erase * (1 - back);
-      // The marker: an ink dot (a main point) or a dash (a detail) becomes the yellow dot of «named once»,
-      // shrinks away as the line is erased, and comes back as it was.
-      const w = x.detail ? mix(18, 12, n) : 12;
-      const h = x.detail ? mix(3, 12, n) : 12;
-      x.mk.style.width = `${w}px`;
-      x.mk.style.height = `${h}px`;
-      x.mk.style.left = `${x.detail ? 1 + (18 - w) / 2 : 4}px`;
-      x.mk.style.top = `${29 - h / 2}px`;
-      x.mk.style.borderRadius = `${h / 2}px`;
-      // The colour flips at the bottom of a small dip (a pop), so no muddy in-between hue is ever drawn.
-      const pop = Math.sin(Math.PI * clamp(n));
-      x.mk.style.background = css(n >= 0.5 ? RGB.named : x.detail ? RGB.muted : RGB.ink);
-      x.mk.style.transform = `scale(${((1 - 0.6 * pop) * (1 - seg(e, 0, 0.55))).toFixed(3)})`;
-      // The words: muted once named, faint once erased; back to ink on the rewind.
-      x.tx.style.color = css(lerp(lerp(RGB.ink, RGB.muted, n), RGB.faint, e));
-      // The strike is drawn left to right as the line is erased, and retracts right to left on the rewind.
-      x.st.style.opacity = erase > 0 ? '1' : '0';
-      x.st.style.transform = `scaleX(${back > 0 ? 1 - back : erase})`;
-      // The map: one square per line — ink, yellow once named, an empty outline once erased.
-      const sq = squares[i];
-      if (e >= 0.5) {
-        sq.style.transform = 'none';
-        sq.style.background = 'transparent';
-        sq.style.boxShadow = `inset 0 0 0 2px rgba(138,143,151,${(0.55 * clamp((e - 0.5) * 2)).toFixed(3)})`;
-        sq.style.opacity = '1';
-      } else {
-        sq.style.background = css(n >= 0.5 ? RGB.named : RGB.ink);
-        sq.style.boxShadow = 'none';
-        sq.style.opacity = String(1 - e * 2);
-        sq.style.transform = `scale(${(1 - 0.4 * Math.sin(Math.PI * clamp(n))).toFixed(3)})`;
-      }
+      const at = POINTS[i][2];
+      const open = seg(sAt, at + 120, at + 480, E.inOut3) * keep;
+      const shut = 1 - seg(sAt, at, at + 220, E.inOut3) * keep;
+      const mark = seg(sAt, at + 120, at + 520, E.out5) * keep;
+      const draw = seg(sAt, at + 260, at + 620, E.inOut3) * keep;
+      x.bar.style.opacity = String(shut);
+      x.bar.style.transform = `scaleX(${(0.9 + 0.1 * shut).toFixed(3)})`;
+      x.bar.style.transformOrigin = '0 50%';
+      x.t.style.opacity = String(open);
+      x.t.style.transform = `translateY(${(6 * (1 - open)).toFixed(2)}px)`;
+      x.m.style.opacity = String(Math.min(1, mark * 1.6));
+      x.n.style.opacity = String(1 - Math.min(1, mark * 1.6));
+      x.m.style.transform = `scale(${(0.6 + 0.4 * mark).toFixed(3)})`;
+      x.path.setAttribute('stroke-dashoffset', (1 - draw).toFixed(3));
     });
-    // The count, with the new value rolling in (down from below when it drops, from above on the rewind).
-    let left = 6, last = null;
-    const changes = rows.flatMap((_, i) => [{ at: DOWN(i), d: -1 }, { at: UP(i), d: +1 }]).sort((a, b) => a.at - b.at);
-    for (const c of changes) { if (t >= c.at) { left += c.d; last = c; } }
-    const roll = last ? seg(t, last.at, last.at + 240, E.out3) : 1;
-    const prev = last ? left - last.d : left;
-    const dir = last && last.d < 0 ? 1 : -1;
-    n1.textContent = String(left);
-    n2.textContent = roll < 1 ? String(prev) : '';
-    n1.style.transform = `translateY(${((1 - roll) * 100 * dir).toFixed(2)}%)`;
-    n2.style.transform = `translateY(${(-roll * 100 * dir).toFixed(2)}%)`;
-    n1.style.opacity = String(roll);
-    n2.style.opacity = String(1 - roll);
-    cap.textContent = plural(left);
-    // The voice: the answer-aloud control is always there; it records on Monday and on Tuesday.
-    const v1 = seg(t, 700, 1000) * (1 - seg(t, 2500, 2780));
-    const v2 = seg(t, 3400, 3700) * (1 - seg(t, 5450, 5730));
-    const v = Math.max(v1, v2);
-    const from = t >= 3400 && t < 5730 ? 3400 : t >= 700 && t < 2780 ? 700 : null;
-    time.textContent = from == null ? '0:00' : `0:${String(clamp(Math.floor((t - from) / 130), 0, 14)).padStart(2, '0')}`;
-    bars.forEach((b, j) => {
-      const tw = Math.floor(t / 200) * 200; // the bars move five times a second: calmer, and a lighter GIF
-      const k = Math.abs(Math.sin(tw / 90 + j * 1.7) * 0.55 + Math.sin(tw / 41 + j * 0.9) * 0.45);
-      const hgt = 6 + 30 * k * v;
-      b.style.height = `${hgt.toFixed(1)}px`;
-      b.style.top = `${(20 - hgt / 2).toFixed(1)}px`;
+    // the asked point (2): the yellow of «упомянут» behind its row while the examiner asks about it
+    const asked = seg(sAt, ASK + 150, ASK + 600, E.inOut3) * keep;
+    rows[1].r.style.background = mixc(C.paper, C.halfBg, asked);
+    rows[1].m.style.background = mixc(C.halfBg, C.paper, asked);
+
+    // ---- the count: comes in with the check, the number rolls up as each point is ticked
+    const cin = seg(sAt, COUNT_IN, COUNT_IN + 400, E.inOut3) * keep;
+    count.style.opacity = String(cin);
+    count.style.transform = `translateY(${(8 * (1 - cin)).toFixed(2)}px)`;
+    const ticks = POINTS.filter(([, st]) => st === 'ok').map(([, , at]) => at + 300).sort((a, b) => a - b);
+    let n = 0, last = null;
+    ticks.forEach((at) => { if (sAt >= at) { n += 1; last = at; } });
+    const roll = last == null ? 1 : seg(sAt, last, last + 320, E.out3);
+    r1.textContent = String(n);
+    r2.textContent = roll < 1 ? String(n - 1) : '';
+    r1.style.transform = `translateY(${((1 - roll) * 100).toFixed(2)}%)`;
+    r2.style.transform = `translateY(${(-roll * 100).toFixed(2)}%)`;
+    r1.style.opacity = String(roll);
+    r2.style.opacity = String(1 - roll);
+
+    // ---- the examiner: the card comes up in the transcript's place, the question is typed into it
+    const up = seg(sAt, ASK + 200, ASK + 620, E.out3) * keep;
+    exam.style.opacity = String(up);
+    exam.style.transform = `translateY(${(28 * (1 - up)).toFixed(2)}px)`;
+    chars.forEach((c, k) => {
+      const at = TYPE_FROM + (k * 1000) / TYPE_CPS;
+      c.style.opacity = String(seg(sAt, at, at + 90, E.lin) * keep);
     });
-    // The date: Monday becomes Tuesday between the answers, and Monday again on the rewind.
-    const fwd = seg(t, 2950, 3320, E.inOut3);
-    const rew = seg(t, 8050, 8420, E.inOut3);
-    if (rew > 0) {
-      d2.style.transform = `translateY(${(rew * 100).toFixed(2)}%)`; d2.style.opacity = String(1 - rew);
-      d1.style.transform = `translateY(${(-(1 - rew) * 100).toFixed(2)}%)`; d1.style.opacity = String(rew);
-    } else {
-      d1.style.transform = `translateY(${(-fwd * 100).toFixed(2)}%)`; d1.style.opacity = String(1 - fwd);
-      d2.style.transform = `translateY(${((1 - fwd) * 100).toFixed(2)}%)`; d2.style.opacity = String(fwd);
-    }
   }
+
+  function seek(t) { story((t + START) % T); }
   seek(0);
-  window.__clip = { T, seek, width: 832, height: 984, poster: 0, loop: true };
+  window.__clip = { T, seek, width: 752, height: 880, poster: 0, loop: true };
 })();
 </script>
 </body>

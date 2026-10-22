@@ -5,9 +5,6 @@
 <title>01 · Титульный — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <link rel="stylesheet" href="../design/stage.css">
-<style>
-.pcap { font-size: 32px; line-height: 40px; font-weight: 600; letter-spacing: -.01em; white-space: nowrap; text-align: center; }
-</style>
 </head>
 <body>
 <main class="slide dark" data-transition="fade">
@@ -23,25 +20,19 @@
 <div class="t32m" data-pptx="text" style="left:128px;top:872px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="4">Номинация</div>
 <div class="t40s" data-pptx="text" style="left:128px;top:916px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="4">Образование, культура</div>
 
-<!-- Three real phones: the podcast of the open example lecture (/try/lecture), the examiner's follow-up question in
-     the oral answer (a frame of the recording of 21.10, 08-oral-answer-ask.jpg), and the jury's test by link with the
-     author's own picture (guest, 19.10). -->
-<div class="bezel" data-pptx="shape" data-name="!!p1" style="left:1004px;top:236px;width:272px;height:586px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="5"></div>
-<img class="screen" data-pptx="image" data-name="!!s1" data-src="../media/product/v2/phone-lecture-podcast.jpg" src="../media/product/v2/phone-lecture-podcast.jpg" aria-label="Телефон: подкаст лекции" alt="" style="left:1012px;top:244px;width:256px;height:554px;border-radius:40px" data-anim="rise" data-anim-trigger="with" data-anim-dur="600" data-anim-order="5">
-
-<div class="bezel" data-pptx="shape" data-name="!!p2" style="left:1520px;top:236px;width:272px;height:586px" data-anim="rise" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="5"></div>
-<img class="screen" data-pptx="image" data-name="!!s2" data-src="../media/product/08-oral-answer-ask.jpg" src="../media/product/08-oral-answer-ask.jpg" aria-label="Телефон: ответ вслух" alt="" style="left:1528px;top:244px;width:256px;height:554px;border-radius:40px" data-anim="rise" data-anim-trigger="with" data-anim-delay="150" data-anim-dur="600" data-anim-order="5">
-
-<div class="bezel" data-pptx="shape" data-name="!!p3" style="left:1236px;top:176px;width:324px;height:700px" data-anim="rise" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="700" data-anim-order="5"></div>
-<img class="screen" data-pptx="image" data-name="!!s3" data-src="../media/product/v2/guest-q5.png" src="../media/product/v2/guest-q5.png" aria-label="Телефон: тест по ссылке" alt="" style="left:1245px;top:185px;width:306px;height:662px;border-radius:44px" data-anim="rise" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="700" data-anim-order="5">
-
-<div class="pcap" data-pptx="text" style="left:1004px;top:852px;width:272px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="6">Лекции</div>
-<div class="pcap" data-pptx="text" style="left:1236px;top:904px;width:324px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">Контрольные</div>
-<div class="pcap" data-pptx="text" style="left:1520px;top:852px;width:272px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">Экзамены</div>
+<!-- The card on the right: one oral answer in Meldy, on the app's light paper (motion/title-cover.html, rendered to
+     media/motion/title-cover.gif, 752 × 880 at 1:1, its corners the stage's canvas). Question 18 of the oral exam
+     «Базы данных», the answer and the points of the recording of 21.10 (slide 10's clip): the voice records, the words
+     come in phrase by phrase, the check opens the points one by one, «Сами назвали 2 из 3 главных пунктов», and the
+     examiner asks about the point named only in part. PowerPoint plays the GIF in a loop by itself; its first frame,
+     the whole answer at once, is what the PDF, LibreOffice and a reader see (the poster PNG here). -->
+<img data-pptx="gif" data-src="../media/motion/title-cover.gif" src="../media/motion/title-cover.png" aria-label="Ответ вслух на вопрос билета" alt="" style="left:1040px;top:136px;width:752px;height:880px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="5">
 
 <template data-pptx="notes">Здравствуйте. Наш проект называется Meldy. В нём четыре части. Лекции, экзамены, конструктор тестов и контрольные.
 
 Из лекции Meldy делает конспект, карточки, тест и подкаст. По вопросам кафедры составляет план до экзамена и проверяет ответы вслух. В конструкторе преподаватель собирает свой тест. А потом даёт его группе как контрольную, по ссылке или игрой на паре.
+
+Справа ответ вслух на вопрос билета. Meldy отмечает названные пункты, а о неполном переспрашивает, как экзаменатор.
 
 Докладчику: показ запускается клавишей F5.</template>
 </main>

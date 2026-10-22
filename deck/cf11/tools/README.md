@@ -293,7 +293,7 @@ possible automatic matches. Slide 1 is exempt (no previous slide). The pairing r
 * Rotated text is measured in its rotated box (warned): mark it `image`. Scaled text (`transform: scale`) is fine.
 * A transparent layer with a soft shadow stays PNG32 (Pillow's RGBA quantiser bands the shadow; no libimagequant).
 * One outer shadow per object (the most visible CSS layer); inset shadows are always baked.
-* Video crop is a re-encode (warned); a GIF is placed as authored (warned above 0.4 MB).
+* Video crop is a re-encode (warned); a GIF is placed as authored (warned above 1 MB).
 * Text inside a clipping parent is not clipped (warned); pictures and video are cropped to the clip.
 
 ## Contract notes (decisions on gaps in CONTRACT.md)
