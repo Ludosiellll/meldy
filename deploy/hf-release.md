@@ -4,6 +4,17 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-22 — Release 47.25: the phone checks a game PIN without a red 400 (from the commit of this entry)
+
+- **PIN step:** the phone asked `live_join` with an empty name and read its refusal as «there is a game», so every join
+  logged a 400 on `rpc/live_join`. It now asks `live_pin` (migration `20261025090000_live_pin`, applied before this
+  release, run 39728415993 green), which runs the same checks inside the database and answers 200: `open` with the game's mode, `joined` when
+  this player is already in the game, `refused` with the same codes and details as before (same texts on the PIN
+  screen). It writes nothing and counts no join. A typed PIN of a «Встань на ответ» game now gets that game's
+  character picker. If the server has no `live_pin` (a rollback), the client falls back to the old check.
+- Gate on deb5547 (clean worktree): pytest 2476, bot 393, sync ok, Vitest 412 files / 6672 tests, Docker-layout build
+  ok. Local rehearsal of the migration: `live_game_run.sh` 127 ok.
+
 ## 2026-10-21 — Release 47.24: the floor drops on the projector at any frame rate; reload keeps the rest of the pages (from the commit of this entry)
 
 - **The projector shows the floor drop** in «Встань на ответ» and in the movement rounds of «Битва с монстром». The live
