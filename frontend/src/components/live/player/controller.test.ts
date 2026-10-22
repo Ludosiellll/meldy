@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
-import { LiveError, type Hint, type LiveApi, type Look } from '../../../lib/live/types';
+import { LiveError, type Hint, type LiveApi, type PinResult } from '../../../lib/live/types';
+import { errorText } from './copy';
 import { obeyOffline } from './offline';
-import { closedOf, type PlayerController } from './controller';
+import { closedOf, goneOf, type PlayerController } from './controller';
 import { controller, fakeApi, keyOf, newRecorder, recordingPlatform, until, useGameClock, type FakeApi, type Recorder } from './testkit';
 
 let api: FakeApi;
@@ -35,6 +36,14 @@ async function otherJoins(name = 'Лена'): Promise<PlayerController> {
   window.sessionStorage.clear();
   return other;
 }
+
+const refusedPin = (code: string, detail: string | null, http = 400, retryAfter: number | null = null): PinResult => ({
+  status: 'refused',
+  code,
+  detail,
+  http,
+  retry_after: retryAfter,
+});
 
 /** The same API with some calls replaced (the rest go to the fake). */
 function withCalls(over: Partial<LiveApi>): LiveApi {
@@ -108,7 +117,7 @@ describe('player controller on the fake server', () => {
   });
 
   it('a members-only refusal stops a web guest at the PIN, not a Telegram player (their account decides)', async () => {
-    const members = withCalls({ join: () => Promise.reject(new LiveError('ML003', 'members', 403)) });
+    const members = withCalls({ pin: async () => refusedPin('ML003', 'members', 403) });
     ctl.dispose();
     ctl = controller(members, recordingPlatform(rec));
     await ctl.start({ pin: '482913' });
@@ -127,11 +136,13 @@ describe('player controller on the fake server', () => {
     ctl.dispose();
     // The token is kept, the game's record is not (as a signed-in user on another device is found by the account).
     window.sessionStorage.removeItem(`meldy.live.game.${first.game!.id}`);
-    const rejoin = withCalls({ join: (pin: string, name: string, tok: string, look: Look | null) => api.join(pin, tok === token ? name || 'Дима' : name, tok, look) });
-    ctl = controller(rejoin, recordingPlatform(rec));
+    const players = api.peek(first.game!.id)!.players.size;
+    ctl = controller(api, recordingPlatform(rec));
     await ctl.start({ pin: '482913' });
     expect(step()).toBe('game');
     expect(ctl.getSnapshot().game?.playerId).toBe(first.game?.playerId);
+    expect(ctl.playerToken()).toBe(token);
+    expect(api.peek(first.game!.id)!.players.size).toBe(players);
   });
 
   it('the builder: the name gives the first look; locked parts say how they open; the name is checked', async () => {
@@ -493,5 +504,131 @@ describe('player controller on the fake server', () => {
     expect(step()).toBe('game');
     expect(ctl.getSnapshot().notice).toMatch(/Игра началась/);
     expect(ctl.getSnapshot().look.hat).toBe(hat);
+  });
+});
+
+describe('the PIN step (live_pin)', () => {
+  /** The API with the PIN step answering `answer`, and every call of the PIN step and of the join counted. */
+  function pinApi(answer: (pin: string, token: string) => Promise<PinResult>) {
+    const calls = { pin: [] as string[], join: 0 };
+    const over = withCalls({
+      pin: (pin: string, token: string) => {
+        calls.pin.push(token);
+        return answer(pin, token);
+      },
+      join: (...args: Parameters<LiveApi['join']>) => {
+        calls.join += 1;
+        return api.join(...args);
+      },
+    });
+    return { over, calls };
+  }
+
+  it('an open game: the builder, one check with a well-formed token, no join, no player', async () => {
+    const { over, calls } = pinApi((pin, token) => api.pin(pin, token));
+    ctl.dispose();
+    ctl = controller(over, recordingPlatform(rec));
+    await ctl.start({ pin: '482913' });
+    expect(step()).toBe('builder');
+    expect(ctl.getSnapshot().error).toBeNull();
+    expect(ctl.getSnapshot().busy).toBe(false);
+    expect(calls.pin).toHaveLength(1);
+    expect(calls.pin[0]).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(calls.join).toBe(0);
+    // «Готово» is the one join.
+    ctl.setName('Дима');
+    await ctl.confirm();
+    expect(step()).toBe('game');
+    expect(calls.join).toBe(1);
+    expect(calls.pin).toHaveLength(1);
+  });
+
+  it('open with the stand mode: the stand game\'s picker, remembered for the PIN; the battle clears an old hint', async () => {
+    const stand = pinApi(async () => ({ status: 'open', mode: 'stand' }));
+    ctl.dispose();
+    ctl = controller(stand.over, recordingPlatform(rec));
+    await ctl.start({ pin: '482913' });
+    expect(step()).toBe('builder');
+    expect(ctl.getSnapshot().modeHint).toBe('stand');
+    expect(window.sessionStorage.getItem('meldy.live.mode.482913')).toBe('stand');
+    ctl.dispose();
+    ctl = controller(api, recordingPlatform(rec));
+    await ctl.start({ pin: '482913', mode: 'stand' });
+    expect(step()).toBe('builder');
+    expect(ctl.getSnapshot().modeHint).toBeNull();
+    expect(window.sessionStorage.getItem('meldy.live.mode.482913')).toBeNull();
+    // The old check (no live_pin on the server: mode unknown) keeps what the link said.
+    const old = pinApi(async () => ({ status: 'open', mode: null }));
+    ctl.dispose();
+    ctl = controller(old.over, recordingPlatform(rec));
+    await ctl.start({ pin: '482913', mode: 'stand' });
+    expect(ctl.getSnapshot().modeHint).toBe('stand');
+  });
+
+  it('joined: the identity the server took back goes straight to the game with the token it checked', async () => {
+    await joinDemo();
+    const first = ctl.getSnapshot();
+    const token = ctl.playerToken()!;
+    ctl.dispose();
+    window.sessionStorage.removeItem(`meldy.live.game.${first.game!.id}`);
+    const { over, calls } = pinApi((pin, tok) => api.pin(pin, tok));
+    ctl = controller(over, recordingPlatform(rec));
+    await ctl.start({ pin: '482913' });
+    expect(calls.pin).toEqual([token]);
+    expect(calls.join).toBe(0);
+    expect(step()).toBe('game');
+    expect(ctl.getSnapshot().game).toEqual(first.game);
+    expect(ctl.getSnapshot().name).toBe('Дима');
+    expect(JSON.parse(window.sessionStorage.getItem(`meldy.live.game.${first.game!.id}`) ?? '{}')).toMatchObject({ playerId: first.game!.playerId });
+  });
+
+  // Each refusal as live_join gave it before (the old check's LiveError): the same step and the same words.
+  const cases: { what: string; code: string; detail: string | null; http: number; tg?: boolean; step: 'pin' | 'builder' | 'gone' }[] = [
+    { what: 'no such PIN', code: 'P0002', detail: 'pin', http: 404, step: 'pin' },
+    { what: 'the game ended', code: 'ML002', detail: 'ended', http: 400, step: 'pin' },
+    { what: 'the 3 hours are over', code: 'ML002', detail: 'expired', http: 400, step: 'pin' },
+    { what: '300 players', code: 'ML001', detail: null, http: 400, step: 'pin' },
+    { what: 'members only on the site', code: 'ML003', detail: 'members', http: 403, step: 'pin' },
+    { what: 'members only in Telegram (the account decides at the join)', code: 'ML003', detail: 'members', http: 403, tg: true, step: 'builder' },
+    { what: 'many joins at once (the join retries)', code: 'ML005', detail: 'join', http: 429, step: 'builder' },
+    { what: 'a token the server did not take', code: '22023', detail: 'token', http: 400, step: 'builder' },
+    { what: 'kicked', code: '42501', detail: 'kicked', http: 403, step: 'gone' },
+    { what: 'a code this client does not know', code: 'XX000', detail: null, http: 400, step: 'pin' },
+  ];
+  for (const c of cases) {
+    it(`refused, ${c.what}: ${c.step}`, async () => {
+      const { over, calls } = pinApi(async () => refusedPin(c.code, c.detail, c.http, c.code === 'ML005' ? 30 : null));
+      ctl.dispose();
+      const platform = recordingPlatform(rec);
+      ctl = controller(over, c.tg ? { ...platform, kind: 'telegram' } : platform);
+      expect(await ctl.submitPin('482913')).toBe(c.step === 'builder');
+      expect(calls.join).toBe(0);
+      expect(step()).toBe(c.step);
+      expect(ctl.getSnapshot().busy).toBe(false);
+      const old = c.code === 'XX000' ? new LiveError('unknown', 'XX000', 400) : new LiveError(c.code as LiveError['code'], c.detail, c.http);
+      if (c.step === 'pin') {
+        expect(ctl.getSnapshot().error).toBe(errorText(old, '482913'));
+        expect(rec.haptics).toContain('error');
+      } else if (c.step === 'gone') {
+        expect(ctl.getSnapshot().gone).toEqual(goneOf(old, '482913', 'boss'));
+      } else {
+        expect(ctl.getSnapshot().error).toBeNull();
+      }
+    });
+  }
+
+  it('a wrong PIN forgets the game this tab kept for it; the network lost is said on the PIN', async () => {
+    window.sessionStorage.setItem('meldy.live.pin.482913', '00000000-0000-4000-8000-000000000999');
+    const wrong = pinApi(async () => refusedPin('P0002', 'pin', 404));
+    ctl.dispose();
+    ctl = controller(wrong.over, recordingPlatform(rec));
+    expect(await ctl.submitPin('482913')).toBe(false);
+    expect(window.sessionStorage.getItem('meldy.live.pin.482913')).toBeNull();
+    const offline = pinApi(() => Promise.reject(new LiveError('network', null, 0)));
+    ctl.dispose();
+    ctl = controller(offline.over, recordingPlatform(rec));
+    expect(await ctl.submitPin('482913')).toBe(false);
+    expect(step()).toBe('pin');
+    expect(ctl.getSnapshot().error).toBe('Нет связи. Проверьте интернет и попробуйте снова.');
   });
 });

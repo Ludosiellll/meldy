@@ -18,6 +18,7 @@ import { GRACE_MS, LOCKED, checkLook, checkName, defaultLook } from '../../../li
 import {
   LiveError,
   isUnchanged,
+  pinRefusal,
   type BodyId,
   type ColourId,
   type EyesId,
@@ -380,11 +381,12 @@ export class PlayerController {
   }
 
   /**
-   * A wrong or finished PIN is told on the PIN screen, before the character (Kahoot does the same). The contract has no
-   * read-only look-up by PIN, so this is `live_join` with no name: the server checks the PIN, the game's state, the
-   * members-only rule and the room before the name (live_join_as), and a refused name makes no player and counts no
-   * join. ML006 therefore means «a game to join». If this identity is already in the game (the same token, or the same
-   * account), the server takes it back at once: that join is kept and the builder skipped.
+   * A wrong or finished PIN is told on the PIN screen, before the character (Kahoot does the same). `live_pin` runs
+   * live_join's checks before the name — the PIN, the game's state, the members-only rule, the room, kicked — and answers
+   * as data, so the browser logs no refused request; the check makes no player and counts no join. `open`: the
+   * character next (the mode says which picker); `joined`: this identity (the same token, or the same account) was in
+   * the game already and the server took it back, so that join is kept and the builder skipped; `refused`: the LiveError
+   * live_join gave for it, so the same words and the same step as before.
    *
    * Telegram's join goes through the bot's function, which needs a name; the check is the same anonymous RPC there, so
    * «members only» does not stop a Telegram player (their linked account decides at the real join).
@@ -396,9 +398,21 @@ export class PlayerController {
     if (gen !== this.gen) return false;
     const token = known && TOKEN_RE.test(known) ? known : newLiveToken();
     try {
-      const result = await this.api.join(pin, '', token, null);
+      const got = await this.api.pin(pin, token);
       if (gen !== this.gen) return false;
-      await this.joined(result, token);
+      if (got.status === 'refused') throw pinRefusal(got);
+      if (got.status === 'joined') {
+        const { status: _joined, ...result } = got;
+        await this.joined(result, token);
+        return true;
+      }
+      // The server's mode picks the character picker («Встань на ответ» has its own); unknown (the old check): as it was.
+      let modeHint = this.s.modeHint;
+      if (got.mode) {
+        modeHint = got.mode === 'stand' ? 'stand' : null;
+        writeStore('session', MODE_KEY(pin), modeHint);
+      }
+      this.set({ step: 'builder', builderFrom: 'join', busy: false, error: null, modeHint });
       return true;
     } catch (error) {
       if (gen !== this.gen) return false;

@@ -17,15 +17,15 @@ import {
   type LiveApi,
   type LiveErrorCode,
   type Look,
+  type PinResult,
   type PlayerState,
   type Review,
   type Settings,
   type TgPostResult,
   type Unchanged,
   type Uuid,
+  SERVER_CODES as CODES,
 } from './types';
-
-const CODES: ReadonlySet<string> = new Set(['28000', '42501', 'P0002', '22023', 'ML001', 'ML002', 'ML003', 'ML004', 'ML005', 'ML006', 'ML007', 'ML008', 'ML009', 'ML010', 'ML011']);
 
 /**
  * ML005's wait in seconds. supabase-js does not hand the response's headers over, so Retry-After itself cannot be read
@@ -57,6 +57,21 @@ async function rpc<T>(name: string, args: Record<string, unknown>): Promise<T> {
   return result.data as T;
 }
 
+/**
+ * The PIN step before 20261025090000_live_pin.sql is applied (or after its rollback), when PostgREST does not know
+ * live_pin (PGRST202): the old check, live_join with the empty name, read as the database reads it — a join is the
+ * identity taken back, ML006 (the name) a game to join, any other refusal as it came. A network or unknown failure throws.
+ */
+async function pinByJoin(pin: string, token: string): Promise<PinResult> {
+  try {
+    return { status: 'joined', ...(await rpc<JoinResult>('live_join', { p_pin: pin, p_name: '', p_token: token, p_look: null })) };
+  } catch (error) {
+    if (!(error instanceof LiveError) || error.code === 'network' || error.code === 'unknown') throw error;
+    if (error.code === 'ML006') return { status: 'open', mode: null };
+    return { status: 'refused', code: error.code, detail: error.detail, http: error.status, retry_after: error.retryAfterS };
+  }
+}
+
 function unchangedOr<T extends { rev: number }>(raw: T | { rev: number; now: string }): T | Unchanged {
   return 'state' in raw ? (raw as T) : { rev: raw.rev, now: (raw as { now: string }).now, unchanged: true };
 }
@@ -75,6 +90,14 @@ export function createRealApi(): LiveApi {
       await rpc('live_end', { p_game: game, p_host_token: hostToken });
     },
     tgPost: (game: Uuid, chatId: number) => rpc<TgPostResult>('live_tg_post', { p_game: game, p_chat_id: chatId }),
+    pin: async (pin: string, token: string) => {
+      try {
+        return await rpc<PinResult>('live_pin', { p_pin: pin, p_token: token });
+      } catch (error) {
+        if (error instanceof LiveError && error.code === 'unknown' && error.detail === 'PGRST202') return pinByJoin(pin, token);
+        throw error;
+      }
+    },
     join: (pin: string, name: string, token: string, look: Look | null) => rpc<JoinResult>('live_join', { p_pin: pin, p_name: name, p_token: token, p_look: look }),
     setLook: async (game: Uuid, token: string, look: Look) => (await rpc<{ look: Look }>('live_set_look', { p_game: game, p_token: token, p_look: look })).look,
     answer: (game: Uuid, token: string, qi: number, choice: number) => rpc<AnswerAck>('live_answer', { p_game: game, p_token: token, p_qi: qi, p_choice: choice }),

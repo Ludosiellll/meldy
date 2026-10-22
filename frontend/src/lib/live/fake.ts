@@ -40,6 +40,7 @@ import {
   type JoinResult,
   type LiveApi,
   type Look,
+  type PinResult,
   type PlayerState,
   type Review,
   type Settings,
@@ -481,6 +482,10 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
     return { g, p };
   }
 
+  function joinResult(g: FakeGame, p: FakePlayer): JoinResult {
+    return { game_id: g.id, player_id: p.id, topic: g.topic, state: g.state, rev: g.rev, now: iso(clock.now()), name: p.name, look: p.look, wardrobe: null };
+  }
+
   function questionView(g: FakeGame) {
     const q = g.questions[g.qi];
     if (!q || g.state === 'lobby' || g.state === 'podium' || g.state === 'ended') return null;
@@ -659,6 +664,29 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       }
     },
 
+    /**
+     * As `live_pin`: live_join's checks before the name, in its order, answered as data — this token already in the game
+     * is taken back (`joined`: the fake keeps the token, nothing changes), a game to join is `open` with its mode, any
+     * other refusal `refused` with live_join's code. A web guest only: the fake has no accounts.
+     */
+    pin(pin: string, tok: string): Promise<PinResult> {
+      const refused = (e: LiveError) => reply<PinResult>({ status: 'refused', code: e.code, detail: e.detail, http: e.status, retry_after: e.retryAfterS });
+      if (!/^[A-Za-z0-9_-]{43}$/.test(tok)) return refused(new LiveError('22023', 'token'));
+      const g = [...games.values()].find((x) => x.pin === pin && x.state !== 'ended');
+      if (!g) return refused(new LiveError('P0002', 'pin', 404));
+      settle(g);
+      const p = [...g.players.values()].find((x) => x.token === tok);
+      if (p) {
+        if (p.kicked) return refused(new LiveError('42501', 'kicked', 403));
+        if (g.state === 'ended') return refused(new LiveError('ML002', 'ended'));
+        return reply<PinResult>({ status: 'joined', ...joinResult(g, p) });
+      }
+      if (g.state === 'ended' || g.state === 'podium') return refused(new LiveError('ML002', 'ended'));
+      if (clock.now() - g.createdAt > GAME_TTL_MS) return refused(new LiveError('ML002', 'expired'));
+      if ([...g.players.values()].filter((x) => !x.kicked).length >= MAX_PLAYERS) return refused(new LiveError('ML001'));
+      return reply<PinResult>({ status: 'open', mode: g.settings.mode });
+    },
+
     join(pin: string, name: string, tok: string, look: Look | null): Promise<JoinResult> {
       try {
         const g = [...games.values()].find((x) => x.pin === pin && x.state !== 'ended');
@@ -686,7 +714,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
           bump(g);
           if (g.auto && g.state === 'lobby') later(g, 4000, () => g.state === 'lobby' && advance(g));
         }
-        return reply({ game_id: g.id, player_id: p.id, topic: g.topic, state: g.state, rev: g.rev, now: iso(clock.now()), name: p.name, look: p.look, wardrobe: null });
+        return reply(joinResult(g, p));
       } catch (e) {
         return fail(e as LiveError);
       }

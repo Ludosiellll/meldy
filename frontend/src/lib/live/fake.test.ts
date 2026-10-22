@@ -166,6 +166,26 @@ describe('fake live server: refusals and polling', () => {
     expect((await err(api.join(g.pin, 'Оля', 'D'.repeat(43), { body: 'round', colour: 'blue', eyes: 'dots', hat: 'crown' }))).detail).toBe('locked');
   });
 
+  it('the PIN step as live_pin: open with the mode, the same token taken back, refusals as data, nothing changed', async () => {
+    const { api, g, a } = await setup();
+    const D = 'D'.repeat(43);
+    const players = () => api.peek(g.game_id)!.players.size;
+    const rev = () => api.peek(g.game_id)!.rev;
+    const before = [players(), rev()];
+    expect(await api.pin(g.pin, D)).toEqual({ status: 'open', mode: 'boss' });
+    expect([players(), rev()]).toEqual(before);
+    expect(await api.pin('000000', D)).toEqual({ status: 'refused', code: 'P0002', detail: 'pin', http: 404, retry_after: null });
+    expect(await api.pin(g.pin, 'short')).toEqual({ status: 'refused', code: '22023', detail: 'token', http: 400, retry_after: null });
+    const back = await api.pin(g.pin, T1);
+    expect(back).toMatchObject({ status: 'joined', game_id: g.game_id, player_id: a.player_id, name: 'Дима', wardrobe: null });
+    expect([players(), rev()]).toEqual(before);
+    await api.kick(g.game_id, g.host_token, a.player_id);
+    expect(await api.pin(g.pin, T1)).toMatchObject({ status: 'refused', code: '42501', detail: 'kicked', http: 403 });
+    api.peek(g.game_id)!.state = 'podium';
+    expect(await api.pin(g.pin, D)).toMatchObject({ status: 'refused', code: 'ML002', detail: 'ended' });
+    expect(await api.pin(g.pin, T2)).toMatchObject({ status: 'joined', name: 'Лена' });
+  });
+
   it('answers «unchanged» when the rev did not move (outside lobby and open), and hints on every state change', async () => {
     const { clock, api, g } = await setup();
     const hints: string[] = [];

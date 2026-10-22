@@ -229,6 +229,7 @@ function pageScript(arg) {
     }
     if (m[1] === 'live_state') return json(st);
     if (m[1] === 'live_join') return json({ game_id: game, player_id: pid, topic: 't'.repeat(22), state: st.state, rev: st.rev, now: st.now, name, look, wardrobe: null });
+    if (m[1] === 'live_pin') return json({ status: 'joined', game_id: game, player_id: pid, topic: 't'.repeat(22), state: st.state, rev: st.rev, now: st.now, name, look, wardrobe: null });
     if (m[1] === 'live_set_look') return json({ look });
     if (m[1] === 'live_review') return json({ items: [] });
     return json({ ok: true });
