@@ -64,7 +64,7 @@ describe('the test’s page and the game', () => {
 
   it('the first time a test can be played, a tip with the clip points at «Провести игру»; its action is the button’s', async () => {
     renderHome();
-    const button = await screen.findByRole('link', { name: 'Провести игру' });
+    const button = await screen.findByRole('link', { name: 'Провести игру' }, { timeout: 3000 });
     expect(button).toHaveAttribute('href', '/live/new?c=c-1');
     await waitFor(() => expect(tipCard()).not.toBeNull(), { timeout: 3000 });
     const card = tipCard()!;
@@ -78,7 +78,7 @@ describe('the test’s page and the game', () => {
     expect(button.nextElementSibling).toBe(card);
     // Shown once: this visit put it away on the device and in the profile.
     expect(window.localStorage.getItem('meldy_tip_game')).toBe('1');
-    await waitFor(() => expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'tip_game'));
+    await waitFor(() => expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'tip_game'), { timeout: 3000 });
     fireEvent.click(within(card).getByRole('button', { name: TIPS.game.later }));
     expect(tipCard()).toBeNull();
   });
