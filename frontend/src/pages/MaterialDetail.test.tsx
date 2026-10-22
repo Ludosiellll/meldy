@@ -1099,7 +1099,8 @@ describe('the browser tab and the meta line', () => {
     state.material = { ...makeMaterial(), title: 'Реляционная модель данных: ключи и ограничения целостности' };
     const { unmount } = renderPage('/library/m1');
     await screen.findByRole('heading', { level: 1, name: 'Реляционная модель данных: ключи и ограничения целостности' });
-    expect(document.title).toBe('Реляционная модель данных: ключи и ограничения целостности — Meldy');
+    // the title is set in an effect after the heading paints: wait for it rather than read it in the same tick
+    await waitFor(() => expect(document.title).toBe('Реляционная модель данных: ключи и ограничения целостности — Meldy'));
     unmount();
 
     const api = await import('../api/materials');
@@ -1107,7 +1108,7 @@ describe('the browser tab and the meta line', () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const failed = renderPage('/library/gone');
     expect(await screen.findByRole('heading', { level: 1, name: 'Лекция не найдена' })).toBeInTheDocument();
-    expect(document.title).toBe('Лекция не найдена — Meldy');
+    await waitFor(() => expect(document.title).toBe('Лекция не найдена — Meldy'));
     failed.unmount();
     quiet.mockClear();
 
