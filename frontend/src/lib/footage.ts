@@ -74,6 +74,74 @@ export const STAND_RUN_PHONE: Footage = {
   backdrop: 'linear-gradient(#2a2456 50%, #151535 50%)',
 };
 
+/*
+ * The landing's tiles (components/home3, the layout «D — Плитки», owner 22.10): screen recordings of the app made for
+ * the landing (x264 High 4.1, 30 fps, no sound; the posters are frames chosen from them). A wide cut for a computer,
+ * a 4:5 cut for a phone (680 × 850); a page fetches one of the two. Each cut is made by
+ * `node scripts/footage-parts.mjs <in.mp4> <poster> <name>`, which prints the definition pasted here.
+ */
+
+/** «Ответ вслух, как на экзамене»: a ticket answered aloud on the phone page. 600 × 1298, 13.53 s, 432 KB in 5 parts. */
+export const LANDING_ORAL: Footage = {
+  ...files('landing-oral', 'a385050f33', 5),
+  width: 600,
+  height: 1298,
+  duration: 13.53,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: '#f1f2ed',
+};
+
+/** «Лекция → конспект, карточки, самопроверка» on a computer. 1280 × 800, 14.8 s, 585 KB in 7 parts. */
+export const LANDING_LECTURE_WIDE: Footage = {
+  ...files('landing-lecture-wide', '1201809487', 7),
+  width: 1280,
+  height: 800,
+  duration: 14.8,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: 'linear-gradient(#f2f3ee 50%, #e4e5e5 50%)',
+};
+
+/** The lecture on a phone. 680 × 850, 14.57 s, 436 KB in 5 parts. */
+export const LANDING_LECTURE_PHONE: Footage = {
+  ...files('landing-lecture-phone', 'ccceb79097', 5),
+  width: 680,
+  height: 850,
+  duration: 14.57,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: '#f2f3ee',
+};
+
+/** «Вопросы кафедры → план по дням» on a computer. 1280 × 800, 14.27 s, 506 KB in 6 parts. */
+export const LANDING_EXAM_WIDE: Footage = {
+  ...files('landing-exam-wide', '08ac94b57d', 6),
+  width: 1280,
+  height: 800,
+  duration: 14.27,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: 'linear-gradient(#f2f3ee 50%, #f0f1ec 50%)',
+};
+
+/** The exam on a phone. 680 × 850, 14.1 s, 417 KB in 5 parts. */
+export const LANDING_EXAM_PHONE: Footage = {
+  ...files('landing-exam-phone', '87ce2206c9', 5),
+  width: 680,
+  height: 850,
+  duration: 14.1,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: 'linear-gradient(#fdfdfd 50%, #f2f3ee 50%)',
+};
+
+/** Every cut a page uses (the files in public/game/footage/ are exactly these; lib/footage.test.ts). */
+export const ALL_FOOTAGE: readonly Footage[] = [
+  STAND_RUN,
+  STAND_RUN_PHONE,
+  LANDING_ORAL,
+  LANDING_LECTURE_WIDE,
+  LANDING_LECTURE_PHONE,
+  LANDING_EXAM_WIDE,
+  LANDING_EXAM_PHONE,
+];
+
 /** Whether this browser says it can play the footage (asked before anything is fetched). */
 export function canPlayFootage(footage: Footage): boolean {
   if (typeof document === 'undefined') return false;

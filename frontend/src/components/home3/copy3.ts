@@ -98,93 +98,38 @@ export const EXAMPLE = {
  * noun. copy3.test.ts holds the parts a test can see.
  */
 
-export const LECTURE_SECTION = {
-  title: 'Что Meldy делает из лекции',
-  text: 'Загрузите запись лекции, файл или ссылку на видео. Meldy сделает конспект, выжимку, тест и карточки. Что осталось непонятным, можно спросить голосом.',
-  tabs: ['Конспект', 'Выжимка', 'Тест', 'Карточки', 'Поговорить о лекции'],
-} as const;
-
-export const EXAM_SECTION = {
-  title: 'Экзамен по вопросам вашей кафедры',
-  text: 'Загрузите вопросы к экзамену одним файлом или по файлу на предмет. Meldy разложит их по дням. Каждый день вас ждёт занятие на то время, которое вы выбрали.',
-  file: {
-    title: 'Файл кафедры',
-    text: 'Подойдёт Word, Excel или TXT. Правильные ответы Meldy находит сам, например по жирному шрифту.',
-    found: 'Нашли 4 предмета и 960 вопросов',
-  },
-  plan: {
-    title: 'План по дням',
-    text: 'Вопросы разложены по дням до экзамена. Если экзамен перенесли, план сам сдвинется на новую дату.',
-    move: 'Перенести на 2 недели',
-    back: 'Вернуть дату',
-  },
-  session: {
-    title: 'Занятие',
-    text: 'Вопрос выучен, когда вы ответили верно в два разных дня. Видно, сколько тем осталось.',
-    idle: 'Выберите ответ.',
-    right: 'Верно, и вчера тоже. Вопрос выучен.',
-    wrong: 'Неверно. Правильный ответ «Вырастет». Повторим его в понедельник.',
-    again: 'Ответить ещё раз',
-    learned: 'Выучено',
-  },
-  /** What is left of the exam (owner, 2026-10-21): the exam broken into topics, each closes when it is learned. */
-  left: {
-    title: 'Осталось выучить',
-    of: 24,
-    topics: [
-      { title: 'Рыночное равновесие', done: 9, of: 10 },
-      { title: 'Эластичность и выручка', done: 5, of: 6 },
-      { title: 'Факторы эластичности', done: 2, of: 5 },
-    ],
-  },
-  ticket: {
-    title: 'Билет вслух',
-    text: 'Вы отвечаете билет вслух. Meldy сверяет ответ с вашими лекциями. О пропущенном спросит экзаменатор. Оценку ставит преподаватель.',
-  },
-} as const;
-
 /**
- * «Билет вслух» on the page, a short loop: the parts of the answer to ticket 7 (data/ticketExample.ts Q7, said in
- * plain words), what the student says (each of the first three lines names one part: 1, 2 and 4), the examiner's
- * question about the missed part and the answer to it.
+ * The tiles under the first screen (owner, 22.10: the layout «D — Плитки»). Each tile is a short heading and at most one
+ * line; a video next to it shows the real screen, and the words say what it shows.
  */
-export const TICKET_TALK = {
-  parts: [
-    'Выручка = цена × количество',
-    'Спрос эластичный, цену снизили, выручка выросла',
-    'Спрос неэластичный, цену подняли, выручка выросла',
-    'При единичной эластичности выручка та же',
-  ],
-  said: [
-    'Выручка — это цена, умноженная на количество.',
-    'Если спрос эластичный, снижение цены увеличивает выручку.',
-    'При единичной эластичности выручка не меняется.',
-  ],
-  answer: 'Поднять цену. Покупают почти столько же, и выручка растёт.',
-  result: 'Ответ полный. 3 части из 4 вы назвали сами, одну после вопроса.',
-  speaking: 'Вы отвечаете',
-  asking: 'Экзаменатор спрашивает',
-  done: 'Ответ записан',
-  examiner: 'Экзаменатор',
-  you: 'Вы',
-  pause: 'Остановить анимацию',
-  play: 'Запустить анимацию',
-} as const;
-
-export const GROUP_SECTION = {
-  title: 'Группа и Telegram',
-  text: 'Отправьте группе одну ссылку. У каждого будет весь экзамен и свой прогресс. Бот в Telegram присылает план на день, и вопросы можно решать прямо в чате.',
+export const TILES = {
+  /** The first screen's blue tile: a ticket answered aloud on a phone. */
+  oral: 'Ответ вслух, как на экзамене',
+  lecture: {
+    title: 'Лекция → конспект, карточки, самопроверка',
+    text: 'У каждого раздела видно, откуда он взят в лекции.',
+  },
+  exam: {
+    title: 'Вопросы кафедры → план по дням',
+    text: 'Ответы Meldy находит в самом файле.',
+  },
+  /**
+   * Two facts, each true as said: a new test is open to guests by default (quizzes.guests, the author may ask for an
+   * account), and the bot sends the day's plan at the time the student picked (supabase/functions/_shared/bot/tick.ts).
+   */
+  link: 'Тест по ссылке, без аккаунта',
+  telegram: 'План на день приходит в Telegram',
 } as const;
 
 /**
- * «Игра в классе» (owner, 21.10: «не забудь сделать это» for the page and the reel): the live game «Встань на ответ»,
- * shown by the real recorded game (lib/footage STAND_RUN, home3/game). The question, its options and the PIN are the
- * recorded game's (its projector shows them), the test's title too; the bot's post is the stand game's group post
- * (supabase/functions/_shared/bot/live.ts livePost); the phone's words are the phone's own (live/stand/phone/words.ts).
+ * The game's tile (owner, 21.10: «не забудь сделать это»; 22.10: «игру оставить как есть»): the live game «Встань на
+ * ответ», shown by the real recorded game (lib/footage STAND_RUN and the phone's STAND_RUN_PHONE). The words are the
+ * tile's in the layout «D — Плитки». GAME below are the recorded game's own words (its projector shows them), and the
+ * reel's.
  */
 export const GAME_SECTION = {
-  title: 'Игра в классе',
-  text: 'Класс играет на проекторе. Ученики бегут к ответу с телефона. Кто не успел к верному ответу, проваливается. Играть можно на сайте и в Telegram.',
+  title: 'Игра на паре',
+  text: 'Класс бегает к ответам на проекторе с телефонов.',
 } as const;
 
 export const GAME = {
@@ -224,39 +169,22 @@ export const BUILDER_SECTION = {
   statsText: 'Видно, кто пишет сейчас и кто уже сдал. Видны средний балл и самые трудные вопросы. Таблицу можно скачать.',
 } as const;
 
-/** Words inside the pictures of the app on the page (the page's own lines, so the rules above hold for them too). */
+/** Words inside the constructor's pictures (the page's own lines, so the rules above hold for them too). */
 export const PICTURES = {
-  lectureMeta: 'Микроэкономика, 82 минуты',
-  exam: 'Микроэкономика',
-  examDate: ['Экзамен 6 ноября', 'Экзамен 20 ноября'],
-  examIn: ['через 18 дней', 'через 32 дня'],
-  today: ['Сегодня 90 вопросов', 'Сегодня 60 вопросов'],
-  todayTime: ['около 45 минут', 'около 30 минут'],
-  moved: 'Экзамен перенесён на 20 ноября. Сегодня 60 вопросов.',
-  question: 'Вопрос 7 из 20',
-  inviteTitle: 'Пригласить группу',
-  inviteText: 'По ссылке каждый получит весь экзамен. Прогресс у каждого свой.',
-  copy: 'Скопировать',
-  members: 'В экзамене 24 участника',
-  bot: 'бот',
-  botToday: 'Сегодня 90 вопросов, около 45 минут.',
-  botExam: 'Экзамен 6 ноября, через 18 дней.',
-  botStart: 'Начать занятие',
-  botOpen: 'Открыть Meldy',
   linkLabel: 'Ссылка для участников',
   copyLink: ['Скопировать ссылку', 'Ссылка скопирована'],
   results: 'Результаты теста «Эластичность спроса»',
-  resultsLine: 'Сдали 23, пишут сейчас 3. Средний балл 71 %.',
+  resultsLine: 'Сдали 23, пишут сейчас 3. Средний балл 71 %.',
   hardest: 'Самый трудный вопрос',
   hardestQuestion: 'Неэластичный спрос и выручка',
-  hardestRight: 'верно 38 %',
+  hardestRight: 'верно 38 %',
   writing: 'пишет',
   noAccount: 'без аккаунта',
 } as const;
 
+/** The end of the page: the prototype's «Попробуйте на примере — без регистрации», said without the dash (rules above). */
 export const FINAL = {
-  title: 'Откройте пример или пройдите готовый тест',
-  text: 'В примере 3 лекции по микроэкономике и 12 вопросов к экзамену. Тест из 5 вопросов команда Meldy собрала в конструкторе.',
+  title: 'Попробуйте на примере, без регистрации',
 } as const;
 
 export const FOOTER = 'Meldy помогает готовиться к экзамену и собирать тесты.';

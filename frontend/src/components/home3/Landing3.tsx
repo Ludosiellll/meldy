@@ -1,63 +1,59 @@
 /**
- * The landing v3 «Один вопрос» (owner, 2026-10-19): one ticket question goes through the whole of Meldy in the reel,
- * and the page follows the reel's order — the lecture, the exam, the group, the game in class, then the test
- * constructor, the longest part, with a small studio to touch. The first screen is also in index.html as plain HTML (#static-hero), so it paints
- * before any script; this page takes its place without a visible change.
+ * The landing, the layout «D — Плитки» (owner, 2026-10-22): the first screen as two tiles (the headline with its links,
+ * and a phone answering a ticket aloud), then tiles of what Meldy does, each with the real screen recorded: the lecture,
+ * the exam, the game in class beside two facts, then the test constructor with a small studio to touch, the end and the
+ * footer. The first screen is also in index.html as plain HTML (#static-hero), so it paints before any script; this page
+ * takes its place without a visible change.
  */
 import { startTransition, useEffect, useLayoutEffect, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { useLazyPart } from '../../lib/lazyPart';
+import { LANDING_ORAL } from '../../lib/footage';
 import { prefetchLink } from '../../lib/prefetch';
+import Footage from '../film/Footage';
 import Builder from './Builder';
-import { CTA, FINAL, FOOTER, FOOTER_NOTE, SAMPLE_TEST_URL, bind } from './copy3';
+import { CTA, FINAL, FOOTER, FOOTER_NOTE, bind } from './copy3';
 import HeroTop, { ArrowIcon } from './HeroTop';
-import { reelPart } from './reelPart';
-import { ExamSection, GameSection, GroupSection, LectureSection } from './Sections';
+import { Tiles } from './Sections';
 import './hero3.css';
 import './home3.css';
 
-function ReelSlot({ onCta }: { onCta: () => void }) {
+/** The width at which the page takes the phone's cuts and lays out its phone layout (hero3.css, home3.css). */
+export const PHONE_QUERY = '(max-width: 640px)';
+
+/** Whether the screen is a phone's when the page opens: read once, so only one of the two cuts is ever fetched. */
+function phoneAtOpen(): boolean {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(PHONE_QUERY).matches;
+}
+
+/** True once the window's load event has fired: no part of a video is fetched before the page's own files. */
+function useWindowLoaded(): boolean {
+  const [loaded, setLoaded] = useState(() => typeof document !== 'undefined' && document.readyState === 'complete');
   useEffect(() => {
-    const load = () => void reelPart.load().catch((error) => console.error('Ролик не загрузился:', error));
+    if (loaded) return undefined;
+    const done = () => setLoaded(true);
     if (document.readyState === 'complete') {
-      load();
+      done();
       return undefined;
     }
-    window.addEventListener('load', load, { once: true });
-    return () => window.removeEventListener('load', load);
-  }, []);
-  const part = useLazyPart(reelPart, true);
-  return part ? <part.Reel onCta={onCta} /> : <div className="h3-reel-wait" aria-hidden="true" />;
+    window.addEventListener('load', done, { once: true });
+    return () => window.removeEventListener('load', done);
+  }, [loaded]);
+  return loaded;
 }
 
 function FinalSection() {
   return (
-    <section className="h3-wrap p3-sec" aria-labelledby="final-h">
-      <div className="p3-final">
-        <h2 id="final-h" className="p3-h2">
-          {bind(FINAL.title)}
-        </h2>
-        <p className="p3-text">{bind(FINAL.text)}</p>
-        <div className="p3-final-acts">
-          <a className="h3-pill h3-pill--blue" href="/try">
-            {CTA.example}
-            <i>
-              <ArrowIcon />
-            </i>
-          </a>
-          <a className="h3-pill h3-pill--white" href={SAMPLE_TEST_URL}>
-            {CTA.test}
-            <i>
-              <ArrowIcon />
-            </i>
-          </a>
-          <a className="h3-textlink" href="/register">
-            {CTA.signUp}
-            <ArrowIcon />
-          </a>
-        </div>
-      </div>
+    <section className="h3-wrap p3-final" aria-labelledby="final-h">
+      <h2 id="final-h" className="p3-final-h">
+        {bind(FINAL.title)}
+      </h2>
+      <a className="h3-pill h3-pill--blue" href="/try">
+        {CTA.example}
+        <i>
+          <ArrowIcon />
+        </i>
+      </a>
     </section>
   );
 }
@@ -65,13 +61,15 @@ function FinalSection() {
 export default function Landing3() {
   const navigate = useNavigate();
   const { user, requestSession } = useAuth();
+  const loaded = useWindowLoaded();
+  const [phone] = useState(phoneAtOpen);
 
   useEffect(() => {
     if (user) navigate('/dashboard');
   }, [user, navigate]);
 
-  // The first screen renders alone; the sections below it render next, as a transition React splits into short
-  // pieces, so building the long page never blocks a frame (phone check ×4: one 280 ms task without this).
+  // The first screen renders alone; the tiles below it render next, as a transition React splits into short pieces,
+  // so building the long page never blocks a frame.
   const [rest, setRest] = useState(false);
   useEffect(() => startTransition(() => setRest(true)), []);
   // An address with a section in it (/#builder) lands on the section once it is there.
@@ -106,15 +104,16 @@ export default function Landing3() {
     if (href?.startsWith('/') && !href.startsWith('//')) prefetchLink(href);
   };
 
+  // The phone's video goes over the static poster after the window's load event (its own poster is the same file,
+  // already there, and the video fades in over it once it plays).
+  const oral = loaded ? <Footage footage={LANDING_ORAL} fit="cover" background="transparent" /> : null;
+
   return (
     <div className="h3" onClick={follow} onPointerOver={intent} onTouchStart={intent} onFocus={intent}>
-      <HeroTop reel={<ReelSlot onCta={() => navigate('/try')} />}>
+      <HeroTop oral={oral}>
         {rest ? (
           <>
-            <LectureSection />
-            <ExamSection />
-            <GroupSection />
-            <GameSection />
+            <Tiles phone={phone} still={!loaded} />
             <Builder />
             <FinalSection />
           </>
