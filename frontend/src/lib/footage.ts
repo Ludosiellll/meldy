@@ -75,49 +75,61 @@ export const STAND_RUN_PHONE: Footage = {
 };
 
 /*
- * The landing's tiles (components/home3, the layout «D — Плитки», owner 22.10). Each cut is made by
- * `node scripts/footage-parts.mjs <in.mp4> <poster> <name>`, which prints the definition to paste here.
- *
- * STAND-INS until the new clips are cut: the deck's product recordings (deck/cf11/media/product/08-oral-answer,
- * lecture-materials and 07-exam-plan, H.264 as they are, posters from their .jpg). The phone tiles' cuts are the wide
- * ones for now (a phone shows them cropped to 4:5); the real 4:5 cuts get their own names.
+ * The landing's tiles (components/home3, the layout «D — Плитки», owner 22.10): screen recordings of the app made for
+ * the landing (x264 High 4.1, 30 fps, no sound; the posters are frames chosen from them). A wide cut for a computer,
+ * a 4:5 cut for a phone (680 × 850); a page fetches one of the two. Each cut is made by
+ * `node scripts/footage-parts.mjs <in.mp4> <poster> <name>`, which prints the definition pasted here.
  */
 
-/** «Ответ вслух, как на экзамене»: a ticket answered aloud on the phone page. 608 × 1318, 25.73 s, 500 KB in 6 parts. */
+/** «Ответ вслух, как на экзамене»: a ticket answered aloud on the phone page. 600 × 1298, 13.53 s, 432 KB in 5 parts. */
 export const LANDING_ORAL: Footage = {
-  ...files('landing-oral', '06394255e5', 6),
-  width: 608,
-  height: 1318,
-  duration: 25.73,
-  type: 'video/mp4; codecs="avc1.640028"',
-  backdrop: 'linear-gradient(#cfd0cd 50%, #cfcfca 50%)',
+  ...files('landing-oral', 'a385050f33', 5),
+  width: 600,
+  height: 1298,
+  duration: 13.53,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: '#f1f2ed',
 };
 
-/** «Лекция → конспект, карточки, тест, подкаст» on a computer. 1152 × 568, 30 s, 1244 KB in 14 parts. */
+/** «Лекция → конспект, карточки, тест, подкаст» on a computer. 1280 × 800, 14.8 s, 585 KB in 7 parts. */
 export const LANDING_LECTURE_WIDE: Footage = {
-  ...files('landing-lecture-wide', '8b7d6a7f65', 14),
-  width: 1152,
-  height: 568,
-  duration: 30,
-  type: 'video/mp4; codecs="avc1.640028"',
-  backdrop: 'linear-gradient(#f1f2ee 50%, #dde0e6 50%)',
+  ...files('landing-lecture-wide', '1201809487', 7),
+  width: 1280,
+  height: 800,
+  duration: 14.8,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: 'linear-gradient(#f2f3ee 50%, #e4e5e5 50%)',
 };
 
-/** The lecture on a phone (4:5). A stand-in: the wide cut. */
-export const LANDING_LECTURE_PHONE: Footage = LANDING_LECTURE_WIDE;
+/** The lecture on a phone. 680 × 850, 14.57 s, 436 KB in 5 parts. */
+export const LANDING_LECTURE_PHONE: Footage = {
+  ...files('landing-lecture-phone', 'ccceb79097', 5),
+  width: 680,
+  height: 850,
+  duration: 14.57,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: '#f2f3ee',
+};
 
-/** «Вопросы кафедры → план по дням» on a computer. 1152 × 568, 23.6 s, 631 KB in 7 parts. */
+/** «Вопросы кафедры → план по дням» on a computer. 1280 × 800, 14.27 s, 506 KB in 6 parts. */
 export const LANDING_EXAM_WIDE: Footage = {
-  ...files('landing-exam-wide', 'de8548899e', 7),
-  width: 1152,
-  height: 568,
-  duration: 23.6,
-  type: 'video/mp4; codecs="avc1.640028"',
-  backdrop: 'linear-gradient(#f2f3ee 50%, #f4f4f3 50%)',
+  ...files('landing-exam-wide', '08ac94b57d', 6),
+  width: 1280,
+  height: 800,
+  duration: 14.27,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: 'linear-gradient(#f2f3ee 50%, #f0f1ec 50%)',
 };
 
-/** The exam on a phone (4:5). A stand-in: the wide cut. */
-export const LANDING_EXAM_PHONE: Footage = LANDING_EXAM_WIDE;
+/** The exam on a phone. 680 × 850, 14.1 s, 417 KB in 5 parts. */
+export const LANDING_EXAM_PHONE: Footage = {
+  ...files('landing-exam-phone', '87ce2206c9', 5),
+  width: 680,
+  height: 850,
+  duration: 14.1,
+  type: 'video/mp4; codecs="avc1.640029"',
+  backdrop: 'linear-gradient(#fdfdfd 50%, #f2f3ee 50%)',
+};
 
 /** Every cut a page uses (the files in public/game/footage/ are exactly these; lib/footage.test.ts). */
 export const ALL_FOOTAGE: readonly Footage[] = [

@@ -84,14 +84,6 @@
   margin-top: auto;
   border-top: 1px solid var(--h3-line);
 }
-.p3-clip-frame[data-variant='phone'] {
-  aspect-ratio: 4 / 5;
-}
-/* a wide stand-in in a phone's frame shows its left part, where the screen's title is (a 4:5 cut fills it whole) */
-.p3-clip-frame[data-variant='phone'] .fo-poster,
-.p3-clip-frame[data-variant='phone'] .fo-video {
-  object-position: 0 50%;
-}
 
 /* the game in class: a dark tile, the projector and a student's phone side by side at its foot */
 .p3-play {

@@ -5,7 +5,7 @@ import Landing3, { PHONE_QUERY } from './Landing3';
 import { BUILD_URL } from './Builder';
 import { BUILDER_SECTION, CTA, FINAL, GAME_SECTION, HEADLINE, LEAD, NAV, SAMPLE_TEST_URL, TILES, bind } from './copy3';
 import { GAME_ALT, GAME_URL } from './Sections';
-import { LANDING_EXAM_WIDE, LANDING_LECTURE_WIDE, LANDING_ORAL, STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
+import { LANDING_EXAM_PHONE, LANDING_EXAM_WIDE, LANDING_LECTURE_PHONE, LANDING_LECTURE_WIDE, LANDING_ORAL, STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
 import { returnToFromSearch } from '../../lib/returnTo';
 
 interface NodeFs {
@@ -168,15 +168,19 @@ describe('the landing «D — Плитки»', () => {
     expect(document.querySelectorAll('video')).toHaveLength(0);
   });
 
-  it('takes the phone’s cuts on a phone, chosen once when the page opens, and never the wide ones there', () => {
+  it('takes the phone’s 4:5 cuts on a phone, chosen once when the page opens', () => {
     const asked = stubScreen(true);
     renderLanding();
     expect(asked).toContain(PHONE_QUERY);
-    for (const id of ['lecture', 'exam']) {
+    for (const [id, cut] of [
+      ['lecture', LANDING_LECTURE_PHONE],
+      ['exam', LANDING_EXAM_PHONE],
+    ] as const) {
       const frame = document.getElementById(id)!.querySelector('.p3-clip-frame') as HTMLElement;
       expect(frame.dataset.variant).toBe('phone');
-      // the frame is 4:5 in the stylesheet, whatever the cut (a wide stand-in is cropped to it)
-      expect(frame.style.aspectRatio).toBe('');
+      expect(frame.style.aspectRatio).toBe(`${cut.width} / ${cut.height}`);
+      expect(cut.width / cut.height).toBeCloseTo(4 / 5, 3);
+      expect(frame.querySelector('.fo-poster')).toHaveAttribute('src', cut.poster);
     }
   });
 
@@ -230,8 +234,23 @@ describe('the landing «D — Плитки»', () => {
     expect(phone.querySelector('.fo')).toHaveAttribute('aria-hidden', 'true');
     const fetched = fetchMock.mock.calls.map((call) => (call as unknown[])[0]);
     expect(fetched).toEqual(expect.arrayContaining([...LANDING_ORAL.parts, ...STAND_RUN.parts, ...LANDING_LECTURE_WIDE.parts]));
-    // one of the two cuts of a tile, never both
-    expect(fetched.filter((url) => String(url).includes('-phone-') && !String(url).includes('stand-run'))).toEqual([]);
+    // one of the two cuts of a tile, never both: a computer's screen fetches no phone cut
+    for (const part of [...LANDING_LECTURE_PHONE.parts, ...LANDING_EXAM_PHONE.parts]) expect(fetched).not.toContain(part);
+  });
+
+  it('on a phone fetches the phone’s cuts and none of the wide ones', () => {
+    stubScreen(true);
+    vi.stubGlobal('IntersectionObserver', SeenObserver);
+    vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('probably');
+    const fetchMock = vi.fn(() => new Promise(() => undefined));
+    vi.stubGlobal('fetch', fetchMock);
+    renderLanding();
+    const fetched = fetchMock.mock.calls.map((call) => (call as unknown[])[0]);
+    expect(fetched).toEqual(expect.arrayContaining([...LANDING_LECTURE_PHONE.parts, ...LANDING_EXAM_PHONE.parts]));
+    for (const part of [...LANDING_LECTURE_WIDE.parts, ...LANDING_EXAM_WIDE.parts]) expect(fetched).not.toContain(part);
+    // (the loader keeps a cut's load for the page's life, so the players themselves say which cuts they were given)
+    const posters = [...document.querySelectorAll('.fo-poster')].map((img) => img.getAttribute('src'));
+    for (const wide of [LANDING_LECTURE_WIDE, LANDING_EXAM_WIDE]) expect(posters).not.toContain(wide.poster);
   });
 
   it('ends on the example: one heading, one link', () => {

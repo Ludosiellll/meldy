@@ -12,7 +12,7 @@
  *   2. the name gets the first ten hex digits of that file's SHA-256 (nginx keeps such names for a year, so a new cut
  *      must have new names); the older cuts of the same name in public/game/footage/ are removed;
  *   3. public/game/footage/<name>-<hash>-1.bin … -<n>.bin and <name>-<hash>-poster.webp are written: the poster at the
- *      video's own frame size (covered and cropped to it), WebP under 100 KB;
+ *      video's own frame size (covered and cropped to it), WebP under 100 KB (a WebP already so is kept as it is);
  *   4. the definition is printed: width, height and duration from ffprobe, the codecs string from the stream's own
  *      avcC record (avc1.PPCCLL), the backdrop from the poster's top and bottom rows.
  *
@@ -90,13 +90,18 @@ for (let at = 0; at < count; at += 1) {
 }
 
 const poster = path.join(OUT, `${name}-${hash}-poster.webp`);
-const fit = `scale=${width}:${height}:force_original_aspect_ratio=increase:flags=lanczos,crop=${width}:${height}`;
-let quality = 82;
-for (;;) {
-  run('ffmpeg', ['-v', 'error', '-y', '-i', posterIn, '-vf', fit, '-frames:v', '1', '-c:v', 'libwebp', '-quality', String(quality), '-compression_level', '6', poster]);
-  if (fs.statSync(poster).size <= POSTER_LIMIT) break;
-  if (quality <= 30) fail(`the poster is still over 100 KB at quality ${quality}`);
-  quality -= 8;
+// A WebP already at the frame's size and under the limit is kept byte for byte (a chosen frame, encoded once).
+const given = JSON.parse(run('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_name,width,height', '-of', 'json', posterIn]).toString()).streams?.[0];
+let quality = 'kept';
+if (given?.codec_name === 'webp' && Number(given.width) === width && Number(given.height) === height && fs.statSync(posterIn).size <= POSTER_LIMIT) {
+  fs.copyFileSync(posterIn, poster);
+} else {
+  const fit = `scale=${width}:${height}:force_original_aspect_ratio=increase:flags=lanczos,crop=${width}:${height}`;
+  for (quality = 82; ; quality -= 8) {
+    run('ffmpeg', ['-v', 'error', '-y', '-i', posterIn, '-vf', fit, '-frames:v', '1', '-c:v', 'libwebp', '-quality', String(quality), '-compression_level', '6', poster]);
+    if (fs.statSync(poster).size <= POSTER_LIMIT) break;
+    if (quality <= 30) fail(`the poster is still over 100 KB at quality ${quality}`);
+  }
 }
 
 /* 4. the backdrop: the poster's top row and bottom row, each as one colour */
@@ -113,7 +118,7 @@ fs.rmSync(temp, { recursive: true, force: true });
 const constant = name.toUpperCase().replace(/[-]/g, '_');
 const kb = (size) => Math.round(size / 1024);
 console.error(
-  `footage-parts: ${count} parts (${kb(bytes.length)} KB) and a poster (${kb(fs.statSync(poster).size)} KB, WebP q${quality}) in public/game/footage/` +
+  `footage-parts: ${count} parts (${kb(bytes.length)} KB) and a poster (${kb(fs.statSync(poster).size)} KB, WebP ${quality === 'kept' ? 'as given' : `q${quality}`}) in public/game/footage/` +
     (removed.length ? `; removed the older cut: ${removed.join(', ')}` : ''),
 );
 console.log(`/** ${width} × ${height}, ${duration} s, ${kb(bytes.length)} KB in ${count} parts. */

@@ -43,10 +43,7 @@ export interface TileProps {
   still: boolean;
 }
 
-/**
- * A tile with a recorded screen at its foot: a wide cut at its own proportions, a phone's at 4:5 (a wide stand-in is
- * cropped to it, lib/footage).
- */
+/** A tile with a recorded screen at its foot, at the cut's own proportions: 16:10 on a computer, 4:5 on a phone. */
 function ClipTile({ id, name, title, text, footage, phone, still }: TileProps & { id: string; name: string; title: string; text: string; footage: FootageDef }) {
   return (
     <section id={id} className={`p3-tile p3-clip p3-clip--${name}`} aria-labelledby={`${id}-h`}>
@@ -56,11 +53,7 @@ function ClipTile({ id, name, title, text, footage, phone, still }: TileProps & 
         </h2>
         <p className="p3-tile-p">{bind(text)}</p>
       </div>
-      <div
-        className="p3-clip-frame"
-        data-variant={phone ? 'phone' : 'wide'}
-        style={phone ? undefined : { aspectRatio: `${footage.width} / ${footage.height}` }}
-      >
+      <div className="p3-clip-frame" data-variant={phone ? 'phone' : 'wide'} style={{ aspectRatio: `${footage.width} / ${footage.height}` }}>
         <Footage footage={footage} fit="cover" still={still || undefined} />
       </div>
     </section>
