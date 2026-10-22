@@ -14,24 +14,26 @@
 
 <div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Meldy проверяет ответ вслух<br>по&nbsp;лекциям студента</div>
 
-<!-- A recording of the live site (21.10.2026, release 47.22, account A; re-taken because the 11.10 take showed
-     the cheat sheet the app no longer has): a ticket answered aloud on a phone, the examiner's follow-up about the
-     point named only partly, then the result with quotes from the lecture (tools/record/take-08.cjs, cut-08.json).
-     The poster is the follow-up: the take's frame at 16.7 s of media/product/masters/08-master.mp4
-     (08-oral-answer-ask.jpg); the loop begins on it. -->
+<!-- A recording of the live site (21.10.2026, release 47.22, account A; tools/record/take-08.cjs), cut again on
+     22.10 from media/product/masters/08-master.mp4 into five real-time pieces with hard cuts (17.1 s, 608 × 1318 for
+     the 406 × 880 box, corners rounded on black): 0–4.0 s the first sentence, «По ключевым словам: 1 из 4»;
+     4.0–7.3 s the second sentence, «2 из 4», «Готово»; 7.3–9.6 s the examiner's question about the point named only
+     partly; 9.6–12.4 s «Итог: Сами назвали 2 из 3 главных пунктов»; 12.4–17.1 s the points with «Вы: …» and the
+     lecture's quote. The poster (08-oral-answer.jpg) is the clip at 8.5 s, the follow-up. The lines on the left come
+     in as the clip reaches their moment (delays in ms of the clip, which starts with the phone's entrance). -->
 <div class="bezel" data-pptx="shape" style="left:1310px;top:140px;width:426px;height:900px;border-radius:60px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="2"></div>
-<img data-pptx="video" data-src="../media/product/08-oral-answer.mp4" data-poster="../media/product/08-oral-answer-ask.jpg" data-loop src="../media/product/08-oral-answer-ask.jpg" aria-label="Ответ вслух на телефоне" alt="" style="left:1320px;top:150px;width:406px;height:880px;border-radius:50px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="2">
+<img data-pptx="video" data-src="../media/product/08-oral-answer.mp4" data-poster="../media/product/08-oral-answer.jpg" data-loop src="../media/product/08-oral-answer.jpg" aria-label="Ответ вслух на телефоне" alt="" style="left:1320px;top:150px;width:406px;height:880px;border-radius:50px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="2">
 
 <!-- Left: the three moments of the clip, one per row, large; thin rules between them. -->
-<div class="t40" data-pptx="text" style="left:128px;top:440px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Студент отвечает голосом</div>
+<div class="t40" data-pptx="text" style="left:128px;top:440px" data-anim="fade" data-anim-trigger="with" data-anim-delay="300" data-anim-dur="400" data-anim-order="3">Студент отвечает голосом</div>
 <div class="rule" style="left:128px;top:542px;width:1000px"></div>
-<div class="t40" data-pptx="text" style="left:128px;top:588px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Если пункт пропущен,<br>Meldy переспрашивает</div>
+<div class="t40" data-pptx="text" style="left:128px;top:588px" data-anim="fade" data-anim-trigger="with" data-anim-delay="7300" data-anim-dur="400" data-anim-order="4">Если пункт назван не&nbsp;полностью,<br>Meldy переспрашивает</div>
 <div class="rule" style="left:128px;top:740px;width:1000px"></div>
-<div class="t40" data-pptx="text" style="left:128px;top:786px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">В&nbsp;конце видно, что сказано и&nbsp;что пропущено.<br><span style="color:var(--muted)">К&nbsp;каждому пункту есть цитата из&nbsp;лекции</span></div>
+<div class="t40" data-pptx="text" style="left:128px;top:786px" data-anim="fade" data-anim-trigger="with" data-anim-delay="9600" data-anim-dur="400" data-anim-order="5">В&nbsp;конце видно, что сказано и&nbsp;что пропущено.<br><span style="color:var(--muted)">К&nbsp;каждому пункту есть цитата из&nbsp;лекции</span></div>
 
 <template data-pptx="notes">Теперь ответ вслух. На устный вопрос студент отвечает голосом. Meldy записывает сказанное текстом и проверяет ответ по лекциям самого студента. Если пункт назван не полностью, Meldy переспрашивает, как экзаменатор. В кадре как раз этот момент. В конце студент видит итог. Что он сказал и что пропустил. К каждому пункту есть цитата из лекции.
 
-О записи: живой сайт, 21 октября 2026 года. Голос в ролике синтезирован и подан в микрофон браузера. Звука в ролике нет. Вырезано только ожидание, ничего не ускорено.
+О записи: живой сайт, 21 октября 2026 года. Голос в ролике синтезирован и подан в микрофон браузера. Звука в ролике нет. Вырезаны только отрезки, где на экране ничего не меняется. Ничего не ускорено.
 
 Если спросят, насколько точна проверка: мы взяли 11 ответов, оценка которых известна заранее. В них 42 пункта. Meldy верно оценил 41. Одна ошибка такая. Пункт засчитан, хотя в нём была фактическая ошибка.</template>
 </main>
