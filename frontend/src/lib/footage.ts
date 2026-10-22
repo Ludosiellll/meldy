@@ -74,6 +74,62 @@ export const STAND_RUN_PHONE: Footage = {
   backdrop: 'linear-gradient(#2a2456 50%, #151535 50%)',
 };
 
+/*
+ * The landing's tiles (components/home3, the layout «D — Плитки», owner 22.10). Each cut is made by
+ * `node scripts/footage-parts.mjs <in.mp4> <poster> <name>`, which prints the definition to paste here.
+ *
+ * STAND-INS until the new clips are cut: the deck's product recordings (deck/cf11/media/product/08-oral-answer,
+ * lecture-materials and 07-exam-plan, H.264 as they are, posters from their .jpg). The phone tiles' cuts are the wide
+ * ones for now (a phone shows them cropped to 4:5); the real 4:5 cuts get their own names.
+ */
+
+/** «Ответ вслух, как на экзамене»: a ticket answered aloud on the phone page. 608 × 1318, 25.73 s, 500 KB in 6 parts. */
+export const LANDING_ORAL: Footage = {
+  ...files('landing-oral', '06394255e5', 6),
+  width: 608,
+  height: 1318,
+  duration: 25.73,
+  type: 'video/mp4; codecs="avc1.640028"',
+  backdrop: 'linear-gradient(#cfd0cd 50%, #cfcfca 50%)',
+};
+
+/** «Лекция → конспект, карточки, тест, подкаст» on a computer. 1152 × 568, 30 s, 1244 KB in 14 parts. */
+export const LANDING_LECTURE_WIDE: Footage = {
+  ...files('landing-lecture-wide', '8b7d6a7f65', 14),
+  width: 1152,
+  height: 568,
+  duration: 30,
+  type: 'video/mp4; codecs="avc1.640028"',
+  backdrop: 'linear-gradient(#f1f2ee 50%, #dde0e6 50%)',
+};
+
+/** The lecture on a phone (4:5). A stand-in: the wide cut. */
+export const LANDING_LECTURE_PHONE: Footage = LANDING_LECTURE_WIDE;
+
+/** «Вопросы кафедры → план по дням» on a computer. 1152 × 568, 23.6 s, 631 KB in 7 parts. */
+export const LANDING_EXAM_WIDE: Footage = {
+  ...files('landing-exam-wide', 'de8548899e', 7),
+  width: 1152,
+  height: 568,
+  duration: 23.6,
+  type: 'video/mp4; codecs="avc1.640028"',
+  backdrop: 'linear-gradient(#f2f3ee 50%, #f4f4f3 50%)',
+};
+
+/** The exam on a phone (4:5). A stand-in: the wide cut. */
+export const LANDING_EXAM_PHONE: Footage = LANDING_EXAM_WIDE;
+
+/** Every cut a page uses (the files in public/game/footage/ are exactly these; lib/footage.test.ts). */
+export const ALL_FOOTAGE: readonly Footage[] = [
+  STAND_RUN,
+  STAND_RUN_PHONE,
+  LANDING_ORAL,
+  LANDING_LECTURE_WIDE,
+  LANDING_LECTURE_PHONE,
+  LANDING_EXAM_WIDE,
+  LANDING_EXAM_PHONE,
+];
+
 /** Whether this browser says it can play the footage (asked before anything is fetched). */
 export function canPlayFootage(footage: Footage): boolean {
   if (typeof document === 'undefined') return false;

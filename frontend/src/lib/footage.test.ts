@@ -1,6 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import nginxConf from '../../../nginx.conf?raw';
-import { STAND_RUN, STAND_RUN_PHONE, canPlayFootage, loadFootage, type Footage } from './footage';
+import {
+  ALL_FOOTAGE,
+  LANDING_EXAM_PHONE,
+  LANDING_EXAM_WIDE,
+  LANDING_LECTURE_PHONE,
+  LANDING_LECTURE_WIDE,
+  LANDING_ORAL,
+  STAND_RUN,
+  STAND_RUN_PHONE,
+  canPlayFootage,
+  loadFootage,
+  type Footage,
+} from './footage';
 
 /* Real footage in parts (lib/footage.ts): the files on disk, and the loader that joins them into one video. */
 
@@ -75,8 +87,9 @@ describe('STAND_RUN, the class running to the answers on the projector', () => {
   it('is on disk: joined, the parts are the video the hash names, each under the Space’s 100 KB', async () => {
     const fs = (await import(/* @vite-ignore */ NODE_FS)) as NodeFs;
     const files = fs.readdirSync(`${PUBLIC}/game/footage`).sort();
-    // Only the two cuts in use are shipped: the projector's and its phone's.
-    expect(files).toEqual([STAND_RUN, STAND_RUN_PHONE].flatMap((cut) => [...cut.parts, cut.poster]).map((name) => name.split('/').pop()).sort());
+    // Only the cuts in use are shipped: the game's two and the landing's tiles (a stand-in may serve two names).
+    const used = new Set(ALL_FOOTAGE.flatMap((cut) => [...cut.parts, cut.poster]).map((name) => name.split('/').pop()));
+    expect(files).toEqual([...used].sort());
     await expectOnDisk(STAND_RUN, '46f8c5a7ae');
   });
 });
@@ -118,6 +131,44 @@ describe('STAND_RUN_PHONE, the same game on a student’s phone', () => {
 
   it('is on disk: joined, the parts are the video the hash names, each under the Space’s 100 KB', async () => {
     expect(await expectOnDisk(STAND_RUN_PHONE, '1897562cbf')).toBeLessThan(400 * 1024);
+  });
+});
+
+describe('the landing’s tiles (layout «D — Плитки», owner 22.10)', () => {
+  const NAMED: Array<[string, Footage]> = [
+    ['landing-oral', LANDING_ORAL],
+    ['landing-lecture-wide', LANDING_LECTURE_WIDE],
+    ['landing-exam-wide', LANDING_EXAM_WIDE],
+  ];
+
+  it('are served by nginx as the game’s footage, every name with its video’s hash', () => {
+    const served = new RegExp(/location ~ "(\^\/game\/[^"]+)" \{/.exec(nginxConf)![1]);
+    for (const [name, cut] of NAMED) {
+      const hash = /-([0-9a-f]{10})-poster\.webp$/.exec(cut.poster)![1];
+      expect(cut.parts).toEqual(cut.parts.map((_, at) => `/game/footage/${name}-${hash}-${at + 1}.bin`));
+      expect(cut.poster).toBe(`/game/footage/${name}-${hash}-poster.webp`);
+      for (const file of [...cut.parts, cut.poster]) expect(file).toMatch(served);
+      expect(cut.type).toMatch(/^video\/mp4; codecs="avc1\.[0-9a-f]{6}"$/);
+      expect(cut.duration).toBeGreaterThan(0);
+    }
+  });
+
+  it('are on disk: joined, the parts are the video the hash names, each under the Space’s 100 KB', async () => {
+    let total = 0;
+    for (const [, cut] of NAMED) total += await expectOnDisk(cut, /-([0-9a-f]{10})-poster\.webp$/.exec(cut.poster)![1]);
+    // stand-ins until the new clips are cut: the three of them stay under 2.5 MB
+    expect(total).toBeLessThan(2.5 * 1024 * 1024);
+  });
+
+  it('give a phone its own cut, or for now the wide one (a stand-in a phone shows cropped to 4:5)', () => {
+    for (const [phone, wide] of [
+      [LANDING_LECTURE_PHONE, LANDING_LECTURE_WIDE],
+      [LANDING_EXAM_PHONE, LANDING_EXAM_WIDE],
+    ]) {
+      if (phone === wide) continue;
+      expect(phone.width / phone.height).toBeCloseTo(4 / 5, 2);
+    }
+    expect(LANDING_ORAL.height).toBeGreaterThan(LANDING_ORAL.width);
   });
 });
 
