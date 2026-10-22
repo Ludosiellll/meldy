@@ -6,7 +6,12 @@
    the browser) gets 557 px, so the palette, the page and the participant's phone are all in view at 100 % zoom. The
    columns follow from that height, never by scaling: the phone is half as wide as it is tall, the page between takes
    the rest and scrolls inside itself; text keeps its pixel sizes. On a phone the page and the participant's view take
-   turns in one place of a fixed height (the switch on top), so neither pushes the other down. */
+   turns in one place of a fixed height (the switch on top), so neither pushes the other down.
+
+   On a phone (owner, 2026-10-22: the studio «looks bad on phones») the test gets the width: the frame's padding is
+   8 px, the blocks and the look lie on the frame itself (no white card around them), the blocks in two rows with
+   nothing hidden, the look in one row whose edge fades where more is to the side, and the selected block's tools in
+   a bar under the page (MiniStudio renders them there) so they cover nothing. A wider screen is as it was. */
 .ms {
   --ms-acc: #2869dd;
   --ms-pad: 16px;
@@ -47,7 +52,8 @@
 /* a phone: the switch, then the page (palette, look, page) or the participant's phone in the same place */
 @media (max-width: 699px) {
   .ms {
-    --ms-pad: 12px;
+    --ms-pad: 8px;
+    gap: 8px;
     height: min(680px, calc(100vh - 96px));
     height: min(680px, calc(100svh - 96px));
     min-height: 540px;
@@ -59,7 +65,9 @@
       'pal'
       'work';
   }
-  .ms-take {
+  /* «.ms >» outweighs the plain .ms-take { grid-area: take } further down: without it the participant's view took an
+     area this grid has not got, a second column of 16 px that narrowed everything and drew the phone as a dot */
+  .ms > .ms-take {
     grid-row: 2 / 4;
     grid-column: 1;
   }
@@ -172,21 +180,29 @@
     display: none;
   }
 }
-/* a phone: the blocks in one line that scrolls sideways */
+/* a phone: the blocks lie on the frame in two rows (three on a very narrow screen), every one in view */
 @media (max-width: 699px) {
   .ms-pal {
-    flex-wrap: nowrap;
-    padding: 6px;
-    overflow-x: auto;
-    border-radius: 16px;
-    scrollbar-width: none;
+    padding: 0;
+    border-radius: 0;
+    background: none;
   }
   .ms-pal-h,
   .ms-pal-hint {
     display: none;
   }
   .ms-pal-i {
-    flex: none;
+    flex: 1 1 auto;
+    justify-content: center;
+    gap: 6px;
+    padding: 0 10px;
+    border-radius: 12px;
+    background: #fff;
+  }
+  .ms-pal-i:hover,
+  .ms-pal-i:focus-visible,
+  .ms-pal-i:active {
+    background: #e8effc;
   }
 }
 
@@ -247,13 +263,34 @@
 .ms-choice button.is-on .ms-sw {
   box-shadow: 0 0 0 2px #fff, 0 0 0 4px #0b121c;
 }
-/* a phone: colour, font and background in one line that scrolls sideways */
+/* a phone: colour, font and background on the frame in one line that scrolls sideways; it reaches the frame's edges,
+   so a button is cut there, and the edge fades on the side where more is (MiniStudio's useEdges: is-more, is-back) */
 @media (max-width: 699px) {
   .ms-look {
     flex-wrap: nowrap;
-    padding: 8px 10px;
+    gap: 8px 14px;
+    margin: 0 calc(-1 * var(--ms-pad));
+    padding: 0 var(--ms-pad);
+    border-radius: 0;
+    background: none;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
     scrollbar-width: none;
+  }
+  .ms-look::-webkit-scrollbar {
+    display: none;
+  }
+  .ms-look.is-more {
+    -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
+  }
+  .ms-look.is-back {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px);
+    mask-image: linear-gradient(90deg, transparent, #000 28px);
+  }
+  .ms-look.is-back.is-more {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 28px, #000 calc(100% - 28px), transparent);
   }
   .ms-choice {
     flex-wrap: nowrap;
@@ -261,6 +298,16 @@
   }
   .ms-choice button {
     flex: none;
+    background: #fff;
+  }
+  .ms-choice button.is-on {
+    background: #0b121c;
+  }
+  .ms-choice button:has(.ms-sw) {
+    background: transparent;
+  }
+  .ms-choice button.is-on .ms-sw {
+    box-shadow: 0 0 0 2px #ecece6, 0 0 0 4px #0b121c;
   }
 }
 /* The page scrolls inside the canvas, as the participant's phone does: a block added below is brought into view here
@@ -497,6 +544,71 @@
   font-size: 12px;
   line-height: 1.4;
   color: #6b7079;
+}
+
+/* a phone: less air around the page, so the test keeps its width; a lower cover; the selected block's tools in a bar
+   under the page, always there (inactive with no block chosen), so choosing a block moves nothing */
+@media (max-width: 699px) {
+  .ms-work {
+    gap: 8px;
+  }
+  .ms-canvas {
+    padding: 10px 8px;
+    border-radius: 20px;
+  }
+  .ms-cover img {
+    aspect-ratio: 3 / 1;
+  }
+  .ms-cover-t {
+    padding: 10px 12px 0;
+    font-size: 19px;
+  }
+  .ms-cover-s {
+    padding: 2px 12px 10px;
+  }
+  .ms-blk {
+    padding: 12px;
+  }
+  .ms-said {
+    padding: 0 4px;
+  }
+  .ms-bands {
+    margin-top: -4px;
+    padding: 0 4px;
+  }
+}
+.ms-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 4px;
+}
+.ms-bar-l {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ms-bar .ms-tools {
+  position: static;
+  flex: none;
+  padding: 4px;
+}
+.ms-bar .ms-tools button {
+  width: 36px;
+  height: 36px;
+  font-size: 17px;
+}
+.ms-bar .ms-tools button:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* the participant's phone: as tall as the studio leaves it, half as wide */

@@ -9,6 +9,13 @@ import { STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
 import { reelPart } from './reelPart';
 import { returnToFromSearch } from '../../lib/returnTo';
 
+interface NodeFs {
+  readFileSync(path: string, encoding: 'utf8'): string;
+}
+// A specifier TypeScript does not resolve: the project has no Node types, and the test only runs in Node.
+const NODE_FS: string = 'node:fs';
+const HERE = decodeURIComponent(import.meta.url.replace(/^file:\/\//, ''));
+
 const auth = vi.hoisted(() => ({ requestSession: vi.fn() }));
 vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => ({ user: null, requestSession: auth.requestSession }),
@@ -157,6 +164,20 @@ describe('the landing v3', () => {
     expect(card.querySelectorAll('.p3-ctas a')).toHaveLength(2);
     expect(card.querySelector('.p3-ctas')!.nextElementSibling).toBe(line);
     expect(BUILDER_SECTION.game).toMatch(/игру в классе/);
+  });
+
+  it('says where the participant’s view is: on the right of a wider screen, the studio’s tab on a phone (owner, 22.10)', async () => {
+    renderLanding();
+    const lead = document.querySelector('.p3-try .p3-p') as HTMLElement;
+    expect(lead.querySelector('.p3-try-wide')!.textContent).toBe(bind(BUILDER_SECTION.tryText));
+    expect(lead.querySelector('.p3-try-phone')!.textContent).toBe(bind(BUILDER_SECTION.tryTextPhone));
+    // home3.css shows one of the two, at the width where the studio turns into its phone layout (miniStudio.css)
+    const fs = (await import(/* @vite-ignore */ NODE_FS)) as NodeFs;
+    const dir = HERE.slice(0, HERE.lastIndexOf('/'));
+    const css = fs.readFileSync(`${dir}/home3.css`, 'utf8');
+    expect(css).toMatch(/\n\.p3-try-phone \{\n {2}display: none;\n\}/);
+    expect(css).toMatch(/@media \(max-width: 699px\) \{\n {2}\.p3-try-wide \{\n {4}display: none;\n {2}\}\n {2}\.p3-try-phone \{\n {4}display: inline;\n {2}\}/);
+    expect(fs.readFileSync(`${dir}/miniStudio.css`, 'utf8')).toMatch(/@media \(max-width: 699px\) \{\n {2}\.ms \{\n {4}--ms-pad/);
   });
 
   it('switches the lecture’s materials', () => {
