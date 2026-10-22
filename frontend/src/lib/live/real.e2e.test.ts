@@ -4,7 +4,9 @@
  * supabase-js client pointed at the local PostgREST (its /rest/v1 prefix removed, the caller's JWT and address put on
  * each request) and `../supabaseRoute` says «proxy» (no Realtime here: the screens then poll every second).
  * A game: create → join ×3 → next → answer → reveal → … → podium → review, with the refusals by the body's code and
- * the contract's HTTP status.
+ * the contract's HTTP status. The PIN step (pin()): with LIVE_E2E_PIN=1 (live_game_run.sh's PIN stage, after
+ * 20261025090000_live_pin.sql) through rpc/live_pin, 200 for every answer and no call of live_join; without it, before
+ * that migration, the old check through live_join that real.ts falls back to.
  */
 import { describe, expect, it, vi } from 'vitest';
 import { newLiveToken } from './api';
@@ -15,7 +17,7 @@ const env = (globalThis as { process?: { env: Record<string, string | undefined>
 const URL_ = env.LIVE_E2E_URL ?? '';
 const SECRET = env.LIVE_E2E_SECRET ?? '';
 
-const box = vi.hoisted(() => ({ auth: '', ip: '198.51.100.1' }));
+const box = vi.hoisted(() => ({ auth: '', ip: '198.51.100.1', calls: [] as { url: string; status: number }[] }));
 
 const b64url = (bytes: Uint8Array) => {
   let text = '';
@@ -42,7 +44,10 @@ vi.mock('../supabase', async () => {
     const headers = new Headers(init?.headers);
     headers.set('Authorization', `Bearer ${box.auth}`);
     headers.set('x-forwarded-for', box.ip);
-    return fetch(url, { ...init, headers });
+    return fetch(url, { ...init, headers }).then((r) => {
+      box.calls.push({ url: url.replace(/^https?:\/\/[^/]+/, ''), status: r.status });
+      return r;
+    });
   };
   return { supabase: createClient(base, 'local-anon-key', { global: { fetch: localFetch }, auth: { persistSession: false, autoRefreshToken: false } }) };
 });
@@ -173,6 +178,55 @@ describe.skipIf(!URL_)('real.ts end to end (local PostgREST)', () => {
     expect(ended.state).toBe('ended');
     await api.end(g.game_id, g.host_token);
   }, 120_000);
+
+  it('the PIN step: open, a wrong PIN, members only, the same token taken back, kicked, ended — no player made by a check', async () => {
+    const api = createRealApi();
+    const withPin = env.LIVE_E2E_PIN === '1';
+    const source = { container_id: env.LIVE_E2E_CONTAINER!, subject_ids: [env.LIVE_E2E_SUBJECT!], count: 3 };
+    await asAuthor();
+    const g = await api.create(source, { mode: 'boss', time_s: 20, speed: true, who: 'pin', chat_names: true });
+    const members = await api.create(source, { mode: 'boss', time_s: 20, speed: true, who: 'members', chat_names: true });
+    await asGuest();
+    box.ip = '198.51.100.31';
+    box.calls = [];
+    const tok = newLiveToken();
+    expect(await api.pin(g.pin, tok)).toEqual({ status: 'open', mode: withPin ? 'boss' : null });
+    expect(await api.pin('000000', tok)).toEqual({ status: 'refused', code: 'P0002', detail: 'pin', http: 404, retry_after: null });
+    expect(await api.pin(members.pin, tok)).toEqual({ status: 'refused', code: 'ML003', detail: 'members', http: 403, retry_after: null });
+    await asAuthor();
+    expect(((await api.hostState(g.game_id, g.host_token)) as HostState).players).toBe(0);
+    await asGuest();
+    const joined = await api.join(g.pin, 'Дима', tok, null);
+    const back = await api.pin(g.pin, tok);
+    expect(back).toMatchObject({ status: 'joined', game_id: g.game_id, player_id: joined.player_id, name: 'Дима', topic: g.topic, wardrobe: null });
+    await asAuthor();
+    expect(((await api.hostState(g.game_id, g.host_token)) as HostState).players).toBe(1);
+    await api.kick(g.game_id, g.host_token, joined.player_id);
+    await asGuest();
+    expect(await api.pin(g.pin, tok)).toEqual({ status: 'refused', code: '42501', detail: 'kicked', http: 403, retry_after: null });
+    await asAuthor();
+    await api.end(g.game_id, g.host_token);
+    await api.end(members.game_id, members.host_token);
+    await asGuest();
+    expect(await api.pin(g.pin, newLiveToken())).toEqual({ status: 'refused', code: 'ML002', detail: 'ended', http: 400, retry_after: null });
+    const checks = box.calls.filter((c) => /\/rpc\/live_(pin|join)$/.test(c.url));
+    if (withPin) {
+      // Every check is one rpc/live_pin answered 200; the only live_join is the real join.
+      expect(checks.filter((c) => c.url === '/rpc/live_pin').map((c) => c.status)).toEqual([200, 200, 200, 200, 200, 200]);
+      expect(checks.filter((c) => c.url === '/rpc/live_join').map((c) => c.status)).toEqual([200]);
+      const raw = await fetch(`${URL_}/rpc/live_pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${box.auth}`, 'x-forwarded-for': box.ip },
+        body: JSON.stringify({ p_pin: '000000', p_token: newLiveToken() }),
+      });
+      expect(raw.status).toBe(200);
+      expect(await raw.json()).toEqual({ status: 'refused', code: 'P0002', detail: 'pin', http: 404, retry_after: null });
+    } else {
+      // Before the migration: PostgREST does not know live_pin (404 PGRST202), each check falls back to live_join.
+      expect(checks.filter((c) => c.url === '/rpc/live_pin').every((c) => c.status === 404)).toBe(true);
+    }
+    box.ip = '198.51.100.1';
+  }, 60_000);
 
   it('120 joins a minute per address, then 429 with Retry-After through PostgREST; kick answers 403 to the kicked', async () => {
     const api = createRealApi();

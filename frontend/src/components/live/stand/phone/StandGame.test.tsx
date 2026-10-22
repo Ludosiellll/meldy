@@ -95,8 +95,13 @@ beforeEach(() => {
   vi.stubGlobal('WebSocket', FakeSocket);
   const fake = createFakeServer({ bots: 3, autoHost: false, demoPin: '482913', latencyMs: 0, seed: 5 });
   reads = 0;
-  // The fake plays a battle game; this one reports «Встань на ответ» and counts the reads of the state.
+  // The fake plays a battle game; this one reports «Встань на ответ» (the PIN step and the state) and counts the reads
+  // of the state.
   const api: LiveApi = Object.assign(Object.create(fake) as LiveApi, {
+    pin: async (pin: string, token: string) => {
+      const got = await fake.pin(pin, token);
+      return got.status === 'open' ? { ...got, mode: 'stand' as const } : got;
+    },
     state: async (game: string, token: string, since?: number | null) => {
       reads += 1;
       const st = await fake.state(game, token, since ?? undefined);

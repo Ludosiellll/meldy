@@ -88,6 +88,23 @@ export interface JoinResult {
   token?: string;
 }
 
+/** `live_pin`'s refusal: live_join's code, details, HTTP status and Retry-After seconds (ML005), as data. */
+export interface PinRefused {
+  status: 'refused';
+  code: string;
+  detail: string | null;
+  http: number;
+  retry_after: number | null;
+}
+
+/**
+ * `live_pin` (the PIN step, CONTRACT §8): live_join's checks before the name, answered with HTTP 200. `open`: a game this
+ * caller may join, with its mode (null only from the old check through live_join, real.ts); `joined`: this identity
+ * (the same token, or the same signed-in account) was in the game already and the server took it back with this token;
+ * `refused`: what live_join refused with.
+ */
+export type PinResult = { status: 'open'; mode: GameMode | null } | ({ status: 'joined' } & JoinResult) | PinRefused;
+
 export interface Question {
   qi: number;
   text: string;
@@ -301,6 +318,9 @@ export type LiveErrorCode =
   | 'network'
   | 'unknown';
 
+/** The codes the server refuses with (the body's `code`); any other is 'unknown'. */
+export const SERVER_CODES: ReadonlySet<string> = new Set(['28000', '42501', 'P0002', '22023', 'ML001', 'ML002', 'ML003', 'ML004', 'ML005', 'ML006', 'ML007', 'ML008', 'ML009', 'ML010', 'ML011']);
+
 export class LiveError extends Error {
   readonly code: LiveErrorCode;
   readonly detail: string | null;
@@ -315,6 +335,12 @@ export class LiveError extends Error {
     this.status = status;
     this.retryAfterS = retryAfterS;
   }
+}
+
+/** A refusal of `live_pin` as the LiveError the same refusal of `live_join` gives (real.ts liveError). */
+export function pinRefusal(r: PinRefused): LiveError {
+  if (!SERVER_CODES.has(r.code)) return new LiveError('unknown', r.code || r.detail, r.http);
+  return new LiveError(r.code as LiveErrorCode, r.detail, r.http, r.code === 'ML005' ? r.retry_after : null);
 }
 
 /** The one interface both the fake server and the real client give (CONTRACT §12). */
@@ -332,6 +358,8 @@ export interface LiveApi {
    */
   tgPost(game: Uuid, chatId: number): Promise<TgPostResult>;
   // player
+  /** The PIN step (`live_pin`): a game to join with this PIN, for this caller and token. Refusals come as data. */
+  pin(pin: string, token: string): Promise<PinResult>;
   join(pin: string, name: string, token: string, look: Look | null): Promise<JoinResult>;
   setLook(game: Uuid, token: string, look: Look): Promise<Look>;
   answer(game: Uuid, token: string, qi: number, choice: number): Promise<AnswerAck>;

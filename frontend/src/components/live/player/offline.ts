@@ -21,6 +21,7 @@ export function obeyOffline(api: LiveApi): LiveApi {
     kick: guard(api.kick.bind(api)),
     end: guard(api.end.bind(api)),
     tgPost: guard(api.tgPost.bind(api)),
+    pin: guard(api.pin.bind(api)),
     join: guard(api.join.bind(api)),
     setLook: guard(api.setLook.bind(api)),
     answer: guard(api.answer.bind(api)),
