@@ -192,6 +192,18 @@ them). The database then has the bot send the post (§9); the host gets no messa
   "name": "Дима", "look": {"body": "cloud", "colour": "orange", "eyes": "round", "hat": "phones"},
   "wardrobe": {"unlocked": ["crown"], "games": 4, "wins": 2} }   // wardrobe: null for a web guest
 ```
+`live_pin(p_pin text, p_token text) → PinResult` (anon or signed in; migration `20261025090000_live_pin.sql`) — the
+phone's PIN step, before the character: `live_join(p_pin, '', p_token, null)` run inside the database with its refusal
+returned as data, so every expected answer is HTTP 200. The same checks in the same order (the token, the PIN, the
+game's state and its 3 hours, the limits, members only, 300 players, kicked) and nothing written but a take-back:
+```jsonc
+{ "status": "open", "mode": "boss" }               // a game this caller may join (the empty name was the first refusal)
+{ "status": "joined", …JoinResult }                 // this token or this account was in the game: taken back with this token
+{ "status": "refused", "code": "P0002", "detail": "pin", "http": 404, "retry_after": null }   // live_join's refusal
+```
+The client turns `refused` into the LiveError the same refusal of `live_join` gives (`types.ts` `pinRefusal`), so the words
+and the step are those of the join; while the server has no `live_pin` (404 `PGRST202`) `real.ts` falls back to the old
+check through `live_join`.
 `live_set_look(p_game uuid, p_token text, p_look jsonb) → {"look": Look}` — lobby only (`ML004/not_open` otherwise).
 `live_answer(p_game uuid, p_token text, p_qi int, p_choice int) → {"accepted": true, "answered": 18, "now": "…"}`
 `live_state(p_game uuid, p_token text, p_since_rev bigint) → PlayerState | {rev, now, unchanged: true}`
@@ -301,7 +313,8 @@ dashes>` → review. Needs @BotFather `/newapp`, short name `play`, URL `https:/
   1–24 chars after trim, rude words matched per word (`ML006`; the rule and its cases: `rules.ts` `checkName` and
   `contracts/live/name_cases.json`, the same in SQL); one answer per player per question (pk; second → `ML004/twice`).
 - `live_join`: 120 a minute per address (`meldy_private.quiz_ip_hash()`: a class behind one school NAT, a hall on mobile
-  data), 120 a minute per game → `ML005/join`, 429 with `Retry-After`.
+  data), 120 a minute per game → `ML005/join`, 429 with `Retry-After`. `live_pin` reports the same limits as data
+  (`refused`, `http` 429, `retry_after`) and counts nothing itself; a wrong PIN is refused before any limit, as by `live_join`.
 - `live_create`: 10 an hour per author → `ML005/create`. `live_tg_post`: one post a minute per game → `ML005/post`.
 - PIN: 6 digits, unique among games not `ended`; joins refused 3 h after create (`ML002/expired`).
 - `/telegram/game/join`: as `/webapp/session` (120/min/address, 20/min/Telegram user, 30 joins/hour/Telegram user in the DB).

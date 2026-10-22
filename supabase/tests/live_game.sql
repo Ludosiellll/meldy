@@ -79,8 +79,10 @@ BEGIN
       RAISE EXCEPTION 'site_functions_for_anon_and_authenticated: %', v_fn.proname;
     END IF;
   END LOOP;
-  -- 18, and live_stand_close once 20261022090000_live_stand.sql is applied (supabase/tests/live_stand.sql checks it).
-  IF v_n <> 18 + (CASE WHEN pg_catalog.to_regprocedure('public.live_stand_close(uuid,text,integer,jsonb)') IS NULL THEN 0 ELSE 1 END) THEN
+  -- 18, and live_stand_close once 20261022090000_live_stand.sql is applied (supabase/tests/live_stand.sql checks it),
+  -- and live_pin once 20261025090000_live_pin.sql is (supabase/tests/live_pin.sql).
+  IF v_n <> 18 + (CASE WHEN pg_catalog.to_regprocedure('public.live_stand_close(uuid,text,integer,jsonb)') IS NULL THEN 0 ELSE 1 END)
+               + (CASE WHEN pg_catalog.to_regprocedure('public.live_pin(text,text)') IS NULL THEN 0 ELSE 1 END) THEN
     RAISE EXCEPTION 'eighteen_functions: %', v_n;
   END IF;
   FOR v_fn IN SELECT x.sig, pg_catalog.to_regprocedure(x.sig) AS oid FROM pg_catalog.unnest(array[

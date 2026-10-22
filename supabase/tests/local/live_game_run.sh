@@ -19,11 +19,14 @@
 # the mixed stage: 20261024090000_live_mixed.sql (the battle with movement rounds, docs/live/MODE_MIXED.md) the same way
 # (its contract tests/live_mixed.sql, live_mixed_behaviour.sql, the stand and the battle still green, the damage and the
 # rule against backend/live_move_mixed.py, the room end to end by live_mixed_e2e.sh with the database against the
-# mirror, its rollback back to the stand's catalog).
+# mirror, its rollback back to the stand's catalog) → the PIN stage: 20261025090000_live_pin.sql (the phone's PIN step:
+# live_join with the empty name, answered as data) the same way (its contract tests/live_pin.sql, live_pin_behaviour.sql,
+# every live contract and behaviour above still green, real.ts with live_pin end to end, its rollback back to the
+# catalog before it, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -496,6 +499,82 @@ print(str(len(d)) + ':' + hashlib.md5(','.join(map(str, d)).encode()).hexdigest(
   [ "$(fingerprint)" = "$FMIXED" ] && ok "the same catalog as the first mixed apply" || bad "another catalog than the first mixed apply"
   step "contract: live_mixed.sql again" "$MCONTRACT"
   behave "mixed behaviour again" "$MBEHAVIOUR" 'LIVE MIXED BEHAVIOUR PASSED'
+fi
+
+# ─── The phone's PIN step (20261025090000_live_pin.sql) on top of whatever the stages above left applied ───
+# live_pin is live_join with the empty name, its refusal returned as data (200). Its contract fails before it; applied
+# twice (the same catalog); its contract and every live contract applied so far still hold (live_game.sql, and
+# live_stand.sql, live_stand_phone.sql, live_mixed.sql when applied; telegram_bot.sql); live_pin_behaviour.sql (each
+# answer against the old check, nothing written but a take-back); the behaviours above unchanged; real.ts end to end
+# with LIVE_E2E_PIN=1 (rpc/live_pin answers 200, the client never calls live_join for the check); the rollback twice
+# (the catalog before it); applied again, so the database is left with it (frontend/scripts/mixed-local.mjs uses it).
+# LIVE_PIN=0 skips the stage.
+if [ "${LIVE_PIN:-1}" = 0 ]; then
+  echo "  skip  the PIN stage (LIVE_PIN=0)"
+else
+  PMIG=$SB/migrations/20261025090000_live_pin.sql
+  PDOWN=$SB/rollback/20261025090000_live_pin_down.sql
+  PCONTRACT=$SB/tests/live_pin.sql
+  PBEHAVIOUR=$HERE/live_pin_behaviour.sql
+  has() { [ "$(q "select pg_catalog.to_regprocedure('$1') is not null")" = t ]; }
+  # The live contracts that apply to this database (each stage's own, as far as it was applied).
+  live_contracts() {
+    step "contract: live_game.sql $1" "$CONTRACT"
+    if has 'public.live_stand_close(uuid,text,integer,jsonb)'; then step "contract: live_stand.sql $1" "$SB/tests/live_stand.sql"; fi
+    if [ "$(q "select pg_catalog.strpos(p.prosrc, 'tophat') > 0 from pg_catalog.pg_proc p
+                where p.oid = 'meldy_private.live_look_check(jsonb,text[])'::regprocedure")" = t ]; then
+      step "contract: live_stand_phone.sql $1" "$SB/tests/live_stand_phone.sql"
+    fi
+    if has 'meldy_private.live_stand_round(integer,integer,integer)'; then step "contract: live_mixed.sql $1" "$SB/tests/live_mixed.sql"; fi
+    contract_ok "contract: telegram_bot.sql $1" "$SB/tests/telegram_bot.sql"
+  }
+  live_behaviours() {
+    behave "the battle's behaviour $1" "$BEHAVIOUR" 'LIVE GAME BEHAVIOUR PASSED'
+    if has 'public.live_stand_close(uuid,text,integer,jsonb)'; then
+      behave "the stand's behaviour $1" "$HERE/live_stand_behaviour.sql" 'LIVE STAND BEHAVIOUR PASSED'
+    fi
+    if has 'meldy_private.live_stand_round(integer,integer,integer)'; then
+      behave "the mixed behaviour $1" "$HERE/live_mixed_behaviour.sql" 'LIVE MIXED BEHAVIOUR PASSED'
+    fi
+  }
+  FNOPIN=$(fingerprint)
+  if run "$PCONTRACT"; then bad "live_pin.sql passes before its migration (it tests nothing)"; else ok "live_pin.sql fails before its migration"; fi
+  if passes "$PBEHAVIOUR" 'LIVE PIN BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_pin_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_pin_behaviour fails before its migration"
+  fi
+  step "PIN migration, first apply" "$PMIG"
+  FPIN=$(fingerprint)
+  [ "$FPIN" != "$FNOPIN" ] && ok "the PIN migration changed the catalog" || bad "the PIN migration changed nothing"
+  step "PIN migration, second apply (re-runnable)" "$PMIG"
+  [ "$(fingerprint)" = "$FPIN" ] && ok "a second PIN apply changes nothing in the catalog" || bad "a second PIN apply changed the catalog"
+  step "contract: live_pin.sql (catalog, grants, what it relies on in live_join, pure calls)" "$PCONTRACT"
+  live_contracts "still holds"
+  behave "PIN behaviour: open, wrong PIN, taken back by token and account, kicked, members only, finished, due moves, limits" \
+    "$PBEHAVIOUR" 'LIVE PIN BEHAVIOUR PASSED'
+  live_behaviours "unchanged after the PIN migration"
+  if [ "${LIVE_E2E:-1}" = 0 ]; then
+    echo "  skip  end to end with live_pin (LIVE_E2E=0)"
+  elif [ -z "$PGRST" ] || [ ! -x "$PGRST" ]; then
+    echo "  skip  end to end with live_pin: no PostgREST binary (LIVE_PGRST)"
+  elif LIVE_E2E_PIN=1 bash "$HERE/live_game_e2e.sh" "$PGRST" "$DB" > "$WORK/e2e_pin.log" 2>&1; then
+    ok "end to end: real.ts with live_pin through PostgREST ($(grep -E 'Tests +[0-9]+ passed' "$WORK/e2e_pin.log" | head -1 | sed 's/^ *//'))"
+  else
+    bad "end to end: real.ts with live_pin through PostgREST (log: $WORK/e2e_pin.log)"; grep -E 'FAIL|Error|×|expected' "$WORK/e2e_pin.log" | head -8 | sed 's/^/    /'
+  fi
+  [ "$(fingerprint)" = "$FPIN" ] && ok "the catalog unchanged by the PIN runs" || bad "the PIN runs changed the catalog"
+  step "PIN rollback" "$PDOWN"
+  [ "$(fingerprint)" = "$FNOPIN" ] && ok "after the PIN rollback: the catalog before it (fingerprint)" \
+    || bad "after the PIN rollback: another catalog than before it"
+  step "PIN rollback again (re-runnable)" "$PDOWN"
+  [ "$(fingerprint)" = "$FNOPIN" ] && ok "after the second PIN rollback: still the catalog before it" || bad "after the second PIN rollback: another catalog"
+  if run "$PCONTRACT"; then bad "live_pin.sql passes after its rollback"; else ok "live_pin.sql fails after its rollback"; fi
+  live_contracts "after the PIN rollback"
+  step "PIN migration after its rollback" "$PMIG"
+  [ "$(fingerprint)" = "$FPIN" ] && ok "the same catalog as the first PIN apply" || bad "another catalog than the first PIN apply"
+  step "contract: live_pin.sql again" "$PCONTRACT"
+  behave "PIN behaviour again" "$PBEHAVIOUR" 'LIVE PIN BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"
