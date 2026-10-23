@@ -4,6 +4,14 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-23 — Release 47.28: no empty band above the recorded screen in the main page's tiles (from the commit of this entry)
+
+- **Lecture and exam tiles** (owner: an empty dark band between the exam tile's words and its video): both tiles of the
+  row stretch to the taller one and the frame was pinned to the foot. The frame now sits right under the words and
+  grows down; the screen stays at its top, uncropped, over its own backdrop. 0 px between words and screen at 768,
+  960, 1100, 1280, 1532 (light and dark).
+- Gate on 2ddc986: Vitest 411 files / 6686, tsc -b and vite build ok (frontend-only change: two files of home3).
+
 ## 2026-10-22 — Release 47.27: the main page as tiles with real recordings (from the commit of this entry)
 
 - **Main page «D — Плитки»** (owner picked D of four prototypes: «мне понравилось Д»): hero = a white tile (headline, lead,
