@@ -23,11 +23,13 @@
 <div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Нужен браузер на&nbsp;телефоне или&nbsp;компьютере.<br><span class="dim">Устанавливать ничего не&nbsp;нужно</span></div>
 
 <div class="grp" data-pptx="text" style="left:128px;top:352px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="2">Минимальные требования</div>
-<div class="it" data-pptx="text" style="left:128px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Телефон или&nbsp;компьютер<br><span class="m">с&nbsp;Chrome, Edge, Firefox или&nbsp;Safari</span></div>
-<div class="it" data-pptx="text" style="left:128px;top:524px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Интернет</div>
-<div class="it" data-pptx="text" style="left:128px;top:594px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Микрофон для&nbsp;ответов вслух</div>
-<div class="it" data-pptx="text" style="left:128px;top:664px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Telegram по&nbsp;желанию</div>
-<div class="it" data-pptx="text" style="left:128px;top:734px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Тест по&nbsp;ссылке без&nbsp;аккаунта</div>
+<!-- The browsers: Vite's default build target (frontend/vite.config.ts sets no build.target and there is no
+     browserslist; Vite 6.4.3 builds for es2020, edge88, firefox78, chrome87, safari14). -->
+<div class="it" data-pptx="text" style="left:128px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Телефон или&nbsp;компьютер<br><span class="m">Chrome&nbsp;87, Edge&nbsp;88, Firefox&nbsp;78,<br>Safari&nbsp;14 или&nbsp;новее</span></div>
+<div class="it" data-pptx="text" style="left:128px;top:566px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Интернет</div>
+<div class="it" data-pptx="text" style="left:128px;top:632px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Микрофон для&nbsp;ответов вслух</div>
+<div class="it" data-pptx="text" style="left:128px;top:698px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Telegram по&nbsp;желанию</div>
+<div class="it" data-pptx="text" style="left:128px;top:764px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="2">Тест по&nbsp;ссылке без&nbsp;аккаунта</div>
 
 <div class="grp" data-pptx="text" style="left:760px;top:352px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="3">Средства разработки</div>
 <div class="k" data-pptx="text" style="left:760px;top:408px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="3">Интерфейс</div>
@@ -48,21 +50,23 @@
 <div class="t28m" data-pptx="text" style="left:1360px;top:668px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Сейчас 9&nbsp;498 автотестов<br>у&nbsp;сайта, сервера и&nbsp;бота</div>
 
 <!-- The test tools really used in this repository (names only; what each one checks is in the notes). -->
-<div class="grp" data-pptx="text" style="left:128px;top:852px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">Тесты</div>
-<div class="k" data-pptx="text" style="left:128px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Сайт</div>
-<div class="v" data-pptx="text" style="left:128px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Vitest, React Testing Library</div>
-<div class="k" data-pptx="text" style="left:760px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Сервер</div>
-<div class="v" data-pptx="text" style="left:760px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">pytest, httpx</div>
-<div class="k" data-pptx="text" style="left:1040px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Бот</div>
-<div class="v" data-pptx="text" style="left:1040px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">node:test</div>
-<div class="k" data-pptx="text" style="left:1312px;top:908px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Браузер и&nbsp;выпуск</div>
-<div class="v" data-pptx="text" style="left:1312px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Playwright, GitHub Actions</div>
+<div class="grp" data-pptx="text" style="left:128px;top:872px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">Тесты</div>
+<div class="k" data-pptx="text" style="left:128px;top:928px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Сайт</div>
+<div class="v" data-pptx="text" style="left:128px;top:962px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Vitest, React Testing Library</div>
+<div class="k" data-pptx="text" style="left:760px;top:928px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Сервер</div>
+<div class="v" data-pptx="text" style="left:760px;top:962px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">pytest, httpx</div>
+<div class="k" data-pptx="text" style="left:1040px;top:928px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Бот</div>
+<div class="v" data-pptx="text" style="left:1040px;top:962px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">node:test</div>
+<div class="k" data-pptx="text" style="left:1312px;top:928px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Браузер и&nbsp;выпуск</div>
+<div class="v" data-pptx="text" style="left:1312px;top:962px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Playwright, GitHub Actions</div>
 
-<template data-pptx="notes">Требования простые. Нужен любой современный браузер на телефоне или компьютере. Устанавливать ничего не нужно. Для ответов вслух нужен микрофон. Telegram по желанию. Тест по ссылке проходят без аккаунта.
+<template data-pptx="notes">Требования простые. Нужен браузер на телефоне или компьютере: Chrome 87, Edge 88, Firefox 78, Safari 14 или новее. Устанавливать ничего не нужно. Для ответов вслух нужен микрофон. Telegram по желанию. Тест по ссылке проходят без аккаунта.
 
 Сайт сделан на React и TypeScript. Сервер на Python и FastAPI. База данных Supabase. Языковые модели Gemini и Groq. Бот работает через Telegram Bot API.
 
 Как мы проверяем работу. За время разработки автотесты запускались 2,4 миллиона раз. Сейчас у сайта, сервера и бота 9 498 автотестов. Новая версия выходит, только если прошли все. После выхода мы проверяем живой сайт.
+
+Если спросят, откуда версии браузеров: так настроена сборка сайта. Сайт собирает Vite 6 под стандарт es2020, а это Chrome 87, Edge 88, Firefox 78 и Safari 14.
 
 Если спросят, откуда 2,4 миллиона: это 2 425 795 запусков тестов. Посчитано по журналам работы с 2 октября. Это 3 998 прогонов, каждый прогон учтён один раз. Vitest запускал тесты 1 876 041 раз в 2 857 прогонах. pytest 485 080 раз в 836 прогонах. Тесты бота 64 674 раза в 305 прогонах.
 
