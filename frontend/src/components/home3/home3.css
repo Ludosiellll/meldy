@@ -80,9 +80,15 @@
 .p3-clip--exam {
   flex: 1.3 1 380px;
 }
+/* Right under the words: when its neighbour in the row is taller, the frame grows down and the screen stays at its top,
+   its own backdrop (the page's colour at the recording's foot) filling the rest, so no empty band opens above it. */
 .p3-clip-frame {
-  margin-top: auto;
+  flex: 1 0 auto;
   border-top: 1px solid var(--h3-line);
+}
+.p3-clip-frame .fo-poster,
+.p3-clip-frame .fo-video {
+  object-position: 50% 0;
 }
 
 /* the game in class: a dark tile, the projector and a student's phone side by side at its foot */
