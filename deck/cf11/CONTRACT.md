@@ -64,7 +64,8 @@ in Chromium at exactly 1920×1080 (device scale 1 for geometry, 2 for pictures).
   (no clock-driven animation), rendered frame by frame to `media/gen/*.mp4|gif|png`.
 - `media/product/` — real recordings of the live site (committed: they cannot be regenerated). `media/gen/` is generated
   and ignored by git. `media/motion/` — the rendered clips a slide places (since 22.10 the title's card
-  `title-cover.gif` and its poster), copied there from `media/gen/` and committed, so a build needs no browser render.
+  `title-cover.gif` and its poster; since 23.10 slide 03's pull-back from one question to the map,
+  `relevance-zoom.mp4` and its poster), copied there from `media/gen/` and committed, so a build needs no browser render.
 - `tools/` — the compiler and renderers; `tools/research/` — the tested experiments it grew from (Morph XML, video
   autoplay/loop timing, EOT font embedding, frame rendering, encoding).
 - `out/` — build output (ignored): `meldy-codingfest11.pptx`, the PDF, slide renders.

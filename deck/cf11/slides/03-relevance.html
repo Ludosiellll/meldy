@@ -5,16 +5,6 @@
 <title>03 · Актуальность — Meldy · CodingFest-11</title>
 <link rel="stylesheet" href="../design/deck.css">
 <link rel="stylesheet" href="../design/stage.css">
-<style>
-/* What a student has before the session, drawn without a number: two rows of lecture sheets and a field of question
-   squares. The motion is native builds: every sheet is its own picture and arrives one after another, column by
-   column, like the weeks of a semester; then the questions fill the field row by row from the bottom up (one picture
-   per row of 40). Calm fades only; the static frame (PDF, Normal view) is the full field. No count is tied to it. */
-.sheet { position: absolute; width: 44px; height: 56px; border-radius: 8px; background: var(--surface-soft); border: 2px solid var(--line); }
-.sheet i { position: absolute; left: 8px; height: 4px; border-radius: 2px; background: #3a4456; }
-.qrow { position: absolute; width: 800px; height: 14px; }
-.q { position: absolute; top: 0; width: 14px; height: 14px; border-radius: 3px; background: #2b3444; }
-</style>
 </head>
 <body>
 <main class="slide dark">
@@ -23,55 +13,32 @@
 <div class="mark" data-pptx="text" data-name="!!word" style="left:1682px">Meldy</div>
 <div class="mark-dot" data-pptx="shape" data-name="!!dot" style="left:1780px;top:76px"></div>
 
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Перед сессией у&nbsp;студента десятки лекций<br>и&nbsp;сотни вопросов кафедры</div>
+<!-- Everyone who studies, not only students (owner, 23.10: «а почему только студентам, ведь и школьники могут этим
+     пользоваться»). Line 2 is the owner's «Сколько учить в день и что уже выучено, каждый считает сам» cut to fit
+     64 px (1849 px wide as written, 1664 px free): «все считают сами» keeps everyone and «сами». -->
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Перед экзаменом нужно выучить сотни вопросов<br><span class="dim">Сколько учить в&nbsp;день и&nbsp;что выучено, все считают сами</span></div>
 
-<div class="t28" data-pptx="text" style="left:964px;top:372px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="2">Лекции за&nbsp;семестр</div>
-<div id="sheets"></div>
-<div class="t28" data-pptx="text" style="left:964px;top:596px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="3">Вопросы кафедры</div>
-<div id="grid"></div>
+<!-- The clip (motion/relevance-zoom.html, rendered to media/motion/relevance-zoom.mp4, 1120 × 704 at 1:1, its frame
+     and corners drawn in it): one pull-back from one question of a real exam to the phone, the class of 25 and the
+     map of Belarus, a dot per class or group. It plays once with its entrance and holds on its last frame, the map,
+     which is the poster the PDF and a reader see. -->
+<img data-pptx="video" data-src="../media/motion/relevance-zoom.mp4" data-poster="../media/motion/relevance-zoom.png" src="../media/motion/relevance-zoom.png" aria-label="От одного вопроса экзамена до всей страны" alt="" style="left:672px;top:336px;width:1120px;height:704px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="2">
 
-<div class="t48" data-pptx="text" style="left:128px;top:420px" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4">Сколько учить в&nbsp;день<br>и&nbsp;что уже выучено,<br>студент считает сам</div>
-<div class="t48" data-pptx="text" style="left:128px;top:680px;color:var(--muted)" data-anim="rise" data-anim-trigger="after" data-anim-dur="600" data-anim-order="5">Проверить себя он может<br>только на&nbsp;экзамене</div>
-<script>
-  // Lecture sheets: 2 rows of 14 (44 x 56, step 58 x 72) from (964, 420), three text lines each. One picture per
-  // sheet; they arrive column by column (top, then bottom), 45 ms apart, each a 300 ms fade.
-  const main = document.querySelector('main.slide');
-  const sheetsAt = document.getElementById('sheets');
-  for (let k = 0; k < 28; k++) {
-    const col = Math.floor(k / 2), row = k % 2;
-    const d = document.createElement('div');
-    d.className = 'sheet';
-    d.style.left = (964 + col * 58) + 'px';
-    d.style.top = (420 + row * 72) + 'px';
-    d.innerHTML = '<i style="top:12px;width:26px"></i><i style="top:22px;width:22px"></i><i style="top:32px;width:18px"></i>';
-    Object.assign(d.dataset, { pptx: 'image', anim: 'fade', animTrigger: 'with', animDelay: String(k * 45), animDur: '300', animOrder: '2' });
-    d.setAttribute('aria-label', 'Лекция');
-    main.insertBefore(d, sheetsAt);
-  }
-  sheetsAt.remove();
-  // Questions: a field of 40 x 16 squares (14 px, step 20) from (964, 644). One picture per row; the rows fill the
-  // field from the bottom up, 75 ms apart, each a 300 ms fade.
-  const gridAt = document.getElementById('grid');
-  const ROWS = 16;
-  for (let r = 0; r < ROWS; r++) {
-    const row = document.createElement('div');
-    row.className = 'qrow';
-    row.style.left = '964px';
-    row.style.top = (644 + r * 20) + 'px';
-    for (let i = 0; i < 40; i++) {
-      const q = document.createElement('div');
-      q.className = 'q';
-      q.style.left = (i * 20) + 'px';
-      row.appendChild(q);
-    }
-    Object.assign(row.dataset, { pptx: 'image', anim: 'fade', animTrigger: 'with', animDelay: String((ROWS - 1 - r) * 75), animDur: '300', animOrder: '3' });
-    row.setAttribute('aria-label', 'Вопросы кафедры');
-    main.insertBefore(row, gridAt);
-  }
-  gridAt.remove();
-</script>
+<!-- Left: the four levels of the clip, each as the clip reaches it (delays in ms of the clip, which starts with its
+     entrance: the card, then the phone at 4.6 s, the class at 7.3 s, the map at 12.3 s; motion/relevance-zoom.html
+     MOVES). The static frame shows all four. -->
+<div class="t48" data-pptx="text" style="left:128px;top:400px" data-anim="fade" data-anim-trigger="with" data-anim-delay="400" data-anim-dur="500" data-anim-order="3">1</div>
+<div class="t28m" data-pptx="text" style="left:128px;top:462px" data-anim="fade" data-anim-trigger="with" data-anim-delay="400" data-anim-dur="500" data-anim-order="3">вопрос</div>
+<div class="t48" data-pptx="text" style="left:128px;top:560px" data-anim="fade" data-anim-trigger="with" data-anim-delay="4600" data-anim-dur="500" data-anim-order="4">240</div>
+<div class="t28m" data-pptx="text" style="left:128px;top:622px" data-anim="fade" data-anim-trigger="with" data-anim-delay="4600" data-anim-dur="500" data-anim-order="4">вопросов в&nbsp;одном экзамене</div>
+<div class="t48" data-pptx="text" style="left:128px;top:720px" data-anim="fade" data-anim-trigger="with" data-anim-delay="7300" data-anim-dur="500" data-anim-order="5">≈&nbsp;25</div>
+<div class="t28m" data-pptx="text" style="left:128px;top:782px" data-anim="fade" data-anim-trigger="with" data-anim-delay="7300" data-anim-dur="500" data-anim-order="5">человек в&nbsp;классе или группе</div>
+<div class="t48 yl" data-pptx="text" style="left:128px;top:880px" data-anim="fade" data-anim-trigger="with" data-anim-delay="12300" data-anim-dur="500" data-anim-order="6">≈&nbsp;1,5&nbsp;млн</div>
+<div class="t28m" data-pptx="text" style="left:128px;top:942px" data-anim="fade" data-anim-trigger="with" data-anim-delay="12300" data-anim-dur="500" data-anim-order="6">школьников и&nbsp;студентов</div>
 
-<template data-pptx="notes">Перед сессией у студента десятки лекций и сотни вопросов кафедры. Сколько учить в день и что уже выучено, студент считает сам. А проверить себя он может только на самом экзамене.</template>
+<template data-pptx="notes">Перед экзаменом нужно выучить сотни вопросов, и сколько учить в день, каждый считает сам. Вот один вопрос экзамена по C#, а всего в экзамене их 240. Так у каждого в классе или группе, это около 25 человек. По всей стране это около полутора миллионов школьников и студентов. Meldy для всех, кто готовится к экзамену: для школьников, учащихся колледжей и студентов.
+
+Если спросят: школьников 1 058 693 на начало 2025/2026 учебного года (Министерство образования, по данным СМИ: Наша Нива, Myfin). Учащихся колледжей 116,6 тысячи в ССО и 67,5 тысячи в ПТО (Министерство образования, августовская презентация 2025 года). Студентов вузов 229 тысяч (Белстат, «Образование в Республике Беларусь в 2025 году»). Всего около 1,47 миллиона, на слайде округлено до 1,5 миллиона. 25 человек — типичный класс или группа. Точка на карте — один класс или группа, точек 58 872, это 1,47 миллиона, делённые на 25. 240 — столько вопросов в нашем примере экзамена по C#, вопрос в кадре — номер 103 этого экзамена.</template>
 </main>
 </body>
 </html>
