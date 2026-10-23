@@ -48,6 +48,7 @@ NS = {
     'a': 'http://schemas.openxmlformats.org/drawingml/2006/main',
 }
 TITLE = 'Meldy'
+COVER_NAME = 'Титульный'   # the PDF bookmark of the cover, which carries no title on the slide
 
 
 # ---------------------------------------------------------------- media metadata
@@ -223,7 +224,7 @@ def clean_pptx(path: Path) -> None:
 # ---------------------------------------------------------------- pdf
 def clean_pdf(path: Path) -> None:
     from pypdf import PdfReader, PdfWriter
-    from pypdf.generic import ArrayObject, DictionaryObject, IndirectObject, NameObject, StreamObject
+    from pypdf.generic import ArrayObject, DictionaryObject, IndirectObject, NameObject, StreamObject, TextStringObject
 
     r = PdfReader(str(path))
     w = PdfWriter(clone_from=r)
@@ -272,6 +273,12 @@ def clean_pdf(path: Path) -> None:
             else:
                 prune(kids, seen)
 
+    # the cover has no title (no «Титульный» label, owner 23.10), so LibreOffice names its bookmark «Slide 1»;
+    # the outline shows the mandatory name instead
+    outlines = root.get('/Outlines')
+    first = outlines.get_object().get('/First') if outlines is not None else None
+    if first is not None and re.fullmatch(r'(Slide|Слайд) 1', str(first.get_object().get('/Title', ''))):
+        first.get_object()[NameObject('/Title')] = TextStringObject(COVER_NAME)
     if '/StructTreeRoot' in root:
         prune(root['/StructTreeRoot'], set())
     for key in ('/Metadata', '/PieceInfo', '/AF'):

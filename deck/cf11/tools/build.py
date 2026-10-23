@@ -545,6 +545,9 @@ def build(build_dir: Path, out: Path, font_dir: Path, title: str, embed: str) ->
 def mandatory_order_problems(titles: list[str]) -> list[str]:
     """The ten names of Приложение 2 in order; own slides only between the blocks and «Используемые источники»."""
     problems = []
+    # the cover carries no «Титульный» label (owner, 23.10): a first slide without a title is the title slide by its place
+    if titles and not titles[0]:
+        titles = [MANDATORY[0]] + list(titles[1:])
     seq = [t for t in titles if t in MANDATORY]
     dedup = [t for i, t in enumerate(seq) if i == 0 or t != seq[i - 1] or t != 'Представление блоков проекта']
     if dedup != MANDATORY:

@@ -228,7 +228,8 @@ def main() -> int:
                 c.ok(media is not None and slide.part.related_part(media.get('{%s}embed' % NS['r'])) is part,
                      f'{tag}: p14:media does not point at the video part')
     if doc:
-        c.ok(all(t for t in titles), 'a slide has no title placeholder text')
+        # the cover may go without a title (no «Титульный» label, owner 23.10); every other slide needs one
+        c.ok(all(t for t in titles[1:]), 'a slide has no title placeholder text')
     if a.deck_rules:
         for p in mandatory_order_problems(titles):
             c.ok(False, p)
