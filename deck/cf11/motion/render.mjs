@@ -3,7 +3,10 @@
 //
 //   node deck/cf11/motion/render.mjs <name> [--fps 30] [--gif] [--gif-fps 12.5] [--gif-colors 64] [--no-mp4]
 //                                           [--crf 23] [--tune animation] [--zones a,b,b=0.5/c,d,b=0.5] [--scale 1]
+//                                           [--ss 2]
 //   --zones: x264 zones (frame ranges) — fewer bits while the camera moves, where motion hides them.
+//   --ss: supersampling — frames are taken at ss× the output's pixels and averaged down (area filter), so fine
+//         detail that moves (a field of small dots, tiny phones) does not shimmer. The poster is unaffected.
 //
 // Output in deck/cf11/media/gen/: <name>.mp4 (H.264 High, yuv420p, BT.709 tags, +faststart, no audio),
 // <name>.png (the poster, 2×: the meaningful frame the PDF and a reader see), <name>.gif (with --gif).
@@ -25,6 +28,7 @@ if (!name) { console.error('usage: render.mjs <name> [options]'); process.exit(2
 const fps = Number(opt('fps', 30));
 const crf = Number(opt('crf', 23));
 const scale = Number(opt('scale', 1));
+const ss = Number(opt('ss', 1));
 const framesDir = path.join(GEN, 'frames', name);
 fs.rmSync(framesDir, { recursive: true, force: true });
 fs.mkdirSync(framesDir, { recursive: true });
@@ -59,14 +63,14 @@ function encodeMp4(dir, rate, out, info) {
   const W = Math.round(info.width * scale / 2) * 2;
   const H = Math.round(info.height * scale / 2) * 2;
   execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-framerate', String(rate), '-i', path.join(dir, 'f%04d.png'),
-    '-vf', `scale=${W}:${H}:flags=lanczos:out_color_matrix=bt709:out_range=tv,format=yuv420p`,
+    '-vf', `scale=${W}:${H}:flags=${ss > 1 ? 'area' : 'lanczos'}:out_color_matrix=bt709:out_range=tv,format=yuv420p`,
     '-c:v', 'libx264', '-preset', 'slow', '-crf', String(crf), ...(opt('tune', '') ? ['-tune', opt('tune', '')] : []), ...(opt('zones', '') ? ['-x264-params', `zones=${opt('zones', '')}`] : []), '-profile:v', 'high', '-level:v', '4.0',
     '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
     '-movflags', '+faststart', '-an', out]);
 }
 
 const t0 = Date.now();
-const { page, info } = await openClip(scale);
+const { page, info } = await openClip(scale * ss);
 const span = info.loop ? info.T : info.T + 1; // a loop excludes its end (= its start); a one-shot includes it
 const n = Math.round((span * fps) / 1000 - (info.loop ? 0 : 0));
 for (let i = 0; i < n; i += 1) await shoot(page, (i * 1000) / fps, path.join(framesDir, `f${String(i).padStart(4, '0')}.png`));
