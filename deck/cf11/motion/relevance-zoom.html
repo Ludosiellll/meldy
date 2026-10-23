@@ -17,7 +17,7 @@
         edge;
      4. the class is one dot of the map of Belarus (Natural Earth 1:50m outline, x scaled by cos 53.7°): one dot per
         class or group of 25, ≈ 58 900 dots (≈ 1,47 млн / 25), a dot every 2 px; ours is Bobruisk, yellow, with a
-        ring and «ваша группа · Бобруйск».
+        ring and «наша группа · Бобруйск».
    Every level is drawn so that it is crisp at its own size: a card is a picture with its words until it is a few
    tens of pixels, then a plain cell; a phone is drawn in full, then as one picture, a class as one picture, then as
    a dot. Text that is held on screen is 28 px or larger. The camera zooms about a fixed point between two stops
@@ -508,12 +508,12 @@ const BELARUS = [[31.7649,52.1016],[31.5741,52.1085],[31.3473,52.105],[31.2177,5
       g.beginPath(); g.arc(ox, oy, rad, 0, Math.PI * 2); g.stroke();
       g.globalAlpha = 1;
     }
-    // «ваша группа · Бобруйск» once the map holds
+    // «наша группа · Бобруйск» once the map holds
     const lab = clamp((t - MOVES[2][1] - 100) / 500);
     if (lab > 0) {
       const a = lab * lab * (3 - 2 * lab);
       g.font = '500 28px Onest'; g.letterSpacing = '0px';
-      const text = 'ваша группа · Бобруйск';
+      const text = 'наша группа · Бобруйск';
       const tw = g.measureText(text).width;
       const lx = Math.round(ox + 15 + 14), ly = Math.round(oy - 26), lw = Math.round(tw + 44);
       g.globalAlpha = a;
