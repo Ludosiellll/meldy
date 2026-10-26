@@ -73,14 +73,20 @@ describe('the test’s page and the game', () => {
     expect(within(card).getByRole('link', { name: TIPS.game.action })).toHaveAttribute('href', '/live/new?c=c-1');
     // The clip's frame is the shape of the game's footage, 16:9 (lib/footage.ts STAND_RUN).
     expect(card.querySelector('.tp-box')).toHaveStyle({ aspectRatio: String(16 / 9) });
-    // The anchor has its ring while the card is shown; the card comes right after it.
-    expect(button).toHaveAttribute('data-tip-spot');
-    expect(button.nextElementSibling).toBe(card);
+    // The anchor has its ring while the card is shown; the card comes right after it. The link is asked for again: under
+    // a full run's load the page may draw it anew while the card comes (the gate of 2026-10-26 failed here once).
+    await waitFor(() => {
+      // The card's own action has the same name; the anchor is the page's link.
+      const anchor = screen.getAllByRole('link', { name: 'Провести игру' }).find(link => !tipCard()?.contains(link));
+      expect(anchor).toHaveAttribute('data-tip-spot');
+      expect(anchor).toHaveAttribute('href', '/live/new?c=c-1');
+      expect(anchor!.nextElementSibling).toBe(tipCard());
+    }, { timeout: 3000 });
     // Shown once: this visit put it away on the device and in the profile.
-    expect(window.localStorage.getItem('meldy_tip_game')).toBe('1');
+    await waitFor(() => expect(window.localStorage.getItem('meldy_tip_game')).toBe('1'), { timeout: 3000 });
     await waitFor(() => expect(mocks.markSeen).toHaveBeenCalledWith('user-1', 'tip_game'), { timeout: 3000 });
-    fireEvent.click(within(card).getByRole('button', { name: TIPS.game.later }));
-    expect(tipCard()).toBeNull();
+    fireEvent.click(within(tipCard()!).getByRole('button', { name: TIPS.game.later }));
+    await waitFor(() => expect(tipCard()).toBeNull());
   });
 
   it('no tip while the test cannot be played: the button waits with the page’s reason', async () => {
