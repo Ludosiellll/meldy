@@ -33,3 +33,4 @@ failed checks, never row data.
 - 2026-10-21 — apply: supabase/migrations/20261023090000_live_stand_phone.sql; check: supabase/tests/live_stand_phone.sql, supabase/tests/live_stand.sql, supabase/tests/live_game.sql, supabase/tests/telegram_bot.sql
 - 2026-10-21 — apply: supabase/migrations/20261024090000_live_mixed.sql; check: supabase/tests/live_mixed.sql, supabase/tests/live_stand_phone.sql, supabase/tests/live_stand.sql, supabase/tests/live_game.sql, supabase/tests/telegram_bot.sql
 - 2026-10-22 — apply: supabase/migrations/20261025090000_live_pin.sql; check: supabase/tests/live_pin.sql, supabase/tests/live_game.sql, supabase/tests/live_stand.sql, supabase/tests/live_stand_phone.sql, supabase/tests/live_mixed.sql, supabase/tests/telegram_bot.sql
+- 2026-10-26 — apply: supabase/migrations/20261026090000_recording_usage.sql; check: supabase/tests/recording_usage.sql, supabase/tests/ai_quota_server.sql
