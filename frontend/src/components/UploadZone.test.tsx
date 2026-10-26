@@ -4,6 +4,13 @@ import { useState } from 'react';
 import UploadZone, { type UploadOptions, type UploadTab } from './UploadZone';
 import { DEFAULT_SETTINGS } from '../types';
 import { DEMO_TEXT } from '../data/demo';
+import { mediaDuration } from '../lib/mediaDuration';
+
+// jsdom reads no media: a recording's length is what a test says (null — the browser could not read it).
+vi.mock('../lib/mediaDuration', async original => ({
+  ...(await original<typeof import('../lib/mediaDuration')>()),
+  mediaDuration: vi.fn(async () => null),
+}));
 
 type UploadCall = [File | null, string | undefined, UploadOptions | undefined];
 
@@ -15,6 +22,7 @@ function Harness({
   costNote,
   busy,
   startDisabledReason,
+  onPriceChange,
 }: {
   onUpload: (...args: UploadCall) => void;
   onDemo?: () => void;
@@ -23,6 +31,7 @@ function Harness({
   costNote?: string;
   busy?: boolean;
   startDisabledReason?: string;
+  onPriceChange?: (units: number) => void;
 }) {
   const [tab, setTab] = useState<UploadTab>(initialTab);
   const [text, setText] = useState(initialText);
@@ -46,6 +55,7 @@ function Harness({
       costNote={costNote}
       busy={busy}
       startDisabledReason={startDisabledReason}
+      onPriceChange={onPriceChange}
     />
   );
 }
@@ -249,7 +259,7 @@ describe('UploadZone lecture formats', () => {
     render(<Harness onUpload={vi.fn()} initialTab="media" />);
     const plain = (node: Element | null) => node?.textContent?.replace(/\s/g, ' ');
     expect(plain(document.querySelector('.az-media-note'))).toBe(
-      'До 15 МБ — это примерно 15–30 минут звука. Запись целой пары обычно больше: разделите её на части.',
+      'До 15 МБ — это примерно 15–30 минут звука. До 30 минут запись стоит 20 единиц, дальше +10 за каждые 15 минут. Запись длиннее 2 часов разделите на части.',
     );
     expect(screen.getByText('MP4, MP3, WAV, MPEG и M4A — до 15 МБ, примерно 15–30 минут звука')).toBeInTheDocument();
 
@@ -288,7 +298,7 @@ describe('UploadZone lecture formats', () => {
 
 describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
   const VIDEO_NOTE =
-    'Ссылку на видео Meldy пока не открывает. Если запись лекции есть у вас файлом, загрузите её во вкладке «Аудио и видео» (до 15 МБ).';
+    'Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке «Аудио и видео» (до 15 МБ).';
   const urlField = () => screen.getByLabelText('Ссылка на статью или учебный материал');
   /** The note without the no-break spaces of the typesetting. */
   const plainText = (node: Element | null) => node?.textContent?.replace(/ /g, ' ');
@@ -328,6 +338,17 @@ describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
     expect(document.activeElement).toBe(document.querySelector('.az-drop'));
     fireEvent.click(screen.getByRole('tab', { name: 'Ссылка' }));
     expect(urlField()).toHaveValue('https://youtu.be/aircAruvnKk');
+  });
+
+  it('under a YouTube link opens «Текст» in one tap, for the transcript; other video hosts offer recordings only', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://www.youtube.com/watch?v=aircAruvnKk' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть «Текст»' }));
+    expect(screen.getByRole('tab', { name: 'Текст' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.click(screen.getByRole('tab', { name: 'Ссылка' }));
+    fireEvent.change(urlField(), { target: { value: 'https://rutube.ru/video/0123456789abcdef/' } });
+    expect(screen.queryByRole('button', { name: 'Открыть «Текст»' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Открыть «Аудио и видео»' })).toBeInTheDocument();
   });
 
   it('says nothing about a page with text, and the start goes', async () => {
@@ -560,5 +581,50 @@ describe('«Разобрать лекцию» on a phone (10_Project/Phone_Declu
     expect(screen.getByText('MP4, MP3, WAV, MPEG, M4A · до 15 МБ')).toBeInTheDocument();
     expect(document.querySelector('.az-media-note')?.textContent?.replace(/\s/g, ' ')).toBe('15 МБ — это примерно 15–30 минут звука.');
     expect(screen.queryByRole('button', { name: 'Сфотографировать конспект' })).toBeNull();
+  });
+});
+
+
+describe('a recording by its length (owner 2026-10-26: one long recording could eat the shared allowance)', () => {
+  const choose = (file: File) => fireEvent.change(screen.getByTestId('upload-file-input'), { target: { files: [file] } });
+  const recording = (name = 'Пара 4.mp3') => new File(['x'], name, { type: 'audio/mpeg' });
+
+  it('shows the length and prices a 47-minute recording at 40 units', async () => {
+    vi.mocked(mediaDuration).mockResolvedValueOnce(47 * 60);
+    const prices: number[] = [];
+    render(<Harness onUpload={vi.fn()} initialTab="media" onPriceChange={units => prices.push(units)} />);
+    choose(recording());
+    expect(await screen.findByText(/· 47 мин/)).toBeInTheDocument();
+    expect(prices[0]).toBe(20);
+    expect(prices[prices.length - 1]).toBe(40);
+  });
+
+  it('stops a recording over 2 hours before the start, with what to do', async () => {
+    vi.mocked(mediaDuration).mockResolvedValueOnce(2 * 3600 + 15 * 60);
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="media" />);
+    choose(recording('Конференция.mp3'));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent?.replace(/\u00a0/g, ' ')).toBe(
+      'Запись длится 2 ч 15 мин — это больше 2 часов. Разрежьте её на части до 2 часов и загрузите по очереди.',
+    );
+    expect(screen.queryByText('Конференция.mp3')).toBeNull();
+    expect(startButton()).toBeDisabled();
+  });
+
+  it('leaves a length the browser cannot read to the server, at the price of a lecture', async () => {
+    const prices: number[] = [];
+    render(<Harness onUpload={vi.fn()} initialTab="media" onPriceChange={units => prices.push(units)} />);
+    choose(recording('voice.m4a'));
+    expect(await screen.findByText('voice.m4a')).toBeInTheDocument();
+    expect(screen.queryByText(/ мин$/)).toBeNull();
+    expect(prices[prices.length - 1]).toBe(20);
+  });
+
+  it('prices a pasted text over 50 000 characters by its length', () => {
+    const prices: number[] = [];
+    render(<Harness onUpload={vi.fn()} initialTab="text" onPriceChange={units => prices.push(units)} />);
+    fireEvent.change(textarea(), { target: { value: lecture(120_000) } });
+    expect(prices[prices.length - 1]).toBe(40);
   });
 });

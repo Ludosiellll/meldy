@@ -13,8 +13,11 @@ import {
   VIDEO_LINK_MESSAGE,
   formatsList,
   isVideoLink,
+  isYoutubeLink,
   unreadableFileMessage,
 } from '../lib/lectureFormats';
+import { hoursMinutes, mediaDuration } from '../lib/mediaDuration';
+import { AI_COSTS, RECORDING_MAX_SECONDS, recordingCost, textCost } from '../lib/plans';
 import { usePhone } from '../lib/usePhone';
 import { NBSP, ty } from './landing/typo';
 import './UploadZone.css';
@@ -48,6 +51,11 @@ interface Props {
   busy?: boolean;
   /** Почему запуск сейчас недоступен (например, лимит исчерпан). */
   startDisabledReason?: string;
+  /**
+   * Сколько единиц будет стоить запуск того, что выбрано: запись — по её длине, текст — по числу знаков
+   * (lib/plans). Страница пересчитывает по ней строку о лимите под кнопкой.
+   */
+  onPriceChange?: (units: number) => void;
 }
 
 const TABS: { id: UploadTab; label: string; icon: LucideIcon }[] = [
@@ -71,6 +79,8 @@ function audioMinutes(kbps: number): number {
   return Math.floor((MAX_SIZE * 8) / (kbps * 1000) / 60 / 5) * 5;
 }
 export const MEDIA_LENGTH = `${audioMinutes(AUDIO_KBPS[0])}–${audioMinutes(AUDIO_KBPS[1])} минут звука`;
+/** The price of a recording by its length (lib/plans recordingCost), said under the recordings' frame. */
+export const RECORDING_PRICE_LINE = `До 30 минут запись стоит ${AI_COSTS.lecture} единиц, дальше +10 за каждые 15 минут.`;
 const DOC_ACCEPT = `.pdf,.docx,.pptx,.txt,.md,.html,.htm,.jpg,.jpeg,.png,${PPTX_MIME}`;
 const MEDIA_ACCEPT = '.mp4,.mp3,.wav,.mpeg,.m4a';
 /**
@@ -139,6 +149,7 @@ export default function UploadZone({
   costNote,
   busy = false,
   startDisabledReason,
+  onPriceChange,
 }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -146,6 +157,9 @@ export default function UploadZone({
   // Every refusal, the same words again included, is brought into view.
   const [refusals, setRefusals] = useState(0);
   const [isCompressing, setIsCompressing] = useState(false);
+  // A recording's length, read from its header by the browser (lib/mediaDuration): its price and the 2-hour cap.
+  const [mediaSeconds, setMediaSeconds] = useState<number | null>(null);
+  const [measuring, setMeasuring] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   // «Открыть «Аудио и видео»» under a video link: the focus goes on to the file picker of that tab.
   const [focusPicker, setFocusPicker] = useState(false);
@@ -170,10 +184,22 @@ export default function UploadZone({
   const textProblem = pastedTextProblem(text);
   // A link to a video (YouTube, RuTube, VK Video, Dzen…): said before the start, which waits (lib/lectureFormats).
   const videoLink = tab === 'url' && isVideoLink(url);
+  const youtubeLink = videoLink && isYoutubeLink(url);
+  // The price of this start: a recording by its length, a text by its characters, anything else a lecture.
+  const price =
+    tab === 'media' && file && mediaSeconds !== null
+      ? recordingCost(mediaSeconds)
+      : tab === 'text'
+        ? textCost(trimmedLength)
+        : AI_COSTS.lecture;
 
   useEffect(() => {
     if (refusals > 0) bringIntoView(errorRef.current);
   }, [refusals]);
+
+  useEffect(() => {
+    onPriceChange?.(price);
+  }, [price, onPriceChange]);
 
   useEffect(() => {
     if (!focusPicker) return;
@@ -184,6 +210,7 @@ export default function UploadZone({
   const refuse = (message: string) => {
     setFileError(message);
     setFile(null);
+    setMediaSeconds(null);
     setRefusals(count => count + 1);
   };
 
@@ -218,7 +245,22 @@ export default function UploadZone({
     } else if (hasBadWords(finalFile.name)) {
       refuse('Название файла содержит недопустимые слова. Пожалуйста, переименуйте файл.');
     } else {
+      // A recording: its length first (the price and the 2-hour cap the server keeps too). A length the browser cannot
+      // read is left to the server, which measures every recording before it charges.
+      let seconds: number | null = null;
+      if (tab === 'media' && /^(audio|video)\//.test(finalFile.type)) {
+        setMeasuring(true);
+        seconds = await mediaDuration(finalFile);
+        setMeasuring(false);
+        if (seconds !== null && seconds > RECORDING_MAX_SECONDS) {
+          refuse(
+            `Запись длится ${hoursMinutes(seconds)}${NBSP}— это больше 2 часов. Разрежьте её на части до 2 часов и загрузите по очереди.`,
+          );
+          return;
+        }
+      }
       setFileError('');
+      setMediaSeconds(seconds);
       setFile(finalFile);
     }
   };
@@ -227,6 +269,7 @@ export default function UploadZone({
     if (next === tab) return;
     onTabChange(next);
     setFile(null);
+    setMediaSeconds(null);
     setFileError('');
   };
 
@@ -257,12 +300,17 @@ export default function UploadZone({
     setFocusPicker(true);
   };
 
+  /** Under a YouTube link: «Текст» in one tap, for the transcript copied from under the video. */
+  const openText = () => {
+    selectTab('text');
+  };
+
   const isReady =
     tab === 'url'
       ? Boolean(url.trim()) && url.includes('.') && !videoLink
       : tab === 'text'
         ? textProblem === null
-        : Boolean(file) && !isCompressing;
+        : Boolean(file) && !isCompressing && !measuring;
   const limited = Boolean(startDisabledReason);
   const canStart = isReady && !busy && !limited;
 
@@ -410,6 +458,11 @@ export default function UploadZone({
                     <p id={videoNoteId} role="alert">
                       {ty(VIDEO_LINK_MESSAGE)}
                     </p>
+                    {youtubeLink && (
+                      <button type="button" onClick={openText} className="az-inline az-video-go">
+                        Открыть «Текст»
+                      </button>
+                    )}
                     <button type="button" onClick={openRecordings} className="az-inline az-video-go">
                       Открыть «Аудио и видео»
                     </button>
@@ -484,7 +537,10 @@ export default function UploadZone({
                       </span>
                       <div className="az-file-text">
                         <p className="az-file-name">{file.name}</p>
-                        <p className="az-file-size">{megabytes(file.size, 2)} МБ</p>
+                        <p className="az-file-size">
+                          {megabytes(file.size, 2)} МБ
+                          {tab === 'media' && mediaSeconds !== null && ` · ${hoursMinutes(mediaSeconds)}`}
+                        </p>
                       </div>
                       <button type="button" onClick={() => setFile(null)} aria-label="Убрать файл" className="az-round">
                         <X aria-hidden="true" />
@@ -543,12 +599,13 @@ export default function UploadZone({
                   Google Gemini.
                 </p>
               )}
-              {/* A phone: the length only (the frame says «до 15 МБ»; a recording too long is refused with the advice). */}
+              {/* A phone: the length only (the frame says «до 15 МБ»; a recording too long is refused with the advice, and the
+                  price of a chosen one is in the line under the start). */}
               {tab === 'media' && (
                 <p className="az-help az-media-note">
                   {phone
                     ? ty(`${MAX_SIZE_MB} МБ — это примерно ${MEDIA_LENGTH}.`)
-                    : ty(`До ${MAX_SIZE_MB} МБ — это примерно ${MEDIA_LENGTH}. Запись целой пары обычно больше: разделите её на части.`)}
+                    : ty(`До ${MAX_SIZE_MB} МБ — это примерно ${MEDIA_LENGTH}. ${RECORDING_PRICE_LINE} Запись длиннее 2 часов разделите на части.`)}
                 </p>
               )}
               <input

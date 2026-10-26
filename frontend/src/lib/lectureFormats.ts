@@ -101,7 +101,7 @@ export function unreadableFileMessage(file: { name: string; type?: string }, tab
  * link passes here and is refused only after the start.
  */
 export const VIDEO_LINK_MESSAGE =
-  'Ссылку на видео Meldy пока не открывает. Если запись лекции есть у вас файлом, загрузите её во вкладке «Аудио и видео» (до 15 МБ).';
+  'Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке «Аудио и видео» (до 15 МБ).';
 
 /** Hosts all of whose pages are videos. */
 const VIDEO_HOSTS = ['youtube.com', 'youtube-nocookie.com', 'youtu.be', 'rutube.ru', 'vkvideo.ru', 'vimeo.com', 'tiktok.com'];
@@ -136,6 +136,19 @@ export function isVideoLink(value: string): boolean {
   return Object.entries(VIDEO_PATHS).some(
     ([domain, path]) => sameOrSubdomain(host, domain) && (path.test(url.pathname) || VIDEO_OVER_PAGE.test(url.search.slice(1))),
   );
+}
+
+/** A YouTube video: its transcript can be pasted into «Текст» (the line under the link offers that tab first). */
+export function isYoutubeLink(value: string): boolean {
+  const text = value.trim();
+  if (!text) return false;
+  try {
+    const url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`);
+    const host = url.hostname.toLowerCase().replace(/\.$/, '');
+    return ['youtube.com', 'youtube-nocookie.com', 'youtu.be'].some(domain => sameOrSubdomain(host, domain));
+  } catch {
+    return false;
+  }
 }
 
 /**

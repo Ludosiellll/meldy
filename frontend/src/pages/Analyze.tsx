@@ -204,7 +204,9 @@ export default function Analyze() {
   }, []);
 
   const demoReady = uploadTab === 'text' && isDemoText(pastedText);
-  const quota = useAnalysisQuota(user?.id, ANALYSIS_COST);
+  // The price of what is chosen now: a recording by its length, a long text by its characters (UploadZone).
+  const [price, setPrice] = useState<number>(ANALYSIS_COST);
+  const quota = useAnalysisQuota(user?.id, price);
 
   const isCurrent = (runId: number) => mountedRef.current && runIdRef.current === runId;
 
@@ -577,6 +579,7 @@ export default function Analyze() {
               onTextChange={setPastedText}
               url={sourceUrl}
               onUrlChange={setSourceUrl}
+              onPriceChange={setPrice}
               costNote={demoReady ? undefined : quota.costNote}
               startDisabledReason={demoReady ? undefined : quota.startDisabledReason}
               busy={starting}

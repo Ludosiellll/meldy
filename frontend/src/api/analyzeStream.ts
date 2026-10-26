@@ -49,7 +49,8 @@ export const ANALYZE_MESSAGES = {
 export const ANALYZE_TIMEOUTS = {
   idleMs: 45_000,
   textTotalMs: 6 * 60_000,
-  mediaTotalMs: 10 * 60_000,
+  // A long recording may wait its turn (up to 15 min, backend recording_queue.py) and be transcribed up to 15 more.
+  mediaTotalMs: 35 * 60_000,
 };
 
 export type AnalyzeEndpoint = '/api/analyze' | '/api/analyze/media' | '/api/analyze/url';
@@ -128,6 +129,8 @@ export function analyzeErrorFromHttp(error: StreamError): AnalyzeError {
   if (status === 413) return new AnalyzeError('too_large', error.message, false);
   // The daily AI limit: the server's words, no «повторить» today (the limit dialog opens too).
   if (status === 429 && error.code === 'ai_limit') return new AnalyzeError('rate_limited', error.message, false);
+  // The day's recordings are used up (2 hours free, 5 in PRO): the server's words, no «повторить» today.
+  if (status === 429 && error.code === 'recording_day_limit') return new AnalyzeError('rate_limited', error.message, false);
   if (status === 429) return new AnalyzeError('rate_limited', error.message, true);
   if (status >= 500 || error.message === STREAM_MESSAGES.unavailable) {
     return new AnalyzeError('unavailable', error.message, error.retryable);

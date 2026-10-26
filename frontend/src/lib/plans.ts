@@ -75,6 +75,35 @@ export function scanCost(pages: number): number {
   return AI_COSTS.scanPages * Math.ceil(count / OCR_PAGES_PER_CHARGE);
 }
 
+/**
+ * Запись лекции: цена растёт с длиной, которую сервер меряет до списания (backend/plans.py recording_cost).
+ * До 30 минут — цена лекции, дальше +10 за каждые начатые 15 минут.
+ */
+export const RECORDING_BASE_SECONDS = 30 * 60;
+export const RECORDING_STEP_SECONDS = 15 * 60;
+export const RECORDING_STEP_UNITS = 10;
+/** Одна запись — не длиннее 2 часов (длиннее сервер не принимает). */
+export const RECORDING_MAX_SECONDS = 2 * 60 * 60;
+/** Записей за день: 2 часа бесплатно, 5 часов в PRO (счёт ведёт база). */
+export const RECORDING_DAILY_SECONDS = { free: 2 * 60 * 60, pro: 5 * 60 * 60 } as const;
+
+/** Единицы анализа записи такой длины: 20 до 30 минут, дальше +10 за каждые начатые 15 минут. */
+export function recordingCost(seconds: number): number {
+  const extra = Math.max(0, (Number(seconds) || 0) - RECORDING_BASE_SECONDS);
+  return AI_COSTS.lecture + RECORDING_STEP_UNITS * Math.ceil(extra / RECORDING_STEP_SECONDS);
+}
+
+/** Очень длинный текст: до 50 000 знаков — цена лекции, дальше +10 за каждые начатые 50 000 (backend/plans.py text_cost). */
+export const TEXT_BASE_CHARS = 50_000;
+export const TEXT_STEP_CHARS = 50_000;
+export const TEXT_STEP_UNITS = 10;
+
+/** Единицы анализа текста такой длины. */
+export function textCost(chars: number): number {
+  const extra = Math.max(0, Math.trunc(Number(chars) || 0) - TEXT_BASE_CHARS);
+  return AI_COSTS.lecture + TEXT_STEP_UNITS * Math.ceil(extra / TEXT_STEP_CHARS);
+}
+
 /** Дневной лимит аккаунта в единицах. */
 export function dailyUnits(isPro: boolean): number {
   return isPro ? PRO_DAILY_UNITS : FREE_DAILY_UNITS;

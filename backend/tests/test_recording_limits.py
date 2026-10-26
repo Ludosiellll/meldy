@@ -116,6 +116,14 @@ def test_a_text_costs_a_lecture_up_to_50000_characters_and_10_more_for_each_star
     assert plans.text_cost(chars) == units
 
 
+def test_the_browser_shows_the_same_recording_and_text_prices():
+    source = (Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "plans.ts").read_text(encoding="utf-8")
+    for line in ("RECORDING_BASE_SECONDS = 30 * 60;", "RECORDING_STEP_SECONDS = 15 * 60;", "RECORDING_STEP_UNITS = 10;",
+                 "RECORDING_MAX_SECONDS = 2 * 60 * 60;", "{ free: 2 * 60 * 60, pro: 5 * 60 * 60 }",
+                 "TEXT_BASE_CHARS = 50_000;", "TEXT_STEP_CHARS = 50_000;", "TEXT_STEP_UNITS = 10;"):
+        assert line in source, line
+
+
 def test_the_limits_of_recordings():
     assert plans.RECORDING_MAX_SECONDS == 7200
     assert plans.RECORDING_DAILY_SECONDS == {"free": 7200, "pro": 18000}

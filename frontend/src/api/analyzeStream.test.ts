@@ -262,7 +262,11 @@ describe('runAnalyzeStream outcomes', () => {
       });
       await vi.advanceTimersByTimeAsync(10);
       expect(settled).toBe(false);
-      await vi.advanceTimersByTimeAsync(4 * 60_000);
+      // A long recording may wait its turn and be transcribed for up to half an hour: 35 minutes in all.
+      await vi.advanceTimersByTimeAsync(28 * 60_000);
+      await vi.advanceTimersByTimeAsync(10);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(60_000);
       const error = await pending;
       expect(error).toMatchObject({ kind: 'timeout' });
     } finally {

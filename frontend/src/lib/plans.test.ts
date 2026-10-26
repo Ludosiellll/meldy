@@ -9,7 +9,11 @@ import {
   IMPORT_AI_QUESTIONS_PER_CHARGE,
   importAiCost,
   OCR_PAGES_PER_CHARGE,
+  RECORDING_DAILY_SECONDS,
+  RECORDING_MAX_SECONDS,
+  recordingCost,
   scanCost,
+  textCost,
 } from './plans';
 
 // The same numbers live in backend/plans.py (the server charges, tests/test_quota.py pins them there).
@@ -32,6 +36,17 @@ describe('plans', () => {
   it('charges the AI pass over a bank of questions by every started 100 questions sent to the model', () => {
     expect(IMPORT_AI_QUESTIONS_PER_CHARGE).toBe(100);
     expect([0, 1, 100, 101, 250, -4].map(importAiCost)).toEqual([5, 5, 5, 10, 15, 5]); // a pass costs at least 5
+  });
+
+  it('prices a recording by its length and caps it at 2 hours, 2 hours a day free and 5 in PRO', () => {
+    const minutes = [0, 10, 30, 30.02, 45, 45.5, 60, 90, 120];
+    expect(minutes.map(m => recordingCost(m * 60))).toEqual([20, 20, 20, 30, 30, 40, 40, 60, 80]);
+    expect(RECORDING_MAX_SECONDS).toBe(7200);
+    expect(RECORDING_DAILY_SECONDS).toEqual({ free: 7200, pro: 18000 });
+  });
+
+  it('prices a text over 50 000 characters by every started 50 000 more', () => {
+    expect([1, 50_000, 50_001, 100_000, 100_001, 300_000].map(textCost)).toEqual([20, 20, 30, 30, 40, 70]);
   });
 
   it('charges the recognition of a scan by every started 15 pages', () => {
