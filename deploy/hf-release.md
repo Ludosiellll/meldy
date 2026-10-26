@@ -4,6 +4,29 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-26 — Release 47.29: recordings priced and capped by their length, one long recording at a time (from the commit of this entry)
+
+- **Owner: «одним запросом можно выжрать весь лимит»** — a long recording took the shared Groq allowance (free plan:
+  7 200 s of audio an hour, 28 800 a day for the whole site) for 20 units. Now the server measures a recording before
+  anything is charged (ffmpeg copies its packets, under a second for 15 MB):
+  - price: 20 units up to 30 minutes, +10 for each started 15 minutes (90 min → 60, 2 h → 80);
+  - one recording at most 2 hours; a longer one is refused with nothing charged;
+  - a day's total per user, 2 hours free and 5 hours PRO (migration 20261026090000_recording_usage, applied before
+    this release: Supabase migrations run 27, checks recording_usage.sql and ai_quota_server.sql passed);
+  - a recording over 10 minutes waits its turn, one at a time, with its place every 10 s; at most 4 wait and one per
+    person; 15 minutes of waiting at most, then its units go back;
+  - lecture pieces use 15 Groq requests a minute, 5 stay for spoken answers; a long transcription gets up to 15 min.
+- **Long texts:** over 50 000 characters, +10 units for each started 50 000 (a file, pasted text or a page).
+- **Video links:** the refusal tells how to paste YouTube's transcript into «Текст» (its times are dropped), with a
+  button to that tab; a YouTube link is read from its subtitles only when YOUTUBE_PROXY_URL is set (off now). The
+  sound of a video is never downloaded (yt-dlp removed from the image).
+- **Upload screen:** a chosen recording shows its length and the price line counts it; over 2 hours it is stopped
+  before the start. A media analysis may take 35 minutes on the page.
+- Test: the game tip test waits for the ring on «Провести игру» and the «shown once» mark (both are set in effects
+  after the card is drawn; under a full run's load it read them too early, here and in 47.27).
+- Gate on f52c617 (clean worktree): pytest 2524, bot 393, sync ok, Docker-layout build ok; Vitest 6696 + the tip test
+  above; after its fix the full Vitest run is 412 files / 6697 passed.
+
 ## 2026-10-23 — Release 47.28: no empty band above the recorded screen in the main page's tiles (from the commit of this entry)
 
 - **Lecture and exam tiles** (owner: an empty dark band between the exam tile's words and its video): both tiles of the
