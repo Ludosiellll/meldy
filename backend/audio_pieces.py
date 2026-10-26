@@ -23,8 +23,8 @@ TARGET_SECONDS = 30.0
 WHOLE_MAX_SECONDS = 32.0
 # The last piece may run this much longer than the others rather than end in a sliver of a few seconds.
 LAST_PIECE_STRETCH = 1.15
-# The pieces of one recording: 120 take six minutes to start at Groq's 20 requests a minute (media_parser.py),
-# within the eight minutes the analysis gives a transcription (main.py). A longer recording gets longer pieces
+# The pieces of one recording: 120 take eight minutes to start at the 15 Groq requests a minute the lectures use
+# (media_parser.py), within the budget the analysis gives a long recording's transcription (main.py, up to 15 minutes). A longer recording gets longer pieces
 # instead: on average a cut lands at three quarters of the window, and a piece grows to 90 s at most.
 MAX_PIECES_DEFAULT = 120
 CUT_AVERAGE_SHARE = 0.75
@@ -122,6 +122,13 @@ def _length(log: str) -> float:
         raise FfmpegError("found no length")
     hours, minutes, seconds = found[-1]
     return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+async def probe_seconds(exe: str, path: str) -> float:
+    """The length of the recording's first audio stream in seconds, without decoding it (the packets are copied to
+    nothing, which takes well under a second for 15 MB). FfmpegError when ffmpeg cannot read the file or it has no
+    sound; the analysis prices and caps a recording by this length before any unit is charged (main.py)."""
+    return _length(await _ffmpeg(exe, "-i", path, "-map", "0:a:0", "-vn", "-c", "copy", "-f", "null", "-"))
 
 
 def _pauses(log: str, duration: float) -> list[tuple[float, float]]:

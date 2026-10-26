@@ -55,6 +55,8 @@ __all__ = [
     "Charge",
     "ChargeGroup",
     "DEMO_LECTURE_SHA256",
+    "RecordingCharge",
+    "RecordingDayLimit",
     "bind_request",
     "charge",
     "drain_background",
@@ -64,6 +66,7 @@ __all__ = [
     "kind_from_path",
     "next_reset",
     "reserve",
+    "reserve_recording",
     "scan_units",
 ]
 
@@ -587,6 +590,147 @@ class ChargeGroup:
     async def wait_refund(self) -> None:
         for item in self.charges:
             await item.wait_refund()
+
+
+# ── Секунды записей за день (миграция 20261026090000_recording_usage.sql) ──────
+
+
+RECORDING_DAY_DETAIL = (
+    "Сегодня вы уже загрузили записей на {used} из {limit}. Эта запись длится {asked} — она не помещается. "
+    "Новые записи можно будет загрузить завтра, лимит не списан."
+)
+
+
+def hours_minutes(seconds: Any) -> str:
+    """«1 ч 05 мин», «45 мин», «2 ч»: длина записи словами для отказов."""
+    total = max(0, int(math.ceil(float(seconds or 0) / 60)))
+    hours, minutes = divmod(total, 60)
+    if hours and minutes:
+        return f"{hours} ч {minutes:02d} мин"
+    if hours:
+        return f"{hours} ч"
+    return f"{minutes} мин"
+
+
+class RecordingDayLimit(AIError):
+    """429 recording_day_limit: записей за день больше, чем позволяет тариф (2 часа бесплатно, 5 часов PRO).
+
+    Единицы не списаны. В ответе — used и limit в секундах, resets_at, pro и seconds — длина этой записи.
+    """
+
+    def __init__(self, *, used: int, limit: int, seconds: int, resets_at: Optional[str], pro: bool) -> None:
+        detail = RECORDING_DAY_DETAIL.format(
+            used=hours_minutes(used), limit=hours_minutes(limit), asked=hours_minutes(seconds)
+        )
+        super().__init__(429, "recording_day_limit", detail)
+        reset = resets_at if _parse_reset(resets_at) is not None else next_reset()
+        self.extra = {"used": used, "limit": limit, "seconds": seconds, "resets_at": reset, "pro": bool(pro)}
+        self.retry_after = _seconds_until(reset)
+
+
+@dataclass
+class RecordingCharge:
+    """Секунды одной записи в дневном счёте пользователя. Ведёт себя как Charge внутри ChargeGroup (единиц у неё
+    нет): keep() — анализ отдан, секунды остаются; refund_soon() / refund() — анализ не удался или клиент ушёл,
+    секунды возвращаются (refund_recording_seconds по номеру, который видит только сервер)."""
+
+    seconds: int = 0
+    charge_id: Optional[str] = None
+    token: Optional[str] = field(default=None, repr=False)
+    units: int = 0
+    kept: bool = False
+    refunded: bool = False
+    _refund_task: Optional[asyncio.Task] = field(default=None, repr=False, compare=False)
+
+    @property
+    def reserved(self) -> bool:
+        return bool(self.charge_id) and bool(self.token) and not self.refunded
+
+    def keep(self) -> None:
+        self.kept = True
+
+    def keep_share(self, given: int, total: int) -> None:
+        self.kept = True
+
+    def refund_unpaid_soon(self) -> None:
+        # The recording was really transcribed: its seconds stay, whatever the sections' cache did.
+        self.kept = True
+
+    async def release_unkept(self) -> None:
+        if not self.kept:
+            await self.refund()
+
+    async def refund(self) -> None:
+        if self._refund_task is not None:
+            await self.wait_refund()
+            return
+        if not self.reserved:
+            return
+        self.refunded = True
+        await self._send_refund()
+
+    def refund_soon(self) -> None:
+        if not self.reserved or self._refund_task is not None:
+            return
+        self.refunded = True
+        self._refund_task = _spawn(self._send_refund())
+        if self._refund_task is None:
+            self.refunded = False
+
+    async def wait_refund(self) -> None:
+        pending = self._refund_task
+        if pending is not None and not pending.done():
+            try:
+                await asyncio.shield(pending)
+            except Exception:
+                pass
+
+    async def _send_refund(self) -> None:
+        try:
+            async with supabase_rest.SupabaseRest(self.token, timeout=QUOTA_TIMEOUT_SECONDS) as db:
+                await asyncio.wait_for(
+                    db.rpc("refund_recording_seconds", {"p_charge": self.charge_id}), timeout=QUOTA_TIMEOUT_SECONDS + 0.5
+                )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            _report_once("recording refund failed", _failure_kind(exc))
+
+
+async def reserve_recording(token: Optional[str], seconds: Any) -> RecordingCharge:
+    """Записать seconds секунд записи в дневной счёт владельца token (не больше 7200 за раз).
+
+    Не помещается в день — RecordingDayLimit (429). Сбой проверки — RecordingCharge без номера: запись разрешена,
+    вид сбоя — одна строка в журнале (fail-open, как у единиц).
+    """
+    count = min(7200, max(1, int(math.ceil(float(seconds or 0)))))
+    if not quota_enabled() or not token:
+        return RecordingCharge(seconds=count, token=token)
+    try:
+        async with supabase_rest.SupabaseRest(token, timeout=QUOTA_TIMEOUT_SECONDS) as db:
+            answer = await asyncio.wait_for(
+                db.rpc("consume_recording_seconds", {"p_seconds": count}), timeout=QUOTA_TIMEOUT_SECONDS + 0.5
+            )
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        _report_once("recording check unavailable, recording allowed", _failure_kind(exc))
+        return RecordingCharge(seconds=count, token=token)
+    if isinstance(answer, list) and len(answer) == 1:
+        answer = answer[0]
+    if not isinstance(answer, dict) or not isinstance(answer.get("allowed"), bool):
+        _report_once("recording check unavailable, recording allowed", "unexpected answer")
+        return RecordingCharge(seconds=count, token=token)
+    if not answer["allowed"]:
+        raise RecordingDayLimit(
+            used=_count(answer.get("used")),
+            limit=_count(answer.get("limit")),
+            seconds=count,
+            resets_at=answer.get("resets_at") if isinstance(answer.get("resets_at"), str) else None,
+            pro=answer.get("pro") is True,
+        )
+    charge_id = answer.get("charge_id")
+    return RecordingCharge(seconds=count, charge_id=charge_id if isinstance(charge_id, str) and charge_id else None, token=token)
 
 
 def scan_units(pages: Any) -> int:

@@ -5,8 +5,6 @@ import time
 import asyncio
 from collections import deque
 from typing import Callable, Optional
-from youtube_transcript_api import YouTubeTranscriptApi
-import yt_dlp
 from google import genai
 from google.genai import types
 import random
@@ -228,10 +226,11 @@ async def _transcribe_audio_with_groq(file_path: str, mime_type: str | None) -> 
 
 # The pieces of a long recording (above, audio_pieces.py) go to Groq as the whole file did (the models, language,
 # temperature and format above, no prompt), at most GROQ_AUDIO_CONCURRENCY at a time, and the whole process starts at
-# most GROQ_AUDIO_RPM of these requests in any 60 s: Groq's free plan allows 20 requests a minute per organization.
-# The spoken answers (stt.py, one request each) are not paced here.
+# most GROQ_AUDIO_RPM of these requests in any 60 s: Groq's free plan allows 20 requests a minute per organization, and
+# 5 of them stay free for the spoken answers (stt.py, one request each, not paced here), which would otherwise wait or
+# go to Gemini while a lecture is transcribed (2026-10-26). One long recording at a time: recording_queue.py.
 GROQ_AUDIO_CONCURRENCY_DEFAULT = 4
-GROQ_AUDIO_RPM_DEFAULT = 20
+GROQ_AUDIO_RPM_DEFAULT = 15
 GROQ_AUDIO_WINDOW_SECONDS = 60.0
 # A 429 asking for at most 30 s is waited for (10 s when Groq names no time) and the piece tried again, at most
 # twice. One asking for longer (the hourly audio allowance used up, say) sends the piece to Gemini at once, and
@@ -444,85 +443,54 @@ def extract_youtube_id(url: str) -> str:
         return match.group(1)
     return ""
 
-async def extract_youtube_transcript(youtube_url: str) -> str:
+
+# A YouTube link is read from the video's subtitles (its own or the automatic ones), never by downloading the sound:
+# that would only repeat the expensive part, the transcription, and YouTube refuses both to servers of data centres
+# («Sign in to confirm you're not a bot», live QA 2026-10-11). So the subtitles are asked for only through the proxy
+# the owner sets (YOUTUBE_PROXY_URL, a residential one; main.analyze_url refuses YouTube links without it). The subtitles
+# of an hour of talk are tens of kilobytes of text, and the analysis prices them as text (plans.text_cost).
+YOUTUBE_CAPTION_LANGUAGES = ("ru", "uk", "be", "en")
+
+
+class NoCaptions(Exception):
+    """The video has no subtitles, YouTube refused the request, or the proxy failed: the page hears the way round."""
+
+
+def youtube_proxy_url() -> str:
+    return os.getenv("YOUTUBE_PROXY_URL", "").strip()
+
+
+def _caption_text(video_id: str, proxy_url: str) -> str:
+    from youtube_transcript_api import YouTubeTranscriptApi
+    from youtube_transcript_api.proxies import GenericProxyConfig
+
+    api = YouTubeTranscriptApi(proxy_config=GenericProxyConfig(http_url=proxy_url, https_url=proxy_url))
+    listing = api.list(video_id)
+    try:
+        transcript = listing.find_transcript(list(YOUTUBE_CAPTION_LANGUAGES))
+    except Exception:
+        transcript = next(iter(listing))  # subtitles in another language: the lecture is read as it is
+    parts = []
+    for snippet in transcript.fetch():
+        text = snippet.get("text") if isinstance(snippet, dict) else getattr(snippet, "text", "")
+        text = re.sub(r"\s+", " ", str(text or "")).strip()
+        if text and not re.fullmatch(r"\[[^\]]*\]", text):  # «[Музыка]», «[Аплодисменты]»
+            parts.append(text)
+    return " ".join(parts)
+
+
+async def youtube_captions(youtube_url: str, proxy_url: str) -> str:
+    """The text of a YouTube video's subtitles through ``proxy_url``; NoCaptions when there is none or YouTube refused."""
     video_id = extract_youtube_id(youtube_url)
     if not video_id:
-        raise ValueError("Не удалось распознать ссылку на YouTube.")
-        
+        raise NoCaptions("no video id")
     try:
-        from youtube_transcript_api import YouTubeTranscriptApi
-        
-        # Поддержка разных версий библиотеки
-        try:
-            api = YouTubeTranscriptApi()
-            transcript_list = api.list(video_id)
-        except Exception:
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-            
-        try:
-            transcript = transcript_list.find_transcript(['ru', 'en', 'uk'])
-        except Exception:
-            # Если нет нужных языков, берём первую попавшуюся транскрипцию
-            transcript = next(iter(transcript_list))
-            
-        # Пытаемся перевести на русский, если язык другой
-        if not transcript.language_code.startswith('ru'):
-            try:
-                transcript = transcript.translate('ru')
-            except Exception:
-                pass
-                
-        data = transcript.fetch()
-        text_parts = []
-        for t in data:
-            if isinstance(t, dict) and 'text' in t:
-                text_parts.append(t['text'])
-            elif hasattr(t, 'text'):
-                text_parts.append(t.text)
-                
-        text = " ".join(text_parts)
-        if text.strip():
-            return text
-            
-        raise ValueError("Транскрипция оказалась пустой")
-    except Exception as e:
-        # Если субтитров нет вообще ни на одном языке
-        return await _download_and_transcribe_youtube(youtube_url)
-
-async def _download_and_transcribe_youtube(youtube_url: str) -> str:
-    temp_path = None
-    try:
-        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as temp_vid:
-            temp_path = temp_vid.name
-
-        ydl_opts = {
-            'format': 'worst[ext=mp4]', # Скачиваем в плохом качестве, чтобы сэкономить трафик
-            'outtmpl': temp_path,
-            'quiet': True,
-            'no_warnings': True,
-            'extractor_args': {'youtube': ['player_client=android,web']},
-        }
-
-        loop = asyncio.get_event_loop()
-        def download():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([youtube_url])
-                
-        await loop.run_in_executor(None, download)
-
-        return await transcribe_media_file(temp_path, "video/mp4")
-    except Exception as e:
-        error_msg = str(e)
-        if "bot" in error_msg.lower() or "sign in" in error_msg.lower():
-            raise ValueError(
-                "YouTube заблокировал скачивание с серверов платформы (защита от ботов). "
-                "Пожалуйста, скачайте это видео самостоятельно в формате MP3/MP4 (например, через любой YouTube Downloader) "
-                "и загрузите файл напрямую во вкладку 'Видео / Аудио'."
-            )
-        raise ValueError(f"Ошибка транскрибации YouTube: {error_msg}")
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
+        text = await asyncio.to_thread(_caption_text, video_id, proxy_url)
+    except Exception as exc:
+        raise NoCaptions(type(exc).__name__) from None
+    if not text.strip():
+        raise NoCaptions("empty")
+    return text
 
 def _media_generation_config(model: str) -> types.GenerateContentConfig:
     """Gemini settings for a transcript: thinking off where the model allows it (a transcript needs none,

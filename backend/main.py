@@ -50,8 +50,10 @@ import quota
 import receipts
 import supabase_rest
 from supabase_proxy import router as supabase_proxy_router
-from plans import AI_COSTS
-from utils import is_video_link, scrape_url
+from plans import AI_COSTS, RECORDING_MAX_SECONDS, recording_cost, text_cost
+import audio_pieces
+import recording_queue
+from utils import is_video_link, is_youtube_link, scrape_url, strip_transcript_times
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from bank_api import router as bank_router
@@ -403,10 +405,18 @@ NO_TEXT_IN_FILE_MESSAGE = "В файле нет текста. Если это с
 UNREADABLE_FILE_MESSAGE = "Не удалось прочитать файл. Сохраните его как PDF с текстом, DOCX или TXT и попробуйте снова."
 NO_TEXT_IN_MEDIA_MESSAGE = "Не удалось получить текст из медиа."
 NO_TEXT_AT_URL_MESSAGE = "Не удалось получить текст из веб-страницы. Проверьте ссылку или вставьте текст."
-# «Ссылка» reads the text of a page; a video page has none (utils.is_video_link). Refused before the charge.
+# «Ссылка» reads the text of a page; a video page has none (utils.is_video_link). Refused before the charge, with the
+# free way round: YouTube shows a video's subtitles as text («Показать расшифровку»), which the «Текст» tab takes as a
+# lecture (its timestamps are dropped, utils.strip_transcript_times). The same words are on the page
+# (lib/lectureFormats.ts VIDEO_LINK_MESSAGE). With YOUTUBE_PROXY_URL set, a YouTube link is read from its subtitles.
 VIDEO_LINK_DETAIL = (
-    "Ссылку на видео Meldy пока не открывает. Если запись лекции есть у вас файлом, "
-    "загрузите её во вкладке «Аудио и видео» (до 15 МБ)."
+    "Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать "
+    "расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке "
+    "«Аудио и видео» (до 15 МБ)."
+)
+NO_CAPTIONS_MESSAGE = (
+    "Не удалось взять субтитры этого видео: их нет или YouTube не ответил. Если под видео есть «Показать "
+    "расшифровку», скопируйте текст и вставьте во вкладку «Текст». Лимит не списан."
 )
 # Less text than this (letters and digits) makes no notes, cards or quiz: the stream ends with no_text
 # and the lecture's units go back. The same 200 below which a PDF counts as having no text layer
@@ -442,15 +452,55 @@ MEDIA_EXTENSIONS = RECORDING_EXTENSIONS + PHOTO_EXTENSIONS
 RECORDING_TYPES = {".mp4": "video/mp4", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".mpeg": "video/mpeg", ".m4a": "audio/mp4"}
 
 
-def media_transcribe_timeout_seconds() -> float:
-    """MEDIA_TRANSCRIBE_TIMEOUT_SECONDS, 480 by default: a long recording goes to Groq in pieces, at most 20 requests
-    a minute (media_parser.py), and the page waits up to 10 minutes for a media analysis (analyzeStream.ts
-    mediaTotalMs), which leaves the sections two."""
-    try:
-        value = float(os.getenv("MEDIA_TRANSCRIBE_TIMEOUT_SECONDS", "480") or 480)
-    except ValueError:
+def media_transcribe_timeout_seconds(seconds: Optional[float] = None) -> float:
+    """MEDIA_TRANSCRIBE_TIMEOUT_SECONDS when set; else 480 s, and for a long recording two minutes plus 0.15 s for each
+    second of audio, at most 900 s. A recording goes to Groq in at most 120 pieces, 15 requests a minute
+    (media_parser.py): eight minutes of requests for anything from an hour to the two hours a recording may last. The
+    page waits up to 35 minutes for a media analysis (analyzeStream.ts mediaTotalMs): 15 in the queue of long
+    recordings (recording_queue.py), 15 here and the sections."""
+    configured = os.getenv("MEDIA_TRANSCRIBE_TIMEOUT_SECONDS", "").strip()
+    if configured:
+        try:
+            value = float(configured)
+        except ValueError:
+            value = 0.0
+        if value > 0:
+            return value
+    if seconds is None:
         return 480.0
-    return value if value > 0 else 480.0
+    return max(480.0, min(900.0, 120.0 + 0.15 * float(seconds)))
+
+
+RECORDING_TOO_LONG_DETAIL = (
+    "Запись длится {length} — это больше 2 часов. Разрежьте её на части до 2 часов и загрузите по очереди. "
+    "Лимит не списан."
+)
+RECORDING_UNREADABLE_DETAIL = (
+    "Не удалось прочитать запись: в ней нет звука или файл повреждён. Сохраните её как MP3 или M4A и загрузите снова. "
+    "Лимит не списан."
+)
+
+
+async def _recording_seconds(content: bytes, ext: str) -> Optional[float]:
+    """The recording's length in seconds (audio_pieces.probe_seconds on a temporary copy), or None without ffmpeg (a
+    development machine: the recording then costs a lecture, as before). ffmpeg cannot read it or it has no sound:
+    AIError 400 recording_unreadable — it could not be transcribed anyway, and nothing is charged."""
+    exe = audio_pieces.ffmpeg_exe()
+    if not exe:
+        print("Recording length: no ffmpeg, the recording is priced as a lecture")
+        return None
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext or ".bin") as tmp:
+            tmp_path = tmp.name
+            tmp.write(content)
+        return await audio_pieces.probe_seconds(exe, tmp_path)
+    except audio_pieces.FfmpegError as exc:
+        print(f"Recording length: {exc}")
+        raise AIError(400, "recording_unreadable", RECORDING_UNREADABLE_DETAIL) from None
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.remove(tmp_path)
 
 
 # While a recording is transcribed in pieces, the page hears how far it got (Analyze.tsx shows a status of up to
@@ -674,6 +724,24 @@ def _from_recording(recognized: Any) -> bool:
     return recognized == "recording"
 
 
+async def _long_text_event(text: str, charge, charge_long) -> Optional[dict]:
+    """A text longer than plans.TEXT_BASE_CHARS adds its surcharge (plans.text_cost) to the stream's group; None when
+    it fits, or the ai_limit error event when the day cannot take it (the lecture's units go back with it, as with a
+    scan). The built-in demo text (a group of 0 units) stays free."""
+    extra = text_cost(len(text or "")) - AI_COSTS["lecture"]
+    if extra <= 0 or charge_long is None or charge is None or not charge.units:
+        return None
+    try:
+        spent = await charge_long(extra)
+    except quota.AILimitExceeded as exc:
+        event = exc.event()
+        event["used"] = max(0, event["used"] - charge.units)
+        event["units"] += charge.units
+        return event
+    charge.add(spent)
+    return None
+
+
 def _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type) -> dict:
     return {
         "summary_detail": summary_detail,
@@ -697,6 +765,7 @@ async def event_stream(
     *,
     charge: Optional["quota.ChargeGroup"] = None,
     charge_scan=None,
+    charge_long=None,
     owner: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream of agent progress for an uploaded document (already read by the route).
@@ -747,9 +816,15 @@ async def event_stream(
             message = PPTX_NO_TEXT_DETAIL if name.lower().endswith(".pptx") else NO_TEXT_IN_FILE_MESSAGE
             yield {"type": "error", "code": "no_text", "message": message}
             return
+        if name.lower().endswith((".txt", ".md")):
+            text = strip_transcript_times(text)
         too_little = _too_little_text_event(text, "file")
         if too_little is not None:
             yield too_little
+            return
+        refusal = await _long_text_event(text, charge, charge_long)
+        if refusal is not None:
+            yield refusal
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
         async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
@@ -792,6 +867,7 @@ async def analyze(
             ocr_key=user_or_ip_key(request),
             charge=charge,
             charge_scan=lambda units: quota.charge(request, "scanPages", units),
+            charge_long=lambda units: quota.charge(request, "lectureLong", units),
             owner=_request_user_id(request),
         )),
         media_type="text/event-stream",
@@ -801,8 +877,11 @@ async def analyze(
     )
 
 
-# extract_youtube_transcript stays unwired: YouTube asks servers to «Sign in to confirm you're not a bot» (VIDEO_LINK_DETAIL).
-from media_parser import MediaProcessingTimeout, extract_youtube_transcript, transcribe_media_file
+# A YouTube link is read from its subtitles only through the owner's proxy (media_parser.youtube_captions): YouTube asks
+# servers of data centres to «Sign in to confirm you're not a bot» (VIDEO_LINK_DETAIL).
+from media_parser import (
+    MediaProcessingTimeout, NoCaptions, transcribe_media_file, youtube_captions, youtube_proxy_url,
+)
 
 
 async def event_stream_media(
@@ -819,8 +898,13 @@ async def event_stream_media(
     *,
     charge: Optional["quota.Charge"] = None,
     owner: Optional[str] = None,
+    seconds: Optional[float] = None,
 ) -> AsyncGenerator[str, None]:
     """SSE stream for an audio, video or image file (already read by the route).
+
+    ``seconds`` is the recording's length the route measured (None for a photo, or without ffmpeg): a recording
+    longer than recording_queue.LONG_SECONDS waits its turn first, one at a time, with a status line every 10 s,
+    and its transcription gets a budget by its length.
 
     A photo of a page (JPG/PNG) is recognised by ocr.py with its bytes in the request (no temp
     file, no Files API, the OCR rate limit of ``ocr_key``); text_extracted then carries
@@ -846,11 +930,22 @@ async def event_stream_media(
                     yield _ocr_failure_event(exc)
                     return
             tmp_path = None
+            ticket = None
             try:
+                if not photo and seconds is not None and seconds > recording_queue.LONG_SECONDS:
+                    queue = recording_queue.QUEUE
+                    ticket = queue.join(seconds, owner)
+                    waited_from = time.monotonic()
+                    while not ticket.active:
+                        if time.monotonic() - waited_from >= recording_queue.MAX_WAIT_SECONDS:
+                            yield {"type": "error", "code": "queue_timeout", "message": recording_queue.TIMEOUT_MESSAGE}
+                            return
+                        yield {"type": "status", "message": queue.status(ticket)}
+                        await ticket.wait_turn(recording_queue.STATUS_EVERY_SECONDS)
                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename or "")[1].lower()) as tmp:
                     tmp_path = tmp.name
                     tmp.write(content)
-                budget = media_transcribe_timeout_seconds()
+                budget = media_transcribe_timeout_seconds(seconds)
                 updates: asyncio.Queue = asyncio.Queue()
                 transcription = asyncio.ensure_future(asyncio.wait_for(
                     transcribe_media_file(
@@ -878,6 +973,8 @@ async def event_stream_media(
                         transcription.cancel()
                         await asyncio.gather(transcription, return_exceptions=True)
             finally:
+                if ticket is not None:
+                    recording_queue.QUEUE.leave(ticket)
                 if tmp_path and os.path.exists(tmp_path):
                     os.remove(tmp_path)
         # The transcription or the recognition is never cached: a real call, part of the lecture's price.
@@ -928,7 +1025,26 @@ async def analyze_media(
     content_type = file.content_type
     if ext in RECORDING_TYPES and not (content_type or "").startswith(("audio/", "video/")):
         content_type = RECORDING_TYPES[ext]
-    charge = await quota.charge(request, "lecture", AI_COSTS["lecture"])
+    # A recording's length decides its price, its cap and its place in the queue — measured before any unit is charged
+    # (the owner, 2026-10-26: one long recording could eat the shared transcription allowance). A photo costs a lecture.
+    photo = ocr.image_mime(file.filename or "", content_type, content)
+    seconds = None if photo else await _recording_seconds(content, ext)
+    if seconds is not None and seconds > RECORDING_MAX_SECONDS:
+        raise AIError(400, "recording_too_long", RECORDING_TOO_LONG_DETAIL.format(length=quota.hours_minutes(seconds)))
+    owner = _request_user_id(request)
+    if seconds is not None and seconds > recording_queue.LONG_SECONDS:
+        refusal = recording_queue.QUEUE.refusal(owner)
+        if refusal:
+            raise AIError(429, "recording_queue_full", refusal)
+    recording = await quota.reserve_recording(quota.request_token(request), seconds) if seconds is not None else None
+    try:
+        lecture = await quota.charge(request, "lecture", recording_cost(seconds) if seconds is not None else AI_COSTS["lecture"])
+    except BaseException:
+        if recording is not None:
+            await recording.refund()
+        raise
+    # The recording's seconds go back with the units when no results come (the stream's ChargeGroup).
+    charge = quota.ChargeGroup(lecture, *([recording] if recording is not None else []))
 
     return StreamingResponse(
         with_keepalive(event_stream_media(
@@ -936,7 +1052,8 @@ async def analyze_media(
             summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             ocr_key=user_or_ip_key(request),
             charge=charge,
-            owner=_request_user_id(request),
+            owner=owner,
+            seconds=seconds,
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,
@@ -954,24 +1071,40 @@ async def event_stream_url(
     quiz_type: str = "multiple",
     enabled_agents: Optional[str] = None,
     *,
-    charge: Optional["quota.Charge"] = None,
+    charge: Optional["quota.ChargeGroup"] = None,
+    charge_long=None,
     owner: Optional[str] = None,
+    captions_proxy: Optional[str] = None,
 ) -> AsyncGenerator[str, None]:
+    """SSE stream for a link: the page's text, or with ``captions_proxy`` a YouTube video's subtitles."""
     async def events():
-        yield {"type": "status", "message": "Открываем страницу и забираем текст…"}
-        try:
-            text = await scrape_url(url)
-        except Exception as exc:
-            error_id = uuid.uuid4().hex[:12]
-            print(f"URL fetch failed [{error_id}]: {type(exc).__name__}: {exc}")
-            telemetry_api.report_server_error("url_fetch", error_id, exc)
-            text = ""
+        if captions_proxy:
+            yield {"type": "status", "message": "Берём субтитры видео…"}
+            try:
+                text = await youtube_captions(url, captions_proxy)
+            except NoCaptions as exc:
+                print(f"YouTube captions: none ({exc})")
+                yield {"type": "error", "code": "no_text", "message": NO_CAPTIONS_MESSAGE}
+                return
+        else:
+            yield {"type": "status", "message": "Открываем страницу и забираем текст…"}
+            try:
+                text = await scrape_url(url)
+            except Exception as exc:
+                error_id = uuid.uuid4().hex[:12]
+                print(f"URL fetch failed [{error_id}]: {type(exc).__name__}: {exc}")
+                telemetry_api.report_server_error("url_fetch", error_id, exc)
+                text = ""
         if not text or not text.strip():
             yield {"type": "error", "code": "no_text", "message": NO_TEXT_AT_URL_MESSAGE}
             return
         too_little = _too_little_text_event(text, "url")
         if too_little is not None:
             yield too_little
+            return
+        refusal = await _long_text_event(text, charge, charge_long)
+        if refusal is not None:
+            yield refusal
             return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
         async for event in _analysis_events(text, settings, enabled_agents, owner=owner):
@@ -996,18 +1129,25 @@ async def analyze_url(
 ):
     if not url or not url.strip():
         raise HTTPException(status_code=400, detail="Укажите корректный URL-адрес.")
+    captions_proxy = None
     if is_video_link(url):
         # Before the charge and the fetch: a video page has no text to read (the scraped YouTube chrome
-        # was analysed for 20 units, live QA 2026-10-11).
-        raise HTTPException(status_code=400, detail=VIDEO_LINK_DETAIL)
+        # was analysed for 20 units, live QA 2026-10-11). A YouTube video's subtitles are read only through the
+        # owner's proxy (media_parser.youtube_captions); every other video link is refused.
+        captions_proxy = youtube_proxy_url() if is_youtube_link(url) else ""
+        if not captions_proxy:
+            raise HTTPException(status_code=400, detail=VIDEO_LINK_DETAIL)
     _require_ai_configured()
-    charge = await quota.charge(request, "lecture", AI_COSTS["lecture"])
+    # A long page or long subtitles add their surcharge (plans.text_cost) to the group inside the stream.
+    charge = quota.ChargeGroup(await quota.charge(request, "lecture", AI_COSTS["lecture"]))
 
     return StreamingResponse(
         with_keepalive(event_stream_url(
             url.strip(), summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type, enabled_agents,
             charge=charge,
+            charge_long=lambda units: quota.charge(request, "lectureLong", units),
             owner=_request_user_id(request),
+            captions_proxy=captions_proxy or None,
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,

@@ -51,6 +51,37 @@ def import_ai_cost(questions: int) -> int:
 # Распознавание скана: AI_COSTS["scanPages"] за каждые начатые столько страниц (кусок ocr.py).
 OCR_PAGES_PER_CHARGE = 15
 
+# Запись лекции (владелец 2026-10-26: «одним запросом можно выжрать весь лимит»). Узкое место — общий бесплатный
+# запас распознавания речи Groq на весь сайт (7 200 с аудио в час, 28 800 в день): длина записи меряется до
+# списания, и цена растёт с ней. До RECORDING_BASE_SECONDS — цена лекции, дальше RECORDING_STEP_UNITS за каждые
+# начатые RECORDING_STEP_SECONDS. Одна запись — не длиннее RECORDING_MAX_SECONDS; за день — не больше
+# RECORDING_DAILY_SECONDS (бесплатно / PRO; считает база, recording_charges).
+RECORDING_BASE_SECONDS = 30 * 60
+RECORDING_STEP_SECONDS = 15 * 60
+RECORDING_STEP_UNITS = 10
+RECORDING_MAX_SECONDS = 2 * 60 * 60
+RECORDING_DAILY_SECONDS = {"free": 2 * 60 * 60, "pro": 5 * 60 * 60}
+
+# Очень длинный текст (вставленный, из файла или со страницы): до TEXT_BASE_CHARS — цена лекции, дальше
+# TEXT_STEP_UNITS за каждые начатые TEXT_STEP_CHARS. Модель читает текст лекции целиком в каждом разделе.
+TEXT_BASE_CHARS = 50_000
+TEXT_STEP_CHARS = 50_000
+TEXT_STEP_UNITS = 10
+
+
+def recording_cost(seconds) -> int:
+    """Единицы анализа записи такой длины: 20 до 30 минут, дальше +10 за каждые начатые 15 минут."""
+    length = max(0.0, float(seconds or 0))
+    extra = max(0.0, length - RECORDING_BASE_SECONDS)
+    return AI_COSTS["lecture"] + RECORDING_STEP_UNITS * math.ceil(extra / RECORDING_STEP_SECONDS)
+
+
+def text_cost(chars) -> int:
+    """Единицы анализа текста такой длины: 20 до 50 000 знаков, дальше +10 за каждые начатые 50 000."""
+    count = max(0, int(chars or 0))
+    extra = max(0, count - TEXT_BASE_CHARS)
+    return AI_COSTS["lecture"] + TEXT_STEP_UNITS * math.ceil(extra / TEXT_STEP_CHARS)
+
 
 def exam_mapping_cost(questions: int) -> int:
     """Единицы сверки списка: 10 за каждые начатые 40 вопросов, которые уходят модели."""

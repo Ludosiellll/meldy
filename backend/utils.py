@@ -1140,6 +1140,59 @@ def is_video_link(url: str) -> bool:
     return False
 
 
+_YOUTUBE_HOSTS = ("youtube.com", "youtube-nocookie.com", "youtu.be")
+
+
+def is_youtube_link(url: str) -> bool:
+    """A link to a YouTube video (whose subtitles main.analyze_url may read through the owner's proxy)."""
+    text = (url or "").strip()
+    if not re.match(r"^[a-z][a-z0-9+.-]*://", text, re.IGNORECASE):
+        text = "https://" + text
+    try:
+        hostname = (urlparse(text).hostname or "").rstrip(".").lower()
+    except ValueError:
+        return False
+    return bool(hostname) and any(_host_matches(hostname, domain) for domain in _YOUTUBE_HOSTS)
+
+
+# A YouTube transcript pasted into «Текст» («Показать расшифровку», VIDEO_LINK_DETAIL in main.py) comes as a time on a
+# line of its own and the words on the next («0:00» / «Итак, сегодня…»), or both on one line («0:00 Итак…»), sometimes
+# with «2 минуты, 5 секунд» spelled out for screen readers. The times are not the lecture: they would end up in the
+# fragments and the summary. When they make at least a quarter of the lines (and at least 10 of them), they are dropped
+# and the words joined into paragraphs of about TRANSCRIPT_PARAGRAPH_CHARS.
+_TIME_LINE_RE = re.compile(r"^\s*\d{1,2}:\d{2}(?::\d{2})?\s*$")
+_TIME_PREFIX_RE = re.compile(r"^\s*\d{1,2}:\d{2}(?::\d{2})?\s+(?=\S)")
+_SPOKEN_TIME_RE = re.compile(
+    r"^\s*(?:\d+\s+(?:час(?:а|ов)?|минут[аы]?|секунд[аы]?)[,\s]*)+$", re.IGNORECASE
+)
+TRANSCRIPT_PARAGRAPH_CHARS = 900
+
+
+def strip_transcript_times(text: str) -> str:
+    """The text without a pasted transcript's times (above); any other text comes back unchanged."""
+    lines = [line for line in (text or "").splitlines() if line.strip()]
+    if not lines:
+        return text
+    timed = [line for line in lines if _TIME_LINE_RE.match(line) or _TIME_PREFIX_RE.match(line)]
+    if len(timed) < 10 or len(timed) * 4 < len(lines):
+        return text
+    words: list[str] = []
+    for line in lines:
+        if _TIME_LINE_RE.match(line) or _SPOKEN_TIME_RE.match(line):
+            continue
+        words.append(_TIME_PREFIX_RE.sub("", line).strip())
+    paragraphs: list[str] = []
+    current = ""
+    for piece in words:
+        current = f"{current} {piece}".strip()
+        if len(current) >= TRANSCRIPT_PARAGRAPH_CHARS and re.search(r"[.!?…]$", current):
+            paragraphs.append(current)
+            current = ""
+    if current:
+        paragraphs.append(current)
+    return "\n\n".join(paragraphs)
+
+
 # The text of a web page (scrape_url) as a lecture. The Jina Reader answers in Markdown: its own header,
 # links as [text](%-encoded address), images, the infobox as a table, «[↑]» back-links and the reference
 # lists. Live QA 2026-10-11: a short Wikipedia article came out as 89 532 characters («около 112 мин» of

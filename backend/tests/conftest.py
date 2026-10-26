@@ -30,6 +30,29 @@ def _no_resting_pairs_or_heavy_line(monkeypatch):
     ai_base.reset_heavy_line()
 
 
+@pytest.fixture(autouse=True)
+def _recordings_ten_minutes_long(monkeypatch, request):
+    """A test's «recording» is a few bytes that ffmpeg cannot read: analyze_media measures every recording as 10 minutes
+    (the price of a lecture, no queue) unless the test asks for ``real_recording_length``. The queue of long recordings
+    (recording_queue.py) starts empty in every test."""
+    import audio_pieces
+    import recording_queue
+
+    monkeypatch.setattr(recording_queue, "QUEUE", recording_queue.RecordingQueue())
+    if "real_recording_length" in request.fixturenames:
+        return
+
+    async def ten_minutes(exe, path):
+        return 600.0
+
+    monkeypatch.setattr(audio_pieces, "probe_seconds", ten_minutes)
+
+
+@pytest.fixture
+def real_recording_length():
+    """analyze_media measures the uploaded recording with ffmpeg, as in production."""
+
+
 @pytest.fixture
 def quota_on(monkeypatch):
     """The daily limit and the call log as in production (tests mock PostgREST themselves)."""

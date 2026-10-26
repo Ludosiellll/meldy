@@ -79,7 +79,8 @@ def api(monkeypatch):
     yield TestClient(main.app)
     BaseAgent._run_cache.clear()
 VIDEO_LINK_DETAIL = (
-    "Ссылку на видео Meldy пока не открывает. Если запись лекции есть у вас файлом, загрузите её во вкладке "
+    "Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать "
+    "расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке "
     "«Аудио и видео» (до 15 МБ)."
 )
 
@@ -122,6 +123,8 @@ def test_pages_of_text_are_not_video_links(url):
 
 def test_a_video_link_is_refused_before_any_charge_or_fetch(api, monkeypatch):
     import main
+
+    monkeypatch.delenv("YOUTUBE_PROXY_URL", raising=False)
 
     fetched, charged = [], []
 

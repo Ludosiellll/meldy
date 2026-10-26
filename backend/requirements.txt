@@ -10,7 +10,6 @@ python-pptx==1.0.2
 aiofiles==25.1.0
 pydantic==2.14.1
 youtube-transcript-api==1.2.4
-yt-dlp==2026.8.19
 slowapi==0.1.10
 httpx==0.28.1
 pywebpush==2.5.0

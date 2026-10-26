@@ -309,7 +309,9 @@ def test_media_temp_file_is_removed_after_transcription(api, monkeypatch):
     assert kinds(items)[:3] == ["status", "text_extracted", "grounding"]
     assert kinds(items)[-2:] == ["results", "done"]
     assert seen == {"exists": True, "mime": "audio/mpeg"}
-    assert len(created) == 1 and not os.path.exists(created[0])
+    # Two copies: the route measures the recording's length on its own before the charge, the stream transcribes the
+    # other. Neither is left.
+    assert len(created) == 2 and not any(os.path.exists(path) for path in created)
 
 
 def test_media_transcription_timeout_is_a_readable_error_event(api, monkeypatch):
