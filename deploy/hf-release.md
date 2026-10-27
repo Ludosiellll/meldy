@@ -4,6 +4,23 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-27 — Release 47.30: YouTube lectures by link, for free (from the commit of this entry)
+
+- **Owner: «нужно сделать что-то с получением субтитров, но бесплатно»** (YouTube rules set aside: a demo project).
+  YouTube refuses its subtitles and sound to data centres: youtube-transcript-api gets RequestBlocked, a caption
+  track's address from the watch page comes back empty, and after a few requests the watch page itself becomes the
+  «unusual traffic» page (all checked 27.10 from a cloud machine). Now Gemini takes the video by its YouTube address
+  and Google fetches it (free tier: up to 8 hours of YouTube video a day): backend/youtube_video.py writes the speech
+  down in 15-minute clips, three at a time, a low-resolution frame every 10 s; the text is a recording's
+  (transcribed: true, «Текст распознан из записи»). With YOUTUBE_PROXY_URL set, subtitles are tried first.
+- **Length before the charge:** the upload screen reads the video's length and title from YouTube's own embedded
+  player in the user's browser (youtube-nocookie.com, already in frame-src; lib/youtubeVideo.ts), else asks the
+  server (/api/youtube/info, the watch page). The video is priced, capped at 2 hours and counted in the day's
+  recordings as a recording of that length; every clip has its bounds, so a length said too short only writes that
+  much down. Under the link: the title, «48 мин · 40 единиц», what will happen; over 2 hours, or a closed, unlisted or
+  live video — why not, with «Открыть «Текст»» for the transcript where it helps. Other video sites are still refused.
+- Gate on 8af30b5 (clean worktree): pytest 2583, bot 393, sync ok, Vitest 413 files / 6718, Docker-layout build ok.
+
 ## 2026-10-26 — Release 47.29: recordings priced and capped by their length, one long recording at a time (from the commit of this entry)
 
 - **Owner: «одним запросом можно выжрать весь лимит»** — a long recording took the shared Groq allowance (free plan:
