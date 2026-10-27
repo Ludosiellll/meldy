@@ -1,5 +1,6 @@
-"""A long text costs more (plans.text_cost) and a video link is read only from YouTube's subtitles through the owner's
-proxy (2026-10-26). A pasted YouTube transcript loses its times. Supabase is the in-memory QuotaServer of test_quota.py.
+"""A long text costs more (plans.text_cost) and a pasted YouTube transcript loses its times (2026-10-26); YouTube's
+subtitles through the owner's proxy are read as text. A YouTube link itself: test_youtube_video.py. Supabase is the
+in-memory QuotaServer of test_quota.py.
 """
 import json
 import sys
@@ -121,44 +122,6 @@ def test_youtube_links_are_known():
         assert is_youtube_link(url)
     for url in ("https://rutube.ru/video/1/", "https://vk.com/video-1_2", "https://example.com/youtube.com"):
         assert not is_youtube_link(url)
-
-
-def test_with_the_proxy_a_youtube_link_is_read_from_its_subtitles(api, monkeypatch):
-    seen = []
-
-    async def captions(url, proxy):
-        seen.append((url, proxy))
-        return long_text(3000)
-
-    monkeypatch.setenv("YOUTUBE_PROXY_URL", "http://proxy.invalid:8000")
-    monkeypatch.setattr(api.main, "youtube_captions", captions)
-    api.answer_with(SUMMARY)
-    response = api.post("/api/analyze/url", data={"url": "https://youtu.be/dQw4w9WgXcQ",
-                                                  "enabled_agents": json.dumps(["summarizer"])})
-    items = events(response)
-    assert items[0] == {"type": "status", "message": "Берём субтитры видео…"} and items[-1]["type"] == "done"
-    assert seen == [("https://youtu.be/dQw4w9WgXcQ", "http://proxy.invalid:8000")]
-    assert api.server.used == 20
-
-
-def test_without_subtitles_the_link_ends_with_the_way_round_and_costs_nothing(api, monkeypatch):
-    async def captions(url, proxy):
-        raise media_parser.NoCaptions("TranscriptsDisabled")
-
-    monkeypatch.setenv("YOUTUBE_PROXY_URL", "http://proxy.invalid:8000")
-    monkeypatch.setattr(api.main, "youtube_captions", captions)
-    response = api.post("/api/analyze/url", data={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
-    last = events(response)[-1]
-    assert last == {"type": "error", "code": "no_text", "message": api.main.NO_CAPTIONS_MESSAGE}
-    run(quota.drain_background())
-    assert api.server.used == 0
-
-
-def test_with_the_proxy_other_video_hosts_are_still_refused_before_the_charge(api, monkeypatch):
-    monkeypatch.setenv("YOUTUBE_PROXY_URL", "http://proxy.invalid:8000")
-    response = api.post("/api/analyze/url", data={"url": "https://rutube.ru/video/abc/"})
-    assert response.status_code == 400 and response.json() == {"detail": api.main.VIDEO_LINK_DETAIL}
-    assert api.server.calls == []
 
 
 def test_the_subtitles_skip_sound_marks_and_join_the_lines(monkeypatch):

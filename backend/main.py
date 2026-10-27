@@ -54,6 +54,7 @@ from plans import AI_COSTS, RECORDING_MAX_SECONDS, recording_cost, text_cost
 import audio_pieces
 import recording_queue
 from utils import is_video_link, is_youtube_link, scrape_url, strip_transcript_times
+import youtube_video
 from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from bank_api import router as bank_router
@@ -405,18 +406,29 @@ NO_TEXT_IN_FILE_MESSAGE = "В файле нет текста. Если это с
 UNREADABLE_FILE_MESSAGE = "Не удалось прочитать файл. Сохраните его как PDF с текстом, DOCX или TXT и попробуйте снова."
 NO_TEXT_IN_MEDIA_MESSAGE = "Не удалось получить текст из медиа."
 NO_TEXT_AT_URL_MESSAGE = "Не удалось получить текст из веб-страницы. Проверьте ссылку или вставьте текст."
-# «Ссылка» reads the text of a page; a video page has none (utils.is_video_link). Refused before the charge, with the
-# free way round: YouTube shows a video's subtitles as text («Показать расшифровку»), which the «Текст» tab takes as a
-# lecture (its timestamps are dropped, utils.strip_transcript_times). The same words are on the page
-# (lib/lectureFormats.ts VIDEO_LINK_MESSAGE). With YOUTUBE_PROXY_URL set, a YouTube link is read from its subtitles.
+# «Ссылка» reads the text of a page; a video page has none (utils.is_video_link). A YouTube video is written down by
+# Gemini from its address (youtube_video.py) and priced as a recording of its length; any other video link is refused
+# before the charge. The same words are on the page (lib/lectureFormats.ts VIDEO_LINK_MESSAGE).
 VIDEO_LINK_DETAIL = (
-    "Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать "
-    "расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке "
+    "Видео Meldy разбирает только по ссылке на YouTube. Запись лекции с другого сайта скачайте и загрузите во вкладке "
     "«Аудио и видео» (до 15 МБ)."
 )
+# The way round when a YouTube video cannot be written down: its subtitles as text («Показать расшифровку»), which the
+# «Текст» tab takes as a lecture (its timestamps are dropped, utils.strip_transcript_times).
+TRANSCRIPT_WAY_ROUND = (
+    "Если под видео есть «Показать расшифровку», скопируйте текст и вставьте во вкладку «Текст»."
+)
+YOUTUBE_UNAVAILABLE_DETAILS = {
+    "no_id": "В ссылке нет видео. Откройте видео на YouTube и скопируйте ссылку из адресной строки или кнопки "
+             "«Поделиться».",
+    "unavailable": "Это видео недоступно: оно закрыто, удалено или ограничено. Проверьте ссылку.",
+    "unlisted": "Это видео открыто только по ссылке, а Meldy разбирает только открытые видео. " + TRANSCRIPT_WAY_ROUND,
+    "live": "Это прямая трансляция. Meldy разберёт её запись, когда трансляция закончится.",
+    "unreadable": "YouTube не показал это видео. Проверьте ссылку или попробуйте через минуту. " + TRANSCRIPT_WAY_ROUND,
+}
+VIDEO_TOO_LONG_DETAIL = "Видео длится {length} — Meldy разбирает видео до 2 часов. Лимит не списан."
 NO_CAPTIONS_MESSAGE = (
-    "Не удалось взять субтитры этого видео: их нет или YouTube не ответил. Если под видео есть «Показать "
-    "расшифровку», скопируйте текст и вставьте во вкладку «Текст». Лимит не списан."
+    "Не удалось записать речь из этого видео. " + TRANSCRIPT_WAY_ROUND + " Лимит не списан."
 )
 # Less text than this (letters and digits) makes no notes, cards or quiz: the stream ends with no_text
 # and the lecture's units go back. The same 200 below which a PDF counts as having no text layer
@@ -877,8 +889,8 @@ async def analyze(
     )
 
 
-# A YouTube link is read from its subtitles only through the owner's proxy (media_parser.youtube_captions): YouTube asks
-# servers of data centres to «Sign in to confirm you're not a bot» (VIDEO_LINK_DETAIL).
+# A YouTube video is written down by Gemini from its address (youtube_video.py); with YOUTUBE_PROXY_URL set its
+# subtitles are tried first (media_parser.youtube_captions: YouTube refuses them to data centres without a proxy).
 from media_parser import (
     MediaProcessingTimeout, NoCaptions, transcribe_media_file, youtube_captions, youtube_proxy_url,
 )
@@ -1074,18 +1086,20 @@ async def event_stream_url(
     charge: Optional["quota.ChargeGroup"] = None,
     charge_long=None,
     owner: Optional[str] = None,
-    captions_proxy: Optional[str] = None,
+    video: Optional[youtube_video.VideoInfo] = None,
 ) -> AsyncGenerator[str, None]:
-    """SSE stream for a link: the page's text, or with ``captions_proxy`` a YouTube video's subtitles."""
+    """SSE stream for a link: the page's text, or for a YouTube ``video`` its speech (_video_text_events), whose text is
+    a recording's (transcribed: true) and is priced by the video's length, not by its characters."""
     async def events():
-        if captions_proxy:
-            yield {"type": "status", "message": "Берём субтитры видео…"}
-            try:
-                text = await youtube_captions(url, captions_proxy)
-            except NoCaptions as exc:
-                print(f"YouTube captions: none ({exc})")
-                yield {"type": "error", "code": "no_text", "message": NO_CAPTIONS_MESSAGE}
+        extracted: Optional[dict] = None
+        if video is not None:
+            result: dict = {}
+            async for event in _video_text_events(video, result):
+                yield event
+            text = result.get("text")
+            if text is None:
                 return
+            extracted = {"transcribed": True}
         else:
             yield {"type": "status", "message": "Открываем страницу и забираем текст…"}
             try:
@@ -1096,23 +1110,89 @@ async def event_stream_url(
                 telemetry_api.report_server_error("url_fetch", error_id, exc)
                 text = ""
         if not text or not text.strip():
-            yield {"type": "error", "code": "no_text", "message": NO_TEXT_AT_URL_MESSAGE}
+            yield {"type": "error", "code": "no_text", "message": NO_CAPTIONS_MESSAGE if video else NO_TEXT_AT_URL_MESSAGE}
             return
-        too_little = _too_little_text_event(text, "url")
+        too_little = _too_little_text_event(text, "recording" if video else "url")
         if too_little is not None:
             yield too_little
             return
-        refusal = await _long_text_event(text, charge, charge_long)
-        if refusal is not None:
-            yield refusal
-            return
+        if video is None:
+            refusal = await _long_text_event(text, charge, charge_long)
+            if refusal is not None:
+                yield refusal
+                return
         settings = _analysis_settings(summary_detail, flashcard_count, quiz_count, quiz_difficulty, quiz_type)
-        async for event in _analysis_events(text, settings, enabled_agents, owner=owner):
+        async for event in _analysis_events(text, settings, enabled_agents, extracted, owner=owner):
             yield event
 
     async with contextlib.aclosing(_guarded(events(), "URL analysis", charge)) as frames:
         async for chunk in frames:
             yield chunk
+
+
+async def _video_text_events(video: youtube_video.VideoInfo, result: dict) -> AsyncGenerator[dict, None]:
+    """Status events while the video's speech is written down; ``result["text"]`` is set when it was (else an error
+    event was the last one). The subtitles through YOUTUBE_PROXY_URL first when it is set, then Gemini by the video's
+    address, clip by clip, with «Распознаём запись: N из M мин» as the clips come."""
+    proxy = youtube_proxy_url()
+    if proxy:
+        yield {"type": "status", "message": "Берём субтитры видео…"}
+        try:
+            result["text"] = await youtube_captions(video.url, proxy)
+            return
+        except NoCaptions as exc:
+            print(f"YouTube captions: none ({exc}), Gemini writes the speech down")
+    yield {"type": "status", "message": "Смотрим видео и записываем речь. Это может занять несколько минут."}
+    budget = media_transcribe_timeout_seconds(video.seconds)
+    updates: asyncio.Queue = asyncio.Queue()
+    transcription = asyncio.ensure_future(asyncio.wait_for(
+        youtube_video.transcribe(
+            video,
+            progress=lambda done, total: updates.put_nowait((done, total)),
+            deadline=time.monotonic() + budget,
+        ),
+        timeout=budget,
+    ))
+    try:
+        async for status in _transcription_progress(transcription, updates):
+            yield status
+        result["text"] = transcription.result()
+    except (asyncio.TimeoutError, MediaProcessingTimeout):
+        yield {"type": "error", "code": "timeout", "message": MEDIA_TIMEOUT_MESSAGE}
+    except AIError as exc:
+        if exc.status_code != 429:
+            raise
+        yield {"type": "error", "code": "busy", "message": MEDIA_BUSY_MESSAGE}
+    except ValueError as exc:
+        print(f"YouTube video {video.video_id}: not written down ({str(exc)[:300]})")
+        yield {"type": "error", "code": "no_text", "message": NO_CAPTIONS_MESSAGE}
+    finally:
+        if not transcription.done():
+            transcription.cancel()
+            await asyncio.gather(transcription, return_exceptions=True)
+
+
+async def _youtube_video(url: str, seconds: Optional[str] = None) -> youtube_video.VideoInfo:
+    """The video of a YouTube link with the length the page read from YouTube's player (``seconds``), else from the
+    watch page; or 400 youtube_unavailable before any charge."""
+    told = youtube_video.info_from_length(url, seconds)
+    if told is not None:
+        return told
+    try:
+        return await youtube_video.video_info(url)
+    except youtube_video.VideoUnavailable as exc:
+        print(f"YouTube link refused: {exc.reason}")
+        detail = YOUTUBE_UNAVAILABLE_DETAILS.get(exc.reason, YOUTUBE_UNAVAILABLE_DETAILS["unreadable"])
+        raise AIError(400, "youtube_unavailable", detail) from None
+
+
+@app.get("/api/youtube/info")
+@limiter.limit("20/minute", key_func=user_or_ip_key)
+async def youtube_info(request: Request, url: str = ""):
+    """The length, title and price of a YouTube video before the start: the page shows them under the link and stops
+    a video over 2 hours (UploadZone.tsx), as it does a recording."""
+    video = await _youtube_video(url)
+    return {"seconds": video.seconds, "title": video.title, "units": recording_cost(video.seconds)}
 
 
 @app.post("/api/analyze/url")
@@ -1126,20 +1206,35 @@ async def analyze_url(
     quiz_difficulty: str = Form("mixed"),
     quiz_type: str = Form("multiple"),
     enabled_agents: Optional[str] = Form(None),
+    video_seconds: Optional[str] = Form(None),
 ):
     if not url or not url.strip():
         raise HTTPException(status_code=400, detail="Укажите корректный URL-адрес.")
-    captions_proxy = None
-    if is_video_link(url):
+    youtube = is_youtube_link(url)
+    if is_video_link(url) and not youtube:
         # Before the charge and the fetch: a video page has no text to read (the scraped YouTube chrome
-        # was analysed for 20 units, live QA 2026-10-11). A YouTube video's subtitles are read only through the
-        # owner's proxy (media_parser.youtube_captions); every other video link is refused.
-        captions_proxy = youtube_proxy_url() if is_youtube_link(url) else ""
-        if not captions_proxy:
-            raise HTTPException(status_code=400, detail=VIDEO_LINK_DETAIL)
+        # was analysed for 20 units, live QA 2026-10-11); Gemini takes only YouTube's addresses.
+        raise HTTPException(status_code=400, detail=VIDEO_LINK_DETAIL)
     _require_ai_configured()
-    # A long page or long subtitles add their surcharge (plans.text_cost) to the group inside the stream.
-    charge = quota.ChargeGroup(await quota.charge(request, "lecture", AI_COSTS["lecture"]))
+    video = None
+    if youtube:
+        # A YouTube video is a recording: its length (from YouTube's player in the page, else the watch page) prices it,
+        # caps it at 2 hours and goes into the day's total of recordings, all before any unit is charged (the owner,
+        # 2026-10-26 and 2026-10-27).
+        video = await _youtube_video(url, video_seconds)
+        if video.seconds > RECORDING_MAX_SECONDS:
+            raise AIError(400, "recording_too_long", VIDEO_TOO_LONG_DETAIL.format(length=quota.hours_minutes(video.seconds)))
+    if video is not None:
+        recording = await quota.reserve_recording(quota.request_token(request), video.seconds)
+        try:
+            lecture = await quota.charge(request, "lecture", recording_cost(video.seconds))
+        except BaseException:
+            await recording.refund()
+            raise
+        charge = quota.ChargeGroup(lecture, recording)
+    else:
+        # A long page adds its surcharge (plans.text_cost) to the group inside the stream.
+        charge = quota.ChargeGroup(await quota.charge(request, "lecture", AI_COSTS["lecture"]))
 
     return StreamingResponse(
         with_keepalive(event_stream_url(
@@ -1147,7 +1242,7 @@ async def analyze_url(
             charge=charge,
             charge_long=lambda units: quota.charge(request, "lectureLong", units),
             owner=_request_user_id(request),
-            captions_proxy=captions_proxy or None,
+            video=video,
         )),
         media_type="text/event-stream",
         headers=SSE_HEADERS,

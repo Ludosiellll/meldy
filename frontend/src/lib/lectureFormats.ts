@@ -95,13 +95,14 @@ export function unreadableFileMessage(file: { name: string; type?: string }, tab
 }
 
 /**
- * A link to a video host. Meldy reads the text of a page, and a video's page has none worth a summary (live QA
- * 2026-10-11: a YouTube link was taken silently, spent the units and made a «конспект» of the page's frame). The
- * server refuses the same links with the same words (backend utils.is_video_link): keep the two lists in step, or a
- * link passes here and is refused only after the start.
+ * A link to a video host other than YouTube. Meldy reads the text of a page, and a video's page has none worth a summary
+ * (live QA 2026-10-11: a YouTube link was taken silently, spent the units and made a «конспект» of the page's frame); a
+ * YouTube video is written down by Gemini from its address (lib/youtubeVideo, since 2026-10-27). The server refuses
+ * the same links with the same words (backend utils.is_video_link, main.VIDEO_LINK_DETAIL): keep the two in step, or
+ * a link passes here and is refused only after the start.
  */
 export const VIDEO_LINK_MESSAGE =
-  'Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке «Аудио и видео» (до 15 МБ).';
+  'Видео Meldy разбирает только по ссылке на YouTube. Запись лекции с другого сайта скачайте и загрузите во вкладке «Аудио и видео» (до 15 МБ).';
 
 /** Hosts all of whose pages are videos. */
 const VIDEO_HOSTS = ['youtube.com', 'youtube-nocookie.com', 'youtu.be', 'rutube.ru', 'vkvideo.ru', 'vimeo.com', 'tiktok.com'];

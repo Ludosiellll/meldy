@@ -5,11 +5,19 @@ import UploadZone, { type UploadOptions, type UploadTab } from './UploadZone';
 import { DEFAULT_SETTINGS } from '../types';
 import { DEMO_TEXT } from '../data/demo';
 import { mediaDuration } from '../lib/mediaDuration';
+import { measureYoutubeVideo, serverYoutubeInfo } from '../lib/youtubeVideo';
 
 // jsdom reads no media: a recording's length is what a test says (null — the browser could not read it).
 vi.mock('../lib/mediaDuration', async original => ({
   ...(await original<typeof import('../lib/mediaDuration')>()),
   mediaDuration: vi.fn(async () => null),
+}));
+
+// jsdom plays no YouTube: the player's reading of a video, and the server's, are what a test says (null: not read).
+vi.mock('../lib/youtubeVideo', async original => ({
+  ...(await original<typeof import('../lib/youtubeVideo')>()),
+  measureYoutubeVideo: vi.fn(async () => null),
+  serverYoutubeInfo: vi.fn(async () => ({ ok: false, message: 'Не удалось узнать длину видео.' })),
 }));
 
 type UploadCall = [File | null, string | undefined, UploadOptions | undefined];
@@ -62,7 +70,9 @@ function Harness({
 
 const textarea = () => screen.getByLabelText('Текст лекции или конспекта') as HTMLTextAreaElement;
 const startButton = () =>
-  screen.getByRole('button', { name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Вставьте ссылку|Ссылку на видео не открыть|Запускаем/ });
+  screen.getByRole('button', {
+    name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Вставьте ссылку|Ссылку на видео не открыть|Узнаём длину видео|Видео не разобрать|Запускаем/,
+  });
 const lecture = (length: number) => `Лекция 3. Эластичность спроса\n${'а'.repeat(Math.max(0, length - 30))}`;
 
 afterEach(cleanup);
@@ -298,21 +308,17 @@ describe('UploadZone lecture formats', () => {
 
 describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
   const VIDEO_NOTE =
-    'Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке «Аудио и видео» (до 15 МБ).';
+    'Видео Meldy разбирает только по ссылке на YouTube. Запись лекции с другого сайта скачайте и загрузите во вкладке «Аудио и видео» (до 15 МБ).';
   const urlField = () => screen.getByLabelText('Ссылка на статью или учебный материал');
   /** The note without the no-break spaces of the typesetting. */
-  const plainText = (node: Element | null) => node?.textContent?.replace(/ /g, ' ');
+  const plainText = (node: Element | null) => node?.textContent?.replace(/\u00a0/g, ' ');
 
   it.each([
-    'https://www.youtube.com/watch?v=aircAruvnKk',
-    'youtu.be/aircAruvnKk',
-    'https://m.youtube.com/watch?v=aircAruvnKk',
-    'https://music.youtube.com/watch?v=aircAruvnKk',
     'https://rutube.ru/video/0123456789abcdef/',
     'https://vk.com/video-12345_67890',
     'https://vkvideo.ru/video-12345_67890',
     'https://dzen.ru/video/watch/650000aa0000000000000000',
-  ])('says it before the start and keeps the start waiting: %s', async link => {
+  ])('a video off YouTube is said before the start and keeps the start waiting: %s', async link => {
     const onUpload = vi.fn();
     render(<Harness onUpload={onUpload} initialTab="url" />);
     fireEvent.change(urlField(), { target: { value: link } });
@@ -324,6 +330,7 @@ describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
     expect(startButton()).toHaveTextContent('Ссылку на видео не открыть');
     expect(startButton().getAttribute('aria-describedby')).toContain(note.id);
     expect(screen.queryByText(/Подойдёт открытая страница/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Открыть «Текст»' })).toBeNull();
     fireEvent.click(startButton());
     await act(async () => undefined);
     expect(onUpload).not.toHaveBeenCalled();
@@ -331,24 +338,13 @@ describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
 
   it('opens «Аудио и видео» in one tap, its file picker in focus, and gives the link back when the tab is switched back', () => {
     render(<Harness onUpload={vi.fn()} initialTab="url" />);
-    fireEvent.change(urlField(), { target: { value: 'https://youtu.be/aircAruvnKk' } });
+    fireEvent.change(urlField(), { target: { value: 'https://rutube.ru/video/0123456789abcdef/' } });
     fireEvent.click(screen.getByRole('button', { name: 'Открыть «Аудио и видео»' }));
     expect(screen.getByRole('tab', { name: 'Аудио и видео' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('upload-file-input')).toHaveAttribute('accept', '.mp4,.mp3,.wav,.mpeg,.m4a');
     expect(document.activeElement).toBe(document.querySelector('.az-drop'));
     fireEvent.click(screen.getByRole('tab', { name: 'Ссылка' }));
-    expect(urlField()).toHaveValue('https://youtu.be/aircAruvnKk');
-  });
-
-  it('under a YouTube link opens «Текст» in one tap, for the transcript; other video hosts offer recordings only', () => {
-    render(<Harness onUpload={vi.fn()} initialTab="url" />);
-    fireEvent.change(urlField(), { target: { value: 'https://www.youtube.com/watch?v=aircAruvnKk' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть «Текст»' }));
-    expect(screen.getByRole('tab', { name: 'Текст' })).toHaveAttribute('aria-selected', 'true');
-    fireEvent.click(screen.getByRole('tab', { name: 'Ссылка' }));
-    fireEvent.change(urlField(), { target: { value: 'https://rutube.ru/video/0123456789abcdef/' } });
-    expect(screen.queryByRole('button', { name: 'Открыть «Текст»' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Открыть «Аудио и видео»' })).toBeInTheDocument();
+    expect(urlField()).toHaveValue('https://rutube.ru/video/0123456789abcdef/');
   });
 
   it('says nothing about a page with text, and the start goes', async () => {
@@ -364,11 +360,98 @@ describe('video links in «Ссылка» (live QA 2026-10-11)', () => {
 
   it('goes away as the link is cleared', () => {
     render(<Harness onUpload={vi.fn()} initialTab="url" />);
-    fireEvent.change(urlField(), { target: { value: 'https://youtu.be/aircAruvnKk' } });
+    fireEvent.change(urlField(), { target: { value: 'https://rutube.ru/video/0123456789abcdef/' } });
     expect(screen.getByRole('alert')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Очистить ссылку' }));
     expect(screen.queryByRole('alert')).toBeNull();
     expect(startButton()).toHaveTextContent('Вставьте ссылку');
+  });
+});
+
+describe('a YouTube link is a lecture to watch (owner, 2026-10-27)', () => {
+  const urlField = () => screen.getByLabelText('Ссылка на статью или учебный материал');
+  const measured = vi.mocked(measureYoutubeVideo);
+  const server = vi.mocked(serverYoutubeInfo);
+  const plain = (node: Element | null) => node?.textContent?.replace(/\u00a0/g, ' ');
+
+  beforeEach(() => {
+    measured.mockReset();
+    server.mockReset();
+    measured.mockResolvedValue(null);
+    server.mockResolvedValue({ ok: false, message: 'Не удалось узнать длину видео.' });
+  });
+
+  it('reads the length from YouTube’s player, shows the price and starts with the length', async () => {
+    measured.mockResolvedValue({ seconds: 2843, title: 'Лекция 5. Инфляция' });
+    const onUpload = vi.fn();
+    const prices: number[] = [];
+    render(<Harness onUpload={onUpload} initialTab="url" onPriceChange={units => prices.push(units)} />);
+    fireEvent.change(urlField(), { target: { value: 'https://www.youtube.com/watch?v=aircAruvnKk' } });
+    expect(startButton()).toHaveTextContent('Узнаём длину видео…');
+    expect(startButton()).toBeDisabled();
+    expect(await screen.findByText('Лекция 5. Инфляция')).toBeInTheDocument();
+    expect(measured).toHaveBeenCalledWith('aircAruvnKk', expect.objectContaining({ signal: expect.any(AbortSignal) }));
+    expect(plain(document.querySelector('.az-yt-meta'))).toBe('48 мин · 40 единиц');
+    expect(server).not.toHaveBeenCalled();
+    expect(prices[prices.length - 1]).toBe(40);
+    expect(startButton()).toBeEnabled();
+    fireEvent.click(startButton());
+    expect(onUpload).toHaveBeenCalledWith(null, 'https://www.youtube.com/watch?v=aircAruvnKk', {
+      videoSeconds: 2843,
+      sourceName: 'Лекция 5. Инфляция',
+    });
+  });
+
+  it('asks the server when the player says nothing', async () => {
+    server.mockResolvedValue({ ok: true, video: { seconds: 600, title: 'Лекция', units: 20 } });
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'youtu.be/aircAruvnKk' } });
+    expect(await screen.findByText('Лекция')).toBeInTheDocument();
+    expect(server).toHaveBeenCalledWith('youtu.be/aircAruvnKk', expect.any(AbortSignal));
+    await waitFor(() => expect(startButton()).toBeEnabled());
+  });
+
+  it('a video over 2 hours waits, with «Открыть «Текст»» for its transcript', async () => {
+    measured.mockResolvedValue({ seconds: 7800, title: 'Длинная лекция' });
+    const onUpload = vi.fn();
+    render(<Harness onUpload={onUpload} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://www.youtube.com/watch?v=aircAruvnKk' } });
+    const note = await screen.findByRole('alert');
+    expect(plain(note)).toMatch(/^Видео длится 2 ч 10 мин — Meldy разбирает видео до 2 часов\./);
+    expect(startButton()).toHaveTextContent('Видео не разобрать');
+    expect(startButton()).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть «Текст»' }));
+    expect(screen.getByRole('tab', { name: 'Текст' })).toHaveAttribute('aria-selected', 'true');
+    expect(onUpload).not.toHaveBeenCalled();
+  });
+
+  it('a video the server cannot take says the server’s words', async () => {
+    server.mockResolvedValue({ ok: false, message: 'Это прямая трансляция. Meldy разберёт её запись, когда трансляция закончится.' });
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://www.youtube.com/live/aircAruvnKk' } });
+    expect(await screen.findByRole('alert')).toHaveTextContent(/прямая трансляция/);
+    expect(screen.queryByRole('button', { name: 'Открыть «Текст»' })).toBeNull();
+    expect(startButton()).toBeDisabled();
+  });
+
+  it('a YouTube link without a video says so at once', () => {
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://www.youtube.com/@channel' } });
+    expect(screen.getByRole('alert')).toHaveTextContent(/В ссылке нет видео/);
+    expect(measured).not.toHaveBeenCalled();
+  });
+
+  it('a link changed while its length is read is read again; the first answer is dropped', async () => {
+    let first: (value: { seconds: number; title: string } | null) => void = () => undefined;
+    measured.mockImplementationOnce(() => new Promise(resolve => (first = resolve)));
+    measured.mockResolvedValueOnce({ seconds: 300, title: 'Вторая' });
+    render(<Harness onUpload={vi.fn()} initialTab="url" />);
+    fireEvent.change(urlField(), { target: { value: 'https://youtu.be/aircAruvnKk' } });
+    await waitFor(() => expect(measured).toHaveBeenCalledTimes(1));
+    fireEvent.change(urlField(), { target: { value: 'https://youtu.be/bbbbbbbbbbb' } });
+    expect(await screen.findByText('Вторая')).toBeInTheDocument();
+    await act(async () => first({ seconds: 9000, title: 'Первая' }));
+    expect(screen.queryByText('Первая')).toBeNull();
   });
 });
 

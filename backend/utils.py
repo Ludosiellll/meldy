@@ -1144,7 +1144,7 @@ _YOUTUBE_HOSTS = ("youtube.com", "youtube-nocookie.com", "youtu.be")
 
 
 def is_youtube_link(url: str) -> bool:
-    """A link to a YouTube video (whose subtitles main.analyze_url may read through the owner's proxy)."""
+    """A link to YouTube (main.analyze_url takes its video as a recording of its length, youtube_video.py)."""
     text = (url or "").strip()
     if not re.match(r"^[a-z][a-z0-9+.-]*://", text, re.IGNORECASE):
         text = "https://" + text
@@ -1155,7 +1155,7 @@ def is_youtube_link(url: str) -> bool:
     return bool(hostname) and any(_host_matches(hostname, domain) for domain in _YOUTUBE_HOSTS)
 
 
-# A YouTube transcript pasted into «Текст» («Показать расшифровку», VIDEO_LINK_DETAIL in main.py) comes as a time on a
+# A YouTube transcript pasted into «Текст» («Показать расшифровку», TRANSCRIPT_WAY_ROUND in main.py) comes as a time on a
 # line of its own and the words on the next («0:00» / «Итак, сегодня…»), or both on one line («0:00 Итак…»), sometimes
 # with «2 минуты, 5 секунд» spelled out for screen readers. The times are not the lecture: they would end up in the
 # fragments and the summary. When they make at least a quarter of the lines (and at least 10 of them), they are dropped

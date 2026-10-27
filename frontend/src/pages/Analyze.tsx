@@ -15,7 +15,7 @@ import { hasBadWords } from '../utils/moderation';
 import { AI_USAGE_EVENT, FREE_DAILY_LIMIT, checkAILimit, formatLimitReset, nextLimitReset, notifyAIUsageChanged } from '../api/limits';
 import { AI_COSTS } from '../lib/plans';
 import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
-import { ANALYZE_MESSAGES, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
+import { ANALYZE_MESSAGES, ANALYZE_TIMEOUTS, AnalyzeError, runAnalyzeStream, type AnalyzeEndpoint } from '../api/analyzeStream';
 import { lectureFormatOf, recognizedNotice, type RecognizedSource } from '../lib/lectureFormats';
 import { secondsBucket, track } from '../lib/telemetry';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -43,6 +43,8 @@ interface RunRequest {
   text?: string;
   /** Настройки панели на момент запуска (для демо не используются). */
   settings: AnalysisSettings;
+  /** Длина видео YouTube в секундах (lib/youtubeVideo): сервер берёт по ней цену и обрезает видео. */
+  videoSeconds?: number;
 }
 
 interface SaveContext {
@@ -80,6 +82,7 @@ function buildFormData(request: RunRequest, settings: AnalysisSettings, requeste
   const fd = new FormData();
   if (request.file) fd.append('file', request.file);
   if (request.url) fd.append('url', request.url);
+  if (request.videoSeconds) fd.append('video_seconds', String(request.videoSeconds));
   fd.append('summary_detail', settings.summaryDetail);
   fd.append('flashcard_count', String(settings.flashcardCount));
   fd.append('quiz_count', String(settings.quizCount));
@@ -403,6 +406,8 @@ export default function Analyze() {
         requested,
         onEvent: event => handleStreamEvent(runId, event),
         signal: controller.signal,
+        // A YouTube video is written down like a recording, and waits as long.
+        totalMs: request.videoSeconds ? ANALYZE_TIMEOUTS.mediaTotalMs : undefined,
       });
       if (outcome.kind === 'aborted' || !isCurrent(runId)) return;
 
@@ -451,7 +456,7 @@ export default function Analyze() {
     const text = options?.text;
     const demo = text !== undefined && isDemoText(text);
     const sourceName = demo ? `${DEMO_TITLE}.txt` : options?.sourceName || file?.name || url || 'Без названия';
-    void startRun({ file, url, sourceName, text, settings: state.settings });
+    void startRun({ file, url, sourceName, text, settings: state.settings, videoSeconds: options?.videoSeconds });
   };
 
   const handleDemo = () => {

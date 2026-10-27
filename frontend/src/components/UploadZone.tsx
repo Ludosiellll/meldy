@@ -17,6 +17,7 @@ import {
   unreadableFileMessage,
 } from '../lib/lectureFormats';
 import { hoursMinutes, mediaDuration } from '../lib/mediaDuration';
+import { measureYoutubeVideo, serverYoutubeInfo, youtubeVideoId, YOUTUBE_UNREAD_MESSAGE } from '../lib/youtubeVideo';
 import { AI_COSTS, RECORDING_MAX_SECONDS, recordingCost, textCost } from '../lib/plans';
 import { usePhone } from '../lib/usePhone';
 import { NBSP, ty } from './landing/typo';
@@ -29,7 +30,21 @@ export interface UploadOptions {
   sourceName?: string;
   /** Вставленный текст как есть: по нему решается, демо ли это. */
   text?: string;
+  /** Длина видео YouTube в секундах (lib/youtubeVideo): по ней сервер считает цену и обрезает видео. */
+  videoSeconds?: number;
 }
+
+/** A YouTube link under the field: its length is being read, is known, or the video cannot be taken (and why). */
+type VideoCheck =
+  | { state: 'idle' }
+  | { state: 'reading'; link: string }
+  | { state: 'ready'; link: string; seconds: number; title: string }
+  | { state: 'refused'; link: string; message: string };
+
+const NO_VIDEO_IN_LINK =
+  'В ссылке нет видео. Откройте видео на YouTube и скопируйте ссылку из адресной строки или кнопки «Поделиться».';
+/** A pasted link is read once typing stops for this long. */
+const VIDEO_CHECK_DELAY_MS = 450;
 
 interface Props {
   settings: AnalysisSettings;
@@ -134,6 +149,59 @@ function bringIntoView(element: HTMLElement | null) {
  * файл», the formats as one line of text and «Сфотографировать конспект» under it; the lead is one line; the source
  * tabs and «Изменить» are lighter (UploadZone.css).
  */
+/**
+ * Under a YouTube link: the length being read, then the video with its length and price (the same as a recording's),
+ * or why it cannot be taken — with «Открыть «Текст»» when its transcript is the way round.
+ */
+function YoutubeNote({
+  check,
+  noteId,
+  onOpenText,
+}: {
+  check: Exclude<VideoCheck, { state: 'idle' }> | null;
+  noteId: string;
+  onOpenText: () => void;
+}) {
+  if (!check || check.state === 'reading') {
+    return (
+      <p id={noteId} role="status" className="az-help">
+        Узнаём длину видео…
+      </p>
+    );
+  }
+  const refusal =
+    check.state === 'refused'
+      ? check.message
+      : check.seconds > RECORDING_MAX_SECONDS
+        ? `Видео длится ${hoursMinutes(check.seconds)}${NBSP}— Meldy разбирает видео до 2 часов. Если под видео есть «Показать расшифровку», скопируйте текст и вставьте во вкладку «Текст».`
+        : null;
+  if (check.state === 'refused' || refusal) {
+    return (
+      <div className="az-error az-video">
+        <p id={noteId} role="alert">
+          {ty(refusal ?? '')}
+        </p>
+        {(refusal ?? '').includes('вкладку «Текст»') && (
+          <button type="button" onClick={onOpenText} className="az-inline az-video-go">
+            Открыть «Текст»
+          </button>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div id={noteId} role="status" className="az-yt">
+      <p className="az-yt-title">{check.title || 'Видео на YouTube'}</p>
+      <p className="az-yt-meta">
+        {hoursMinutes(check.seconds)} · {recordingCost(check.seconds)} единиц
+      </p>
+      <p className="az-yt-help">
+        {ty(`Meldy посмотрит видео и запишет речь лектора — это займёт несколько минут. ${RECORDING_PRICE_LINE}`)}
+      </p>
+    </div>
+  );
+}
+
 export default function UploadZone({
   settings,
   onSettingsChange,
@@ -163,6 +231,7 @@ export default function UploadZone({
   const [settingsOpen, setSettingsOpen] = useState(false);
   // «Открыть «Аудио и видео»» under a video link: the focus goes on to the file picker of that tab.
   const [focusPicker, setFocusPicker] = useState(false);
+  const [videoCheck, setVideoCheck] = useState<VideoCheck>({ state: 'idle' });
   const phone = usePhone();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -182,16 +251,22 @@ export default function UploadZone({
   const demoText = tab === 'text' && isDemoText(text);
   const trimmedLength = text.trim().length;
   const textProblem = pastedTextProblem(text);
-  // A link to a video (YouTube, RuTube, VK Video, Dzen…): said before the start, which waits (lib/lectureFormats).
-  const videoLink = tab === 'url' && isVideoLink(url);
-  const youtubeLink = videoLink && isYoutubeLink(url);
-  // The price of this start: a recording by its length, a text by its characters, anything else a lecture.
+  // A YouTube link is a lecture to watch: its length is read first (lib/youtubeVideo), the price and the 2-hour cap are a
+  // recording's. A link to another video site (RuTube, VK Video, Dzen…) is refused before the start, which waits.
+  const youtubeLink = tab === 'url' && isYoutubeLink(url);
+  const videoLink = tab === 'url' && isVideoLink(url) && !youtubeLink;
+  const linkTrimmed = url.trim();
+  const video = youtubeLink && videoCheck.state !== 'idle' && videoCheck.link === linkTrimmed ? videoCheck : null;
+  const videoReady = video?.state === 'ready' && video.seconds <= RECORDING_MAX_SECONDS ? video : null;
+  // The price of this start: a recording or a video by its length, a text by its characters, anything else a lecture.
   const price =
     tab === 'media' && file && mediaSeconds !== null
       ? recordingCost(mediaSeconds)
-      : tab === 'text'
-        ? textCost(trimmedLength)
-        : AI_COSTS.lecture;
+      : videoReady
+        ? recordingCost(videoReady.seconds)
+        : tab === 'text'
+          ? textCost(trimmedLength)
+          : AI_COSTS.lecture;
 
   useEffect(() => {
     if (refusals > 0) bringIntoView(errorRef.current);
@@ -200,6 +275,43 @@ export default function UploadZone({
   useEffect(() => {
     onPriceChange?.(price);
   }, [price, onPriceChange]);
+
+  // The length of a YouTube video: YouTube's own player in this browser first, the server's reading of the video's page
+  // when the player says nothing (lib/youtubeVideo). Asked again only when the link changes.
+  useEffect(() => {
+    if (!youtubeLink) return undefined;
+    const link = linkTrimmed;
+    if (!youtubeVideoId(link)) {
+      setVideoCheck({ state: 'refused', link, message: NO_VIDEO_IN_LINK });
+      return undefined;
+    }
+    const controller = new AbortController();
+    setVideoCheck({ state: 'reading', link });
+    const timer = window.setTimeout(async () => {
+      const id = youtubeVideoId(link) as string;
+      const measured = await measureYoutubeVideo(id, { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      if (measured) {
+        setVideoCheck({ state: 'ready', link, ...measured });
+        return;
+      }
+      try {
+        const answer = await serverYoutubeInfo(link, controller.signal);
+        if (controller.signal.aborted) return;
+        setVideoCheck(
+          answer.ok
+            ? { state: 'ready', link, seconds: answer.video.seconds, title: answer.video.title }
+            : { state: 'refused', link, message: answer.message },
+        );
+      } catch {
+        // Aborted: the link changed or the page went away.
+      }
+    }, VIDEO_CHECK_DELAY_MS);
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
+  }, [youtubeLink, linkTrimmed]);
 
   useEffect(() => {
     if (!focusPicker) return;
@@ -300,14 +412,16 @@ export default function UploadZone({
     setFocusPicker(true);
   };
 
-  /** Under a YouTube link: «Текст» in one tap, for the transcript copied from under the video. */
+  /** Under a YouTube video that cannot be taken: «Текст» in one tap, for the transcript copied from under the video. */
   const openText = () => {
     selectTab('text');
   };
 
   const isReady =
     tab === 'url'
-      ? Boolean(url.trim()) && url.includes('.') && !videoLink
+      ? youtubeLink
+        ? Boolean(videoReady)
+        : Boolean(url.trim()) && url.includes('.') && !videoLink
       : tab === 'text'
         ? textProblem === null
         : Boolean(file) && !isCompressing && !measuring;
@@ -317,7 +431,11 @@ export default function UploadZone({
   const handleStart = () => {
     if (!canStart) return;
     if (tab === 'url') {
-      onUpload(null, url.trim());
+      onUpload(
+        null,
+        url.trim(),
+        videoReady ? { videoSeconds: videoReady.seconds, sourceName: videoReady.title || undefined } : undefined,
+      );
     } else if (tab === 'text') {
       onUpload(pastedTextFile(text), undefined, { sourceName: `${pastedTextTitle(text)}.txt`, text });
     } else if (file) {
@@ -330,13 +448,17 @@ export default function UploadZone({
   else if (!isReady && !limited) {
     // A video link: the button says why it waits, as the other waiting starts do (QA 2026-10-11: it said «Запустить
     // анализ» and did nothing); the line under the link says what to do instead.
-    if (tab === 'url') startLabel = videoLink ? 'Ссылку на видео не открыть' : 'Вставьте ссылку';
+    if (tab === 'url') {
+      if (youtubeLink) startLabel = !video || video.state === 'reading' ? 'Узнаём длину видео…' : 'Видео не разобрать';
+      else startLabel = videoLink ? 'Ссылку на видео не открыть' : 'Вставьте ссылку';
+    }
     else if (tab === 'text') startLabel = trimmedLength === 0 ? 'Вставьте текст' : 'Запустить анализ';
     else startLabel = 'Сначала выберите файл';
   }
 
   const startNote = limited ? startDisabledReason : demoText ? undefined : costNote;
-  const startDescribedBy = [videoLink ? videoNoteId : '', startNote ? noteId : ''].filter(Boolean).join(' ') || undefined;
+  const videoNoted = videoLink || Boolean(video);
+  const startDescribedBy = [videoNoted ? videoNoteId : '', startNote ? noteId : ''].filter(Boolean).join(' ') || undefined;
   const formats = tab === 'media' ? MEDIA_FORMATS : DOC_FORMATS;
   // The demo text is analysed with its own settings: the line says what will be made, and «Изменить» waits.
   const summary = settingsSummary(demoText ? DEMO_SETTINGS : settings);
@@ -442,7 +564,7 @@ export default function UploadZone({
                     placeholder="https://ru.wikipedia.org/wiki/..."
                     value={url}
                     onChange={event => onUrlChange(event.target.value)}
-                    aria-describedby={videoLink ? videoNoteId : undefined}
+                    aria-describedby={videoNoted ? videoNoteId : undefined}
                     className="az-input"
                   />
                   {url && (
@@ -451,18 +573,15 @@ export default function UploadZone({
                     </button>
                   )}
                 </div>
-                {videoLink ? (
+                {youtubeLink ? (
+                  <YoutubeNote check={video} noteId={videoNoteId} onOpenText={openText} />
+                ) : videoLink ? (
                   // Said as the link is typed or pasted, before the start: the page of a video has no text to analyse
                   // (live QA 2026-10-11). The way out is one tap: the recording as a file.
                   <div className="az-error az-video">
                     <p id={videoNoteId} role="alert">
                       {ty(VIDEO_LINK_MESSAGE)}
                     </p>
-                    {youtubeLink && (
-                      <button type="button" onClick={openText} className="az-inline az-video-go">
-                        Открыть «Текст»
-                      </button>
-                    )}
                     <button type="button" onClick={openRecordings} className="az-inline az-video-go">
                       Открыть «Аудио и видео»
                     </button>

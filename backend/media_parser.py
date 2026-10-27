@@ -492,12 +492,15 @@ async def youtube_captions(youtube_url: str, proxy_url: str) -> str:
         raise NoCaptions("empty")
     return text
 
-def _media_generation_config(model: str) -> types.GenerateContentConfig:
+def _media_generation_config(model: str, low_media: bool = False) -> types.GenerateContentConfig:
     """Gemini settings for a transcript: thinking off where the model allows it (a transcript needs none,
     and thinking tokens cost and take time), low temperature except gemini-3, the app's safety settings
-    (a history lecture about a war is not blocked)."""
+    (a history lecture about a war is not blocked). ``low_media``: a video's frames at low resolution (66 tokens a
+    frame instead of 258), for a YouTube lecture whose speech is what is written down (youtube_video.py)."""
     plan = thinking_plan(model, "off")
     config: dict = {"safety_settings": SAFETY_SETTINGS}
+    if low_media:
+        config["media_resolution"] = types.MediaResolution.MEDIA_RESOLUTION_LOW
     if not model.lower().rsplit("/", 1)[-1].startswith("gemini-3"):
         config["temperature"] = MEDIA_TRANSCRIPTION_TEMPERATURE
     if plan.config is not None:
@@ -542,11 +545,18 @@ async def transcribe_media_file(
 
 
 async def _transcribe_with_gemini(
-    file_path: Optional[str], mime_type: Optional[str], is_image: bool = False, *, inline: Optional[types.Part] = None
+    file_path: Optional[str],
+    mime_type: Optional[str],
+    is_image: bool = False,
+    *,
+    inline: Optional[types.Part] = None,
+    prompt: Optional[str] = None,
+    low_media: bool = False,
 ) -> str:
     """Gemini's text of the file through the Files API, or of ``inline`` (a piece of a long recording, its bytes in
-    the request): every key of GEMINI_API_KEY in random order, the models of GEMINI_MODELS in turn. AIError.busy()
-    when a model was rate limited and none answered, ValueError otherwise."""
+    the request, or a clip of a YouTube video by its address): every key of GEMINI_API_KEY in random order, the models
+    of GEMINI_MODELS in turn. ``prompt`` replaces the transcript's (or OCR's) prompt; ``low_media`` see
+    _media_generation_config. AIError.busy() when a model was rate limited and none answered, ValueError otherwise."""
     keys = get_gemini_keys()
     shuffled_keys = list(keys)
     random.shuffle(shuffled_keys)
@@ -556,7 +566,7 @@ async def _transcribe_with_gemini(
     rate_limited = False
 
     gemini_models = gemini_models_env()
-    prompt = OCR_PROMPT if is_image else MEDIA_TRANSCRIPTION_PROMPT
+    prompt = prompt or (OCR_PROMPT if is_image else MEDIA_TRANSCRIPTION_PROMPT)
 
     for key in shuffled_keys:
         try:
@@ -590,7 +600,7 @@ async def _transcribe_with_gemini(
                 for model_name in gemini_models:
                     # A model that refuses a transcript setting (invalid_argument) is asked once more
                     # without settings, as before they were added.
-                    configs = (None,) if is_image else (_media_generation_config(model_name), None)
+                    configs = (None,) if is_image else (_media_generation_config(model_name, low_media), None)
                     for config in configs:
                         try:
                             response = await client.aio.models.generate_content(

@@ -104,6 +104,11 @@ vi.mock('../components/QuizView', () => ({
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 // jsdom не загружает картинки: сжатие фото здесь отдаёт файл как есть.
 vi.mock('../lib/imageCompression', () => ({ compressImage: async (file: File) => file }));
+// YouTube's player says the video's length (lib/youtubeVideo); jsdom has none.
+vi.mock('../lib/youtubeVideo', async importOriginal => ({
+  ...(await importOriginal<typeof import('../lib/youtubeVideo')>()),
+  measureYoutubeVideo: async () => ({ seconds: 1844, title: 'Лекция 7. Деньги' }),
+}));
 
 import Analyze from './Analyze';
 import { ANALYZE_TIMEOUTS } from '../api/analyzeStream';
@@ -399,6 +404,24 @@ describe('stream outcomes', () => {
 });
 
 /* ── HTTP-ошибки ───────────────────────────────────────────────────────────── */
+
+describe('a YouTube link (owner, 2026-10-27)', () => {
+  it('sends the length YouTube’s player said, and the run waits as long as a recording’s', async () => {
+    streams = [fullRun];
+    renderAnalyze();
+    await uploadScreen();
+    fireEvent.click(screen.getByRole('tab', { name: 'Ссылка' }));
+    fireEvent.change(screen.getByLabelText('Ссылка на статью или учебный материал'), {
+      target: { value: 'https://youtu.be/aircAruvnKk' },
+    });
+    fireEvent.click(await screen.findByRole('button', { name: 'Запустить анализ' }, { timeout: 3000 }));
+    await resultsHeading();
+    const [call] = analyzeCalls();
+    expect(call.url).toBe('/api/analyze/url');
+    expect(form(call).get('url')).toBe('https://youtu.be/aircAruvnKk');
+    expect(form(call).get('video_seconds')).toBe('1844');
+  });
+});
 
 describe('HTTP errors before the stream', () => {
   it('an nginx HTML 502 gives a Russian message and a retry, never parser text', async () => {

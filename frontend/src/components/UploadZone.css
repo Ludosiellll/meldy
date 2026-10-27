@@ -362,6 +362,13 @@
   .az-video .az-video-go:hover { text-decoration-color: currentColor; }
 }
 
+/* A YouTube video under its link: its title, length and price, then what will happen — a quiet card in the window. */
+.az-yt { margin: 14px 0 0; padding: 14px 18px; border-radius: 20px; background: var(--sf-accent-soft); }
+.az-yt p { margin: 0; }
+.az-yt-title { overflow: hidden; font-size: 17px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.az-yt .az-yt-meta { margin-top: 2px; font-size: 15px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.az-yt .az-yt-help { margin-top: 8px; font-size: 15px; line-height: 1.5; color: var(--sf-muted); }
+
 /* The quiet way to the demo text: a blue word with an arrow. */
 .az-demo {
   display: inline-flex;

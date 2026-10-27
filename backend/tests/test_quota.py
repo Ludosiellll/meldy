@@ -499,7 +499,7 @@ def test_a_near_empty_text_costs_nothing_and_a_video_link_is_never_charged(analy
     assert [args["p_kind"] for args in analyze.server.rpc("refund_ai_units")] == ["lecture"]
     assert analyze.server.used == 0
 
-    response = analyze.post("/api/analyze/url", data={"url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"})
+    response = analyze.post("/api/analyze/url", data={"url": "https://rutube.ru/video/0123456789abcdef/"})
     assert response.status_code == 400 and response.json() == {"detail": analyze.main.VIDEO_LINK_DETAIL}
     assert len(analyze.server.rpc("consume_ai_units")) == 1 and analyze.server.used == 0
 

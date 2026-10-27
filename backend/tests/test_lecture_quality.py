@@ -79,8 +79,7 @@ def api(monkeypatch):
     yield TestClient(main.app)
     BaseAgent._run_cache.clear()
 VIDEO_LINK_DETAIL = (
-    "Ссылку на видео Meldy не открывает. Если у видео на YouTube есть субтитры, откройте под ним «Показать "
-    "расшифровку», скопируйте текст и вставьте во вкладку «Текст». Запись лекции файлом можно загрузить во вкладке "
+    "Видео Meldy разбирает только по ссылке на YouTube. Запись лекции с другого сайта скачайте и загрузите во вкладке "
     "«Аудио и видео» (до 15 МБ)."
 )
 
@@ -121,7 +120,7 @@ def test_pages_of_text_are_not_video_links(url):
     assert not is_video_link(url)
 
 
-def test_a_video_link_is_refused_before_any_charge_or_fetch(api, monkeypatch):
+def test_a_video_link_off_youtube_is_refused_before_any_charge_or_fetch(api, monkeypatch):
     import main
 
     monkeypatch.delenv("YOUTUBE_PROXY_URL", raising=False)
@@ -138,7 +137,8 @@ def test_a_video_link_is_refused_before_any_charge_or_fetch(api, monkeypatch):
 
     monkeypatch.setattr(main, "scrape_url", scrape)
     monkeypatch.setattr(main.quota, "charge", charge)
-    for url in ("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://youtu.be/abc", "rutube.ru/video/x/"):
+    # A YouTube link is a recording of its length (test_youtube_video.py).
+    for url in ("https://rutube.ru/video/0123456789abcdef/", "vk.com/video-12345_678", "dzen.ru/video/watch/abc"):
         response = api.post("/api/analyze/url", data={"url": url})
         assert response.status_code == 400 and response.json() == {"detail": VIDEO_LINK_DETAIL}
     assert fetched == [] and charged == []
