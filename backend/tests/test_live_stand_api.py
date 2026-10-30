@@ -381,7 +381,9 @@ def test_a_stand_room_keeps_its_arena_and_has_no_monster():
     run(scenario())
 
 
-def test_a_battle_game_gets_the_plain_room():
+def test_a_battle_game_gets_the_battle_room_with_the_arena():
+    """Every battle gets the battle's room (live_move_mixed, no movement rounds without stand_every): its 3D projector
+    stands the phones' characters round the boss on the arena's map."""
     async def scenario():
         db = FakeLiveDb(GAME, HOST, [(2, 1)])
         orig = db.host_state_sync
@@ -395,6 +397,7 @@ def test_a_battle_game_gets_the_plain_room():
         async with serving(db) as (url, hub):
             host = await join(url, HOST, "host")
             await asyncio.sleep(0.3)
-            assert hub.rooms[GAME].mode is None and not host.msgs
-            assert host.welcome["map"]["zones"][0]["id"] == "A"      # the reference map
+            mode = hub.rooms[GAME].mode
+            assert mode is not None and mode.kind == "mixed" and mode.game.every == 0
+            assert host.welcome["map"]["zones"][0]["id"] == "А"      # the arena of «Встань на ответ»
     run(scenario())
