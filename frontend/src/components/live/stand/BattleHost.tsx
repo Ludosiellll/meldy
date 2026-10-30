@@ -34,6 +34,7 @@ import { BATTLE_3D, STAND } from './copy';
 import { FpsReadout, fpsWanted } from './FpsReadout';
 import { LEAP_OUT_S } from './formation';
 import { ArenaHp, MixedBoard, NO_REVEAL, useMixedReveal, type RevealView } from './MixedHost';
+import { BigPicture, OptionPic, StemFigure } from './figure';
 import { arenaOn, revealPlan, strongest } from './mixed';
 import type { TimerFace } from './plan';
 import { battleRows, fastestHit, frozenPids, tapRevealOf, tapTimerFace } from './battle';
@@ -225,11 +226,7 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
       {max > 0 ? <ArenaHp hp={hp} max={max} width={width} /> : null}
       <div className="lvst-head lvmx-head" style={{ width: Math.min(1120, width - 660), top: BOARD_TOP }}>
         <section className="lvst-board lvbt-board" aria-live="polite" data-pic={stem !== undefined ? '' : undefined}>
-          {stem !== undefined ? (
-            <button type="button" className="lvbt-figure" onClick={() => setBig((v) => !v)} aria-label={BATTLE_3D.pictureBig} aria-pressed={big}>
-              {typeof stem === 'string' ? <img src={stem} alt="" decoding="async" /> : stem === false ? <i>{BATTLE_3D.pictureFailed}</i> : null}
-            </button>
-          ) : null}
+          {stem !== undefined ? <StemFigure stem={stem} big={big} onToggle={() => setBig((v) => !v)} /> : null}
           {result ? (
             <div className="lvst-q lvst-q--reveal lvbt-q" key={`r${q.qi}`}>
               <span className="lvst-hint">{BATTLE_3D.right}</span>
@@ -265,7 +262,7 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
               return (
                 <li key={i} data-key={result && result.key === i ? '' : undefined} data-dim={result && result.key !== i ? '' : undefined}>
                   <TapLetter k={i} />
-                  {pic !== undefined ? <span className="lvbt-opt-pic">{pic ? <img src={pic} alt="" decoding="async" /> : null}</span> : null}
+                  <OptionPic pic={pic} />
                   <span className="lvst-opt-text">{text}</span>
                   {result ? <b className="lvst-opt-count">{nb(result.counts[i] ?? 0)}</b> : null}
                 </li>
@@ -318,9 +315,7 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
       </div>
 
       {(big || phase === 'countdown') && typeof stem === 'string' ? (
-        <button type="button" className="lvbt-pic-big" onClick={() => setBig(false)} aria-label={BATTLE_3D.picture}>
-          <img src={stem} alt={BATTLE_3D.picture} />
-        </button>
+        <BigPicture src={stem} onClose={() => setBig(false)} />
       ) : null}
       {banner ? (
         <div key={banner.id} className={`lvh-banner${banner.stay ? ' lvh-banner--stay' : ''}`} role="status">
@@ -482,7 +477,9 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
   // ── a button question ──
   const q = s.question;
   const tapRound = !!q && !isStandRound(s) && (s.state === 'countdown' || s.state === 'open' || s.state === 'reveal');
-  const pics = useLivePictures(tapRound ? q?.pictures : undefined, game.picture);
+  // the question's pictures, a button question's and a movement round's
+  const shownQuestion = !!q && (s.state === 'countdown' || s.state === 'open' || s.state === 'reveal');
+  const pics = useLivePictures(shownQuestion ? q?.pictures : undefined, game.picture);
   const { offset } = game;
   // this device's time of the question's open and close, fixed per question (a later clock estimate does not jolt it)
   const [opensAt, closesAt] = useMemo(() => {
@@ -748,6 +745,7 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
         <MixedBoard
           s={s}
           rs={rs}
+          pics={pics}
           reveal={mixedReveal}
           nameOf={nameOfEntity}
           timerRef={timerRef}

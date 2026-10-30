@@ -19,6 +19,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { STAND_LETTERS, type StandResult, type StandState } from '../../../lib/live/move';
 import { ZONE_COLOURS } from '../../../lib/live/three';
+import type { ShownPictures } from '../../../lib/live/pictures';
 import type { BossKind, HostState } from '../../../lib/live/types';
 import { BANNER, BATTLE, MIXED, nb } from '../host/copy';
 import { HostScreen, type HostScreenProps } from '../host/HostScreen';
@@ -26,6 +27,7 @@ import { readHostToken } from '../host/hostSession';
 import { STAGE_H } from '../host/layout';
 import { hostSound, type HostSound } from '../host/sound';
 import { useStageWidth } from '../host/Stage';
+import { BigPicture, OptionPic, StemFigure } from './figure';
 import { FpsReadout, fpsWanted } from './FpsReadout';
 import { arenaOn, revealPlan, strongest } from './mixed';
 import type { TimerFace } from './plan';
@@ -153,6 +155,8 @@ export const ArenaHp = memo(function ArenaHp({ hp, max, width }: { hp: number; m
 interface BoardProps {
   s: HostState;
   rs: StandState | null;
+  /** The database question's pictures (BattleHost): shown while that question is the round's. */
+  pics?: ShownPictures;
   reveal: RevealView;
   nameOf: (id: number) => string;
   timerRef: RefObject<HTMLDivElement>;
@@ -165,8 +169,9 @@ interface BoardProps {
 }
 
 /** The movement round over the arena, in the stage's units (HostScreen's stage, its bar above). */
-export function MixedBoard({ s, rs, reveal, nameOf, timerRef, countRefs, frozenRef, frozenPillRef, loading, failed, lost }: BoardProps) {
+export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, frozenRef, frozenPillRef, loading, failed, lost }: BoardProps) {
   const width = useStageWidth();
+  const [big, setBig] = useState(false);
   // the room's picture of this question when it has one, else the database's
   const own = rs && rs.round === 'stand' && rs.qi >= s.qi ? rs : null;
   const phase = own?.phase ?? s.state;
@@ -182,13 +187,19 @@ export function MixedBoard({ s, rs, reveal, nameOf, timerRef, countRefs, frozenR
   const fastest = res?.fastest && res.fastest.id !== null ? { name: nameOf(res.fastest.id), dmg: res.fastest.pts } : null;
   const stood = res ? { n: res.stood, of: res.of } : phase === 'reveal' && s.result && s.result.qi === qi ? { n: s.result.right, of: s.players } : null;
   const banner = reveal.qi === qi ? reveal.banner : null;
+  useEffect(() => setBig(false), [qi, phase]);
+  // the pictures are the database question's: only while it is this round's
+  const ownPics = pics && s.question && s.qi === qi ? pics : null;
+  const stem = ownPics?.stem;
+  const wide = !!q && q.options.length > 4;
   return (
     <div className="lvmx" data-phase={phase}>
       {max > 0 ? <ArenaHp hp={hp} max={max} width={width} /> : null}
       <div className="lvst-head lvmx-head" style={{ width: Math.min(1100, width - 700), top: BOARD_TOP }}>
-        <section className="lvst-board" aria-live="polite">
+        <section className="lvst-board lvbt-board" aria-live="polite" data-pic={q && stem !== undefined ? '' : undefined}>
+          {q && stem !== undefined ? <StemFigure stem={stem} big={big} onToggle={() => setBig((v) => !v)} /> : null}
           {q && phase === 'reveal' && key !== null ? (
-            <div className="lvst-q lvst-q--reveal" key={`r${qi}`}>
+            <div className="lvst-q lvst-q--reveal lvbt-q" key={`r${qi}`}>
               <span className="lvst-hint">{STAND.right}</span>
               <div className="lvst-answer">
                 <Letter i={key} big />
@@ -196,7 +207,7 @@ export function MixedBoard({ s, rs, reveal, nameOf, timerRef, countRefs, frozenR
               </div>
             </div>
           ) : q ? (
-            <div className="lvst-q" key={`q${qi}`}>
+            <div className="lvst-q lvbt-q" key={`q${qi}`}>
               <span className="lvst-hint">{MIXED.hint}</span>
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
@@ -214,10 +225,11 @@ export function MixedBoard({ s, rs, reveal, nameOf, timerRef, countRefs, frozenR
             ))}
           </ol>
         ) : q ? (
-          <ol className="lvst-options" key={`o${qi}`} data-revealed={key !== null ? '' : undefined}>
-            {q.options.slice(0, 4).map((text, i) => (
+          <ol className="lvst-options lvbt-options" key={`o${qi}`} data-revealed={key !== null ? '' : undefined} data-wide={wide ? '' : undefined}>
+            {q.options.map((text, i) => (
               <li key={i} data-key={key === i ? '' : undefined} data-dim={key !== null && key !== i ? '' : undefined}>
                 <Letter i={i} />
+                <OptionPic pic={ownPics?.options[i]} />
                 <span className="lvst-opt-text">{text}</span>
                 <b
                   className="lvst-opt-count"
@@ -268,6 +280,7 @@ export function MixedBoard({ s, rs, reveal, nameOf, timerRef, countRefs, frozenR
         </div>
       </div>
 
+      {q && (big || phase === 'countdown') && typeof stem === 'string' ? <BigPicture src={stem} onClose={() => setBig(false)} /> : null}
       {banner ? (
         <div key={banner.id} className={`lvh-banner${banner.stay ? ' lvh-banner--stay' : ''}`} role="status">
           {banner.title}

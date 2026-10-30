@@ -132,11 +132,11 @@ describe('mode A on the map the server sends (contracts/live/stand_arena.json)',
   const map = STAND_ARENA as MoveMap;
   const shape: ArenaShape = { floor: arenaJson.floor, stage: arenaJson.stage };
 
-  it('lays the grid of the server: 26 × 12 tiles of 60 from (20, 160), each zone exactly 10 × 4 tiles', () => {
+  it('lays the grid of the server: 26 × 12 tiles of 60 from (20, 160), the corner zones 7 × 4 tiles, the middle 8 × 3', () => {
     const l = layoutTiles(map, 100, shape);
     expect([l.cols, l.rows, l.sx, l.sy, l.x0, l.y0, l.tiles.length]).toEqual([26, 12, 60, 60, 20, 160, 312]);
     const count = (z: number) => l.tiles.filter((t) => t.zone === z).length;
-    expect([count(0), count(1), count(2), count(3)]).toEqual([40, 40, 40, 40]);
+    expect([0, 1, 2, 3, 4, 5].map(count)).toEqual([28, 28, 28, 28, 24, 24]);
     expect(floorRect(map, shape)).toEqual({ x: 20, y: 160, w: 1560, h: 720 });
     // the floor is exactly the space between the map's walls
     expect(tileIndexAt(l, 19, 500)).toBe(-1);

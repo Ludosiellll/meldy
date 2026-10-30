@@ -41,10 +41,10 @@ select set_config('meldy.local', public.container_create('Базы данных'
 select public.container_items_add((current_setting('meldy.local')::jsonb -> 'subjects' -> 0 ->> 'id')::uuid, jsonb_build_array(
   jsonb_build_object('ref', 'x:1', 'stem', 'Какая команда отменяет транзакцию?', 'options', jsonb_build_array('COMMIT', 'ROLLBACK', 'GRANT', 'SAVEPOINT'), 'correct', jsonb_build_array(1), 'keep_order', true),
   jsonb_build_object('ref', 'x:2', 'stem', 'Какая нормальная форма убирает транзитивные зависимости?', 'options', jsonb_build_array('Первая', 'Вторая', 'Третья'), 'correct', jsonb_build_array(2), 'keep_order', true),
-  jsonb_build_object('ref', 'x:3', 'stem', 'Что делает JOIN?', 'options', jsonb_build_array('Удаляет строки', 'Соединяет таблицы', 'Создаёт индекс', 'Блокирует таблицу'), 'correct', jsonb_build_array(1), 'keep_order', true),
+  jsonb_build_object('ref', 'x:3', 'stem', 'Что делает JOIN?', 'options', jsonb_build_array('Удаляет строки', 'Соединяет таблицы', 'Создаёт индекс', 'Блокирует таблицу', 'Сортирует строки', 'Считает строки'), 'correct', jsonb_build_array(1), 'keep_order', true),
   jsonb_build_object('ref', 'x:4', 'stem', 'Что значит буква I в ACID?', 'options', jsonb_build_array('Изоляция', 'Индекс'), 'correct', jsonb_build_array(0), 'keep_order', true),
   jsonb_build_object('ref', 'x:5', 'stem', 'Как называют ключ, который ссылается на другую таблицу?', 'options', jsonb_build_array('Внешний', 'Первичный', 'Составной'), 'correct', jsonb_build_array(0), 'keep_order', true),
-  jsonb_build_object('ref', 'x:6', 'stem', 'Какой оператор группирует строки?', 'options', jsonb_build_array('ORDER BY', 'WHERE', 'HAVING', 'GROUP BY'), 'correct', jsonb_build_array(3), 'keep_order', true))) is null \g /dev/null
+  jsonb_build_object('ref', 'x:6', 'stem', 'Какой оператор группирует строки?', 'options', jsonb_build_array('ORDER BY', 'WHERE', 'HAVING', 'GROUP BY', 'LIMIT'), 'correct', jsonb_build_array(3), 'keep_order', true))) is null \g /dev/null
 select (current_setting('meldy.local')::jsonb ->> 'container_id') || ' ' || (current_setting('meldy.local')::jsonb -> 'subjects' -> 0 ->> 'id');
 SQL
 )

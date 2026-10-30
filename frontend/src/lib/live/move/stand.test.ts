@@ -40,14 +40,18 @@ describe('the arena and the points (contracts/live/stand_arena.json: the server 
   it('is the shared arena; zone i is option i', () => {
     expect(STAND_ARENA).toEqual(shared.map);
     expect([...STAND_LETTERS]).toEqual(shared.letters);
-    expect(STAND_ARENA.zones.map((z) => z.id)).toEqual(['А', 'Б', 'В', 'Г']);
+    expect(STAND_ARENA.zones.map((z) => z.id)).toEqual(['А', 'Б', 'В', 'Г', 'Д', 'Е']);
     const m = mapFromJson(STAND_ARENA);
-    expect(zoneIndexAt(m, 380, 340)).toBe(1); // А: option 0
-    expect(zoneIndexAt(m, 1220, 700)).toBe(4); // Г: option 3
-    expect(zoneIndexAt(m, 800, 330)).toBe(0); // a corridor
+    expect(zoneIndexAt(m, 300, 340)).toBe(1); // А: option 0
+    expect(zoneIndexAt(m, 1300, 700)).toBe(4); // Г: option 3
+    expect(zoneIndexAt(m, 800, 300)).toBe(5); // Д, over the stage: option 4
+    expect(zoneIndexAt(m, 800, 730)).toBe(6); // Е, under it: option 5
+    expect(zoneIndexAt(m, 530, 340)).toBe(0); // the corridor between А and Д
+    expect(zoneIndexAt(m, 800, 420)).toBe(0); // round the stage
+    expect(zoneIndexAt(m, 300, 520)).toBe(0); // the corridor between the rows
     expect(zoneIndexAt(m, 80, 340)).toBe(1); // on the edge: inside
     expect(zoneAt(m, 79.9, 340)).toBeNull();
-    expect(zoneAt(m, 920, 220)).toBe('Б');
+    expect(zoneAt(m, 1100, 220)).toBe('Б');
   });
 
   for (const c of shared.points) {

@@ -5,7 +5,8 @@
 -- Checks: live_questions takes 2–6 options and live_answers a choice 0–5; live_questions.pictures (jsonb, null by
 -- default) with its shape check; the BEFORE INSERT trigger live_questions_pictures runs
 -- meldy_private.live_question_pictures(); meldy_private.live_playable(test_items, boolean) exists, private, keeps the old
--- rule for «not wide»; live_create draws with the wide rule only for a battle without movement rounds; live_base_json and
+-- rule for «not wide»; live_create draws with the wide rule for a battle without movement rounds (for every game after
+-- 20261031090000_live_wide_rounds.sql); live_base_json and
 -- live_review add pictures only when a question has them; public.quiz_live_media_paths(uuid, text, text[]) is stable,
 -- SECURITY DEFINER with search_path = '', returns jsonb, executable by service_role only, and answers [] for a bad call.
 -- The behaviour (a five-option game, pictures in the shown order, what a player and the host may read and when, a stand
@@ -68,7 +69,8 @@ BEGIN
 
   -- 3. Create and the screens.
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'public.live_create(jsonb,jsonb)'::regprocedure;
-  IF pg_catalog.strpos(v_src, 'v_wide := v_mode = ''boss'' and v_every = 0;') = 0
+  -- (20261031090000_live_wide_rounds.sql later gives every game the wide rule: v_wide := true)
+  IF (pg_catalog.strpos(v_src, 'v_wide := v_mode = ''boss'' and v_every = 0;') = 0 AND pg_catalog.strpos(v_src, 'v_wide := true;') = 0)
      OR (pg_catalog.length(v_src) - pg_catalog.length(pg_catalog.replace(v_src, 'meldy_private.live_playable(i, v_wide)', '')))
         / pg_catalog.length('meldy_private.live_playable(i, v_wide)') <> 3
      OR pg_catalog.strpos(v_src, 'meldy_private.live_playable(i)') > 0 THEN

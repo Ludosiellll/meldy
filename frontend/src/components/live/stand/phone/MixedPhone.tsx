@@ -15,6 +15,7 @@
  */
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { StandLast, StandState } from '../../../../lib/live/move/protocol';
+import { useLivePictures } from '../../../../lib/live/pictures';
 import type { PlayerState } from '../../../../lib/live/types';
 import type { PlayerController, PlayerSnapshot } from '../../player/controller';
 import { nb } from '../../player/copy';
@@ -105,6 +106,8 @@ export default function MixedPhone({ ctl, s, platform: _platform, haptic, childr
   const mixed = useMemo(() => ({ frozen, outcome }), [frozen, outcome]);
 
   const question = on && (shown.phase === 'countdown' || shown.phase === 'open' || shown.phase === 'reveal');
+  // the question's pictures: the database question's, while it is the round's
+  const pictures = useLivePictures(question && st.question && st.qi === qi ? st.question.pictures : undefined, ctl.picture);
   const noLink = on && v.status !== 'open';
   const showFps = fpsWanted();
   return (
@@ -126,6 +129,7 @@ export default function MixedPhone({ ctl, s, platform: _platform, haptic, childr
           scene={backdrop}
           mixed={mixed}
           clock={deviceClock}
+          pictures={pictures}
         />
       ) : (
         children

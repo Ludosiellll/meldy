@@ -5,7 +5,7 @@
  */
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFakeServer } from '../../../../lib/live/fake';
+import { createFakeServer, EXAMPLE_QUESTIONS, PICTURE_QUESTIONS } from '../../../../lib/live/fake';
 import { encodeSnapshot, STAND_ARENA, type Welcome } from '../../../../lib/live/move/protocol';
 import type { PlayerController } from '../../player/controller';
 import { PlayerApp } from '../../player/PlayerApp';
@@ -192,5 +192,44 @@ describe('a battle with movement rounds on the phone', () => {
     // the battle's sheet says the round did not count (the database's result), in neutral words
     expect(document.querySelector('#lp-sheet-title')?.textContent).toBe('Мини-игра не засчитана');
     expect(document.querySelector('.lp-sheet')?.classList.contains('lp-sheet--seen')).toBe(true);
+  });
+
+  it('a movement round of a real test: the question\'s picture in the card, big on a tap; five options', async () => {
+    ctl.dispose();
+    // the third question is the movement round: a picture and five options
+    fake = createFakeServer({ bots: 3, fastBots: true, autoHost: false, demoPin: null, latencyMs: 0, seed: 5, questions: [EXAMPLE_QUESTIONS[0], EXAMPLE_QUESTIONS[1], PICTURE_QUESTIONS[0], EXAMPLE_QUESTIONS[2], EXAMPLE_QUESTIONS[3], EXAMPLE_QUESTIONS[4]] });
+    game = await fake.create({ quiz_id: 'q' }, { mode: 'boss', time_s: 20, speed: true, who: 'pin', chat_names: true, stand_every: 3, boss: 'clock' });
+    ctl = controller(fake, recordingPlatform(rec));
+    render(<PlayerApp ctl={ctl} platform={recordingPlatform(rec)} shareUrl="https://ludosiel-studyforge.hf.space/play" />);
+    await act(async () => {
+      await ctl.start({ pin: game.pin });
+    });
+    await until(() => !!screen.queryByPlaceholderText('Как вас назвать'));
+    fireEvent.change(screen.getByPlaceholderText('Как вас назвать'), { target: { value: 'Дима' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    });
+    await until(() => FakeSocket.all.length > 0);
+    sock().open();
+    await room(welcome);
+    await room({ ...hello, letters: ['А', 'Б', 'В', 'Г', 'Д', 'Е'] });
+    await room(state({}));
+    // the two button questions go by on time
+    for (const qi of [0, 1]) {
+      await next(qi === 0 ? 'lobby' : 'leaderboard');
+      await until(() => ctl.getSnapshot().state?.question?.qi === qi);
+      await until(() => ctl.getSnapshot().state?.state === 'reveal', 40_000);
+      await next('reveal');
+    }
+    await next('leaderboard');
+    await until(() => ctl.getSnapshot().state?.question?.stand === true);
+    expect(ctl.getSnapshot().state?.question?.options).toHaveLength(5);
+    await until(() => !!document.querySelector('.sp-q__pic img'));
+    expect(document.querySelector('.sp-q__pic img')?.getAttribute('src')).toMatch(/^data:image\/svg\+xml/);
+    expect(screen.getByRole('list', { name: 'Ответы' }).querySelectorAll('li')).toHaveLength(5);
+    fireEvent.click(document.querySelector('.sp-q__pic')!);
+    expect(document.querySelector('.sp-zoom img')).not.toBeNull();
+    fireEvent.click(document.querySelector('.sp-zoom')!);
+    expect(document.querySelector('.sp-zoom')).toBeNull();
   });
 });

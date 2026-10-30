@@ -1,6 +1,7 @@
 # Mode A «Встань на ответ» — contract
 
-A question is on the projector's board and on every phone. Four answer zones А, Б, В, Г lie on the floor. Players run
+A question is on the projector's board and on every phone. Up to six answer zones А, Б, В, Г, Д, Е lie on the floor (since
+20261031090000_live_wide_rounds.sql, 30.10: real tests have five and six options; before it four). Players run
 their characters onto the zone they think is right. At zero the boss «Дедлайн» stomps and every tile except the right
 zone drops: whoever is not on it falls and becomes a ghost. Ghosts keep running and answering; a ghost on the right zone
 gets half the points and comes back to life when the floor returns.
@@ -70,17 +71,18 @@ The map comes in the `welcome` (`MOVE.md` §4, unchanged format). Units: 1600 ×
  "solids": [{"rect": [0, 0, 1600, 160]},        // the back wall under the question board
             {"rect": [0, 160, 20, 740]}, {"rect": [1580, 160, 20, 740]}, {"rect": [0, 880, 1600, 20]},
             {"circle": [800, 520, 80]}],         // the stage, where «Дедлайн» stands (solid)
- "zones": [{"id": "А", "rect": [80, 220, 600, 240]},  {"id": "Б", "rect": [920, 220, 600, 240]},
-           {"id": "В", "rect": [80, 580, 600, 240]},  {"id": "Г", "rect": [920, 580, 600, 240]}],
- "spawns": [[560, 520], [1040, 520], [800, 360], [800, 680]],
+ "zones": [{"id": "А", "rect": [80, 220, 420, 240]},  {"id": "Б", "rect": [1100, 220, 420, 240]},
+           {"id": "В", "rect": [80, 580, 420, 240]},  {"id": "Г", "rect": [1100, 580, 420, 240]},
+           {"id": "Д", "rect": [560, 220, 480, 180]}, {"id": "Е", "rect": [560, 640, 480, 180]}],
+ "spawns": [[560, 520], [1040, 520], [300, 520], [1300, 520]],
  "npc_spawns": [[800, 520]]}
 ```
 
 - **Zone index = option index.** Zone 0 (А) is option 0, zone 1 (Б) option 1, … in the shown order (CONTRACT §4).
   The ids are Cyrillic letters for display only: match zones by index, never by id (Latin «A» looks the same).
   A question with n options has the first n zones live; the others are closed (standing there is no answer).
-- The floor that drops: tiles of 60 from (20, 160), 26 columns × 12 rows. Zone tiles: А columns 1–10 rows 1–4,
-  Б 15–24 / 1–4, В 1–10 / 7–10, Г 15–24 / 7–10. At the stomp every tile outside the right zone drops (corridors too).
+- The floor that drops: tiles of 60 from (20, 160), 26 columns × 12 rows. Zone tiles: А columns 1–7 rows 1–4,
+  Б 18–24 / 1–4, В 1–7 / 7–10, Г 18–24 / 7–10, Д 9–16 / 1–3, Е 9–16 / 8–10. At the stomp every tile outside the right zone drops (corridors too).
 - The boss is not an entity (no snapshot entry): it stands on the stage and acts from the phase and the clock.
 - Snapshot flags gain `F_GHOST = 1 << 5` (bits 5–7 belong to the mode; a mixed room uses bit 6 for the battle's ice,
   `F_ICE`, MODE_MIXED.md; a room has one mode, so mode B may reuse 6–7).
@@ -165,7 +167,7 @@ database itself closes an open stand question at `closes_at + 8 s` with no answe
 ## 6. Rules the server applies
 
 - **Which zone.** The character's centre at `closes + 250 ms`. A zone is a closed rectangle: a centre exactly on its
-  edge is inside. Zones never touch (corridors 120–240 wide), so a border is only zone versus floor.
+  edge is inside. Zones never touch (corridors 60–240 wide), so a border is only zone versus floor.
 - **Elapsed** = the moment the character entered the zone it ended in (the tick its centre crossed in, after the last
   time it left) − `opens`, clamped to 0…T. In the zone before `opens` (or standing there from the last question):
   0 ms, the full early bonus.
@@ -222,7 +224,7 @@ Texts follow the plain-words rules (short, no exclamation marks, numbers first).
 | phase | phone | projector |
 |---|---|---|
 | lobby | own character, stick; «Ждём начала» | PIN, QR, the crowd running; «Начать» |
-| countdown | question and options with letters; «Бегите к ответу» | the board: question, options А–Г; zones light up (closed ones dim); 3-2-1 |
+| countdown | question and options with letters, its picture (a tap shows it large); «Бегите к ответу» | the board: question, its picture, options А–Е (their pictures); zones light up (closed ones dim); the picture large during 3-2-1 |
 | open | big timer, own zone letter («Вы на Б»), the stick | the board, timer, live counts per zone (from snapshot flags) |
 | last 3 s | timer shakes, short vibration each second | alarm shakes, the boss winds up |
 | reveal | «Верно. +620» / «Мимо. Теперь вы призрак» / «Призрак на верном ответе. +380. Скоро вернётесь» / «Вы зашли позже. Этот вопрос не считаем»; streak «3 подряд» | the stomp, the floor drops, falls; «Устояли 15 из 24»; «Быстрее всех — Дима, +980» |

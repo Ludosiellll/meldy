@@ -19,6 +19,7 @@
  */
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { zoneIndexAt } from '../../../../lib/live/move/sim';
+import type { ShownPicture, ShownPictures } from '../../../../lib/live/pictures';
 import { sharedPlaces, shownPlace } from '../../../../lib/live/rules';
 import type { StandState, StandTopEntry } from '../../../../lib/live/move/protocol';
 import { clothesHex, toPlayerLook } from '../../../../lib/live/three/look';
@@ -55,6 +56,8 @@ export interface StandPlayProps {
   mixed?: { frozen: boolean; outcome: MixedOutcome | null } | null;
   /** The clock of the state's times (`opens`, `closes`); the room's by default. */
   clock?: () => number | null;
+  /** The question's pictures (the database question's, while it is the round's); none by default. */
+  pictures?: ShownPictures | null;
 }
 
 const PHASES: readonly StandState['phase'][] = ['lobby', 'countdown', 'open', 'reveal', 'leaderboard', 'podium', 'ended'];
@@ -66,16 +69,24 @@ const Check = () => (
 );
 
 /** The options as rows: the letter on the zone's colour, the text. The row under the character is marked by the loop. */
+/** An option's picture beside its text; nothing for an option without one. */
+function OptionPic({ pic, className }: { pic: ShownPicture | undefined; className: string }) {
+  if (pic === undefined) return null;
+  return <span className={className}>{pic ? <img src={pic} alt="" decoding="async" /> : null}</span>;
+}
+
 const Options = memo(function Options({
   options,
   keyIndex,
   choice,
   rows,
+  pics,
 }: {
   options: readonly string[];
   keyIndex: number | null;
   choice: number | null;
   rows: React.MutableRefObject<Array<HTMLLIElement | null>>;
+  pics: ReadonlyArray<ShownPicture | undefined>;
 }) {
   return (
     <ol className="sp-opts" aria-label="Ответы">
@@ -95,6 +106,7 @@ const Options = memo(function Options({
             <span className="sp-opt__l" aria-hidden="true">
               {LETTERS[i]}
             </span>
+            <OptionPic pic={pics[i]} className="sp-opt__pic" />
             <span className="sp-opt__t">
               <span className="lp-sr">{`${LETTERS[i]}. `}</span>
               {text}
@@ -158,12 +170,18 @@ function OutcomeCard({ outcome, look, fell, ice = false }: { outcome: Outcome; l
   );
 }
 
-export function StandPlay({ session, view, fallbackPhase, look, name, pin, players, canEdit, onEdit, haptic, scene = null, mixed = null, clock }: StandPlayProps) {
+const NO_PICS: ReadonlyArray<ShownPicture | undefined> = [];
+
+export function StandPlay({ session, view, fallbackPhase, look, name, pin, players, canEdit, onEdit, haptic, scene = null, mixed = null, clock, pictures = null }: StandPlayProps) {
   const st = view.state;
   const phase = st?.phase ?? fallbackPhase;
   const use3d = !!scene && (phase === 'countdown' || phase === 'open' || phase === 'reveal');
   const q = st && (phase === 'countdown' || phase === 'open' || phase === 'reveal') ? st.q : null;
   const options = q?.options ?? [];
+  const stem = q ? pictures?.stem : undefined;
+  const optionPics = (q && pictures?.options) || NO_PICS;
+  const [zoom, setZoom] = useState(false);
+  useEffect(() => setZoom(false), [st?.qi, phase]);
   const res = phase === 'reveal' ? (st?.res ?? null) : null;
   const last = lastFor(st, view.me);
   const you = view.you;
@@ -450,13 +468,21 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
             <span ref={timerRef}>{view.hello?.time_s ?? 15}</span>
           </div>
         </div>
-        <p className="sp-q__text" data-size={questionSize(q.text)}>
-          {q.text}
-        </p>
+        <div className="sp-q__body" data-pic={stem !== undefined ? 'true' : undefined}>
+          <p className="sp-q__text" data-size={questionSize(q.text)}>
+            {q.text}
+          </p>
+          {stem !== undefined && (
+            <button type="button" className="sp-q__pic" onClick={() => typeof stem === 'string' && setZoom(true)} aria-label="Рисунок к вопросу. Нажмите, чтобы увеличить">
+              {typeof stem === 'string' ? <img src={stem} alt="" decoding="async" /> : stem === false ? <i>Рисунок не загрузился. Посмотрите на экран.</i> : null}
+            </button>
+          )}
+        </div>
         <ol className="sp-qopts" aria-hidden="true">
           {q.options.map((text, i) => (
             <li key={i} style={{ '--zone': ZONE_COLOURS[i] } as React.CSSProperties}>
               <b>{LETTERS[i]}</b>
+              <OptionPic pic={optionPics[i]} className="sp-qopts__pic" />
               <span>{text}</span>
             </li>
           ))}
@@ -474,7 +500,12 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   return (
     <div className="sp sp-play" ref={playRef} data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-ice={mixed?.frozen ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
       {head}
-      {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? res.key : null} choice={last?.choice ?? null} rows={rows} />}
+      {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? res.key : null} choice={last?.choice ?? null} rows={rows} pics={optionPics} />}
+      {zoom && typeof stem === 'string' && (
+        <button type="button" className="sp-zoom" onClick={() => setZoom(false)} aria-label="Закрыть рисунок">
+          <img src={stem} alt="Рисунок к вопросу" />
+        </button>
+      )}
       {phase === 'leaderboard' && st?.top && st.top.length > 0 && <Board top={st.top} you={you} />}
       {ghost && (phase === 'countdown' || phase === 'open') && <p className="sp-ghostline">Вы призрак. Верный ответ вернёт вас в игру.</p>}
       {mixed?.frozen && (phase === 'countdown' || phase === 'open') && <p className="sp-iceline">Вы заморожены. Встаньте на верный ответ, и лёд растает.</p>}

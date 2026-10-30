@@ -377,7 +377,7 @@ def test_a_stand_room_keeps_its_arena_and_has_no_monster():
             await host.wait(lambda c: len([e for e in c.events if e.get("t") == "err"]) == 2, within=2, what="refusals")
             assert [e["code"] for e in host.events if e.get("t") == "err"] == ["op", "op"]
             room = hub.rooms[GAME].room
-            assert not room.npcs and room.map.w == 1600 and [z.id for z in room.map.zones] == ["А", "Б", "В", "Г"]
+            assert not room.npcs and room.map.w == 1600 and [z.id for z in room.map.zones] == ["А", "Б", "В", "Г", "Д", "Е"]
     run(scenario())
 
 

@@ -10,11 +10,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Maximize, Minimize, Users, Volume2, VolumeX } from 'lucide-react';
+import { useLivePictures } from '../../../lib/live/pictures';
 import { sharedPlaces } from '../../../lib/live/rules';
 import type { BossKind, HostState, LiveApi, RosterRow } from '../../../lib/live/types';
 import { STAND_LETTERS, type StandState, type StandTopEntry } from '../../../lib/live/move';
 import { ZONE_COLOURS } from '../../../lib/live/three';
 import { qrCode, shortLink } from '../../../lib/quizzes/qr';
+import { BigPicture, OptionPic, StemFigure } from './figure';
 import { fastestName, type TimerFace } from './plan';
 import { useStandRoom } from './room';
 import { StandScene, type StandCue, type StandHud } from './scene';
@@ -363,6 +365,11 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
   const qCount = rs?.q_count ?? s.q_count;
   const res = rs?.res ?? null;
   const inQuestion = phase === 'countdown' || phase === 'open' || phase === 'reveal';
+  // the question's pictures: the database question's, while it is the round's
+  const pics = useLivePictures(inQuestion && s.question && s.qi === qi ? s.question.pictures : undefined, game.picture);
+  const stem = inQuestion && q ? pics.stem : undefined;
+  const [big, setBig] = useState(false);
+  useEffect(() => setBig(false), [qi, phase]);
   const top = rs?.top ?? dbTop(s);
   const fastest = phase === 'reveal' ? fastestName(rs, nameOf) : null;
   const lastQuestion = qi >= qCount - 1;
@@ -396,7 +403,8 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
         </div>
 
         <div className="lvst-head" style={{ width: Math.min(1100, width - 660) }}>
-        <section className="lvst-board" aria-live="polite">
+        <section className="lvst-board lvbt-board" aria-live="polite" data-pic={stem !== undefined ? '' : undefined}>
+          {stem !== undefined ? <StemFigure stem={stem} big={big} onToggle={() => setBig((v) => !v)} /> : null}
           {phase === 'lobby' ? (
             <div className="lvst-join">
               <div className="lvst-join-qr">
@@ -412,7 +420,7 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
             </div>
           ) : inQuestion && q ? (
             phase === 'reveal' && res ? (
-              <div className="lvst-q lvst-q--reveal" key={`r${qi}`}>
+              <div className="lvst-q lvst-q--reveal lvbt-q" key={`r${qi}`}>
                 <span className="lvst-hint">{STAND.right}</span>
                 <div className="lvst-answer">
                   <Letter i={res.key} big />
@@ -420,7 +428,7 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
                 </div>
               </div>
             ) : (
-              <div className="lvst-q" key={`q${qi}`}>
+              <div className="lvst-q lvbt-q" key={`q${qi}`}>
                 <span className="lvst-hint">{STAND.hint}</span>
                 <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                   {q.text}
@@ -441,10 +449,11 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
         </section>
 
         {inQuestion && q ? (
-          <ol className="lvst-options" key={`o${qi}`} data-revealed={phase === 'reveal' && res ? '' : undefined}>
-            {q.options.slice(0, 4).map((text, i) => (
+          <ol className="lvst-options lvbt-options" key={`o${qi}`} data-revealed={phase === 'reveal' && res ? '' : undefined} data-wide={q.options.length > 4 ? '' : undefined}>
+            {q.options.map((text, i) => (
               <li key={i} data-key={res && res.key === i ? '' : undefined} data-dim={res && res.key !== i ? '' : undefined}>
                 <Letter i={i} />
+                <OptionPic pic={pics.options[i]} />
                 <span className="lvst-opt-text">{text}</span>
                 <b
                   className="lvst-opt-count"
@@ -578,6 +587,7 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
           ) : null}
         </div>
 
+        {(big || phase === 'countdown') && typeof stem === 'string' ? <BigPicture src={stem} onClose={() => setBig(false)} /> : null}
         {failed ? <div className="lvst-fail">{STAND.noWebgl}</div> : null}
         {sheet === 'players' ? <PlayersSheet roster={s.roster} onKick={pickKick} onClose={() => setSheet(null)} /> : null}
         {sheet === 'review' ? <ReviewSheet log={log} roster={s.roster} asked={s.qi + 1} onClose={() => setSheet(null)} /> : null}

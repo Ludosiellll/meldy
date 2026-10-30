@@ -80,12 +80,11 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
 
 ## 4. Questions
 
-- Plays items with exactly one correct option. A battle without movement rounds (`mode = 'boss'`, `stand_every = 0`)
-  takes 2–6 options and pictures (since 20261030090000_live_pictures.sql, 30.10: real tests have five options and
-  pictures); a stand game and a mixed game take 2–4 options without pictures (the arena has four zones and draws no
-  pictures). The rest are skipped and counted in `skipped` at create: for a контрольная, of its draw; for subjects, of
-  the subjects' keyed questions. At most 30 are played. The setup screen switches the mini-game off by itself for a test
-  that is mostly such questions and says why (LiveSetupPage).
+- Plays items with exactly one correct option of 2–6, pictures allowed, in every game: a battle, a battle with movement
+  rounds and «Встань на ответ» (20261030090000_live_pictures.sql for the battle, 30.10; 20261031090000_live_wide_rounds.sql
+  for the rest: the arena has six zones and its boards show the pictures; the room's write `live_stand_close` takes the
+  zones 0–5, still below the question's option count). The rest are skipped and counted in `skipped` at create: for a
+  контрольная, of its draw; for subjects, of the subjects' keyed questions. At most 30 are played.
 - Pictures: `question.pictures` = `{"stem": [path…], "options": [[path…] per shown option]}`, present only when the
   question has any (`question.picture` stays `null`). Paths in the private bucket test-item-images; the screens read
   them through the `quiz-media` Edge Function with `{game_id, token, path}` (the host's or a player's token), which asks

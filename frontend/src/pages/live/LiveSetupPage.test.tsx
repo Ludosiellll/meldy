@@ -189,13 +189,14 @@ describe('«Провести игру»', () => {
     expect(within(names).getByRole('radio', { name: 'Да' })).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('a real test (five options, pictures): the mini-game goes off by itself and says why; all of it plays', async () => {
+  it('a real test (five options, pictures): the mini-game stays on, the arena has a zone for every option; all of it plays', async () => {
     bank.questions = REAL;
     const create = vi.spyOn(server, 'create');
     const view = await open('/live/new?c=c1');
     const mini = screen.getByRole('radiogroup', { name: 'Мини-игра с движением' });
-    expect(within(mini).getByRole('radio', { name: 'Нет' })).toHaveAttribute('aria-checked', 'true');
-    expect(view.container.querySelector('.lvs-note')?.textContent).toMatch(/Мини-игра выключена: в этом тесте вопросы с 5–6 вариантами или картинками/);
+    expect(within(mini).getByRole('radio', { name: 'Каждые 5 вопросов' })).toHaveAttribute('aria-checked', 'true');
+    expect(view.container.querySelector('.lvs-note')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Играть без мини-игры' })).toBeNull();
     // only the seven-option question is left out, with its own reason
     const folded = view.container.querySelector('details.lvs-skipped')!;
     expect(folded.querySelector('summary')?.textContent).toMatch(/1\s+вопрос не войдёт в игру/);
@@ -205,17 +206,14 @@ describe('«Провести игру»', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Открыть комнату' }));
       await Promise.resolve();
     });
-    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'boss', stand_every: 0 });
+    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'boss', stand_every: 5 });
   });
 
-  it('a mini-game picked for such a test: says how many it takes and switches it off on a click', async () => {
+  it('«Встань на ответ» takes the same questions as the battle', async () => {
     bank.questions = REAL;
-    const view = await open('/live/new?c=c1&mini=5');
-    const mini = screen.getByRole('radiogroup', { name: 'Мини-игра с движением' });
-    expect(within(mini).getByRole('radio', { name: 'Каждые 5 вопросов' })).toHaveAttribute('aria-checked', 'true');
-    expect(view.container.querySelector('.lvs-note')?.textContent).toMatch(/С мини-игрой войдут 2\s+вопроса из 9: на полу арены четыре зоны и нет картинок\./);
-    fireEvent.click(screen.getByRole('button', { name: 'Играть без мини-игры' }));
-    expect(within(mini).getByRole('radio', { name: 'Нет' })).toHaveAttribute('aria-checked', 'true');
+    const view = await open('/live/new?c=c1&mode=stand');
+    const folded = view.container.querySelector('details.lvs-skipped')!;
+    expect(folded.querySelector('summary')?.textContent).toMatch(/1\s+вопрос не войдёт в игру/);
     expect(view.container.querySelector('.lvs-note')).toBeNull();
   });
 

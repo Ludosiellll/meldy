@@ -9,7 +9,7 @@ const last = (over: Partial<StandLast> = {}): StandLast => ({ qi: 2, choice: 1, 
 describe('the phone of «Встань на ответ» says it in plain words (MODE_STAND §8)', () => {
   it('uses the projector letters and floor colours, zone index = option index', () => {
     expect([...LETTERS]).toEqual([...STAND_LETTERS]);
-    expect([...ZONE_COLOURS]).toEqual(ARENA_COLOURS.slice(0, 4));
+    expect([...ZONE_COLOURS]).toEqual([...ARENA_COLOURS]);
   });
 
   it('tells where the own character stands', () => {

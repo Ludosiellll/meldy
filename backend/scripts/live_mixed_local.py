@@ -41,11 +41,12 @@ from websockets.exceptions import ConnectionClosed, InvalidStatus  # noqa: E402
 
 import live_move as lm  # noqa: E402
 import live_move_api as api  # noqa: E402
+import live_move_stand as lms  # noqa: E402
 import supabase_rest  # noqa: E402
 from live_stand_e2e import jwt  # noqa: E402
 
 # the questions of live_mixed_local.sh's seed, in order: options and the right one (keep_order, so shown = stored)
-N_OPTIONS = [4, 3, 4, 2, 3, 4]
+N_OPTIONS = [4, 3, 6, 2, 3, 5]
 KEYS = [1, 2, 1, 0, 0, 3]
 
 NAMES = ["Алина", "Артём", "Ева", "Миша", "Соня", "Тимур", "Вера", "Глеб", "Даша", "Егор", "Катя", "Лёва", "Маша",
@@ -61,10 +62,9 @@ def token(i: int) -> str:
 
 
 def zone_spot(rng: random.Random, zone: int) -> tuple[float, float]:
-    """A spot inside zone `zone` (MODE_STAND §3), away from its edges."""
-    x0 = 80 if zone in (0, 2) else 920
-    y0 = 220 if zone in (0, 1) else 580
-    return x0 + 60 + rng.random() * 480, y0 + 50 + rng.random() * 140
+    """A spot inside zone `zone` (live_move_stand.ARENA), away from its edges."""
+    x, y, w, h = lms.ARENA["zones"][zone]["rect"]
+    return x + 50 + rng.random() * (w - 100), y + 40 + rng.random() * (h - 80)
 
 
 class Bot:

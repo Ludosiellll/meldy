@@ -105,7 +105,7 @@ export type BossKind = 'clock' | 'skeleton';
 export type StandPhase = 'lobby' | 'countdown' | 'open' | 'reveal' | 'leaderboard' | 'podium' | 'ended';
 
 /** Zone index = option index; these are only the labels drawn on the floor. Match zones by index, never by id. */
-export const STAND_LETTERS = ['А', 'Б', 'В', 'Г'] as const;
+export const STAND_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е'] as const;
 
 /** The arena (the server sends the same map in its welcome): contracts/live/stand_arena.json. */
 export const STAND_ARENA: MapJson = {
@@ -119,16 +119,18 @@ export const STAND_ARENA: MapJson = {
     { circle: [800, 520, 80] },
   ],
   zones: [
-    { id: 'А', rect: [80, 220, 600, 240] },
-    { id: 'Б', rect: [920, 220, 600, 240] },
-    { id: 'В', rect: [80, 580, 600, 240] },
-    { id: 'Г', rect: [920, 580, 600, 240] },
+    { id: 'А', rect: [80, 220, 420, 240] },
+    { id: 'Б', rect: [1100, 220, 420, 240] },
+    { id: 'В', rect: [80, 580, 420, 240] },
+    { id: 'Г', rect: [1100, 580, 420, 240] },
+    { id: 'Д', rect: [560, 220, 480, 180] },
+    { id: 'Е', rect: [560, 640, 480, 180] },
   ],
   spawns: [
     [560, 520],
     [1040, 520],
-    [800, 360],
-    [800, 680],
+    [300, 520],
+    [1300, 520],
   ],
   npc_spawns: [[800, 520]],
 };

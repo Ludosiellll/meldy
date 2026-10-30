@@ -9,8 +9,8 @@ import { NBSP, nb, plural } from '../../player/copy';
 export const TITLE = 'Встань на ответ';
 
 /** Zone index = option index: the letters and the floor colours of the projector's arena (lib/live/three/internal/arena.ts). */
-export const LETTERS = ['А', 'Б', 'В', 'Г'] as const;
-export const ZONE_COLOURS = ['#ff6f61', '#4d8dff', '#ffc531', '#36c47c'] as const;
+export const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е'] as const;
+export const ZONE_COLOURS = ['#ff6f61', '#4d8dff', '#ffc531', '#36c47c', '#b07cff', '#ff8fc8'] as const;
 
 export const points = (n: number) => `${nb(n)}${NBSP}${plural(n, 'очко', 'очка', 'очков')}`;
 /** «4 место из 24». */

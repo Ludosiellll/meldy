@@ -7,7 +7,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFakeServer } from '../../../lib/live/fake';
+import { createFakeServer, EXAMPLE_QUESTIONS, PICTURE_QUESTIONS, type FakeQuestion } from '../../../lib/live/fake';
 import type { HostState, Settings } from '../../../lib/live/types';
 import { LiveHostView } from '../../../pages/live/LiveHostPage';
 import { saveHostInfo, saveHostToken } from '../host/hostSession';
@@ -70,8 +70,8 @@ const space = () => fireEvent.keyDown(window, { key: ' ' });
 const calls = (name: string) => rec.calls.filter((c) => c[0] === name).map((c) => c[1]);
 const last = <T,>(list: T[]): T | undefined => list[list.length - 1];
 
-async function start(settings: Settings = SETTINGS) {
-  const api = createFakeServer({ bots: 5, latencyMs: 0, demoPin: null, autoHost: false, fastBots: true, seed: 11 });
+async function start(settings: Settings = SETTINGS, questions?: readonly FakeQuestion[]) {
+  const api = createFakeServer({ bots: 5, latencyMs: 0, demoPin: null, autoHost: false, fastBots: true, seed: 11, ...(questions ? { questions } : {}) });
   const g = await api.create({ container_id: 'c', subject_ids: ['s'], count: 6 }, settings);
   saveHostToken(g.game_id, g.host_token);
   saveHostInfo(g.game_id, { title: 'Базы данных', joinUrl: g.join_url, containerId: 'c', quizId: null, source: null, settings });
@@ -191,6 +191,35 @@ describe('the battle on the 3D projector', () => {
     }
     await tick(1200);
     expect(last(calls('setFormation'))).toEqual([true]);
+  });
+
+  it('a movement round of a real test: five options on the board, the question\'s picture beside it', async () => {
+    // the third question is the movement round: a picture and five options
+    const bank = [EXAMPLE_QUESTIONS[0], EXAMPLE_QUESTIONS[1], PICTURE_QUESTIONS[0], EXAMPLE_QUESTIONS[2], EXAMPLE_QUESTIONS[3]];
+    const { view, api, g, server } = await start({ ...SETTINGS, stand_every: 3, boss: 'clock' }, bank);
+    for (let i = 0; i < 60 && !(await server()).question?.stand; i++) {
+      const st = (await server()).state;
+      if (st === 'lobby' || st === 'reveal' || st === 'leaderboard') await api.next(g.game_id, g.host_token, st);
+      await tick(1500);
+    }
+    await tick(1200);
+    const q = (await server()).question!;
+    expect(q.stand).toBe(true);
+    expect(q.options).toHaveLength(5);
+    const options = view.container.querySelector('.lvmx-head .lvst-options')!;
+    expect(options).toHaveAttribute('data-wide');
+    expect([...options.querySelectorAll('.lvst-letter')].map((l) => l.textContent)).toEqual(['А', 'Б', 'В', 'Г', 'Д']);
+    const board = view.container.querySelector('.lvmx-head .lvst-board')!;
+    expect(board).toHaveAttribute('data-pic');
+    expect(board.querySelector('.lvbt-figure img')?.getAttribute('src')).toMatch(/^data:image\/svg\+xml/);
+    // once the round is open: beside the question; a click shows it over the arena, another puts it back
+    for (let i = 0; i < 10 && view.container.querySelector('.lvmx')?.getAttribute('data-phase') === 'countdown'; i++) await tick(500);
+    expect(view.container.querySelector('.lvmx')).toHaveAttribute('data-phase', 'open');
+    expect(view.container.querySelector('.lvbt-pic-big')).toBeNull();
+    fireEvent.click(view.container.querySelector('.lvmx-head .lvbt-figure')!);
+    expect(view.container.querySelector('.lvbt-pic-big img')).not.toBeNull();
+    fireEvent.click(view.container.querySelector('.lvbt-pic-big')!);
+    expect(view.container.querySelector('.lvbt-pic-big')).toBeNull();
   });
 
   it('without WebGL the battle\'s flat screen takes over', async () => {

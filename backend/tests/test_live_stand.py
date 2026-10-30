@@ -18,7 +18,7 @@ from live_stand_fake import FakeLiveDb  # noqa: E402
 GAME = "11111111-2222-4333-8444-555555555555"
 HOST = "H" * 43
 CENTRE = {0: (380.0, 340.0), 1: (1220.0, 340.0), 2: (380.0, 700.0), 3: (1220.0, 700.0)}   # А Б В Г
-CORRIDOR = (800.0, 330.0)
+CORRIDOR = (530.0, 340.0)                                       # between А and Д
 
 
 def pid(i: int) -> str:
@@ -105,10 +105,11 @@ def frozen(room: lm.Room, p: lm.Player) -> bool:
 
 def test_the_arena_zones_are_the_options_in_order():
     m = stand.arena_map()
-    assert [z.id for z in m.zones] == ["А", "Б", "В", "Г"]
-    for i, (x, y) in CENTRE.items():
+    assert [z.id for z in m.zones] == ["А", "Б", "В", "Г", "Д", "Е"]
+    for i, (x, y) in {**CENTRE, 4: (800.0, 300.0), 5: (800.0, 730.0)}.items():   # Д over the stage, Е under it
         assert m.zone_index(x, y) == i + 1
     assert m.zone_index(*CORRIDOR) == 0
+    assert m.zone_index(300.0, 520.0) == 0 and m.zone_index(800.0, 420.0) == 0    # between the rows, round the stage
     # the stage is solid: a character is pushed off it
     x, y = lm.move_circle(m, 800, 520, 0, 0, lm.PLAYER_R)
     assert (x - 800) ** 2 + (y - 520) ** 2 >= (80 + lm.PLAYER_R) ** 2 - 1e-6
@@ -189,7 +190,7 @@ def test_a_border_counts_as_inside_and_only_live_zones_answer():
     w.start()
     w.put(p0, xy=(80.0, 340.0))                    # exactly on А's left edge
     w.put(p1, xy=(79.9, 340.0))                    # a tenth outside
-    w.put(p2, xy=(680.0, 460.0))                   # А's far corner
+    w.put(p2, xy=(500.0, 460.0))                   # А's far corner
     w.put(p3, 2)                                   # В: closed for a two-option question
     _, answers = w.to_deadline()
     assert sorted(a["p"] for a in answers) == [pid(0), pid(2)]
@@ -305,7 +306,7 @@ def test_messages_never_carry_the_key_before_the_close_and_phones_get_no_points_
     w = World(3)
     p0, p1, p2 = w.ps
     hello = w.game.hello()
-    assert hello["letters"] == ["А", "Б", "В", "Г"] and hello["stage"] == [800, 520, 80] and hello["floor_ms"] == stand.FLOOR_MS
+    assert hello["letters"] == ["А", "Б", "В", "Г", "Д", "Е"] and hello["stage"] == [800, 520, 80] and hello["floor_ms"] == stand.FLOOR_MS
     w.start()
     st = w.game.state(True)
     assert st["phase"] == "countdown" and st["q"]["options"] == ["Ответ 1", "Ответ 2", "Ответ 3", "Ответ 4"]

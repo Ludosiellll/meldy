@@ -17,6 +17,7 @@ import StandBuilder from './StandBuilder';
 import { StandPlay } from './StandPlay';
 import { Thumb } from './Thumb';
 import { OPENED, placeLine, points } from './words';
+import { useLivePictures } from '../../../../lib/live/pictures';
 import { shownPlace } from '../../../../lib/live/rules';
 import './stand.css';
 
@@ -73,6 +74,10 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   useEffect(() => {
     if (s.step === 'builder' && phase && phase !== 'lobby') ctl.leaveEdit();
   }, [s.step, phase, ctl]);
+
+  // the question's pictures: the database question's, while it is the room's
+  const inQuestion = phase === 'countdown' || phase === 'open' || phase === 'reveal';
+  const pictures = useLivePictures(inQuestion && st?.question && v.state && st.qi === v.state.qi ? st.question.pictures : undefined, ctl.picture);
 
   if (s.step === 'builder') {
     return (
@@ -172,6 +177,7 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
         onEdit={() => ctl.editLook()}
         haptic={haptic}
         scene={backdrop}
+        pictures={pictures}
       />
       {v.lost && (
         <div className="sp-lost" role="alert">

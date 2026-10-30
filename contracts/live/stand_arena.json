@@ -1,5 +1,5 @@
 {
-  "about": "Mode A «Встань на ответ» (docs/live/MODE_STAND.md): the arena and the points. Checked against backend/live_move_stand.py (test_live_stand.py) and frontend/src/lib/live/move/protocol.ts (stand.test.ts). Zone i is option i; ids are display letters.",
+  "about": "Mode A «Встань на ответ» (docs/live/MODE_STAND.md): the arena and the points. Checked against backend/live_move_stand.py (test_live_stand.py) and frontend/src/lib/live/move/protocol.ts (stand.test.ts). Zone i is option i; ids are display letters. Six zones on the tile grid (А Б on the far row's corners, В Г on the near row's, Д Е in the middle column above and below the stage); a question with fewer options closes the rest.",
   "map": {
     "w": 1600,
     "h": 900,
@@ -11,17 +11,19 @@
       {"circle": [800, 520, 80]}
     ],
     "zones": [
-      {"id": "А", "rect": [80, 220, 600, 240]},
-      {"id": "Б", "rect": [920, 220, 600, 240]},
-      {"id": "В", "rect": [80, 580, 600, 240]},
-      {"id": "Г", "rect": [920, 580, 600, 240]}
+      {"id": "А", "rect": [80, 220, 420, 240]},
+      {"id": "Б", "rect": [1100, 220, 420, 240]},
+      {"id": "В", "rect": [80, 580, 420, 240]},
+      {"id": "Г", "rect": [1100, 580, 420, 240]},
+      {"id": "Д", "rect": [560, 220, 480, 180]},
+      {"id": "Е", "rect": [560, 640, 480, 180]}
     ],
-    "spawns": [[560, 520], [1040, 520], [800, 360], [800, 680]],
+    "spawns": [[560, 520], [1040, 520], [300, 520], [1300, 520]],
     "npc_spawns": [[800, 520]]
   },
   "stage": [800, 520, 80],
   "floor": {"x": 20, "y": 160, "tile": 60, "cols": 26, "rows": 12},
-  "letters": ["А", "Б", "В", "Г"],
+  "letters": ["А", "Б", "В", "Г", "Д", "Е"],
   "points": [
     {"elapsed_ms": 3000, "time_s": 15, "streak_after": 1, "speed": true, "ghost": false, "pts": 900},
     {"elapsed_ms": 6000, "time_s": 15, "streak_after": 3, "speed": true, "ghost": false, "pts": 960},

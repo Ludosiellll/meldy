@@ -34,7 +34,9 @@ log = logging.getLogger("live_move")
 
 PROTOCOL = 1
 
-# The arena (MODE_STAND.md §3): zone i is option i; the letters are for display.
+# The arena (MODE_STAND.md §3): zone i is option i; the letters are for display. Six zones on the tile grid: А Б on the
+# far row's corners, В Г on the near row's, Д Е in the middle column above and below the stage; a question with fewer
+# options closes the rest (a character on a closed zone answers nothing).
 ARENA: dict[str, Any] = {
     "w": 1600, "h": 900,
     "solids": [
@@ -43,15 +45,16 @@ ARENA: dict[str, Any] = {
         {"circle": [800, 520, 80]},                                    # the stage, where «Дедлайн» stands
     ],
     "zones": [
-        {"id": "А", "rect": [80, 220, 600, 240]}, {"id": "Б", "rect": [920, 220, 600, 240]},
-        {"id": "В", "rect": [80, 580, 600, 240]}, {"id": "Г", "rect": [920, 580, 600, 240]},
+        {"id": "А", "rect": [80, 220, 420, 240]}, {"id": "Б", "rect": [1100, 220, 420, 240]},
+        {"id": "В", "rect": [80, 580, 420, 240]}, {"id": "Г", "rect": [1100, 580, 420, 240]},
+        {"id": "Д", "rect": [560, 220, 480, 180]}, {"id": "Е", "rect": [560, 640, 480, 180]},
     ],
-    "spawns": [[560, 520], [1040, 520], [800, 360], [800, 680]],
+    "spawns": [[560, 520], [1040, 520], [300, 520], [1300, 520]],
     "npc_spawns": [[800, 520]],
 }
 STAGE = [800, 520, 80]
 FLOOR = {"x": 20, "y": 160, "tile": 60, "cols": 26, "rows": 12}
-LETTERS = ["А", "Б", "В", "Г"]
+LETTERS = ["А", "Б", "В", "Г", "Д", "Е"]
 
 ALARM_MS = 3000          # the last seconds the alarm shakes (clients only)
 DECIDE_LAG_MS = 250      # zones are read this long after the deadline: commands sent before zero have arrived

@@ -75,7 +75,6 @@ export const SETUP = {
   amount: 'Вопросов',
   amountAll: (n: number) => `все ${n}`,
   skippedHead: (n: number) => `${count(n, QUESTIONS)} ${plural(n, ['не войдёт', 'не войдут', 'не войдут'])} в игру`,
-  skippedWhy: 'В игру с мини-игрой идут вопросы с одним верным ответом и 2–4 вариантами, без картинок.',
   skippedWhyWide: 'В игру идут вопросы с одним верным ответом и 2–6 вариантами.',
   // why a question is not in the game: each a short sentence of its own under the question
   reason: {
@@ -86,14 +85,6 @@ export const SETUP = {
     picture: 'Есть картинка.',
   },
   reasonOptionsWide: 'Вариантов меньше двух или больше шести.',
-  /** A mini-game is picked and the test is mostly five-option questions or pictures. */
-  narrowHint: (narrow: number, wide: number) =>
-    narrow === 0
-      ? 'Мини-игре нужны вопросы с 2–4 вариантами без картинок: на полу арены четыре зоны. В этом тесте таких нет.'
-      : `С мини-игрой ${plural(narrow, ['войдёт', 'войдут', 'войдут'])} ${count(narrow, QUESTIONS)} из ${nb(wide)}: на полу арены четыре зоны и нет картинок.`,
-  narrowFix: 'Играть без мини-игры',
-  /** The game was switched to «Нет» by itself for such a test. */
-  wideAuto: 'Мини-игра выключена: в этом тесте вопросы с 5–6 вариантами или картинками, а на полу арены четыре зоны.',
   tooFew: 'Для игры нужно хотя бы 3 подходящих вопроса. Добавьте их в тест.',
   foot: 'Гости увидят верный ответ после каждого вопроса. Ответы на другие вопросы экзамена они не увидят.',
   open: 'Открыть комнату',

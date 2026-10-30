@@ -652,6 +652,67 @@ else
   behave "pictures behaviour again" "$XBEHAVIOUR" 'LIVE PICTURES BEHAVIOUR PASSED'
 fi
 
+# ─── Real tests in every game: the wide rule for the movement rounds and «Встань на ответ» ───
+# 20261031090000_live_wide_rounds.sql on top of the pictures step: live_create draws one right option of 2–6 with pictures
+# for every game (the arena has six zones). Checked the same way: its contract (tests/live_wide_rounds.sql) fails before
+# and after its rollback; applied twice to one catalog; the pictures behaviour with the stand and mixed draws taking the
+# wide questions too (live_wide_rounds_behaviour.sql, made from live_pictures_behaviour.sql); every live contract, the
+# battle's, the stand's, the mixed and the PIN behaviours unchanged; rolled back to the pictures step's catalog, applied
+# again. LIVE_WIDE=0 skips the stage.
+if [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the wide rounds stage (LIVE_WIDE=0 or LIVE_PICTURES=0)"
+else
+  WMIG=$SB/migrations/20261031090000_live_wide_rounds.sql
+  WDOWN=$SB/rollback/20261031090000_live_wide_rounds_down.sql
+  WCONTRACT=$SB/tests/live_wide_rounds.sql
+  WBEHAVIOUR=$WORK/live_wide_rounds_behaviour.sql
+  WCLOSE=$HERE/live_wide_close_behaviour.sql
+  sed -e "s/perform pg_temp.eq('stand: the four-option question only', (r ->> 'q_count') || '\/' || (r ->> 'skipped'), '1\/4');/perform pg_temp.eq('stand: five, six and four options play', (r ->> 'q_count') || '\/' || (r ->> 'skipped'), '3\/2');/" \
+      -e "s/perform pg_temp.eq('mixed: the four-option question only', (r ->> 'q_count') || '\/' || (r ->> 'skipped'), '1\/4');/perform pg_temp.eq('mixed: five, six and four options play', (r ->> 'q_count') || '\/' || (r ->> 'skipped'), '3\/2');/" \
+      -e "s/LIVE PICTURES BEHAVIOUR PASSED/LIVE WIDE ROUNDS BEHAVIOUR PASSED/" \
+      "$XBEHAVIOUR" > "$WBEHAVIOUR"
+  [ "$(grep -c "options play', (r ->> 'q_count')" "$WBEHAVIOUR")" = 3 ] \
+    && ok "the wide rounds behaviour: the stand and mixed draws expect the wide questions" \
+    || bad "the wide rounds behaviour: the stand and mixed draws were not found"
+  if run "$WCONTRACT"; then bad "live_wide_rounds.sql passes before its migration (it tests nothing)"; else ok "live_wide_rounds.sql fails before its migration"; fi
+  if passes "$WBEHAVIOUR" 'LIVE WIDE ROUNDS BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_wide_rounds_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_wide_rounds_behaviour fails before its migration"
+  fi
+  if passes "$WCLOSE" 'LIVE WIDE CLOSE BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_wide_close_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_wide_close_behaviour fails before its migration"
+  fi
+  FNOWIDE=$(fingerprint)
+  step "wide rounds migration, first apply" "$WMIG"
+  FWIDE=$(fingerprint)
+  [ "$FWIDE" != "$FNOWIDE" ] && ok "the wide rounds migration changed the catalog" || bad "the wide rounds migration changed nothing"
+  step "wide rounds migration, second apply (re-runnable)" "$WMIG"
+  [ "$(fingerprint)" = "$FWIDE" ] && ok "a second wide rounds apply changes nothing in the catalog" || bad "a second wide rounds apply changed the catalog"
+  step "contract: live_wide_rounds.sql (every game draws with the wide rule)" "$WCONTRACT"
+  step "contract: live_pictures.sql still holds" "$XCONTRACT"
+  pic_contracts "still holds after the wide rounds migration"
+  behave "wide rounds behaviour: the stand and mixed games take five and six options, the pictures as in the battle" \
+    "$WBEHAVIOUR" 'LIVE WIDE ROUNDS BEHAVIOUR PASSED'
+  behave "wide rounds behaviour: a round's write takes the zones Д and Е, never past the options" \
+    "$WCLOSE" 'LIVE WIDE CLOSE BEHAVIOUR PASSED'
+  pic_behaviours "unchanged after the wide rounds migration"
+  [ "$(fingerprint)" = "$FWIDE" ] && ok "the catalog unchanged by the wide rounds runs" || bad "the wide rounds runs changed the catalog"
+  step "wide rounds rollback" "$WDOWN"
+  [ "$(fingerprint)" = "$FNOWIDE" ] && ok "after the wide rounds rollback: the pictures step's catalog (fingerprint)" \
+    || bad "after the wide rounds rollback: another catalog than the pictures step's"
+  step "wide rounds rollback again (re-runnable)" "$WDOWN"
+  [ "$(fingerprint)" = "$FNOWIDE" ] && ok "after the second wide rounds rollback: still the pictures step's catalog" || bad "after the second wide rounds rollback: another catalog"
+  if run "$WCONTRACT"; then bad "live_wide_rounds.sql passes after its rollback"; else ok "live_wide_rounds.sql fails after its rollback"; fi
+  step "contract: live_pictures.sql after the wide rounds rollback" "$XCONTRACT"
+  step "wide rounds migration after its rollback" "$WMIG"
+  [ "$(fingerprint)" = "$FWIDE" ] && ok "the same catalog as the first wide rounds apply" || bad "another catalog than the first wide rounds apply"
+  step "contract: live_wide_rounds.sql again" "$WCONTRACT"
+  behave "wide rounds behaviour again" "$WBEHAVIOUR" 'LIVE WIDE ROUNDS BEHAVIOUR PASSED'
+fi
+
 echo "ok: $OKS, failures: $FAILS"
 if [ $FAILS = 0 ]; then echo "LIVE GAME CHECKS PASSED"; fi
 [ $FAILS = 0 ]

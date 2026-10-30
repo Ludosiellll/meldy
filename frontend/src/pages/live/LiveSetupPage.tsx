@@ -144,9 +144,6 @@ export default function LiveSetupPage() {
   const [source, setSource] = useState<SourcePreview | null>(null);
   const [failed, setFailed] = useState(false);
   const [pick, setPickState] = useState<MiniGame>(() => pickOf(params));
-  // the address or the teacher chose the game: the page does not switch the mini-game off by itself
-  const chosenPick = useRef(params.has('mini') || params.has('mode'));
-  const [autoWide, setAutoWide] = useState(false);
   const mode: GameMode = pick === 'all' ? 'stand' : 'boss';
   const [boss, setBoss] = useState<BossKind>('clock');
   const [time, setTime] = useState<Settings['time_s']>(() => DEFAULT_TIME[pickOf(params) === 'all' ? 'stand' : 'boss']);
@@ -154,8 +151,6 @@ export default function LiveSetupPage() {
     (p: MiniGame) => {
       // each game starts from its own times (stand: 15 s, MODE_STAND §1); the battle's picks share theirs
       if ((pick === 'all') !== (p === 'all')) setTime(DEFAULT_TIME[p === 'all' ? 'stand' : 'boss']);
-      chosenPick.current = true;
-      setAutoWide(false);
       setPickState(p);
     },
     [pick],
@@ -187,22 +182,10 @@ export default function LiveSetupPage() {
 
   useDocumentTitle(source ? SETUP.title(source.title) : SETUP.top);
 
-  // a battle without mini-games takes five or six options and pictures; the arena (a mini-game, «Встань на ответ») does not
-  const wide = pick === 'none';
-  const skipOf = (q: SourceQuestion) => (wide ? q.wideSkip : q.skip);
-  const narrowCount = source ? source.questions.filter((q) => !q.skip).length : 0;
-  const wideCount = source ? source.questions.filter((q) => !q.wideSkip).length : 0;
-  const playable = wide ? wideCount : narrowCount;
+  // every game takes five or six options and pictures (the arena has six zones and the board shows the pictures)
+  const skipOf = (q: SourceQuestion) => q.wideSkip;
+  const playable = source ? source.questions.filter((q) => !q.wideSkip).length : 0;
   const skipped = source ? source.questions.filter((q) => skipOf(q)) : [];
-  // a real test (five options, pictures): the mini-game would leave most of it out — the battle goes without it
-  useEffect(() => {
-    if (!source || chosenPick.current) return;
-    if (narrowCount < wideCount && (narrowCount < MIN_GAME_QUESTIONS || narrowCount * 2 < wideCount)) {
-      chosenPick.current = true;
-      setAutoWide(true);
-      setPickState('none');
-    }
-  }, [source, narrowCount, wideCount]);
   const choices = amountChoices(playable);
   const cap = Math.min(playable, MAX_GAME_QUESTIONS);
   const chosen = amount !== null && choices.includes(amount) ? amount : cap > 10 ? 10 : cap;
@@ -265,19 +248,6 @@ export default function LiveSetupPage() {
           <>
             <p className="lvs-lead">{SETUP.lead(Math.min(chosen, cap))}</p>
             <GameChoice pick={pick} count={Math.min(chosen, cap)} boss={boss} onChange={setPick} />
-            {wide && autoWide ? (
-              <p className="lvs-note" role="status">
-                {SETUP.wideAuto}
-              </p>
-            ) : null}
-            {!wide && wideCount > narrowCount ? (
-              <p className="lvs-note" role="status">
-                {SETUP.narrowHint(narrowCount, wideCount)}{' '}
-                <button type="button" className="lvs-note-fix" onClick={() => setPick('none')}>
-                  {SETUP.narrowFix}
-                </button>
-              </p>
-            ) : null}
             <div className="lvs-rows">
               {pick !== 'none' ? (
                 <Row label={SETUP.boss}>
@@ -337,13 +307,13 @@ export default function LiveSetupPage() {
               <details className="lvs-skipped">
                 <summary>
                   <b>{SETUP.skippedHead(skipped.length)}</b>
-                  <span>{wide ? SETUP.skippedWhyWide : SETUP.skippedWhy}</span>
+                  <span>{SETUP.skippedWhyWide}</span>
                   <ChevronDown className="lvs-chev" size={20} strokeWidth={2.4} aria-hidden="true" />
                 </summary>
                 <ul>
                   {skipped.slice(0, 30).map((q) => (
                     <li key={q.id}>
-                      {q.text} <span>{wide && skipOf(q) === 'options' ? SETUP.reasonOptionsWide : SETUP.reason[skipOf(q)!]}</span>
+                      {q.text} <span>{skipOf(q) === 'options' ? SETUP.reasonOptionsWide : SETUP.reason[skipOf(q)!]}</span>
                     </li>
                   ))}
                   {skipped.length > 30 ? <li>…</li> : null}

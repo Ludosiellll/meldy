@@ -31,7 +31,7 @@ import live_move as lm  # noqa: E402
 import live_move_api as api  # noqa: E402
 import supabase_rest  # noqa: E402
 
-CENTRE = {0: (380.0, 340.0), 1: (1220.0, 340.0), 2: (380.0, 700.0), 3: (1220.0, 700.0)}
+CENTRE = {0: (380.0, 340.0), 1: (1220.0, 340.0), 2: (380.0, 700.0), 3: (1220.0, 700.0), 4: (800.0, 310.0), 5: (800.0, 730.0)}
 
 
 def b64(raw: bytes) -> str:
