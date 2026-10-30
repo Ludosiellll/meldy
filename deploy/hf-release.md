@@ -4,6 +4,21 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-30 — Release 47.32: real tests in the mini-game too — six zones on the 3D arena, pictures on every board (from the commit of this entry)
+
+- **Why**: the owner, 30.10: real tests in 3D. 47.31 let the battle's button questions take five or six options and
+  pictures, but the mini-game (and «Встань на ответ») still drew 2–4 options without pictures, and the setup switched
+  the mini-game off for such a test. Now the arena has six zones: А Б В Г on the corners, Д Е above and below the
+  stage; a question with fewer options closes the rest. The bots of the local run go to all six, the round counts.
+- **Pictures in the movement round**: the question's picture beside it on the projector's board (big during the 3-2-1
+  and on a click), the options' pictures in their rows; on the phone a small picture in the question's card (a tap
+  shows it over the screen) and in the option rows. «Встань на ответ» shows them the same way.
+- **The setup page** no longer switches the mini-game off: every game takes the same questions (2–6 options, one right).
+- **The database change follows this release** (migration 20261031090000_live_wide_rounds.sql): live_create draws the
+  wide questions for every game, and live_stand_close (the room's write of a round) takes the zones Д and Е — it
+  refused them, so such a round came out «не засчитана». Until it is applied, a mini-game draws as before (four
+  zones), so nothing breaks in between.
+
 ## 2026-10-30 — Release 47.31: the battle's projector in 3D from the lobby to the podium; real tests with five or six options and pictures (from the commit of this entry)
 
 - **Why**: the owner, 30.10: «у нас же только 3д игра» — the projector showed the flat screen for the lobby, the
