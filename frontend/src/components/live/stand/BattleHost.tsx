@@ -415,6 +415,8 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
         else if (c === 'back') sound.restore();
         else if (c === 'freeze') sound.freeze();
         else if (c === 'thaw') sound.shatter();
+        else if (c === 'hunt') sound.roar();
+        else if (c === 'caught') sound.slam();
       },
     }),
     [sound],

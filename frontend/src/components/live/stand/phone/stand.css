@@ -63,6 +63,7 @@
 .sp-q { padding: 12px 14px 14px 16px; }
 .sp-q__top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sp-q__n { font: 600 14px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.sp-q__chase { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: #e5483a; color: #fff; font: 700 12px/1.4 var(--ph-sans, sans-serif); }
 .sp-clock {
   width: 62px;
   height: 62px;

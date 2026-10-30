@@ -316,7 +316,7 @@ lobby).
    no answers).
 3. The projector and the phone screens.
 
-## 12. Mode B «Убеги от Дедлайна» (later)
+## 12. Mode B «Убеги от Дедлайна»
 
-`backend/live_move_modes.make_mode` picks the mode from the game's settings; a new value (`"run"`) gets its own module
-and `RoomHooks` there. Snapshot flag bits 6–7 and `"t": "run"` messages are free for it. Nothing of B exists yet.
+Every second movement round «Дедлайн» leaves its stage and hunts the class (MODE_RUN.md): the same round, zones, write
+and points; `state.chase` and `state.caught` say it, the hunters are the room's NPC entities.

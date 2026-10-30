@@ -174,6 +174,7 @@ async def _main(a: argparse.Namespace, made: list) -> int:
     keys = [1, 2, 0]
     expect = ["lobby", "leaderboard", "leaderboard"]
     stomp_after: list[float] = []
+    caught: dict[int, int] = {}                     # a chase question (mode B): catches the room counted
     for qi in range(3):
         for i, p in enumerate(phones):
             p.target = targets[qi](i)
@@ -185,6 +186,8 @@ async def _main(a: argparse.Namespace, made: list) -> int:
         if st["res"]["key"] != keys[qi]:
             raise SystemExit(f"stand e2e: key {st['res']['key']} != {keys[qi]}")
         stomp_after.append(st["res"]["at"] - st["closes"])
+        if st.get("chase"):
+            caught[qi] = int(st.get("caught") or 0)
         await wait_for(lambda: all(p.mes and p.mes[-1]["last"] and p.mes[-1]["last"]["qi"] == qi for p in phones), 5, f"me {qi}")
         await wait_for(lambda: host.stand["state"]["floor"] == "up", 8, f"floor {qi}")
         await rpc("live_next", {"p_game": game, "p_host_token": host_token, "p_expect": "reveal"})
@@ -195,6 +198,7 @@ async def _main(a: argparse.Namespace, made: list) -> int:
     # The database's word against what the bots did.
     agree = 0
     total = 0
+    missed = {qi: 0 for qi in caught}               # a caught bot may not make it back to its zone in time
     for i, p in enumerate(phones):
         review = await rpc("live_review", {"p_game": game, "p_token": tok(i)})
         state = await rpc("live_state", {"p_game": game, "p_token": tok(i), "p_since_rev": None})
@@ -203,10 +207,14 @@ async def _main(a: argparse.Namespace, made: list) -> int:
             if target is not None:
                 total += 1
                 agree += item["choice"] == target
+                if item["qi"] in missed and item["choice"] != target:
+                    missed[item["qi"]] += 1
         mine = [m for m in p.mes if m["last"]]
         if mine[-1]["pts"] != state["me"]["dmg"] or sum(m["last"]["pts"] for m in {m["last"]["qi"]: m for m in mine}.values()) != state["me"]["dmg"]:
             raise SystemExit(f"stand e2e: bot {i}: the room said {mine[-1]['pts']}, the database {state['me']['dmg']}")
-    if agree != total:
+    if any(missed[qi] > caught[qi] for qi in caught):
+        raise SystemExit(f"stand e2e: a chase question lost more answers than its catches: {missed} vs {caught}")
+    if agree + sum(missed.values()) != total:
         raise SystemExit(f"stand e2e: {total - agree} of {total} answers are not where the bots stood")
 
     await host.ws.send(json.dumps({"t": "cmd", "op": "stats"}))
@@ -219,7 +227,8 @@ async def _main(a: argparse.Namespace, made: list) -> int:
     server.should_exit = True
     await serve
     await http.aclose()
-    print(f"STAND E2E: {a.players} players, 3 questions, {agree}/{total} answers where the bots stood, results on every "
+    print(f"STAND E2E: {a.players} players, 3 questions, {agree}/{total} answers where the bots stood (caught in the "
+          f"chase: {sum(caught.values())}), results on every "
           f"phone equal live_state; stomp {', '.join(f'{x:.0f}' for x in stomp_after)} ms after zero; "
           f"tick work p99 {stats['work_ms']['p99']} ms; database writes {runner.mode.writes}, polls {runner.mode.polls}")
     return 0

@@ -53,6 +53,8 @@
   "res": null,
   "top": null,
   "acc": null,
+  "chase": false,
+  "caught": 0,
   "round": "tap"
  },
  "countdown": {
@@ -77,6 +79,8 @@
   "res": null,
   "top": null,
   "acc": null,
+  "chase": false,
+  "caught": 0,
   "round": "stand"
  },
  "reveal": {
@@ -141,6 +145,8 @@
   },
   "top": null,
   "acc": null,
+  "chase": false,
+  "caught": 0,
   "round": "stand"
  },
  "reveal_host": {
@@ -218,6 +224,8 @@
   },
   "top": null,
   "acc": null,
+  "chase": false,
+  "caught": 0,
   "round": "stand"
  },
  "me_right": {

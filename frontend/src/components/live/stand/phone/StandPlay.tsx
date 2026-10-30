@@ -21,7 +21,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type React
 import { zoneIndexAt } from '../../../../lib/live/move/sim';
 import type { ShownPicture, ShownPictures } from '../../../../lib/live/pictures';
 import { sharedPlaces, shownPlace } from '../../../../lib/live/rules';
-import type { StandState, StandTopEntry } from '../../../../lib/live/move/protocol';
+import { F_CAUGHT, type StandState, type StandTopEntry } from '../../../../lib/live/move/protocol';
 import { clothesHex, toPlayerLook } from '../../../../lib/live/three/look';
 import type { Look } from '../../../../lib/live/types';
 import { optionSize, questionSize } from '../../player/options';
@@ -319,6 +319,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
     let keyShown = -1;
     let secShown = -1;
     let alarmOn = false;
+    let caughtShown = false;
     let mapSet = false;
     const step = () => {
       const L = live.current;
@@ -332,9 +333,13 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
       const zone = me && client.map ? zoneIndexAt(client.map, me.x, me.y) - 1 : -1;
       const holding = L.phase === 'open' && client.holding();
       const question = L.phase === 'countdown' || L.phase === 'open';
+      // mode B: «Дедлайн» caught the own character (thrown off its zone, held a moment)
+      const caught = question && !!me && (me.flags & F_CAUGHT) !== 0;
       // One number for everything the line and the rows show: they are written only when it changes.
-      const key = (me ? 1 : 0) + 2 * (zone + 1) + 16 * L.options + 128 * PHASES.indexOf(L.phase) + 2048 * (holding ? 1 : 0) + 4096 * (L.ghost ? 1 : 0);
+      const key = (me ? 1 : 0) + 2 * (zone + 1) + 16 * L.options + 128 * PHASES.indexOf(L.phase) + 2048 * (holding ? 1 : 0) + 4096 * (L.ghost ? 1 : 0) + 8192 * (caught ? 1 : 0);
       if (key !== keyShown) {
+        if (caught && !caughtShown) L.haptic('hit');
+        caughtShown = caught;
         const onAnswer = question && zone >= 0 && zone < L.options;
         if (onAnswer && !holding && zone !== zoneShown && zoneShown !== -2) L.haptic('select');
         zoneShown = zone;
@@ -344,6 +349,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
           let text: string;
           if (!me) text = 'Подключаемся';
           else if (holding) text = 'Время вышло';
+          else if (caught) text = 'Дедлайн поймал вас. Бегите обратно';
           else if (question) text = zoneLine(zone, L.options);
           else if (L.phase === 'reveal') text = L.ghost ? 'Вы призрак. Можно бегать' : 'Ждём следующий вопрос';
           else text = 'Можно бегать';
@@ -360,7 +366,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
         if (hereRef.current) {
           hereRef.current.dataset.zone = onAnswer ? String(zone) : '';
           if (hereLRef.current) hereLRef.current.textContent = onAnswer ? LETTERS[zone] : '';
-          if (hereKRef.current) hereKRef.current.textContent = holding ? 'Время вышло' : onAnswer ? 'Вы на ответе' : question ? zoneLine(zone, L.options) : L.ghost ? 'Вы призрак' : 'Ждём';
+          if (hereKRef.current) hereKRef.current.textContent = holding ? 'Время вышло' : caught ? 'Поймал!' : onAnswer ? 'Вы на ответе' : question ? zoneLine(zone, L.options) : L.ghost ? 'Вы призрак' : 'Ждём';
           if (hereTRef.current) hereTRef.current.textContent = onAnswer ? (L.texts[zone] ?? '') : '';
         }
         stick.setEnabled(!holding);
@@ -463,6 +469,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
         <div className="sp-q__top">
           <span className="sp-q__n">
             Вопрос {st.qi + 1} из {st.q_count}
+            {st.chase && phase !== 'reveal' ? <b className="sp-q__chase">Дедлайн гонится!</b> : null}
           </span>
           <div className="sp-clock" ref={clockRef} role="timer" aria-label="Секунд осталось">
             <span ref={timerRef}>{view.hello?.time_s ?? 15}</span>

@@ -28,11 +28,14 @@ def pid(i: int) -> str:
 class World:
     """A stand room of n players beside its database; the database's clock is moved by hand."""
 
-    def __init__(self, n: int = 4, questions=((4, 1), (3, 2), (2, 0)), time_s: int = 15) -> None:
+    def __init__(self, n: int = 4, questions=((4, 1), (3, 2), (2, 0)), time_s: int = 15, chase: bool = False) -> None:
         self.t = [1000.0]
         self.time_s = time_s
         self.db = FakeLiveDb(GAME, HOST, list(questions), time_s=time_s, clock=lambda: self.t[0])
         self.game = stand.StandGame(time_s=time_s, q_count=len(questions))
+        if not chase:
+            # mode A's rules alone: no round is a chase (mode B's tests ask for it)
+            self.game.chase_round = lambda qi: False  # type: ignore[method-assign]
         self.room = lm.Room(GAME, stand.arena_map(), hooks=self.game)
         self.game.room = self.room
         self.decided: list[tuple[int, list]] = []

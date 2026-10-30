@@ -209,8 +209,10 @@ def replay(db: FakeMixedDb) -> tuple[int, int, dict[str, dict]]:
 # ─────────────── a whole game, 30 phones ───────────────
 
 
-def test_a_whole_mixed_game_with_30_bots_6_questions_every_3rd_a_movement_round():
+def test_a_whole_mixed_game_with_30_bots_6_questions_every_3rd_a_movement_round(monkeypatch):
     n = 30
+    # the plumbing of mode A's rounds: «Дедлайн» stays on its stage (mode B's hunt: test_live_run.py)
+    monkeypatch.setattr(mixed.MixedGame, "chase_round", lambda self, qi: False)
 
     async def scenario():
         db = FakeMixedDb(GAME, HOST, QUESTIONS, every=3, time_s=20, countdown_s=1.0, open_s=5.0)

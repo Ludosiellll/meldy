@@ -13,7 +13,7 @@
  */
 import type { Arena, ArenaShape, Boss, BossKind, Kit, MoveMap, Player, View } from '../../../../lib/live/three';
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook } from '../../../../lib/live/three';
-import { F_AWAY, isGhost, isIced, kindOf, KIND_PLAYER, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, type StandState } from '../../../../lib/live/move/protocol';
 import type { MapJson } from '../../../../lib/live/move/sim';
 import { easeOutBack } from '../plan';
 import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
@@ -25,6 +25,9 @@ export { PHONE_PIXEL_RATIO };
 export type PhonePin = 'auto' | '3d' | 'light';
 /** The signs against the projector's: they read on a phone and leave the floor to the heroes. */
 const SIGN_SCALE = 0.7;
+/** Mode B: the other hunters are this much of the boss's height; the boss runs back to its stage this fast. */
+const HUNTER_SCALE = 0.62;
+const BOSS_HOME_SPEED = 700;
 /** A character this fast (map units/s) runs; slower, it stands. */
 const RUN_SPEED = 25;
 /** Seconds the camera keeps leaning to the boss after its blow. */
@@ -298,6 +301,7 @@ export class PhoneScene implements Backdrop {
       }
       this.move(this.me, input.me.x, input.me.y, input.me.flags, dt, now, arena);
     }
+    this.hunt(input.others, dt);
     this.placeCamera(dt, input.me, now);
     // Characters gone from the room (a kicked player).
     if (f % 30 === 0) {
@@ -310,6 +314,75 @@ export class PhoneScene implements Backdrop {
     }
     // the phone's ladder (quality.ts) was tuned on frames of at most 100 ms: it keeps judging them so
     this.govern(Math.min(dt, 0.1));
+  }
+
+  // ── mode B: «Дедлайн» hunting (MODE_RUN.md) ──
+  private readonly hunters = new Map<number, { model: Boss; x: number; y: number }>();
+  private bossAway = false;
+  private bossX = 0;
+  private bossY = 0;
+
+  /** The boss runs where the room's first hunter is, smaller copies where the others are; then back to its stage. */
+  private hunt(others: FrameInput['others'], dt: number): void {
+    const boss = this.boss;
+    const arena = this.arena;
+    if (!boss || !arena) return;
+    let lead = true;
+    const seen = new Set<number>();
+    if (others) {
+      for (const [id, p] of others) {
+        if (kindOf(p.flags) !== KIND_NPC) continue;
+        if (lead) {
+          lead = false;
+          if (!this.bossAway) {
+            this.bossAway = true;
+            this.bossX = arena.stage.x;
+            this.bossY = arena.stage.y;
+          }
+          this.runBoss(boss, p.x, p.y);
+          continue;
+        }
+        seen.add(id);
+        let h = this.hunters.get(id);
+        if (!h) {
+          const model = this.kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] * HUNTER_SCALE });
+          model.setPhase('chase');
+          h = { model, x: p.x, y: p.y };
+          this.hunters.set(id, h);
+        }
+        if ((p.x - h.x) ** 2 + (p.y - h.y) ** 2 > 0.25) h.model.setFacing(Math.atan2(p.x - h.x, p.y - h.y));
+        h.x = p.x;
+        h.y = p.y;
+        h.model.setPosition(p.x, p.y);
+      }
+    }
+    for (const [id, h] of this.hunters) {
+      if (seen.has(id)) continue;
+      h.model.dispose();
+      this.hunters.delete(id);
+    }
+    if (lead && this.bossAway) {
+      const dx = arena.stage.x - this.bossX;
+      const dy = arena.stage.y - this.bossY;
+      const d = Math.hypot(dx, dy);
+      const step = BOSS_HOME_SPEED * Math.max(dt, 0);
+      if (d <= step || d < 1) {
+        this.bossAway = false;
+        boss.setPosition(arena.stage.x, arena.stage.y);
+        boss.setFacing(0);
+        boss.setPhase(this.alarm ? 'warn' : 'idle');
+      } else {
+        this.runBoss(boss, this.bossX + (dx / d) * step, this.bossY + (dy / d) * step);
+      }
+    }
+  }
+
+  private runBoss(boss: Boss, x: number, y: number): void {
+    if ((x - this.bossX) ** 2 + (y - this.bossY) ** 2 > 0.25) boss.setFacing(Math.atan2(x - this.bossX, y - this.bossY));
+    if (boss.phase !== 'chase' && boss.phase !== 'roar') boss.setPhase('chase');
+    this.bossX = x;
+    this.bossY = y;
+    boss.setPosition(x, y);
   }
 
   private move(t: Tracked, x: number, y: number, flags: number, dt: number, now: number, arena: Arena): void {

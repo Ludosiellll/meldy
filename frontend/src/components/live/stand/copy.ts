@@ -14,6 +14,9 @@ export const STAND = {
   pin: (pin: string) => `PIN ${pin.length === 6 ? `${pin.slice(0, 3)}${NBSP}${pin.slice(3)}` : pin}`,
   questions: (n: number) => count(n, QUESTIONS),
   hint: 'Встаньте на верный ответ. Остальной пол провалится.',
+  /** A chase round (mode B, MODE_RUN.md): «Дедлайн» hunts the class. */
+  chaseHint: 'Убегайте от Дедлайна и встаньте на верный ответ.',
+  caught: 'Поймал',
   right: 'Верный ответ',
   alive: 'Живы',
   ghosts: 'Призраки',

@@ -41,6 +41,10 @@ describe('a mixed room’s messages (the battle with movement rounds)', () => {
     expect((cd.closes ?? 0) - (cd.opens ?? 0)).toBe(20_000);
     expect(arenaLive(cd)).toBe(true);
     expect(JSON.stringify(shared.countdown)).not.toContain('key');
+    // mode B: the room says whether «Дедлайн» hunts this round (the contract's round is the first: no) and the catches
+    expect([cd.chase, cd.caught]).toEqual([false, 0]);
+    expect(parseStand({ ...shared.countdown, chase: 'yes' })).toBeNull();
+    expect(parseStand({ ...shared.countdown, caught: '2' })).toBeNull();
   });
 
   it('the reveal: everyone off the right zone falls and all of them come back; the battle’s numbers', () => {

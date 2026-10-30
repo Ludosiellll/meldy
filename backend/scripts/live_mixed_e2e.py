@@ -227,6 +227,7 @@ async def _main(a: argparse.Namespace, made: list) -> int:
 
     targets = lambda i: None if i % 10 == 9 else i % 4   # noqa: E731
     stomp_after: list[float] = []
+    caught: dict[int, int] = {}                     # a chase round (mode B): catches the room counted
     quiet_snaps = 0
     for qi in range(6):
         stand_round = qi in (2, 5)
@@ -256,6 +257,8 @@ async def _main(a: argparse.Namespace, made: list) -> int:
             if st["res"]["key"] != KEYS[qi] or st["res"]["void"]:
                 raise SystemExit(f"mixed e2e: q{qi} key {st['res']['key']} void {st['res']['void']}")
             stomp_after.append(st["res"]["at"] - st["closes"])
+            if st.get("chase"):
+                caught[qi] = int(st.get("caught") or 0)
             await wait_for(lambda: all(p.mes and p.mes[-1]["last"]["qi"] == qi for p in phones), 5, f"me {qi}")
             await wait_for(lambda: host.state()["floor"] == "up", 8, f"floor {qi}")
             for p in phones:
@@ -269,6 +272,7 @@ async def _main(a: argparse.Namespace, made: list) -> int:
 
     # The phones' numbers from the room against live_state; the movement answers against where the bots stood.
     agree = total = 0
+    missed = {qi: 0 for qi in caught}               # a caught bot may not make it back to its zone in time
     for i, p in enumerate(phones):
         state = await rpc("live_state", {"p_game": game, "p_token": tok(i), "p_since_rev": None})
         review = await rpc("live_review", {"p_game": game, "p_token": tok(i)})
@@ -276,11 +280,15 @@ async def _main(a: argparse.Namespace, made: list) -> int:
             if item.get("stand") and targets(i) is not None:
                 total += 1
                 agree += item["choice"] == targets(i)
+                if item["qi"] in missed and item["choice"] != targets(i):
+                    missed[item["qi"]] += 1
         mine = {m["last"]["qi"]: m for m in p.mes}
         if mine[5]["pts"] != state["me"]["dmg"] or mine[5]["frozen"] != state["me"]["frozen"]:
             raise SystemExit(f"mixed e2e: bot {i}: the room said {mine[5]['pts']}/{mine[5]['frozen']}, the database "
                              f"{state['me']['dmg']}/{state['me']['frozen']}")
-    if agree != total:
+    if any(missed[qi] > caught[qi] for qi in caught):
+        raise SystemExit(f"mixed e2e: a chase round lost more answers than its catches: {missed} vs {caught}")
+    if agree + sum(missed.values()) != total:
         raise SystemExit(f"mixed e2e: {total - agree} of {total} movement answers are not where the bots stood")
     d = db_read(a.db, game)
     n_q, n_a = check_against_mirror(d)
@@ -297,7 +305,7 @@ async def _main(a: argparse.Namespace, made: list) -> int:
     await http.aclose()
     g = d["game"]
     print(f"MIXED E2E: {a.players} players, 6 questions (movement rounds 3 and 6), {agree}/{total} movement answers where "
-          f"the bots stood, no snapshot in button questions; the database equals the mirror on {n_q} questions and "
+          f"the bots stood (caught in the chase: {sum(caught.values())}), no snapshot in button questions; the database equals the mirror on {n_q} questions and "
           f"{n_a} answers (boss {g['hp']}/{g['hp_max']}, phase {g['phase']}); stomp "
           f"{', '.join(f'{x:.0f}' for x in stomp_after)} ms after zero; tick work p99 {stats['work_ms']['p99']} ms; "
           f"room writes {runner.mode.writes}, polls {runner.mode.polls}")

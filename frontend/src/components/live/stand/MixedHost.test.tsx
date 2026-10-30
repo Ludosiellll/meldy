@@ -146,6 +146,10 @@ describe('the projector of a battle with movement rounds', () => {
     const names = s.roster.map((r) => r.name);
     const hp0 = s.boss.hp;
     await room(state({ phase: 'countdown', qi: 2, round: 'stand', q: { text: s.question!.text, options: s.question!.options }, opens: 8000, closes: 18_000 }));
+    // mode B: a chase round says so on the board and counts the catches
+    await room(state({ phase: 'open', qi: 2, round: 'stand', q: { text: s.question!.text, options: s.question!.options }, opens: 8000, closes: 18_000, chase: true, caught: 2 }));
+    expect(view.container.querySelector('.lvmx .lvst-board')?.textContent).toContain('Убегайте от Дедлайна и встаньте на верный ответ.');
+    expect(view.container.querySelector('.lvst-pill--caught')?.textContent?.replace(/\s/g, ' ')).toBe('Поймал 2');
     await room(
       state({
         phase: 'reveal', qi: 2, round: 'stand', q: { text: s.question!.text, options: s.question!.options }, opens: 8000, closes: 18_000, floor: 'down',

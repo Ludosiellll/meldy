@@ -192,8 +192,10 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
   const ownPics = pics && s.question && s.qi === qi ? pics : null;
   const stem = ownPics?.stem;
   const wide = !!q && q.options.length > 4;
+  // mode B: «Дедлайн» hunts the class this round (the room's word)
+  const chase = !!own?.chase;
   return (
-    <div className="lvmx" data-phase={phase}>
+    <div className="lvmx" data-phase={phase} data-chase={chase ? '' : undefined}>
       {max > 0 ? <ArenaHp hp={hp} max={max} width={width} /> : null}
       <div className="lvst-head lvmx-head" style={{ width: Math.min(1100, width - 700), top: BOARD_TOP }}>
         <section className="lvst-board lvbt-board" aria-live="polite" data-pic={q && stem !== undefined ? '' : undefined}>
@@ -208,7 +210,7 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
             </div>
           ) : q ? (
             <div className="lvst-q lvbt-q" key={`q${qi}`}>
-              <span className="lvst-hint">{MIXED.hint}</span>
+              <span className="lvst-hint">{chase ? MIXED.chaseHint : MIXED.hint}</span>
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
               </h1>
@@ -277,6 +279,12 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
             <i className="lvst-dot lvst-dot--ice" />
             {MIXED.frozen} <b ref={frozenRef}>0</b>
           </span>
+          {chase && (own?.caught ?? 0) > 0 ? (
+            <span className="lvst-pill lvst-pill--caught">
+              <i className="lvst-dot lvst-dot--caught" />
+              {MIXED.caught} <b>{nb(own?.caught ?? 0)}</b>
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -360,6 +368,8 @@ export default function MixedHost({ syncRef, ...props }: MixedHostProps) {
         else if (c === 'back') sound.restore();
         else if (c === 'freeze') sound.freeze();
         else if (c === 'thaw') sound.shatter();
+        else if (c === 'hunt') sound.roar();
+        else if (c === 'caught') sound.slam();
       },
     }),
     [sound],

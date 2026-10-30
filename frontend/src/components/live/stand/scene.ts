@@ -14,7 +14,7 @@
  */
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type PlayerLook, type View } from '../../../lib/live/three';
 import { collapseDownAfter } from '../../../lib/live/three/arenaPlan';
-import { F_AWAY, F_GHOST, F_ICE, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandResult, type StandState, type Welcome } from '../../../lib/live/move';
+import { F_AWAY, F_GHOST, F_ICE, KIND_NPC, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandResult, type StandState, type Welcome } from '../../../lib/live/move';
 import type { Pose } from '../../../lib/live/move';
 
 /** Positions sampled each frame, reused (MoveClient.frameInto). */
@@ -26,7 +26,8 @@ import type { StandRoom } from './room';
 /** The moments the screen plays sounds on: the last seconds' ticks, the alarm, the boss's jump and blow, the first
  * ghost rising, the first cheer of those who stood, the floor coming back; freeze and thaw: a mixed game's ice formed or
  * broke on someone (once per frame at most). */
-export type StandCue = 'tick' | 'tickLast' | 'warn' | 'stomp' | 'impact' | 'rise' | 'cheer' | 'back' | 'freeze' | 'thaw';
+/** `hunt`: «Дедлайн» jumps off its stage after the class (mode B); `caught`: it caught someone. */
+export type StandCue = 'tick' | 'tickLast' | 'warn' | 'stomp' | 'impact' | 'rise' | 'cheer' | 'back' | 'freeze' | 'thaw' | 'hunt' | 'caught';
 
 /** What the screen shows outside the 3D picture, told only on change. */
 export interface StandHud {
@@ -64,6 +65,9 @@ export interface SceneOptions {
 
 /** How steeply the camera looks down at the arena, degrees: steep enough that the boss hides little behind it. */
 const TILT = 52;
+/** Mode B: the other hunters are this much of the boss's height; the boss runs back to its stage this fast. */
+const HUNTER_SCALE = 0.62;
+const BOSS_HOME_SPEED = 700;
 /** Map units a second under which a character stands. */
 const RUN_SPEED = 45;
 /** A battle's class runs to its places round the boss this fast (map units a second). */
@@ -184,6 +188,14 @@ export class StandScene {
   private nextPuppet = -1;
   /** The battle's ice by live_players.id while the class stands round the boss (the database's word). */
   private icedPids: ReadonlySet<string> = new Set();
+  /**
+   * Mode B (MODE_RUN.md): the boss follows the room's first hunter, smaller copies the others; off its stage `away`,
+   * where it is drawn now.
+   */
+  private readonly hunters = new Map<number, { model: Boss; x: number; y: number }>();
+  private bossAway = false;
+  private bossX = 0;
+  private bossY = 0;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -200,6 +212,7 @@ export class StandScene {
       },
       onRoster: (e, id) => (e ? this.addActor(e) : this.removeActor(id)),
       onState: (s, prev) => this.onState(s, prev),
+      onCaught: (id) => this.onCaught(id),
     };
     room.sceneHooks.add(this.hooks);
     this.paused = options.paused === true;
@@ -467,6 +480,7 @@ export class StandScene {
   dispose(): void {
     this.disposed = true;
     this.room.sceneHooks.delete(this.hooks);
+    this.hunters.clear();
     this.kit?.dispose();
     this.kit = null;
     this.view = null;
@@ -499,6 +513,9 @@ export class StandScene {
     this.worldKey = key;
     this.arena?.dispose();
     this.boss?.dispose();
+    for (const h of this.hunters.values()) h.model.dispose();
+    this.hunters.clear();
+    this.bossAway = false;
     this.map = kitMap(world.map);
     this.floor = world.floor;
     this.arena = kit.createArena(this.map, { floor: world.floor, stage: world.stage });
@@ -764,6 +781,7 @@ export class StandScene {
       }
       if (arena) this.place(a, pose, dt, now, at, arena);
     }
+    this.huntFrame(dt, t);
     const zones = st?.q ? Math.min(st.q.options.length, this.zoneIds.length) : this.zoneIds.length;
     tally(flags, zones, this.sums);
     this.tellTally(zones);
@@ -841,6 +859,88 @@ export class StandScene {
       else if (at >= a.cheerFrom && at < a.cheerUntil && !a.iced) p.setPose('cheer');
       else p.setPose('idle');
     }
+  }
+
+  // ── mode B: the hunt ──
+
+  /**
+   * The room's hunters (NPC entities) this frame: the boss runs where the first one is, a smaller copy of it where
+   * each other one is. With none out, a boss off its stage runs back to it (the stomp is from the stage).
+   */
+  private huntFrame(dt: number, t: number | null): void {
+    const boss = this.boss;
+    const arena = this.arena;
+    const kit = this.kit;
+    if (!boss || !arena || !kit) return;
+    let lead = true;
+    const seen = new Set<number>();
+    for (const [id, pose] of this.poses) {
+      if ((pose.flags & 3) !== KIND_NPC) continue;
+      if (lead) {
+        lead = false;
+        if (!this.bossAway) {
+          this.bossAway = true;
+          this.bossX = arena.stage.x;
+          this.bossY = arena.stage.y;
+          this.hud.cue('hunt');
+        }
+        this.runBoss(boss, pose.x, pose.y);
+        continue;
+      }
+      seen.add(id);
+      let h = this.hunters.get(id);
+      if (!h) {
+        const model = kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] * HUNTER_SCALE });
+        model.setPhase('chase');
+        h = { model, x: pose.x, y: pose.y };
+        this.hunters.set(id, h);
+      }
+      const dx = pose.x - h.x;
+      const dy = pose.y - h.y;
+      if (dx * dx + dy * dy > 0.25) h.model.setFacing(Math.atan2(dx, dy));
+      h.x = pose.x;
+      h.y = pose.y;
+      h.model.setPosition(pose.x, pose.y);
+    }
+    for (const [id, h] of this.hunters) {
+      if (seen.has(id)) continue;
+      h.model.dispose();
+      this.hunters.delete(id);
+    }
+    if (lead && this.bossAway) {
+      // back to the stage at a run
+      const dx = arena.stage.x - this.bossX;
+      const dy = arena.stage.y - this.bossY;
+      const d = Math.hypot(dx, dy);
+      const step = BOSS_HOME_SPEED * Math.max(dt, 0);
+      if (d <= step || d < 1) {
+        this.bossAway = false;
+        boss.setPosition(arena.stage.x, arena.stage.y);
+        boss.setFacing(0);
+        const st = this.state;
+        const alarm = this.hello?.alarm_ms ?? 3000;
+        boss.setPhase(st && st.phase === 'open' && st.closes !== null && t !== null && t >= st.closes - alarm ? 'warn' : 'idle');
+      } else {
+        this.runBoss(boss, this.bossX + (dx / d) * step, this.bossY + (dy / d) * step);
+      }
+    }
+  }
+
+  private runBoss(boss: Boss, x: number, y: number): void {
+    const dx = x - this.bossX;
+    const dy = y - this.bossY;
+    if (dx * dx + dy * dy > 0.25) boss.setFacing(Math.atan2(dx, dy));
+    if (boss.phase !== 'chase' && boss.phase !== 'roar') boss.setPhase('chase');
+    this.bossX = x;
+    this.bossY = y;
+    boss.setPosition(x, y);
+  }
+
+  /** «Дедлайн» caught a character: it roars, the character is thrown (the room moves it) with a hit pose. */
+  private onCaught(id: number): void {
+    this.hud.cue('caught');
+    this.boss?.setPhase('roar');
+    this.actors.get(id)?.player?.setPose('hit');
   }
 
   private stomp(qi: number, now: number): void {

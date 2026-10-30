@@ -245,6 +245,13 @@ export interface StandState {
    * arena is on only while `round` is 'stand' and `phase` is countdown, open or reveal (`arenaLive`).
    */
   round?: 'stand' | 'tap' | null;
+  /**
+   * Mode B «Убеги от Дедлайна» (MODE_RUN.md): this movement round «Дедлайн» leaves its stage and hunts the class
+   * (the room's NPC entities, kind 1) until 2 s before zero. False outside a question.
+   */
+  chase?: boolean;
+  /** Catches in this round so far (a chase round). */
+  caught?: number;
 }
 
 export interface StandLast {
@@ -310,6 +317,7 @@ export function parseStand(obj: unknown): StandMessage | null {
       return null;
     if (m.floor !== 'up' && m.floor !== 'down') return null;
     if (m.round !== undefined && m.round !== null && m.round !== 'stand' && m.round !== 'tap') return null;
+    if ((m.chase !== undefined && typeof m.chase !== 'boolean') || (m.caught !== undefined && !isNum(m.caught))) return null;
     if (m.q !== null && (typeof m.q !== 'object' || !Array.isArray((m.q as StandQuestion).options))) return null;
     if (m.res !== null) {
       const r = m.res as Partial<StandResult> | undefined;

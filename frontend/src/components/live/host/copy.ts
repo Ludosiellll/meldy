@@ -192,6 +192,10 @@ export const BATTLE = {
 export const MIXED = {
   /** The board's line over a movement round's question. */
   hint: 'Мини-игра. Встаньте на верный ответ.',
+  /** A chase round (mode B, MODE_RUN.md): «Дедлайн» hunts the class. */
+  chaseHint: 'Убегайте от Дедлайна и встаньте на верный ответ.',
+  /** The pill during a chase round: how many it caught. */
+  caught: 'Поймал',
   /** In the bar during the battle's questions: when the next movement round comes (k button questions before it). */
   soon: (k: number) => (k === 0 ? 'Следующий вопрос с мини-игрой' : `Мини-игра через ${count(k, QUESTIONS)}`),
   /** The lobby's settings line: which questions are movement rounds. */

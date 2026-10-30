@@ -26,7 +26,7 @@ export class StandRoom {
   private view: RoomView = { status: 'connecting', code: null, welcome: null, hello: null, state: null, rosterRev: 0 };
   private readonly listeners = new Set<Listener>();
   /** The scene's own hooks: called before React hears (no re-render needed for them). */
-  readonly sceneHooks = new Set<{ onWelcome?: (w: Welcome) => void; onRoster?: (e: RosterEntry | null, id: number) => void; onState?: (s: StandState, prev: StandState | null) => void; onHello?: (h: StandHello) => void }>();
+  readonly sceneHooks = new Set<{ onWelcome?: (w: Welcome) => void; onRoster?: (e: RosterEntry | null, id: number) => void; onState?: (s: StandState, prev: StandState | null) => void; onHello?: (h: StandHello) => void; onCaught?: (id: number) => void }>();
 
   constructor(game: string, token: string, url?: string) {
     this.client = new MoveClient({
@@ -55,6 +55,9 @@ export class StandRoom {
         } else if (e.t === 'del') {
           for (const h of this.sceneHooks) h.onRoster?.(null, e.id);
           this.set({ rosterRev: this.view.rosterRev + 1 });
+        } else if (e.t === 'ev' && e.k === 'caught') {
+          // mode B: «Дедлайн» caught a character
+          for (const h of this.sceneHooks) h.onCaught?.(e.id);
         }
       },
       onStatus: (status, code) => this.set({ status, code: code ?? null }),

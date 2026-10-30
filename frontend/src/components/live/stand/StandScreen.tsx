@@ -208,6 +208,8 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
         else if (c === 'cheer') sound.cheer(stoodRef.current);
         else if (c === 'rise') sound.rise();
         else if (c === 'back') sound.restore();
+        else if (c === 'hunt') sound.roar();
+        else if (c === 'caught') sound.slam();
       },
     }),
     [sound],
@@ -429,7 +431,7 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
               </div>
             ) : (
               <div className="lvst-q lvbt-q" key={`q${qi}`}>
-                <span className="lvst-hint">{STAND.hint}</span>
+                <span className="lvst-hint">{rs?.chase ? STAND.chaseHint : STAND.hint}</span>
                 <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                   {q.text}
                 </h1>
@@ -508,6 +510,12 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
                   <i className="lvst-dot lvst-dot--ghost" />
                   {STAND.ghosts} <b ref={ghostsRef}>0</b>
                 </span>
+                {rs?.chase && (rs.caught ?? 0) > 0 ? (
+                  <span className="lvst-pill lvst-pill--caught">
+                    <i className="lvst-dot lvst-dot--caught" />
+                    {STAND.caught} <b>{nb(rs.caught ?? 0)}</b>
+                  </span>
+                ) : null}
               </>
             )}
           </div>

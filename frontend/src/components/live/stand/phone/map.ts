@@ -11,7 +11,7 @@
  * height goes to the map rather than to an empty box. Dots stay round.
  */
 import type { Pose } from '../../../../lib/live/move/interp';
-import { F_AWAY, isGhost, kindOf, KIND_PLAYER, type RosterEntry } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, kindOf, KIND_NPC, KIND_PLAYER, type RosterEntry } from '../../../../lib/live/move/protocol';
 import type { GameMap } from '../../../../lib/live/move/sim';
 import { clothesHex, toPlayerLook } from '../../../../lib/live/three/look';
 import { LETTERS, ZONE_COLOURS } from './words';
@@ -93,6 +93,18 @@ export class ArenaMap {
     if (others) {
       const r = 3.6 * dpr;
       for (const [id, p] of others) {
+        if (kindOf(p.flags) === KIND_NPC) {
+          // mode B: «Дедлайн» hunting, a red dot with a dark ring
+          g.globalAlpha = 1;
+          g.fillStyle = '#e5483a';
+          g.beginPath();
+          g.arc((p.x - VIEW.x) * sx, (p.y - VIEW.y) * sy, r * 1.9, 0, Math.PI * 2);
+          g.fill();
+          g.lineWidth = 1.5 * dpr;
+          g.strokeStyle = '#0b121c';
+          g.stroke();
+          continue;
+        }
         if (kindOf(p.flags) !== KIND_PLAYER) continue;
         g.globalAlpha = isGhost(p.flags) || (p.flags & F_AWAY) !== 0 ? 0.3 : 0.9;
         g.fillStyle = this.colourOf(id, roster);

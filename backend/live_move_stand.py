@@ -64,6 +64,17 @@ POLL_S = 1.0             # live_host_state, unless the host's «sync» comes fir
 WRITE_WINDOW_S = 7.0     # retries of the write; the database closes an open stand question by itself after 8 s
 HOLD = 1 << 40           # frozen «until further notice» (a tick far away)
 
+# Mode B «Убеги от Дедлайна» (MODE_RUN.md): every second movement round «Дедлайн» leaves its stage and hunts the class.
+HUNT_SPEED = 215.0       # a player runs 260: the hunter can be escaped, not by standing still
+HUNT_STOP_MS = 2000      # the hunters are called back this long before zero (the stomp is from the stage)
+HUNT_FROM = (800.0, 630.0)   # where they come down: in front of the stage
+HUNT_GAP = 90.0          # between hunters coming down together
+KNOCK = 180.0            # a catch throws the character at least this far from the hunter
+KNOCK_MAX = 900.0        # and on until it is off every zone (it loses the zone it held)
+CAUGHT_MS = 1500         # and it cannot move this long
+SAFE_MS = 2000           # nobody catches it again this long after a catch
+HUNTER_REST_MS = 1000    # the hunter stands and roars this long after a catch
+
 
 def stand_points(elapsed_ms: int, time_s: int, streak_after: int, speed: bool, ghost: bool) -> int:
     """The points of a right answer (MODE_STAND.md §6), exactly as meldy_private.live_stand_points computes them (the
@@ -140,6 +151,8 @@ class StandGame(lm.RoomHooks):
         self.me: dict[str, dict[str, Any]] = {}            # live_players.id → the phone's own numbers
         self.track: dict[int, tuple[int, float]] = {}      # entity id → (zone index + 1, room ms it entered)
         self.at_decision: dict[int, int] = {}              # entity id → zone at the decision
+        self.chase = False                                 # this round «Дедлайн» hunts (mode B)
+        self.catches = 0                                   # catches in this round
         self.on_decide: Callable[[int, list[dict[str, Any]]], None] | None = None
         self.on_change: Callable[[], None] | None = None
 
@@ -160,13 +173,22 @@ class StandGame(lm.RoomHooks):
         self.at_decision = {}
         self._floor_up()
         self._release()
+        self._call_off()
+        self.chase = self.chase_round(qi)
+        self.catches = 0
         self.phase = "countdown" if now_ms < opens_ms else "open"
+
+    def chase_round(self, qi: int) -> bool:
+        """«Встань на ответ» of every question: the second, fourth, … question is a chase."""
+        return qi % 2 == 1
 
     def set_phase(self, phase: str, *, top: list[dict[str, Any]] | None = None, acc: int | None = None) -> None:
         """lobby, leaderboard, podium or ended: the floor is up and nobody is held."""
         if self.floor == "down":
             self._floor_up()
         self._release()
+        self._call_off()
+        self.chase = False
         self.phase = phase
         self.top = top if phase in ("leaderboard", "podium") else None
         self.acc = acc if phase == "podium" else None
@@ -194,6 +216,8 @@ class StandGame(lm.RoomHooks):
             if phase == "countdown" and now >= self.opens_ms:
                 self.phase = "open"
                 self._changed()
+            if self.chase:
+                self._hunt(room, now)
             if self.decided:
                 return
             zone_index = room.map.zone_index
@@ -216,6 +240,7 @@ class StandGame(lm.RoomHooks):
         """The answers at this moment: connected players whose centre is in a live zone; elapsed = when they entered
         it − opens (0 when they were there before). Everyone is held still until the result."""
         self.decided = True
+        self._call_off()
         answers: list[dict[str, Any]] = []
         time_ms = self.time_s * 1000
         for p in room.players.values():
@@ -335,11 +360,71 @@ class StandGame(lm.RoomHooks):
                 "players": self.players, "q": q,
                 "opens": int(self.opens_ms) if q is not None else None,
                 "closes": int(self.closes_ms) if q is not None else None,
-                "floor": self.floor, "res": res, "top": self.top, "acc": self.acc}
+                "floor": self.floor, "res": res, "top": self.top, "acc": self.acc,
+                "chase": self.chase and q is not None, "caught": self.catches if q is not None else 0}
 
     def me_of(self, pid: str) -> dict[str, Any] | None:
         me = self.me.get(pid)
         return None if me is None else {"t": "stand", "k": "me", **me}
+
+    # ── mode B: the hunt ──
+
+    def can_chase(self, room: lm.Room, npc: lm.Npc, p: lm.Player) -> bool:
+        """Hunted: a connected character, not a ghost, not just caught or held."""
+        return (self.chase and p.connected and room.tick >= p.caught_until and room.tick >= p.frozen_until
+                and not p.mode_flags & lm.F_GHOST)
+
+    def on_catch(self, room: lm.Room, npc: lm.Npc, p: lm.Player) -> None:
+        """Caught: thrown off the zone it held — KNOCK units away from the hunter, on until it is out of every zone
+        (towards the stage when a wall stops it); in small steps, so no wall or the stage is crossed. Held CAUGHT_MS,
+        safe for SAFE_MS; the hunter rests HUNTER_REST_MS."""
+        m = room.map
+        dx = p.x - npc.x
+        dy = p.y - npc.y
+        d = math.hypot(dx, dy)
+        if d < 1e-6:
+            dx, dy, d = 0.0, 1.0, 1.0
+        step = lm.PLAYER_R * 0.9
+        ux, uy = dx / d * step, dy / d * step
+        gone = 0.0
+        while gone < KNOCK or (m.zone_index(p.x, p.y) and gone < KNOCK_MAX):
+            x, y = lm.move_circle(m, p.x, p.y, ux, uy, lm.PLAYER_R)
+            if math.hypot(x - p.x, y - p.y) < step * 0.3:
+                # a wall: on towards the stage's centre
+                cx, cy = STAGE[0] - p.x, STAGE[1] - p.y
+                c = math.hypot(cx, cy) or 1.0
+                ux, uy = cx / c * step, cy / c * step
+                x, y = lm.move_circle(m, p.x, p.y, ux, uy, lm.PLAYER_R)
+            p.x, p.y = x, y
+            gone += step
+        hz = room.tick_hz
+        p.frozen_until = max(p.frozen_until, room.tick + math.ceil(CAUGHT_MS * hz / 1000))
+        p.caught_until = room.tick + math.ceil(SAFE_MS * hz / 1000)
+        npc.paused_until = room.tick + math.ceil(HUNTER_REST_MS * hz / 1000)
+        self.catches += 1
+        room.emit({"t": "ev", "k": "caught", "id": p.id, "by": npc.id})
+        self._changed()                                    # the boards' «Поймал N»
+
+    def hunters_for(self, players: int) -> int:
+        """One hunter, a second past 12 players, a third past 24."""
+        return 1 + (players > 12) + (players > 24)
+
+    def _hunt(self, room: lm.Room, now: float) -> None:
+        """The hunters are out while the round is open, until HUNT_STOP_MS before zero."""
+        out = self.phase == "open" and not self.decided and now < self.closes_ms - HUNT_STOP_MS
+        if out and not room.npcs:
+            n = self.hunters_for(sum(1 for p in room.players.values() if p.connected))
+            for k in range(n):
+                npc = room.add_npc("hunter")
+                npc.speed = HUNT_SPEED
+                npc.x, npc.y = lm.move_circle(room.map, HUNT_FROM[0] + (k - (n - 1) / 2) * HUNT_GAP, HUNT_FROM[1],
+                                              0.0, 0.0, npc.r)
+        elif not out and room.npcs:
+            room.remove_npcs()
+
+    def _call_off(self) -> None:
+        if self.room is not None and self.room.npcs:
+            self.room.remove_npcs()
 
     # ── inside ──
 

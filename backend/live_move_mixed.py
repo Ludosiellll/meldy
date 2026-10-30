@@ -181,12 +181,18 @@ class MixedGame(stand.StandGame):
                     self._line_up(p)
                 self._ice(p)
 
+    def chase_round(self, qi: int) -> bool:
+        """The second, fourth, … movement round of the game is a chase («Убеги от Дедлайна», MODE_RUN.md)."""
+        return qi in self.rounds and self.rounds.index(qi) % 2 == 1
+
     def tap(self, qi: int, phase: str) -> None:
         """A button question (countdown, open or reveal): the arena is off; nothing is tracked."""
         if self.floor == "down":
             self.ghosts = set()
             self._floor_up()
         self._release()
+        self._call_off()
+        self.chase = False
         self.round = "tap"
         self.qi = qi
         self.q = None

@@ -197,6 +197,7 @@
 .lvmx-result { top: 92px; }
 .lvmx-result ~ .lvmx-side { top: 270px; }
 .lvst-dot--ice { background: #9fdcff; box-shadow: inset 0 0 0 2px #4aa6d8; }
+.lvst-dot--caught { background: #ff6b5b; box-shadow: inset 0 0 0 2px #c73b2e; }
 /* the hits on the boss, one chip each as they land; then the round's three who hit hardest */
 .lvmx-hits { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; list-style: none; max-width: 100%; }
 .lvmx-hits li {
