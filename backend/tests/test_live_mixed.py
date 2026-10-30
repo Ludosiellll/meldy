@@ -2,6 +2,7 @@
 (live_mixed_fake.FakeMixedDb, the SQL's rules), and the mirror of the battle's numbers: which question is a movement
 round, the worked examples of docs/live/MODE_MIXED.md §5, the line-up, the stomp (who falls is where they stand),
 nobody a ghost after the floor returns, the ice, a void round, no zone checks between movement rounds, the tick's cost."""
+import gc
 import json
 import math
 import sys
@@ -367,11 +368,18 @@ def test_a_tick_between_movement_rounds_is_nothing_and_in_one_stays_well_under_3
             out.append((time.thread_time() - c0) * 1000)
         return sorted(out)
 
-    w.start()                                       # a button question: no zone checks, no snapshots
-    calm = cost_of(300)
-    assert w.game.track == {}
-    w.taps({}); w.next(); w.start(); w.taps({}); w.next(); w.start()     # the movement round
-    busy = cost_of(500)
+    # The suite's own heap is not the room's: frozen, a collection during a tick scans only what the room made (the
+    # gate once measured a p99 over 3 ms here, late in the full run; alone the same tick is 0.5-0.8 ms).
+    gc.collect()
+    gc.freeze()
+    try:
+        w.start()                                   # a button question: no zone checks, no snapshots
+        calm = cost_of(300)
+        assert w.game.track == {}
+        w.taps({}); w.next(); w.start(); w.taps({}); w.next(); w.start()     # the movement round
+        busy = cost_of(500)
+    finally:
+        gc.unfreeze()
     assert w.game.phase == "open" and len(w.game.track) == 40
     p99_calm, p99_busy = calm[int(len(calm) * 0.99)], busy[int(len(busy) * 0.99)]
     print(f"\nmixed tick with 40 players (CPU): between rounds p50 {calm[len(calm) // 2]:.3f} ms p99 {p99_calm:.3f} ms; "
