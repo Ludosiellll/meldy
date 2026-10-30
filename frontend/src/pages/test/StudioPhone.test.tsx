@@ -144,8 +144,10 @@ describe('the bottom bar', () => {
   it('steps away while a text of the page is typed in, and comes back when typing ends', async () => {
     widthIs(375);
     await openStored();
+    // The page is on the phone's layout before the tap (a busy CI run once tapped before it settled: the tap was lost).
+    await waitFor(() => expect(bar()).toBeVisible());
     fireEvent.click(screen.getByText('Часть первая'));
-    const field = screen.getByRole('textbox', { name: STUDIO.types.heading });
+    const field = await screen.findByRole('textbox', { name: STUDIO.types.heading });
     await waitFor(() => expect(document.activeElement).toBe(field));
     await waitFor(() => expect(bar()).not.toBeVisible());
     fireEvent.keyDown(field, { key: 'Escape' });
