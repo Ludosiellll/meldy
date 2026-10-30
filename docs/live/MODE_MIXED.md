@@ -219,6 +219,18 @@ although the round opened in phase 2 with nobody right; `result.void: true`, cou
 
 ## 8. What each screen shows (as built, 21.10)
 
+**Since 47.31 the projector of every battle is 3D** (owner, 30.10: «у нас же только 3д игра»;
+`components/live/stand/BattleHost.tsx`, lazy; `LiveHostPage` picks it for every game that is not «Все вопросы»). One
+arena from the lobby to the podium: the class stands round the boss (`formation.ts`, from the database's roster, so a
+phone that is not in the room is drawn all the same), an answer makes its character hop, every hit of a button question
+leaps at the boss as its damage lands (`battle.ts` turns the question's result into the movement round's `revealPlan`),
+the wrong answers freeze in ice at the blow; the board over the arena carries the PIN and QR in the lobby, the question
+and its 2–6 options (letters, colours and shapes as on the phones), the key and the hits; the five best and the podium
+lie over the darkened arena. A movement round plays on the same arena as below (MixedBoard, useMixedReveal); its zones
+light up only then. The room is opened for every battle (`make_mode`: `stand_every` 0 is a battle room that never plays
+a round); the phones of a battle without rounds hold the socket only (`stand/phone/BattleLink.tsx`). Without WebGL the
+flat HostScreen takes over (and `?flat=1` keeps it: a weak projector laptop); the projector below is that flat path.
+
 **Setup** (`pages/live/LiveSetupPage.tsx`, the card «Игра»)
 1. One card for the game with the picker «Мини-игра с движением»: «Нет», «Каждые 3 вопроса», «Каждые 5 вопросов» (the
    default, `DEFAULT_STAND_EVERY`), «Каждые 10 вопросов», «Все вопросы»; `?mode=stand` opens it on «Все вопросы», `?mini=N`

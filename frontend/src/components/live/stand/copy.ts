@@ -58,3 +58,18 @@ export const BOSSES = {
   clock: { name: 'Будильник', about: 'Будильник-громила' },
   skeleton: { name: 'Скелет', about: 'Скелет с будильником' },
 } as const;
+
+/** The battle on the 3D projector (BattleHost.tsx): its button questions over the arena, the five best, the end. */
+export const BATTLE_3D = {
+  ready: 'Приготовьтесь',
+  hint: 'Отвечайте на телефоне',
+  right: 'Верный ответ',
+  answered: (n: number, of: number) => ({ before: 'Ответили ', n: nb(n), after: ` из ${nb(of)}` }),
+  rightOf: (n: number, of: number) => ({ before: 'Верно ', n: nb(n), after: ` из ${nb(of)}` }),
+  nobody: 'Никто не ответил верно',
+  fastest: (name: string, dmg: number) => `Быстрее всех ${name}, −${nb(dmg)}`,
+  top: 'Больше всех урона',
+  picture: 'Рисунок к вопросу',
+  pictureBig: 'Рисунок к вопросу: показать крупно',
+  pictureFailed: 'Рисунок не загрузился',
+};

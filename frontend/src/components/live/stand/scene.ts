@@ -20,6 +20,7 @@ import type { Pose } from '../../../lib/live/move';
 /** Positions sampled each frame, reused (MoveClient.frameInto). */
 type Poses = Map<number, Pose>;
 import { FALL_S, FloorShow, changeOf, easeOutBack, fallFrame, tally, timerFace, type FallPlan, type TimerFace } from './plan';
+import { facing, leapAt, leapPoint, ringSpots, type Spot } from './formation';
 import type { StandRoom } from './room';
 
 /** The moments the screen plays sounds on: the last seconds' ticks, the alarm, the boss's jump and blow, the first
@@ -35,6 +36,13 @@ export interface StandHud {
   cue(cue: StandCue): void;
 }
 
+/** A battle's player as the database has it (the host's roster, in joining order): the class round the boss. */
+export interface BattleRow {
+  pid: string;
+  name: string;
+  look: unknown;
+}
+
 export interface SceneOptions {
   /** Share of the screen kept free at the top (the board) and at the bottom (the buttons). */
   margins: { top: number; bottom: number };
@@ -47,12 +55,21 @@ export interface SceneOptions {
   mixed?: boolean;
   /** Start with the loop stopped (a mixed game's arena between its movement rounds): `resume()` starts it. */
   paused?: boolean;
+  /**
+   * The arena to draw until the room's welcome and hello come (a battle's class round the boss needs no room): its
+   * map, stage and floor (world.ts). Without it nothing is drawn before the room speaks.
+   */
+  world?: { map: MapJson; stage: [number, number, number]; floor: StandHello['floor'] };
 }
 
 /** How steeply the camera looks down at the arena, degrees: steep enough that the boss hides little behind it. */
 const TILT = 52;
 /** Map units a second under which a character stands. */
 const RUN_SPEED = 45;
+/** A battle's class runs to its places round the boss this fast (map units a second). */
+const FORM_SPEED = 520;
+/** A character drawn this long after the class formed came in now: it hops in. */
+const JOIN_HOP_AFTER_S = 0.6;
 
 /** The room's map as the kit takes it (answer zones are rectangles in mode A). */
 export function kitMap(map: MapJson): MoveMap {
@@ -105,6 +122,10 @@ interface Actor {
   seen: number;
   /** The ice drawn now (a mixed game). */
   iced: boolean;
+  /** Kit second a battle's hit leaps at the boss (-Infinity: none). */
+  leapAt: number;
+  /** A battle's player drawn from the database's roster alone: its phone is not in the room. */
+  puppet: boolean;
 }
 
 export class StandScene {
@@ -114,6 +135,7 @@ export class StandScene {
   private boss: Boss | null = null;
   private worldKey = '';
   private map: MoveMap | null = null;
+  private floor: StandHello['floor'] | null = null;
   private readonly actors = new Map<number, Actor>();
   private hello: StandHello | null = null;
   private state: StandState | null = null;
@@ -150,6 +172,18 @@ export class StandScene {
   /** Looks by live_players.id from the database's roster: a hero changed in the lobby (the room keeps the first). */
   private looks = new Map<string, unknown>();
   private readonly hooks: Parameters<StandRoom['sceneHooks']['add']>[0];
+  /**
+   * A battle outside its movement rounds (the button questions, the lobby, the five best, the podium): the class stands
+   * round the boss, from the database's roster; the room's positions wait for the next movement round.
+   */
+  private formation = false;
+  private formedAt = -Infinity;
+  private order: BattleRow[] = [];
+  private spots = new Map<string, Spot>();
+  private puppets = new Map<string, number>();
+  private nextPuppet = -1;
+  /** The battle's ice by live_players.id while the class stands round the boss (the database's word). */
+  private icedPids: ReadonlySet<string> = new Set();
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -211,9 +245,146 @@ export class StandScene {
     this.view?.shake(strength);
   }
 
-  /** The boss's look for a moment of the reveal: a roar at the blow, stunned when it falls. */
-  bossPhase(phase: 'roar' | 'stunned' | 'idle'): void {
+  /** The boss's look for a moment of the reveal: a roar at the blow, stunned when it falls; warn: the last seconds. */
+  bossPhase(phase: 'warn' | 'roar' | 'stunned' | 'idle'): void {
     this.boss?.setPhase(phase);
+  }
+
+  // ── a battle round the boss (formation.ts) ──
+
+  /**
+   * On: the class stands round the boss (from `setRoster`), the floor is whole and plain; off: the room's positions
+   * draw everyone (a movement round). Whoever stands elsewhere runs to its place.
+   */
+  setFormation(on: boolean): void {
+    if (on === this.formation) return;
+    this.formation = on;
+    const now = this.kit?.now() ?? 0;
+    this.formedAt = on ? now : -Infinity;
+    this.resumedAt = now;
+    if (on) {
+      this.arena?.restore();
+      this.floorShow.reset();
+      this.upRes = null;
+      this.impactAt = Infinity;
+      this.impactCued = true;
+      this.riseAt = Infinity;
+      this.cheerAt = Infinity;
+      if (this.boss && this.boss.phase !== 'stunned') this.boss.setPhase('idle');
+      for (const a of this.actors.values()) {
+        a.fall = null;
+        a.placed = !!a.player;
+      }
+    } else {
+      for (const a of this.actors.values()) {
+        a.leapAt = -Infinity;
+        a.cheerUntil = 0;
+      }
+    }
+    this.closeZones();
+    this.reconcile();
+  }
+
+  /** The database's players in joining order: their places round the boss, and who is drawn without a phone. */
+  setRoster(rows: readonly BattleRow[]): void {
+    this.order = rows.slice();
+    this.layout();
+    this.reconcile();
+  }
+
+  /** The battle's ice while the class stands round the boss; `instant`: as it is, without growing or breaking. */
+  setIced(pids: ReadonlySet<string>, instant = false): void {
+    this.icedPids = pids;
+    if (!this.formation) return;
+    for (const a of this.actors.values()) {
+      const want = !!a.pid && pids.has(a.pid);
+      if (want === a.iced || !a.player) continue;
+      a.iced = want;
+      a.player.setIce(want, instant);
+    }
+  }
+
+  /** An answer came in: the player's character hops. */
+  hop(pid: string): void {
+    const a = this.byPid(pid);
+    if (a?.player && this.formation && !Number.isFinite(a.leapAt)) a.player.setPose('jump');
+  }
+
+  /** A hit: the character leaps at the boss and back (it lands formation.LEAP_OUT_S after this call). */
+  strike(pid: string): void {
+    const a = this.byPid(pid);
+    if (!a?.player || !this.formation || !this.kit) return;
+    a.leapAt = this.kit.now();
+    a.player.setPose('jump');
+  }
+
+  /** These players cheer (`'all'`: everyone) for `seconds` (Infinity: until `calm`). */
+  cheer(pids: readonly string[] | 'all', seconds = 3): void {
+    const now = this.kit?.now() ?? 0;
+    const set = pids === 'all' ? null : new Set(pids);
+    for (const a of this.actors.values()) {
+      if (set && (!a.pid || !set.has(a.pid))) continue;
+      a.cheerFrom = now + ((Math.abs(a.id) * 7) % 10) * 0.04;
+      a.cheerUntil = now + seconds;
+    }
+  }
+
+  calm(): void {
+    for (const a of this.actors.values()) a.cheerUntil = 0;
+  }
+
+  private byPid(pid: string): Actor | undefined {
+    for (const a of this.actors.values()) if (a.pid === pid && (this.formation ? this.spots.has(pid) : !a.puppet)) return a;
+    return undefined;
+  }
+
+  /** The places round the boss for the roster (once the arena is built). */
+  private layout(): void {
+    const arena = this.arena;
+    const map = this.map;
+    this.spots = new Map();
+    if (!arena || !map) return;
+    const f = this.floor;
+    const floor = f ? { x0: f.x, y0: f.y, x1: f.x + f.cols * f.tile, y1: f.y + f.rows * f.tile } : { x0: 0, y0: 0, x1: map.w, y1: map.h };
+    const spots = ringSpots(this.order.length, arena.stage, floor);
+    this.order.forEach((r, i) => this.spots.set(r.pid, spots[i]));
+  }
+
+  /** Every zone plain while the class stands round the boss; the room's question names them again in a round. */
+  private closeZones(): void {
+    const arena = this.arena;
+    if (!arena) return;
+    if (this.formation) {
+      arena.setZoneLabels({});
+      arena.setClosedZones(this.zoneIds);
+    } else {
+      const st = this.state ?? this.room.client.stand.state;
+      if (st) this.onState(st, st);
+    }
+  }
+
+  /**
+   * Puppets: a battle's player with no character in the room (its phone is not connected) is drawn from the database's
+   * roster while the class stands round the boss; when its phone comes, the room's character takes the model over.
+   */
+  private reconcile(): void {
+    const roomPids = new Set<string>();
+    for (const a of this.actors.values()) if (!a.puppet && a.pid) roomPids.add(a.pid);
+    for (const [pid, id] of [...this.puppets]) {
+      if (this.formation && this.spots.has(pid) && !roomPids.has(pid)) continue;
+      const a = this.actors.get(id);
+      a?.player?.dispose();
+      this.actors.delete(id);
+      this.puppets.delete(pid);
+    }
+    if (!this.formation) return;
+    for (const r of this.order) {
+      if (roomPids.has(r.pid) || this.puppets.has(r.pid)) continue;
+      const id = this.nextPuppet--;
+      const look = toPlayerLook(this.looks.has(r.pid) ? this.looks.get(r.pid) : r.look);
+      this.puppets.set(r.pid, id);
+      this.actors.set(id, { id, pid: r.pid, look, lookKey: JSON.stringify(look), name: r.name, player: null, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0, iced: false, leapAt: -Infinity, puppet: true });
+    }
   }
 
   setMargins(margins: SceneOptions['margins']): void {
@@ -321,21 +492,26 @@ export class StandScene {
     const kit = this.kit;
     const w = this.room.client.welcome;
     const h = this.hello ?? this.room.client.stand.hello;
-    if (!kit || !w || !h) return;
-    const key = JSON.stringify([w.map, h.floor, h.stage, h.boss]);
+    const world = w && h ? { map: w.map, floor: h.floor, stage: h.stage } : (this.options.world ?? null);
+    if (!kit || !world) return;
+    const key = JSON.stringify([world.map, world.floor, world.stage]);
     if (key === this.worldKey) return;
     this.worldKey = key;
     this.arena?.dispose();
     this.boss?.dispose();
-    this.map = kitMap(w.map);
-    this.arena = kit.createArena(this.map, { floor: h.floor, stage: h.stage });
-    this.downAfter = collapseDownAfter(this.map, { floor: h.floor, stage: h.stage });
+    this.map = kitMap(world.map);
+    this.floor = world.floor;
+    this.arena = kit.createArena(this.map, { floor: world.floor, stage: world.stage });
+    this.downAfter = collapseDownAfter(this.map, { floor: world.floor, stage: world.stage });
     this.zoneIds = (this.map.zones ?? []).map((z) => z.id);
     this.boss = kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] });
     this.frameCamera();
-    for (const e of w.roster) if (e[1] === KIND_PLAYER) this.addActor(e);
+    if (w) for (const e of w.roster) if (e[1] === KIND_PLAYER) this.addActor(e);
     const st = this.state ?? this.room.client.stand.state;
     if (st) this.onState(st, null);
+    else if (this.formation) this.closeZones();
+    this.layout();
+    this.reconcile();
   }
 
   private frameCamera(): void {
@@ -374,7 +550,18 @@ export class StandScene {
     const pid = e[2];
     const look = toPlayerLook(pid && this.looks.has(pid) ? this.looks.get(pid) : e[4]);
     const name = e[3] || '';
-    this.actors.set(e[0], { id: e[0], pid, look, lookKey: JSON.stringify(look), name, player: null, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0, iced: false });
+    const a: Actor = { id: e[0], pid, look, lookKey: JSON.stringify(look), name, player: null, x: 0, y: 0, flags: 0, speed: 0, placed: false, fall: null, cheerFrom: 0, cheerUntil: 0, seen: 0, iced: false, leapAt: -Infinity, puppet: false };
+    // its phone came: the puppet drawn for it hands its model over, where it stands
+    const was = pid ? this.puppets.get(pid) : undefined;
+    const puppet = was !== undefined ? this.actors.get(was) : undefined;
+    if (puppet && pid) {
+      if (puppet.lookKey === a.lookKey) {
+        Object.assign(a, { player: puppet.player, x: puppet.x, y: puppet.y, placed: puppet.placed, iced: puppet.iced, cheerFrom: puppet.cheerFrom, cheerUntil: puppet.cheerUntil, leapAt: puppet.leapAt });
+      } else puppet.player?.dispose();
+      this.actors.delete(was!);
+      this.puppets.delete(pid);
+    }
+    this.actors.set(e[0], a);
   }
 
   private removeActor(id: number): void {
@@ -382,6 +569,8 @@ export class StandScene {
     if (!a) return;
     a.player?.dispose();
     this.actors.delete(id);
+    // a battle's player whose phone left the room is still in the game: drawn from the roster
+    if (this.formation && a.pid && this.spots.has(a.pid)) this.reconcile();
   }
 
   // ── the game's moments ──
@@ -407,7 +596,10 @@ export class StandScene {
       this.floorShow.reset();
       this.upRes = null;
     }
-    if (st.q) {
+    if (this.formation) {
+      arena.setZoneLabels({});
+      arena.setClosedZones(this.zoneIds);
+    } else if (st.q) {
       const labels: Record<string, string> = {};
       this.zoneIds.forEach((id, i) => (labels[id] = i < n ? st.q!.options[i] : ''));
       arena.setZoneLabels(labels);
@@ -416,7 +608,7 @@ export class StandScene {
       arena.setZoneLabels({});
       arena.setClosedZones([]);
     }
-    const res = st.res;
+    const res = this.formation ? null : st.res;
     if (change === 'stomp' && res) {
       // the boss jumped at zero (frame): the floor goes at its blow; a result that came late drops it at once
       if (this.stompedQi !== st.qi) this.stomp(st.qi, now);
@@ -524,6 +716,10 @@ export class StandScene {
     this.frameNo++;
     // the kit's update runs after this: what is set here is drawn at kit second `at` (a whole second later at 1 fps)
     const at = now + (dt > 0 ? dt : 0);
+    if (this.formation) {
+      this.formationFrame(dt, now, at);
+      return;
+    }
     const t = client.frameInto(this.poses);
     const st = this.state;
     if (boss && st && st.phase === 'open' && st.closes !== null && t !== null) {
@@ -575,6 +771,76 @@ export class StandScene {
     if (this.thawed) this.hud.cue('thaw');
     this.froze = false;
     this.thawed = false;
+  }
+
+  /** A battle round the boss: each character at its place facing the boss, running there if it stands elsewhere. */
+  private formationFrame(dt: number, now: number, at: number): void {
+    const arena = this.arena;
+    const kit = this.kit;
+    if (!arena || !kit) return;
+    const boss = arena.stage;
+    for (const a of this.actors.values()) {
+      const spot = a.pid ? this.spots.get(a.pid) : undefined;
+      // a room's character the roster does not have (kicked, or not the database's yet): not drawn now
+      if (!spot || (!a.puppet && a.pid && this.puppets.has(a.pid))) {
+        if (a.player) {
+          a.player.dispose();
+          a.player = null;
+          a.placed = false;
+        }
+        continue;
+      }
+      let p = a.player;
+      if (!p) {
+        p = a.player = kit.createPlayer(a.look, a.name);
+        a.x = spot.x;
+        a.y = spot.y;
+        a.placed = true;
+        p.setPosition(spot.x, spot.y, 0);
+        p.setFacing(facing(spot, boss), true);
+        // one who joins while the class stands here hops in
+        if (now - this.formedAt > JOIN_HOP_AFTER_S) p.setPose('jump');
+        a.iced = false;
+      }
+      p.setGhost(false);
+      p.setAway(false);
+      const wantIce = !!a.pid && this.icedPids.has(a.pid);
+      if (wantIce !== a.iced) {
+        a.iced = wantIce;
+        p.setIce(wantIce, true);
+      }
+      let z = 0;
+      let moving = false;
+      if (Number.isFinite(a.leapAt)) {
+        const leap = leapAt(at - a.leapAt);
+        if (leap.done) a.leapAt = -Infinity;
+        const pt = leapPoint(spot, boss, leap.k);
+        a.x = pt.x;
+        a.y = pt.y;
+        z = leap.z;
+      } else {
+        const dx = spot.x - a.x;
+        const dy = spot.y - a.y;
+        const d = Math.hypot(dx, dy);
+        const stepLen = FORM_SPEED * Math.max(0, dt);
+        if (!a.placed || d <= stepLen || d < 1) {
+          a.x = spot.x;
+          a.y = spot.y;
+          a.placed = true;
+        } else {
+          a.x += (dx / d) * stepLen;
+          a.y += (dy / d) * stepLen;
+          moving = true;
+          p.setFacing(Math.atan2(dx, dy));
+        }
+      }
+      if (!moving) p.setFacing(facing({ x: a.x, y: a.y }, boss));
+      p.setPosition(a.x, a.y, z);
+      // in ice a character slides, it does not run
+      if (moving && !a.iced) p.setPose('run');
+      else if (at >= a.cheerFrom && at < a.cheerUntil && !a.iced) p.setPose('cheer');
+      else p.setPose('idle');
+    }
   }
 
   private stomp(qi: number, now: number): void {

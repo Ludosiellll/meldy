@@ -8,7 +8,8 @@
  *
  * A battle with movement rounds (`mixed` in the state, docs/live/MODE_MIXED.md) keeps the battle's screens and wraps
  * them in MixedPhone (its own chunk, loaded after the join): the room's socket for the whole game and, during each
- * movement round, the arena in their place.
+ * movement round, the arena in their place. A battle without them wraps them in BattleLink: the socket only, so the
+ * character stands round the boss on the 3D projector.
  */
 import { Suspense, lazy, useCallback, useEffect, useSyncExternalStore } from 'react';
 import { Battle } from './Battle';
@@ -26,6 +27,7 @@ import './player.css';
 
 const StandGame = lazy(() => import('../stand/phone/StandGame'));
 const MixedPhone = lazy(() => import('../stand/phone/MixedPhone'));
+const BattleLink = lazy(() => import('../stand/phone/BattleLink'));
 const StandBuilder = lazy(() => import('../stand/phone/StandBuilder'));
 
 export interface PlayerAppProps {
@@ -210,6 +212,15 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
         <MixedPhone ctl={ctl} s={s} platform={platform} haptic={haptic}>
           {screen}
         </MixedPhone>
+      </Suspense>
+    );
+  // A battle without movement rounds: the room's socket only (the projector's 3D class round the boss).
+  else if (!stand && !!st && !!s.game && st.mode === 'boss' && (s.step === 'game' || s.step === 'builder'))
+    screen = (
+      <Suspense fallback={screen}>
+        <BattleLink ctl={ctl} s={s}>
+          {screen}
+        </BattleLink>
       </Suspense>
     );
 

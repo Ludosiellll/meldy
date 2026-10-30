@@ -68,9 +68,10 @@ def make_mode(host_state: dict[str, Any] | None, runner: "RoomRunner", source: G
         from live_move_stand import StandMode
 
         return StandMode(runner, host_state or {}, source)
-    every = settings.get("stand_every") if isinstance(settings, dict) else None
-    if mode == "boss" and isinstance(every, int) and not isinstance(every, bool) and every > 0:
-        from live_move_mixed import MixedMode   # docs/live/MODE_MIXED.md
+    if mode == "boss":
+        # every battle, with movement rounds (settings.stand_every 3, 5 or 10) or without (0): its 3D projector stands
+        # the phones' characters round the boss (docs/live/MODE_MIXED.md); without rounds the room never plays one
+        from live_move_mixed import MixedMode
 
         return MixedMode(runner, host_state or {}, source)
     # Mode B «Убеги от Дедлайна» ("run") goes here.

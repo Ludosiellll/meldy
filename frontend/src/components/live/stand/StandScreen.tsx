@@ -53,7 +53,7 @@ export interface StandScreenProps {
   syncRef?: { current: (() => void) | null };
 }
 
-function Qr({ text }: { text: string }) {
+export function Qr({ text }: { text: string }) {
   const qr = useMemo(() => qrCode(text), [text]);
   return (
     <svg className="lvst-qr" viewBox={`-1 -1 ${qr.size + 2} ${qr.size + 2}`} role="img" aria-label={`QR-код: ${shortLink(text)}`} shapeRendering="crispEdges">
@@ -70,7 +70,7 @@ function Letter({ i, big = false }: { i: number; big?: boolean }) {
   );
 }
 
-function TopList({ rows, nameOf }: { rows: StandTopEntry[]; nameOf: (r: StandTopEntry) => string }) {
+export function TopList({ rows, nameOf }: { rows: StandTopEntry[]; nameOf: (r: StandTopEntry) => string }) {
   // equal points, the same place («1, 2, 2, 4»)
   const places = sharedPlaces(rows.slice(0, 5).map((r) => r.pts));
   return (
@@ -88,7 +88,7 @@ function TopList({ rows, nameOf }: { rows: StandTopEntry[]; nameOf: (r: StandTop
   );
 }
 
-function PodiumBlocks({ rows }: { rows: StandTopEntry[] }) {
+export function PodiumBlocks({ rows }: { rows: StandTopEntry[] }) {
   // 2 · 1 · 3 on the blocks, 4 and 5 beside
   const order = [1, 0, 2].filter((i) => rows[i]);
   const places = sharedPlaces(rows.slice(0, 5).map((r) => r.pts));
@@ -123,7 +123,7 @@ function PodiumBlocks({ rows }: { rows: StandTopEntry[] }) {
 }
 
 /** The room's top five as the database's (a reload before the room said it), in the room's shape. */
-function dbTop(s: HostState): StandTopEntry[] | null {
+export function dbTop(s: HostState): StandTopEntry[] | null {
   if (!s.top) return null;
   return s.top.map((r) => ({ id: null, name: r.name, look: r.look, pts: r.dmg, move: r.move }));
 }

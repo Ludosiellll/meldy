@@ -2,8 +2,10 @@
  * /live/:id — the teacher's screen of a game (CONTRACT §6–§8). The host token is this tab's (sessionStorage, from
  * «Открыть комнату»); a reload reads it again and the screen picks the game up as it is. `?fake=1` (or VITE_LIVE_FAKE)
  * plays against the in-memory server; the switch to the real one is that flag only. A game whose settings say
- * `mode: "stand"` gets the 3D projector of «Встань на ответ» (components/live/stand, its own chunk); a battle with
- * movement rounds (`mixed` in its state, docs/live/MODE_MIXED.md) the battle's screen with the arena for those rounds.
+ * `mode: "stand"` gets the 3D projector of «Встань на ответ» (components/live/stand, its own chunk); a battle (with
+ * movement rounds or without) the battle's 3D projector, BattleHost (owner, 30.10: the projector is 3D only), which
+ * falls back to the flat HostScreen without WebGL. `?flat=1` keeps a battle on the flat screen (a weak projector laptop;
+ * a mixed game's movement rounds still get their arena there, MixedHost).
  */
 import { lazy, Suspense, useCallback, useMemo, useRef } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -17,6 +19,7 @@ import { useHostGame } from '../../components/live/host/useHostGame';
 import '../../components/live/host/host.css';
 
 const StandScreen = lazy(() => import('../../components/live/stand/StandScreen'));
+const BattleHost = lazy(() => import('../../components/live/stand/BattleHost'));
 const MixedHost = lazy(() => import('../../components/live/stand/MixedHost'));
 
 /** The join link with `mode` set (kept once, whatever else it carries). */
@@ -90,14 +93,20 @@ export function LiveHostView({ gameId, api }: { gameId: string; api: LiveApi }) 
       </Suspense>
     );
   }
-  if (mixedOf(s) || (s.settings?.stand_every ?? 0) > 0) {
+  const onAgain = info?.containerId || liveFakeWanted() ? again : null;
+  if (new URLSearchParams(search).has('flat')) {
+    if (!mixedOf(s) && !((s.settings?.stand_every ?? 0) > 0)) return <HostScreen gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={onAgain} />;
     return (
       <Suspense fallback={<Message title={SCREEN.loading} />}>
-        <MixedHost gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} syncRef={syncRef} />
+        <MixedHost gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={onAgain} syncRef={syncRef} />
       </Suspense>
     );
   }
-  return <HostScreen gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={info?.containerId || liveFakeWanted() ? again : null} />;
+  return (
+    <Suspense fallback={<Message title={SCREEN.loading} />}>
+      <BattleHost gameId={gameId} api={api} game={game} state={s} info={info} joinUrl={joinUrl} onAgain={onAgain} syncRef={syncRef} />
+    </Suspense>
+  );
 }
 
 export default function LiveHostPage() {

@@ -74,7 +74,7 @@ async function start() {
   saveHostToken(g.game_id, g.host_token);
   saveHostInfo(g.game_id, { title: 'Базы данных', joinUrl: g.join_url, containerId: 'c', quizId: null, source: null, settings: SETTINGS });
   const view = render(
-    <MemoryRouter initialEntries={[`/live/${g.game_id}`]}>
+    <MemoryRouter initialEntries={[`/live/${g.game_id}?flat=1`]}>
       <LiveHostView gameId={g.game_id} api={api} />
     </MemoryRouter>,
   );

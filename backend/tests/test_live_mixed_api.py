@@ -342,11 +342,16 @@ def test_a_write_that_never_comes_leaves_a_void_round():
     run(scenario())
 
 
-def test_a_battle_without_movement_rounds_gets_the_plain_room():
+def test_a_battle_without_movement_rounds_gets_the_battle_room_with_no_rounds():
+    """The battle's 3D projector (BattleHost) opens the room for every battle: the phones' characters stand round the
+    boss; with stand_every 0 no question is a movement round, so the room never plays one."""
     async def scenario():
         db = FakeMixedDb(GAME, HOST, [(4, 1)], every=0)
         async with serving(db) as (url, hub):
             host = await join(url, HOST, "host")
-            await asyncio.sleep(0.3)
-            assert hub.rooms[GAME].mode is None and not host.msgs
+            await host.wait(lambda c: bool(c.stand("hello")), within=2, what="hello")
+            mode = hub.rooms[GAME].mode
+            assert isinstance(mode, mixed.MixedMode) and mode.game.every == 0 and mode.game.rounds == []
+            assert host.stand("hello")[0]["mixed"] == {"every": 0, "rounds": []}
+            assert not mode.game.live
     run(scenario())

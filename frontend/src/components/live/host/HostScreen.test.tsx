@@ -28,7 +28,7 @@ async function start(bots = 23) {
   saveHostToken(g.game_id, g.host_token);
   saveHostInfo(g.game_id, { title: 'Базы данных', joinUrl: g.join_url, containerId: 'c', quizId: null, source: null, settings: SETTINGS });
   const ui = () => (
-    <MemoryRouter initialEntries={[`/live/${g.game_id}`]}>
+    <MemoryRouter initialEntries={[`/live/${g.game_id}?flat=1`]}>
       <LiveHostView gameId={g.game_id} api={api} />
     </MemoryRouter>
   );
@@ -271,7 +271,7 @@ describe('teacher screen against the fake server', () => {
     const long = 'Катя Смирнова-Остроумова';
     await api.join(g.pin, long, 'L'.repeat(43), null);
     const view = render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/live/x?flat=1']}>
         <LiveHostView gameId={g.game_id} api={api} />
       </MemoryRouter>,
     );
@@ -301,7 +301,7 @@ describe('teacher screen against the fake server', () => {
     saveHostToken(g.game_id, g.host_token);
     await api.join(g.pin, 'Тихоня', 'T'.repeat(43), null); // never answers: the question runs to its end
     const view = render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={['/live/x?flat=1']}>
         <LiveHostView gameId={g.game_id} api={api} />
       </MemoryRouter>,
     );

@@ -44,13 +44,13 @@ export interface MixedHostProps extends Omit<HostScreenProps, 'mixed'> {
   syncRef?: { current: (() => void) | null };
 }
 
-interface Chip {
+export interface Chip {
   key: string;
   name: string;
   dmg: number;
 }
 
-interface RevealView {
+export interface RevealView {
   qi: number;
   /** The boss's HP as the reveal shows it now (null: the database's). */
   hp: number | null;
@@ -61,13 +61,13 @@ interface RevealView {
   banner: { id: number; title: string; sub: string; stay: boolean } | null;
 }
 
-const NO_REVEAL: RevealView = { qi: -1, hp: null, max: null, chips: [], strike: false, banner: null };
+export const NO_REVEAL: RevealView = { qi: -1, hp: null, max: null, chips: [], strike: false, banner: null };
 
 /**
  * A movement round's reveal on the projector: plays once per round, fresh (the room's result just came) or as it is
  * (seen late: a reload, a reconnect).
  */
-function useMixedReveal(rs: StandState | null, scene: RefObject<StandScene | null>, sound: HostSound, nameOf: (id: number) => string, serverNow: () => number | null): RevealView {
+export function useMixedReveal(rs: StandState | null, scene: RefObject<StandScene | null>, sound: HostSound, nameOf: (id: number) => string, serverNow: () => number | null): RevealView {
   const [view, setView] = useState<RevealView>(NO_REVEAL);
   const played = useRef(-1);
   const timers = useRef<Array<ReturnType<typeof setTimeout>>>([]);
@@ -135,7 +135,7 @@ function Letter({ i, big = false }: { i: number; big?: boolean }) {
 }
 
 /** The battle's HP bar (the same look as HostScreen's), its numbers from the reveal or the database. */
-const ArenaHp = memo(function ArenaHp({ hp, max, width }: { hp: number; max: number; width: number }) {
+export const ArenaHp = memo(function ArenaHp({ hp, max, width }: { hp: number; max: number; width: number }) {
   const k = max > 0 ? Math.max(0, Math.min(1, hp / max)) : 1;
   const w = 560;
   return (
@@ -165,7 +165,7 @@ interface BoardProps {
 }
 
 /** The movement round over the arena, in the stage's units (HostScreen's stage, its bar above). */
-function MixedBoard({ s, rs, reveal, nameOf, timerRef, countRefs, frozenRef, frozenPillRef, loading, failed, lost }: BoardProps) {
+export function MixedBoard({ s, rs, reveal, nameOf, timerRef, countRefs, frozenRef, frozenPillRef, loading, failed, lost }: BoardProps) {
   const width = useStageWidth();
   // the room's picture of this question when it has one, else the database's
   const own = rs && rs.round === 'stand' && rs.qi >= s.qi ? rs : null;

@@ -234,7 +234,7 @@ async def main() -> None:
     ap.add_argument("--author", required=True)
     ap.add_argument("--bots", type=int, default=12)
     ap.add_argument("--questions", type=int, default=6)
-    ap.add_argument("--every", type=int, default=3, choices=[3, 5, 10])
+    ap.add_argument("--every", type=int, default=3, choices=[0, 3, 5, 10], help="0: a battle without movement rounds")
     ap.add_argument("--time", type=int, default=10, choices=[10, 20, 30])
     ap.add_argument("--boss", default="skeleton", choices=["clock", "skeleton"])
     ap.add_argument("--port", type=int, default=8418)
