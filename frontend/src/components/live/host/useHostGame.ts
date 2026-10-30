@@ -24,6 +24,8 @@ export interface HostGame {
   retry(): void;
   /** Reads the state now (a movement game's room saw it change first). */
   refresh(): void;
+  /** An object URL of a picture of a question shown so far (LiveApi.picture with the host token); stable. */
+  picture(path: string): Promise<string>;
 }
 
 export interface HostGameOptions {
@@ -205,5 +207,9 @@ export function useHostGame(gameId: string, api: LiveApi, options: HostGameOptio
 
   const offset = useCallback(() => offsetRef.current, []);
 
-  return { status, state, offline, busy, offset, next, kick, end, retry, refresh };
+  const picture = useCallback(
+    (path: string) => (api.picture && token ? api.picture(gameId, token, path) : Promise.reject(new Error('no picture'))),
+    [api, gameId, token],
+  );
+  return { status, state, offline, busy, offset, next, kick, end, retry, refresh, picture };
 }

@@ -20,6 +20,7 @@ import type { Pick, PlayerController } from './controller';
 import { NBSP, multText, nb, orderText, seconds } from './copy';
 import { OPTION_STYLES, optionLabel, optionSize, questionSize, type OptionShape } from './options';
 import type { HapticKind } from './platform';
+import { useLivePictures, type ShownPicture } from '../../../lib/live/pictures';
 
 // ─────────────────────────────────────────── pieces ───────────────────────────────────────────
 
@@ -28,6 +29,8 @@ const SHAPES: Record<OptionShape, ReactNode> = {
   diamond: <path d="M11 1.5L20.5 11L11 20.5L1.5 11Z" />,
   circle: <circle cx="11" cy="11" r="9" />,
   square: <rect x="3" y="3" width="16" height="16" rx="2" />,
+  pentagon: <path d="M11 1.5L20.5 8.4L16.9 19.5H5.1L1.5 8.4Z" />,
+  hexagon: <path d="M6 2.5H16L21 11L16 19.5H6L1 11Z" />,
 };
 
 function Shape({ shape, light }: { shape: OptionShape; light: boolean }) {
@@ -56,10 +59,12 @@ interface AnswerProps {
   disabled: boolean;
   look: AnsLook;
   mark: 'key' | 'wrong' | null;
+  /** The option's picture: a URL, null while it loads, false when it did not come; undefined — none. */
+  picture?: ShownPicture;
   onPick: (index: number) => void;
 }
 
-const Answer = memo(function Answer({ index, text, disabled, look, mark, onPick }: AnswerProps) {
+const Answer = memo(function Answer({ index, text, disabled, look, mark, picture, onPick }: AnswerProps) {
   const o = OPTION_STYLES[index];
   const status = mark === 'key' ? ', верный ответ' : mark === 'wrong' ? ', ваш ответ, неверный' : look === 'chosen' ? ', ваш ответ' : '';
   // aria-disabled, not disabled: disabling the button the finger is on makes the browser move focus (a forced style
@@ -72,12 +77,18 @@ const Answer = memo(function Answer({ index, text, disabled, look, mark, onPick 
       data-look={look}
       data-mark={mark ?? undefined}
       aria-disabled={disabled}
-      aria-label={`${optionLabel(index, text)}${status}`}
+      aria-label={`${optionLabel(index, text, picture !== undefined)}${status}`}
+      data-pic={picture !== undefined ? '' : undefined}
       onClick={disabled ? undefined : () => onPick(index)}
     >
       <span className="lp-ans__l" aria-hidden="true">
         {o.letter}
       </span>
+      {picture !== undefined ? (
+        <span className="lp-ans__pic" aria-hidden="true">
+          {picture ? <img src={picture} alt="" decoding="async" /> : picture === false ? <i>нет рисунка</i> : null}
+        </span>
+      ) : null}
       <span className="lp-ans__t">{text}</span>
       <Shape shape={o.shape} light={index === 0} />
       <span className="lp-ans__mark" aria-hidden="true">
@@ -86,6 +97,41 @@ const Answer = memo(function Answer({ index, text, disabled, look, mark, onPick 
     </button>
   );
 });
+
+/**
+ * The question's picture (a real test's diagram or photo): as wide as the screen allows, a tap opens it whole. While it
+ * loads, a box of its place; when it did not come, a line that says so (the projector shows it too).
+ */
+function StemPicture({ url, onZoom }: { url: ShownPicture; onZoom: () => void }) {
+  if (url === false) return <p className="lp-pic lp-pic--none">Рисунок не загрузился. Посмотрите на экран.</p>;
+  if (url === null) return <div className="lp-pic lp-pic--wait" aria-hidden="true" />;
+  return (
+    <button type="button" className="lp-pic" onClick={onZoom} aria-label="Рисунок к вопросу. Нажмите, чтобы увеличить">
+      <img src={url} alt="" decoding="async" />
+    </button>
+  );
+}
+
+/** The picture over the whole screen; a tap anywhere or Escape closes it. */
+function PictureZoom({ url, onClose }: { url: string; onClose: () => void }) {
+  const close = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    close.current?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="lp-zoom" role="dialog" aria-modal="true" aria-label="Рисунок к вопросу" onClick={onClose}>
+      <img src={url} alt="Рисунок к вопросу" />
+      <button ref={close} type="button" className="lp-zoom__close" onClick={onClose}>
+        Закрыть
+      </button>
+    </div>
+  );
+}
 
 /** The boss's health: scaleX of two bars (the light one follows a beat later). */
 const HpBar = memo(function HpBar({ k }: { k: number }) {
@@ -464,6 +510,13 @@ const PHASE_TEXT: Record<1 | 2, { title: string; text: string }> = {
 export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBefore, late, offsetMs, look, haptic }: BattleProps) {
   const closed = st.state === 'reveal' || st.state === 'leaderboard';
   const result = closed ? st.result : null;
+  const pics = useLivePictures(q.pictures, ctl.picture);
+  const [zoom, setZoom] = useState(false);
+  const closeZoom = useCallback(() => setZoom(false), []);
+  // the key and the result sheet come over the answers: the picture steps back for them
+  useEffect(() => {
+    if (closed) setZoom(false);
+  }, [closed]);
   const T = st.time_s * 1000;
   const opensLocal = Date.parse(q.opens_at) - offsetMs;
   const closesLocal = Date.parse(q.closes_at) - offsetMs;
@@ -664,7 +717,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
             <h2 className="lp-q" data-size={questionSize(q.text)}>
               {q.text}
             </h2>
-            {q.picture && <img className="lp-pic" src={q.picture} alt="Рисунок к вопросу" decoding="async" />}
+            {pics.stem !== undefined ? <StemPicture url={pics.stem} onZoom={() => setZoom(true)} /> : null}
             {!isOpen && !closed && <Countdown untilMs={opensLocal - Date.now()} />}
             {waitMode && (
               <Wait mode={waitMode} allIn={allIn} order={picked?.order ?? null} answered={count} players={st.players} streak={st.me.streak} frozen={frozen} />
@@ -678,11 +731,12 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           {line}
         </div>
       </div>
-      <div className="lp-answers" data-wait={!isOpen && !closed ? 'true' : 'false'}>
+      <div className="lp-answers" data-n={q.options.length} data-wait={!isOpen && !closed ? 'true' : 'false'}>
         {q.options.map((text, i) => (
-          <Answer key={i} index={i} text={text} disabled={!isOpen || !!picked || closed || sitOut || upNow} look={closed ? closedLooks[i] : looks[i]} mark={marks[i]} onPick={onPick} />
+          <Answer key={i} index={i} text={text} disabled={!isOpen || !!picked || closed || sitOut || upNow} look={closed ? closedLooks[i] : looks[i]} mark={marks[i]} picture={pics.options[i]} onPick={onPick} />
         ))}
       </div>
+      {zoom && typeof pics.stem === 'string' ? <PictureZoom url={pics.stem} onClose={closeZoom} /> : null}
       {banner && (
         <div className="lp-phase" role="status">
           <b>{banner.title}</b>

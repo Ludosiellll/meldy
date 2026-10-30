@@ -105,6 +105,16 @@ export interface PinRefused {
  */
 export type PinResult = { status: 'open'; mode: GameMode | null } | ({ status: 'joined' } & JoinResult) | PinRefused;
 
+/**
+ * A question's pictures as the game shows them: storage paths in the private bucket test-item-images, the question's
+ * and each option's in the shown order (an option without a picture has []). Read through the quiz-media function with
+ * the game's host or player token (LiveApi.picture), only once the question was shown.
+ */
+export interface LivePictures {
+  stem: string[];
+  options: string[][];
+}
+
 export interface Question {
   qi: number;
   text: string;
@@ -113,7 +123,10 @@ export interface Question {
   closes_at: string;
   /** The phase the question opened with: its rules apply to it. */
   phase: BossPhase;
+  /** Always null (old phones read it); the pictures are in `pictures`. */
   picture: string | null;
+  /** A battle's question with pictures (20261030090000_live_pictures.sql): absent when it has none. */
+  pictures?: LivePictures;
   /**
    * A mixed game only: this question is a movement round — played in the arena over the room's socket; `live_answer`
    * refuses it (`ML004 stand`), the room writes everyone's zone at the deadline. Absent in other games.
@@ -276,6 +289,8 @@ export interface ReviewItem {
   correct: boolean;
   /** A mixed game only: a movement round (`choice` is the zone the player stood in, null for none). */
   stand?: boolean;
+  /** Its pictures, when it has any. */
+  pictures?: LivePictures;
 }
 
 export interface Review {
@@ -365,6 +380,11 @@ export interface LiveApi {
   answer(game: Uuid, token: string, qi: number, choice: number): Promise<AnswerAck>;
   state(game: Uuid, token: string, sinceRev?: number): Promise<PlayerState | Unchanged>;
   review(game: Uuid, token: string): Promise<Review>;
+  /**
+   * An object URL of a picture of a question this game has shown (`token`: the host's or a player's), read through the
+   * quiz-media function and kept for the page's life. Absent where a server has no pictures (tests' stubs).
+   */
+  picture?(game: Uuid, token: string, path: string): Promise<string>;
   /** Realtime hints of a game; returns the unsubscribe. `onLink(false)` → poll every second. */
   subscribe(topic: string, onHint: (hint: Hint) => void, onLink?: (connected: boolean) => void): () => void;
 }

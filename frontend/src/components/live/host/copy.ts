@@ -26,7 +26,7 @@ const PLAYERS = ['игрок', 'игрока', 'игроков'] as const;
 export const pinText = (pin: string) => (pin.length === 6 ? `${pin.slice(0, 3)}${NBSP}${pin.slice(3)}` : pin);
 
 /** The letters on the projector are the letters on the phones (CONTRACT §4). */
-export const LETTERS = ['А', 'Б', 'В', 'Г'] as const;
+export const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е'] as const;
 
 const BATTLE_LEAD = 'Весь класс бьёт монстра верными ответами.';
 
@@ -75,7 +75,8 @@ export const SETUP = {
   amount: 'Вопросов',
   amountAll: (n: number) => `все ${n}`,
   skippedHead: (n: number) => `${count(n, QUESTIONS)} ${plural(n, ['не войдёт', 'не войдут', 'не войдут'])} в игру`,
-  skippedWhy: 'В игру идут вопросы с одним верным ответом и 2–4 вариантами, без картинок.',
+  skippedWhy: 'В игру с мини-игрой идут вопросы с одним верным ответом и 2–4 вариантами, без картинок.',
+  skippedWhyWide: 'В игру идут вопросы с одним верным ответом и 2–6 вариантами.',
   // why a question is not in the game: each a short sentence of its own under the question
   reason: {
     multiple: 'Несколько верных ответов.',
@@ -84,6 +85,15 @@ export const SETUP = {
     nokey: 'Нет верного ответа.',
     picture: 'Есть картинка.',
   },
+  reasonOptionsWide: 'Вариантов меньше двух или больше шести.',
+  /** A mini-game is picked and the test is mostly five-option questions or pictures. */
+  narrowHint: (narrow: number, wide: number) =>
+    narrow === 0
+      ? 'Мини-игре нужны вопросы с 2–4 вариантами без картинок: на полу арены четыре зоны. В этом тесте таких нет.'
+      : `С мини-игрой ${plural(narrow, ['войдёт', 'войдут', 'войдут'])} ${count(narrow, QUESTIONS)} из ${nb(wide)}: на полу арены четыре зоны и нет картинок.`,
+  narrowFix: 'Играть без мини-игры',
+  /** The game was switched to «Нет» by itself for such a test. */
+  wideAuto: 'Мини-игра выключена: в этом тесте вопросы с 5–6 вариантами или картинками, а на полу арены четыре зоны.',
   tooFew: 'Для игры нужно хотя бы 3 подходящих вопроса. Добавьте их в тест.',
   foot: 'Гости увидят верный ответ после каждого вопроса. Ответы на другие вопросы экзамена они не увидят.',
   open: 'Открыть комнату',
@@ -91,7 +101,7 @@ export const SETUP = {
   signIn: 'Войдите, чтобы провести игру.',
   back: 'К тесту',
   error: {
-    ML008: 'В тесте нет вопросов для игры. Нужны вопросы с одним верным ответом и 2–4 вариантами.',
+    ML008: 'В тесте нет вопросов для игры. Нужны вопросы с одним верным ответом и 2–6 вариантами (с мини-игрой — 2–4, без картинок).',
     ML009: 'У вас уже открыто 3 игры. Закончите одну из них.',
     ML005: 'Слишком много игр за час. Попробуйте позже.',
     '42501': 'Провести игру может только автор теста.',

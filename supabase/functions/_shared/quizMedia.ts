@@ -9,6 +9,9 @@
  *   anon key, as with its other calls);
  * - `quiz_guest_media_paths(p_attempt_id, p_token, p_paths => [path])` as service_role: the subset of the paths that are
  *   pictures of that attempt's items when sha256(token) is the attempt's guest hash, else an empty array;
+ * - or, for a live game (release 47.31, «Битва с монстром» with pictures), `{game_id, token, path}` with the host's or a
+ *   player's token: `quiz_live_media_paths(p_game, p_token, p_paths)`, the pictures of the questions shown so far (migration
+ *   20261030090000_live_pictures.sql);
  * - listed → the bytes from storage with the type of the extension, `Cache-Control: private, max-age=3600`;
  *   not listed (a wrong token, another attempt, not a picture of this attempt) or gone from storage → 404
  *   `{"error":"not_found"}`, nothing more; a database or storage failure → 503 `{"error":"unavailable"}`.
@@ -23,6 +26,8 @@
 export const SITE = 'https://ludosiel-studyforge.hf.space';
 export const BUCKET = 'test-item-images';
 export const RPC_NAME = 'quiz_guest_media_paths';
+/** A live game's pictures: the host's or a player's token (supabase/migrations/20261030090000_live_pictures.sql). */
+export const LIVE_RPC_NAME = 'quiz_live_media_paths';
 /** The request body: three short fields. */
 export const BODY_MAX = 2048;
 export const PICTURE_CACHE = 'private, max-age=3600';
@@ -75,14 +80,15 @@ export function readMediaEnv(get: (name: string) => string | undefined): MediaEn
 
 // ─────────────────────────────────────────── the request and the answer ───────────────────────────────────────────
 
-export interface MediaAsk {
-  /** Lower case. */
-  attemptId: string;
-  token: string;
-  path: string;
-}
+/** A guest's quiz attempt (`attempt_id`) or a live game (`game_id`); the ids in lower case. */
+export type MediaAsk =
+  | { kind: 'attempt'; attemptId: string; token: string; path: string }
+  | { kind: 'live'; gameId: string; token: string; path: string };
 
-/** The body → the ask, or null: not a JSON object, or a field missing or out of shape (other keys are ignored). */
+/**
+ * The body → the ask, or null: not a JSON object, a field missing or out of shape, or both an attempt and a game (other
+ * keys are ignored).
+ */
 export function parseAsk(text: string): MediaAsk | null {
   let parsed: unknown;
   try {
@@ -91,11 +97,20 @@ export function parseAsk(text: string): MediaAsk | null {
     return null;
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-  const { attempt_id: attemptId, token, path } = parsed as Record<string, unknown>;
-  if (typeof attemptId !== 'string' || !UUID_RE.test(attemptId)) return null;
+  const { attempt_id: attemptId, game_id: gameId, token, path } = parsed as Record<string, unknown>;
   if (typeof token !== 'string' || !TOKEN_RE.test(token)) return null;
   if (typeof path !== 'string' || !PATH_RE.test(path)) return null;
-  return { attemptId: attemptId.toLowerCase(), token, path };
+  if (attemptId !== undefined && gameId !== undefined) return null;
+  if (typeof gameId === 'string' && UUID_RE.test(gameId)) return { kind: 'live', gameId: gameId.toLowerCase(), token, path };
+  if (typeof attemptId === 'string' && UUID_RE.test(attemptId)) return { kind: 'attempt', attemptId: attemptId.toLowerCase(), token, path };
+  return null;
+}
+
+/** The database function that decides, and its arguments. */
+export function rpcOf(ask: MediaAsk): { name: string; args: Record<string, unknown> } {
+  return ask.kind === 'live'
+    ? { name: LIVE_RPC_NAME, args: { p_game: ask.gameId, p_token: ask.token, p_paths: [ask.path] } }
+    : { name: RPC_NAME, args: { p_attempt_id: ask.attemptId, p_token: ask.token, p_paths: [ask.path] } };
 }
 
 /** The picture's type by its extension. */
@@ -250,13 +265,15 @@ export function createQuizMedia(deps: QuizMediaDeps): (req: Request) => Promise<
       const ask = parseAsk(text);
       if (!ask) return fail(400, 'bad_request', 'bad_request');
 
-      // The database decides: the path is a picture of this attempt, and the token is the attempt's.
+      // The database decides: the path is a picture of this attempt (or of a question this game has shown), and the
+      // token is the attempt's (or the game's host's or player's).
       let answer: unknown;
       try {
-        const rpc = await deps.fetch(`${base}/rest/v1/rpc/${RPC_NAME}`, {
+        const { name, args } = rpcOf(ask);
+        const rpc = await deps.fetch(`${base}/rest/v1/rpc/${name}`, {
           method: 'POST',
           headers: { ...service, 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({ p_attempt_id: ask.attemptId, p_token: ask.token, p_paths: [ask.path] }),
+          body: JSON.stringify(args),
           signal: AbortSignal.timeout(timeoutMs),
         });
         if (!rpc.ok) {

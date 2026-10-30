@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  BODY_MAX, BUCKET, contentTypeOf, createQuizMedia, isAllowed, parseAsk, PICTURE_CACHE, readMediaEnv, RPC_NAME,
+  BODY_MAX, BUCKET, contentTypeOf, createQuizMedia, isAllowed, LIVE_RPC_NAME, parseAsk, PICTURE_CACHE, readMediaEnv, RPC_NAME,
   type MediaLogLine,
 } from './quizMedia.ts';
 
@@ -15,6 +15,7 @@ const URL_ = 'https://abcdefghijklmnopqrst.supabase.co';
 const LEGACY_KEY = 'eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.TEST_NOT_REAL';
 const SECRET_KEY = 'sb_secret_TEST_NOT_REAL_xxxxxxxx';
 const ATTEMPT = '0f1e2d3c-4b5a-4968-8778-695a4b3c2d1e';
+const GAME = '7a6b5c4d-3e2f-4a1b-9c8d-7e6f5a4b3c2d';
 const TOKEN = 'AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_AbCdE';
 const CONTAINER = 'f4881273-7331-4c39-96d7-f2ce4a31a1c0';
 const PATH = `${CONTAINER}/${'a'.repeat(64)}.png`;
@@ -72,10 +73,11 @@ function ask(body: unknown, headers: Record<string, string> = {}, method = 'POST
 }
 
 const good = { attempt_id: ATTEMPT, token: TOKEN, path: PATH };
+const live = { game_id: GAME, token: TOKEN, path: PATH };
 
 /** Nothing secret in what leaves: the log lines, an answer's body. */
 function assertClean(text: string) {
-  for (const secret of [TOKEN, ATTEMPT, PATH, CONTAINER, LEGACY_KEY, SECRET_KEY, 'secret details']) {
+  for (const secret of [TOKEN, ATTEMPT, GAME, PATH, CONTAINER, LEGACY_KEY, SECRET_KEY, 'secret details']) {
     assert.ok(!text.includes(secret), `leaked ${secret.slice(0, 12)}…`);
   }
 }
@@ -94,8 +96,9 @@ test('the environment: the secret key of SUPABASE_SECRET_KEYS, else the legacy s
 });
 
 test('the request: a uuid, the device token and a picture path, nothing else matters', () => {
-  assert.deepEqual(parseAsk(JSON.stringify(good)), { attemptId: ATTEMPT, token: TOKEN, path: PATH });
-  assert.deepEqual(parseAsk(JSON.stringify({ ...good, attempt_id: ATTEMPT.toUpperCase(), extra: 1 })), { attemptId: ATTEMPT, token: TOKEN, path: PATH });
+  assert.deepEqual(parseAsk(JSON.stringify(good)), { kind: 'attempt', attemptId: ATTEMPT, token: TOKEN, path: PATH });
+  assert.deepEqual(parseAsk(JSON.stringify({ ...good, attempt_id: ATTEMPT.toUpperCase(), extra: 1 })), { kind: 'attempt', attemptId: ATTEMPT, token: TOKEN, path: PATH });
+  assert.deepEqual(parseAsk(JSON.stringify({ ...live, game_id: GAME.toUpperCase() })), { kind: 'live', gameId: GAME, token: TOKEN, path: PATH });
   for (const ext of ['png', 'jpg', 'gif', 'webp', 'bmp']) assert.ok(parseAsk(JSON.stringify({ ...good, path: `${CONTAINER}/${'c'.repeat(64)}.${ext}` })));
   const bad: unknown[] = [
     'not json', '[]', 'null', '"text"', '{}',
@@ -105,6 +108,8 @@ test('the request: a uuid, the device token and a picture path, nothing else mat
     { ...good, path: `${CONTAINER}/${'A'.repeat(64)}.png` }, { ...good, path: `../${CONTAINER}/${'a'.repeat(64)}.png` },
     { ...good, path: `${CONTAINER}/x/${'a'.repeat(64)}.png` }, { ...good, path: `${CONTAINER}/${'a'.repeat(64)}.png\n` },
     { ...good, path: [PATH] },
+    { ...good, game_id: GAME }, { ...live, game_id: 'not-a-uuid' }, { ...live, game_id: 7 }, { ...live, token: TOKEN.slice(2) },
+    { token: TOKEN, path: PATH },
   ];
   for (const body of bad) assert.equal(parseAsk(typeof body === 'string' ? body : JSON.stringify(body)), null, JSON.stringify(body));
 });
@@ -151,6 +156,28 @@ test('a picture of the attempt: the database asked with the service key, then th
   assert.ok(object.init?.signal, 'the storage read has a time limit');
 
   assert.deepEqual(lines, [{ fn: 'quiz-media', outcome: 'ok', status: 200, ms: 0 }]);
+});
+
+test('a picture of a live game: quiz_live_media_paths with the game, the host\'s or a player\'s token', async () => {
+  const { calls, lines, handle } = fake();
+  const res = await handle(ask(live));
+  assert.equal(res.status, 200);
+  assert.deepEqual(new Uint8Array(await res.arrayBuffer()), PNG);
+  assert.equal(res.headers.get('content-type'), 'image/png');
+  const [rpc, object] = calls;
+  assert.equal(rpc.url, `${URL_}/rest/v1/rpc/${LIVE_RPC_NAME}`);
+  assert.deepEqual(JSON.parse(String(rpc.init?.body)), { p_game: GAME, p_token: TOKEN, p_paths: [PATH] });
+  assert.equal(object.url, `${URL_}/storage/v1/object/${BUCKET}/${PATH}`);
+  assertClean(JSON.stringify(lines));
+});
+
+test('a live game\'s picture not shown yet (or a wrong token): 404, storage untouched', async () => {
+  const { calls, lines, handle } = fake({ allowed: [] });
+  const res = await handle(ask(live));
+  assert.equal(res.status, 404);
+  assert.deepEqual(await res.json(), { error: 'not_found' });
+  assert.equal(calls.length, 1);
+  assertClean(JSON.stringify(lines));
 });
 
 test('the new secret key goes on apikey only (bot/db.ts)', async () => {

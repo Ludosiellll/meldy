@@ -159,18 +159,28 @@ export const GUEST_PICTURE_REGION = 'eu-central-1';
  * supabase-js sends it. Cached by path as pictureUrl; a failed read is forgotten.
  */
 export function guestPictureUrl(path: string, attemptId: string, token: string): Promise<string> {
-  return cached(path, async () => {
-    const base = supabaseUrl.replace(/\/+$/, '');
-    const response = await supabaseFetch(`${base}/functions/v1/${GUEST_PICTURE_FUNCTION}?forceFunctionRegion=${GUEST_PICTURE_REGION}`, {
-      method: 'POST',
-      headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ attempt_id: attemptId, token, path }),
-    });
-    if (!response.ok) throw new Error(`picture ${response.status}`);
-    const type = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
-    if (!type.startsWith('image/')) throw new Error('not a picture');
-    return response.blob();
+  return cached(path, () => mediaFunction({ attempt_id: attemptId, token, path }));
+}
+
+/**
+ * A picture of a live game's question (release 47.31): the same function, asked with the game and the host's or a
+ * player's token; it answers once the question was shown (quiz_live_media_paths). Cached by path as the others.
+ */
+export function livePictureUrl(path: string, gameId: string, token: string): Promise<string> {
+  return cached(path, () => mediaFunction({ game_id: gameId, token, path }));
+}
+
+async function mediaFunction(body: Record<string, string>): Promise<Blob> {
+  const base = supabaseUrl.replace(/\/+$/, '');
+  const response = await supabaseFetch(`${base}/functions/v1/${GUEST_PICTURE_FUNCTION}?forceFunctionRegion=${GUEST_PICTURE_REGION}`, {
+    method: 'POST',
+    headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${supabaseAnonKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   });
+  if (!response.ok) throw new Error(`picture ${response.status}`);
+  const type = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  if (!type.startsWith('image/')) throw new Error('not a picture');
+  return response.blob();
 }
 
 // ── a picture the author adds by hand (the question editor, the quiz cover, the studio: a file, a drop or Ctrl+V) ──

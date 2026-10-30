@@ -16,19 +16,27 @@ vi.mock('../../api/telegramGroups', () => ({
 }));
 const auth = vi.hoisted(() => ({ user: { id: 'u1' } as { id: string } | null, loading: false, requestSession: () => {} }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => auth }));
+type Q = { id: string; text: string; skip: 'short' | 'options' | 'picture' | null; wideSkip: 'short' | 'options' | null };
+const PLAIN: Q[] = [
+  ...['Какая команда отменяет транзакцию?', 'Что гарантирует буква I в ACID?', 'Какая команда относится к DDL?', 'Какой оператор объединяет строки?'].map(
+    (text, i) => ({ id: `q${i}`, text, skip: null, wideSkip: null }),
+  ),
+  { id: 'n', text: 'Сколько байт в килобайте?', skip: 'short', wideSkip: 'short' },
+];
+// a real exam's test: five options a question, some with a picture; two of four options
+const REAL: Q[] = [
+  ...Array.from({ length: 6 }, (_, i) => ({ id: `r${i}`, text: `Вопрос с пятью вариантами ${i + 1}`, skip: 'options' as const, wideSkip: null })),
+  { id: 'p', text: 'Какая связь показана на схеме?', skip: 'picture', wideSkip: null },
+  { id: 'f1', text: 'Четыре варианта 1', skip: null, wideSkip: null },
+  { id: 'f2', text: 'Четыре варианта 2', skip: null, wideSkip: null },
+  { id: 's', text: 'Семь вариантов', skip: 'options', wideSkip: 'options' },
+];
+const bank = vi.hoisted(() => ({ questions: null as unknown as Array<{ id: string; text: string; skip: unknown; wideSkip: unknown }> }));
 vi.mock('../../components/live/host/source', async (importOriginal) => {
   const real = await importOriginal<typeof import('../../components/live/host/source')>();
   return {
     ...real,
-    loadSource: vi.fn(async (containerId: string) => ({
-      containerId,
-      title: 'Базы данных',
-      subjectIds: ['s1'],
-      questions: [
-        ...['Какая команда отменяет транзакцию?', 'Что гарантирует буква I в ACID?', 'Какая команда относится к DDL?', 'Какой оператор объединяет строки?'].map((text, i) => ({ id: `q${i}`, text, skip: null })),
-        { id: 'n', text: 'Сколько байт в килобайте?', skip: 'short' as const },
-      ],
-    })),
+    loadSource: vi.fn(async (containerId: string) => ({ containerId, title: 'Базы данных', subjectIds: ['s1'], questions: bank.questions })),
   };
 });
 
@@ -54,6 +62,7 @@ async function open(path: string) {
 
 let server: ReturnType<typeof createFakeServer>;
 beforeEach(() => {
+  bank.questions = PLAIN;
   groups.list = [];
   server = createFakeServer({ bots: 0, latencyMs: 0, demoPin: null });
   setLiveApi(server);
@@ -178,5 +187,41 @@ describe('«Провести игру»', () => {
     const names = screen.getByRole('radiogroup', { name: 'Назвать в чате трёх лучших' });
     fireEvent.click(within(names).getByRole('radio', { name: 'Да' }));
     expect(within(names).getByRole('radio', { name: 'Да' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('a real test (five options, pictures): the mini-game goes off by itself and says why; all of it plays', async () => {
+    bank.questions = REAL;
+    const create = vi.spyOn(server, 'create');
+    const view = await open('/live/new?c=c1');
+    const mini = screen.getByRole('radiogroup', { name: 'Мини-игра с движением' });
+    expect(within(mini).getByRole('radio', { name: 'Нет' })).toHaveAttribute('aria-checked', 'true');
+    expect(view.container.querySelector('.lvs-note')?.textContent).toMatch(/Мини-игра выключена: в этом тесте вопросы с 5–6 вариантами или картинками/);
+    // only the seven-option question is left out, with its own reason
+    const folded = view.container.querySelector('details.lvs-skipped')!;
+    expect(folded.querySelector('summary')?.textContent).toMatch(/1\s+вопрос не войдёт в игру/);
+    expect(folded.textContent).toMatch(/2–6 вариантами/);
+    expect(folded.textContent).toMatch(/Семь вариантов Вариантов меньше двух или больше шести\./);
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Открыть комнату' }));
+      await Promise.resolve();
+    });
+    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'boss', stand_every: 0 });
+  });
+
+  it('a mini-game picked for such a test: says how many it takes and switches it off on a click', async () => {
+    bank.questions = REAL;
+    const view = await open('/live/new?c=c1&mini=5');
+    const mini = screen.getByRole('radiogroup', { name: 'Мини-игра с движением' });
+    expect(within(mini).getByRole('radio', { name: 'Каждые 5 вопросов' })).toHaveAttribute('aria-checked', 'true');
+    expect(view.container.querySelector('.lvs-note')?.textContent).toMatch(/С мини-игрой войдут 2\s+вопроса из 9: на полу арены четыре зоны и нет картинок\./);
+    fireEvent.click(screen.getByRole('button', { name: 'Играть без мини-игры' }));
+    expect(within(mini).getByRole('radio', { name: 'Нет' })).toHaveAttribute('aria-checked', 'true');
+    expect(view.container.querySelector('.lvs-note')).toBeNull();
+  });
+
+  it('a test of four-option questions keeps the mini-game and says nothing more', async () => {
+    const view = await open('/live/new?c=c1');
+    expect(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Каждые 5 вопросов' })).toHaveAttribute('aria-checked', 'true');
+    expect(view.container.querySelector('.lvs-note')).toBeNull();
   });
 });

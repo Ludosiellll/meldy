@@ -25,6 +25,7 @@ import { Stage, useStageFit } from './Stage';
 import { StageStore } from './stageStore';
 import { TopBar } from './TopBar';
 import type { HostGame } from './useHostGame';
+import { useLivePictures } from '../../../lib/live/pictures';
 import './host.css';
 
 /** The store at rest: what the server's state says, without motion. */
@@ -422,6 +423,7 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
         : null;
 
   const q = s.question;
+  const pics = useLivePictures(q?.pictures, game.picture);
   const { offset } = game;
   // This device's time of the question's open and close, fixed per question (a later clock estimate does not jolt it).
   const [opensAt, closesAt] = useMemo(() => {
@@ -553,6 +555,8 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
               answered={s.answered}
               opensAt={opensAt}
               closesAt={closesAt}
+              pictures={pics}
+              countdown={s.state === 'countdown'}
             />
           ) : null}
           <div className="lvh-fx" ref={fxRef} aria-hidden="true" />

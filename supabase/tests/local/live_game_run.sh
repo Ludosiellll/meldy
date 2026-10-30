@@ -22,11 +22,13 @@
 # mirror, its rollback back to the stand's catalog) → the PIN stage: 20261025090000_live_pin.sql (the phone's PIN step:
 # live_join with the empty name, answered as data) the same way (its contract tests/live_pin.sql, live_pin_behaviour.sql,
 # every live contract and behaviour above still green, real.ts with live_pin end to end, its rollback back to the
-# catalog before it, applied again).
+# catalog before it, applied again) → the pictures stage: 20261030090000_live_pictures.sql (the battle takes 5–6 options and
+# pictures; quiz_live_media_paths) the same way (tests/live_pictures.sql, live_pictures_behaviour.sql, every live contract and
+# behaviour above still green, its rollback back to the PIN stage's catalog, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -575,6 +577,79 @@ else
   [ "$(fingerprint)" = "$FPIN" ] && ok "the same catalog as the first PIN apply" || bad "another catalog than the first PIN apply"
   step "contract: live_pin.sql again" "$PCONTRACT"
   behave "PIN behaviour again" "$PBEHAVIOUR" 'LIVE PIN BEHAVIOUR PASSED'
+fi
+
+
+# ─── Real tests in the battle: 5–6 options and pictures (20261030090000_live_pictures.sql) on top of the PIN step ───
+# A battle without movement rounds takes one right option of 2–6 and pictures (question.pictures, the review's pictures,
+# quiz_live_media_paths for the quiz-media function); a stand game and a mixed game keep the old rule. Its contract and
+# behaviour fail before it; applied twice (the same catalog); its contract and every live contract still hold;
+# live_pictures_behaviour.sql; the stand, mixed and PIN behaviours unchanged; the battle's behaviour unchanged once its
+# two questions that played no part before (five options; a picture) are made unplayable under the new rule too (seven
+# options; two right ones) — every one of its assertions holds; the rollback twice (the catalog before it); applied again.
+# LIVE_PICTURES=0 skips the stage.
+if [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the pictures stage (LIVE_PICTURES=0)"
+else
+  XMIG=$SB/migrations/20261030090000_live_pictures.sql
+  XDOWN=$SB/rollback/20261030090000_live_pictures_down.sql
+  XCONTRACT=$SB/tests/live_pictures.sql
+  XBEHAVIOUR=$HERE/live_pictures_behaviour.sql
+  OLD_BATTLE=$WORK/live_game_behaviour_wide.sql
+  sed -e "s/'Пять вариантов', 'options', jsonb_build_array('1', '2', '3', '4', '5')/'Пять вариантов', 'options', jsonb_build_array('1', '2', '3', '4', '5', '6', '7')/" \
+      -e "s/'С картинкой', 'options', jsonb_build_array('да', 'нет'), 'correct', jsonb_build_array(0),/'С картинкой', 'options', jsonb_build_array('да', 'нет'), 'correct', jsonb_build_array(0, 1),/" \
+      "$BEHAVIOUR" > "$OLD_BATTLE"
+  [ "$(grep -c "jsonb_build_array('1', '2', '3', '4', '5', '6', '7')\|'correct', jsonb_build_array(0, 1),$" "$OLD_BATTLE")" -ge 2 ] \
+    && ok "the battle's behaviour for the wide rule: its two idle questions made unplayable" \
+    || bad "the battle's behaviour for the wide rule: the two questions were not found"
+  has() { [ "$(q "select pg_catalog.to_regprocedure('$1') is not null")" = t ]; }
+  pic_contracts() {
+    step "contract: live_game.sql $1" "$CONTRACT"
+    if has 'public.live_stand_close(uuid,text,integer,jsonb)'; then step "contract: live_stand.sql $1" "$SB/tests/live_stand.sql"; fi
+    if [ "$(q "select pg_catalog.strpos(p.prosrc, 'tophat') > 0 from pg_catalog.pg_proc p
+                where p.oid = 'meldy_private.live_look_check(jsonb,text[])'::regprocedure")" = t ]; then
+      step "contract: live_stand_phone.sql $1" "$SB/tests/live_stand_phone.sql"
+    fi
+    if has 'meldy_private.live_stand_round(integer,integer,integer)'; then step "contract: live_mixed.sql $1" "$SB/tests/live_mixed.sql"; fi
+    if has 'public.live_pin(text,text)'; then step "contract: live_pin.sql $1" "$SB/tests/live_pin.sql"; fi
+    contract_ok "contract: telegram_bot.sql $1" "$SB/tests/telegram_bot.sql"
+  }
+  pic_behaviours() {
+    behave "the battle's behaviour $1" "$OLD_BATTLE" 'LIVE GAME BEHAVIOUR PASSED'
+    behave "the stand's behaviour $1" "$HERE/live_stand_behaviour.sql" 'LIVE STAND BEHAVIOUR PASSED'
+    behave "the mixed behaviour $1" "$HERE/live_mixed_behaviour.sql" 'LIVE MIXED BEHAVIOUR PASSED'
+    if has 'public.live_pin(text,text)'; then behave "the PIN behaviour $1" "$HERE/live_pin_behaviour.sql" 'LIVE PIN BEHAVIOUR PASSED'; fi
+  }
+  FNOPIC=$(fingerprint)
+  if run "$XCONTRACT"; then bad "live_pictures.sql passes before its migration (it tests nothing)"; else ok "live_pictures.sql fails before its migration"; fi
+  if passes "$XBEHAVIOUR" 'LIVE PICTURES BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_pictures_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_pictures_behaviour fails before its migration"
+  fi
+  pic_behaviours "before the pictures migration"
+  step "pictures migration, first apply" "$XMIG"
+  FPIC=$(fingerprint)
+  [ "$FPIC" != "$FNOPIC" ] && ok "the pictures migration changed the catalog" || bad "the pictures migration changed nothing"
+  step "pictures migration, second apply (re-runnable)" "$XMIG"
+  [ "$(fingerprint)" = "$FPIC" ] && ok "a second pictures apply changes nothing in the catalog" || bad "a second pictures apply changed the catalog"
+  step "contract: live_pictures.sql (checks, column, trigger, rule, screens, quiz_live_media_paths)" "$XCONTRACT"
+  pic_contracts "still holds"
+  behave "pictures behaviour: 5–6 options, pictures in shown order, who may read them and when, stand and mixed unchanged" \
+    "$XBEHAVIOUR" 'LIVE PICTURES BEHAVIOUR PASSED'
+  pic_behaviours "unchanged after the pictures migration"
+  [ "$(fingerprint)" = "$FPIC" ] && ok "the catalog unchanged by the pictures runs" || bad "the pictures runs changed the catalog"
+  step "pictures rollback" "$XDOWN"
+  [ "$(fingerprint)" = "$FNOPIC" ] && ok "after the pictures rollback: the catalog before it (fingerprint)" \
+    || bad "after the pictures rollback: another catalog than before it"
+  step "pictures rollback again (re-runnable)" "$XDOWN"
+  [ "$(fingerprint)" = "$FNOPIC" ] && ok "after the second pictures rollback: still the catalog before it" || bad "after the second pictures rollback: another catalog"
+  if run "$XCONTRACT"; then bad "live_pictures.sql passes after its rollback"; else ok "live_pictures.sql fails after its rollback"; fi
+  pic_contracts "after the pictures rollback"
+  step "pictures migration after its rollback" "$XMIG"
+  [ "$(fingerprint)" = "$FPIC" ] && ok "the same catalog as the first pictures apply" || bad "another catalog than the first pictures apply"
+  step "contract: live_pictures.sql again" "$XCONTRACT"
+  behave "pictures behaviour again" "$XBEHAVIOUR" 'LIVE PICTURES BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"

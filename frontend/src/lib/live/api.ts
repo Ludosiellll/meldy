@@ -3,7 +3,7 @@
  * Realtime hints + polling (§6). The fake is used when `VITE_LIVE_FAKE=1`, `localStorage['meldy.live.fake'] = '1'`, or
  * the address has `?fake=1`.
  */
-import { createFakeServer, type FakeOptions } from './fake';
+import { createFakeServer, PICTURE_QUESTIONS, type FakeOptions } from './fake';
 import { createRealApi } from './real';
 import { POLL_FAST_MS, POLL_ONLY_ABOVE, POLL_SLOW_MS } from './rules';
 import { LiveError, isUnchanged, type LiveApi, type Unchanged } from './types';
@@ -21,11 +21,23 @@ export function liveFakeWanted(): boolean {
   return false;
 }
 
+/** `?fakeq=pictures`: the fake plays a test as real ones are (five options, pictures). */
+function fakeQuestions(): Pick<FakeOptions, 'questions'> {
+  try {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('fakeq') === 'pictures') {
+      return { questions: PICTURE_QUESTIONS };
+    }
+  } catch {
+    /* no address */
+  }
+  return {};
+}
+
 let instance: LiveApi | null = null;
 
 /** The app-wide live API (one fake server per tab, so a host and a player in the same tab share its games). */
 export function liveApi(fakeOptions?: FakeOptions): LiveApi {
-  if (!instance) instance = liveFakeWanted() ? createFakeServer({ fastBots: false, autoHost: true, ...fakeOptions }) : createRealApi();
+  if (!instance) instance = liveFakeWanted() ? createFakeServer({ fastBots: false, autoHost: true, ...fakeQuestions(), ...fakeOptions }) : createRealApi();
   return instance;
 }
 

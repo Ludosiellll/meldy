@@ -80,9 +80,20 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
 
 ## 4. Questions
 
-- MVP plays only items with exactly one correct option and 2–4 options, **without pictures** (guests have no way to the
-  private pictures yet; `question.picture` is always `null`). The rest are skipped and counted in `skipped` at create:
-  for a контрольная, of its draw; for subjects, of the subjects' keyed questions. At most 30 are played.
+- Plays items with exactly one correct option. A battle without movement rounds (`mode = 'boss'`, `stand_every = 0`)
+  takes 2–6 options and pictures (since 20261030090000_live_pictures.sql, 30.10: real tests have five options and
+  pictures); a stand game and a mixed game take 2–4 options without pictures (the arena has four zones and draws no
+  pictures). The rest are skipped and counted in `skipped` at create: for a контрольная, of its draw; for subjects, of
+  the subjects' keyed questions. At most 30 are played. The setup screen switches the mini-game off by itself for a test
+  that is mostly such questions and says why (LiveSetupPage).
+- Pictures: `question.pictures` = `{"stem": [path…], "options": [[path…] per shown option]}`, present only when the
+  question has any (`question.picture` stays `null`). Paths in the private bucket test-item-images; the screens read
+  them through the `quiz-media` Edge Function with `{game_id, token, path}` (the host's or a player's token), which asks
+  `public.quiz_live_media_paths` (service_role only): a picture of a question shown so far (from its countdown; none in
+  the lobby), for the host or a player not kicked, until 7 days after the end. The review's items carry their pictures
+  the same way. The projector shows the question's picture big over the arena during the countdown, then beside the
+  tiles (a click shows it big again); the phone shows it under the question (a tap opens it full screen); an option's
+  picture sits in its tile and button. Letters А–Е, colours and shapes for options 5 and 6: orange pentagon, violet hexagon.
 - Option order: shuffled once per game per question unless the item keeps its order (`keep_order`), same for everyone
   (the letters on the projector are the letters on the phones). Stored as `shown smallint[]` (file indexes in shown order).
   Every index on the wire is a **shown** index.
@@ -220,7 +231,7 @@ check through `live_join`.
 { "rev": 12, "now": "2026-10-21T10:00:00.123Z", "state": "open", "mode": "boss",
   "qi": 1, "q_count": 6, "time_s": 20, "speed": true, "players": 24, "answered": 18,
   "question": { "qi": 1, "text": "Какая команда отменяет транзакцию?", "options": ["ROLLBACK", "COMMIT", "SAVEPOINT", "GRANT"],
-                "opens_at": "…", "closes_at": "…", "phase": 1, "picture": null },          // null in lobby/podium
+                "opens_at": "…", "closes_at": "…", "phase": 1, "picture": null },          // null in lobby/podium; + "pictures" when it has any (§4)
   "boss": { "hp": 4992, "hp_max": 7920, "phase": 1, "defeated": false },
   "me": { "player_id": "uuid", "name": "Дима", "look": Look, "dmg": 221, "streak": 2, "best": 2, "frozen": false,
           "place": 4, "choice": 0 },                                                         // choice: this question, or null

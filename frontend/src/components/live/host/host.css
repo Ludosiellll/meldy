@@ -22,6 +22,8 @@
   --lvh-green-ink: #2c6b3a;
   --lvh-green-soft: #e2f2e5;
   --lvh-pink: #f29bbe;
+  --lvh-orange: #f6a465;
+  --lvh-violet: #b8a1f3;
   --lvh-coral: #ef6a4c;
   --lvh-red-ink: #b3261e;
   --lvh-outline: #1b2230;
@@ -241,6 +243,35 @@ a.lvh-btn { text-decoration: none; }
 .lvh-tile--a1 { background: var(--lvh-yellow); }
 .lvh-tile--a2 { background: var(--lvh-green); }
 .lvh-tile--a3 { background: var(--lvh-pink); }
+.lvh-tile--a4 { background: var(--lvh-orange); }
+.lvh-tile--a5 { background: var(--lvh-violet); }
+/* Five or six options (a real test's): three tiles a row. */
+.lvh-tiles[data-n='5'], .lvh-tiles[data-n='6'] { grid-template-columns: repeat(3, 1fr); }
+/* An option's own picture in its tile. */
+.lvh-tile-pic { flex: none; display: grid; place-items: center; width: 104px; height: 66px; border-radius: 14px; background: #fff; overflow: hidden; }
+.lvh-tile-pic img { width: 100%; height: 100%; object-fit: contain; }
+
+/* A question with a picture: the picture beside the tiles, big over the arena while the class counts down. */
+.lvh-question[data-pic] .lvh-q-head, .lvh-question[data-pic] .lvh-tiles { margin-right: calc(31% + 22px); }
+.lvh-question[data-pic] .lvh-q-side { width: 170px; }
+.lvh-question[data-pic][data-n='5'] .lvh-tiles, .lvh-question[data-pic][data-n='6'] .lvh-tiles { grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.lvh-question[data-pic][data-n='5'] .lvh-tile, .lvh-question[data-pic][data-n='6'] .lvh-tile { height: 58px; border-radius: 18px; gap: 12px; padding-left: 8px; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.13); }
+.lvh-question[data-pic][data-n='5'] .lvh-tile-badge, .lvh-question[data-pic][data-n='6'] .lvh-tile-badge { min-width: 44px; height: 44px; border-radius: 13px; padding: 0 8px; font-size: 23px; }
+.lvh-question[data-pic][data-n='5'] .lvh-shape, .lvh-question[data-pic][data-n='6'] .lvh-shape { display: none; }
+.lvh-question[data-pic][data-n='5'] .lvh-tile-count, .lvh-question[data-pic][data-n='6'] .lvh-tile-count { font-size: 30px; }
+.lvh-q-figure { position: absolute; top: 20px; bottom: 20px; right: 30px; width: 31%; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: stretch; padding: 8px; border: 0; border-radius: 24px; background: #fff; box-shadow: inset 0 0 0 1.5px var(--lvh-line); cursor: zoom-in; animation: lvh-fade 0.35s 0.2s backwards; }
+.lvh-q-figure img { width: 100%; height: 100%; min-height: 0; border-radius: 14px; object-fit: contain; }
+.lvh-q-figure i { place-self: center; font: 500 22px/1.2 var(--ph-sans, system-ui); font-style: normal; color: var(--lvh-ink-2); }
+.lvh-pic-stage {
+  position: absolute; left: 50%; bottom: calc(100% + 14px); z-index: 6; width: min(64%, 980px); height: 392px;
+  display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); padding: 14px; border-radius: 32px; background: #fff;
+  box-shadow: 0 24px 60px rgba(11, 18, 28, 0.28), inset 0 0 0 1.5px var(--lvh-line);
+  opacity: 0; pointer-events: none; transform: translate(-50%, 70px) scale(0.55); transform-origin: 80% 100%;
+  transition: opacity 0.3s ease, transform 0.45s var(--lvh-out);
+}
+.lvh-pic-stage[data-on] { opacity: 1; pointer-events: auto; transform: translate(-50%, 0) scale(1); cursor: zoom-out; transition: opacity 0.25s ease, transform 0.5s var(--lvh-pop); }
+.lvh-pic-stage img { width: 100%; height: 100%; min-height: 0; border-radius: 20px; object-fit: contain; }
+@media (prefers-reduced-motion: reduce) { .lvh-pic-stage, .lvh-pic-stage[data-on] { transition: opacity 0.2s linear; transform: translate(-50%, 0); } .lvh-q-figure { animation: none; } }
 .lvh-tile-badge { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 62px; height: 62px; padding: 0 12px; border-radius: 18px; background: rgba(255, 255, 255, 0.94); color: var(--lvh-ink); font: 800 31px/1 var(--ph-sans, system-ui); }
 .lvh-shape { flex: none; display: block; }
 .lvh-tile-text { flex: 1; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
@@ -436,6 +467,9 @@ a.lvh-btn { text-decoration: none; }
 .lvs-seg { display: flex; flex-wrap: wrap; gap: 6px; }
 .lvs-seg button { padding: 11px 16px; border-radius: 999px; font: 600 17px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); background: var(--lvh-card); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
 .lvs-seg button[aria-checked='true'] { background: var(--lvh-ink); color: #fff; box-shadow: none; }
+/* Why the mini-game is off for this test, or how many questions it would leave out. */
+.lvs-note { margin: 14px 0 0; padding: 14px 20px; border-radius: 20px; background: var(--lvh-blue-soft); font: 500 16px/1.45 var(--ph-sans, system-ui); color: var(--lvh-ink); }
+.lvs-note-fix { display: inline; padding: 0; border: 0; background: none; color: var(--lvh-blue-ink, #1f5bc6); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .lvs-skipped { margin-top: 22px; padding: 16px 22px; border-radius: 22px; background: var(--lvh-card); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
 .lvs-skipped summary { cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; list-style: none; }
 .lvs-skipped summary b { font: 600 19px/1.3 var(--ph-sans, system-ui); }

@@ -39,6 +39,7 @@ import {
   type HostState,
   type JoinResult,
   type LiveApi,
+  type LivePictures,
   type Look,
   type PinResult,
   type PlayerState,
@@ -100,6 +101,8 @@ export interface FakeQuestion {
   /** File index of the key. */
   key: number;
   keepOrder?: boolean;
+  /** Pictures in file order (fake paths: fakePicture draws them). */
+  pictures?: LivePictures;
 }
 
 /** The example exam «Осенняя сессия», subject «Базы данных»: the first question is frontend/src/data/containerExample.ts. */
@@ -111,6 +114,54 @@ export const EXAMPLE_QUESTIONS: readonly FakeQuestion[] = [
   { text: 'Какой оператор объединяет строки двух таблиц по условию?', options: ['UNION', 'GROUP BY', 'JOIN', 'HAVING'], key: 2 },
   { text: 'Что гарантирует буква I в ACID?', options: ['Транзакция выполняется целиком', 'Параллельные транзакции не видят изменений друг друга', 'Изменения сохраняются после сбоя', 'Данные соблюдают ограничения'], key: 1 },
 ];
+
+/**
+ * A test as real ones are (owner's files: five options, pictures in the question or its options), for `?fake=1&fakeq=pictures`
+ * and the tests: the fake paths are drawn by fakePicture.
+ */
+export const PICTURE_QUESTIONS: readonly FakeQuestion[] = [
+  {
+    text: 'Какая связь между таблицами показана на схеме?',
+    options: ['Один к одному', 'Один ко многим', 'Многие ко многим', 'Связи нет', 'Рекурсивная'],
+    key: 1,
+    pictures: { stem: ['fake:er'], options: [[], [], [], [], []] },
+  },
+  {
+    text: 'На каком графике показан закон спроса?',
+    options: ['График 1', 'График 2', 'График 3', 'График 4'],
+    key: 2,
+    keepOrder: true,
+    pictures: { stem: [], options: [['fake:up'], ['fake:flat'], ['fake:down'], ['fake:wall']] },
+  },
+  {
+    text: 'Какая команда удаляет таблицу вместе со структурой?',
+    options: ['DROP TABLE', 'DELETE', 'TRUNCATE', 'REMOVE', 'ALTER TABLE', 'CLEAR'],
+    key: 0,
+  },
+  EXAMPLE_QUESTIONS[0],
+  EXAMPLE_QUESTIONS[1],
+];
+
+const FAKE_AXES = '<path d="M30 20V170H230" fill="none" stroke="#0b121c" stroke-width="4" stroke-linecap="round"/>';
+const FAKE_DRAWINGS: Record<string, string> = {
+  er:
+    '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="440" viewBox="0 0 480 220"><rect width="480" height="220" fill="#fff"/>' +
+    '<g font-family="sans-serif" font-size="22" fill="#0b121c"><rect x="20" y="60" width="150" height="100" rx="10" fill="none" stroke="#0b121c" stroke-width="3"/>' +
+    '<text x="95" y="102" text-anchor="middle" font-weight="700">Группа</text><text x="95" y="132" text-anchor="middle" font-size="17">id, название</text>' +
+    '<rect x="310" y="60" width="150" height="100" rx="10" fill="none" stroke="#0b121c" stroke-width="3"/>' +
+    '<text x="385" y="102" text-anchor="middle" font-weight="700">Студент</text><text x="385" y="132" text-anchor="middle" font-size="17">id, группа_id</text></g>' +
+    '<path d="M170 110H310M184 96V124M190 96V124M310 110L292 94M310 110L292 126" fill="none" stroke="#0b121c" stroke-width="3"/></svg>',
+  up: `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="380" viewBox="0 0 260 190"><rect width="260" height="190" fill="#fff"/>${FAKE_AXES}<path d="M45 160L215 40" stroke="#2b59ff" stroke-width="6" stroke-linecap="round"/></svg>`,
+  flat: `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="380" viewBox="0 0 260 190"><rect width="260" height="190" fill="#fff"/>${FAKE_AXES}<path d="M45 95H215" stroke="#2b59ff" stroke-width="6" stroke-linecap="round"/></svg>`,
+  down: `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="380" viewBox="0 0 260 190"><rect width="260" height="190" fill="#fff"/>${FAKE_AXES}<path d="M45 40C90 120 140 150 215 160" fill="none" stroke="#2b59ff" stroke-width="6" stroke-linecap="round"/></svg>`,
+  wall: `<svg xmlns="http://www.w3.org/2000/svg" width="520" height="380" viewBox="0 0 260 190"><rect width="260" height="190" fill="#fff"/>${FAKE_AXES}<path d="M130 35V160" stroke="#2b59ff" stroke-width="6" stroke-linecap="round"/></svg>`,
+};
+
+/** A fake picture path (`fake:<name>`) as a data URL, or null. */
+export function fakePicture(path: string): string | null {
+  const svg = path.startsWith('fake:') ? FAKE_DRAWINGS[path.slice(5)] : undefined;
+  return svg ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : null;
+}
 
 const BOT_NAMES = ['Лена', 'Артём', 'Катя', 'Миша', 'Соня', 'Егор', 'Аня', 'Илья', 'Даша', 'Никита', 'Полина', 'Ваня', 'Маша', 'Кирилл', 'Алиса', 'Тимур', 'Вера', 'Глеб', 'Оля', 'Саша', 'Лиза', 'Макс', 'Нина'];
 
@@ -158,6 +209,8 @@ interface GameQuestion {
   closed: (CloseOutput & { rankBefore: Uuid[]; void?: boolean }) | null;
   /** A mixed game's movement round: answered in the arena (here: nobody; closed by time as void). */
   stand: boolean;
+  /** In the shown order. */
+  pictures?: LivePictures;
 }
 
 interface FakeGame {
@@ -257,7 +310,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
     return [...g.players.values()].filter((p) => !p.kicked && p.joinedAt <= at);
   }
 
-  function shuffled(q: FakeQuestion): { options: string[]; key: number } {
+  function shuffled(q: FakeQuestion): { options: string[]; key: number; pictures?: LivePictures } {
     const order = q.options.map((_, i) => i);
     if (!q.keepOrder) {
       for (let i = order.length - 1; i > 0; i -= 1) {
@@ -265,7 +318,8 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
         [order[i], order[j]] = [order[j], order[i]];
       }
     }
-    return { options: order.map((i) => q.options[i]), key: order.indexOf(q.key) };
+    const pictures = q.pictures ? { stem: q.pictures.stem, options: order.map((i) => q.pictures?.options[i] ?? []) } : undefined;
+    return { options: order.map((i) => q.options[i]), key: order.indexOf(q.key), ...(pictures ? { pictures } : {}) };
   }
 
   /** A mixed game: the qi of its movement rounds (the database's rule, `standRounds`); null for other games. */
@@ -282,9 +336,9 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       g.hpMax = hpFor(activePlayers(g, now).length, g.bank.length);
       g.hp = g.hpMax;
     }
-    const { options: shownOptions, key } = shuffled(g.bank[qi]);
+    const { options: shownOptions, key, pictures } = shuffled(g.bank[qi]);
     const stand = roundsOf(g)?.includes(qi) ?? false;
-    const q: GameQuestion = { text: g.bank[qi].text, options: shownOptions, key, phase: g.phase, opensAt: now + COUNTDOWN_MS, closesAt: now + COUNTDOWN_MS + g.settings.time_s * 1000, answers: new Map(), closed: null, stand };
+    const q: GameQuestion = { text: g.bank[qi].text, options: shownOptions, key, phase: g.phase, opensAt: now + COUNTDOWN_MS, closesAt: now + COUNTDOWN_MS + g.settings.time_s * 1000, answers: new Map(), closed: null, stand, ...(pictures ? { pictures } : {}) };
     g.questions[qi] = q;
     g.qi = qi;
     setState(g, 'countdown');
@@ -489,7 +543,7 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
   function questionView(g: FakeGame) {
     const q = g.questions[g.qi];
     if (!q || g.state === 'lobby' || g.state === 'podium' || g.state === 'ended') return null;
-    return { qi: g.qi, text: q.text, options: q.options, opens_at: iso(q.opensAt), closes_at: iso(q.closesAt), phase: q.phase, picture: null, ...(roundsOf(g) ? { stand: q.stand } : {}) };
+    return { qi: g.qi, text: q.text, options: q.options, opens_at: iso(q.opensAt), closes_at: iso(q.closesAt), phase: q.phase, picture: null, ...(roundsOf(g) ? { stand: q.stand } : {}), ...(q.pictures ? { pictures: q.pictures } : {}) };
   }
 
   function base(g: FakeGame) {
@@ -762,12 +816,20 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
           .filter(({ q }) => q?.closed)
           .map(({ q, qi }) => {
             const choice = q.answers.get(p.id)?.choice ?? null;
-            return { qi, text: q.text, options: q.options, key: q.key, choice, correct: choice === q.key, ...(q.stand ? { stand: true } : {}) };
+            return { qi, text: q.text, options: q.options, key: q.key, choice, correct: choice === q.key, ...(q.stand ? { stand: true } : {}), ...(q.pictures ? { pictures: q.pictures } : {}) };
           });
         return reply({ items });
       } catch (e) {
         return fail(e as LiveError);
       }
+    },
+
+    picture(game: Uuid, tok: string, path: string): Promise<string> {
+      const g = games.get(game);
+      const known = !!g && (g.hostToken === tok || [...g.players.values()].some((p) => p.token === tok && !p.kicked));
+      const shown = !!g && g.questions.slice(0, g.qi + 1).some((q) => q?.pictures && [...q.pictures.stem, ...q.pictures.options.flat()].includes(path));
+      const url = known && shown ? fakePicture(path) : null;
+      return url ? reply(url) : fail(new LiveError('P0002', 'picture'));
     },
 
     subscribe(topic: string, onHint: (h: Hint) => void, onLink?: (connected: boolean) => void): () => void {

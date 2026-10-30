@@ -27,6 +27,7 @@ export function obeyOffline(api: LiveApi): LiveApi {
     answer: guard(api.answer.bind(api)),
     state: guard(api.state.bind(api)),
     review: guard(api.review.bind(api)),
+    ...(api.picture ? { picture: guard(api.picture.bind(api)) } : {}),
     subscribe: api.subscribe.bind(api),
   };
 }

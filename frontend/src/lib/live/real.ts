@@ -3,6 +3,7 @@
  * W1's; this file follows the contract and is switched on by the flag in api.ts. Errors become LiveError by the body's
  * `code` (never the HTTP status alone: P0002 comes as 404 by the PGRST override, our ML0xx as 400/409/429).
  */
+import { livePictureUrl } from '../../api/itemPictures';
 import { supabase } from '../supabase';
 import { preferredRoute } from '../supabaseRoute';
 import {
@@ -104,6 +105,7 @@ export function createRealApi(): LiveApi {
     state: async (game: Uuid, token: string, sinceRev?: number) =>
       unchangedOr(await rpc<PlayerState>('live_state', { p_game: game, p_token: token, p_since_rev: sinceRev ?? null })),
     review: (game: Uuid, token: string) => rpc<Review>('live_review', { p_game: game, p_token: token }),
+    picture: (game: Uuid, token: string, path: string) => livePictureUrl(path, game, token),
     subscribe(topic: string, onHint: (hint: Hint) => void, onLink?: (connected: boolean) => void) {
       // Through the site's /sb proxy there is no WebSocket: say so at once, the caller polls every second.
       if (preferredRoute() === 'proxy') {

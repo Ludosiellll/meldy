@@ -212,6 +212,17 @@ export class PlayerController {
     if (document.visibilityState === 'visible') this.kick();
   };
 
+  /**
+   * An object URL of a picture of a question this game has shown (LiveApi.picture with this player's token); rejects
+   * without a game, a token or a server that has pictures. Bound, so the screens can keep it.
+   */
+  readonly picture = (path: string): Promise<string> => {
+    const game = this.s.game;
+    const read = this.api.picture;
+    if (!game || !this.token || !read) return Promise.reject(new Error('no picture'));
+    return read.call(this.api, game.id, this.token, path);
+  };
+
   constructor(options: ControllerOptions) {
     this.api = options.api;
     this.platform = options.platform;

@@ -14,6 +14,7 @@ import {
   COVER_BUCKET,
   guestPictureUrl,
   isHeic,
+  livePictureUrl,
   MAX_PICTURE_BYTES,
   MAX_PICTURE_SIDE,
   PICTURE_BUCKET,
@@ -289,6 +290,21 @@ let made = 0;
 beforeEach(() => {
   window.localStorage.clear();
   Object.defineProperty(URL, 'createObjectURL', { configurable: true, writable: true, value: vi.fn(() => `blob:picture-${(made += 1)}`) });
+});
+
+describe('livePictureUrl', () => {
+  it('asks the same function with the game and the host\'s or a player\'s token (release 47.31)', async () => {
+    const calls = network('up', picture);
+    const path = freshPath();
+    const game = '7a6b5c4d-3e2f-4a1b-9c8d-7e6f5a4b3c2d';
+    await expect(livePictureUrl(path, game, TOKEN)).resolves.toMatch(/^blob:/);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url).toBe(`${BASE}${FUNCTION_PATH}`);
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ game_id: game, token: TOKEN, path });
+    // kept by path as the others: the question's picture comes back with the next poll without a read
+    await livePictureUrl(path, game, TOKEN);
+    expect(calls).toHaveLength(1);
+  });
 });
 
 describe('guestPictureUrl', () => {

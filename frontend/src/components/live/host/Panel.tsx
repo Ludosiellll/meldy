@@ -1,10 +1,13 @@
 /**
- * The white panel under the arena: the question with its countdown ring and the four answer tiles (colour, letter and
+ * The white panel under the arena: the question with its countdown ring and the answer tiles (2–6: colour, letter and
  * shape, as on the phones), the reveal with the key and the counts, and «Больше всех урона». The ring turns by
  * transform: two half rings rotate on the compositor; only the number changes, once a second.
+ * A question with a picture (a real test's diagram): the picture big over the arena while the class counts down, then
+ * in the panel beside the tiles; a click on it shows it big again. An option's picture sits in its tile.
  */
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { sharedPlaces } from '../../../lib/live/rules';
+import type { ShownPicture, ShownPictures } from '../../../lib/live/pictures';
 import type { HostResult, Question, TopRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
 import { BATTLE, BOARD, LETTERS, nb } from './copy';
@@ -19,6 +22,8 @@ export function TileShape({ k }: { k: number }) {
       {k === 1 && <path d="M12 2L22 12L12 22L2 12Z" {...common} />}
       {k === 2 && <circle cx={12} cy={12} r={10} {...common} />}
       {k === 3 && <rect x={3} y={3} width={18} height={18} rx={2} {...common} />}
+      {k === 4 && <path d="M12 2L22.5 9.6L18.5 21.8H5.5L1.5 9.6Z" {...common} />}
+      {k === 5 && <path d="M6.5 3H17.5L23 12L17.5 21H6.5L1 12Z" {...common} />}
     </svg>
   );
 }
@@ -38,9 +43,13 @@ interface TileProps {
   isKey: boolean;
   count: number;
   share: number;
+  /** Five or six options, or a picture beside the tiles: smaller type. */
+  compact: boolean;
+  /** The option's picture (undefined: none). */
+  picture?: ShownPicture;
 }
 
-const Tile = memo(function Tile({ k, text, revealed, isKey, count, share }: TileProps) {
+const Tile = memo(function Tile({ k, text, revealed, isKey, count, share, compact, picture }: TileProps) {
   return (
     <div
       className={`lvh-tile lvh-tile--a${k}`}
@@ -62,7 +71,12 @@ const Tile = memo(function Tile({ k, text, revealed, isKey, count, share }: Tile
           </>
         )}
       </span>
-      <span className="lvh-tile-text" style={{ fontSize: optionFont(text) }}>
+      {picture !== undefined ? (
+        <span className="lvh-tile-pic" aria-hidden="true">
+          {picture ? <img src={picture} alt="" decoding="async" /> : null}
+        </span>
+      ) : null}
+      <span className="lvh-tile-text" style={{ fontSize: Math.round(optionFont(text) * (compact ? 0.86 : 1)) }}>
         {text}
       </span>
       {revealed ? <span className="lvh-tile-count">{nb(count)}</span> : null}
@@ -159,23 +173,48 @@ interface QuestionPanelProps {
   /** This device's ms of the question's open and close. */
   opensAt: number;
   closesAt: number;
+  /** The question's pictures as they arrive (lib/live/pictures.ts). */
+  pictures?: ShownPictures;
+  /** The class counts down to this question: its picture is big over the arena. */
+  countdown?: boolean;
 }
 
-export function QuestionPanel({ question, result, closing = null, late = false, players, answered, opensAt, closesAt }: QuestionPanelProps) {
+export function QuestionPanel({ question, result, closing = null, late = false, players, answered, opensAt, closesAt, pictures, countdown = false }: QuestionPanelProps) {
   const revealed = !!result && result.qi === question.qi;
   const beat = revealed ? null : closing;
   // once the time ran out on this question, the ring reads 0 until the panel goes (the reveal included)
   const timeUp = useRef(false);
   if (closing === 'time') timeUp.current = true;
   const total = useMemo(() => (result ? Math.max(1, players, result.counts.reduce((a, b) => a + b, 0)) : 1), [result, players]);
+  const stem = pictures?.stem;
+  const hasStem = stem !== undefined;
+  const compact = hasStem || question.options.length > 4;
+  // the teacher's click shows the picture big again; the next beat (open, the key) puts it back
+  const [big, setBig] = useState(false);
+  useEffect(() => setBig(false), [countdown, revealed]);
+  const stage = hasStem && (countdown || big);
   return (
-    <section className={`lvh-panel lvh-question${late ? ' lvh-panel--late' : ''}`} aria-label="Вопрос">
+    <section
+      className={`lvh-panel lvh-question${late ? ' lvh-panel--late' : ''}`}
+      aria-label="Вопрос"
+      data-pic={hasStem ? '' : undefined}
+      data-n={question.options.length}
+    >
+      {hasStem ? (
+        <div className="lvh-pic-stage" data-on={stage ? '' : undefined} aria-hidden={stage ? undefined : true} onClick={() => setBig(false)}>
+          {typeof stem === 'string' ? <img src={stem} alt="Рисунок к вопросу" /> : null}
+        </div>
+      ) : null}
+      {hasStem ? (
+        <button type="button" className="lvh-q-figure" onClick={() => setBig((v) => !v)} aria-label="Рисунок к вопросу: показать крупно" aria-pressed={big}>
+          {typeof stem === 'string' ? <img src={stem} alt="" decoding="async" /> : stem === false ? <i>Рисунок не загрузился</i> : null}
+        </button>
+      ) : null}
       <div className="lvh-q-head">
         <Ring opensAt={opensAt} closesAt={closesAt} stopped={revealed || beat !== null} timeUp={timeUp.current} />
-        <h2 className="lvh-q-text" style={{ fontSize: questionFont(question.text) }}>
+        <h2 className="lvh-q-text" style={{ fontSize: Math.round(questionFont(question.text) * (hasStem ? 0.9 : 1)) }}>
           {question.text}
         </h2>
-        {question.picture ? <img className="lvh-q-pic" src={question.picture} alt="" decoding="async" /> : null}
         <div className="lvh-q-side" aria-live="polite">
           <b>{nb(revealed && result ? result.right : answered)}</b>
           <span>
@@ -193,6 +232,8 @@ export function QuestionPanel({ question, result, closing = null, late = false, 
             isKey={revealed && result!.key === k}
             count={revealed ? (result!.counts[k] ?? 0) : 0}
             share={revealed ? (result!.counts[k] ?? 0) / total : 0}
+            compact={compact}
+            picture={pictures?.options[k]}
           />
         ))}
         {beat ? (

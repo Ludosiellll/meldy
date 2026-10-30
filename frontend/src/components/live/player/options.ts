@@ -1,9 +1,9 @@
 /**
- * The four answer options of «Битва с монстром» on the phone: the letter the projector shows (CONTRACT §4: the letters on
+ * The answer options of «Битва с монстром» on the phone (2–6; a real test's five or six since 20261030090000_live_pictures.sql): the letter the projector shows (CONTRACT §4: the letters on
  * the projector are the letters on the phones), Meldy's colour for it and a shape, so an option is told apart without
  * colour. The accessible name says the letter, the colour and the text.
  */
-export type OptionShape = 'triangle' | 'diamond' | 'circle' | 'square';
+export type OptionShape = 'triangle' | 'diamond' | 'circle' | 'square' | 'pentagon' | 'hexagon';
 
 export interface OptionStyle {
   letter: string;
@@ -19,12 +19,14 @@ export const OPTION_STYLES: readonly OptionStyle[] = [
   { letter: 'Б', colour: 'жёлтый', shapeName: 'ромб', shape: 'diamond' },
   { letter: 'В', colour: 'зелёный', shapeName: 'круг', shape: 'circle' },
   { letter: 'Г', colour: 'розовый', shapeName: 'квадрат', shape: 'square' },
+  { letter: 'Д', colour: 'оранжевый', shapeName: 'пятиугольник', shape: 'pentagon' },
+  { letter: 'Е', colour: 'фиолетовый', shapeName: 'шестиугольник', shape: 'hexagon' },
 ];
 
-/** «А, синий треугольник: READ COMMITTED». */
-export function optionLabel(index: number, text: string): string {
+/** «А, синий треугольник: READ COMMITTED» (and «, с рисунком» when the option has a picture). */
+export function optionLabel(index: number, text: string, picture = false): string {
   const o = OPTION_STYLES[index] ?? OPTION_STYLES[0];
-  return `${o.letter}, ${o.colour} ${o.shapeName}: ${text}`;
+  return `${o.letter}, ${o.colour} ${o.shapeName}: ${text}${picture ? ', с рисунком' : ''}`;
 }
 
 /** Long options get a smaller size (by length: no layout read). */

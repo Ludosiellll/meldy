@@ -10,10 +10,20 @@ describe('the questions a game takes (CONTRACT §4)', () => {
     expect(skipReason({ kind: 'single', options: ['a', 'b', 'c', 'd', 'e'], correct: [1] })).toBe('options');
     expect(skipReason({ kind: 'single', options: ['a'], correct: [0] })).toBe('options');
     expect(skipReason({ kind: 'single', options: ['a', 'b', 'c'], correct: [] })).toBe('nokey');
-    // pictures are left out of the MVP (W1, 20.10), the stem's or an option's
+    // the arena leaves pictures out, the stem's or an option's
     expect(skipReason({ kind: 'single', options: ['a', 'b'], correct: [0], images: { stem: ['c/abc.png'] } })).toBe('picture');
     expect(skipReason({ kind: 'single', options: ['a', 'b'], correct: [0], images: { options: [[], ['c/d.png']] } })).toBe('picture');
     expect(skipReason({ kind: 'single', options: ['a', 'b'], correct: [0], images: {} })).toBeNull();
+  });
+
+  it('a battle without mini-games takes 2–6 options and pictures (20261030090000_live_pictures.sql)', () => {
+    const five = { kind: 'single' as const, options: ['a', 'b', 'c', 'd', 'e'], correct: [1] };
+    expect(skipReason(five, true)).toBeNull();
+    expect(skipReason({ ...five, options: [...five.options, 'f'] }, true)).toBeNull();
+    expect(skipReason({ ...five, options: [...five.options, 'f', 'g'] }, true)).toBe('options');
+    expect(skipReason({ kind: 'single', options: ['a', 'b'], correct: [0], images: { stem: ['c/abc.png'] } }, true)).toBeNull();
+    expect(skipReason({ kind: 'multiple', options: ['a', 'b', 'c'], correct: [0, 2] }, true)).toBe('multiple');
+    expect(skipReason({ kind: 'short', options: [], correct: [] }, true)).toBe('short');
   });
 
   it('offers amounts only when the test has more than 10 that fit', () => {
@@ -35,5 +45,7 @@ describe('the questions a game takes (CONTRACT §4)', () => {
     const s = fakeSource();
     expect(s.questions.filter((q) => !q.skip)).toHaveLength(6);
     expect(s.questions.filter((q) => q.skip).map((q) => q.skip)).toEqual(['multiple', 'short', 'picture']);
+    // without mini-games the picture question plays too
+    expect(s.questions.filter((q) => q.wideSkip).map((q) => q.wideSkip)).toEqual(['multiple', 'short']);
   });
 });
