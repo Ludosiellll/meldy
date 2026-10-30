@@ -4,6 +4,26 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-30 — Release 47.31: the battle's projector in 3D from the lobby to the podium; real tests with five or six options and pictures (from the commit of this entry)
+
+- **Why**: the owner, 30.10: «у нас же только 3д игра» — the projector showed the flat screen for the lobby, the
+  button questions, the five best and the podium, and 3D only in the movement rounds. Now one 3D arena all game
+  long (BattleHost): the class stands round «Дедлайн», an answer makes the character hop, every hit of a button
+  question leaps at the boss as its damage lands, wrong answers freeze in ice; the board over the arena carries the
+  PIN and QR, the question with its options and pictures, the key and the hits; the five best and the podium lie
+  over the darkened arena. The phones keep their buttons; the mini-game every N questions plays on the same arena.
+- **Room**: opened for every battle (with no movement rounds it plays none); a phone of a plain battle holds the
+  socket only, and a phone without it is still drawn from the database. Without WebGL, or with `?flat=1` (a weak
+  projector laptop), the flat screen takes over.
+- **Real tests**: of the ~3 240 questions in the live database 3 138 have five options and 145 a picture; the battle
+  took 2–4 options without pictures. Five or six options (Д orange pentagon, Е violet hexagon) and pictures (the
+  question's beside it on the board, big during the 3-2-1 and on a click; the options' in their pills and on the
+  phones' buttons). The database change follows this release (migration 20261030090000_live_pictures.sql), so no old
+  phone ever gets a five-option question. A test that is mostly such questions switches the mini-game off by itself
+  (its floor has four zones).
+- **Pictures** stay private: the screens read them through the quiz-media function with the game and the host's or a
+  player's token, only once the question was shown (function deployed with this push).
+
 ## 2026-10-27 — Release 47.30: YouTube lectures by link, for free (from the commit of this entry)
 
 - **Owner: «нужно сделать что-то с получением субтитров, но бесплатно»** (YouTube rules set aside: a demo project).
