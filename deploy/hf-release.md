@@ -4,6 +4,22 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-30 — Release 47.33: «Убеги от Дедлайна» — every second movement round the boss hunts the class; with 47.32 (from the commit of this entry)
+
+- **Why**: 47.32 did not go out (its test job lost one tap in a studio phone test; the test now waits for the phone's
+  layout, 307c18b; a room tick-cost test now measures with the suite's heap frozen, 069ae9e), so this release
+  carries 47.32 below and mode B on top of it. The owner, 21.10: «бегаешь, или
+  убегаешь от монстра, в это время отвечаешь на вопросы».
+- **Mode B** (docs/live/MODE_RUN.md): the second, fourth, … movement round of a game is a chase. At the open «Дедлайн»
+  jumps off its stage and runs after the nearest character (a second hunter past 12 players, a third past 24; a
+  little slower than a player, so it can be outrun, not stood still against). A catch throws the character off the
+  zone it held and holds it 1.5 s: it has to run back. 2 s before zero the boss goes back to the stage and stomps as
+  in mode A; the round is decided and written as before, no database change for it.
+- **Screens**: the projector shows the boss running (smaller copies for the other hunters), a roar when it leaves,
+  a slam and the hit pose on a catch, the line «Убегайте от Дедлайна и встаньте на верный ответ.» and a pill «Поймал
+  N». The phone: «Дедлайн гонится!» on the question's card, the boss on the 3D view and a red dot on the map, a
+  vibration and «Дедлайн поймал вас. Бегите обратно» on a catch.
+
 ## 2026-10-30 — Release 47.32: real tests in the mini-game too — six zones on the 3D arena, pictures on every board (from the commit of this entry)
 
 - **Why**: the owner, 30.10: real tests in 3D. 47.31 let the battle's button questions take five or six options and
