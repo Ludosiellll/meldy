@@ -161,7 +161,8 @@ A movement round is closed by the battle's close; only the source of the answers
   stays up at the stomp; the room's `res` carries `keys` (every right zone) and its `q` carries `multi` (how many are
   right), both only for such a question, so a one-answer round's messages are as before. The board says «Верных
   ответов два — встаньте на любой» (`MULTI_ZONES.hint`), the phone's card the same; the reveal shows every right
-  option. A text answer never falls on a movement round (`CONTRACT.md` §4: `live_arrange`).
+  option. A text answer or a number never falls on a movement round (`CONTRACT.md` §4: `live_arrange`); a number is
+  typed on the phone's keypad between the rounds (`CONTRACT.md` §15).
 - **Teams** play the movement rounds as any question: each character wears its team's ring and tag (`CONTRACT.md` §13).
 
 **Worked example A** (rehearsed: `live_mixed_behaviour.sql` §4, `test_live_mixed.py`). 4 players, 6 questions, every 3rd

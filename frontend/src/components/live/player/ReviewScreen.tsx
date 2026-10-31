@@ -2,13 +2,15 @@
  * «Разбор»: the player's own answers and the keys of this game's played questions (CONTRACT §5: `live_review`, the
  * exam's other keys never). A battle's movement round (`stand`, docs/live/MODE_MIXED.md) says so: the answer there is
  * the zone the player stood in («вы стояли тут»). A question of several right answers marks every right option and the
- * own ticks («частично» for a share); a text question shows what was typed and what is accepted; the author's
+ * own ticks («частично» for a share); a text question shows what was typed and what is accepted, a number question
+ * the number typed and the right one with its tolerance and unit (20261102090100_live_numbers.sql); the author's
  * explanation comes under the question (release 47; 20261102090000_live_kinds_teams.sql).
  *
  * «Тренировать ошибки» (CONTRACT §14): the mistakes go to the exam's plan through `live_practice` — a member of the
  * exam (or one the game's quiz offers practice to) gets them back in «Повторить ошибки». A guest is asked to sign in
  * first and comes back to this review (`/play?r=<game>&practice=1`: the token stays in this tab), where it runs again.
  */
+import { numberAnswer, typedText } from '../../../lib/live/numbers';
 import { questionKind, rightKeys, type Review, type ReviewItem } from '../../../lib/live/types';
 import type { PlayerController, PracticeView } from './controller';
 import { plural } from './copy';
@@ -44,7 +46,8 @@ const PRACTICE = {
 
 function badge(item: ReviewItem): string {
   if (item.correct) return 'Верно';
-  const none = questionKind(item) === 'short' ? !item.typed : questionKind(item) === 'multiple' ? !(item.picks?.length || item.choice !== null) : item.choice === null;
+  const typedKind = questionKind(item) === 'short' || questionKind(item) === 'number';
+  const none = typedKind ? !item.typed : questionKind(item) === 'multiple' ? !(item.picks?.length || item.choice !== null) : item.choice === null;
   if (none) return item.stand ? 'Не встали на ответ' : 'Без ответа';
   if (questionKind(item) === 'multiple' && (item.share ?? 0) > 0) return 'Частично';
   return 'Неверно';
@@ -91,6 +94,23 @@ function TextAnswer({ item }: { item: ReviewItem }) {
   );
 }
 
+function NumberAnswer({ item }: { item: ReviewItem }) {
+  const unit = item.unit ?? null;
+  return (
+    <>
+      <div className="lp-rv-opt" data-key={item.correct ? 'true' : 'false'} data-mine="true">
+        <span>{item.typed ? `Вы ввели: ${typedText(item.typed, unit)}` : 'Вы ничего не ввели'}</span>
+        {item.typed ? <small>{item.correct ? 'верно' : 'неверно'}</small> : null}
+      </div>
+      {!item.correct && item.forms && item.forms.length > 0 ? (
+        <div className="lp-rv-opt" data-key="true" data-mine="false">
+          <span>Верный ответ: {numberAnswer(item.forms, item.tolerance, unit)}</span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 export function ReviewScreen({ ctl, review, error, standalone, back, practice, signInHref }: ReviewScreenProps) {
   const right = review ? review.items.filter((i) => i.correct).length : 0;
   const mistakes = review ? review.items.length - right : 0;
@@ -128,7 +148,7 @@ export function ReviewScreen({ ctl, review, error, standalone, back, practice, s
                   </span>
                 </div>
                 <p className="lp-rv-q">{item.text}</p>
-                {questionKind(item) === 'short' ? <TextAnswer item={item} /> : <Options item={item} />}
+                {questionKind(item) === 'short' ? <TextAnswer item={item} /> : questionKind(item) === 'number' ? <NumberAnswer item={item} /> : <Options item={item} />}
                 {item.explanation ? (
                   <div className="lp-rv-explain">
                     <b>Пояснение</b>

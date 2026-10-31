@@ -73,9 +73,13 @@ export interface TeamRow {
 
 /**
  * What a question asks for (CONTRACT §4): absent — one right option (tap); 'multiple' — two right options or more (the
- * phone ticks them and sends the set; `multi` says how many are right); 'short' — a text answer (no options).
+ * phone ticks them and sends the set; `multi` says how many are right); 'short' — a text answer (no options); 'number'
+ * — a number typed on the phone's keypad (no options; 20261102090100_live_numbers.sql).
  */
-export type QuestionKind = 'single' | 'multiple' | 'short';
+export type QuestionKind = 'single' | 'multiple' | 'short' | 'number';
+
+/** A closed number question's answers for the projector's line: [value (canonical decimal), count], by value. */
+export type NumberSpread = Array<[string, number]>;
 
 /** One of a text question's answers typed most often (normalised; rude ones left out), shown at its reveal. */
 export interface TopAnswer {
@@ -178,10 +182,12 @@ export interface Question {
    * refuses it (`ML004 stand`), the room writes everyone's zone at the deadline. Absent in other games.
    */
   stand?: boolean;
-  /** Absent for one right option; 'multiple' or 'short' (QuestionKind). */
+  /** Absent for one right option; 'multiple', 'short' or 'number' (QuestionKind). */
   kind?: Exclude<QuestionKind, 'single'>;
   /** A question of several right answers: how many are right (the board and the phone say it). */
   multi?: number;
+  /** A number question: the unit an answer is in (null: none), shown beside the keypad. */
+  unit?: string | null;
 }
 
 /** A mixed game's plan (in PlayerState and HostState from the lobby on): N and the qi of every movement round. */
@@ -237,10 +243,13 @@ export interface QuestionResult {
   void?: boolean;
   /** A question of several right answers: every right option (shown indexes, ascending; `key` is the first). */
   keys?: number[];
-  /** A text question: the accepted forms (`key` is -1, `counts` empty). */
+  /** A text question: the accepted forms (`key` is -1, `counts` empty); a number question: the accepted numbers. */
   forms?: string[];
-  /** A text question: the three answers typed most often. */
+  /** A text question: the three answers typed most often; a number question: the three numbers nearest a right one. */
   tops?: TopAnswer[];
+  /** A number question: the accepted distance (null: exact) and the unit (null: none). */
+  tolerance?: number | null;
+  unit?: string | null;
 }
 
 export interface PlayerResult extends QuestionResult {
@@ -267,6 +276,8 @@ export interface HostResult extends QuestionResult {
   hits: Hit[];
   frozen_now: Uuid[];
   thawed: Uuid[];
+  /** A number question: up to 60 values typed with their counts (the projector's number line). */
+  spread?: NumberSpread;
 }
 
 export interface TopRow {
@@ -370,9 +381,12 @@ export interface ReviewItem {
   keys?: number[];
   picks?: number[] | null;
   share?: number;
-  /** A text question: the accepted forms and the own text (null: none). */
+  /** A text question: the accepted forms and the own text (null: none); a number question: the accepted numbers. */
   forms?: string[];
   typed?: string | null;
+  /** A number question: the accepted distance (null: exact) and the unit (null: none). */
+  tolerance?: number | null;
+  unit?: string | null;
   /** The author's explanation, when the question has one. */
   explanation?: string;
 }
@@ -537,7 +551,7 @@ export function untilStandRound(mixed: Mixed | null, qi: number): number | null 
 
 /** What the question asks for (QuestionKind): a missing `kind` is one right option. */
 export function questionKind(q: { kind?: unknown } | null | undefined): QuestionKind {
-  return q?.kind === 'multiple' || q?.kind === 'short' ? q.kind : 'single';
+  return q?.kind === 'multiple' || q?.kind === 'short' || q?.kind === 'number' ? q.kind : 'single';
 }
 
 /** Every right option of a closed question (shown indexes): `keys` of several, else the one `key` (none for a text). */

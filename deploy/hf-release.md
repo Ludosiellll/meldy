@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 48.2: a number question in the class game — keypad, number line, «Ближе всех» (from the commit of this entry)
+
+- **Why**: the owner, 31.10: «добавь вопросы недостающие (несколько верных, вводы чисел …)» — release 48 brought the
+  «Число» kind to tests; now the class game plays it too.
+- **Phone**: a keypad where the options would be (0–9, comma, minus, the unit shown; the phone's own keyboard never
+  opens), «Ответить» or sent by itself at zero; the sheet says «Вы ввели: 41 м», «Верный ответ: 42 ± 0,5 м» and «Ближе
+  всех». Graded by `meldy_number_right` (the same rule as tests); a number is a button question, never a movement round's.
+- **Projector**: «Введите число на телефоне»; at the reveal the right number with its spread and unit, a number line
+  (the right value, the spread band, one stem per value typed, far answers counted at the ends) and «Ближе всех». The
+  review and «Тренировать ошибки» carry it. The setup names honestly why order, match, gaps and essays are skipped.
+- **Order**: this site first, then migration 20261102090100 (an older phone given a number question would show no
+  options).
+
 ## 2026-10-31 — Release 48.1: the phone keeps its 3D arena through a reconnect and reaches 3D after a slow or failed load (from the commit of this entry)
 
 - **Why**: the owner, 31.10, on the game video's phone: «почему тут в 2-д а не в 3-д»; «просто чтобы не было таких ошибок с

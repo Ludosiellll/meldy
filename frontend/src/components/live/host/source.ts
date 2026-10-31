@@ -9,7 +9,14 @@ import { fetchAllItems, fetchSummary } from '../../../api/containers';
 import { EXAMPLE_QUESTIONS } from '../../../lib/live/fake';
 import type { TestItem } from '../../../types/container';
 
-export type SkipReason = 'multiple' | 'short' | 'options' | 'nokey' | 'picture';
+/**
+ * Why a question is not in the game. Release 48's kinds that no game plays name themselves (order, match, cloze,
+ * essay); a number plays in a battle (20261102090100_live_numbers.sql) and is 'number' only in «Встань на ответ».
+ */
+export type SkipReason = 'multiple' | 'short' | 'number' | 'order' | 'match' | 'cloze' | 'essay' | 'options' | 'nokey' | 'picture';
+
+/** Release 48's kinds that no game plays (docs/kinds/CONTRACT.md): each its own reason. */
+const UNPLAYED = new Set<SkipReason>(['order', 'match', 'cloze', 'essay']);
 
 export interface SourceQuestion {
   id: string;
@@ -46,6 +53,8 @@ function hasPicture(item: Pick<TestItem, 'images'>): boolean {
 
 /** Why a game skips the item; `wide`: a battle without mini-games (meldy_private.live_playable(item, wide)). */
 export function skipReason(item: Pick<TestItem, 'kind' | 'options' | 'correct' | 'images'>, wide = false): SkipReason | null {
+  if (UNPLAYED.has(item.kind as SkipReason)) return item.kind as SkipReason;
+  if (item.kind === 'number') return 'number';
   if (item.kind === 'short' || item.options.length === 0) return 'short';
   if (item.correct.length === 0) return 'nokey';
   if (item.correct.length > 1) return 'multiple';
@@ -55,11 +64,16 @@ export function skipReason(item: Pick<TestItem, 'kind' | 'options' | 'correct' |
 }
 
 /**
- * Why a game skips the item with several right answers and text answers (meldy_private.live_playable(item, true) or
- * live_more(item, text)): 2–6 options with one right or more, or a text answer with accepted forms when `text` (not
- * in «Встань на ответ»).
+ * Why a game skips the item with several right answers, text answers and numbers (meldy_private.live_playable(item,
+ * true) or live_more(item, text)): 2–6 options with one right or more, or a text answer or a number with accepted
+ * answers when `text` (not in «Встань на ответ»). Order, match, cloze and essay never play.
  */
 export function kindSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct'> & { answers?: readonly string[] }, text: boolean): SkipReason | null {
+  if (UNPLAYED.has(item.kind as SkipReason)) return item.kind as SkipReason;
+  if (item.kind === 'number') {
+    if (!text) return 'number';
+    return item.answers === undefined || item.answers.length > 0 ? null : 'nokey';
+  }
   if (item.kind === 'short' || item.options.length === 0) {
     if (!text) return 'short';
     return item.answers === undefined || item.answers.length > 0 ? null : 'nokey';

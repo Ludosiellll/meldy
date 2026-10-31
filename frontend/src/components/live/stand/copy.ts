@@ -82,6 +82,11 @@ export const BATTLE_3D = {
   text: 'Напишите ответ на телефоне',
   tops: 'Чаще писали',
   topsNone: 'Ответов не было',
+  /** A number question (20261102090100_live_numbers.sql). */
+  number: 'Введите число на телефоне',
+  unit: (u: string) => `Ответ в\u00a0${u}`,
+  line: 'Ответы класса',
+  near: 'Ближе всех',
 };
 
 /** «два», «три»: how many right zones a movement round has (MODE_MIXED.md §5). */
