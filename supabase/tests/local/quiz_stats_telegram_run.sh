@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # LOCAL ONLY; NEVER AGAINST THE LIVE PROJECT. Rehearsal of the migrations of release 49, part B, on a scratch PostgreSQL 16
-# cluster, on the live chain up to 20261103090200_picture_sweep.sql:
+# cluster, on the live chain up to 20261106090000_live_calm.sql (applied live before these two files):
 #   20261105090000_quiz_stats.sql     the author's analysis of a quiz, the mistakes into training, the canvas's percents;
 #   20261105090100_quiz_telegram.sql  the author's Telegram notices of a quiz and its link sent to a bound group.
 # Steps: the base (as oral_journal_sweep_run.sh builds it, then every later migration in the live order) → its
@@ -55,7 +55,7 @@ contract_ok() { local out; out=$("${PSQL[@]}" -d $DB -f "$2" 2>&1)
 containers_contract() { local out; out=$("${PSQL[@]}" -d $DB -f "$SB/tests/containers.sql" 2>&1)
                         if [ $? = 0 ] && ! echo "$out" | grep -q '"contract_ok" *: *false'; then ok "$1"; else bad "$1"; fi; }
 
-# ── the base: the live chain up to 20261103090200 ────────────────────────────────────────────────────────────────────
+# ── the base: the live chain up to 20261106090000 ────────────────────────────────────────────────────────────────────
 "${PSQL[@]}" -d postgres -c "drop database if exists $DB" -c "create database $DB encoding 'UTF8' template template0" >/dev/null
 BASE_OK=1
 for f in tests/local/baseline.sql migrations/20261003083154_hackathon_journal_exams_oral.sql migrations/20261005143420_cheat_sheet.sql \
@@ -133,10 +133,12 @@ q "grant select on storage.objects to anon" >/dev/null || BASE_OK=0
 run "$SB/migrations/20261010120000_telegram_bot.sql" || BASE_OK=0
 run "$CRON_RUN" || BASE_OK=0
 LATER=0
-for f in $(cd "$SB/migrations" && ls 2026101012000[2-9]_*.sql 202610101[3-9]*.sql 20261011*.sql 2026101[2-9]*.sql 2026102*.sql 2026103*.sql 2026110[1-4]*.sql | sort); do
+# Every later file but the two of this rehearsal, in the live order (20261106090000_live_calm.sql went live before them).
+for f in $(cd "$SB/migrations" && ls 2026101012000[2-9]_*.sql 202610101[3-9]*.sql 20261011*.sql 2026101[2-9]*.sql 2026102*.sql 2026103*.sql 202611*.sql \
+             | grep -v -e '^20261105090000_quiz_stats.sql$' -e '^20261105090100_quiz_telegram.sql$' | sort); do
   if run "$SB/migrations/$f"; then LATER=$((LATER + 1)); else BASE_OK=0; echo "    base: $f"; fi
 done
-[ $BASE_OK = 1 ] && ok "base: the live chain up to 20261103090200_picture_sweep.sql ($LATER later migrations in order)" || bad "base"
+[ $BASE_OK = 1 ] && ok "base: the live chain up to 20261106090000_live_calm.sql ($LATER later migrations in order)" || bad "base"
 
 # The catalog the three files and their rollbacks touch (live_game_run.sh's fingerprint, plus the policies of
 # learning_events and the triggers of public.containers, which it covers already).

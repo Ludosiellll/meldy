@@ -43,6 +43,8 @@ vi.mock('../../lib/containers/hooks', () => ({
   }),
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: api.user, session: null, loading: false }) }));
+// Release 49 part B: the canvas reads its questions' percents (test_item_percents); none here, and no fetch of its own.
+vi.mock('../../api/quizzes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/quizzes')>()), itemPercents: vi.fn(async () => []) }));
 // The tour asks the profile whether it was seen (UX audit of 21.10): not yet.
 vi.mock('../../api/social', () => ({ getProfile: vi.fn(async () => ({ onboarding_status: {} })), markOnboardingTourSeen: vi.fn(async () => undefined) }));
 
