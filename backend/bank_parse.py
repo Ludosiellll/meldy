@@ -664,6 +664,7 @@ class Item:
     source: str = ""  # разбор с ИИ: «rules» | «ai» | «both»
     alt: Optional[dict] = None  # разбор с ИИ: другая версия вопроса, когда правила и ИИ разошлись
     grid: bool = False  # варианты по два в строке («а) …<tab>в) …»): порядок — по буквам
+    number: Optional[dict] = None  # числовой ответ (выпуск 48): {"answers": ["9.8"], "tolerance": "0.1" | None}
 
     def flag(self, name: str) -> None:
         if name not in self.flags:
@@ -2053,6 +2054,70 @@ GIFT_ESCAPES = {"\\~": "\x01", "\\=": "\x02", "\\#": "\x03", "\\{": "\x04", "\\}
 GIFT_BACK = {"\x01": "~", "\x02": "=", "\x03": "#", "\x04": "{", "\x05": "}", "\x06": ":"}
 
 
+_NUMBER_RE = re.compile(r"^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$")
+
+
+def canonical_number(text: str) -> Optional[str]:
+    """«9,80» → «9.8», «+5» → «5», «.5» → «0.5»: число, как его хранит вопрос «Число» (test_items.answers); иначе None."""
+    t = re.sub(r"\s+", "", text or "").replace(",", ".").replace("\u2212", "-")
+    if not _NUMBER_RE.match(t):
+        return None
+    negative = t.startswith("-")
+    t = t.lstrip("+-")
+    whole, _, fraction = t.partition(".")
+    whole = whole.lstrip("0") or "0"
+    fraction = fraction.rstrip("0")
+    out = whole + ("." + fraction if fraction else "")
+    if len(out) > 40:
+        return None
+    return ("-" + out) if negative and out != "0" else out
+
+
+def _tolerance(text: str) -> Optional[str]:
+    value = canonical_number(text)
+    if value is None or value.startswith("-"):
+        return None
+    whole, _, fraction = value.partition(".")
+    return value if len(fraction) <= 6 else None
+
+
+def gift_number(body: str) -> Optional[dict]:
+    """Числовой ответ GIFT «{#…}»: «5», «5:0,5» (допуск), «1..5» (промежуток: середина и половина), несколько
+    «=5:0.5 =4» (вес «%…%» пропускается). {"answers": [...], "tolerance": "…" | None}, или None, когда не число."""
+    parts = [p.strip() for p in re.split(r"(?<!^)=", body.strip().lstrip("=")) if p.strip()]
+    answers: list[str] = []
+    tolerance: Optional[str] = None
+    for part in parts:
+        part = re.sub(r"^%-?\d+(?:\.\d+)?%", "", part.split("#")[0]).strip()
+        if ".." in part:
+            low, high = (canonical_number(x) for x in part.split("..", 1))
+            if low is None or high is None:
+                return None
+            from decimal import Decimal
+            a, b = Decimal(low), Decimal(high)
+            middle = canonical_number(str((a + b) / 2))
+            half = _tolerance(str(abs(b - a) / 2))
+            if middle is None or half is None:
+                return None
+            answers.append(middle)
+            tolerance = half if tolerance is None else max(tolerance, half, key=float)
+            continue
+        value, _, tol = part.partition(":")
+        number = canonical_number(value)
+        if number is None:
+            return None
+        answers.append(number)
+        if tol.strip():
+            t = _tolerance(tol)
+            if t is None:
+                return None
+            tolerance = t if tolerance is None else max(tolerance, t, key=float)
+    answers = list(dict.fromkeys(answers))[:10]
+    if not answers:
+        return None
+    return {"answers": answers, "tolerance": tolerance if tolerance not in (None, "0") else None}
+
+
 def looks_like_gift(text: str) -> bool:
     """Ответы в скобках GIFT («{=верно ~неверно}», «{T}», «{#5}») — два и больше, или один при «::название::» в начале
     строки или $CATEGORY. Код со скобками («{ x = 100; }») и «::» («std::cout») файл GIFT не делает."""
@@ -2104,6 +2169,7 @@ def read_gift(text: str) -> Reader:
             continue
         if answers.startswith("#"):
             item.kind, item.answer, item.evidence = "open", answers[1:].split(":")[0].strip(), "gift"
+            item.number = gift_number(unescape(answers[1:]))  # выпуск 48: число с допуском, не только запись
             continue
         parts = re.findall(r"([=~])\s*((?:%-?\d+(?:\.\d+)?%)?)([^=~]*)", answers)
         if parts and all(sign == "=" for sign, _, _ in parts) and all("->" in body for _, _, body in parts):
@@ -2959,6 +3025,8 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
             "marks": {s: [_mark_value(*o.mark_counts(s)) for o in options] for s in signals},
             "images": _item_images(item, options),
         })
+        if item.number:  # выпуск 48: число с допуском (GIFT «{#…}», Moodle numerical)
+            out_items[-1]["number"] = item.number
         if item.source:  # разбор с ИИ (bank_ai): откуда вопрос и вторая версия, если правила и ИИ разошлись
             out_items[-1]["source"] = item.source
             out_items[-1]["alt"] = item.alt
@@ -3546,6 +3614,12 @@ def read_moodle_reader(questions: list) -> "Reader":
             item.evidence = "gift" if item.correct else ""
         elif question.kind in ("shortanswer", "numerical"):
             item.kind, item.answer, item.evidence = "open", "; ".join(question.answers) or None, "gift" if question.answers else ""
+            if question.kind == "numerical" and question.answers:
+                numbers = [canonical_number(a) for a in question.answers]
+                tolerances = [_tolerance(t) for t in question.tolerances if t and t.strip()]
+                if numbers and all(numbers) and all(tolerances):
+                    top = max(tolerances, key=float) if tolerances else None
+                    item.number = {"answers": list(dict.fromkeys(numbers))[:10], "tolerance": top if top not in (None, "0") else None}
         elif question.kind == "matching" and question.pairs:
             item.kind, item.pairs = "match", list(question.pairs)
         else:

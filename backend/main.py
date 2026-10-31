@@ -62,6 +62,7 @@ from bank_ai import router as bank_ai_router
 from paste_api import router as paste_router
 from container_shares import router as container_shares_router
 from oral_api import router as oral_router
+from quiz_essay import router as quiz_essay_router
 from oral_sheet import router as oral_sheet_router
 from exam_shares import router as exam_shares_router
 from tutor_api import router as tutor_router
@@ -312,6 +313,7 @@ app.include_router(bank_ai_router)  # разбор сложных мест ба�
 app.include_router(paste_router)  # «Быстрая контрольная»: вопросы, вставленные текстом (paste_api.py)
 app.include_router(container_shares_router)  # Экзамен на всю сессию: устные копии участника группы (container_shares.py)
 app.include_router(oral_router)
+app.include_router(quiz_essay_router)  # «Развёрнутый ответ» контрольной: проверка по лекциям (quiz_essay.py, выпуск 48)
 app.include_router(oral_sheet_router)
 # «Группа по ссылке»: a classmate's own copy of a ready exam (exam_shares.py).
 app.include_router(exam_shares_router)

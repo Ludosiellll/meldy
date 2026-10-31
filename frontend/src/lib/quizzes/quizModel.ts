@@ -268,6 +268,9 @@ export interface QuestionRow {
   percent: number | null;
   picks: number[];
   wrongTexts: Array<{ text: string; n: number }>;
+  /** Release 48: the sum of credits (a new kind or partial credit) and essays waiting for a mark; absent otherwise. */
+  credit?: number;
+  pending?: number;
 }
 
 /** Hardest first (the lowest share right of those who got it); questions nobody got go last. */
@@ -282,6 +285,8 @@ export function questionRows(stats: readonly QuizItemStat[], items: ReadonlyMap<
       percent: percentOf(stat.correct, stat.shown),
       picks: stat.picks ?? [],
       wrongTexts: stat.wrong_texts ?? [],
+      ...(typeof stat.credit === 'number' ? { credit: stat.credit } : {}),
+      ...(typeof stat.pending === 'number' ? { pending: stat.pending } : {}),
     }))
     .sort((a, b) => (a.percent === null ? 1 : 0) - (b.percent === null ? 1 : 0) || (a.percent ?? 0) - (b.percent ?? 0) || b.shown - a.shown);
 }

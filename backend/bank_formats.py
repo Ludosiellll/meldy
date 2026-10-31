@@ -462,6 +462,7 @@ class MoodleQuestion:
     single: bool = True
     answers: list[str] = field(default_factory=list)
     pairs: list[tuple[str, str]] = field(default_factory=list)
+    tolerances: list[str] = field(default_factory=list)  # numerical: допуск каждого верного ответа (выпуск 48)
     category: Optional[str] = None
     images: int = 0
 
@@ -522,6 +523,9 @@ def read_moodle(contents: bytes) -> list[MoodleQuestion]:
             item.single = (question.findtext("single") or "true").strip().lower() not in ("false", "0")
             if kind in ("shortanswer", "numerical"):
                 item.answers = [option for option, fraction in zip(item.options, item.fractions) if fraction >= 100]
+                if kind == "numerical":
+                    item.tolerances = [(answer.findtext("tolerance") or "").strip()
+                                       for answer in question.findall("answer") if _fraction(answer.get("fraction")) >= 100]
                 item.options, item.fractions = [], []
         elif kind == "matching":
             for sub in question.findall("subquestion"):

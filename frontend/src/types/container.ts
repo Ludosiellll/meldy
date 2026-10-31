@@ -577,6 +577,8 @@ export interface BankItem {
   marks: Record<string, number[]>; // per formatting signal: the marked share of each option, 0..1
   /** Pictures carried from a DOCX (asked with pictures=1): ids into BankParseResult.pictures; null — none. */
   images?: { stem: string[]; options: string[][] } | null;
+  /** A number with its tolerance (release 48: GIFT «{#9.8:0.1}», Moodle numerical); absent — none. */
+  number?: { answers: string[]; tolerance: string | null } | null;
   /** The question's lines in the file ([first, last], numbered as BankParseResult.source_lines); null — GIFT, Moodle XML. */
   lines?: [number, number] | null;
   /** How sure the parse is, 0..1; below BANK_DOUBT_AT the question is doubtful (bank_markup.confidence). */

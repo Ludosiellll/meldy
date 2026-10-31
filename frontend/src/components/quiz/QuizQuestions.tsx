@@ -40,7 +40,8 @@ export default function QuizQuestions({ containerId, stats, items, subjects }: Q
         {rows.map((row) => {
           const item = row.item;
           const context = item ? QA_PEOPLE.context(titles.get(item.subject_id) ?? '', item.file_no) : QA_QUESTIONS.gone;
-          const choice = item && item.kind !== 'short' && item.options.length > 0;
+          // per-option picks for single / multiple only (release 48: order and match have none, spec «без выбора по вариантам»)
+          const choice = item && (item.kind === 'single' || item.kind === 'multiple') && item.options.length > 0;
           const scale = Math.max(1, row.answered, ...row.picks);
           const skipped = Math.max(0, row.shown - row.answered);
           return (
@@ -64,6 +65,12 @@ export default function QuizQuestions({ containerId, stats, items, subjects }: Q
                     );
                   })}
                 </ul>
+              ) : null}
+              {item && item.kind === 'essay' && (row.pending ?? 0) > 0 ? (
+                <p className="qa-q-foot">{nb(QA_QUESTIONS.essaysWaiting(row.pending ?? 0))}</p>
+              ) : null}
+              {item && (item.kind === 'order' || item.kind === 'match' || item.kind === 'cloze' || item.partial) && typeof row.credit === 'number' && row.shown > 0 ? (
+                <p className="qa-q-foot">{nb(QA_QUESTIONS.creditLine(row.credit, row.shown))}</p>
               ) : null}
               {row.wrongTexts.length > 0 ? (
                 <div className="qa-wrong">

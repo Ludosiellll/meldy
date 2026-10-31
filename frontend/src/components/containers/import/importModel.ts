@@ -142,6 +142,8 @@ export interface DraftItem {
   twin: string | null;
   /** The question's pictures (ids into the file's pictures): the stem's and each SAVED option's; null — none. */
   images: DraftImages | null;
+  /** number (release 48): the tolerance; absent — exact. */
+  tolerance?: string | null;
 }
 
 export interface DraftImages {
@@ -289,6 +291,56 @@ interface ItemContext {
 }
 
 /** One question with variants (or a short answer) as it would be saved, with what is still wrong with it. */
+/**
+ * An order or match question of the file as a question of its kind (release 48; spec: «парсер уже узнаёт order/match —
+ * перестать выбрасывать»): order — the options put in the key's order (BankItem.order), match — the pairs. null when it
+ * cannot be saved so (no key, too few or too many, an empty or repeated item): it is skipped as before.
+ */
+export function kindDraft(item: BankItem, context: { fileId: string; twin: string | null }): DraftItem | null {
+  const text = item.text.trim().slice(0, STEM_CHARS);
+  if (!text) return null;
+  let options: string[];
+  let answers: string[] = [];
+  if (item.kind === 'order') {
+    const all = item.options.map((option) => option.trim());
+    const order = item.order ?? [];
+    if (order.length !== all.length || new Set(order).size !== all.length || order.some((i) => !Number.isInteger(i) || i < 0 || i >= all.length)) return null;
+    options = order.map((index) => all[index]);
+  } else {
+    const pairs = (item.pairs ?? []).map(([left, right]) => [String(left).trim(), String(right).trim()] as const);
+    options = pairs.map(([left]) => left);
+    answers = pairs.map(([, right]) => right);
+    if (answers.some((right) => !right || right.length > 200) || new Set(answers.map(shortNorm)).size !== answers.length) return null;
+  }
+  if (options.length < 2 || options.length > 8 || options.some((option) => !option || option.length > 600)) return null;
+  return {
+    uid: `${context.fileId}:${item.position}`,
+    fileId: context.fileId,
+    position: item.position,
+    label: (item.label ?? '').trim(),
+    text,
+    rawOptions: options,
+    optionMap: options.map((_, index) => index),
+    options,
+    correct: item.kind === 'order' ? options.map((_, index) => index) : [],
+    rawCorrect: [],
+    marked: [],
+    kind: item.kind === 'order' ? 'order' : 'match',
+    answers,
+    keySource: evidenceSource(item.evidence) === 'none' ? 'key_text' : evidenceSource(item.evidence),
+    code: Boolean(item.code),
+    keepOrder: false,
+    flags: [],
+    topic: null,
+    topicTitle: null,
+    problems: [],
+    imageLost: false,
+    blocked: false,
+    twin: context.twin,
+    images: null,
+  };
+}
+
 export function draftItem(item: BankItem, context: ItemContext): DraftItem {
   const { fix, signal } = context;
   const uid = `${context.fileId}:${item.position}`;
@@ -313,6 +365,28 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
   };
   const unresolvedDuplicate = item.flags.includes('duplicate') && !fix.keepBoth;
   const unresolvedLong = item.flags.includes('too_long') && !fix.accept;
+
+  // Release 48: a number with its tolerance (GIFT «{#…}», Moodle numerical) is saved as a number question.
+  if (item.kind === 'open' && item.number && item.number.answers.length > 0 && text) {
+    return {
+      ...base,
+      rawOptions: [],
+      optionMap: [],
+      options: [],
+      correct: [],
+      rawCorrect: [],
+      marked: [],
+      kind: 'number',
+      answers: item.number.answers.slice(0, 10),
+      tolerance: item.number.tolerance,
+      keySource: evidenceSource(item.evidence) === 'none' ? 'answer_line' : evidenceSource(item.evidence),
+      keepOrder: false,
+      flags: cleanFlags(item.flags.filter((flag) => !KEY_FLAGS.has(flag) && !SHAPE_FLAGS.has(flag)), { duplicate: unresolvedDuplicate, tooLong: item.flags.includes('too_long') }),
+      problems: sortProblems([...(unresolvedDuplicate ? (['duplicate'] as Problem[]) : []), ...(unresolvedLong ? (['too_long'] as Problem[]) : [])]),
+      imageLost: false,
+      blocked: false,
+    };
+  }
 
   // A short answer from the file.
   const forms = shortForms(item);
@@ -583,7 +657,14 @@ export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits 
           continue;
         }
         if (item.kind === 'order' || item.kind === 'match') {
-          skippedKinds += 1;
+          // Release 48: order and match are questions of their own kinds now (none is thrown away when it has its key).
+          const kept = kindDraft(item, { fileId: file.id, twin: twinOf.get(item.position) ?? null });
+          if (!kept) {
+            skippedKinds += 1;
+            continue;
+          }
+          kept.topic = item.topic;
+          test.push(kept);
           continue;
         }
         if (item.kind === 'open' && !shortForms(item)) {
@@ -799,6 +880,25 @@ export function pictureIds(subject: Pick<DraftSubject, 'test'>): string[] {
  */
 export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string, place: PicturePlace = () => null): ItemInput[] {
   return subject.test.map((item) => {
+    if (item.kind === 'number' || item.kind === 'order' || item.kind === 'match') {
+      // release 48 (docs/kinds/CONTRACT.md §1): their key is in options / answers
+      const input: ItemInput = {
+        ref: `${importId}:${item.position}`,
+        stem: item.text,
+        options: item.kind === 'number' ? [] : item.options,
+        correct: item.kind === 'order' ? item.options.map((_, index) => index) : [],
+        answers: item.kind === 'order' ? [] : item.answers,
+        kind: item.kind,
+        file_no: item.label.slice(0, LABEL_CHARS),
+        topic: item.topic,
+        key_source: item.keySource,
+        code: item.code,
+        keep_order: item.keepOrder,
+        flags: item.flags,
+      };
+      if (item.kind === 'number' && item.tolerance) input.tolerance = item.tolerance;
+      return input;
+    }
     const input: ItemInput = {
       ref: `${importId}:${item.position}`,
       stem: item.text,
