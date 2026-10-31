@@ -46,7 +46,7 @@ const PRACTICE = {
 
 function badge(item: ReviewItem): string {
   if (item.correct) return 'Верно';
-  const typedKind = questionKind(item) === 'short' || questionKind(item) === 'number';
+  const typedKind = questionKind(item) === 'short' || (questionKind(item) === 'number' && !item.ranges);
   const none = typedKind ? !item.typed : questionKind(item) === 'multiple' ? !(item.picks?.length || item.choice !== null) : item.choice === null;
   if (none) return item.stand ? 'Не встали на ответ' : 'Без ответа';
   if (questionKind(item) === 'multiple' && (item.share ?? 0) > 0) return 'Частично';
@@ -88,6 +88,30 @@ function TextAnswer({ item }: { item: ReviewItem }) {
       {!item.correct && item.forms && item.forms.length > 0 ? (
         <div className="lp-rv-opt" data-key="true" data-mine="false">
           <span>Верный ответ: {item.forms.join(', ')}</span>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** A number played as ranges (20261102090200_live_ranges.sql): «Вы стояли на 330–360 · верный ответ 342 ± 5». */
+function RangesAnswer({ item }: { item: ReviewItem }) {
+  const keys = rightKeys(item);
+  const answer = numberAnswer(item.forms, item.tolerance, item.unit ?? null);
+  const stood = item.choice !== null ? item.options[item.choice] : null;
+  return (
+    <>
+      <div className="lp-rv-opt" data-key={item.correct ? 'true' : 'false'} data-mine="true">
+        <span>
+          {stood !== null ? `Вы стояли на ${stood}` : 'Вы не встали ни на один промежуток'} · верный ответ {answer}
+        </span>
+        {stood !== null ? <small>{item.correct ? 'верно' : 'неверно'}</small> : null}
+      </div>
+      {!item.correct && keys.length > 0 ? (
+        <div className="lp-rv-opt" data-key="true" data-mine="false">
+          <span>
+            {keys.length > 1 ? 'Верные промежутки' : 'Верный промежуток'}: {keys.map((k) => item.options[k]).join(', ')}
+          </span>
         </div>
       ) : null}
     </>
@@ -148,7 +172,7 @@ export function ReviewScreen({ ctl, review, error, standalone, back, practice, s
                   </span>
                 </div>
                 <p className="lp-rv-q">{item.text}</p>
-                {questionKind(item) === 'short' ? <TextAnswer item={item} /> : questionKind(item) === 'number' ? <NumberAnswer item={item} /> : <Options item={item} />}
+                {questionKind(item) === 'short' ? <TextAnswer item={item} /> : questionKind(item) === 'number' ? (item.ranges ? <RangesAnswer item={item} /> : <NumberAnswer item={item} />) : <Options item={item} />}
                 {item.explanation ? (
                   <div className="lp-rv-explain">
                     <b>Пояснение</b>

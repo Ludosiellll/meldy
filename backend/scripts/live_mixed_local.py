@@ -58,13 +58,50 @@ ANSWERS = {
     "Что делает JOIN?": {"keys": [1]},
     "Какой оператор группирует строки?": {"keys": [3]},
     # LIVE_LOCAL_SEED=numbers (20261102090100_live_numbers.sql): typed numbers, graded by the database's number rule
-    "Сколько байт в килобайте?": {"right": ["1024", "1 024", "1024,0"], "wrong": ["1000", "1023", "512", "2048"]},
-    "Скорость звука в воздухе при 20 °C?": {"right": ["343", "340 м/с", "350", "335"], "wrong": ["300", "1235", "3000", "100 м/с"]},
+    "Сколько байт в килобайте?": {"right": ["1024", "1 024", "1024,0"], "wrong": ["1000", "1023", "512", "2048"], "value": 1024},
+    "Скорость звука в воздухе при 20 °C?": {"right": ["343", "340 м/с", "350", "335"], "wrong": ["300", "1235", "3000", "100 м/с"],
+                                            "value": 343},
+    # LIVE_LOCAL_SEED=ranges (20261102090200_live_ranges.sql): numbers only, the movement rounds play them as ranges
+    "Сколько бит в байте?": {"right": ["8"], "wrong": ["16", "4", "10"], "value": 8},
+    "При какой температуре кипит вода, °C?": {"right": ["100"], "wrong": ["90", "120", "80"], "value": 100},
+    "Сколько секунд в часе?": {"right": ["3600", "3 600"], "wrong": ["360", "6000", "60"], "value": 3600},
+    "Сколько дней в високосном году?": {"right": ["366"], "wrong": ["365", "364", "360"], "value": 366},
 }
 
 
-def keys_of(text: str | None, qi: int) -> list[int]:
+def range_of(labels: list[str], value: float) -> int | None:
+    """The range a number falls in, read from the ranges' labels («меньше 300», «300–400», «от −15 до −10», «больше
+    500»): a bot that knows the answer finds its zone as a player would."""
+    def num(t: str) -> float:
+        return float(t.replace("\u2212", "-").replace("\u00a0", "").replace(" ", "").replace(",", "."))
+    for i, label in enumerate(labels):
+        t = label.replace("\u00a0", " ")
+        try:
+            if t.startswith("меньше "):
+                if value < num(t[len("меньше "):]):
+                    return i
+            elif t.startswith("больше "):
+                if value >= num(t[len("больше "):]):
+                    return i
+            elif t.startswith("от "):
+                lo, hi = t[len("от "):].split(" до ")
+                if num(lo) <= value < num(hi):
+                    return i
+            else:
+                lo, hi = t.split("–")
+                if num(lo) <= value < num(hi):
+                    return i
+        except ValueError:
+            return None
+    return None
+
+
+def keys_of(text: str | None, qi: int, options: list[str] | None = None, ranges: bool = False) -> list[int]:
     known = ANSWERS.get(text or "")
+    if ranges and known and "value" in known and options:
+        zone = range_of(options, known["value"])
+        if zone is not None:
+            return [zone]
     if known and "keys" in known:
         return list(known["keys"])
     return [KEYS[qi] if 0 <= qi < len(KEYS) else 0]
@@ -151,7 +188,8 @@ class Bot:
         if qi == self.plan_qi:
             return
         self.plan_qi = qi
-        keys = keys_of((st.get("q") or {}).get("text"), qi)
+        q = st.get("q") or {}
+        keys = keys_of(q.get("text"), qi, q.get("options"), q.get("ranges") is True)
         n = len(st["q"]["options"]) if st.get("q") else 4
         roll = self.rng.random()
         if roll < self.skill:
