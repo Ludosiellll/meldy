@@ -16,8 +16,8 @@ SB=$(cd "$HERE/../.." && pwd)
 PORT=${R49_PG_PORT:-54490}
 WORK=${R49_WORK:-${TMPDIR:-/tmp}/meldy-r49}
 PG_BIN=${PG_BIN:-/usr/lib/postgresql/16/bin}
-VERS=(20261105090000_quiz_stats)
-CONTRACTS=(quiz_stats)
+VERS=(20261105090000_quiz_stats 20261105090100_quiz_telegram)
+CONTRACTS=(quiz_stats quiz_telegram)
 export PGHOST=127.0.0.1 PGPORT=$PORT PGUSER=postgres
 PSQL=(psql -X -q -At -v ON_ERROR_STOP=1)
 DB=r49
@@ -171,9 +171,12 @@ FBASE=$(fingerprint)
 [[ "$FBASE" =~ ^[0-9a-f]{32}$ ]] && ok "the catalog fingerprint of the base taken" || bad "fingerprint of the base"
 
 STATS=$HERE/quiz_stats_behaviour.sql
+TG=$HERE/quiz_telegram_behaviour.sql
 for c in "${CONTRACTS[@]}"; do fails_before "contract $c.sql" "$SB/tests/$c.sql"; done
 if passes "$STATS" 'QUIZ STATS BEHAVIOUR PASSED' >/dev/null; then bad "quiz_stats_behaviour passes on the base (it tests nothing)"
 else ok "quiz_stats_behaviour fails on the base"; fi
+if passes "$TG" 'QUIZ TELEGRAM BEHAVIOUR PASSED' >/dev/null; then bad "quiz_telegram_behaviour passes on the base (it tests nothing)"
+else ok "quiz_telegram_behaviour fails on the base"; fi
 contract_ok "contract on the base: telegram_bot.sql" "$SB/tests/telegram_bot.sql"
 
 checks() {  # <label>: every contract and behaviour after the files
@@ -182,6 +185,8 @@ checks() {  # <label>: every contract and behaviour after the files
   contract_ok "$1: contract telegram_bot.sql" "$SB/tests/telegram_bot.sql"
   containers_contract "$1: contract containers.sql"
   behave "$1: quiz_stats_behaviour.sql (analysis, mistakes into training, the canvas's percents)" "$STATS" 'QUIZ STATS BEHAVIOUR PASSED'
+  behave "$1: quiz_telegram_behaviour.sql (the author's notices, the digest, the close, the share)" "$TG" 'QUIZ TELEGRAM BEHAVIOUR PASSED'
+  behave "$1: picture_sweep_behaviour.sql (the bot's other tick functions as before)" "$HERE/picture_sweep_behaviour.sql" 'PICTURE SWEEP PASSED'
   behave "$1: question_kinds_quiz_behaviour.sql (the quiz of release 48 as before)" "$HERE/question_kinds_quiz_behaviour.sql" 'QUESTION KINDS QUIZ BEHAVIOUR PASSED'
   behave "$1: containers_behaviour.sql" "$HERE/containers_behaviour.sql" 'CONTAINER CHECKS PASSED'
 }
