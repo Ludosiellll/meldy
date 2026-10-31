@@ -11,7 +11,9 @@ const api = vi.hoisted(() => ({
   closeQuiz: vi.fn(),
   deleteQuiz: vi.fn(),
   quizAnalysis: vi.fn(),
+  quizCompare: vi.fn(),
   sendMistakes: vi.fn(),
+  sendAllMistakes: vi.fn(),
   quizTelegramState: vi.fn(),
   state: { summary: null as unknown, items: null as unknown },
 }));
@@ -23,7 +25,9 @@ vi.mock('../../api/quizzes', () => ({
   closeQuiz: api.closeQuiz,
   deleteQuiz: api.deleteQuiz,
   quizAnalysis: api.quizAnalysis,
+  quizCompare: api.quizCompare,
   sendMistakes: api.sendMistakes,
+  sendAllMistakes: api.sendAllMistakes,
   // release 49: Telegram on the page (its own tests: QuizTelegram.test.tsx); an older server without it
   quizTelegramState: api.quizTelegramState,
   setQuizNotice: vi.fn(),
@@ -116,7 +120,7 @@ function classOf(n: number): { analysis: QuizAnalysis; attempts: QuizAttemptRow[
       server_now: NOW.toISOString(),
       items: ['i37', 'i3', 'i5', 'f1-0', 'f1-1'],
       attempts,
-      others: [{ id: 'o1', title: '9Б', created_at: '2026-10-10T10:00:00Z', closed: true, attempts: 12, items: [[0, 12, 3], [2, 12, 12]] }],
+      others: [{ id: 'o1', title: '9Б', created_at: '2026-10-10T10:00:00Z', closed: true, attempts: 12 }],
     },
     attempts: rows,
   };
@@ -147,6 +151,8 @@ beforeEach(() => {
   api.quizMarks.mockReset().mockResolvedValue([]);
   api.quizAnalysis.mockReset();
   api.sendMistakes.mockReset();
+  api.sendAllMistakes.mockReset();
+  api.quizCompare.mockReset().mockResolvedValue({ id: 'o1', title: '9Б', attempts: 12, capped: false, items: [['i37', 12, 3], ['i5', 12, 12]] });
   api.quizTelegramState.mockReset().mockRejectedValue(new Error('PGRST202'));
   serve(20);
 });
@@ -183,8 +189,10 @@ describe('«Вопросы»: how well a question tells those who know apart', (
     await waitFor(() => expect(page()).toContain(QA_ANALYSIS.compareHint));
     fireEvent.click(screen.getByRole('combobox', { name: QA_ANALYSIS.compare }));
     fireEvent.click(screen.getByRole('option', { name: QA_ANALYSIS.compareOption('9Б', 12) }));
+    // read when picked (quiz_compare), not with the analysis
+    await waitFor(() => expect(api.quizCompare).toHaveBeenCalledWith(QUIZ_ID, 'o1'));
     // here № 37 10 of 20 and № 5 15 of 20 → 63 %; there 3 of 12 and 12 of 12 → 63 %
-    expect(page()).toContain(QA_ANALYSIS.compareLine('9Б', 2, 63, 63));
+    await waitFor(() => expect(page()).toContain(QA_ANALYSIS.compareLine('9Б', 2, 63, 63)));
     expect(page()).toContain(QA_ANALYSIS.compareItem('9Б', 25, 12));
     expect(page()).toContain(QA_ANALYSIS.compareItem('9Б', 100, 12));
   });
@@ -211,19 +219,30 @@ describe('«Повторить»: who repeats what, and the mistakes into traini
     expect(page()).toContain(QA_REPEAT.sendHow(false));
   });
 
-  it('one press sends; the page says how many, and reads the analysis again (sent)', async () => {
-    api.sendMistakes.mockResolvedValue({ people: 2, answers: 5, again: 0, clean: 1, outside: 1, guests: 1, practice: false });
+  it('one press sends in batches: «Отправляем: 50 из 120…» meanwhile, then how many; the analysis read again', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    api.sendAllMistakes.mockImplementation(async (_id: string, onBatch?: (done: number, total: number) => void) => {
+      onBatch?.(50, 120);
+      await new Promise((resolve) => {
+        finish = resolve;
+      });
+      return { people: 2, answers: 5, again: 0, clean: 1, learned: 3, outside: 1, guests: 1, practice: false, total: 120, left: 0, next: null };
+    });
     renderPage(1532, '?tab=repeat');
     const button = await screen.findByRole('button', { name: QA_REPEAT.send });
     const before = api.quizAnalysis.mock.calls.length;
     fireEvent.click(button);
+    await waitFor(() => expect(page()).toContain(QA_REPEAT.progress(50, 120)));
+    expect(screen.getByRole('button', { name: QA_REPEAT.sending })).toBeDisabled();
+    finish(null);
     await waitFor(() => expect(page()).toContain(QA_REPEAT.done(2, 5)));
-    expect(api.sendMistakes).toHaveBeenCalledWith(QUIZ_ID);
+    expect(page()).toContain(QA_REPEAT.learned(3));
+    expect(api.sendAllMistakes).toHaveBeenCalledWith(QUIZ_ID, expect.any(Function));
     await waitFor(() => expect(api.quizAnalysis.mock.calls.length).toBeGreaterThan(before));
   });
 
   it('a second press with nothing new says so', async () => {
-    api.sendMistakes.mockResolvedValue({ people: 0, answers: 0, again: 3, clean: 1, outside: 1, guests: 1, practice: true });
+    api.sendAllMistakes.mockResolvedValue({ people: 0, answers: 0, again: 3, clean: 1, learned: 0, outside: 1, guests: 1, practice: true, total: 5, left: 0, next: null });
     renderPage(1532, '?tab=repeat');
     fireEvent.click(await screen.findByRole('button', { name: QA_REPEAT.send }));
     await waitFor(() => expect(page()).toContain(QA_REPEAT.nothingNew));

@@ -151,7 +151,7 @@ describe('another quiz of the same exam', () => {
       attempts: [attempt(1, [[0, 1, 5], [1, 0, 5]]), attempt(2, [[0, 1, 5], [1, 1, 5]])],
       others: [],
     };
-    const other = { id: 'o', title: '9Б', created_at: '', closed: true, attempts: 4, items: [[0, 4, 1], [2, 4, 4]] as Array<[number, number, number]> };
+    const other = { id: 'o', title: '9Б', attempts: 4, capped: false, items: [['x', 4, 1], ['z', 4, 4], ['gone', 0, 0]] as Array<[string, number, number]> };
     const c = compareWith(analysis, other);
     expect(c.common).toBe(1);
     expect(c.here).toBe(1);

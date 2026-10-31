@@ -57,9 +57,16 @@ export default function QuizTelegram({ quizId, url, title, closed }: QuizTelegra
     setState({ ...state, notice: mode });
     try {
       setState(await setQuizNotice(quizId, mode));
-    } catch {
-      setState(before);
-      setFailed(true);
+    } catch (error) {
+      // the link went meanwhile (22023 link): the page says so and offers to link again
+      const detail = (error as { code?: unknown; detail?: unknown } | null) ?? {};
+      if (detail.code === '22023' && detail.detail === 'link') {
+        setState({ ...before, linked: false, notice: 'off' });
+        setLine(QA_TELEGRAM.linkGone);
+      } else {
+        setState(before);
+        setFailed(true);
+      }
     } finally {
       busy.current = false;
       setSaving(false);

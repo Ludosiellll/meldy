@@ -57,6 +57,16 @@ describe('the notices', () => {
     expect(screen.getByRole('combobox', { name: QA_TELEGRAM.notice }).textContent).toContain(QA_TELEGRAM.noticeOption('off'));
   });
 
+  it('the link went meanwhile (22023 link): no switching on, the way to link again', async () => {
+    api.setQuizNotice.mockRejectedValue(Object.assign(new Error('telegram not linked'), { code: '22023', detail: 'link' }));
+    show();
+    fireEvent.click(await screen.findByRole('combobox', { name: QA_TELEGRAM.notice }));
+    fireEvent.click(screen.getByRole('option', { name: QA_TELEGRAM.noticeOption('each') }));
+    await waitFor(() => expect(text()).toContain(QA_TELEGRAM.linkGone));
+    expect(screen.getByRole('link', { name: QA_TELEGRAM.link })).toHaveAttribute('href', '/profile#telegram');
+    expect(screen.queryByRole('combobox')).toBeNull();
+  });
+
   it('not linked: the way to link, no choice, no group button', async () => {
     api.quizTelegramState.mockResolvedValue(state({ linked: false }));
     show();

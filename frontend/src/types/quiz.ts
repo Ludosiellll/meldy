@@ -204,14 +204,22 @@ export interface QuizAnalysisAttempt {
   finished_at: string;
   cells: QuizAnalysisCell[];
 }
-/** Another quiz of the same exam or test: per question index [index, shown, credit]. */
+/** Another quiz of the same exam or test, named and counted (its questions come with quiz_compare when picked). */
 export interface QuizAnalysisOther {
   id: Uuid;
   title: string;
   created_at: string;
   closed: boolean;
   attempts: number;
-  items: Array<[index: number, shown: number, credit: number]>;
+}
+/** quiz_compare: the quiz picked to compare with, per question [item id, shown, credit]. */
+export interface QuizCompare {
+  id: Uuid;
+  title: string;
+  attempts: number;
+  /** The latest attempts only (up to 25 000 answers). */
+  capped: boolean;
+  items: Array<[itemId: Uuid, shown: number, credit: number]>;
 }
 /** The finished attempts of others than the author, for the statistics a psychometrician would compute. */
 export interface QuizAnalysis {
@@ -221,17 +229,27 @@ export interface QuizAnalysis {
   items: Uuid[];
   attempts: QuizAnalysisAttempt[];
   others: QuizAnalysisOther[];
+  /** The latest attempts only (up to 25 000 answers): older ones were left out. */
+  capped?: boolean;
 }
-/** quiz_send_mistakes: people who got mistakes now and how many; people whose mistakes went before; people without a
- *  mistake; accounts outside the exam; guests; whether the quiz offers «Тренироваться дальше». */
+/**
+ * quiz_send_mistakes, one batch (≤ 50 people): people who got mistakes now and how many; people whose mistakes went
+ * before; people with nothing left to send; mistakes not sent because answered in training since (learned); accounts
+ * outside the exam; guests; whether the quiz offers «Тренироваться дальше»; the accounts in all, how many are left after
+ * this batch, and where the next batch starts (null — done).
+ */
 export interface MistakesSent {
   people: number;
   answers: number;
   again: number;
   clean: number;
+  learned: number;
   outside: number;
   guests: number;
   practice: boolean;
+  total: number;
+  left: number;
+  next: Uuid | null;
 }
 /** Release 49 (20261105090100_quiz_telegram): the author's Telegram side of a quiz. */
 export type QuizNotice = 'each' | 'digest' | 'off';

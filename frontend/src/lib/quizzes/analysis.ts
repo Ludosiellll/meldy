@@ -17,7 +17,7 @@
  * - «Кому что повторить»: each person's latest finished attempt, its questions not fully right.
  * - The speed signal: FAST_ANSWERS or more answers at under FAST_SECONDS each — a signal for the author, not a proof.
  */
-import type { QuizAnalysis, QuizAnalysisAttempt, QuizAnalysisOther, QuizAttemptRow, QuizItemStat } from '../../types/quiz';
+import type { QuizAnalysis, QuizAnalysisAttempt, QuizAttemptRow, QuizCompare, QuizItemStat } from '../../types/quiz';
 import type { TestItem } from '../../types/container';
 
 export const MIN_FOR_VERDICT = 15;
@@ -191,7 +191,7 @@ export function retakesOf(attempts: readonly QuizAttemptRow[]): Retakes | null {
 }
 
 export interface GroupCompare {
-  other: QuizAnalysisOther;
+  other: Pick<QuizCompare, 'id' | 'title' | 'attempts' | 'capped'>;
   /** Questions both quizzes had answers to. */
   common: number;
   /** The share of credit on those questions, here and there (0..1). */
@@ -201,8 +201,8 @@ export interface GroupCompare {
   perItem: Map<string, { share: number; shown: number }>;
 }
 
-/** This quiz next to another quiz of the same exam, on the questions both had. */
-export function compareWith(analysis: QuizAnalysis, other: QuizAnalysisOther): GroupCompare {
+/** This quiz next to another quiz of the same exam (quiz_compare), on the questions both had. */
+export function compareWith(analysis: QuizAnalysis, other: QuizCompare): GroupCompare {
   const here = analysis.items.map(() => ({ shown: 0, credit: 0 }));
   for (const a of analysis.attempts) {
     for (const [index, credit] of a.cells) {
@@ -211,17 +211,18 @@ export function compareWith(analysis: QuizAnalysis, other: QuizAnalysisOther): G
       here[index].credit += credit;
     }
   }
+  const at = new Map(analysis.items.map((id, index) => [id, index]));
   const perItem = new Map<string, { share: number; shown: number }>();
   let common = 0;
   let hereShown = 0;
   let hereCredit = 0;
   let thereShown = 0;
   let thereCredit = 0;
-  for (const [index, shown, credit] of other.items) {
-    const itemId = analysis.items[index];
-    if (!itemId || shown <= 0) continue;
+  for (const [itemId, shown, credit] of other.items) {
+    if (shown <= 0) continue;
     perItem.set(itemId, { share: credit / shown, shown });
-    if (here[index].shown > 0) {
+    const index = at.get(itemId);
+    if (index !== undefined && here[index].shown > 0) {
       common += 1;
       hereShown += here[index].shown;
       hereCredit += here[index].credit;
@@ -230,7 +231,7 @@ export function compareWith(analysis: QuizAnalysis, other: QuizAnalysisOther): G
     }
   }
   return {
-    other,
+    other: { id: other.id, title: other.title, attempts: other.attempts, capped: other.capped },
     common,
     here: hereShown > 0 ? hereCredit / hereShown : null,
     there: thereShown > 0 ? thereCredit / thereShown : null,

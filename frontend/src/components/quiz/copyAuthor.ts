@@ -295,8 +295,9 @@ export const QA_PEOPLE = {
   noneFlagged: 'Попыток с отметками нет.',
   /** Release 49: many answers in very little time (lib/quizzes/analysis.ts fastSign). */
   fast: 'быстро',
+  /** Neutral (review 2026-11-05: «Ответил» named a man): «20 ответов за 40 секунд». */
   fastLabel: (answers: number, seconds: number) =>
-    `Ответил на ${answers} ${plural(answers, 'вопрос', 'вопроса', 'вопросов')} за ${seconds} ${plural(seconds, 'секунду', 'секунды', 'секунд')}`,
+    `${answers} ${plural(answers, 'ответ', 'ответа', 'ответов')} за ${seconds} ${plural(seconds, 'секунду', 'секунды', 'секунд')}`,
   /** Under the list when any mark is shown: what the marks are and are not. */
   notProof:
     'Отметки видите только вы. Это не доказательство: со страницы уводят и звонок, и уведомление, а быстро отвечает и тот, кто знает. Решайте сами, стоит ли поговорить.',
@@ -403,6 +404,8 @@ export const QA_ANALYSIS = {
   compareNoCommon: (title: string) => `У «${title}» нет общих вопросов с этой контрольной.`,
   compareItem: (title: string, percent: number, shown: number) => `В «${title}»: ${percent} % из ${shown}.`,
   compareHint: 'Каждому классу — своя контрольная из этого теста, и их можно сравнить по тем же вопросам.',
+  compareLoading: 'Считаем сравнение…',
+  compareFailed: 'Не получилось посчитать сравнение. Выберите контрольную ещё раз.',
   loading: 'Считаем разбор…',
   failed: 'Не получилось посчитать разбор. Результаты выше — верные.',
   retry: 'Повторить',
@@ -432,6 +435,11 @@ export const QA_REPEAT = {
   done: (people: number, answers: number) =>
     `Отправили: ${people} ${plural(people, 'человеку', 'людям', 'людям')}, ${answers} ${plural(answers, 'вопрос', 'вопроса', 'вопросов')} в повторение.`,
   nothingNew: 'Новых ошибок нет: всё уже в тренировке.',
+  /** A big class goes in batches of 50 (quiz_send_mistakes): the line while it goes. */
+  progress: (done: number, total: number) => `Отправляем: ${done} из ${total}…`,
+  /** Mistakes not sent: the person has answered them in training since the attempt. */
+  learned: (n: number) =>
+    `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} не ${plural(n, 'отправлен', 'отправлены', 'отправлены')}: участники уже повторили их сами после контрольной.`,
   nothing: 'Отправлять нечего: у участников экзамена нет ошибок.',
   failed: 'Не получилось отправить. Попробуйте ещё раз.',
 } as const;
@@ -460,6 +468,8 @@ export const QA_TELEGRAM = {
   closed: 'Контрольная закрыта: ссылку отправлять незачем.',
   noGroup: 'Этой беседы больше нет у экзамена. Обновите страницу.',
   noLink: 'Сначала подключите Telegram.',
+  /** telegram_quiz_notice refused: the Telegram link went meanwhile (22023 link). */
+  linkGone: 'Telegram больше не подключён. Подключите его, и бот сможет писать.',
   shareAnywhere: 'Поделиться в Telegram',
   shareText: (title: string) => `Контрольная «${title}»`,
   saving: 'Сохраняем…',

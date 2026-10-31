@@ -4,7 +4,7 @@ const rpc = vi.hoisted(() => vi.fn());
 vi.mock('../lib/supabase', () => ({ supabase: { rpc }, supabaseAnonKey: 'anon-key' }));
 
 import { ContainerApiError } from './containers';
-import { createQuiz, previewAsGuest, previewQuiz, quizErrorText, quizResults, sendAnswers, startQuiz } from './quizzes';
+import { createQuiz, previewAsGuest, previewQuiz, quizCompare, quizErrorText, quizResults, sendAllMistakes, sendAnswers, startQuiz } from './quizzes';
 import { QUIZ_ERRORS } from '../components/quiz/copyQuiz';
 
 beforeEach(() => rpc.mockReset());
@@ -78,5 +78,42 @@ describe('previewAsGuest (a shared computer: the device’s attempts while signe
     rpc.mockReturnValue(Object.assign(Promise.resolve({ data: { status: 'open' }, error: null, status: 200 }), { setHeader }));
     await previewQuiz('abcd2fghjkmn');
     expect(setHeader).not.toHaveBeenCalled();
+  });
+});
+
+describe('release 49: the mistakes in batches, the comparison by id', () => {
+  const batch = (over: Record<string, unknown>) => ({
+    data: { people: 0, answers: 0, again: 0, clean: 0, learned: 0, outside: 0, guests: 2, practice: false, total: 120, left: 0, next: null, ...over },
+    error: null,
+    status: 200,
+  });
+
+  it('calls batch after batch from where the last one stopped, sums them and says how far it got', async () => {
+    rpc
+      .mockResolvedValueOnce(batch({ people: 50, answers: 60, left: 70, next: 'u50' }))
+      .mockResolvedValueOnce(batch({ people: 48, answers: 50, learned: 2, outside: 2, left: 20, next: 'u100' }))
+      .mockResolvedValueOnce(batch({ people: 19, answers: 19, again: 1, left: 0, next: null }));
+    const seen: Array<[number, number]> = [];
+    const sum = await sendAllMistakes('q1', (done, total) => seen.push([done, total]));
+    expect(rpc.mock.calls.map((call) => call[1])).toEqual([
+      { p_quiz_id: 'q1' },
+      { p_quiz_id: 'q1', p_after: 'u50' },
+      { p_quiz_id: 'q1', p_after: 'u100' },
+    ]);
+    expect(seen).toEqual([[50, 120], [100, 120], [120, 120]]);
+    expect(sum).toMatchObject({ people: 117, answers: 129, again: 1, learned: 2, outside: 2, guests: 2, total: 120, next: null });
+  });
+
+  it('a failing batch stops the loop (what went before stays sent)', async () => {
+    rpc.mockResolvedValueOnce(batch({ people: 50, answers: 50, left: 70, next: 'u50' }))
+      .mockResolvedValueOnce({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' }, status: 500 });
+    await expect(sendAllMistakes('q1')).rejects.toBeInstanceOf(ContainerApiError);
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('quiz_compare: per question by id; malformed cells left out', async () => {
+    rpc.mockResolvedValue({ data: { id: 'o1', title: '9Б', attempts: 12, capped: false, items: [['i1', 12, 3], [5, 1, 1], 'x'] }, error: null, status: 200 });
+    expect(await quizCompare('q1', 'o1')).toEqual({ id: 'o1', title: '9Б', attempts: 12, capped: false, items: [['i1', 12, 3]] });
+    expect(rpc).toHaveBeenCalledWith('quiz_compare', { p_quiz_id: 'q1', p_other: 'o1' });
   });
 });

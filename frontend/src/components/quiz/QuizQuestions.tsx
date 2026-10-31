@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { quizCompare } from '../../api/quizzes';
 import { Link } from 'react-router-dom';
 import { questionRows } from '../../lib/quizzes/quizModel';
 import { compareWith, itemInsights, MIN_FOR_VERDICT, needsRewrite, retakesOf, secondsText, trapOf, type ItemInsight } from '../../lib/quizzes/analysis';
@@ -6,7 +7,7 @@ import PaperSelect from '../ui/PaperSelect';
 import { letter, nb } from '../containers/copyImport';
 import { QA_ANALYSIS, QA_PEOPLE, QA_QUESTIONS } from './copyAuthor';
 import type { TestItem } from '../../types/container';
-import type { QuizAnalysis, QuizAttemptRow, QuizItemStat } from '../../types/quiz';
+import type { QuizAnalysis, QuizAttemptRow, QuizCompare, QuizItemStat } from '../../types/quiz';
 import './quizAuthor.css';
 
 /**
@@ -61,8 +62,29 @@ export default function QuizQuestions({ containerId, stats, items, subjects, ana
   const retakes = useMemo(() => retakesOf(attempts), [attempts]);
   const [compareId, setCompareId] = useState('');
   const others = useMemo(() => (analysis?.others ?? []).filter((other) => other.attempts > 0), [analysis]);
-  const other = others.find((entry) => entry.id === compareId) ?? null;
-  const compare = useMemo(() => (analysis && other ? compareWith(analysis, other) : null), [analysis, other]);
+  // The picked quiz's questions are read when it is picked (quiz_compare), not with the analysis (review 2026-11-05).
+  const quizId = analysis?.quiz_id ?? '';
+  const [picked, setPicked] = useState<{ id: string; data: QuizCompare | null; failed: boolean } | null>(null);
+  useEffect(() => {
+    if (!compareId || !quizId) {
+      setPicked(null);
+      return undefined;
+    }
+    let live = true;
+    setPicked({ id: compareId, data: null, failed: false });
+    quizCompare(quizId, compareId).then(
+      (data) => {
+        if (live) setPicked({ id: compareId, data, failed: false });
+      },
+      () => {
+        if (live) setPicked({ id: compareId, data: null, failed: true });
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, [compareId, quizId]);
+  const compare = useMemo(() => (analysis && picked?.data ? compareWith(analysis, picked.data) : null), [analysis, picked]);
 
   if (rows.length === 0) return <p className="qa-empty">{QA_QUESTIONS.empty}</p>;
 
@@ -117,6 +139,10 @@ export default function QuizQuestions({ containerId, stats, items, subjects, ana
               {compare.common > 0 && compare.here !== null && compare.there !== null
                 ? nb(QA_ANALYSIS.compareLine(compare.other.title, compare.common, pct(compare.here), pct(compare.there)))
                 : QA_ANALYSIS.compareNoCommon(compare.other.title)}
+            </p>
+          ) : picked && !picked.data ? (
+            <p className="qa-insight-line" data-muted="" role="status">
+              {picked.failed ? QA_ANALYSIS.compareFailed : QA_ANALYSIS.compareLoading}
             </p>
           ) : others.length > 0 ? (
             <p className="qa-insight-line" data-muted="">

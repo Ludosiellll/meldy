@@ -28,6 +28,8 @@ vi.mock('../../api/quizzes', () => ({
   // release 49: the analysis (its own tests: QuizStatsAnalysis.test.tsx)
   quizAnalysis: api.quizAnalysis,
   sendMistakes: api.sendMistakes,
+  quizCompare: vi.fn(),
+  sendAllMistakes: vi.fn(),
   // release 49: Telegram on the page (its own tests: QuizTelegram.test.tsx); an older server without it
   quizTelegramState: api.quizTelegramState,
   setQuizNotice: vi.fn(),

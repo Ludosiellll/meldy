@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { sendMistakes } from '../../api/quizzes';
+import { sendAllMistakes } from '../../api/quizzes';
 import { repeatRows } from '../../lib/quizzes/analysis';
 import { errorText, nb } from '../containers/copyImport';
 import { QA_ANALYSIS, QA_ERRORS, QA_REPEAT } from './copyAuthor';
@@ -11,8 +11,10 @@ import './quizAuthor.css';
  * «Повторить» of a quiz's stats (release 49, spec «Выпуск 49»: «кому что повторить — и одной кнопкой отправить каждому
  * его ошибки в тренировку»). A row a person (their latest finished attempt): the questions not fully right by their
  * numbers, «в тренировке» once they went, «без входа» / «не в экзамене» for those the button cannot reach. The button
- * (quiz_send_mistakes) puts each member's mistakes into their own repetition through the study core; a second press
- * writes nothing. Guests have no training: the page says so, and what people outside the exam can do instead.
+ * (quiz_send_mistakes) puts each member's mistakes into their own repetition through the study core, 50 people a call
+ * with «Отправляем: 100 из 300…» meanwhile; a second press writes nothing; a question the person has answered in
+ * training since the attempt is left as it is (said). Guests have no training: the page says so, and what people outside
+ * the exam can do instead.
  */
 
 export interface QuizRepeatProps {
@@ -32,6 +34,7 @@ export interface QuizRepeatProps {
 export default function QuizRepeat({ quizId, analysis, analysisFailed, attempts, items, ofTest, practice, onSent, onRetry }: QuizRepeatProps) {
   const rows = useMemo(() => (analysis ? repeatRows(analysis, attempts) : []), [analysis, attempts]);
   const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<MistakesSent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
@@ -67,15 +70,18 @@ export default function QuizRepeat({ quizId, analysis, analysisFailed, attempts,
     busy.current = true;
     setSending(true);
     setError(null);
+    setResult(null);
     try {
-      const sent = await sendMistakes(quizId);
+      const sent = await sendAllMistakes(quizId, (done, total) => setProgress({ done, total }));
       setResult(sent);
-      onSent();
     } catch (failure) {
       setError(errorText(failure, QA_ERRORS, QA_REPEAT.failed));
     } finally {
       busy.current = false;
       setSending(false);
+      setProgress(null);
+      // what went before a failure went for good: the marks read again either way
+      onSent();
     }
   };
 
@@ -96,9 +102,10 @@ export default function QuizRepeat({ quizId, analysis, analysisFailed, attempts,
             {sending ? QA_REPEAT.sending : QA_REPEAT.send}
           </button>
           <p className="qa-hint">{anyToSend ? QA_REPEAT.sendHow(ofTest) : QA_REPEAT.nothing}</p>
-          <p className="qa-send-line" role="status">
-            {resultLine ? nb(resultLine) : ''}
+          <p className="qa-send-line" role="status" data-muted={progress ? '' : undefined}>
+            {progress ? nb(QA_REPEAT.progress(progress.done, progress.total)) : resultLine ? nb(resultLine) : ''}
           </p>
+          {result && result.learned > 0 ? <p className="qa-hint">{nb(QA_REPEAT.learned(result.learned))}</p> : null}
           {error ? (
             <p className="qa-line" role="alert">
               {error}

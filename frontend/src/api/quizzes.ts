@@ -16,6 +16,7 @@ import type {
   ItemPercent,
   MistakesSent,
   QuizAnalysis,
+  QuizCompare,
   QuizNotice,
   QuizShareStatus,
   QuizTelegramState,
@@ -155,25 +156,72 @@ export async function quizAnalysis(quizId: Uuid): Promise<QuizAnalysis> {
       created_at: text(o.created_at),
       closed: o.closed === true,
       attempts: num(o.attempts),
-      items: (Array.isArray(o.items) ? o.items : [])
-        .filter((cell): cell is unknown[] => Array.isArray(cell) && typeof cell[0] === 'number' && cell[0] >= 0 && cell[0] < items.length)
-        .map((cell) => [cell[0] as number, num(cell[1]), num(cell[2])] as [number, number, number]),
     })),
+    capped: raw.capped === true,
   };
 }
 
-/** Each member's mistakes of their latest attempt into their training; a second press writes nothing. */
-export async function sendMistakes(quizId: Uuid): Promise<MistakesSent> {
-  const raw = shaped<Record<string, unknown>>(await rpc('quiz_send_mistakes', { p_quiz_id: quizId }), 'quiz_send_mistakes', 'people');
+/** The other quiz of the same exam the author picked: per question by id. */
+export async function quizCompare(quizId: Uuid, otherId: Uuid): Promise<QuizCompare> {
+  const raw = shaped<Record<string, unknown>>(await rpc('quiz_compare', { p_quiz_id: quizId, p_other: otherId }), 'quiz_compare', 'items');
+  return {
+    id: text(raw.id),
+    title: text(raw.title),
+    attempts: num(raw.attempts),
+    capped: raw.capped === true,
+    items: (Array.isArray(raw.items) ? raw.items : [])
+      .filter((cell): cell is unknown[] => Array.isArray(cell) && typeof cell[0] === 'string')
+      .map((cell) => [cell[0] as string, num(cell[1]), num(cell[2])] as [string, number, number]),
+  };
+}
+
+/**
+ * One batch (≤ 50 people) of each member's mistakes of their latest attempt into their training, from `after` on; a
+ * second press writes nothing. The page calls again with `next` until it is null (sendAllMistakes).
+ */
+export async function sendMistakes(quizId: Uuid, after: Uuid | null = null): Promise<MistakesSent> {
+  const raw = shaped<Record<string, unknown>>(
+    await rpc('quiz_send_mistakes', after ? { p_quiz_id: quizId, p_after: after } : { p_quiz_id: quizId }),
+    'quiz_send_mistakes',
+    'people',
+  );
   return {
     people: num(raw.people),
     answers: num(raw.answers),
     again: num(raw.again),
     clean: num(raw.clean),
+    learned: num(raw.learned),
     outside: num(raw.outside),
     guests: num(raw.guests),
     practice: raw.practice === true,
+    total: num(raw.total),
+    left: num(raw.left),
+    next: typeof raw.next === 'string' && raw.next ? raw.next : null,
   };
+}
+
+/** Every batch in turn, summed; `onBatch` hears how many accounts are done of all. At most 100 calls. */
+export async function sendAllMistakes(quizId: Uuid, onBatch?: (done: number, total: number) => void): Promise<MistakesSent> {
+  let after: Uuid | null = null;
+  let sum: MistakesSent | null = null;
+  for (let call = 0; call < 100; call += 1) {
+    const batch: MistakesSent = await sendMistakes(quizId, after);
+    sum = sum
+      ? {
+          ...batch,
+          people: sum.people + batch.people,
+          answers: sum.answers + batch.answers,
+          again: sum.again + batch.again,
+          clean: sum.clean + batch.clean,
+          learned: sum.learned + batch.learned,
+          outside: sum.outside + batch.outside,
+        }
+      : batch;
+    onBatch?.(Math.max(0, batch.total - batch.left), batch.total);
+    if (!batch.next) break;
+    after = batch.next;
+  }
+  return sum as MistakesSent;
 }
 
 function telegramState(raw: unknown): QuizTelegramState {
