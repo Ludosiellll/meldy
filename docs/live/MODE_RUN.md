@@ -30,7 +30,9 @@ zone a character stands in at zero; the database, its write (`live_stand_close`)
 ## 3. Screens
 
 - Projector (scene.ts `huntFrame`): the boss model runs where the first hunter is, smaller copies (0.62 of its height)
-  where the others are; with none out it runs back to its stage. Cues `hunt` (it leaves: a roar) and `caught` (a
+  where the others are (`stand/bossCopies.ts`: the kit gives a loaded skeleton to one boss only, so a skeleton copy is
+  loaded in advance and a hunter is drawn once its copy is there; before 31.10 the second hunter's copy threw on every
+  frame and froze the chase with 13 players or more); with none out it runs back to its stage. Cues `hunt` (it leaves: a roar) and `caught` (a
   slam; the caught character plays its hit pose). The board says «Убегайте от Дедлайна и встаньте на верный ответ.»
   and a pill «Поймал N».
 - Phone: the 3D view draws the boss the same way (scene3d.ts `hunt`), the small map a red dot; the question card
