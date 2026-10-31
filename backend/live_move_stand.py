@@ -86,6 +86,15 @@ def stand_points(elapsed_ms: int, time_s: int, streak_after: int, speed: bool, g
     return 10 * int(math.floor(base * mult / 10.0 + 0.5))
 
 
+def keys_of(res: dict[str, Any]) -> list[int]:
+    """Every right zone of a closed round: ``keys`` of a question of several right answers (every one of them stays up
+    and is a right answer), else the one ``key``."""
+    keys = res.get("keys")
+    if isinstance(keys, list) and keys and all(isinstance(k, int) and not isinstance(k, bool) for k in keys):
+        return sorted(set(keys))
+    return [int(res.get("key", -1))]
+
+
 def arena_map() -> lm.GameMap:
     return lm.parse_map(ARENA)
 
@@ -262,6 +271,7 @@ class StandGame(lm.RoomHooks):
         if room is None or qi != self.qi or self.applied_qi == qi or not isinstance(res.get("rows"), list):
             return False
         key = int(res.get("key", -1))
+        keys = keys_of(res)
         rows = [r for r in res["rows"] if isinstance(r, dict) and isinstance(r.get("p"), str)]
         fall_ticks = max(1, math.ceil(FALL_MS * room.tick_hz / 1000))
         fell: list[int] = []
@@ -284,7 +294,7 @@ class StandGame(lm.RoomHooks):
                 ghosts.add(pid)
             if out and p is not None:
                 # Joined after the question opened: nothing counts; off the right zone they fall and come back.
-                on_island = self.at_decision.get(p.id, room.map.zone_index(p.x, p.y)) == key + 1
+                on_island = self.at_decision.get(p.id, room.map.zone_index(p.x, p.y)) - 1 in keys
                 fell_now = not on_island and not ghost
                 if fell_now:
                     back.append(p.id)
@@ -328,7 +338,7 @@ class StandGame(lm.RoomHooks):
         self.back_at = now_ms + FLOOR_MS
         counts = res.get("counts") if isinstance(res.get("counts"), list) else []
         self.res = {
-            "qi": qi, "key": key, "counts": counts, "stood": stood, "of": int(res.get("active") or 0),
+            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), "counts": counts, "stood": stood, "of": int(res.get("active") or 0),
             "fastest": None if fastest is None else {"id": fastest[2], "pts": -fastest[1], "ms": fastest[3]},
             "fell": fell, "back": back, "at": int(now_ms), "back_at": int(self.back_at),
         }

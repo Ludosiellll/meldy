@@ -73,6 +73,19 @@ def right_needed(active: int) -> int:
     return (2 * active + 2) // 3
 
 
+def share(picks: Iterable[int], keys: Iterable[int]) -> float:
+    """meldy_private.live_share / rules.ts liveShare: a button answer to a question of several right answers is worth
+    (right ticked − wrong ticked) / right count, never below 0 (1 only for the exact set)."""
+    ks = set(keys)
+    ps = set(picks)
+    return float(max(0, len(ps & ks) - len(ps - ks))) / float(max(1, len(ks)))
+
+
+def partial(elapsed_ms: int, time_s: int, streak_after: int, speed: bool, part: float) -> int:
+    """A partial hit (several right answers, some of them ticked): round(damage × share), as live_close."""
+    return int(math.floor(float(damage(elapsed_ms, time_s, streak_after, speed)) * part + 0.5))
+
+
 def stand_round(every: int, q_count: int, qi: int) -> bool:
     """meldy_private.live_stand_round: every Nth question, and the last one when the game is shorter than N."""
     if not every or every <= 0 or not 0 <= qi < q_count:
@@ -96,20 +109,38 @@ class Closed:
     outcome: dict[str, tuple[bool, int]] = field(default_factory=dict)  # player → (correct, dmg)
 
 
-def close_round(players: dict[str, dict[str, Any]], answers: Iterable[tuple[str, int, int]], active: list[str], *,
+def close_round(players: dict[str, dict[str, Any]], answers: Iterable[tuple[str, Any, int]], active: list[str], *,
                 key: int, n_options: int, time_s: int, speed: bool, hp: int, hp_max: int, q_phase: int, phase: int,
-                stand_round: bool = False, void: bool = False) -> Closed:
+                stand_round: bool = False, void: bool = False, keys: Iterable[int] | None = None) -> Closed:
     """meldy_private.live_close for one question, changing ``players`` in place ({dmg, streak, best, right, frozen,
-    thaws} per id; kicked players are left out by the caller). ``answers``: (player, choice, elapsed ms); ``active``:
-    players not kicked who joined by the question's opening, in the order they joined. A movement round (``stand_round``)
-    freezes «no zone» in any phase; a ``void`` one (the room never wrote it) changes nobody and heals nothing."""
+    thaws} per id; kicked players are left out by the caller). ``answers``: (player, choice, elapsed ms), the choice an
+    option (a tap or the room's zone) or a list of options ticked (a button question of several right answers);
+    ``active``: players not kicked who joined by the question's opening, in the order they joined. ``keys``: every right
+    option of a question of several (a zone on any of them is right; ticks score their ``share``). A movement round
+    (``stand_round``) freezes «no zone» in any phase; a ``void`` one (the room never wrote it) changes nobody."""
     out = Closed(hp=hp, phase=phase, counts=[0] * n_options)
+    right_keys = list(keys) if keys is not None else [key]
     answered = set()
     for pid, choice, elapsed in sorted(answers, key=lambda a: (a[2], a[0])):
         p = players[pid]
         answered.add(pid)
-        out.counts[choice] += 1
-        if choice == key:
+        if isinstance(choice, (list, tuple)):
+            for c in choice:
+                if 0 <= c < n_options:
+                    out.counts[c] += 1
+            part = share(choice, right_keys)
+        else:
+            out.counts[choice] += 1
+            part = 1.0 if choice in right_keys else 0.0
+        if 0.0 < part < 1.0:
+            d = 0 if p["frozen"] else partial(elapsed, time_s, p["streak"] + 1, speed, part)
+            p.update(streak=0, dmg=p["dmg"] + d)
+            if d > 0:
+                out.hp = max(0, out.hp - d)
+                out.hits.append((pid, d, out.hp))
+            out.outcome[pid] = (False, d)
+            continue
+        if part >= 1.0:
             out.right += 1
             if p["frozen"]:
                 p.update(frozen=False, streak=1, thaws=p["thaws"] + 1, best=max(p["best"], 1), right=p["right"] + 1)
@@ -241,12 +272,13 @@ class MixedGame(stand.StandGame):
         if room is None or qi != self.qi or self.applied_qi == qi or not isinstance(res.get("rows"), list):
             return False
         key = int(res.get("key", -1))
+        keys = stand.keys_of(res)
         void = bool(res.get("void"))
         rows = [r for r in res["rows"] if isinstance(r, dict) and isinstance(r.get("p"), str)]
         fall_ticks = max(1, math.ceil(stand.FALL_MS * room.tick_hz / 1000))
         fell: list[int] = []
         for p in room.players.values():
-            on_island = self.at_decision.get(p.id, room.map.zone_index(p.x, p.y)) == key + 1
+            on_island = self.at_decision.get(p.id, room.map.zone_index(p.x, p.y)) - 1 in keys
             if void or on_island:
                 self._paint(p, False)
                 p.frozen_until = stand.HOLD if not void else 0
@@ -302,7 +334,7 @@ class MixedGame(stand.StandGame):
         by_pid = {pid: p.id for pid, p in room.by_pid.items()}
         boss = res.get("boss") if isinstance(res.get("boss"), dict) else {}
         self.res = {
-            "qi": qi, "key": key, "counts": res.get("counts") if isinstance(res.get("counts"), list) else [],
+            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), "counts": res.get("counts") if isinstance(res.get("counts"), list) else [],
             "stood": int(res.get("right") or 0), "of": int(res.get("active") or 0),
             "fastest": None if fastest is None else {"id": fastest[3], "pts": -fastest[2], "ms": fastest[4]},
             "fell": fell, "back": list(fell), "at": int(now_ms), "back_at": int(self.back_at),

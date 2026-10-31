@@ -24,11 +24,15 @@
 # every live contract and behaviour above still green, real.ts with live_pin end to end, its rollback back to the
 # catalog before it, applied again) → the pictures stage: 20261030090000_live_pictures.sql (the battle takes 5–6 options and
 # pictures; quiz_live_media_paths) the same way (tests/live_pictures.sql, live_pictures_behaviour.sql, every live contract and
-# behaviour above still green, its rollback back to the PIN stage's catalog, applied again).
+# behaviour above still green, its rollback back to the PIN stage's catalog, applied again) → the wide rounds stage
+# (20261031090000_live_wide_rounds.sql) → the kinds and teams stage: 20261102090000_live_kinds_teams.sql (several right
+# answers, text answers, teams, the review's explanations, live_practice) the same way (tests/live_kinds_teams.sql,
+# live_kinds_teams_behaviour.sql, every live contract and behaviour above still green, the share against the Python
+# mirror, the mixed room end to end, its rollback back to the wide rounds stage's catalog, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -615,6 +619,8 @@ else
     contract_ok "contract: telegram_bot.sql $1" "$SB/tests/telegram_bot.sql"
   }
   pic_behaviours() {
+    # the end-to-end runs above commit real joins; the battle's behaviour counts exactly its own 121 throttle rows
+    q "delete from meldy_private.live_join_hits" >/dev/null
     behave "the battle's behaviour $1" "$OLD_BATTLE" 'LIVE GAME BEHAVIOUR PASSED'
     behave "the stand's behaviour $1" "$HERE/live_stand_behaviour.sql" 'LIVE STAND BEHAVIOUR PASSED'
     behave "the mixed behaviour $1" "$HERE/live_mixed_behaviour.sql" 'LIVE MIXED BEHAVIOUR PASSED'
@@ -711,6 +717,111 @@ else
   [ "$(fingerprint)" = "$FWIDE" ] && ok "the same catalog as the first wide rounds apply" || bad "another catalog than the first wide rounds apply"
   step "contract: live_wide_rounds.sql again" "$WCONTRACT"
   behave "wide rounds behaviour again" "$WBEHAVIOUR" 'LIVE WIDE ROUNDS BEHAVIOUR PASSED'
+fi
+
+# ─── Several right answers, text answers, teams, the review, «Тренировать ошибки» (20261102090000_live_kinds_teams.sql) ───
+# On top of the wide rounds step. Its contract (tests/live_kinds_teams.sql) and behaviour (live_kinds_teams_behaviour.sql:
+# a battle of every kind in two teams, the review with explanations, live_practice, a battle with movement rounds and
+# «Встань на ответ») fail before it; applied twice (one catalog); every live contract still holds; the older behaviours
+# hold before and after it once their questions that played no part before (two right options or more, a text answer)
+# are made unplayable under the new rule too (seven options) — every one of their assertions; the share against
+# backend/live_move_mixed.py; the mixed room end to end; the rollback twice (the wide rounds step's catalog); applied
+# again. LIVE_KINDS=0 skips the stage.
+if [ "${LIVE_KINDS:-1}" = 0 ] || [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the kinds and teams stage (LIVE_KINDS=0, LIVE_WIDE=0 or LIVE_PICTURES=0)"
+else
+  KMIG=$SB/migrations/20261102090000_live_kinds_teams.sql
+  KDOWN=$SB/rollback/20261102090000_live_kinds_teams_down.sql
+  KCONTRACT=$SB/tests/live_kinds_teams.sql
+  KBEHAVIOUR=$HERE/live_kinds_teams_behaviour.sql
+  KBATTLE=$WORK/live_game_behaviour_kinds.sql
+  KWIDE=$WORK/live_wide_rounds_behaviour_kinds.sql
+  KCLOSE=$WORK/live_wide_close_behaviour_kinds.sql
+  sed -e "s/'Несколько верных', 'options', jsonb_build_array('a', 'b', 'c'), 'correct'/'Несколько верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g'), 'correct'/" \
+      -e "s/'Столица Франции', 'answers', jsonb_build_array('Париж')/'Столица Франции', 'options', jsonb_build_array('1', '2', '3', '4', '5', '6', '7'), 'correct', jsonb_build_array(0)/" \
+      -e "s/'С картинкой', 'options', jsonb_build_array('да', 'нет'), 'correct', jsonb_build_array(0, 1),/'С картинкой', 'options', jsonb_build_array('да', 'нет', '3', '4', '5', '6', '7'), 'correct', jsonb_build_array(0, 1),/" \
+      -e "s/'Только несколько', 'options', jsonb_build_array('a', 'b'), 'correct'/'Только несколько', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g'), 'correct'/" \
+      "$OLD_BATTLE" > "$KBATTLE"
+  for pair in "$WBEHAVIOUR:$KWIDE" "$WCLOSE:$KCLOSE"; do
+    sed -e "s/'Два верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e'), 'correct'/'Два верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g'), 'correct'/" \
+      "${pair%%:*}" > "${pair##*:}"
+  done
+  [ "$(grep -c "'a', 'b', 'c', 'd', 'e', 'f', 'g'), 'correct'\|'1', '2', '3', '4', '5', '6', '7'), 'correct', jsonb_build_array(0)/\|'да', 'нет', '3', '4', '5', '6', '7')" "$KBATTLE")" -ge 4 ] \
+    && [ "$(grep -c "'Два верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g')" "$KWIDE" "$KCLOSE" | grep -c ':1$')" = 2 ] \
+    && ok "the older behaviours for the new rule: their questions of several right answers and text answers made unplayable" \
+    || bad "the older behaviours for the new rule: the questions were not found"
+  kind_contracts() {
+    pic_contracts "$1"
+    step "contract: live_pictures.sql $1" "$XCONTRACT"
+    step "contract: live_wide_rounds.sql $1" "$WCONTRACT"
+  }
+  kind_behaviours() {
+    q "delete from meldy_private.live_join_hits" >/dev/null
+    behave "the battle's behaviour $1" "$KBATTLE" 'LIVE GAME BEHAVIOUR PASSED'
+    behave "the stand's behaviour $1" "$HERE/live_stand_behaviour.sql" 'LIVE STAND BEHAVIOUR PASSED'
+    behave "the mixed behaviour $1" "$HERE/live_mixed_behaviour.sql" 'LIVE MIXED BEHAVIOUR PASSED'
+    behave "the PIN behaviour $1" "$HERE/live_pin_behaviour.sql" 'LIVE PIN BEHAVIOUR PASSED'
+    behave "the wide rounds behaviour $1" "$KWIDE" 'LIVE WIDE ROUNDS BEHAVIOUR PASSED'
+    behave "the wide close behaviour $1" "$KCLOSE" 'LIVE WIDE CLOSE BEHAVIOUR PASSED'
+  }
+  FNOKIND=$(fingerprint)
+  if run "$KCONTRACT"; then bad "live_kinds_teams.sql passes before its migration (it tests nothing)"; else ok "live_kinds_teams.sql fails before its migration"; fi
+  if passes "$KBEHAVIOUR" 'LIVE KINDS TEAMS BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_kinds_teams_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_kinds_teams_behaviour fails before its migration"
+  fi
+  kind_behaviours "before the kinds and teams migration"
+  step "kinds and teams migration, first apply" "$KMIG"
+  FKIND=$(fingerprint)
+  [ "$FKIND" != "$FNOKIND" ] && ok "the kinds and teams migration changed the catalog" || bad "the kinds and teams migration changed nothing"
+  step "kinds and teams migration, second apply (re-runnable)" "$KMIG"
+  [ "$(fingerprint)" = "$FKIND" ] && ok "a second kinds and teams apply changes nothing in the catalog" || bad "a second kinds and teams apply changed the catalog"
+  step "contract: live_kinds_teams.sql (columns, checks, the team trigger, create, the close, the new functions, the numbers)" "$KCONTRACT"
+  kind_contracts "still holds after the kinds and teams migration"
+  behave "kinds and teams behaviour: every kind in two teams, the review, practice, a mixed and a stand game" \
+    "$KBEHAVIOUR" 'LIVE KINDS TEAMS BEHAVIOUR PASSED'
+  kind_behaviours "unchanged after the kinds and teams migration"
+  PY=${LIVE_PY:-python3}
+  SH_PY=$(cd "$ROOT/backend" && "$PY" -c "
+import hashlib, itertools, live_move_mixed as m
+sets = [list(c) for n in range(1, 7) for c in itertools.combinations(range(6), n)]
+v = [repr(m.share(p, k)) for k in sets if len(k) >= 2 for p in sets]
+print(str(len(v)) + ':' + hashlib.md5(','.join(v).encode()).hexdigest())" 2>&1)
+  SH_SQL=$(q "with s as (select array_agg(x order by x)::smallint[] as a, min(m) as o from (select m, x from generate_series(1, 63) m,
+                         generate_series(0, 5) x where m & (1 << x) > 0) y group by m),
+                   o as (select a, row_number() over (order by cardinality(a), a::text) as n from s)
+              select count(*) || ':' || md5(string_agg(case when sh = floor(sh) then (sh::numeric)::text || '.0' else sh::text end, ',' order by k.n, p.n))
+                from o k, o p, lateral (select meldy_private.live_share(p.a, k.a) as sh) z where cardinality(k.a) >= 2" 2>&1)
+  if [ -n "$SH_PY" ] && [ "$SH_PY" = "$SH_SQL" ]; then
+    ok "the mirror: live_move_mixed.py share and the SQL agree on every tick of six options ($(echo "$SH_PY" | cut -d: -f1) cases)"
+  else
+    bad "the mirror of the share: Python $SH_PY, SQL $SH_SQL"
+  fi
+  if [ "${LIVE_E2E:-1}" = 0 ]; then
+    echo "  skip  the mixed room end to end after the kinds and teams migration (LIVE_E2E=0)"
+  elif [ -z "$PGRST" ] || [ ! -x "$PGRST" ] || ! "$PY" -c "import fastapi, uvicorn, websockets, httpx" 2>/dev/null; then
+    echo "  skip  the mixed room end to end after the kinds and teams migration: needs LIVE_PGRST and LIVE_PY"
+  elif LIVE_PY="$PY" bash "$HERE/live_mixed_e2e.sh" "$PGRST" "$DB" > "$WORK/mixed_e2e_kinds.log" 2>&1; then
+    ok "the mixed room end to end after the kinds and teams migration: $(grep -E '^MIXED E2E' "$WORK/mixed_e2e_kinds.log" | tail -1)"
+  else
+    bad "the mixed room end to end after the kinds and teams migration (log: $WORK/mixed_e2e_kinds.log)"
+    grep -Ev '^\s*$' "$WORK/mixed_e2e_kinds.log" | tail -8 | sed 's/^/    /'
+  fi
+  [ "$(fingerprint)" = "$FKIND" ] && ok "the catalog unchanged by the kinds and teams runs" || bad "the kinds and teams runs changed the catalog"
+  step "kinds and teams rollback" "$KDOWN"
+  [ "$(fingerprint)" = "$FNOKIND" ] && ok "after the kinds and teams rollback: the wide rounds step's catalog (fingerprint)" \
+    || bad "after the kinds and teams rollback: another catalog than the wide rounds step's"
+  step "kinds and teams rollback again (re-runnable)" "$KDOWN"
+  [ "$(fingerprint)" = "$FNOKIND" ] && ok "after the second kinds and teams rollback: still the wide rounds step's catalog" \
+    || bad "after the second kinds and teams rollback: another catalog"
+  if run "$KCONTRACT"; then bad "live_kinds_teams.sql passes after its rollback"; else ok "live_kinds_teams.sql fails after its rollback"; fi
+  kind_contracts "after the kinds and teams rollback"
+  kind_behaviours "after the kinds and teams rollback"
+  step "kinds and teams migration after its rollback" "$KMIG"
+  [ "$(fingerprint)" = "$FKIND" ] && ok "the same catalog as the first kinds and teams apply" || bad "another catalog than the first kinds and teams apply"
+  step "contract: live_kinds_teams.sql again" "$KCONTRACT"
+  behave "kinds and teams behaviour again" "$KBEHAVIOUR" 'LIVE KINDS TEAMS BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"

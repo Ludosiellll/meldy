@@ -72,10 +72,13 @@ BEGIN
        WHERE n.nspname = 'meldy_private' AND p.proname IN ('live_stand_round', 'live_mixed_result')) <> 2 THEN
     RAISE EXCEPTION 'mixed_helpers_exist';
   END IF;
-  -- 19 (live_game's 18 and live_stand_close), and live_pin once 20261025090000_live_pin.sql is applied.
+  -- 19 (live_game's 18 and live_stand_close), and live_pin once 20261025090000_live_pin.sql is applied, live_submit and
+  -- live_practice once 20261102090000_live_kinds_teams.sql is.
   IF (SELECT pg_catalog.count(*) FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
        WHERE n.nspname = 'public' AND (p.proname LIKE 'live\_%' OR p.proname LIKE 'bot\_live\_%'))
-     <> 19 + (CASE WHEN pg_catalog.to_regprocedure('public.live_pin(text,text)') IS NULL THEN 0 ELSE 1 END) THEN
+     <> 19 + (CASE WHEN pg_catalog.to_regprocedure('public.live_pin(text,text)') IS NULL THEN 0 ELSE 1 END)
+           + (CASE WHEN pg_catalog.to_regprocedure('public.live_submit(uuid,text,integer,jsonb)') IS NULL THEN 0 ELSE 1 END)
+           + (CASE WHEN pg_catalog.to_regprocedure('public.live_practice(uuid,text)') IS NULL THEN 0 ELSE 1 END) THEN
     RAISE EXCEPTION 'no_new_public_function';
   END IF;
 
