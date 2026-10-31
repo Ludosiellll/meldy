@@ -375,6 +375,8 @@ export default function MaterialDetail() {
         ? (searchParams.get('tab') === 'podcast' ? 'podcast' : 'express')
         : 'full'
   );
+  /** The chosen tab: it is `mode` once the panel has followed (selectMode). */
+  const [tabMode, setTabMode] = useState<Mode>(mode);
   const chooseSection = useCallback((next: ResultTab) => {
     setSectionChoice(next);
     setAddressParams({ section: next });
@@ -618,7 +620,7 @@ export default function MaterialDetail() {
     if (!phone || !row || !tab) return;
     const left = stripScrollFor({ left: tab.offsetLeft - row.offsetLeft, width: tab.offsetWidth }, row);
     if (left !== row.scrollLeft) row.scrollTo?.({ left, behavior: 'smooth' });
-  }, [phone, loading, mode, sectionChoice]);
+  }, [phone, loading, tabMode, sectionChoice]);
 
   if (loading) {
     // The lecture's own boxes while it loads, so nothing moves when it comes (recheck of 44.2: a fresh /library/:id
@@ -746,10 +748,14 @@ export default function MaterialDetail() {
   const showExpress = hasCheatsheet || canEdit || expressRequested || cheatsheetMissing;
   const modes: Mode[] = ['full', ...(showExpress ? (['express'] as const) : []), 'podcast'];
 
+  // The tab moves at once; the panel follows in a transition: «Подкаст» takes «Материал» off the page and puts the
+  // player on it, and React does that in the background, so the tap paints its tab in the next frame (smoothness: the
+  // whole swap in the tap's own task took ~140 ms on a mid phone after the player's own work was cut).
   const selectMode = (next: Mode) => {
     setRevealPlayer(false);
-    setMode(next);
-    if (next !== mode) setAddressParams({ mode: next === 'full' ? null : next, tab: null });
+    setTabMode(next);
+    startTransition(() => setMode(next));
+    if (next !== tabMode) setAddressParams({ mode: next === 'full' ? null : next, tab: null });
   };
 
   // Вкладки по образцу WAI-ARIA: стрелки, Home и End переключают и переносят фокус.
@@ -780,7 +786,9 @@ export default function MaterialDetail() {
     ...(showExpress ? [{ key: 'express', label: MODE_LABELS.express, mode: 'express' as Mode }] : []),
     { key: 'podcast', label: MODE_LABELS.podcast, mode: 'podcast' as Mode },
   ];
-  const lectureTab = mode === 'full' && sectionTabs.length > 0 ? section : mode;
+  const lectureTab = tabMode === 'full' && sectionTabs.length > 0 ? section : tabMode;
+  // The tab whose panel is on the page (the panel's label): `lectureTab` until the panel has followed.
+  const panelTab = mode === 'full' && sectionTabs.length > 0 ? section : mode;
   const selectLectureTab = (item: LectureTab) => {
     selectMode(item.mode);
     if (item.section) chooseSection(item.section);
@@ -911,7 +919,7 @@ export default function MaterialDetail() {
         {phone ? null : (
           <div role="tablist" aria-label="Режим" className="sf-viewtabs md-tabs">
             {modes.map((item, index) => {
-              const selected = mode === item;
+              const selected = tabMode === item;
               return (
                 <button
                   key={item}
@@ -1040,7 +1048,7 @@ export default function MaterialDetail() {
       ) : null}
 
       {/* Контент в зависимости от выбранного режима */}
-      <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(phone ? lectureTab : mode)} className="md-panel">
+      <div role="tabpanel" id={PANEL_ID} aria-labelledby={tabId(phone ? panelTab : mode)} className="md-panel">
         {mode === 'full' ? (
           <ResultsPanel
             results={panelResults as AnalysisResults}

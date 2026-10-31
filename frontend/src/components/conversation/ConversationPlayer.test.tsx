@@ -975,7 +975,7 @@ describe('ConversationPlayer', () => {
     );
   });
 
-  it('keeps one paper sheet with every picture of an old conversation and no white panel around the player', () => {
+  it('keeps one paper sheet with every picture of an old conversation and no white panel around the player', async () => {
     // Old summary_json.podcast shapes: no visuals, lower-case source ids, a broken visual, a visual of every kind.
     const old = [
       { speaker: 'max', text: 'Привет, начинаем.' },
@@ -992,9 +992,10 @@ describe('ConversationPlayer', () => {
     expect(sheet).toHaveClass('sf-sheet');
     expect(container.querySelectorAll('.sf-sheet')).toHaveLength(1);
     expect(container.querySelector('.rounded-xl, .bg-\\[var\\(--sf-surface\\)\\]')).toBeNull();
-    // Every picture of the conversation is laid out once (invisible copies give the sheet its height).
-    const kinds = [...sheet.querySelectorAll('[data-scene-layer="measure"] [class~="min-w-0"]')].length;
-    expect(kinds).toBeGreaterThanOrEqual(5);
+    // Every picture of the conversation is laid out once (invisible copies give the sheet its height), a few per frame
+    // after the player's first one.
+    const kinds = () => [...sheet.querySelectorAll('[data-scene-layer="measure"] [class~="min-w-0"]')].length;
+    await waitFor(() => expect(kinds()).toBeGreaterThanOrEqual(5));
 
     const player = screen.getByRole('region', { name: 'Подкаст по лекции' });
     const shown: string[] = [];
