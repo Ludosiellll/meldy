@@ -552,7 +552,7 @@ export interface DayPlan {
 
 // ───────────────────────────── 3. The question-bank importer (POST /api/exams/parse-bank) ─────────────────────────────
 
-export type BankItemKind = 'single' | 'multiple' | 'truefalse' | 'open' | 'order' | 'match' | 'unknown';
+export type BankItemKind = 'single' | 'multiple' | 'truefalse' | 'open' | 'order' | 'match' | 'cloze' | 'unknown';
 export interface BankItem {
   position: number; // 1.. across the whole file
   label: string; // the number in the file ('' when it has none)
@@ -579,6 +579,12 @@ export interface BankItem {
   images?: { stem: string[]; options: string[][] } | null;
   /** A number with its tolerance (release 48: GIFT «{#9.8:0.1}», Moodle numerical); absent — none. */
   number?: { answers: string[]; tolerance: string | null } | null;
+  /** Release 49: the file's explanation (GIFT «####…» or the right answer's «#…», Moodle feedback); absent — none. */
+  explanation?: string;
+  /** Release 49, kind cloze (Moodle): the accepted forms of each gap «___» of the text, in order. */
+  gaps?: string[][];
+  /** Release 49, kind match: right items without a pair (distractors). */
+  extras?: string[];
   /** The question's lines in the file ([first, last], numbered as BankParseResult.source_lines); null — GIFT, Moodle XML. */
   lines?: [number, number] | null;
   /** How sure the parse is, 0..1; below BANK_DOUBT_AT the question is doubtful (bank_markup.confidence). */
