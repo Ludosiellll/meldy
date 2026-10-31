@@ -9,11 +9,17 @@
 -- its tops and spread; live_answer refuses it, live_submit takes its text; the unit leaves with the question, the
 -- accepted numbers, the tolerance, the tops only from a closed question, the spread only in the host's; the review and
 -- live_practice carry it; meldy_private.live_number_value is private and reads a number as meldy_number_right does.
+-- Once 20261102090200_live_ranges.sql is applied, the two checks of «a number only where a text answer may» (live_more
+-- in «Встань на ответ», live_create keeping numbers off the rounds) are left to live_ranges.sql: that file plays a number
+-- there as ranges on purpose. The file holds before and after it.
 -- The behaviour (a battle of number questions, the review, practice, a mixed and a stand game) is rehearsed locally:
 -- supabase/tests/local/live_game_run.sh (live_numbers_behaviour.sql and the shared number vectors).
 DO $check$
 DECLARE
   v_src text;
+  -- 20261102090200_live_ranges.sql plays a number on a movement round's place (and in «Встань на ответ») as ranges:
+  -- once it is applied, «no number there» and «numbers kept off the rounds» are its rule's to check (live_ranges.sql)
+  v_ranges boolean := pg_catalog.to_regprocedure('meldy_private.live_ranges(text[],numeric,integer,integer)') IS NOT NULL;
   v_oid oid;
   v_item public.test_items;
 BEGIN
@@ -71,7 +77,8 @@ BEGIN
   -- 3. Which questions play, and create.
   v_item := pg_catalog.jsonb_populate_record(null::public.test_items, pg_catalog.jsonb_build_object(
               'kind', 'number', 'options', '[]'::jsonb, 'correct', '{}', 'answers', '{42}'));
-  IF meldy_private.live_more(v_item, true) IS DISTINCT FROM 'number' OR meldy_private.live_more(v_item, false) IS NOT NULL THEN
+  IF meldy_private.live_more(v_item, true) IS DISTINCT FROM 'number'
+     OR (NOT v_ranges AND meldy_private.live_more(v_item, false) IS NOT NULL) THEN
     RAISE EXCEPTION 'more_number_not_in_stand';
   END IF;
   v_item := pg_catalog.jsonb_populate_record(null::public.test_items, pg_catalog.jsonb_build_object(
@@ -83,7 +90,7 @@ BEGIN
   IF pg_catalog.strpos(v_src, 'if v_kind in (''short'', ''number'') then') = 0
      OR pg_catalog.strpos(v_src, 'case when v_kind = ''number'' then v_item.tolerance end') = 0
      OR pg_catalog.strpos(v_src, 'case when v_kind = ''number'' then nullif(pg_catalog.btrim(v_item.unit), '''') end') = 0
-     OR pg_catalog.strpos(v_src, 'pg_catalog.array_agg(i.kind in (''short'', ''number'') order by x.ord)') = 0 THEN
+     OR (NOT v_ranges AND pg_catalog.strpos(v_src, 'pg_catalog.array_agg(i.kind in (''short'', ''number'') order by x.ord)') = 0) THEN
     RAISE EXCEPTION 'create_keeps_the_number_off_the_rounds';
   END IF;
 

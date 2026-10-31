@@ -34,8 +34,8 @@
 # live_numbers_behaviour.sql, every live contract and behaviour above still green, the reading of a typed number against
 # public.meldy_number_right on contracts/kinds/number_vectors.json, its rollback back to the step before, applied again)
 # → the ranges stage: 20261102090200_live_ranges.sql (a number on a movement round's place played as ranges) the same
-# way (tests/live_ranges.sql, live_ranges_behaviour.sql, every live contract and behaviour above still green — the two
-# numbers checks it changes on purpose adapted —, the mixed and the stand rooms end to end, its rollback, applied again).
+# way (tests/live_ranges.sql, live_ranges_behaviour.sql, every live contract and behaviour above still green — the
+# numbers behaviour's games it changes on purpose adapted —, the mixed room end to end, its rollback, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
@@ -927,11 +927,12 @@ fi
 # ─── A number on a movement round's place, played as ranges (20261102090200_live_ranges.sql) on top of the numbers step ───
 # Its contract (tests/live_ranges.sql) and behaviour (live_ranges_behaviour.sql: the ranges at their boundaries and a
 # sweep, a battle whose round draws a number as ranges, «Встань на ответ» of numbers, practice, a battle without rounds)
-# fail before it; applied twice (one catalog); every live contract and behaviour still holds — the numbers step's own
-# two checks of «a number only where a text answer may» (live_more in «Встань на ответ», live_arrange keeping numbers
-# off the rounds) and its section 6 (the games those checks played) are what this migration changes on purpose: they
-# run adapted (the ranges behaviour plays those games under the new rule); the mixed and the stand rooms end to end;
-# the rollback twice (the numbers step's catalog); applied again. LIVE_RANGES=0 skips the stage.
+# fail before it; applied twice (one catalog); every live contract still holds (live_numbers.sql leaves its two checks
+# of «a number only where a text answer may» to live_ranges.sql once live_ranges exists: it holds before and after);
+# every live behaviour still holds — the numbers behaviour's line about live_more in «Встань на ответ» and its section 6
+# (the games that rule played) are what this migration changes on purpose: they run adapted (the ranges behaviour plays
+# those games under the new rule); the mixed room end to end; the rollback twice (the numbers step's catalog); applied
+# again. LIVE_RANGES=0 skips the stage.
 if [ "${LIVE_RANGES:-1}" = 0 ] || [ "${LIVE_NUMBERS:-1}" = 0 ] || [ "${LIVE_KINDS:-1}" = 0 ] || [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
   echo "  skip  the ranges stage (LIVE_RANGES=0, or a stage it needs skipped)"
 else
@@ -939,24 +940,18 @@ else
   RDOWN=$SB/rollback/20261102090200_live_ranges_down.sql
   RCONTRACT=$SB/tests/live_ranges.sql
   RBEHAVIOUR=$HERE/live_ranges_behaviour.sql
-  NCONTRACT_R=$WORK/live_numbers_ranges.sql
   NBEHAVIOUR_R=$WORK/live_numbers_behaviour_ranges.sql
-  sed -e "s/ OR meldy_private.live_more(v_item, false) IS NOT NULL THEN/ THEN/" \
-      -e "/OR pg_catalog.strpos(v_src, 'pg_catalog.array_agg(i.kind in (''short'', ''number'') order by x.ord)') = 0 THEN/{s/^     OR /     OR /;s/ OR pg_catalog.strpos(v_src, 'pg_catalog.array_agg(i.kind in (''short'', ''number'') order by x.ord)') = 0 THEN/ THEN/}" \
-      "$NCONTRACT" > "$NCONTRACT_R"
   sed -e "/live_more: no number in «Встань на ответ»/d" -e "/^-- ─── 6\. A battle with movement rounds: a number never stands on a round/,/^-- ─── 7\./{/^-- ─── 7\./!d}" \
       "$NBEHAVIOUR" > "$NBEHAVIOUR_R"
-  if [ "$(grep -c "live_more(v_item, false) IS NOT NULL\|array_agg(i.kind in (''short'', ''number'')" "$NCONTRACT_R")" = 0 ] \
-     && [ "$(grep -c "live_more(v_item, false) IS NOT NULL\|array_agg(i.kind in (''short'', ''number'')" "$NCONTRACT")" = 2 ] \
-     && [ "$(grep -c "no number in «Встань на ответ»\|^-- ─── 6\." "$NBEHAVIOUR_R")" = 0 ] \
+  if [ "$(grep -c "no number in «Встань на ответ»\|^-- ─── 6\." "$NBEHAVIOUR_R")" = 0 ] \
      && [ "$(wc -l < "$NBEHAVIOUR")" -gt "$(wc -l < "$NBEHAVIOUR_R")" ] && [ "$(grep -c '^-- ─── 7\.' "$NBEHAVIOUR_R")" = 1 ]; then
-    ok "the numbers step's checks of «a number only where a text answer may» adapted for the ranges (two in its contract, two in its behaviour)"
+    ok "the numbers behaviour's checks of «a number only where a text answer may» adapted for the ranges (a line and section 6)"
   else
-    bad "the numbers step's superseded checks were not found"
+    bad "the numbers behaviour's superseded checks were not found"
   fi
   range_contracts() {
     number_contracts "$1"
-    step "contract: live_numbers.sql (its two superseded checks left out) $1" "$NCONTRACT_R"
+    step "contract: live_numbers.sql (in full: it leaves its two rounds checks to live_ranges.sql) $1" "$NCONTRACT"
   }
   range_behaviours() {
     number_behaviours "$1"
