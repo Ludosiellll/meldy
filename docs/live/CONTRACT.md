@@ -103,6 +103,11 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
   the projector's number line. A typed number is read by `meldy_private.live_number_value` (the rule's own reading:
   the rehearsal checks it on contracts/kinds/number_vectors.json); what is no number counts as wrong and is never
   shown, so no word reaches the projector from a number question.
+- **«Без спешки»** (`20261106090000_live_calm.sql`, `settings.calm`, a battle only; off by default): a right answer
+  deals 100 and a partial one `round(100 × share)`, whenever it came and however many came before it (no speed, no
+  streak bonus; `speed` is stored false); a wrong answer or none freezes nobody, in any phase and in a movement round,
+  so nobody thaws either. The streak and the best run are kept for the player's own numbers. The boss, its phases and
+  its heal play as before. For a serious check: the points say how much was right.
 - A number **played as ranges** (since `20261102090200_live_ranges.sql`, on a movement round's place) is a zone
   question: the zone stood on is right when it is a right range (`key`, or `keys` when another accepted number falls
   in another range), as any zone; no tops, no spread.
@@ -328,6 +333,8 @@ wrong). `ML004 kind`, `22023 answer` as above.
 "result":   {…, "forms": ["42"], "tolerance": 0.5, "unit": "м", "tops": [{"text": "41.6", "n": 1, "ok": true}]}
             // + HostState: "spread": [["41.6", 1], ["42", 3], ["43", 1]]   + PlayerState: "typed": "41,6 м"
 "me":       {…, "typed": "41,6 м"}
+// «Без спешки» (20261106090000_live_calm.sql): "calm": true in every state of such a game; settings {…, "calm": true}
+// in the host's; absent in every other game.
 // A number played as ranges (20261102090200_live_ranges.sql), a movement round's question:
 "question": {…, "kind": "number", "unit": "м/с", "ranges": true, "options": ["меньше 300", "300–400", "400–500", "больше 500"]}
 "result":   {…, "key": 1, "counts": [3, 17, 2, 1], "ranges": true, "forms": ["343"], "tolerance": 10, "unit": "м/с"}  // + "keys"
@@ -490,6 +497,14 @@ no room.
   (`host/Panel.tsx`) shows the key and the same line; the teacher's «Разбор» says «Верный ответ: 42 ± 0,5 м».
 - **Review on the phone**: «Вы ввели: …» and «Верный ответ: …» with the tolerance and unit; «Тренировать ошибки» sends a
   number mistake with the own text (the study core grades it by the same rule).
+- **«Без спешки»** (`20261106090000_live_calm.sql`): the setup has «Без спешки: Нет / Да» for a battle (with the hint
+  «Очки только за верные ответы: без бонуса за скорость и серию, никто не замерзает. Подходит для серьёзной
+  проверки.»; on, «Очки за скорость» is hidden). The projector's lobby line says «без спешки: очки только за верные
+  ответы», every question's board too, and the reveal names nobody the fastest. The phone: the lobby says «Без спешки:
+  очки только за верные ответы. Торопиться не нужно, никто не замерзает.», the question «Отвечайте спокойно: очки
+  только за верные ответы», a right answer's sheet «Без спешки» instead of the series and the seconds, a miss «Без
+  спешки никто не замерзает. Следующий вопрос — новый шанс.»; no rule about freezing when the boss is angry.
+  Release order: the site first (it sends `calm` only when the teacher picks it), then the migration.
 - **Ranges** (`20261102090200_live_ranges.sql`): the round's board and the phone's card say «Встаньте на промежуток с
   ответом» over the four ranges; at the reveal the right range is named with the true value under it («Ответ: 343 ±
   10 м/с»: the room's `num`, else the database's result), and on the phone beside the right range. The flat

@@ -156,6 +156,8 @@ export default function LiveSetupPage() {
     [pick],
   );
   const [speed, setSpeed] = useState(true);
+  // «Без спешки» (20261106090000_live_calm.sql): off unless the teacher picks it; a battle only
+  const [calm, setCalm] = useState(false);
   const [teams, setTeams] = useState<Teams>(0);
   const [who, setWho] = useState<Settings['who']>('pin');
   const [names, setNames] = useState(false);
@@ -209,7 +211,8 @@ export default function LiveSetupPage() {
     const settings: Settings = {
       ...miniGameSettings(pick),
       time_s: time,
-      speed,
+      speed: speed && !(calm && pick !== 'all'),
+      ...(calm && pick !== 'all' ? { calm: true } : {}),
       who,
       chat_names: hasChat && names,
       ...(pick !== 'none' ? { boss } : {}),
@@ -230,7 +233,7 @@ export default function LiveSetupPage() {
       setError(SETUP.error[code] ?? SETUP.error.other);
       setOpening(false);
     }
-  }, [api, source, opening, tooFew, pick, boss, time, speed, who, names, hasChat, chosen, search, navigate, teams]);
+  }, [api, source, opening, tooFew, pick, boss, time, speed, calm, who, names, hasChat, chosen, search, navigate, teams]);
 
   if (needsSignIn) return <Navigate to={loginFor(pathname, search)} replace />;
 
@@ -269,17 +272,32 @@ export default function LiveSetupPage() {
               <Row label={SETUP.time}>
                 <Seg label={SETUP.time} value={time} options={TIMES[mode].map((t) => ({ value: t, text: SETUP.timeOption(t) }))} onChange={setTime} />
               </Row>
-              <Row label={SETUP.speed}>
-                <Seg
-                  label={SETUP.speed}
-                  value={speed}
-                  options={[
-                    { value: true, text: SETUP.speedOn },
-                    { value: false, text: SETUP.speedOff },
-                  ]}
-                  onChange={setSpeed}
-                />
-              </Row>
+              {pick !== 'all' ? (
+                <Row label={SETUP.calm} hint={SETUP.calmHint}>
+                  <Seg
+                    label={SETUP.calm}
+                    value={calm}
+                    options={[
+                      { value: false, text: SETUP.calmOff },
+                      { value: true, text: SETUP.calmOn },
+                    ]}
+                    onChange={setCalm}
+                  />
+                </Row>
+              ) : null}
+              {calm && pick !== 'all' ? null : (
+                <Row label={SETUP.speed}>
+                  <Seg
+                    label={SETUP.speed}
+                    value={speed}
+                    options={[
+                      { value: true, text: SETUP.speedOn },
+                      { value: false, text: SETUP.speedOff },
+                    ]}
+                    onChange={setSpeed}
+                  />
+                </Row>
+              )}
               {pick !== 'all' ? (
                 <Row label={SETUP.teams} hint={SETUP.teamsHint}>
                   <Seg label={SETUP.teams} value={teams} options={TEAMS.map((n) => ({ value: n, text: SETUP.teamsOption(n) }))} onChange={setTeams} />

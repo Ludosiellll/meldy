@@ -462,6 +462,8 @@
 .lp-textans__sent[data-mark='key'] { background: var(--lp-ok); color: #0b121c; box-shadow: none; }
 .lp-textans__sent[data-mark='wrong'] { background: var(--lp-rv-wrong); color: #0b121c; box-shadow: none; }
 .lp-sheet p.lp-tops { font-size: 15px; opacity: 0.85; }
+/* «Без спешки» in the lobby (20261106090000_live_calm.sql) */
+.lp-calm { margin: 10px 0 0; padding: 10px 14px; border-radius: 14px; background: var(--lp-soft); box-shadow: inset 3px 0 0 var(--lp-blue); font: 600 15px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink); }
 /* A number question: the keypad where the options would be (NumberPad.tsx; the phone's own keyboard never opens). */
 .lp-numans { gap: 8px; }
 .lp-pad { display: flex; flex-direction: column; gap: 8px; }

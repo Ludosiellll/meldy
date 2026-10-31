@@ -192,7 +192,7 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
   const max = shown && reveal.max ? reveal.max : s.boss.hp_max;
   const hits = phase === 'reveal' && reveal.qi === qi && (reveal.chips.length > 0 || reveal.strike);
   const counts = res?.counts ?? (phase === 'reveal' && s.result && s.result.qi === qi ? s.result.counts : null);
-  const fastest = res?.fastest && res.fastest.id !== null ? { name: nameOf(res.fastest.id), dmg: res.fastest.pts } : null;
+  const fastest = !s.calm && res?.fastest && res.fastest.id !== null ? { name: nameOf(res.fastest.id), dmg: res.fastest.pts } : null;
   const stood = res ? { n: res.stood, of: res.of } : phase === 'reveal' && s.result && s.result.qi === qi ? { n: s.result.right, of: s.players } : null;
   const banner = reveal.qi === qi ? reveal.banner : null;
   useEffect(() => setBig(false), [qi, phase]);
@@ -225,6 +225,7 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
             <div className="lvst-q lvbt-q" key={`q${qi}`}>
               <span className="lvst-hint">{chase ? MIXED.chaseHint : MIXED.hint}</span>
               {ranges ? <span className="lvbt-multi">{RANGES.hint}</span> : multi && multi > 1 ? <span className="lvbt-multi">{MULTI_ZONES.hint(multi)}</span> : null}
+              {s.calm ? <span className="lvbt-calm">{BATTLE_3D.calm}</span> : null}
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
               </h1>

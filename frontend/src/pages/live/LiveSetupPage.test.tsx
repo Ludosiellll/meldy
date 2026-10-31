@@ -222,4 +222,35 @@ describe('«Провести игру»', () => {
     expect(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Каждые 5 вопросов' })).toHaveAttribute('aria-checked', 'true');
     expect(view.container.querySelector('.lvs-note')).toBeNull();
   });
+
+  it('«Без спешки»: off by default; on, it hides «Очки за скорость» and sends calm with no points for speed; not in «Встань на ответ»', async () => {
+    const create = vi.spyOn(server, 'create');
+    await open('/live/new?c=c1');
+    const calm = screen.getByRole('radiogroup', { name: 'Без спешки' });
+    expect(within(calm).getByRole('radio', { name: 'Нет' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radiogroup', { name: 'Очки за скорость' })).toBeInTheDocument();
+    fireEvent.click(within(calm).getByRole('radio', { name: 'Да' }));
+    expect(screen.queryByRole('radiogroup', { name: 'Очки за скорость' })).toBeNull();
+    expect(screen.getByText(/Очки только за верные ответы: без бонуса за скорость и серию/)).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Открыть комнату' }));
+      await Promise.resolve();
+    });
+    expect(create.mock.calls[0][1]).toMatchObject({ mode: 'boss', calm: true, speed: false });
+  });
+
+  it('without «Без спешки» the settings are as before (no calm key)', async () => {
+    const create = vi.spyOn(server, 'create');
+    await open('/live/new?c=c1');
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Открыть комнату' }));
+      await Promise.resolve();
+    });
+    expect(create.mock.calls[0][1]).toMatchObject({ speed: true });
+    expect(create.mock.calls[0][1]).not.toHaveProperty('calm');
+    cleanup();
+    await open('/live/new?c=c1');
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'Мини-игра с движением' })).getByRole('radio', { name: 'Все вопросы' }));
+    expect(screen.queryByRole('radiogroup', { name: 'Без спешки' })).toBeNull();
+  });
 });

@@ -97,7 +97,7 @@ export function Lobby({ state, players, more, morePoint, moreW, joinUrl, width, 
       {/* the post's list or note opens over the class's panel at its right — the PIN and the QR code stay in view, and
           the class fills the panel from the top left */}
       <div className="lvh-lobby-foot" style={{ ['--tg-pop-x' as string]: `${panel.x + panel.w - FOOT_X - 28 - TG_POP_W}px` }}>
-        <span className="lvh-lobby-settings">{LOBBY.settings(state.time_s, state.speed, state.settings.who === 'members', mixedOf(state)?.rounds)}</span>
+        <span className="lvh-lobby-settings">{LOBBY.settings(state.time_s, state.speed, state.settings.who === 'members', mixedOf(state)?.rounds, !!state.calm)}</span>
         {telegram}
         <span className="lvh-grow" />
         <button type="button" className="lvh-btn lvh-btn--start" onClick={onStart} disabled={busy || players === 0}>

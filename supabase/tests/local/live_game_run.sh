@@ -35,11 +35,14 @@
 # public.meldy_number_right on contracts/kinds/number_vectors.json, its rollback back to the step before, applied again)
 # → the ranges stage: 20261102090200_live_ranges.sql (a number on a movement round's place played as ranges) the same
 # way (tests/live_ranges.sql, live_ranges_behaviour.sql, every live contract and behaviour above still green — the
-# numbers behaviour's games it changes on purpose adapted —, the mixed room end to end, its rollback, applied again).
+# numbers behaviour's games it changes on purpose adapted —, the mixed room end to end, its rollback, applied again)
+# → the calm stage: 20261106090000_live_calm.sql («Без спешки»: points only for right answers) the same way
+# (tests/live_calm.sql, live_calm_behaviour.sql, every live contract and behaviour above still green, the calm close
+# against backend/live_move_mixed.py, its rollback, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_RANGES=0 the ranges stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_RANGES=0 the ranges stage, LIVE_CALM=0 the calm stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -1001,6 +1004,73 @@ else
   [ "$(fingerprint)" = "$FRANGE" ] && ok "the same catalog as the first ranges apply" || bad "another catalog than the first ranges apply"
   step "contract: live_ranges.sql again" "$RCONTRACT"
   behave "ranges behaviour again" "$RBEHAVIOUR" 'LIVE RANGES BEHAVIOUR PASSED'
+fi
+
+# ─── «Без спешки» (20261106090000_live_calm.sql) on top of the ranges step ───
+# Its contract (tests/live_calm.sql) and behaviour (live_calm_behaviour.sql: the setting, a calm battle, a calm battle
+# with a movement round, a game without it as before) fail before it; applied twice (one catalog); every live contract
+# and behaviour still holds (none of them sets calm: their games play as before); the calm close against
+# backend/live_move_mixed.py close_round (the same points and the same ice for every answer of a scripted game); the
+# rollback twice (the ranges step's catalog); applied again. LIVE_CALM=0 skips the stage.
+if [ "${LIVE_CALM:-1}" = 0 ] || [ "${LIVE_RANGES:-1}" = 0 ] || [ "${LIVE_NUMBERS:-1}" = 0 ] || [ "${LIVE_KINDS:-1}" = 0 ] || [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the calm stage (LIVE_CALM=0, or a stage it needs skipped)"
+else
+  CMIG=$SB/migrations/20261106090000_live_calm.sql
+  CDOWN=$SB/rollback/20261106090000_live_calm_down.sql
+  CCONTRACT=$SB/tests/live_calm.sql
+  CBEHAVIOUR=$HERE/live_calm_behaviour.sql
+  calm_contracts() {
+    range_contracts "$1"
+    step "contract: live_ranges.sql $1" "$RCONTRACT"
+  }
+  calm_behaviours() {
+    range_behaviours "$1"
+    behave "ranges behaviour $1" "$RBEHAVIOUR" 'LIVE RANGES BEHAVIOUR PASSED'
+  }
+  FNOCALM=$(fingerprint)
+  if run "$CCONTRACT"; then bad "live_calm.sql passes before its migration (it tests nothing)"; else ok "live_calm.sql fails before its migration"; fi
+  if passes "$CBEHAVIOUR" 'LIVE CALM BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_calm_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_calm_behaviour fails before its migration"
+  fi
+  step "calm migration, first apply" "$CMIG"
+  FCALM=$(fingerprint)
+  [ "$FCALM" != "$FNOCALM" ] && ok "the calm migration changed the catalog" || bad "the calm migration changed nothing"
+  step "calm migration, second apply (re-runnable)" "$CMIG"
+  [ "$(fingerprint)" = "$FCALM" ] && ok "a second calm apply changes nothing in the catalog" || bad "a second calm apply changed the catalog"
+  step "contract: live_calm.sql (the column, the setting, the close, what the screens read)" "$CCONTRACT"
+  calm_contracts "still holds after the calm migration"
+  behave "calm behaviour: the setting, a calm battle, a calm round, a game without it as before" "$CBEHAVIOUR" 'LIVE CALM BEHAVIOUR PASSED'
+  calm_behaviours "unchanged after the calm migration"
+  # the mirror: a scripted calm question (fast, slow, in a row, a wrong one, none, ticks) closed by the SQL and by
+  # live_move_mixed.close_round give the same points and the same ice
+  CM_PY=$(cd "$ROOT/backend" && "$PY" -c "
+import live_move_mixed as m
+ps = {k: dict(dmg=0, streak=s, best=s, right=0, frozen=False, thaws=0) for k, s in (('a', 3), ('b', 0), ('c', 1), ('d', 0), ('e', 2))}
+out = m.close_round(ps, [('a', 1, 500), ('b', 1, 19000), ('c', 2, 3000), ('e', [1], 2000)], ['a', 'b', 'c', 'd', 'e'], key=1, keys=[1, 2],
+                    n_options=4, time_s=20, speed=False, hp=900, hp_max=1000, q_phase=1, phase=1, calm=True)
+print(','.join(f'{k}:{ps[k][\"dmg\"]}:{str(ps[k][\"frozen\"]).lower()}' for k in sorted(ps)))" 2>&1)
+  CM_SQL=$(q "select string_agg(k || ':' || d || ':' || f, ',' order by k) from (values
+               ('a', case when true then 100 end, false), ('b', 100, false), ('c', 100, false), ('d', 0, false),
+               ('e', floor(100 * meldy_private.live_share('{1}', '{1,2}') + 0.5)::integer, false)) x(k, d, f)" 2>&1)
+  if [ -n "$CM_PY" ] && [ "$CM_PY" = "$CM_SQL" ]; then
+    ok "the mirror: live_move_mixed.py close_round, calm, and the SQL's rule agree ($CM_PY)"
+  else
+    bad "the calm mirror: Python $CM_PY, SQL $CM_SQL"
+  fi
+  [ "$(fingerprint)" = "$FCALM" ] && ok "the catalog unchanged by the calm runs" || bad "the calm runs changed the catalog"
+  step "calm rollback" "$CDOWN"
+  [ "$(fingerprint)" = "$FNOCALM" ] && ok "after the calm rollback: the ranges step's catalog (fingerprint)" \
+    || bad "after the calm rollback: another catalog than the ranges step's"
+  step "calm rollback again (re-runnable)" "$CDOWN"
+  [ "$(fingerprint)" = "$FNOCALM" ] && ok "after the second calm rollback: still the ranges step's catalog" || bad "after the second calm rollback: another catalog"
+  if run "$CCONTRACT"; then bad "live_calm.sql passes after its rollback"; else ok "live_calm.sql fails after its rollback"; fi
+  calm_behaviours "after the calm rollback"
+  step "calm migration after its rollback" "$CMIG"
+  [ "$(fingerprint)" = "$FCALM" ] && ok "the same catalog as the first calm apply" || bad "another catalog than the first calm apply"
+  step "contract: live_calm.sql again" "$CCONTRACT"
+  behave "calm behaviour again" "$CBEHAVIOUR" 'LIVE CALM BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"
