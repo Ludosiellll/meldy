@@ -13,12 +13,13 @@
  */
 import type { Arena, ArenaShape, Boss, BossKind, Kit, MoveMap, Player, View } from '../../../../lib/live/three';
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook } from '../../../../lib/live/three';
-import { F_AWAY, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, resKeys, type StandState } from '../../../../lib/live/move/protocol';
 import type { MapJson } from '../../../../lib/live/move/sim';
 import { easeOutBack } from '../plan';
 import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
 import { LIGHT_LEVEL, PHONE_LEVELS, PHONE_PIXEL_RATIO, PhoneGovernor } from './quality';
 import type { Backdrop, FrameInput } from './sprites';
+import { BossCopies } from '../bossCopies';
 
 export { PHONE_PIXEL_RATIO };
 /** How the phone pins its view (StandGame: localStorage `meldy.live.view`): auto, the best level, the light level. */
@@ -98,6 +99,7 @@ export class PhoneScene implements Backdrop {
   ) {
     this.level = pin === 'light' ? LIGHT_LEVEL : 0;
     this.governor = new PhoneGovernor(this.level, pin !== 'auto');
+    this.copies = new BossCopies(() => this.kit, bossKind, STAGE_BOSS_HEIGHT[bossKind] * HUNTER_SCALE);
   }
 
   /**
@@ -136,6 +138,7 @@ export class PhoneScene implements Backdrop {
     // The stand arena's zones are rectangles (MODE_STAND §3), the kit's MoveMap shape.
     this.arena = this.kit.createArena(map as unknown as MoveMap, shape, { signScale: SIGN_SCALE, tileSegments: 1 });
     this.boss = this.kit.createBoss(this.bossKind, shape?.stage ? { height: STAGE_BOSS_HEIGHT[this.bossKind] } : {});
+    this.copies.prepare();
     const f = shape?.floor;
     const bounds = f ? { x0: f.x, y0: f.y, x1: f.x + f.cols * f.tile, y1: f.y + f.rows * f.tile } : { x0: 0, y0: 0, x1: map.w, y1: map.h };
     const bossTop = (STAGE_BOSS_HEIGHT[this.bossKind] + 0.4) * 50;
@@ -209,12 +212,12 @@ export class PhoneScene implements Backdrop {
     if (!arena || !boss) return;
     const fresh = st.res && nowRoom !== null && nowRoom - st.res.at < 1200;
     if (st.phase === 'reveal' && st.res && (this.phase !== 'reveal' || this.qi !== st.qi) && st.floor === 'down') {
-      const zone = (arena.map.zones ?? [])[st.res.key];
+      const zones = resKeys(st.res).map((k) => (arena.map.zones ?? [])[k]?.id ?? '');
       if (fresh) {
         // the boss jumped at zero (setAlarm); a result here first starts the jump now. The floor goes at the blow.
         if (this.stompedQi !== st.qi) this.stomp(st.qi);
         const impact = Math.max(this.impactAt, this.kit.now() + 0.05);
-        arena.collapse(zone?.id ?? '', impact);
+        arena.collapse(zones, impact);
         for (const id of st.res.fell) {
           const t = id === this.you ? this.me : this.tracked.get(id);
           if (!t) continue;
@@ -228,7 +231,7 @@ export class PhoneScene implements Backdrop {
         this.leanUntil = impact + LEAN_AFTER_S;
       } else {
         // A state seen after a reconnect: drawn as it is now, no stomp.
-        arena.collapse(zone?.id ?? '', this.kit.now() - 5);
+        arena.collapse(zones, this.kit.now() - 5);
       }
     }
     if (st.floor === 'up' && this.floor === 'down') arena.restore();
@@ -318,6 +321,8 @@ export class PhoneScene implements Backdrop {
 
   // ── mode B: «Дедлайн» hunting (MODE_RUN.md) ──
   private readonly hunters = new Map<number, { model: Boss; x: number; y: number }>();
+  /** Smaller copies of the boss for the other hunters (mode B). */
+  private readonly copies: BossCopies;
   private bossAway = false;
   private bossX = 0;
   private bossY = 0;
@@ -345,7 +350,8 @@ export class PhoneScene implements Backdrop {
         seen.add(id);
         let h = this.hunters.get(id);
         if (!h) {
-          const model = this.kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] * HUNTER_SCALE });
+          const model = this.copies.make();
+          if (!model) continue;
           model.setPhase('chase');
           h = { model, x: p.x, y: p.y };
           this.hunters.set(id, h);

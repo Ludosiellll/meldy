@@ -8,7 +8,7 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { sharedPlaces } from '../../../lib/live/rules';
 import type { ShownPicture, ShownPictures } from '../../../lib/live/pictures';
-import type { HostResult, Question, TopRow } from '../../../lib/live/types';
+import { rightKeys, type HostResult, type Question, type TopRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
 import { BATTLE, BOARD, LETTERS, nb } from './copy';
 import { optionFont, questionFont } from './layout';
@@ -229,7 +229,7 @@ export function QuestionPanel({ question, result, closing = null, late = false, 
             k={k}
             text={text}
             revealed={revealed}
-            isKey={revealed && result!.key === k}
+            isKey={revealed && rightKeys(result).includes(k)}
             count={revealed ? (result!.counts[k] ?? 0) : 0}
             share={revealed ? (result!.counts[k] ?? 0) / total : 0}
             compact={compact}

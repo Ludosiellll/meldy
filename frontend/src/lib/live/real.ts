@@ -9,6 +9,7 @@ import { preferredRoute } from '../supabaseRoute';
 import {
   LiveError,
   type AnswerAck,
+  type AnswerInput,
   type CreateResult,
   type GameSource,
   type GameState,
@@ -20,6 +21,7 @@ import {
   type Look,
   type PinResult,
   type PlayerState,
+  type PracticeResult,
   type Review,
   type Settings,
   type TgPostResult,
@@ -102,9 +104,11 @@ export function createRealApi(): LiveApi {
     join: (pin: string, name: string, token: string, look: Look | null) => rpc<JoinResult>('live_join', { p_pin: pin, p_name: name, p_token: token, p_look: look }),
     setLook: async (game: Uuid, token: string, look: Look) => (await rpc<{ look: Look }>('live_set_look', { p_game: game, p_token: token, p_look: look })).look,
     answer: (game: Uuid, token: string, qi: number, choice: number) => rpc<AnswerAck>('live_answer', { p_game: game, p_token: token, p_qi: qi, p_choice: choice }),
+    submit: (game: Uuid, token: string, qi: number, answer: AnswerInput) => rpc<AnswerAck>('live_submit', { p_game: game, p_token: token, p_qi: qi, p_answer: answer }),
     state: async (game: Uuid, token: string, sinceRev?: number) =>
       unchangedOr(await rpc<PlayerState>('live_state', { p_game: game, p_token: token, p_since_rev: sinceRev ?? null })),
     review: (game: Uuid, token: string) => rpc<Review>('live_review', { p_game: game, p_token: token }),
+    practice: (game: Uuid, token: string) => rpc<PracticeResult>('live_practice', { p_game: game, p_token: token }),
     picture: (game: Uuid, token: string, path: string) => livePictureUrl(path, game, token),
     subscribe(topic: string, onHint: (hint: Hint) => void, onLink?: (connected: boolean) => void) {
       // Through the site's /sb proxy there is no WebSocket: say so at once, the caller polls every second.

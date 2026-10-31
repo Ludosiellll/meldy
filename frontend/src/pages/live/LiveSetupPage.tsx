@@ -12,7 +12,7 @@ import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { liveApi, liveFakeWanted } from '../../lib/live/api';
-import { DEFAULT_STAND_EVERY, LiveError, MINI_GAMES, miniGameSettings, type BossKind, type GameMode, type MiniGame, type Settings } from '../../lib/live/types';
+import { DEFAULT_STAND_EVERY, LiveError, MINI_GAMES, TEAMS, miniGameSettings, type BossKind, type GameMode, type MiniGame, type Settings, type Teams } from '../../lib/live/types';
 import { standRounds } from '../../lib/live/rules';
 import { bossPictureUrl } from '../../lib/live/three/thumbs';
 import { BOSSES, STAND } from '../../components/live/stand/copy';
@@ -156,6 +156,7 @@ export default function LiveSetupPage() {
     [pick],
   );
   const [speed, setSpeed] = useState(true);
+  const [teams, setTeams] = useState<Teams>(0);
   const [who, setWho] = useState<Settings['who']>('pin');
   const [names, setNames] = useState(false);
   const [amount, setAmount] = useState<number | null>(null);
@@ -183,8 +184,11 @@ export default function LiveSetupPage() {
   useDocumentTitle(source ? SETUP.title(source.title) : SETUP.top);
 
   // every game takes five or six options and pictures (the arena has six zones and the board shows the pictures)
-  const skipOf = (q: SourceQuestion) => q.wideSkip;
-  const playable = source ? source.questions.filter((q) => !q.wideSkip).length : 0;
+  // several right answers and text answers play too (20261102090000_live_kinds_teams.sql); a text answer has no zone
+  const stand = pick === 'all';
+  const kinds = !!source && source.questions.some((q) => q.playSkip !== undefined);
+  const skipOf = (q: SourceQuestion) => (q.playSkip === undefined ? q.wideSkip : stand ? (q.standSkip ?? null) : q.playSkip);
+  const playable = source ? source.questions.filter((q) => !skipOf(q)).length : 0;
   const skipped = source ? source.questions.filter((q) => skipOf(q)) : [];
   const choices = amountChoices(playable);
   const cap = Math.min(playable, MAX_GAME_QUESTIONS);
@@ -202,7 +206,15 @@ export default function LiveSetupPage() {
     setOpening(true);
     setError(null);
     // the arena's boss whenever there is an arena (a stand game, or a battle's mini-games)
-    const settings: Settings = { ...miniGameSettings(pick), time_s: time, speed, who, chat_names: hasChat && names, ...(pick !== 'none' ? { boss } : {}) };
+    const settings: Settings = {
+      ...miniGameSettings(pick),
+      time_s: time,
+      speed,
+      who,
+      chat_names: hasChat && names,
+      ...(pick !== 'none' ? { boss } : {}),
+      ...(teams && pick !== 'all' ? { teams } : {}),
+    };
     try {
       const gameSource = { container_id: source.containerId, subject_ids: source.subjectIds, count: chosen };
       const created = await api.create(gameSource, settings);
@@ -218,7 +230,7 @@ export default function LiveSetupPage() {
       setError(SETUP.error[code] ?? SETUP.error.other);
       setOpening(false);
     }
-  }, [api, source, opening, tooFew, pick, boss, time, speed, who, names, hasChat, chosen, search, navigate]);
+  }, [api, source, opening, tooFew, pick, boss, time, speed, who, names, hasChat, chosen, search, navigate, teams]);
 
   if (needsSignIn) return <Navigate to={loginFor(pathname, search)} replace />;
 
@@ -268,6 +280,11 @@ export default function LiveSetupPage() {
                   onChange={setSpeed}
                 />
               </Row>
+              {pick !== 'all' ? (
+                <Row label={SETUP.teams} hint={SETUP.teamsHint}>
+                  <Seg label={SETUP.teams} value={teams} options={TEAMS.map((n) => ({ value: n, text: SETUP.teamsOption(n) }))} onChange={setTeams} />
+                </Row>
+              ) : null}
               <Row label={SETUP.who}>
                 <Seg
                   label={SETUP.who}
@@ -307,7 +324,7 @@ export default function LiveSetupPage() {
               <details className="lvs-skipped">
                 <summary>
                   <b>{SETUP.skippedHead(skipped.length)}</b>
-                  <span>{SETUP.skippedWhyWide}</span>
+                  <span>{kinds ? (stand ? SETUP.skippedWhyStand : SETUP.skippedWhyKinds) : SETUP.skippedWhyWide}</span>
                   <ChevronDown className="lvs-chev" size={20} strokeWidth={2.4} aria-hidden="true" />
                 </summary>
                 <ul>

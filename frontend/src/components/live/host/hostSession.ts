@@ -75,6 +75,9 @@ export interface LoggedQuestion {
   text: string;
   options: string[];
   key: number | null;
+  /** Several right answers: every right option; a text answer: its accepted forms (absent in an older log). */
+  keys?: number[] | null;
+  forms?: string[] | null;
   counts: number[] | null;
   right: number | null;
   players: number;
@@ -103,6 +106,8 @@ export function logState(gameId: string, log: LoggedQuestion[], s: HostState): L
     text: q.text,
     options: q.options,
     key: result ? result.key : (was?.key ?? null),
+    keys: result ? (result.keys ?? null) : (was?.keys ?? null),
+    forms: result ? (result.forms ?? null) : (was?.forms ?? null),
     counts: result ? result.counts : (was?.counts ?? null),
     right: result ? result.right : (was?.right ?? null),
     players: result ? s.players : (was?.players ?? s.players),

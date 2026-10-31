@@ -88,7 +88,7 @@ class ArenaFacade implements Arena {
   setClosedZones(ids: readonly string[]): void {
     this.impl.setClosedZones(ids);
   }
-  collapse(correctZoneId: string, tStart?: number): void {
+  collapse(correctZoneId: string | readonly string[], tStart?: number): void {
     this.impl.collapse(correctZoneId, tStart ?? this.kit.now());
   }
   restore(): void {

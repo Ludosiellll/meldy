@@ -20,7 +20,10 @@ export default function PlayPage() {
   const [ctl] = useState(() => new PlayerController({ api: obeyOffline(liveApi()), platform, profile: 'web' }));
 
   useEffect(() => {
-    void ctl.start({ pin: params.get('pin'), mode: params.get('mode') });
+    // `?r=<game>&practice=1`: back from the sign-in «Тренировать ошибки» asked for (the review of a game of this tab)
+    const r = params.get('r');
+    const reviewGame = r && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(r) ? r : null;
+    void ctl.start({ pin: params.get('pin'), mode: params.get('mode'), reviewGame, practice: params.get('practice') === '1' });
     return () => ctl.dispose();
     // The address is read once: later the game writes it.
     // eslint-disable-next-line react-hooks/exhaustive-deps

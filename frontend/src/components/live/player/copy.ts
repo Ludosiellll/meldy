@@ -39,6 +39,27 @@ export function multText(streakAfter: number): string {
 
 export const questions = (n: number) => `${n}${NBSP}${plural(n, 'вопрос', 'вопроса', 'вопросов')}`;
 
+/** The words of the question kinds (several right answers, a text answer) and of teams on the phone. */
+export const KINDS = {
+  multi: (n: number) => `Верных: ${n}${NBSP}— отметьте все`,
+  send: 'Ответить',
+  textPlaceholder: 'Ваш ответ',
+  textLabel: 'Ваш ответ на вопрос',
+  textWait: 'Напишите ответ и нажмите «Ответить»',
+  sentText: (t: string) => `Ваш ответ: «${t}»`,
+  sentPicks: (n: number) => `Отмечено: ${n}`,
+  partial: 'Частично верно',
+  partialOf: (right: number, of: number, extra: number) =>
+    `Верных отмечено: ${right} из ${of}${extra > 0 ? `, лишних: ${extra}` : ''}`,
+  partialFrozen: 'Урона нет: вы заморожены. Отметьте все верные, чтобы оттаять.',
+  partialLine: 'Урон за отмеченные верные. Серия начнётся заново.',
+  rightMany: 'Верные ответы',
+  rightText: 'Верный ответ',
+  mine: 'Вы написали',
+  tops: 'Чаще писали',
+  topN: (n: number) => `${n}${NBSP}${plural(n, 'раз', 'раза', 'раз')}`,
+} as const;
+
 /** «4-й» (a place). */
 export const placeText = (n: number) => `${n}-й`;
 

@@ -482,7 +482,7 @@ a.lvh-btn { text-decoration: none; }
 .lvs-skipped li { font: 400 17px/1.45 var(--ph-sans, system-ui); }
 .lvs-skipped li span { color: var(--lvh-ink-2); }
 /* «Открыть комнату» stays in view at the bottom of the window, however long the page. */
-.lvs-foot { position: sticky; bottom: 0; z-index: 5; margin: 26px calc(-1 * clamp(16px, 4vw, 56px)) 0; padding: 14px clamp(16px, 4vw, 56px) calc(14px + env(safe-area-inset-bottom, 0px)); background: var(--lvh-canvas); box-shadow: 0 -1.5px 0 var(--lvh-line); }
+.lvs-foot { position: sticky; bottom: 0; z-index: 5; margin: 26px calc(-1 * clamp(16px, 4vw, 56px)) 0; padding: 14px clamp(16px, 4vw, 56px) calc(14px + var(--sf-safe-b, 0px)); background: var(--lvh-canvas); box-shadow: 0 -1.5px 0 var(--lvh-line); }
 .lvs-foot-in { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 28px; }
 .lvs-foot p { margin: 0; max-width: 680px; font: 400 16px/1.45 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 .lvs-error { margin: 18px 0 0; font: 500 18px/1.4 var(--ph-sans, system-ui); color: var(--lvh-red-ink); }

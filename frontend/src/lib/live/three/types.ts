@@ -38,6 +38,11 @@ export interface Player {
    * on any tile and while it is a ghost, so the player finds themselves at a glance.
    */
   setOwn(on: boolean): void;
+  /**
+   * The player's team (docs/live/CONTRACT.md §13): a ring of its colour round the feet, outside the colour ring, and the
+   * name tag drawn in it. null: no team.
+   */
+  setTeam(hex: string | null): void;
   /** Map angle: 0 faces +y (down the map, towards the viewer), π/2 faces +x. Turns smoothly unless `instant`. */
   setFacing(rad: number, instant?: boolean): void;
   /** Map units; `z` is the height over the floor (negative while falling: see Arena.floorAt). */
@@ -73,10 +78,11 @@ export interface Arena {
   /** Zones that take no answer now (a question with fewer options): their tiles go plain and their sign hides. */
   setClosedZones(ids: readonly string[]): void;
   /**
-   * Drops every tile outside the zone `correctZoneId`, in a ripple from under the stage starting at `tStart`
-   * (seconds of kit.now(); default now). The shock ring and the camera's jolt come at `tStart`.
+   * Drops every tile outside the zone `correctZoneId` (or the zones, for a question of several right answers), in a
+   * ripple from under the stage starting at `tStart` (seconds of kit.now(); default now). The shock ring and the
+   * camera's jolt come at `tStart`.
    */
-  collapse(correctZoneId: string, tStart?: number): void;
+  collapse(correctZoneId: string | readonly string[], tStart?: number): void;
   /** Brings the fallen tiles back up (a quick ripple). */
   restore(): void;
   /**

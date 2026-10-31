@@ -21,7 +21,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type React
 import { zoneIndexAt } from '../../../../lib/live/move/sim';
 import type { ShownPicture, ShownPictures } from '../../../../lib/live/pictures';
 import { sharedPlaces, shownPlace } from '../../../../lib/live/rules';
-import { F_CAUGHT, type StandState, type StandTopEntry } from '../../../../lib/live/move/protocol';
+import { F_CAUGHT, resKeys, type StandState, type StandTopEntry } from '../../../../lib/live/move/protocol';
 import { clothesHex, toPlayerLook } from '../../../../lib/live/three/look';
 import type { Look } from '../../../../lib/live/types';
 import { optionSize, questionSize } from '../../player/options';
@@ -33,6 +33,7 @@ import { FloatingStick } from './stick';
 import { Thumb } from './Thumb';
 import { LETTERS, lastFor, outcomeOf, placeLine, playersLine, points, secondsLeft, streakLine, zoneLine, ZONE_COLOURS, type Outcome } from './words';
 import { pinText } from '../../player/copy';
+import { MULTI_ZONES } from '../copy';
 import type { MixedOutcome } from '../mixed';
 
 export interface StandPlayProps {
@@ -83,7 +84,8 @@ const Options = memo(function Options({
   pics,
 }: {
   options: readonly string[];
-  keyIndex: number | null;
+  /** Every right zone once the round is closed (several for a question of several right answers), else null. */
+  keyIndex: readonly number[] | null;
   choice: number | null;
   rows: React.MutableRefObject<Array<HTMLLIElement | null>>;
   pics: ReadonlyArray<ShownPicture | undefined>;
@@ -91,7 +93,7 @@ const Options = memo(function Options({
   return (
     <ol className="sp-opts" aria-label="Ответы">
       {options.map((text, i) => {
-        const mark = keyIndex === null ? undefined : i === keyIndex ? 'key' : i === choice ? 'wrong' : 'dim';
+        const mark = keyIndex === null ? undefined : keyIndex.includes(i) ? 'key' : i === choice ? 'wrong' : 'dim';
         return (
           <li
             key={i}
@@ -226,7 +228,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   // The floor picture follows the question and the stomp.
   useEffect(() => {
     if (!arena) return;
-    arena.setFloor({ options: options.length || 4, keep: res && st?.floor === 'down' ? res.key : null });
+    arena.setFloor({ options: options.length || 4, keep: res && st?.floor === 'down' ? resKeys(res) : null });
   }, [arena, options.length, res, st?.floor]);
 
   useLayoutEffect(() => {
@@ -470,6 +472,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
           <span className="sp-q__n">
             Вопрос {st.qi + 1} из {st.q_count}
             {st.chase && phase !== 'reveal' ? <b className="sp-q__chase">Дедлайн гонится!</b> : null}
+            {q.multi && q.multi > 1 && phase !== 'reveal' ? <b className="sp-q__multi">{MULTI_ZONES.hint(q.multi)}</b> : null}
           </span>
           <div className="sp-clock" ref={clockRef} role="timer" aria-label="Секунд осталось">
             <span ref={timerRef}>{view.hello?.time_s ?? 15}</span>
@@ -507,7 +510,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   return (
     <div className="sp sp-play" ref={playRef} data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-ice={mixed?.frozen ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
       {head}
-      {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? res.key : null} choice={last?.choice ?? null} rows={rows} pics={optionPics} />}
+      {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? resKeys(res) : null} choice={last?.choice ?? null} rows={rows} pics={optionPics} />}
       {zoom && typeof stem === 'string' && (
         <button type="button" className="sp-zoom" onClick={() => setZoom(false)} aria-label="Закрыть рисунок">
           <img src={stem} alt="Рисунок к вопросу" />

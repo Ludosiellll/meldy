@@ -166,6 +166,9 @@ database itself closes an open stand question at `closes_at + 8 s` with no answe
 
 ## 6. Rules the server applies
 
+- **Several right answers** (`20261102090000_live_kinds_teams.sql`): every right zone stays up, and a character on any
+  of them is right (full points); `live_stand_close`'s answer and the room's `res` carry `keys`, the room's `q`
+  carries `multi`, both only for such a question (`live_move_stand.keys_of`). «Встань на ответ» draws no text answer.
 - **Which zone.** The character's centre at `closes + 250 ms`. A zone is a closed rectangle: a centre exactly on its
   edge is inside. Zones never touch (corridors 60–240 wide), so a border is only zone versus floor.
 - **Elapsed** = the moment the character entered the zone it ended in (the tick its centre crossed in, after the last

@@ -78,9 +78,36 @@ reveal (boss defeated or last question) ──next──▶ podium ──next / 
 Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 0 → 98; `elapsed 0`, streak 4 → 200
 (`mult 2`); `elapsed 20000`, streak 0 → 50; speed off, streak 1 → 125.
 
+**Several right answers and text answers** (migration `20261102090000_live_kinds_teams.sql`, the one close
+`meldy_private.live_close`):
+- A button question of several right answers is answered with the options ticked (`picks`). Its **share** is
+  `max(0, right ticked − wrong ticked) / right count` (`meldy_private.live_share`, `rules.ts` `liveShare`,
+  `live_move_mixed.py` `share`; doubles): 1 only for the exact set. Share 1 is a right answer as above (damage, streak,
+  a frozen player thaws). Share between 0 and 1 is a **partial hit**: `round(damage × share)` with the damage a right
+  answer would deal now (`floor(x + 0.5)`, `rules.ts` `partialDamage`), by a player not frozen (a frozen one deals 0
+  and stays frozen); streak 0; nobody freezes; it is not a right answer (`right`, `right_n`, accuracy and the phase-2
+  heal count exact sets only); it lands among the hits in the order of time. Share 0 is wrong (streak 0, frozen).
+  `counts`: every tick counts for its option. An old phone's tap is one tick.
+- A movement round of several right answers (a mixed game's or «Встань на ответ»): the room writes the zone; a zone on
+  **any** right option is right (full damage or points). Every right zone stays up at the stomp.
+- A text answer (`typed`) is right when `public.meldy_short_norm(typed)` is the normal form of one of the accepted forms
+  (the study's own rule: case, ё, spaces and one trailing dot do not matter); then as a right tap. `counts` is `[]`.
+  The close keeps the question's **tops**: the three normal forms typed most often (by count, then the text), rude
+  ones left out (`meldy_private.live_name_rude`), each with `n` and `ok`.
+- Worked example (rehearsed in `live_kinds_teams_behaviour.sql` and `test_live_kinds.py`): keys `[0, 2]`, T = 20 s;
+  Дима ticks 0 and 2 at 1000 ms (streak 0) → 98 (right); Лена ticks 2 at 2000 ms → share 0.5, `round(95 × 0.5) = 48`
+  (streak 0, not frozen); Боря ticks 0 and 1 → share 0, wrong, frozen.
+
 ## 4. Questions
 
-- Plays items with exactly one correct option of 2–6, pictures allowed, in every game: a battle, a battle with movement
+- Since `20261102090000_live_kinds_teams.sql` a game also plays an item of **two right options or more** (2–6 options;
+  `live_questions.kind = 'multiple'`, `keys` = every right option's shown index, ascending, `key = keys[1]`) and a
+  **text answer** (`kind = 'short'`: no options, `key = -1`, `forms` = the item's accepted forms). A text answer is
+  only ever a button question: «Встань на ответ» skips it, a battle with movement rounds puts choice questions on the
+  rounds' places (`meldy_private.live_arrange`: each round's place holding a text answer swaps with the nearest choice
+  question on a button place, the later one on a tie; while the choice questions are fewer than the rounds, the last
+  text answer is dropped and counted in `skipped`). The item's explanation is copied (`explanation`) for the review.
+- Before it: plays items with exactly one correct option of 2–6, pictures allowed, in every game: a battle, a battle with movement
   rounds and «Встань на ответ» (20261030090000_live_pictures.sql for the battle, 30.10; 20261031090000_live_wide_rounds.sql
   for the rest: the arena has six zones and its boards show the pictures; the room's write `live_stand_close` takes the
   zones 0–5, still below the question's option count). The rest are skipped and counted in `skipped` at create: for a
@@ -170,6 +197,10 @@ functions answer statuses and raise only 42501 (not the service role) and 22023 
 | `ML009` | 400 | too many open games (3 per author; podium and ended do not count) |
 | `ML010` | 503 | the bot is not set up (`bot`: no function URL or live token yet — `live_tg_post`) |
 | `ML011` | 409 | state is not `p_expect` (`details` = current state; `empty` for a lobby without players) |
+| `ML012` | 403 | «Тренировать ошибки» refused (`live_practice`): `practice` (not a member and the game's quiz offers no practice), `open` (a quiz of the exam is open: a member reads every answer), `removed` (by the author), `full` (200 members) |
+
+`ML004` also says `kind`: a text on a choice question, a choice on a text question (`live_submit`; a tap on a text
+question, `live_answer`). `22023 answer`: a `live_submit` answer of a wrong shape; `22023 teams`: `settings.teams`.
 
 ### Host (signed in for create; token afterwards)
 
@@ -216,6 +247,12 @@ and the step are those of the join; while the server has no `live_pin` (404 `PGR
 check through `live_join`.
 `live_set_look(p_game uuid, p_token text, p_look jsonb) → {"look": Look}` — lobby only (`ML004/not_open` otherwise).
 `live_answer(p_game uuid, p_token text, p_qi int, p_choice int) → {"accepted": true, "answered": 18, "now": "…"}`
+(on a question of several right answers: that one option ticked)
+`live_submit(p_game uuid, p_token text, p_qi int, p_answer jsonb) → {"accepted": true, "answered": 18, "now": "…"}`
+— an answer of any kind with `live_answer`'s checks in its order: `{"choice": n}`, `{"picks": [n, …]}` (1–6 different
+shown indexes; one pick on a single answer is that choice) or `{"text": "…"}` (trimmed 1–200 characters, not empty
+once normalised). `ML004 kind`, `22023 answer` as above.
+`live_practice(p_game uuid, p_token text) → {"container_id", "joined", "saved", "mistakes"}` — §14.
 `live_state(p_game uuid, p_token text, p_since_rev bigint) → PlayerState | {rev, now, unchanged: true}`
 `live_review(p_game uuid, p_token text) → Review` — podium/ended.
 `live_wardrobe() → Wardrobe`, `live_wardrobe_set(p_look jsonb) → Wardrobe` — signed-in site users.
@@ -251,6 +288,16 @@ check through `live_join`.
 
 // Review
 { "items": [{ "qi": 0, "text": "…", "options": ["…"], "key": 2, "choice": 1, "correct": false }] }
+
+// Only where a question is of a new kind or the game has teams (every other answer is exactly as before):
+"question": {…, "kind": "multiple", "multi": 2}  |  {…, "kind": "short", "options": []}
+"result":   {…, "keys": [0, 2]}  |  {…, "forms": ["Москва"], "tops": [{"text": "питер", "n": 2, "ok": false}]}   // closed only
+            // + PlayerState: "picks": [2], "share": 0.5  |  "typed": "Питер"
+"me":       {…, "picks": [2]}  |  {…, "typed": "Питер"};  {…, "team": 1}
+"teams":    [{"team": 2, "players": 3, "dmg": 912, "avg": 304.0, "place": 1}, …]      // by place, from the lobby on
+"roster": [{…, "team": 1}], "top": [{…, "team": 1}], "settings": {…, "teams": 2}
+// Review items: + "kind", "keys", "picks", "share" | "kind", "forms", "typed"; + "explanation" when the item has one
+// (correct: the close's verdict — the exact set, a right zone, a right text)
 ```
 
 ## 9. Telegram (function `telegram`)
@@ -339,3 +386,55 @@ dashes>` → review. Needs @BotFather `/newapp`, short name `play`, URL `https:/
 (`types.ts`). The fake fills the game with bots and can act as its own host (`autoHost`), so the player screens work alone.
 It also plays a mixed battle (`stand_every`, `MODE_MIXED.md` §8): its movement rounds close as void, since the fake has
 no room.
+
+## 13. Teams (20261102090000_live_kinds_teams.sql)
+
+- `settings.teams`: 0 (none, the default), 2, 3 or 4 (`live_games.teams`; anything else `22023 teams`). The setup
+  offers «Команды: нет / 2 / 3 / 4» for a battle (with or without movement rounds).
+- A player gets a team on join (`live_players.team`, the trigger `live_players_team`): the team with the fewest players
+  not kicked, the lower number on a tie; one game's joins take their teams in turn. A rejoin keeps the team; nobody is
+  moved later (a kick leaves a gap the next join fills).
+- A team's score is the **average** points (damage) of its players not kicked, so a team of 3 and a team of 4 compare
+  fairly; the place is by the exact average, then the points, then the number. `teams` in every state of a game with
+  teams (§8), the average with one decimal.
+- Screens: the names and colours «Красные» `#ef5b4c`, «Синие» `#2f74e8`, «Жёлтые» `#f2b928`, «Зелёные» `#2fa866`
+  (`stand/copy.ts` `TEAM_NAMES`, `TEAM_COLOURS`). The projector: a ring of the team's colour round each character's
+  feet and its name tag in it, the teams' counts in the lobby, the teams with their best player on the leaderboard,
+  the teams on the podium blocks and the game's best player. The phone: «Ваша команда: Синие» in the lobby, the
+  teams over the five best on the leaderboard, «Синие победили. В среднем 312 урона на игрока.» at the end. Ranking,
+  the five best and the wardrobe stay per player.
+
+## 14. «Тренировать ошибки» (`live_practice`)
+
+- The phone's review (podium, ended; 7 days) ends with «Тренировать ошибки». `live_practice(game, token)` needs the
+  session (`28000` otherwise) and the token of a player of the game (`P0002 token`, `42501 kicked`).
+- Who: the exam's author or an active member; else, when the game was made from a quiz whose author offers practice
+  (`quizzes.offer_practice`, release 47's «Повторить эти вопросы») and no quiz of the exam is open, the player joins
+  the exam as `quiz_practice_join` makes a member; anyone else `ML012 practice`.
+- What: every closed question of the game drawn from an item still in the exam that the player got wrong or partly, or
+  left without an answer while playing it (not a void movement round), is recorded once as this user's answer of today
+  through the study core (`meldy_private.record_test_answers_for`, source `web`): the same row and rule step as a
+  wrong answer on the site, so «Повторить ошибки» brings them back. `client_event_id` = `live:<game>:<qi>`: a second
+  press records nothing twice (`saved` counts both).
+- The phone: «Готово: 3 вопроса в тренировке экзамена.» and «Открыть экзамен»; a guest (no session) is asked to sign
+  in («Войти и тренировать») and comes back to `/play?r=<game>&practice=1` — the token stays in the tab — where it runs
+  by itself; in Telegram there is no site session: the line says to play from the site with an account.
+
+## 15. Screens of several right answers and text answers
+
+- **Phone, several right answers** (`player/Battle.tsx`): «Верных: 2 — отметьте все» over the options; a tap ticks or
+  unticks an option (a check on white, `aria-pressed`); «Ответить» sends the set (`live_submit` `picks`) once; at the
+  phone's own zero what is ticked goes by itself. The sheet: «Верно», «Частично верно» with the damage and «Верных
+  отмечено: 1 из 2, лишних: 0», or «Неверно» with «Верные ответы: А · …, В · …»; every right option is marked.
+- **Phone, a text answer**: a field and «Ответить» where the options would be (`live_submit` `text`, trimmed; at zero
+  what is typed goes by itself); the sheet says what was typed, «Верный ответ: …» and «Чаще писали: «питер» 2 раза, …».
+- **Projector** (`stand/BattleHost.tsx` TapBoard): «Верных: 2 — отметьте все» on the board; the reveal names every
+  right option («Верные ответы») and marks each with its count; a text question shows «Напишите ответ на телефоне»,
+  then the accepted answer big and «Чаще писали» with the three answers and their counts (the right ones ringed in
+  green). The flat screen (no WebGL) and the teacher's «Разбор» mark every right option and the accepted forms.
+- **Review on the phone** (`player/ReviewScreen.tsx`): each question with the own answer (ticks, text), every right
+  option or the accepted forms, «Частично» for a share, the author's explanation («Пояснение»), then «Тренировать
+  ошибки» (§14).
+- **Setup** (`pages/live/LiveSetupPage.tsx`): its preview counts questions of several right answers and text answers as
+  played (a text answer not in «Встань на ответ»: `source.ts` `kindSkip`), and offers «Команды».
+- Release order: the site and the Space first (they read the new keys and run without them), then the migration.

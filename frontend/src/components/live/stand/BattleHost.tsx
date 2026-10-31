@@ -17,7 +17,7 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { useLivePictures, type ShownPictures } from '../../../lib/live/pictures';
-import { isStandRound, mixedOf, untilStandRound, type BossKind, type HostState, type Question, type RosterRow } from '../../../lib/live/types';
+import { isStandRound, mixedOf, questionKind, rightKeys, teamsOf, untilStandRound, type BossKind, type HostState, type Question, type RosterRow } from '../../../lib/live/types';
 import { shortLink } from '../../../lib/quizzes/qr';
 import { BANNER, BATTLE, BOARD, CLOSED, LETTERS, LOBBY, MIXED, MODE, NEXT, PODIUM, nb } from '../host/copy';
 import { HostScreen, answerable, type HostScreenProps } from '../host/HostScreen';
@@ -30,7 +30,8 @@ import { logState, readHostToken, readLog } from '../host/hostSession';
 import { STAGE_H } from '../host/layout';
 import { hostSound, type HostSound } from '../host/sound';
 import { Stage, useStageFit, useStageWidth } from '../host/Stage';
-import { BATTLE_3D, STAND } from './copy';
+import { BATTLE_3D, STAND, TEAMS_COPY } from './copy';
+import { TeamBoard, TeamPodium, teamColour, teamOfRows } from './teams';
 import { FpsReadout, fpsWanted } from './FpsReadout';
 import { LEAP_OUT_S } from './formation';
 import { ArenaHp, MixedBoard, NO_REVEAL, useMixedReveal, type RevealView } from './MixedHost';
@@ -181,7 +182,8 @@ function useTapReveal(s: HostState, scene: RefObject<StandScene | null>, sound: 
       at(Math.max(plan.end, blow + 400), () => setView((v) => ({ ...v, hp: res.hp ?? v.hp, chips: top(), strike: true })));
     };
     // Everyone answered before the time ran out: «Все ответили», the boss braces itself, then the key.
-    const answers = result.counts.reduce((a, b) => a + b, 0);
+    // the answers in: a one-answer question's counts, else the answer rows (ticks count per option; a text has none)
+    const answers = questionKind(st.question) === 'single' ? result.counts.reduce((a, b) => a + b, 0) : st.answered;
     const early = Date.now() < closesAt - 400 && answers >= answerable(st.roster, st.question?.opens_at);
     if (early) {
       onBeat('all');
@@ -221,6 +223,9 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
   const stem = pics.stem;
   const frozen = s.roster.filter((r) => r.frozen).length;
   const wide = q.options.length > 4;
+  const kind = questionKind(q);
+  const keys = rightKeys(result);
+  const tops = result && kind === 'short' ? (result.tops ?? []) : null;
   return (
     <div className="lvmx lvbt" data-phase={phase}>
       {max > 0 ? <ArenaHp hp={hp} max={max} width={width} /> : null}
@@ -229,23 +234,59 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
           {stem !== undefined ? <StemFigure stem={stem} big={big} onToggle={() => setBig((v) => !v)} /> : null}
           {result ? (
             <div className="lvst-q lvst-q--reveal lvbt-q" key={`r${q.qi}`}>
-              <span className="lvst-hint">{BATTLE_3D.right}</span>
-              <div className="lvst-answer">
-                <TapLetter k={result.key} big />
-                <span>{q.options[result.key]}</span>
-              </div>
+              <span className="lvst-hint">{kind === 'multiple' ? BATTLE_3D.rightMany : BATTLE_3D.right}</span>
+              {kind === 'short' ? (
+                <div className="lvst-answer lvbt-answer-text">
+                  <span>{result.forms?.[0] ?? ''}</span>
+                </div>
+              ) : (
+                <div className="lvst-answer" data-many={keys.length > 1 ? '' : undefined}>
+                  {keys.map((k) => (
+                    <span key={k} className="lvbt-key">
+                      <TapLetter k={k} big />
+                      <span>{q.options[k]}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="lvst-q lvbt-q" key={`q${q.qi}`}>
               <span className="lvst-hint" data-beat={beat ? '' : undefined}>
-                {beat === 'all' ? BATTLE.allIn : beat === 'time' ? BATTLE.timeUp : phase === 'countdown' ? BATTLE_3D.ready : BATTLE_3D.hint}
+                {beat === 'all'
+                  ? BATTLE.allIn
+                  : beat === 'time'
+                    ? BATTLE.timeUp
+                    : phase === 'countdown'
+                      ? BATTLE_3D.ready
+                      : kind === 'short'
+                        ? BATTLE_3D.text
+                        : BATTLE_3D.hint}
               </span>
+              {kind === 'multiple' && q.multi ? <span className="lvbt-multi">{BATTLE_3D.multi(q.multi)}</span> : null}
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
               </h1>
             </div>
           )}
         </section>
+        {tops ? (
+          <div className="lvbt-tops" key={`t${q.qi}`}>
+            <span className="lvst-hint">{BATTLE_3D.tops}</span>
+            {tops.length > 0 ? (
+              <ol>
+                {tops.map((t) => (
+                  <li key={t.text} data-ok={t.ok ? '' : undefined}>
+                    <span className="lvbt-top-text">{t.text}</span>
+                    <b>{nb(t.n)}</b>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="lvbt-tops-none">{BATTLE_3D.topsNone}</p>
+            )}
+          </div>
+        ) : null}
         {hits ? (
           <ol className="lvmx-hits" key={`h${q.qi}-${reveal.strike ? 'top' : 'run'}`} aria-label={reveal.strike ? BATTLE.strikeLabel : undefined}>
             {reveal.chips.map((c) => (
@@ -255,12 +296,12 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
               </li>
             ))}
           </ol>
-        ) : (
+        ) : kind === 'short' ? null : (
           <ol className="lvst-options lvbt-options" key={`o${q.qi}`} data-revealed={result ? '' : undefined} data-wide={wide ? '' : undefined}>
             {q.options.map((text, i) => {
               const pic = pics.options[i];
               return (
-                <li key={i} data-key={result && result.key === i ? '' : undefined} data-dim={result && result.key !== i ? '' : undefined}>
+                <li key={i} data-key={result && keys.includes(i) ? '' : undefined} data-dim={result && !keys.includes(i) ? '' : undefined}>
                   <TapLetter k={i} />
                   <OptionPic pic={pic} />
                   <span className="lvst-opt-text">{text}</span>
@@ -470,6 +511,17 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
   useEffect(() => {
     sceneRef.current?.setLooks(looks);
   }, [looks, room, ready]);
+  // teams (CONTRACT §13): every character in its team's colour
+  const teams = teamsOf(s);
+  const teamKey = s.roster.map((r) => `${r.player_id}:${r.team ?? 0}`).join(',');
+  const teamColours = useMemo(() => {
+    const out = new Map<string, string>();
+    teamOfRows(s.roster).forEach((t, pid) => out.set(pid, teamColour(t)));
+    return out;
+  }, [teamKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (teamColours.size > 0) sceneRef.current?.setTeams(teamColours);
+  }, [teamColours, room, ready]);
 
   // ── a movement round's reveal (the room's) ──
   const nameOfEntity = useCallback((id: number) => room?.client.roster.get(id)?.[3] ?? '', [room]);
@@ -734,6 +786,18 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
                 </div>
               </div>
             </section>
+            {teams ? (
+              <div className="lvtm-lobby" aria-label={TEAMS_COPY.board}>
+                {teams
+                  .slice()
+                  .sort((a, b) => a.team - b.team)
+                  .map((t) => (
+                    <span key={t.team} style={{ ['--tc' as string]: teamColour(t.team) }}>
+                      {TEAMS_COPY.name(t.team)} <b>{nb(t.players)}</b>
+                    </span>
+                  ))}
+              </div>
+            ) : null}
           </div>
           <div className="lvbt-lobby-foot">
             <span className="lvst-settings">{LOBBY.settings(s.time_s, s.speed, s.settings.who === 'members', plan?.rounds)}</span>
@@ -762,7 +826,15 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
         <TapBoard s={s} q={q} pics={pics} reveal={tapReveal} beat={beat} opensAt={opensAt} closesAt={closesAt} stoppedAt={stoppedAt} />
       ) : null}
 
-      {s.state === 'leaderboard' && top ? (
+      {s.state === 'leaderboard' && teams ? (
+        <div className="lvst-veil lvbt-veil">
+          <div className="lvbt-veil-head">
+            <span className="lvst-hint">{STAND.topAfter(s.qi + 1, s.q_count)}</span>
+            <h1>{TEAMS_COPY.board}</h1>
+          </div>
+          <TeamBoard teams={teams} roster={s.roster} />
+        </div>
+      ) : s.state === 'leaderboard' && top ? (
         <div className="lvst-veil lvbt-veil">
           <div className="lvbt-veil-head">
             <span className="lvst-hint">{STAND.topAfter(s.qi + 1, s.q_count)}</span>
@@ -780,9 +852,13 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
                 {outcome === 'stopped' ? PODIUM.statsStopped(asked, s.q_count, s.roster.length, accuracy) : PODIUM.stats(asked, s.roster.length, accuracy)}
               </span>
             ) : null}
-            <h1>{outcome === 'won' ? PODIUM.won : outcome === 'lost' ? PODIUM.lost : PODIUM.ended}</h1>
+            <h1>{teams && teams[0]?.players > 0 ? TEAMS_COPY.won(teams[0].team) : outcome === 'won' ? PODIUM.won : outcome === 'lost' ? PODIUM.lost : PODIUM.ended}</h1>
           </div>
-          {podium.length ? <PodiumBlocks rows={podium.map((r) => ({ id: null, name: r.name, look: r.look, pts: r.dmg, move: 0 }))} /> : null}
+          {teams ? (
+            <TeamPodium teams={teams} roster={s.roster} />
+          ) : podium.length ? (
+            <PodiumBlocks rows={podium.map((r) => ({ id: null, name: r.name, look: r.look, pts: r.dmg, move: 0 }))} />
+          ) : null}
           {s.state === 'ended' ? <p className="lvbt-finished">{PODIUM.finished}</p> : null}
         </div>
       ) : null}

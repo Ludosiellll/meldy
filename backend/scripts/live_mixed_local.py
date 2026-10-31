@@ -48,6 +48,23 @@ from live_stand_e2e import jwt  # noqa: E402
 # the questions of live_mixed_local.sh's seed, in order: options and the right one (keep_order, so shown = stored)
 N_OPTIONS = [4, 3, 6, 2, 3, 5]
 KEYS = [1, 2, 1, 0, 0, 3]
+# its kinds seed (LIVE_LOCAL_SEED=kinds), by the question's text: every right option (keep_order), or a text's forms
+# with the wrong ones the bots type (20261102090000_live_kinds_teams.sql)
+ANSWERS = {
+    "Какие команды меняют данные в таблице?": {"keys": [0, 2, 4]},
+    "Какая команда отменяет транзакцию?": {"keys": [1]},
+    "Какие ключи бывают у таблицы?": {"keys": [0, 2]},
+    "Как называется язык запросов к базам данных? Три буквы.": {"right": ["SQL", "sql", "Sql", "SQL."], "wrong": ["SEQUEL", "sequel", "PHP", "СКЛ"]},
+    "Что делает JOIN?": {"keys": [1]},
+    "Какой оператор группирует строки?": {"keys": [3]},
+}
+
+
+def keys_of(text: str | None, qi: int) -> list[int]:
+    known = ANSWERS.get(text or "")
+    if known and "keys" in known:
+        return list(known["keys"])
+    return [KEYS[qi] if 0 <= qi < len(KEYS) else 0]
 
 NAMES = ["Алина", "Артём", "Ева", "Миша", "Соня", "Тимур", "Вера", "Глеб", "Даша", "Егор", "Катя", "Лёва", "Маша",
          "Никита", "Оля", "Паша", "Рита", "Саша", "Таня", "Федя", "Юля", "Ярик", "Лиза", "Илья", "Дима", "Аня", "Костя",
@@ -131,13 +148,13 @@ class Bot:
         if qi == self.plan_qi:
             return
         self.plan_qi = qi
-        key = KEYS[qi] if 0 <= qi < len(KEYS) else 0
+        keys = keys_of((st.get("q") or {}).get("text"), qi)
         n = len(st["q"]["options"]) if st.get("q") else 4
         roll = self.rng.random()
         if roll < self.skill:
-            zone = key
+            zone = self.rng.choice(keys)                  # several right zones: any of them
         elif roll < 0.93:
-            zone = self.rng.choice([z for z in range(n) if z != key] or [key])
+            zone = self.rng.choice([z for z in range(n) if z not in keys] or keys)
         else:
             zone = None                                  # stays in the corridor
         self.target = zone_spot(self.rng, zone) if zone is not None else None
@@ -180,15 +197,38 @@ class Bot:
             if st.get("state") in ("ended",):
                 return
             q = st.get("question")
-            if st.get("state") != "open" or not q or q.get("stand") or st["qi"] in self.tapped or st["me"].get("choice") is not None:
+            me = st["me"]
+            if (st.get("state") != "open" or not q or q.get("stand") or st["qi"] in self.tapped or me.get("choice") is not None
+                    or me.get("picks") or me.get("typed")):
                 continue
             qi = st["qi"]
             self.tapped.add(qi)
             await asyncio.sleep(self.rng.random() * self.think_s)
             n = len(q["options"])
-            choice = KEYS[qi] if self.rng.random() < self.skill else self.rng.randrange(n)
+            right = self.rng.random() < self.skill
+            known = ANSWERS.get(q.get("text") or "", {})
+            if q.get("kind") == "short":
+                pool = known.get("right" if right else "wrong") or ["?"]
+                body = {"p_game": self.game, "p_token": token(self.i), "p_qi": qi, "p_answer": {"text": self.rng.choice(pool)}}
+                fn = "live_submit"
+            elif q.get("kind") == "multiple":
+                keys = keys_of(q.get("text"), qi)
+                if right:
+                    picks = keys
+                elif self.rng.random() < 0.6:                 # some of the right ones (a partial hit), maybe one wrong
+                    picks = self.rng.sample(keys, max(1, len(keys) - 1))
+                    if self.rng.random() < 0.4:
+                        picks = picks + [self.rng.choice([z for z in range(n) if z not in keys] or keys)]
+                else:
+                    picks = [self.rng.choice([z for z in range(n) if z not in keys] or keys)]
+                body = {"p_game": self.game, "p_token": token(self.i), "p_qi": qi, "p_answer": {"picks": sorted(set(picks))}}
+                fn = "live_submit"
+            else:
+                key = keys_of(q.get("text"), qi)[0]
+                body = {"p_game": self.game, "p_token": token(self.i), "p_qi": qi, "p_choice": key if right else self.rng.randrange(n)}
+                fn = "live_answer"
             try:
-                await self.rpc("live_answer", {"p_game": self.game, "p_token": token(self.i), "p_qi": qi, "p_choice": choice})
+                await self.rpc(fn, body)
             except SystemExit:
                 pass
 
@@ -237,6 +277,7 @@ async def main() -> None:
     ap.add_argument("--every", type=int, default=3, choices=[0, 3, 5, 10], help="0: a battle without movement rounds")
     ap.add_argument("--time", type=int, default=10, choices=[10, 20, 30])
     ap.add_argument("--boss", default="skeleton", choices=["clock", "skeleton"])
+    ap.add_argument("--teams", type=int, default=0, choices=[0, 2, 3, 4], help="teams (20261102090000_live_kinds_teams.sql)")
     ap.add_argument("--port", type=int, default=8418)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--join-s", type=float, default=8.0, help="the bots join over this many seconds")
@@ -262,7 +303,8 @@ async def main() -> None:
         return r.json()
 
     created = await rpc("live_create", {"p_source": {"container_id": a.container, "subject_ids": [a.subject], "count": a.questions},
-                                        "p_settings": {"mode": "boss", "stand_every": a.every, "time_s": a.time, "boss": a.boss}}, author)
+                                        "p_settings": {"mode": "boss", "stand_every": a.every, "time_s": a.time, "boss": a.boss,
+                                                       **({"teams": a.teams} if a.teams else {})}}, author)
     game, host_token, pin = created["game_id"], created["host_token"], created["pin"]
     api.hub = api.Hub()
     server = uvicorn.Server(uvicorn.Config(make_app(a.rest, anon), host="127.0.0.1", port=a.port, log_level="warning", lifespan="off",

@@ -170,6 +170,8 @@ export interface StandHello {
 export interface StandQuestion {
   text: string;
   options: string[];
+  /** Several right zones: how many (the boards say «встаньте на любой»); absent for one. */
+  multi?: number;
 }
 
 /** A closed question (only in `reveal`). Entity ids are the snapshot ids. */
@@ -177,6 +179,8 @@ export interface StandResult {
   qi: number;
   /** The right option = the zone that stays. */
   key: number;
+  /** A question of several right answers: every right zone (they all stay up; standing on any is right). */
+  keys?: number[];
   /** Answers per zone (ghosts too), length = options. */
   counts: number[];
   /** Alive players on the right zone («Устояли N из M»). */
@@ -323,6 +327,7 @@ export function parseStand(obj: unknown): StandMessage | null {
       const r = m.res as Partial<StandResult> | undefined;
       if (!r || !isNum(r.key) || !Array.isArray(r.fell) || !Array.isArray(r.back) || !isNum(r.back_at)) return null;
       if (r.void !== undefined && typeof r.void !== 'boolean') return null;
+      if (r.keys !== undefined && (!Array.isArray(r.keys) || !r.keys.every(isNum))) return null;
       if (r.hp !== undefined && r.hp !== null && !isNum(r.hp)) return null;
       if ((r.thawed !== undefined && !Array.isArray(r.thawed)) || (r.froze !== undefined && !Array.isArray(r.froze))) return null;
     }
@@ -479,3 +484,9 @@ export function encodeSnapshot(s: Snapshot, q: number): ArrayBuffer {
 export const kindOf = (flags: number): number => flags & 3;
 /** 1 + the index of the map zone the entity stands in, 0 for none. */
 export const zoneOf = (flags: number): number => flags >> ZONE_SHIFT;
+
+/** Every zone that stays up at a round's stomp: `keys` of a question of several right answers, else the one `key`. */
+export function resKeys(res: Pick<StandResult, 'key' | 'keys'> | null | undefined): number[] {
+  if (!res) return [];
+  return Array.isArray(res.keys) && res.keys.length > 0 ? res.keys : [res.key];
+}

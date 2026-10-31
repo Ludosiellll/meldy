@@ -149,8 +149,11 @@ export class Tags {
     this.mesh.name = 'name tags';
   }
 
-  /** Draws a tag into a free cell; -1 when the atlas is full (the player then has no tag). */
-  add(name: string, colourHex: string): number {
+  /**
+   * Draws a tag into a free cell; -1 when the atlas is full (the player then has no tag). `pillHex`: the tag's own
+   * colour (a team's), else the dark pill.
+   */
+  add(name: string, colourHex: string, pillHex?: string): number {
     const id = this.free.pop();
     if (id === undefined) return -1;
     const g = this.g;
@@ -169,7 +172,7 @@ export class Tags {
     }
     const pill = Math.ceil(w + 58);
     roundRect(g, x0 + 2, y0 + 4, pill - 4, CELL_H - 10, (CELL_H - 10) / 2);
-    g.fillStyle = 'rgba(17, 19, 38, 0.84)';
+    g.fillStyle = pillHex ?? 'rgba(17, 19, 38, 0.84)';
     g.fill();
     g.beginPath();
     g.arc(x0 + 26, y0 + CELL_H / 2 - 1, 10, 0, Math.PI * 2);
