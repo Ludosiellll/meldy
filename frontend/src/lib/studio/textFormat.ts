@@ -49,7 +49,16 @@ type Line =
   | { kind: 'option'; right: boolean; text: string }
   | { kind: 'form'; text: string }
   | { kind: 'explain'; text: string }
+  /** Release 48: «[соответствие]» — a question of a new kind; its key is edited on the canvas, never in the text. */
+  | { kind: 'kindmark'; tag: string }
   | { kind: 'content'; text: string };
+
+/** The tag of each new kind in «Текст» (release 48), and back. */
+const KIND_TAGS: Record<string, string> = { number: 'число', order: 'порядок', match: 'соответствие', cloze: 'пропуски', essay: 'развёрнутый ответ' };
+const TAG_KINDS: Record<string, string> = Object.fromEntries(Object.entries(KIND_TAGS).map(([kind, tag]) => [tag, kind]));
+const KIND_MARK = /^\[(число|порядок|соответствие|пропуски|развёрнутый ответ)\](?:\s|$)/i;
+/** The words after a new kind's tag: what the line is for. */
+const KIND_MARK_WORDS = 'ключ — на холсте';
 
 /** The words after a mark of `size` characters and the one space after it. */
 const rest = (line: string, size: number) => line.slice(size + 1);
@@ -69,6 +78,8 @@ function classify(line: string): Line {
     match = /^\[видео\]\(([^()\s]*)\)(?:\s(.*))?$/.exec(line);
     return match ? { kind: 'video', url: match[1], caption: match[2] ?? '' } : { kind: 'video', url: null, caption: '' };
   }
+  match = KIND_MARK.exec(line);
+  if (match) return { kind: 'kindmark', tag: match[1].toLowerCase() };
   match = /^([+-])(?:\s|$)/.exec(line);
   if (match) return { kind: 'option', right: match[1] === '+', text: rest(line, 1) };
   if (/^=(?:\s|$)/.test(line)) return { kind: 'form', text: rest(line, 1) };
@@ -94,6 +105,8 @@ function optionLines(mark: '+' | '-', text: string): string[] {
 /** A question as the text shows it (and as fromText reads it back). */
 interface QuestionText {
   stem: string;
+  /** Release 48: a new kind's question (its tag in the text); only its stem and explanation are text. */
+  kind?: string;
   short: boolean;
   options: string[];
   correct: number[];
@@ -104,6 +117,7 @@ interface QuestionText {
 const sortedSet = (list: readonly number[]) => [...new Set(list)].sort((a, b) => a - b);
 
 function questionOf(item: TestItem): QuestionText {
+  if (KIND_TAGS[item.kind]) return { stem: item.stem, kind: item.kind, short: false, options: [], correct: [], forms: [], explanation: item.explanation ?? '' };
   const short = item.kind === 'short';
   return {
     stem: item.stem,
@@ -117,7 +131,8 @@ function questionOf(item: TestItem): QuestionText {
 
 function questionText(question: QuestionText): string[] {
   const lines = contentLines(question.stem);
-  if (question.short) lines.push(marked('=', question.forms.join('; ')));
+  if (question.kind) lines.push(marked(`[${KIND_TAGS[question.kind]}]`, KIND_MARK_WORDS));
+  else if (question.short) lines.push(marked('=', question.forms.join('; ')));
   else question.options.forEach((option, index) => lines.push(...optionLines(question.correct.includes(index) ? '+' : '-', option)));
   if (question.explanation) lines.push(...question.explanation.split('\n').map((line) => marked('>', line)));
   return lines;
@@ -220,6 +235,8 @@ type Building =
       at: Lines;
       /** The previous line was an option (or its continuation): two spaces go on with it. */
       open: boolean;
+      /** Release 48: the new kind its tag named. */
+      kind?: string;
     };
 
 export interface TextProblem {
@@ -245,7 +262,8 @@ function finish(building: Building): Parsed {
         line: building.line,
         question: {
           stem: building.stem.join('\n'),
-          short,
+          ...(building.kind ? { kind: building.kind } : {}),
+          short: short && !building.kind,
           options,
           correct: building.options.flatMap((option, index) => (option.right ? [index] : [])),
           forms: short ? formsOf(building.forms.join(';')) : [],
@@ -340,6 +358,13 @@ function parse(text: string): { blocks: Parsed[]; problems: TextProblem[] } {
         target.forms.push(kind.text);
         target.at.forms.push(line);
         target.open = false;
+        return;
+      }
+      case 'kindmark': {
+        // release 48: the tag of a new kind ends the question's words; its key stays the canvas's
+        const q = question(line);
+        q.kind = TAG_KINDS[kind.tag];
+        q.open = false;
         return;
       }
       case 'explain':
@@ -447,8 +472,8 @@ function fieldsOf(content: Content): unknown[] {
     case 'page':
       return [content.title];
     case 'question': {
-      const { stem, short, options, correct, forms, explanation } = content.question;
-      return [stem, short, options, correct, forms, explanation];
+      const { stem, short, options, correct, forms, explanation, kind } = content.question;
+      return kind ? [stem, kind, explanation] : [stem, short, options, correct, forms, explanation];
     }
   }
 }
@@ -602,6 +627,8 @@ function questionProblems(draft: Draft, question: QuestionText, lines: Lines): T
 
 /** The text's question laid over the editor's draft of the row (pictures stay with their place). */
 function draftWith(base: Draft, question: QuestionText): Draft {
+  // release 48: a new kind takes only its words from the text
+  if (question.kind && base.kind === question.kind) return { ...base, stem: question.stem, explanation: question.explanation };
   const pictures = (at: number) => base.options[at]?.pictures ?? [];
   return {
     ...base,
@@ -736,12 +763,22 @@ export function fromText(text: string, doc: TestDoc, items: readonly TestItem[],
     if (entry.type === 'question') {
       // A matched question is always a question of the page (matching keeps to one type), with its row.
       const item = old?.item;
+      if (old && item && (entry.question.kind ?? null) !== (KIND_TAGS[item.kind] ? item.kind : null)) {
+        // release 48: a kind changes on the canvas, not by its tag
+        put(old.block, entry.line);
+        if (changed) problems.push(say(entry.line, 'тип вопроса меняют на холсте или в списке. Верните строку как была.'));
+        return;
+      }
       if (old && item) {
         put(old.block, entry.line);
         if (!changed) return;
         problems.push(...questionProblems(draftWith(draftOf(item), entry.question), entry.question, entry.lines));
         const patch = patchFor(item, entry.question);
         if (patch) updates.push({ id: item.id, patch });
+        return;
+      }
+      if (entry.question.kind) {
+        problems.push(say(entry.line, 'вопрос этого типа добавьте на холсте или в списке: его ключ правится там.'));
         return;
       }
       const draft: Draft = {

@@ -7,7 +7,7 @@
 import type { DocBlockType, DocButtons, DocDensity, DocFont, DocLayout, DocRadius } from '../../types/testDoc';
 import { count, EDITOR, plural } from '../containers/copyImport';
 
-export type QuestionType = 'single' | 'multiple' | 'truefalse' | 'short';
+export type QuestionType = 'single' | 'multiple' | 'truefalse' | 'short' | 'number' | 'order' | 'match' | 'cloze' | 'essay';
 export type StudioView = 'canvas' | 'list' | 'text';
 export type Panel = 'block' | 'design' | 'result' | 'check';
 
@@ -69,7 +69,7 @@ export const STUDIO = {
     page: 'Новая страница',
     question: 'Вопрос',
   } as Record<DocBlockType, string>,
-  qtypes: { single: 'Один ответ', multiple: 'Несколько ответов', truefalse: 'Верно / неверно', short: 'Короткий ответ' } as Record<QuestionType, string>,
+  qtypes: { single: 'Один ответ', multiple: 'Несколько ответов', truefalse: 'Верно / неверно', short: 'Короткий ответ', number: 'Число', order: 'Порядок', match: 'Соответствие', cloze: 'Пропуски в тексте', essay: 'Развёрнутый ответ' } as Record<QuestionType, string>,
   full: 'На странице уже 400 блоков. Больше не поместится.',
   cap: 'На странице помещается 400 блоков. Остальные вопросы во вкладке «Список».',
 

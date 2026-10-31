@@ -14,7 +14,9 @@ export type PageBlockType = Exclude<DocBlockType, 'question'>;
 export type PaletteEntry = { kind: 'block'; type: PageBlockType } | { kind: 'question'; type: QuestionType };
 
 export const BLOCK_KINDS: readonly PageBlockType[] = ['cover', 'heading', 'text', 'image', 'video', 'note', 'divider', 'page'];
-export const QUESTION_KINDS: readonly QuestionType[] = ['single', 'multiple', 'truefalse', 'short'];
+export const QUESTION_KINDS: readonly QuestionType[] = ['single', 'multiple', 'truefalse', 'short', 'number', 'order', 'match', 'cloze', 'essay'];
+/** The four kinds an empty test offers to start with (EmptyStart): the new kinds wait in the palette. */
+export const FIRST_KINDS: readonly QuestionType[] = ['single', 'multiple', 'truefalse', 'short'];
 export const ENTRIES: readonly PaletteEntry[] = [
   ...BLOCK_KINDS.map((type) => ({ kind: 'block' as const, type })),
   ...QUESTION_KINDS.map((type) => ({ kind: 'question' as const, type })),

@@ -100,6 +100,9 @@ export function isDraftQuestion(item: Pick<TestItem, 'kind' | 'stem' | 'options'
   const stem = item.stem.trim();
   if (stem === DRAFT_WORDS.stem || stem === DRAFT_WORDS.statement) return true;
   if (item.kind === 'short') return item.answers.length === 1 && item.answers[0].trim() === DRAFT_WORDS.form;
+  // release 48: a gap still holding the palette's «ответ», the palette's «0» of a number
+  if (item.kind === 'cloze') return item.answers.length === 1 && item.answers[0].trim() === DRAFT_WORDS.form;
+  if (item.kind === 'number' || item.kind === 'essay') return false;
   return item.options.length > 0 && item.options.every((option) => DRAFT_OPTION.test(option.trim()));
 }
 
@@ -114,7 +117,8 @@ export function draftTitle(title: string): boolean {
 
 const quote = (text: string, index: number) => `«${optionName(text, index)}»`;
 const ofQuestions = (n: number) => `${n} ${plural(n, 'вопроса', 'вопросов', 'вопросов')}`;
-const keyed = (item: TestItem) => (item.kind === 'short' ? item.answers.length > 0 : item.correct.length > 0);
+const keyed = (item: TestItem) =>
+  item.kind === 'essay' || (item.kind === 'short' || item.kind === 'number' || item.kind === 'match' || item.kind === 'cloze' ? item.answers.length > 0 : item.correct.length > 0);
 
 interface OnPage {
   block: QuestionBlock;
@@ -167,7 +171,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
     });
   }
 
-  if (!short) {
+  if (!short && item.options.length > 0) {
     const norms = item.options.map((option) => (isPictureWord(option) ? null : shortNorm(option)));
     norms.forEach((norm, later) => {
       const first = norm === null || norm === '' ? -1 : norms.indexOf(norm);
@@ -184,8 +188,10 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
       });
     });
 
-    const bound = orderBound(item.options);
-    if (!item.keep_order && bound >= 0) {
+    const bound = item.kind === 'single' || item.kind === 'multiple' ? orderBound(item.options) : -1;
+    if (item.kind !== 'single' && item.kind !== 'multiple') {
+      // release 48: order and match are never «закрепите порядок» questions
+    } else if (!item.keep_order && bound >= 0) {
       out.push({
         ...where,
         id: `order:${item.id}`,
@@ -226,7 +232,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
     firstByStem.set(stem, entry);
     return;
   }
-  const answersOf = (row: TestItem) => (row.kind === 'short' ? row.answers : row.options).map(shortNorm).sort();
+  const answersOf = (row: TestItem) => (row.kind === 'short' || row.kind === 'number' || row.kind === 'cloze' ? row.answers : [...row.options, ...(row.kind === 'match' ? row.answers : [])]).map(shortNorm).sort();
   const twin = first.item.kind === item.kind && JSON.stringify(answersOf(first.item)) === JSON.stringify(answersOf(item));
   out.push(
     twin
@@ -243,7 +249,7 @@ function questionHints(entry: OnPage, firstByStem: Map<string, OnPage>, out: Fou
 
 /** «Верный ответ — самый длинный» in most one-answer questions of three options or more. */
 function longestHint(questions: readonly OnPage[], out: Found[]): void {
-  const eligible = questions.filter(({ item }) => item.kind !== 'short' && item.correct.length === 1 && item.options.length >= 3 && !item.options.some(isPictureWord));
+  const eligible = questions.filter(({ item }) => (item.kind === 'single' || item.kind === 'multiple') && item.correct.length === 1 && item.options.length >= 3 && !item.options.some(isPictureWord));
   const hits = eligible.filter(({ item }) => {
     const right = chars(item.options[item.correct[0]]?.trim() ?? '');
     const others = Math.max(...item.options.filter((_, index) => index !== item.correct[0]).map((option) => chars(option.trim())));
@@ -262,7 +268,7 @@ function longestHint(questions: readonly OnPage[], out: Found[]): void {
 /** The key under one letter in most one-answer questions (8 questions or more; «верно / неверно» left out). */
 function letterHint(questions: readonly OnPage[], out: Found[]): void {
   const keys = questions
-    .filter(({ item }) => item.kind !== 'short' && item.correct.length === 1 && !isTrueFalse(item.options))
+    .filter(({ item }) => (item.kind === 'single' || item.kind === 'multiple') && item.correct.length === 1 && !isTrueFalse(item.options))
     .map(({ item }) => item.correct[0]);
   if (keys.length < 8) return;
   const counts = new Map<number, number>();

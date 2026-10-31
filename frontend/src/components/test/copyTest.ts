@@ -10,7 +10,7 @@ const questions = (n: number) => count(n, 'вопрос', 'вопроса', 'в�
 const subjects = (n: number) => count(n, 'предмет', 'предмета', 'предметов');
 
 /** The four kinds of question the builder adds; «верно / неверно» is a one-answer question with two fixed options. */
-export type BuildType = 'single' | 'multiple' | 'short' | 'truefalse';
+export type BuildType = 'single' | 'multiple' | 'short' | 'truefalse' | 'number' | 'order' | 'match' | 'cloze' | 'essay';
 
 export const NEW_TEST = {
   entry: 'Новый тест',
@@ -52,6 +52,11 @@ export const BUILD = {
     multiple: 'Несколько ответов',
     short: 'Короткий ответ',
     truefalse: 'Верно / неверно',
+    number: 'Число',
+    order: 'Порядок',
+    match: 'Соответствие',
+    cloze: 'Пропуски в тексте',
+    essay: 'Развёрнутый ответ',
   } as Record<BuildType, string>,
   /** What the author does in the editor of a new question of that kind. */
   typeHints: {
@@ -59,6 +64,11 @@ export const BUILD = {
     multiple: 'отметьте все верные варианты',
     short: 'напишите принятые ответы через «;»',
     truefalse: 'отметьте, какой вариант верный',
+    number: 'напишите верное число, допуск и единицу',
+    order: 'напишите пункты в верном порядке',
+    match: 'напишите пары, лишние ответы — по желанию',
+    cloze: 'поставьте ___ в тексте и напишите ответы',
+    essay: 'выберите лекции для проверки',
   } as Record<BuildType, string>,
   trueWord: 'Верно',
   falseWord: 'Неверно',

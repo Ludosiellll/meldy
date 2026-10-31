@@ -73,6 +73,29 @@ export function QuestionIcon({ type }: { type: QuestionType }) {
           <rect x="3" y="7" width="18" height="10" rx="3" {...line} />
           <path d="M7.5 10v4" {...line} />
         </>
+      ) : type === 'number' ? (
+        <path d="M9.5 4.5L8 19.5M16 4.5l-1.5 15M4.5 9h15M4 15h15" {...line} />
+      ) : type === 'order' ? (
+        <>
+          <path d="M9 6.5h11M9 12h11M9 17.5h11" {...line} />
+          <path d="M4 5.5l1.2-.8v3.6M3.8 11c.4-.6 2.2-.7 2.2.5 0 .9-2.2 1.8-2.2 2.6h2.4M3.9 16.3c.5-.6 2.1-.5 2.1.4 0 .6-.7.8-1 .8.4 0 1.1.2 1.1.9 0 .9-1.7 1.1-2.3.4" {...line} />
+        </>
+      ) : type === 'match' ? (
+        <>
+          <circle cx="5" cy="7" r="1.8" {...line} />
+          <circle cx="5" cy="17" r="1.8" {...line} />
+          <circle cx="19" cy="7" r="1.8" {...line} />
+          <circle cx="19" cy="17" r="1.8" {...line} />
+          <path d="M6.8 7.6l10.4 8.8M6.8 16.4l10.4-8.8" {...line} />
+        </>
+      ) : type === 'cloze' ? (
+        <>
+          <path d="M3.5 9h5M16 9h4.5M3.5 15h3M14 15h6.5" {...line} />
+          <rect x="9.5" y="6.5" width="5.5" height="5" rx="1.5" {...line} />
+          <rect x="7.5" y="12.5" width="5.5" height="5" rx="1.5" {...line} />
+        </>
+      ) : type === 'essay' ? (
+        <path d="M4 6.5h16M4 10.5h16M4 14.5h16M4 18.5h9" {...line} />
       ) : (
         <path d="M4.5 12.5l3 3 5-6.5M14 9l6 6M20 9l-6 6" {...line} />
       )}
