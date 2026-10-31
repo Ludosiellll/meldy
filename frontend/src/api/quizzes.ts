@@ -13,6 +13,9 @@ import type { GuardEvent } from '../lib/quizzes/guard';
 import type {
   AttemptAnswer,
   EssayMark,
+  ItemPercent,
+  MistakesSent,
+  QuizAnalysis,
   EssayVerdict,
   QuizAnswerInput,
   QuizGuardEventRow,
@@ -114,6 +117,66 @@ export async function quizResults(quizId: Uuid): Promise<QuizResults> {
 
 export async function quizMarks(quizId: Uuid): Promise<QuizMark[]> {
   return rows(await rpc('quiz_marks', { p_quiz_id: quizId }), 'attempt_id');
+}
+
+const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+/** A number, null, or null for anything else: a cell's credit and seconds. */
+const numOrNull = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+
+/** Release 49 (20261105090000_quiz_stats): the finished attempts of others with their cells, and the other quizzes. */
+export async function quizAnalysis(quizId: Uuid): Promise<QuizAnalysis> {
+  const raw = shaped<Record<string, unknown>>(await rpc('quiz_analysis', { p_quiz_id: quizId }), 'quiz_analysis', 'attempts');
+  const items = Array.isArray(raw.items) ? raw.items.filter((id): id is string => typeof id === 'string') : [];
+  const cellsOf = (value: unknown) =>
+    (Array.isArray(value) ? value : [])
+      .filter((cell): cell is unknown[] => Array.isArray(cell) && typeof cell[0] === 'number' && cell[0] >= 0 && cell[0] < items.length)
+      .map((cell) => [cell[0] as number, numOrNull(cell[1]), numOrNull(cell[2])] as [number, number | null, number | null]);
+  return {
+    quiz_id: text(raw.quiz_id),
+    server_now: text(raw.server_now),
+    items,
+    attempts: rows<Record<string, unknown>>(raw.attempts, 'id').map((a) => ({
+      id: text(a.id),
+      person: text(a.person),
+      n: num(a.n),
+      guest: a.guest === true,
+      member: a.member === true,
+      sent: a.sent === true,
+      started_at: text(a.started_at),
+      finished_at: text(a.finished_at),
+      cells: cellsOf(a.cells),
+    })),
+    others: rows<Record<string, unknown>>(raw.others, 'id').map((o) => ({
+      id: text(o.id),
+      title: text(o.title),
+      created_at: text(o.created_at),
+      closed: o.closed === true,
+      attempts: num(o.attempts),
+      items: (Array.isArray(o.items) ? o.items : [])
+        .filter((cell): cell is unknown[] => Array.isArray(cell) && typeof cell[0] === 'number' && cell[0] >= 0 && cell[0] < items.length)
+        .map((cell) => [cell[0] as number, num(cell[1]), num(cell[2])] as [number, number, number]),
+    })),
+  };
+}
+
+/** Each member's mistakes of their latest attempt into their training; a second press writes nothing. */
+export async function sendMistakes(quizId: Uuid): Promise<MistakesSent> {
+  const raw = shaped<Record<string, unknown>>(await rpc('quiz_send_mistakes', { p_quiz_id: quizId }), 'quiz_send_mistakes', 'people');
+  return {
+    people: num(raw.people),
+    answers: num(raw.answers),
+    again: num(raw.again),
+    clean: num(raw.clean),
+    outside: num(raw.outside),
+    guests: num(raw.guests),
+    practice: raw.practice === true,
+  };
+}
+
+/** The studio's canvas: per question of the exam or test, the finished quiz attempts of others and their credit. */
+export async function itemPercents(containerId: Uuid): Promise<ItemPercent[]> {
+  const raw = shaped<Record<string, unknown>>(await rpc('test_item_percents', { p_container_id: containerId }), 'test_item_percents', 'items');
+  return rows<Record<string, unknown>>(raw.items, 'item_id').map((row) => ({ item_id: text(row.item_id), shown: num(row.shown), credit: num(row.credit) }));
 }
 
 export async function attemptAnswers(attemptId: Uuid): Promise<AttemptAnswer[]> {

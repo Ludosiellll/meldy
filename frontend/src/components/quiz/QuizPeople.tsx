@@ -14,6 +14,7 @@ import { QA_ERRORS, QA_PEOPLE } from './copyAuthor';
 const ATTEMPT_ERRORS: Record<string, string> = { ...QA_ERRORS, P0002: QA_PEOPLE.attemptGone };
 import type { TestItem } from '../../types/container';
 import type { AttemptAnswer, QuizAttemptRow, QuizGuardEventRow, QuizRow } from '../../types/quiz';
+import type { FastSign } from '../../lib/quizzes/analysis';
 import './quizAuthor.css';
 
 /**
@@ -49,6 +50,8 @@ export interface QuizPeopleProps {
   wide: boolean;
   /** An attempt was reset: the page reads the results again. */
   onChanged: () => void;
+  /** Release 49: attempts with many answers in very little time (lib/quizzes/analysis.ts fastSigns), by attempt id. */
+  fast?: ReadonlyMap<string, FastSign>;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -103,7 +106,13 @@ function sortRows(rows: PersonRow[], by: PeopleSort): PersonRow[] {
   return [...rows].sort((a, b) => (a.minutes ?? Infinity) - (b.minutes ?? Infinity) || byName(a, b));
 }
 
-export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, wide, onChanged }: QuizPeopleProps) {
+/** The person's speed signal: of the attempt counted, else of any of theirs (null — none). */
+export function fastOf(row: Pick<PersonRow, 'all' | 'counted'>, fast: ReadonlyMap<string, FastSign> | undefined): FastSign | null {
+  if (!fast || fast.size === 0) return null;
+  return fast.get(row.counted.id) ?? row.all.map((attempt) => fast.get(attempt.id)).find(Boolean) ?? null;
+}
+
+export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, wide, onChanged, fast }: QuizPeopleProps) {
   const [removed, setRemoved] = useState<ReadonlySet<string>>(() => new Set());
   const [sort, setSort] = useState<PeopleSort>('name');
   const [onlyFlagged, setOnlyFlagged] = useState(false);
@@ -112,8 +121,9 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
     () => sortRows(peopleRows(attempts.filter((attempt) => !removed.has(attempt.id)), quiz.grading), sort),
     [attempts, removed, quiz.grading, sort],
   );
-  const anyFlagged = everyone.some((row) => flagOf(row) !== null);
-  const rows = onlyFlagged && anyFlagged ? everyone.filter((row) => flagOf(row) !== null) : everyone;
+  const marked = (row: PersonRow) => flagOf(row) !== null || fastOf(row, fast) !== null;
+  const anyFlagged = everyone.some(marked);
+  const rows = onlyFlagged && anyFlagged ? everyone.filter(marked) : everyone;
   const filterId = useId();
 
   // The clocks of those writing tick every second (the deadline is the server's: the offset makes up the device's).
@@ -180,6 +190,7 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
           {rows.map((row) => {
             const minutes = row.minutes === null ? '' : QA_PEOPLE.minutes(row.minutes);
             const flag = flagOf(row);
+            const quick = fastOf(row, fast);
             return (
               <li key={row.person}>
                 <button type="button" className="qa-person" data-status={row.status} onClick={() => setOpenPerson(row.person)}>
@@ -198,6 +209,15 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
                         <span className="qa-flag" title={QA_PEOPLE.flagLabel(flag)}>
                           <span aria-hidden="true">{QA_PEOPLE.flag(flag)}</span>
                           <span className="qa-sr">{QA_PEOPLE.flagLabel(flag)}</span>
+                        </span>
+                      </>
+                    ) : null}
+                    {quick !== null ? (
+                      <>
+                        {' '}
+                        <span className="qa-flag" title={QA_PEOPLE.fastLabel(quick.answers, quick.seconds)}>
+                          <span aria-hidden="true">{QA_PEOPLE.fast}</span>
+                          <span className="qa-sr">{QA_PEOPLE.fastLabel(quick.answers, quick.seconds)}</span>
                         </span>
                       </>
                     ) : null}
@@ -222,6 +242,7 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
         </ul>
       </div>
       {rows.length === 0 ? <p className="qa-hint">{QA_PEOPLE.noneFlagged}</p> : null}
+      {anyFlagged ? <p className="qa-hint">{QA_PEOPLE.notProof}</p> : null}
       {rows.some((row) => row.own) ? <p className="qa-hint">{QA_PEOPLE.ownHint}</p> : null}
       {rows.some((row) => row.counted.guest) ? <p className="qa-hint">{QA_PEOPLE.guestHint}</p> : null}
       {opened ? (

@@ -184,6 +184,62 @@ export interface QuizMark {
   correct: boolean;
 }
 
+/**
+ * quiz_analysis (release 49, 20261105090000_quiz_stats): a cell of an attempt — the question's index in
+ * QuizAnalysis.items, its credit 0..1 (null while an essay waits for its mark) and the seconds spent on it, from the
+ * answer saved before it (null: no answer).
+ */
+export type QuizAnalysisCell = [index: number, credit: number | null, seconds: number | null];
+export interface QuizAnalysisAttempt {
+  id: Uuid;
+  /** As QuizAttemptRow.person. */
+  person: string;
+  n: number;
+  guest: boolean;
+  /** An account in the exam now: its mistakes can go to training. */
+  member: boolean;
+  /** Its mistakes went to training already (quiz_send_mistakes). */
+  sent: boolean;
+  started_at: string;
+  finished_at: string;
+  cells: QuizAnalysisCell[];
+}
+/** Another quiz of the same exam or test: per question index [index, shown, credit]. */
+export interface QuizAnalysisOther {
+  id: Uuid;
+  title: string;
+  created_at: string;
+  closed: boolean;
+  attempts: number;
+  items: Array<[index: number, shown: number, credit: number]>;
+}
+/** The finished attempts of others than the author, for the statistics a psychometrician would compute. */
+export interface QuizAnalysis {
+  quiz_id: Uuid;
+  server_now: string;
+  /** The questions in the exam's order; the cells point into this list. */
+  items: Uuid[];
+  attempts: QuizAnalysisAttempt[];
+  others: QuizAnalysisOther[];
+}
+/** quiz_send_mistakes: people who got mistakes now and how many; people whose mistakes went before; people without a
+ *  mistake; accounts outside the exam; guests; whether the quiz offers «Тренироваться дальше». */
+export interface MistakesSent {
+  people: number;
+  answers: number;
+  again: number;
+  clean: number;
+  outside: number;
+  guests: number;
+  practice: boolean;
+}
+/** test_item_percents: per question of the exam, the finished attempts of others that got it and their credit. */
+export interface ItemPercent {
+  item_id: Uuid;
+  shown: number;
+  credit: number;
+}
+
 export interface AttemptAnswer {
   item_id: Uuid;
   chosen: number[] | null;

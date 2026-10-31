@@ -11,6 +11,8 @@ const api = vi.hoisted(() => ({
   resetAttempt: vi.fn(),
   closeQuiz: vi.fn(),
   deleteQuiz: vi.fn(),
+  quizAnalysis: vi.fn(),
+  sendMistakes: vi.fn(),
   reload: vi.fn(),
   state: { summary: null as unknown, items: null as unknown },
 }));
@@ -22,6 +24,9 @@ vi.mock('../../api/quizzes', () => ({
   resetAttempt: api.resetAttempt,
   closeQuiz: api.closeQuiz,
   deleteQuiz: api.deleteQuiz,
+  // release 49: the analysis (its own tests: QuizStatsAnalysis.test.tsx)
+  quizAnalysis: api.quizAnalysis,
+  sendMistakes: api.sendMistakes,
 }));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainerData: () => ({
@@ -90,6 +95,8 @@ beforeEach(() => {
   api.resetAttempt.mockReset().mockResolvedValue(undefined);
   api.closeQuiz.mockReset().mockResolvedValue(quizRow({ state: 'closed', closed_at: NOW.toISOString() }));
   api.deleteQuiz.mockReset().mockResolvedValue(undefined);
+  api.quizAnalysis.mockReset().mockResolvedValue({ quiz_id: 'q', server_now: NOW.toISOString(), items: [], attempts: [], others: [] });
+  api.sendMistakes.mockReset();
 });
 afterEach(() => {
   cleanup();

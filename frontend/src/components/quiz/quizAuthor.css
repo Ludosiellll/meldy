@@ -505,7 +505,7 @@
   -webkit-box-orient: vertical;
 }
 .sf-page.qa-page .qa-picks { display: grid; gap: 6px; max-width: 560px; margin: 14px 0 0; padding: 0; list-style: none; }
-.sf-page.qa-page .qa-pick { display: grid; grid-template-columns: 22px minmax(0, 1fr) 36px 44px; align-items: center; gap: 10px; min-height: 24px; font-size: 15px; }
+.sf-page.qa-page .qa-pick { display: grid; grid-template-columns: 22px minmax(0, 1fr) 36px 64px; align-items: center; gap: 10px; min-height: 24px; font-size: 15px; }
 .sf-page.qa-page .qa-pick-letter { font-weight: 600; color: var(--sf-muted); }
 .sf-page.qa-page .qa-pick-track { position: relative; height: 10px; border-radius: 999px; background: var(--ex-num, var(--sf-surface-soft)); overflow: hidden; }
 .sf-page.qa-page .qa-pick-bar { position: absolute; inset: 0 auto 0 0; min-width: 0; border-radius: 999px; background: color-mix(in srgb, var(--sf-ink) 38%, transparent); }
@@ -519,6 +519,54 @@
 .sf-page.qa-page .qa-q-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 16px; margin: 6px 0 0; }
 .sf-page.qa-page .qa-q-skip { font-size: 14px; color: var(--sf-muted); }
 .sf-page.qa-page .qa-q-foot .sf-link { margin-left: auto; font-size: 15px; }
+
+/* ── Release 49 (lib/quizzes/analysis.ts): the verdict, the trap, the usual time, the comparison; «Повторить» ── */
+.sf-page.qa-page .qa-insight { display: grid; gap: 8px; margin: 0 0 16px; padding: 16px 20px; border-radius: 24px; background: var(--sf-surface-soft); box-shadow: inset 0 0 0 1px var(--sf-line); }
+.sf-page.qa-page .qa-insight-line { margin: 0; font-size: 15px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page.qa-page .qa-insight-line[data-muted] { color: var(--sf-muted); }
+.sf-page.qa-page .qa-insight-strong { font-weight: 600; color: var(--sf-ink); }
+.sf-page.qa-page .qa-compare { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 15px; color: var(--sf-muted); }
+.sf-page.qa-page .qa-q-verdict { margin: 10px 0 0; padding-left: 12px; border-left: 3px solid var(--sf-line); font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page.qa-page .qa-q-verdict[data-tone='good'] { border-left-color: var(--m-green); }
+.sf-page.qa-page .qa-q-verdict[data-tone='weak'] { border-left-color: color-mix(in srgb, var(--m-yellow-ink) 45%, transparent); }
+.sf-page.qa-page .qa-q-verdict[data-tone='bad'] { border-left-color: var(--m-yellow-ink); font-weight: 500; }
+.sf-page.qa-page .qa-q-groups { font-weight: 400; color: var(--sf-muted); }
+.sf-page.qa-page .qa-q-note { margin: 8px 0 0; font-size: 14px; line-height: 1.45; color: var(--sf-muted); font-variant-numeric: tabular-nums; text-wrap: pretty; }
+.sf-page.qa-page .qa-q[data-rewrite] { box-shadow: 0 0 0 1px color-mix(in srgb, var(--m-yellow-ink) 40%, var(--sf-line)), var(--m-card-shadow); }
+.sf-page.qa-page .qa-pick[data-trap] .qa-pick-letter,
+.sf-page.qa-page .qa-pick[data-trap] .qa-pick-key { color: var(--m-yellow-ink); }
+.sf-page.qa-page .qa-pick[data-trap] .qa-pick-bar { background: color-mix(in srgb, var(--m-yellow-ink) 70%, transparent); }
+
+.sf-page.qa-page .qa-send { display: grid; justify-items: start; gap: 0; margin: 0 0 8px; padding: 18px 20px; border-radius: 24px; background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow); }
+.sf-page.qa-page .qa-send > .qa-hint { margin-top: 10px; }
+.sf-page.qa-page .qa-send-b {
+  min-height: 48px;
+  padding: 10px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+  font: 500 15px/1.3 var(--ph-sans);
+  text-align: center;
+  cursor: pointer;
+}
+.sf-page.qa-page .qa-send-b:disabled { opacity: .55; cursor: default; }
+.sf-page.qa-page .qa-send-b:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 2px; }
+.sf-page.qa-page .qa-send-line { margin: 8px 0 0; font-size: 15px; line-height: 1.45; font-weight: 500; color: var(--m-green-ink); }
+.sf-page.qa-page .qa-send-line:empty { display: none; }
+.sf-page.qa-page .qa-repeat-h { margin: 24px 0 10px; font-size: 18px; line-height: 1.3; font-weight: 600; letter-spacing: -.01em; }
+.sf-page.qa-page .qa-repeat { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; border-radius: 24px; background: var(--sf-surface); box-shadow: 0 0 0 1px var(--sf-line); overflow: hidden; }
+.sf-page.qa-page .qa-rep { display: grid; grid-template-columns: minmax(0, 14rem) minmax(0, 1fr) auto; align-items: baseline; gap: 4px 16px; padding: 12px 20px; font-size: 15px; line-height: 1.45; }
+.sf-page.qa-page .qa-rep + .qa-rep { border-top: 1px solid var(--sf-line); }
+.sf-page.qa-page .qa-rep-name { font-weight: 500; overflow-wrap: anywhere; }
+.sf-page.qa-page .qa-rep-items { color: var(--sf-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.sf-page.qa-page .qa-rep[data-done] .qa-rep-items { color: var(--m-green-ink); }
+.sf-page.qa-page .qa-rep-sent { font-size: 13px; font-weight: 600; color: var(--m-green-ink); white-space: nowrap; }
+.sf-page.qa-page[data-frame='s'] .qa-rep { grid-template-columns: minmax(0, 1fr) auto; padding: 12px 16px; }
+.sf-page.qa-page[data-frame='s'] .qa-rep-items { grid-column: 1 / -1; grid-row: 2; }
+.sf-page.qa-page[data-frame='s'] .qa-send { padding: 16px; }
+.sf-page.qa-page[data-frame='s'] .qa-send-b { width: 100%; }
+.sf-page.qa-page[data-frame='s'] .qa-insight { padding: 14px 16px; }
 
 /* ── a person's answers (QuizPeople): the exam's sheet (containers.css .ct-sheet), wider on a computer; it lives in
    document.body, so these rules are not under .sf-page ── */
@@ -658,7 +706,7 @@
   .sf-page.qa-page .qa-tabbar { align-items: stretch; }
   .sf-page.qa-page .qa-tabs { width: 100%; }
   .sf-page.qa-page .qa-tab { padding: 0 12px; }
-  .sf-page.qa-page .qa-pick { grid-template-columns: 20px minmax(0, 1fr) 32px 40px; gap: 8px; }
+  .sf-page.qa-page .qa-pick { grid-template-columns: 20px minmax(0, 1fr) 32px 60px; gap: 8px; }
 }
 
 /* Release 48: an essay marked by the author (EssayMarker). */

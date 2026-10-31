@@ -14,6 +14,9 @@ import { useFocusAfter } from '../../components/containers/useFocusAfter';
 import QuizPeople from '../../components/quiz/QuizPeople';
 import QuizQuestions from '../../components/quiz/QuizQuestions';
 import QuizShare from '../../components/quiz/QuizShare';
+import QuizRepeat from '../../components/quiz/QuizRepeat';
+import { analysisStamp, useQuizAnalysis } from '../../components/quiz/useQuizAnalysis';
+import { fastSigns } from '../../lib/quizzes/analysis';
 import { QA_ERRORS, QA_LIST, QA_STATS } from '../../components/quiz/copyAuthor';
 import { QUIZ } from '../../components/quiz/copyQuiz';
 import type { TestItem, Uuid } from '../../types/container';
@@ -36,8 +39,9 @@ import '../../components/quiz/quizAuthor.css';
 export const POLL_WRITING_MS = 5000;
 export const POLL_IDLE_MS = 30000;
 
-type Tab = 'people' | 'questions';
-const STATS_TABS: readonly Tab[] = ['people', 'questions'];
+type Tab = 'people' | 'questions' | 'repeat';
+const STATS_TABS: readonly Tab[] = ['people', 'questions', 'repeat'];
+const TAB_WORDS: Record<Tab, string> = { people: QA_STATS.tabPeople, questions: QA_STATS.tabQuestions, repeat: QA_STATS.tabRepeat };
 type Ask = 'close' | 'remove' | null;
 
 const pageVisible = () => typeof document === 'undefined' || document.visibilityState !== 'hidden';
@@ -153,6 +157,9 @@ export default function QuizStatsPage() {
   const subjects = useMemo(() => statsSubjects(summary), [summary]);
   const rows = useMemo(() => (results && quiz ? peopleRows(results.attempts, quiz.grading) : []), [results, quiz]);
   const totals = useMemo(() => summaryOf(rows, quiz?.pass_percent ?? null), [rows, quiz?.pass_percent]);
+  // Release 49: the analysis (quiz_analysis), read again only when the finished attempts change.
+  const analysisState = useQuizAnalysis(quizId, analysisStamp(results?.attempts));
+  const fast = useMemo(() => fastSigns(analysisState.analysis), [analysisState.analysis]);
 
   // ── the note a page left (created, saved): shown once; the history entry forgets it, so a reload does not repeat it ──
   const [note] = useState<string | null>(() => {
@@ -250,11 +257,14 @@ export default function QuizStatsPage() {
   // ── the tabs ──
   // The tab lives in the address (?tab=questions; lib/urlState.ts): a reload and «Назад» keep it.
   const [tab, setTab] = useUrlState<Tab>('tab', 'people', STATS_TABS);
-  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ people: null, questions: null });
+  const tabRefs = useRef<Record<Tab, HTMLButtonElement | null>>({ people: null, questions: null, repeat: null });
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
     event.preventDefault();
-    const next: Tab = event.key === 'Home' ? 'people' : event.key === 'End' ? 'questions' : tab === 'people' ? 'questions' : 'people';
+    const at = STATS_TABS.indexOf(tab);
+    const last = STATS_TABS.length - 1;
+    const next: Tab =
+      STATS_TABS[event.key === 'Home' ? 0 : event.key === 'End' ? last : event.key === 'ArrowRight' ? (at === last ? 0 : at + 1) : at === 0 ? last : at - 1];
     setTab(next);
     tabRefs.current[next]?.focus();
   };
@@ -407,7 +417,7 @@ export default function QuizStatsPage() {
 
       <div className="qa-tabbar">
         <div className="qa-tabs" role="tablist" aria-label={QA_STATS.tabs}>
-          {(['people', 'questions'] as const).map((which) => (
+          {STATS_TABS.map((which) => (
             <button
               key={which}
               ref={(node) => {
@@ -423,7 +433,7 @@ export default function QuizStatsPage() {
               onKeyDown={onTabKey}
               onClick={() => setTab(which)}
             >
-              {which === 'people' ? QA_STATS.tabPeople : QA_STATS.tabQuestions}
+              {TAB_WORDS[which]}
             </button>
           ))}
         </div>
@@ -439,9 +449,30 @@ export default function QuizStatsPage() {
 
       <div className="qa-panel" role="tabpanel" id={`${tabId(tab)}-panel`} aria-labelledby={tabId(tab)}>
         {tab === 'people' ? (
-          <QuizPeople quiz={quiz} attempts={results.attempts} items={items} subjects={subjects} offsetMs={offsetMs} wide={frame.side} onChanged={() => void load(true)} />
+          <QuizPeople quiz={quiz} attempts={results.attempts} items={items} subjects={subjects} offsetMs={offsetMs} wide={frame.side} onChanged={() => void load(true)} fast={fast} />
+        ) : tab === 'questions' ? (
+          <QuizQuestions
+            containerId={containerId}
+            stats={results.items}
+            items={items}
+            subjects={subjects}
+            analysis={analysisState.analysis}
+            attempts={results.attempts}
+            analysisFailed={analysisState.failed}
+            onAnalysisRetry={analysisState.reload}
+          />
         ) : (
-          <QuizQuestions containerId={containerId} stats={results.items} items={items} subjects={subjects} />
+          <QuizRepeat
+            quizId={quizId}
+            analysis={analysisState.analysis}
+            analysisFailed={analysisState.failed}
+            attempts={results.attempts}
+            items={items}
+            ofTest={ofTest}
+            practice={quiz.offer_practice === true}
+            onSent={analysisState.reload}
+            onRetry={analysisState.reload}
+          />
         )}
       </div>
     </div>
