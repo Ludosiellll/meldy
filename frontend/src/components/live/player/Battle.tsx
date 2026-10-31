@@ -263,15 +263,19 @@ interface SheetProps {
   bossEl: RefObject<HTMLDivElement>;
   haptic: (kind: HapticKind) => void;
   onImpact: () => void;
+  /** «Без спешки»: no streak, speed or ice in the sheet's words. */
+  calm: boolean;
 }
 
 /**
  * The sheet's words for a miss: a button question «Не успели» / «Неверно», a movement round of a mixed game «Не встали
  * на ответ» / «Мимо» (MODE_MIXED §8), and what the freeze means for the player.
  */
-export function missWords(r: { none: boolean; frozen: boolean; stand?: boolean }, newlyFrozen: boolean): { title: string; line: string } {
+export function missWords(r: { none: boolean; frozen: boolean; stand?: boolean }, newlyFrozen: boolean, calm = false): { title: string; line: string } {
   const stand = !!r.stand;
   const title = stand ? (r.none ? 'Не встали на ответ' : 'Мимо') : r.none ? 'Не успели' : 'Неверно';
+  // «Без спешки» (20261106090000_live_calm.sql): nobody freezes
+  if (calm) return { title, line: CALM.miss };
   const line = newlyFrozen
     ? stand
       ? 'Вы заморожены. Ответьте верно на следующий вопрос, чтобы оттаять.'
@@ -412,16 +416,22 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
       <>
         <span className="lp-big">−{nb(r.dmg)}</span>
         <p>урона Дедлайну</p>
-        <div className="lp-pills">
-          <span className="lp-pill">Серия {p.streak}</span>
-          {p.streak > 1 && <span className="lp-pill">{multText(p.streak)} за серию</span>}
-          {/* The server's seconds (the ack), the ones the damage was counted with; unknown → none. */}
-          {p.speed && p.elapsedMs !== null && <span className="lp-pill">{seconds(p.elapsedMs)}</span>}
-        </div>
+        {p.calm ? (
+          <div className="lp-pills">
+            <span className="lp-pill">{CALM.pill}</span>
+          </div>
+        ) : (
+          <div className="lp-pills">
+            <span className="lp-pill">Серия {p.streak}</span>
+            {p.streak > 1 && <span className="lp-pill">{multText(p.streak)} за серию</span>}
+            {/* The server's seconds (the ack), the ones the damage was counted with; unknown → none. */}
+            {p.speed && p.elapsedMs !== null && <span className="lp-pill">{seconds(p.elapsedMs)}</span>}
+          </div>
+        )}
       </>
     );
   } else {
-    const miss = missWords(r, newlyFrozen);
+    const miss = missWords(r, newlyFrozen, p.calm);
     title = miss.title;
     body = (
       <>
@@ -571,6 +581,14 @@ export interface BattleProps {
   haptic: (kind: HapticKind) => void;
 }
 
+/** «Без спешки» (20261106090000_live_calm.sql): the phone's words. */
+export const CALM = {
+  pill: 'Без спешки',
+  line: 'Отвечайте спокойно: очки только за верные ответы',
+  miss: 'Без спешки никто не замерзает. Следующий вопрос — новый шанс.',
+  angry: { title: 'Дедлайн злится', text: 'Без спешки это ничего не меняет: никто не замерзает.' },
+};
+
 const PHASE_TEXT: Record<1 | 2, { title: string; text: string }> = {
   1: { title: 'Дедлайн злится', text: 'Теперь замораживает и тех, кто не успел ответить.' },
   2: { title: 'Последняя минута', text: 'Если верных ответов меньше двух третей, Дедлайн восстанавливает силы.' },
@@ -702,7 +720,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
         setBanner({ title: 'Дедлайн повержен', text: `Класс победил. Сейчас${NBSP}— итог игры.` });
         haptic('success');
       } else if (res?.phase_changed === 1 || res?.phase_changed === 2) {
-        setBanner(PHASE_TEXT[res.phase_changed]);
+        setBanner(res.phase_changed === 1 && now.calm ? CALM.angry : PHASE_TEXT[res.phase_changed]);
         haptic('warning');
       }
     }, 420);
@@ -775,10 +793,11 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
   else if (frozen) {
     tone = 'ice';
     line = isOpen ? 'Заморожены: ответьте верно, чтобы оттаять' : 'Вы заморожены. Ответьте верно, чтобы оттаять. Урона в этом вопросе не будет.';
-  } else if (st.me.streak > 0) line = `Серия ${st.me.streak} · урон ${multText(st.me.streak + 1)} за верный`;
+  } else if (st.calm) line = CALM.line;
+  else if (st.me.streak > 0) line = `Серия ${st.me.streak} · урон ${multText(st.me.streak + 1)} за верный`;
   else line = st.speed ? `Отвечайте быстрее${NBSP}— урон больше` : `Верный ответ${NBSP}— удар по Дедлайну`;
 
-  const rule = q.phase === 1 ? `Дедлайн злится: кто не успел${NBSP}— тоже замёрзнет.` : q.phase === 2 ? `Последняя минута: мало верных${NBSP}— Дедлайн лечится.` : null;
+  const rule = q.phase === 1 && st.calm ? null : q.phase === 1 ? `Дедлайн злится: кто не успел${NBSP}— тоже замёрзнет.` : q.phase === 2 ? `Последняя минута: мало верных${NBSP}— Дедлайн лечится.` : null;
   const showTop = st.state === 'leaderboard' && st.top && st.top.length > 0;
   // The wait's panel: after the ack (never on the tap's own frame), at the end of the time, or for a late joiner.
   const waitMode: WaitProps['mode'] | null = closed || !isOpen ? null : upNow || allIn ? 'up' : sitOut ? 'late' : picked && picked.status === 'accepted' ? 'answered' : null;
@@ -935,6 +954,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           bossEl={bossEl}
           haptic={haptic}
           onImpact={onImpact}
+          calm={!!st.calm}
         />
       )}
     </div>

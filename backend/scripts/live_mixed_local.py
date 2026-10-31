@@ -319,6 +319,7 @@ async def main() -> None:
     ap.add_argument("--time", type=int, default=10, choices=[10, 20, 30])
     ap.add_argument("--boss", default="skeleton", choices=["clock", "skeleton"])
     ap.add_argument("--teams", type=int, default=0, choices=[0, 2, 3, 4], help="teams (20261102090000_live_kinds_teams.sql)")
+    ap.add_argument("--calm", action="store_true", help="«Без спешки»: points only for right answers (20261106090000_live_calm.sql)")
     ap.add_argument("--port", type=int, default=8418)
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--join-s", type=float, default=8.0, help="the bots join over this many seconds")
@@ -345,7 +346,7 @@ async def main() -> None:
 
     created = await rpc("live_create", {"p_source": {"container_id": a.container, "subject_ids": [a.subject], "count": a.questions},
                                         "p_settings": {"mode": "boss", "stand_every": a.every, "time_s": a.time, "boss": a.boss,
-                                                       **({"teams": a.teams} if a.teams else {})}}, author)
+                                                       **({"teams": a.teams} if a.teams else {}), **({"calm": True} if a.calm else {})}}, author)
     game, host_token, pin = created["game_id"], created["host_token"], created["pin"]
     api.hub = api.Hub()
     server = uvicorn.Server(uvicorn.Config(make_app(a.rest, anon), host="127.0.0.1", port=a.port, log_level="warning", lifespan="off",

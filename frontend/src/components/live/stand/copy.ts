@@ -86,6 +86,8 @@ export const BATTLE_3D = {
   number: 'Введите число на телефоне',
   unit: (u: string) => `Ответ в\u00a0${u}`,
   line: 'Ответы класса',
+  /** «Без спешки» (20261106090000_live_calm.sql): said on the board of every question. */
+  calm: 'Без спешки: очки только за верные ответы',
   near: 'Ближе всех',
 };
 

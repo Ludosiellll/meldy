@@ -41,7 +41,12 @@ export interface LobbyProps {
   rounds?: readonly number[] | null;
   /** A game with teams: the player's team. */
   team?: number | null;
+  /** «Без спешки» (20261106090000_live_calm.sql): points only for right answers. */
+  calm?: boolean;
 }
+
+/** What «Без спешки» means for the player, said in the lobby. */
+export const CALM_LINE = 'Без спешки: очки только за верные ответы. Торопиться не нужно, никто не замерзает.';
 
 /** «На вопросах 3 и 6 будет мини-игра. Там вы бегаете по арене.» (one round: «На вопросе 6 …»). */
 export function miniGameLine(rounds: readonly number[]): string {
@@ -50,19 +55,25 @@ export function miniGameLine(rounds: readonly number[]): string {
   return `${where} будет мини-игра. Там вы бегаете по арене.`;
 }
 
-export function Lobby({ ctl, look, name, players, pin, crowd, canEdit, rounds = null, team = null }: LobbyProps) {
+export function Lobby({ ctl, look, name, players, pin, crowd, canEdit, rounds = null, team = null, calm = false }: LobbyProps) {
   return (
     <>
       <div className="lp-page">
         <h1 className="lp-h1">Вы в игре</h1>
         <p className="lp-sub">Ведущий начнёт, когда соберутся все.</p>
+        {calm ? <p className="lp-calm">{CALM_LINE}</p> : null}
         {team ? <TeamLine team={team} /> : null}
         <div className="lp-me-big">
           <div className="lp-floor" style={{ bottom: 12 }} />
           <LiveChar look={look} size={176} face="happy" move="cheer" title={`${name}, ваш персонаж`} />
         </div>
         <div className="lp-card">
-          <b>Битва с монстром.</b> Весь класс против Дедлайна: верный ответ&nbsp;— удар, ошибка&nbsp;— заморозка до следующего верного.
+          <b>Битва с монстром.</b>{' '}
+          {calm ? (
+            <>Весь класс против Дедлайна: верный ответ&nbsp;— удар на 100, ошибка ничего не отнимает.</>
+          ) : (
+            <>Весь класс против Дедлайна: верный ответ&nbsp;— удар, ошибка&nbsp;— заморозка до следующего верного.</>
+          )}
           {rounds && rounds.length > 0 ? <span className="lp-card-more">{miniGameLine(rounds)}</span> : null}
         </div>
         <div className="lp-row">

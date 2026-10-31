@@ -222,7 +222,8 @@ export function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedA
   const hits = !!result && reveal.qi === q.qi && (reveal.chips.length > 0 || reveal.strike);
   const banner = reveal.qi === q.qi ? reveal.banner : null;
   const players = answerable(s.roster, q.opens_at);
-  const fastest = result ? fastestHit(s) : null;
+  // «Без спешки»: speed earns nothing, so nobody is named the fastest
+  const fastest = result && !s.calm ? fastestHit(s) : null;
   const stem = pics.stem;
   const frozen = s.roster.filter((r) => r.frozen).length;
   const wide = q.options.length > 4;
@@ -277,6 +278,7 @@ export function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedA
               </span>
               {kind === 'multiple' && q.multi ? <span className="lvbt-multi">{BATTLE_3D.multi(q.multi)}</span> : null}
               {kind === 'number' && q.unit ? <span className="lvbt-multi">{BATTLE_3D.unit(q.unit)}</span> : null}
+              {s.calm ? <span className="lvbt-calm">{BATTLE_3D.calm}</span> : null}
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
               </h1>
@@ -836,7 +838,7 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
             ) : null}
           </div>
           <div className="lvbt-lobby-foot">
-            <span className="lvst-settings">{LOBBY.settings(s.time_s, s.speed, s.settings.who === 'members', plan?.rounds)}</span>
+            <span className="lvst-settings">{LOBBY.settings(s.time_s, s.speed, s.settings.who === 'members', plan?.rounds, !!s.calm)}</span>
             {info?.containerId ? <TelegramPost api={api} gameId={gameId} containerId={info.containerId} fake={api.kind === 'fake'} onPosted={onPosted} /> : null}
             {tgChat !== null ? <span className="lvst-settings">{LOBBY.tg(tgChat)}</span> : null}
           </div>
