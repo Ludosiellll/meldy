@@ -18,6 +18,8 @@ import { UPDATE_MESSAGE } from './lib/appUpdate';
 // this worker to take over, but the old tab never answers MAY_ACTIVATE, so the worker waits until the
 // old tabs are closed or reloaded: the old code's own reload on activation never fires in front of anyone.
 const ANSWER_MS = 1500;
+/** The longest an activation waits for a leftover push subscription to be dropped (dropPushSubscription). */
+const PUSH_DROP_MS = 3000;
 
 function precached(url) {
   try {
@@ -79,10 +81,12 @@ self.addEventListener('message', (event) => {
 function dropPushSubscription() {
   const manager = self.registration && self.registration.pushManager;
   if (!manager || typeof manager.getSubscription !== 'function') return Promise.resolve();
-  return manager
+  const drop = manager
     .getSubscription()
     .then((subscription) => (subscription ? subscription.unsubscribe() : undefined))
     .catch(() => undefined);
+  // The push service may be slow to answer: the activation never waits for it more than a few seconds.
+  return Promise.race([drop, new Promise((resolve) => setTimeout(resolve, PUSH_DROP_MS))]);
 }
 
 self.addEventListener('activate', (event) => {

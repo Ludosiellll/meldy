@@ -247,6 +247,19 @@ describe('browser reminders are gone (the bot sends them; the server’s push pa
     await expect(dispatch('activate')).resolves.toBeDefined();
     expect(cacheStorage.delete).toHaveBeenCalledWith('navigations');
   });
+
+  it('a push service that never answers holds the activation 3 s at most', async () => {
+    (worker.registration as { pushManager?: unknown }).pushManager = { getSubscription: () => new Promise(() => undefined) };
+    let done = false;
+    const activated = dispatch('activate').then(() => {
+      done = true;
+    });
+    await vi.advanceTimersByTimeAsync(2_900);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(200);
+    await activated;
+    expect(done).toBe(true);
+  });
 });
 
 describe('a page without network (spec decision 31)', () => {
