@@ -77,8 +77,8 @@ export const SETUP = {
   skippedHead: (n: number) => `${count(n, QUESTIONS)} ${plural(n, ['не войдёт', 'не войдут', 'не войдут'])} в игру`,
   skippedWhyWide: 'В игру идут вопросы с одним верным ответом и 2–6 вариантами.',
   /** 20261102090000_live_kinds_teams.sql: several right answers and text answers play too. */
-  skippedWhyKinds: 'В игру идут вопросы с 2–6 вариантами и вопросы с ответом словами.',
-  skippedWhyStand: 'В «Встань на ответ» идут вопросы с 2–6 вариантами. Ответ словами на арене не дать.',
+  skippedWhyKinds: 'В игру идут вопросы с 2–6 вариантами и вопросы с ответом словами или числом.',
+  skippedWhyStand: 'В «Встань на ответ» идут вопросы с 2–6 вариантами. Ответ словами или числом на арене не дать.',
   teams: 'Команды',
   teamsHint: 'Новый игрок попадает в команду, где меньше людей. Счёт команды — средний урон её игроков.',
   teamsOption: (n: number) => (n === 0 ? 'Нет' : `${n}`),
@@ -86,6 +86,11 @@ export const SETUP = {
   reason: {
     multiple: 'Несколько верных ответов.',
     short: 'Ответ вводят сами.',
+    number: 'Ответ — число.',
+    order: 'Нужно расставить по порядку.',
+    match: 'Нужно сопоставить пары.',
+    cloze: 'Пропуски в тексте.',
+    essay: 'Развёрнутый ответ.',
     options: 'Вариантов меньше двух или больше четырёх.',
     nokey: 'Нет верного ответа.',
     picture: 'Есть картинка.',
@@ -178,6 +183,10 @@ export const TG = {
 };
 
 export const BATTLE = {
+  /** A number question on the flat projector (20261102090100_live_numbers.sql). */
+  number: 'Ответ — число: его вводят на телефоне',
+  numberUnit: (u: string) => `Ответ — число в${NBSP}${u}: его вводят на телефоне`,
+  numberKey: 'Верный ответ:',
   boss: 'Дедлайн',
   hp: (hp: number, max: number) => `${nb(hp)} из ${nb(max)}`,
   phaseNote: ['', 'Злится: замораживает и тех, кто не ответил', 'Последняя минута: если верных меньше ⅔, лечится на 5 %'] as const,
@@ -279,6 +288,7 @@ export const REVIEW = {
   right: (r: number, n: number) => `Верно ${nb(r)} из ${nb(n)}`,
   /** A text answer: what the author accepts. */
   forms: (forms: readonly string[]) => `Принимаются ответы: ${forms.join(', ')}`,
+  number: (answer: string) => `Верный ответ: ${answer}`,
   none: 'Вопросов пока не было.',
   missing: 'Этот вопрос шёл, пока экран был закрыт.',
   place: 'Место',

@@ -28,11 +28,15 @@
 # (20261031090000_live_wide_rounds.sql) → the kinds and teams stage: 20261102090000_live_kinds_teams.sql (several right
 # answers, text answers, teams, the review's explanations, live_practice) the same way (tests/live_kinds_teams.sql,
 # live_kinds_teams_behaviour.sql, every live contract and behaviour above still green, the share against the Python
-# mirror, the mixed room end to end, its rollback back to the wide rounds stage's catalog, applied again).
+# mirror, the mixed room end to end, its rollback back to the wide rounds stage's catalog, applied again) → the numbers
+# stage: the rest of the live order before it (release 47's and 48's other migrations, the question kinds among them),
+# then 20261102090100_live_numbers.sql (number questions in a battle) the same way (tests/live_numbers.sql,
+# live_numbers_behaviour.sql, every live contract and behaviour above still green, the reading of a typed number against
+# public.meldy_number_right on contracts/kinds/number_vectors.json, its rollback back to the step before, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -829,6 +833,92 @@ print(str(len(v)) + ':' + hashlib.md5(','.join(v).encode()).hexdigest())" 2>&1)
   [ "$(fingerprint)" = "$FKIND" ] && ok "the same catalog as the first kinds and teams apply" || bad "another catalog than the first kinds and teams apply"
   step "contract: live_kinds_teams.sql again" "$KCONTRACT"
   behave "kinds and teams behaviour again" "$KBEHAVIOUR" 'LIVE KINDS TEAMS BEHAVIOUR PASSED'
+fi
+
+# ─── Number questions (20261102090100_live_numbers.sql) on top of the kinds and teams step ───
+# First the rest of the live order before it, as live has it: release 47's and 48's migrations that are not the live
+# game's (the quiz protection, «learn left», the recordings' usage, the question kinds 20261101090000–090300 with
+# public.meldy_number_right, the debts 20261103090000–090200); every live contract and behaviour still hold on them.
+# Then its contract (tests/live_numbers.sql) and behaviour (live_numbers_behaviour.sql: a battle of number questions,
+# the review, practice, a mixed and a stand game, a one-answer game's messages) fail before it; applied twice (one
+# catalog); every live contract still holds; the older behaviours hold before and after it; live_number_value read
+# against public.meldy_number_right on every case of contracts/kinds/number_vectors.json; the rollback twice (the
+# catalog before it); applied again. LIVE_NUMBERS=0 skips the stage (it needs the kinds and teams stage).
+if [ "${LIVE_NUMBERS:-1}" = 0 ] || [ "${LIVE_KINDS:-1}" = 0 ] || [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the numbers stage (LIVE_NUMBERS=0, or a stage it needs skipped)"
+else
+  NMIG=$SB/migrations/20261102090100_live_numbers.sql
+  NDOWN=$SB/rollback/20261102090100_live_numbers_down.sql
+  NCONTRACT=$SB/tests/live_numbers.sql
+  NBEHAVIOUR=$HERE/live_numbers_behaviour.sql
+  NBASE=0
+  for f in 20261020120000_quiz_protection.sql 20261021140000_learn_left.sql 20261026090000_recording_usage.sql \
+           20261101090000_question_kinds.sql 20261101090100_question_kinds_grading.sql 20261101090200_question_kinds_quiz.sql \
+           20261101090300_question_kinds_bot.sql 20261103090000_oral_formula_v2.sql 20261103090100_journal_direct_writes.sql \
+           20261103090200_picture_sweep.sql; do
+    if run "$SB/migrations/$f"; then NBASE=$((NBASE + 1)); else bad "the live order before the numbers: $f"; fi
+  done
+  [ $NBASE = 10 ] && ok "the live order before the numbers: the 10 other migrations of releases 47 and 48 (the question kinds among them)"
+  number_contracts() {
+    kind_contracts "$1"
+    step "contract: live_kinds_teams.sql $1" "$KCONTRACT"
+  }
+  number_behaviours() {
+    kind_behaviours "$1"
+    behave "kinds and teams behaviour $1" "$KBEHAVIOUR" 'LIVE KINDS TEAMS BEHAVIOUR PASSED'
+  }
+  number_contracts "on the live order before the numbers"
+  number_behaviours "on the live order before the numbers"
+  FNONUM=$(fingerprint)
+  if run "$NCONTRACT"; then bad "live_numbers.sql passes before its migration (it tests nothing)"; else ok "live_numbers.sql fails before its migration"; fi
+  if passes "$NBEHAVIOUR" 'LIVE NUMBERS BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_numbers_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_numbers_behaviour fails before its migration"
+  fi
+  step "numbers migration, first apply" "$NMIG"
+  FNUM=$(fingerprint)
+  [ "$FNUM" != "$FNONUM" ] && ok "the numbers migration changed the catalog" || bad "the numbers migration changed nothing"
+  step "numbers migration, second apply (re-runnable)" "$NMIG"
+  [ "$(fingerprint)" = "$FNUM" ] && ok "a second numbers apply changes nothing in the catalog" || bad "a second numbers apply changed the catalog"
+  step "contract: live_numbers.sql (columns, checks, the reading, create, the close, what leaves and when)" "$NCONTRACT"
+  number_contracts "still holds after the numbers migration"
+  behave "numbers behaviour: a battle of number questions, the review, practice, a mixed and a stand game, a one-answer game" \
+    "$NBEHAVIOUR" 'LIVE NUMBERS BEHAVIOUR PASSED'
+  number_behaviours "unchanged after the numbers migration"
+  # the game's reading of a typed number is the number rule's: on every shared case, right ⇔ the value read is within
+  # the tolerance of a canonical accepted number, and both give the case's answer
+  NVEC=$({ printf '\\set v `cat %q`\n' "$ROOT/contracts/kinds/number_vectors.json"
+           cat <<'SQL'
+select count(*) || ':' || count(*) filter (where x.ok)
+  from (select (meldy_private.live_number_value(c ->> 'text', c ->> 'unit') is not null
+                and exists (select 1 from jsonb_array_elements_text(c -> 'answers') a
+                             where a ~ '^-?[0-9]+(\.[0-9]+)?$' and char_length(a) <= 40
+                               and abs(meldy_private.live_number_value(c ->> 'text', c ->> 'unit') - a::numeric)
+                                   <= coalesce((c ->> 'tolerance')::numeric, 0))) = (c ->> 'right')::boolean
+               and public.meldy_number_right(c ->> 'text', array(select jsonb_array_elements_text(c -> 'answers')),
+                                             (c ->> 'tolerance')::numeric, c ->> 'unit') = (c ->> 'right')::boolean as ok
+          from jsonb_array_elements((:'v')::jsonb -> 'cases') c) x;
+SQL
+         } | "${PSQL[@]}" -d $DB 2>&1)
+  if [ -n "$NVEC" ] && [ "${NVEC%%:*}" = "${NVEC##*:}" ] && [ "${NVEC%%:*}" -gt 40 ] 2>/dev/null; then
+    ok "the reading of a typed number is the number rule's on every case of number_vectors.json (${NVEC%%:*} cases)"
+  else
+    bad "the reading of a typed number against number_vectors.json: $NVEC"
+  fi
+  [ "$(fingerprint)" = "$FNUM" ] && ok "the catalog unchanged by the numbers runs" || bad "the numbers runs changed the catalog"
+  step "numbers rollback" "$NDOWN"
+  [ "$(fingerprint)" = "$FNONUM" ] && ok "after the numbers rollback: the catalog before it (fingerprint)" \
+    || bad "after the numbers rollback: another catalog than before it"
+  step "numbers rollback again (re-runnable)" "$NDOWN"
+  [ "$(fingerprint)" = "$FNONUM" ] && ok "after the second numbers rollback: still the catalog before it" || bad "after the second numbers rollback: another catalog"
+  if run "$NCONTRACT"; then bad "live_numbers.sql passes after its rollback"; else ok "live_numbers.sql fails after its rollback"; fi
+  number_contracts "after the numbers rollback"
+  number_behaviours "after the numbers rollback"
+  step "numbers migration after its rollback" "$NMIG"
+  [ "$(fingerprint)" = "$FNUM" ] && ok "the same catalog as the first numbers apply" || bad "another catalog than the first numbers apply"
+  step "contract: live_numbers.sql again" "$NCONTRACT"
+  behave "numbers behaviour again" "$NBEHAVIOUR" 'LIVE NUMBERS BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"
