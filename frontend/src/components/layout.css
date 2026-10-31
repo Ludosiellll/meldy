@@ -8,6 +8,11 @@
 .sf-cta-plus { display: none; }
 .sf-cta-short { display: none; }
 
+/* ---------------------------------------------------------------- while the window scrolls */
+/* No hover in the page while it scrolls (lib/scrollHover.ts): a card that slides under the pointer does not run its
+   hover transition, which painted the whole card again on every frame of the scroll. */
+.sf-main[data-scrolling] { pointer-events: none; }
+
 /* ---------------------------------------------------------------- the account menu */
 /* «Что даёт PRO»: a quiet blue line of the same row height. */
 .sf-shell .sf-acct-pro {

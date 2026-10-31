@@ -19,6 +19,7 @@ import { usePhone } from '../lib/usePhone';
 import { containerOfExam, containerTitle, onContainerTitles } from '../lib/containers/titleCache';
 import { useMiniApp } from '../lib/telegram/miniApp';
 import GuidePulse from './guide/GuidePulse';
+import { useNoHoverWhileScrolling } from '../lib/scrollHover';
 import '../styles/paper.css';
 import './layout.css';
 
@@ -347,6 +348,8 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   useEffect(() => onContainerTitles(() => setTitlesSeen((count) => count + 1)), []);
 
   useWindowScrollMemory(location.key);
+  // The cards under the pointer do not light up as they slide under it while the window scrolls (lib/scrollHover).
+  useNoHoverWhileScrolling(mainRef);
 
   // A link, a tab or «назад» closes the account menu.
   useEffect(() => {
