@@ -179,7 +179,7 @@ export async function quizCompare(quizId: Uuid, otherId: Uuid): Promise<QuizComp
  * One batch (≤ 50 people) of each member's mistakes of their latest attempt into their training, from `after` on; a
  * second press writes nothing. The page calls again with `next` until it is null (sendAllMistakes).
  */
-export async function sendMistakes(quizId: Uuid, after: Uuid | null = null): Promise<MistakesSent> {
+export async function sendMistakes(quizId: Uuid, after: string | null = null): Promise<MistakesSent> {
   const raw = shaped<Record<string, unknown>>(
     await rpc('quiz_send_mistakes', after ? { p_quiz_id: quizId, p_after: after } : { p_quiz_id: quizId }),
     'quiz_send_mistakes',
@@ -202,7 +202,7 @@ export async function sendMistakes(quizId: Uuid, after: Uuid | null = null): Pro
 
 /** Every batch in turn, summed; `onBatch` hears how many accounts are done of all. At most 100 calls. */
 export async function sendAllMistakes(quizId: Uuid, onBatch?: (done: number, total: number) => void): Promise<MistakesSent> {
-  let after: Uuid | null = null;
+  let after: string | null = null;
   let sum: MistakesSent | null = null;
   for (let call = 0; call < 100; call += 1) {
     const batch: MistakesSent = await sendMistakes(quizId, after);

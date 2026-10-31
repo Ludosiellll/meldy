@@ -19,7 +19,7 @@
 --      frontend/src/lib/quizzes/analysis.ts.
 --   2. public.quiz_compare(p_quiz_id, p_other): the one other quiz the author picked to compare with — per question
 --      [item id, shown, credit] over its finished attempts of others, the latest up to 25 000 answers.
---   3. public.quiz_send_mistakes(p_quiz_id, p_after): a batch of people in account order after p_after — at most 50,
+--   3. public.quiz_send_mistakes(p_quiz_id, p_after): a batch of people after the cursor p_after — at most 50,
 --      fewer when 1500 mistakes or 4 seconds are reached (Supabase stops an authenticated statement at 8 s) — each one's
 --      latest finished attempt: its questions answered wrong, in part or not at all (not essays) go into that person's
 --      training through meldy_private.record_test_answers_for (mode learn, as the live game's «тренировать ошибки» does)
@@ -31,12 +31,13 @@
 --      not fooled) and local_date the day of the attempt (they are its answers; «answers_today» and the day's pace stay
 --      the person's own). Guests have no training: counted
 --      and said. → {people, answers, again, clean, learned, outside, guests, practice, next, left, total}; the page calls
---      again with p_after = next until next is null.
+--      again with p_after = next until next is null. The cursor is the person's hash as quiz_results gives it (16 hex,
+--      the order of the batches), never an account id.
 --   4. public.test_item_percents(p_container_id): per question of the author's exam or test, how many finished attempts
 --      of others got it (shown) and their credit, over all its quizzes — the latest attempts up to 20 000 answers — the
 --      studio's canvas shows «верно N %». → {items: [{item_id, shown, credit}], attempts, capped}.
---   5. public.test_answers.source takes 'quiz' too (the check widened: added NOT VALID, then validated without blocking
---      writes), and bot.answered_since skips source 'quiz'. Nothing else reads the source (checked 2026-11-05).
+--   5. public.test_answers.source takes 'quiz' too (the check widened and left NOT VALID: no scan under the lock; new
+--      and changed rows are checked), and bot.answered_since skips source 'quiz'. Nothing else reads the source (checked 2026-11-05).
 -- Errors (SQLSTATE): 28000 not signed in; P0002 as HTTP 404 (raise sqlstate 'PGRST', as quiz_results) detail quiz /
 -- container: not the author's.
 -- Check after the apply: supabase/tests/quiz_stats.sql (catalog only; read-only). Local rehearsal (never live):
@@ -58,8 +59,10 @@ begin
 end;
 $do$;
 
--- 0. The answers the author puts into training: their own source. The check is widened in two steps (a NOT VALID
---    constraint takes no scan; VALIDATE scans without blocking writes); a second apply finds it and changes nothing.
+-- 0. The answers the author puts into training: their own source. The check is widened as NOT VALID and left so:
+--    migrate.py runs the file as one transaction, so the DROP/ADD holds ACCESS EXCLUSIVE on test_answers to the end and
+--    a VALIDATE here would scan the table under it. Unvalidated, it costs no scan and still checks every new or changed
+--    row (the old rows were checked by the narrower check). A second apply finds it and changes nothing.
 do $do$
 begin
   if not exists (select 1 from pg_catalog.pg_constraint k
@@ -71,7 +74,6 @@ begin
   end if;
 end;
 $do$;
-alter table public.test_answers validate constraint test_answers_source_check;
 
 -- The bot's «answered since» (K2's silence, T1 2f): the author's sending is not the person answering.
 create or replace function bot.answered_since(p_user uuid, p_at timestamptz)
@@ -225,7 +227,8 @@ comment on function public.quiz_compare(uuid, uuid) is 'Quiz statistics (the aut
 
 -- 3. The participants' mistakes into their training, by the author, a batch at a time.
 drop function if exists public.quiz_send_mistakes(uuid);
-create or replace function public.quiz_send_mistakes(p_quiz_id uuid, p_after uuid default null)
+drop function if exists public.quiz_send_mistakes(uuid, uuid);
+create or replace function public.quiz_send_mistakes(p_quiz_id uuid, p_after text default null)
 returns jsonb
 language plpgsql
 volatile
@@ -252,7 +255,7 @@ declare
   v_clean integer := 0;    -- people without a mistake left to send
   v_skipped integer := 0;  -- mistakes not sent: answered in training since the attempt
   v_outside integer := 0;  -- accounts not in the exam now (they get nothing)
-  v_last uuid;
+  v_last text;             -- the cursor: the last person looked at (their hash, as quiz_results' «person»)
   v_left integer;
 begin
   if v_user is null then
@@ -266,19 +269,25 @@ begin
       message = '{"code":"P0002","message":"quiz not found","details":"quiz","hint":null}',
       detail = '{"status":404,"headers":{}}';
   end if;
+  if p_after is not null and p_after !~ '^[0-9a-f]{16}$' then
+    raise exception 'invalid cursor' using errcode = '22023', detail = 'after';
+  end if;
   if p_after is null then
     perform meldy_private.quiz_settle(v_q.id);
   end if;
   for v_a in
-    select distinct on (t.user_id) t.id, t.user_id, t.finished_at
-      from public.quiz_attempts t
-     where t.quiz_id = v_q.id and t.finished_at is not null and t.user_id is not null and t.user_id <> v_q.owner_id
-       and (p_after is null or t.user_id > p_after)
-     order by t.user_id, t.n desc
+    select p.* from (
+      select distinct on (t.user_id) t.id, t.user_id, t.finished_at,
+             pg_catalog.left(pg_catalog.md5(t.user_id::text || v_q.id::text), 16) as person
+        from public.quiz_attempts t
+       where t.quiz_id = v_q.id and t.finished_at is not null and t.user_id is not null and t.user_id <> v_q.owner_id
+       order by t.user_id, t.n desc) p
+     where p_after is null or p.person collate "C" > p_after collate "C"
+     order by p.person collate "C"
   loop
     exit when v_done >= c_people or v_count >= c_answers or pg_catalog.clock_timestamp() - v_start > c_time;
     v_done := v_done + 1;
-    v_last := v_a.user_id;
+    v_last := v_a.person;
     if meldy_private.role_in(v_a.user_id, v_q.container_id) is distinct from 'member' then
       v_outside := v_outside + 1;
       continue;
@@ -327,9 +336,11 @@ begin
   end loop;
   -- the people after the last one looked at (none looked at: nobody is left)
   v_left := case when v_last is null then 0
-                 else (select pg_catalog.count(distinct t.user_id)::integer from public.quiz_attempts t
-                        where t.quiz_id = v_q.id and t.finished_at is not null and t.user_id > v_last
-                          and t.user_id <> v_q.owner_id) end;
+                 else (select pg_catalog.count(*)::integer
+                         from (select distinct t.user_id from public.quiz_attempts t
+                                where t.quiz_id = v_q.id and t.finished_at is not null and t.user_id is not null
+                                  and t.user_id <> v_q.owner_id) u
+                        where pg_catalog.left(pg_catalog.md5(u.user_id::text || v_q.id::text), 16) collate "C" > v_last collate "C") end;
   return pg_catalog.jsonb_build_object(
     'people', v_people, 'answers', v_count, 'again', v_again, 'clean', v_clean, 'learned', v_skipped,
     'outside', v_outside, 'practice', v_q.offer_practice,
@@ -341,7 +352,7 @@ begin
     'next', case when v_left > 0 then v_last end);
 end;
 $fn$;
-comment on function public.quiz_send_mistakes(uuid, uuid) is 'Quiz (the author): a batch (≤ 50 people, ≤ 1500 mistakes, ≤ 4 s) after p_after: each member''s latest finished attempt''s mistakes not answered in training since, into their training (record_test_answers_for, learn, qz:<attempt>:<item>, then source quiz on the attempt''s day); idempotent → {people, answers, again, clean, learned, outside, guests, practice, total, left, next}.';
+comment on function public.quiz_send_mistakes(uuid, text) is 'Quiz (the author): a batch (≤ 50 people, ≤ 1500 mistakes, ≤ 4 s) after the cursor p_after (a person''s hash, never an account id): each member''s latest finished attempt''s mistakes not answered in training since, into their training (record_test_answers_for, learn, qz:<attempt>:<item>, then source quiz on the attempt''s day); idempotent → {people, answers, again, clean, learned, outside, guests, practice, total, left, next}.';
 
 -- 4. The share of right answers of each question of an exam or test, over its quizzes (the studio's canvas).
 create or replace function public.test_item_percents(p_container_id uuid)
@@ -392,9 +403,9 @@ comment on function public.test_item_percents(uuid) is 'The author''s exam or te
 
 -- 5. Grants (re-runnable): the signed-in author only. PostgreSQL gives a new function to PUBLIC and Supabase to anon
 --    and authenticated: taken back, then given to authenticated.
-revoke all on function public.quiz_analysis(uuid), public.quiz_compare(uuid, uuid), public.quiz_send_mistakes(uuid, uuid),
+revoke all on function public.quiz_analysis(uuid), public.quiz_compare(uuid, uuid), public.quiz_send_mistakes(uuid, text),
   public.test_item_percents(uuid)
   from public, anon, authenticated, service_role;
-grant execute on function public.quiz_analysis(uuid), public.quiz_compare(uuid, uuid), public.quiz_send_mistakes(uuid, uuid),
+grant execute on function public.quiz_analysis(uuid), public.quiz_compare(uuid, uuid), public.quiz_send_mistakes(uuid, text),
   public.test_item_percents(uuid)
   to authenticated;

@@ -249,7 +249,8 @@ export interface MistakesSent {
   practice: boolean;
   total: number;
   left: number;
-  next: Uuid | null;
+  /** An opaque cursor (the last person's hash, never an account id); null — done. */
+  next: string | null;
 }
 /** Release 49 (20261105090100_quiz_telegram): the author's Telegram side of a quiz. */
 export type QuizNotice = 'each' | 'digest' | 'off';
