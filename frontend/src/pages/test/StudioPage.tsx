@@ -1,4 +1,4 @@
-import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
@@ -23,6 +23,10 @@ import Tour, { useStudioTour } from '../../components/studio/Tour';
 import { useDark } from '../../components/studio/useDark';
 import { useStudio, type SaveState } from '../../components/studio/useStudio';
 import Workspace from '../../components/studio/Workspace';
+import ExportSheet from '../../components/port/ExportSheet';
+import GenerateSheet from '../../components/port/GenerateSheet';
+import { PORT } from '../../components/port/copyPort';
+import { DownloadIcon } from '../../components/port/portIcons';
 import type { Uuid } from '../../types/container';
 import type { TestDoc } from '../../types/testDoc';
 import '../../components/exams/exams.css';
@@ -156,6 +160,9 @@ export default function StudioPage() {
   /** A block chosen while the question editor holds changes: waits, with the number of the question left. */
   const [waitingSelect, setWaitingSelect] = useState<{ id: string | null; number: number } | null>(null);
   const [sendNote, setSendNote] = useState<string | null>(null);
+  /** Release 49: «Скачать тест файлом» or «Сгенерировать вопросы». */
+  const [port, setPort] = useState<'export' | 'generate' | null>(null);
+  const openGenerate = useCallback(() => setPort('generate'), []);
 
   const items = build.items;
   const checked = useSettledDoc(studio.doc);
@@ -164,6 +171,18 @@ export default function StudioPage() {
     const out = new Map<string, number>();
     for (const block of studio.doc.blocks) if (block.type === 'question' && studio.rows.has(block.item_id)) out.set(block.id, out.size + 1);
     return out;
+  }, [studio.doc.blocks, studio.rows]);
+  // The questions in the page's order and their numbers there (the export names a question left out by it).
+  const [pageItems, itemNumbers] = useMemo(() => {
+    const list = [];
+    const byItem = new Map<string, number>();
+    for (const block of studio.doc.blocks) {
+      const row = block.type === 'question' ? studio.rows.get(block.item_id) : undefined;
+      if (!row) continue;
+      list.push(row);
+      byItem.set(row.id, list.length);
+    }
+    return [list, byItem] as const;
   }, [studio.doc.blocks, studio.rows]);
 
   // The first visit's tour, once the page has its first block (UX audit of 21.10: it covered the empty page's starters),
@@ -314,6 +333,7 @@ export default function StudioPage() {
         setTextStart({ text: STUDIO.textExample, round: (textStart?.round ?? 0) + 1 });
         setView('text');
       }}
+      onGenerate={openGenerate}
       onQuestion={(type) =>
         void studio.addQuestion(type, studio.doc.blocks.length).then((block) => {
           if (!block) return;
@@ -412,6 +432,13 @@ export default function StudioPage() {
           <button type="button" className="st-icon-btn" aria-label={STUDIO.redo} title={`${STUDIO.redo} · ${STUDIO.redoKeys}`} disabled={!studio.canRedo} onClick={studio.redo}>
             <UiIcon name="redo" />
           </button>
+          {/* Release 49: the test as a GIFT, Moodle XML, Aiken or Kahoot file; by its icon alone below 1700 px. */}
+          <button type="button" className="st-tool pt-tool" onClick={() => setPort('export')} aria-label={PORT.exportOpenLong} title={PORT.exportOpenLong}>
+            <DownloadIcon />
+            <span className="st-tool-word pt-tool-word" aria-hidden="true">
+              {PORT.exportOpen}
+            </span>
+          </button>
           <button
             type="button"
             className="st-tool"
@@ -485,6 +512,7 @@ export default function StudioPage() {
           sideOpen={sideOpen}
           onSideOpen={setSideOpen}
           active={view === 'canvas'}
+          onGenerate={openGenerate}
         />
         {view === 'canvas' ? null : view === 'list' ? (
           <div className="st-scrollpage">
@@ -526,6 +554,10 @@ export default function StudioPage() {
         {studio.notice}
       </p>
 
+      {port === 'export' ? <ExportSheet title={summary.title} items={pageItems} numbers={itemNumbers} onClose={() => setPort(null)} /> : null}
+      {port === 'generate' ? (
+        <GenerateSheet userId={user?.id ?? null} onAdd={async (inputs) => (await studio.addInputs(inputs)).length} onClose={() => setPort(null)} />
+      ) : null}
       {preview ? <Preview doc={studio.doc} items={studio.rows} dark={dark} device={preview.device} percent={preview.percent} onClose={() => setPreview(null)} /> : null}
       {touring && user?.id && view === 'canvas' ? <Tour userId={user.id} phone={narrow} onDone={() => setTouring(false)} /> : null}
     </div>
