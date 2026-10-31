@@ -40,6 +40,7 @@ import mixed_script
 import notes_check
 import overstatement
 from utils import (
+    _clean_source_ids,
     build_source_chunks,
     build_source_context,
     enrich_agent_result,
@@ -410,7 +411,10 @@ def _clean_quiz(parsed: Any) -> Optional[dict]:
     for item in _section_items(parsed, "quiz", ("questions", "тест", "вопросы")):
         clean = _clean_choice_item(item)
         if clean is not None:
-            questions.append({"id": len(questions) + 1, **clean})
+            # Release 49: the model's source_ids are kept (they were dropped here); utils.enrich_agent_result checks
+            # them against the fragments.
+            own = _clean_source_ids(item.get("source_ids"))
+            questions.append({"id": len(questions) + 1, **clean, **({"source_ids": own} if own else {})})
     return {"quiz": questions} if questions else None
 
 

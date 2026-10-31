@@ -273,11 +273,13 @@ def build_quiz_prompt(count: int = 5, difficulty: str = "mixed", qtype: str = "m
       "question": "...",
       "options": ["A) ...", "B) ...", "C) ...", "D) ..."],
       "correct": "A",
-      "explanation": "..."
+      "explanation": "...",
+      "source_ids": ["S01"]
     }}
   ]
 }}
 
+В "source_ids" — идентификаторы фрагментов источника ([S01], [S02] и т. д.), где сказан верный ответ.
 Пиши на языке исходного текста."""
 
 
