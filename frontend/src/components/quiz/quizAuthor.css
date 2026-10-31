@@ -31,14 +31,14 @@
    holds the safe area, so the bar's own padding does not repeat it. Telegram gives its own (--tg-bottom). */
 @media (max-width: 1023px) {
   .sf-shell[data-tabs] .sf-page.qa-page > .ex-cta {
-    bottom: calc(var(--sf-tabs-h, 62px) + var(--tg-bottom, env(safe-area-inset-bottom)));
+    bottom: calc(var(--sf-tabs-h, 62px) + var(--tg-bottom, var(--sf-safe-b)));
     padding-bottom: 12px;
   }
 }
 /* A phone with little on the page: the bar still stands at the bottom of the screen, where the thumb is. */
 .sf-page.qa-page[data-frame='s']:has(> .ex-cta) { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
 .sf-shell[data-tabs] .sf-page.qa-page[data-frame='s']:has(> .ex-cta) {
-  min-height: calc(100dvh - var(--sf-bar-h, 52px) - var(--sf-tabs-h, 62px) - var(--tg-bottom, env(safe-area-inset-bottom)));
+  min-height: calc(100dvh - var(--sf-bar-h, 52px) - var(--sf-tabs-h, 62px) - var(--tg-bottom, var(--sf-safe-b)));
 }
 .sf-page.qa-page[data-frame='s'] > .ex-cta { margin-top: auto; }
 .sf-page.qa-page[data-frame='s']:has(> .ex-cta) > :nth-last-child(2) { margin-bottom: 24px; }
@@ -607,7 +607,7 @@
   display: grid;
   place-items: center;
   overflow: auto;
-  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, var(--sf-safe-b));
   background: var(--sf-canvas);
   color: var(--sf-ink);
   font-family: var(--ph-sans);

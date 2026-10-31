@@ -102,8 +102,8 @@
     align-items: stretch;
     justify-content: space-around;
     gap: 2px;
-    height: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom));
-    padding: 0 6px env(safe-area-inset-bottom);
+    height: calc(var(--sf-tabs-h) + var(--sf-safe-b));
+    padding: 0 6px var(--sf-safe-b);
   }
   /* No min-width: 0 — a tab is never narrower than its word («Повторение» is the longest). */
   .sf-shell .sf-tablink {
@@ -141,7 +141,7 @@
   .sf-shell .sf-tablink[aria-current='page'] { background: none; color: var(--sf-ink); font-weight: 600; }
   .sf-shell .sf-tablink[aria-current='page'] .sf-tab-ico { background: var(--sf-ink); color: var(--sf-canvas); }
   .sf-shell .sf-tablink:focus-visible { outline-offset: -2px; }
-  .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom)); }
+  .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + var(--sf-safe-b)); }
 }
 /* Where the line has room — a section's own page (the wordmark, not «‹ Родитель») from 360 px — the «+»
    carries its word, «+ Лекция», so it reads apart from a page's own «Новый экзамен +». On a detail page

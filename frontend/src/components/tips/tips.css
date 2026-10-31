@@ -175,7 +175,7 @@
     left: 12px;
     right: 12px;
     top: auto;
-    bottom: calc(var(--tp-sheet-lift, 0px) + 12px + env(safe-area-inset-bottom));
+    bottom: calc(var(--tp-sheet-lift, 0px) + 12px + var(--sf-safe-b));
     z-index: 40;
     width: auto;
     max-height: 45vh;

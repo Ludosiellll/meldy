@@ -267,8 +267,8 @@
     max-height: calc(100dvh - var(--sf-bar-h, 60px) - 16px);
   }
   .sf-shell[data-tabs] .gd {
-    bottom: calc(var(--sf-tabs-h, 56px) + env(safe-area-inset-bottom) + 8px);
-    max-height: calc(100dvh - var(--sf-bar-h, 60px) - var(--sf-tabs-h, 56px) - env(safe-area-inset-bottom) - 24px);
+    bottom: calc(var(--sf-tabs-h, 56px) + var(--sf-safe-b) + 8px);
+    max-height: calc(100dvh - var(--sf-bar-h, 60px) - var(--sf-tabs-h, 56px) - var(--sf-safe-b) - 24px);
   }
   .gd-clip { width: min(100%, max(200px, calc(36dvh * 4 / 3))); }
   .gd-clip[data-step] .sc-frame,
@@ -445,7 +445,7 @@
 }
 @media (max-width: 1023px) {
   .gd-layer { align-items: flex-end; padding: calc(var(--sf-bar-h, 60px) + 8px) 8px 8px; }
-  .sf-shell[data-tabs] .gd-layer { padding-bottom: calc(var(--sf-tabs-h, 56px) + env(safe-area-inset-bottom) + 8px); }
+  .sf-shell[data-tabs] .gd-layer { padding-bottom: calc(var(--sf-tabs-h, 56px) + var(--sf-safe-b) + 8px); }
   .gd-layer > .gd,
   .sf-shell[data-tabs] .gd-layer > .gd {
     left: auto;

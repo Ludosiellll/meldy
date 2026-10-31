@@ -17,6 +17,12 @@
   /* Акцент для линий, точек и мелкого текста (на заливке кнопок — --sf-accent). */
   --sf-accent-fg: #1f5bc6;
   --sf-workbench: #ecece6;
+  /* The room a bottom bar keeps under itself for the system's bars. The site's viewport has no viewport-fit=cover, so the
+     browser lays the page out above the system's bars and there is nothing to keep: 0. Some WebViews (DuckDuckGo on
+     Android 15, edge-to-edge) still report env(safe-area-inset-bottom) without it, and a bar that added it stood ~50 px
+     above the system's bar with an empty band under it. Telegram mode, which does go edge to edge, sets its own
+     (styles/telegram.css). Every bottom bar adds this variable, never env(safe-area-inset-bottom) itself. */
+  --sf-safe-b: 0px;
   --m-yellow: #f4c45b;
   --m-green: #8acb97;
   --m-green-soft: #e2f2e5;
@@ -114,7 +120,7 @@
 
   /* Safe area for mobile notches */
   .pb-safe {
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-bottom: max(8px, var(--sf-safe-b));
   }
 }
 
