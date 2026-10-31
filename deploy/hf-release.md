@@ -4,6 +4,30 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 48: new kinds of questions, several right and typed answers in the class game, teams, ten small debts (from the commit of this entry)
+
+- **Why**: the owner, 31.10: «добавь вопросы недостающие (несколько верных, вводы чисел и тому подобного), доделай
+  плавность и конструктор тестов … также 10 мелких долгов доделай»; «я надеюсь ты конструктор тестов не сломаешь а
+  просто добавишь недостающие функции». Every change is additive: a test of the old kinds reads, grades and answers
+  as before (docs/kinds/CONTRACT.md).
+- **Question kinds** (r48-kinds): «Число» (an accepted spread and a unit), «Порядок», «Соответствие», «Пропуски в
+  тексте», «Развёрнутый ответ» (checked by the lectures on the author's request, or marked by the author); partial
+  credit for several right, order, match and gaps; formulas in `$…$`; «Озвучить вопрос». In a session, the mock exam,
+  «Контрольная», the review, the author's results, the editor in «Ключи», the studio, the import (order and match are
+  kept; GIFT and Moodle numbers keep their spread) and the bot (numbers and one-gap texts by typing).
+- **The class game** (game-finish): several right answers (ticks and «Ответить», a part of the damage for a part of
+  the set; in a movement round any right zone counts), typed answers with «Чаще писали», teams 2–4 (the team's average,
+  the podium of teams), the phone's review with explanations and «Тренировать ошибки» (the game's mistakes into the
+  repeat queue). No update offer during a game; the skeleton boss's second hunter no longer stops the frame.
+- **Debts and smoothness** (debts-smooth): a failed rename says so; a deleted test's pictures are swept by the bot's
+  tick (a delete queues them in the database); the oral protocol names formula v2, «14 дней» counts calendar days, the
+  examiner's line no longer jumps; «Подкаст» captions never crossed by a line, its jobs stop on delete and sign-out and
+  after 3 minutes; direct journal writes only for self-ratings and peeks; the dead push path removed (with its key
+  rotation workflow). «Подкаст» tap 392 → 40 ms, studio «Список» 176 → 40 ms (CPU ×4).
+- **Order**: migrations 20261101090000–090300 and 20261103090000–090200 before this site; 20261102090000 (the game)
+  right after it; the bot function after the migrations. Rehearsed together on the live chain: 8 migrations twice each,
+  22 contracts and 14 behaviours green.
+
 ## 2026-10-31 — Release 47.34: a section «Игры», «Сегодня» scrolls smoothly on a computer, no band under the phone tabs (from the commit of this entry)
 
 - **Why**: the owner, 31.10: «есть ли обучение о том что эти мини-игры есть … может отдельный блок сверху как
