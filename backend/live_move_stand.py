@@ -171,6 +171,8 @@ class StandGame(lm.RoomHooks):
         """Question qi is announced (countdown) or already open: track zones from now on."""
         self.qi = qi
         self.q = {"text": q.get("text", ""), "options": list(q.get("options") or [])}
+        if isinstance(q.get("multi"), int) and not isinstance(q.get("multi"), bool) and q["multi"] > 1:
+            self.q["multi"] = q["multi"]          # several right zones: the boards say how many (no key in it)
         self.n = min(len(self.q["options"]), len(LETTERS))
         self.opens_ms = opens_ms
         self.closes_ms = closes_ms

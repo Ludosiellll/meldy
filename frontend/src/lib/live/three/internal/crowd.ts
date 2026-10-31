@@ -229,8 +229,11 @@ export class CrowdPlayer {
   private readonly machine: PoseMachine;
   private readonly body: Slot = { batch: null, index: -1 };
   private readonly hat: Slot = { batch: null, index: -1 };
-  private readonly tag: number;
+  private tag: number;
   private readonly phase: number;
+  /** The team's colour (a ring round the feet, the name tag), or null. */
+  private team: THREE.Color | null = null;
+  private teamHex: string | null = null;
   private x = 0;
   private y = 0;
   private z = 0;
@@ -294,6 +297,16 @@ export class CrowdPlayer {
     this.own = on;
   }
 
+  setTeam(hex: string | null): void {
+    if (hex === this.teamHex || this.disposed) return;
+    this.teamHex = hex;
+    this.team = hex ? new THREE.Color(hex) : null;
+    if (this.tag >= 0) {
+      this.crowd.tags.remove(this.tag);
+      this.tag = this.crowd.tags.add(this.name, clothesHex(this.look.colour), hex ?? undefined);
+    }
+  }
+
   setGhost(on: boolean): void {
     if (on === this.ghost || this.disposed) return;
     this.detach();
@@ -354,6 +367,8 @@ export class CrowdPlayer {
     const falling = this.z < -20;
     if (!falling) {
       const floorY = this.ghost ? 0 : this.z / UNITS;
+      const team = this.team;
+      if (team && !this.ghost) this.crowd.blobs.push(wx, Math.min(0, floorY) + 0.018, wz, 0.86, 0, team.r, team.g, team.b, 0.95);
       if (!this.ghost) this.crowd.blobs.push(wx, Math.min(0, floorY) + 0.02, wz, 0.62, 1, this.color.r, this.color.g, this.color.b, 0.95);
       if (this.own) {
         // a white ring with a dark edge, outside the colour ring: two blobs in the same call, no shadow of their own

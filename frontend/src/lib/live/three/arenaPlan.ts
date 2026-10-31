@@ -171,24 +171,25 @@ export function dropStart(x: number, y: number, impact: Point, tStart: number, j
 }
 
 /**
- * For every tile, the second it starts to drop; Infinity for the tiles of the right zone, which stay.
- * `correctZoneId` that is no zone of the map drops the whole floor.
+ * For every tile, the second it starts to drop; Infinity for the tiles of the right zone (every right zone, given a
+ * list), which stay. An id that is no zone of the map keeps nothing (only its ids' zones stay).
  */
 export function planCollapse(
   map: MoveMap,
   layout: TileLayout,
-  correctZoneId: string,
+  correctZoneId: string | readonly string[],
   tStart: number,
   seed = 1,
   out: Float64Array = new Float64Array(layout.tiles.length),
   impact: Point = impactOf(map),
 ): Float64Array {
-  const correct = (map.zones ?? []).findIndex((z) => z.id === correctZoneId);
+  const ids = typeof correctZoneId === 'string' ? [correctZoneId] : correctZoneId;
+  const keep = new Set(ids.map((id) => (map.zones ?? []).findIndex((z) => z.id === id)).filter((k) => k >= 0));
   const random = rng(seed);
   for (let i = 0; i < layout.tiles.length; i++) {
     const tile = layout.tiles[i];
     const j = random();
-    out[i] = tile.under || (correct >= 0 && tile.zone === correct) ? Infinity : dropStart(tile.x, tile.y, impact, tStart, j);
+    out[i] = tile.under || keep.has(tile.zone) ? Infinity : dropStart(tile.x, tile.y, impact, tStart, j);
   }
   return out;
 }

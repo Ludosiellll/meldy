@@ -41,6 +41,24 @@ export function damage(elapsedMs: number, timeS: number, streakAfter: number, sp
   return Math.round(BASE_DAMAGE * share * mult);
 }
 
+/**
+ * A button answer to a question of several right answers (CONTRACT §3): (right ticked − wrong ticked) / right count,
+ * never below 0; 1 only for the exact set. As meldy_private.live_share and live_move_mixed.py share (doubles).
+ */
+export function liveShare(picks: readonly number[], keys: readonly number[]): number {
+  const k = new Set(keys);
+  const p = new Set(picks);
+  let right = 0;
+  let wrong = 0;
+  p.forEach((x) => (k.has(x) ? right++ : wrong++));
+  return Math.max(0, right - wrong) / Math.max(1, k.size);
+}
+
+/** A partial hit: the damage of a right answer times the share, rounded (Math.round, as live_close's floor(x + 0.5)). */
+export function partialDamage(elapsedMs: number, timeS: number, streakAfter: number, speedOn: boolean, share: number): number {
+  return Math.round(damage(elapsedMs, timeS, streakAfter, speedOn) * share);
+}
+
 export function hpFor(players: number, questions: number): number {
   return players * questions * HP_PER_ANSWER;
 }

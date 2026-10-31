@@ -17,10 +17,10 @@
  *   floor brings them back. A round the room never wrote says «Мини-игра не засчитана», with no stomp.
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { STAND_LETTERS, type StandResult, type StandState } from '../../../lib/live/move';
+import { STAND_LETTERS, resKeys, type StandResult, type StandState } from '../../../lib/live/move';
 import { ZONE_COLOURS } from '../../../lib/live/three';
 import type { ShownPictures } from '../../../lib/live/pictures';
-import type { BossKind, HostState } from '../../../lib/live/types';
+import { rightKeys, type BossKind, type HostState } from '../../../lib/live/types';
 import { BANNER, BATTLE, MIXED, nb } from '../host/copy';
 import { HostScreen, type HostScreenProps } from '../host/HostScreen';
 import { readHostToken } from '../host/hostSession';
@@ -33,7 +33,7 @@ import { arenaOn, revealPlan, strongest } from './mixed';
 import type { TimerFace } from './plan';
 import { useStandRoom } from './room';
 import { StandScene, type StandCue, type StandHud } from './scene';
-import { STAND } from './copy';
+import { BATTLE_3D, MULTI_ZONES, STAND } from './copy';
 import '../host/host.css';
 import './stand.css';
 
@@ -178,7 +178,10 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
   const qi = own ? own.qi : s.qi;
   const q = own?.q ?? (s.question ? { text: s.question.text, options: s.question.options } : null);
   const res = phase === 'reveal' ? (own?.res ?? null) : null;
-  const key = res?.key ?? (phase === 'reveal' && s.result && s.result.qi === qi ? s.result.key : null);
+  const keys = res ? resKeys(res) : phase === 'reveal' && s.result && s.result.qi === qi ? rightKeys(s.result) : null;
+  const key = keys && keys.length > 0 ? keys[0] : null;
+  // several right zones: the database's question says how many (the room's q too)
+  const multi = own?.q?.multi ?? (s.question && s.question.qi === qi ? s.question.multi : undefined);
   const shown = reveal.qi === qi && reveal.hp !== null;
   const hp = shown ? reveal.hp! : s.boss.hp;
   const max = shown && reveal.max ? reveal.max : s.boss.hp_max;
@@ -202,15 +205,20 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
           {q && stem !== undefined ? <StemFigure stem={stem} big={big} onToggle={() => setBig((v) => !v)} /> : null}
           {q && phase === 'reveal' && key !== null ? (
             <div className="lvst-q lvst-q--reveal lvbt-q" key={`r${qi}`}>
-              <span className="lvst-hint">{STAND.right}</span>
-              <div className="lvst-answer">
-                <Letter i={key} big />
-                <span>{q.options[key]}</span>
+              <span className="lvst-hint">{keys && keys.length > 1 ? BATTLE_3D.rightMany : STAND.right}</span>
+              <div className="lvst-answer" data-many={keys && keys.length > 1 ? '' : undefined}>
+                {(keys ?? []).map((k) => (
+                  <span key={k} className="lvbt-key">
+                    <Letter i={k} big />
+                    <span>{q.options[k]}</span>
+                  </span>
+                ))}
               </div>
             </div>
           ) : q ? (
             <div className="lvst-q lvbt-q" key={`q${qi}`}>
               <span className="lvst-hint">{chase ? MIXED.chaseHint : MIXED.hint}</span>
+              {multi && multi > 1 ? <span className="lvbt-multi">{MULTI_ZONES.hint(multi)}</span> : null}
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
               </h1>
@@ -229,7 +237,7 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
         ) : q ? (
           <ol className="lvst-options lvbt-options" key={`o${qi}`} data-revealed={key !== null ? '' : undefined} data-wide={wide ? '' : undefined}>
             {q.options.map((text, i) => (
-              <li key={i} data-key={key === i ? '' : undefined} data-dim={key !== null && key !== i ? '' : undefined}>
+              <li key={i} data-key={keys?.includes(i) ? '' : undefined} data-dim={keys && !keys.includes(i) ? '' : undefined}>
                 <Letter i={i} />
                 <OptionPic pic={ownPics?.options[i]} />
                 <span className="lvst-opt-text">{text}</span>

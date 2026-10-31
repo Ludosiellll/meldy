@@ -76,6 +76,12 @@ export const SETUP = {
   amountAll: (n: number) => `все ${n}`,
   skippedHead: (n: number) => `${count(n, QUESTIONS)} ${plural(n, ['не войдёт', 'не войдут', 'не войдут'])} в игру`,
   skippedWhyWide: 'В игру идут вопросы с одним верным ответом и 2–6 вариантами.',
+  /** 20261102090000_live_kinds_teams.sql: several right answers and text answers play too. */
+  skippedWhyKinds: 'В игру идут вопросы с 2–6 вариантами и вопросы с ответом словами.',
+  skippedWhyStand: 'В «Встань на ответ» идут вопросы с 2–6 вариантами. Ответ словами на арене не дать.',
+  teams: 'Команды',
+  teamsHint: 'Новый игрок попадает в команду, где меньше людей. Счёт команды — средний урон её игроков.',
+  teamsOption: (n: number) => (n === 0 ? 'Нет' : `${n}`),
   // why a question is not in the game: each a short sentence of its own under the question
   reason: {
     multiple: 'Несколько верных ответов.',
@@ -271,6 +277,8 @@ export const REVIEW = {
   students: 'Ученики',
   close: 'Закрыть',
   right: (r: number, n: number) => `Верно ${nb(r)} из ${nb(n)}`,
+  /** A text answer: what the author accepts. */
+  forms: (forms: readonly string[]) => `Принимаются ответы: ${forms.join(', ')}`,
   none: 'Вопросов пока не было.',
   missing: 'Этот вопрос шёл, пока экран был закрыт.',
   place: 'Место',

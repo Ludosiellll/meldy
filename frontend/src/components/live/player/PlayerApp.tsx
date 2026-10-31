@@ -19,10 +19,11 @@ import { Final } from './Final';
 import { Lobby } from './Lobby';
 import { PinScreen } from './PinScreen';
 import { ReviewScreen } from './ReviewScreen';
+import { withReturn } from '../../../lib/returnTo';
 import { LiveBoss } from './art';
 import type { PlayerController } from './controller';
 import type { HapticKind, PlayerPlatform } from './platform';
-import { mixedOf } from '../../../lib/live/types';
+import { mixedOf, teamsOf } from '../../../lib/live/types';
 import './player.css';
 
 const StandGame = lazy(() => import('../stand/phone/StandGame'));
@@ -126,9 +127,22 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
         guest={s.guest && platform.kind === 'web'}
       />
     );
-  else if (s.step === 'review')
-    screen = <ReviewScreen ctl={ctl} review={s.review} error={s.reviewError} standalone={s.reviewOnly} back={st?.final ? 'final' : 'ended'} />;
-  else if (s.step === 'gone')
+  else if (s.step === 'review') {
+    const reviewGame = s.game?.id ?? s.reviewGame;
+    // the way back after a sign-in: this review again, and «Тренировать ошибки» goes on by itself (the token stays in this tab)
+    const signInHref = platform.kind === 'web' && reviewGame ? withReturn('/login', `/play?r=${reviewGame}&practice=1`) : null;
+    screen = (
+      <ReviewScreen
+        ctl={ctl}
+        review={s.review}
+        error={s.reviewError}
+        standalone={s.reviewOnly}
+        back={st?.final ? 'final' : 'ended'}
+        practice={reviewGame ? s.practice : undefined}
+        signInHref={signInHref}
+      />
+    );
+  } else if (s.step === 'gone')
     screen = (
       <>
         <div className="lp-page">
@@ -154,7 +168,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
       </div>
     );
   else if (st.state === 'lobby')
-    screen = <Lobby ctl={ctl} look={st.me.look} name={st.me.name} players={st.players} pin={s.pin} crowd={st.crowd ?? []} canEdit={!s.busy} rounds={mixedOf(st)?.rounds ?? null} />;
+    screen = <Lobby ctl={ctl} look={st.me.look} name={st.me.name} players={st.players} pin={s.pin} crowd={st.crowd ?? []} canEdit={!s.busy} rounds={mixedOf(st)?.rounds ?? null} team={st.me.team ?? null} />;
   else if ((st.state === 'podium' || st.state === 'ended') && st.final)
     screen = (
       <Final
@@ -167,6 +181,8 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
         asked={st.qi + 1}
         guest={s.guest}
         top={st.top}
+        teams={teamsOf(st)}
+        team={st.me.team ?? null}
         meId={st.me.player_id}
         gameId={s.game?.id ?? ''}
         token={() => ctl.playerToken()}

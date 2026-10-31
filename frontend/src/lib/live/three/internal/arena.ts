@@ -424,7 +424,7 @@ export class ArenaImpl {
     }
   }
 
-  collapse(correctZoneId: string, tStart: number): void {
+  collapse(correctZoneId: string | readonly string[], tStart: number): void {
     this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
     planCollapse(this.map, this.layout, correctZoneId, tStart, this.seed, this.drop, this.impact);
     this.riseAt.fill(Infinity);

@@ -49,6 +49,52 @@ export interface Settings {
   who: 'pin' | 'members';
   /** The bot's final post names the top three. */
   chat_names: boolean;
+  /**
+   * Teams (20261102090000_live_kinds_teams.sql): 0 or left out — none; 2, 3 or 4 — a player gets the smallest team on
+   * join, a team's score is its players' average (CONTRACT §13). Returned in the settings of a game with teams only.
+   */
+  teams?: Teams;
+}
+
+/** The setup's «Команды»: none, 2, 3 or 4. */
+export type Teams = 0 | 2 | 3 | 4;
+export const TEAMS: readonly Teams[] = [0, 2, 3, 4];
+
+/** A team's standing (from the lobby on, in a game with teams): its players not kicked, their points and average. */
+export interface TeamRow {
+  /** 1..teams. */
+  team: number;
+  players: number;
+  dmg: number;
+  /** The average points per player, one decimal (the place is by the exact average). */
+  avg: number;
+  place: number;
+}
+
+/**
+ * What a question asks for (CONTRACT §4): absent — one right option (tap); 'multiple' — two right options or more (the
+ * phone ticks them and sends the set; `multi` says how many are right); 'short' — a text answer (no options).
+ */
+export type QuestionKind = 'single' | 'multiple' | 'short';
+
+/** One of a text question's answers typed most often (normalised; rude ones left out), shown at its reveal. */
+export interface TopAnswer {
+  text: string;
+  n: number;
+  ok: boolean;
+}
+
+/** The phone's answer: a tap, the options ticked, or the text typed (`live_submit`). */
+export type AnswerInput = { choice: number } | { picks: number[] } | { text: string };
+
+/** `live_practice`: the mistakes sent to the exam's plan. */
+export interface PracticeResult {
+  container_id: Uuid;
+  /** The player joined the exam now (the quiz offered practice). */
+  joined: boolean;
+  /** Recorded (now or by an earlier press). */
+  saved: number;
+  mistakes: number;
 }
 
 export type GameSource =
@@ -132,6 +178,10 @@ export interface Question {
    * refuses it (`ML004 stand`), the room writes everyone's zone at the deadline. Absent in other games.
    */
   stand?: boolean;
+  /** Absent for one right option; 'multiple' or 'short' (QuestionKind). */
+  kind?: Exclude<QuestionKind, 'single'>;
+  /** A question of several right answers: how many are right (the board and the phone say it). */
+  multi?: number;
 }
 
 /** A mixed game's plan (in PlayerState and HostState from the lobby on): N and the qi of every movement round. */
@@ -160,6 +210,12 @@ export interface Me {
   place: number;
   /** This question's choice (shown index), or null. */
   choice: number | null;
+  /** A question of several right answers: the options this player ticked (null: none yet). */
+  picks?: number[] | null;
+  /** A text question: what this player typed (null: nothing yet). */
+  typed?: string | null;
+  /** A game with teams: the player's team (1..teams). */
+  team?: number | null;
 }
 
 export interface QuestionResult {
@@ -179,6 +235,12 @@ export interface QuestionResult {
    * nobody hit, froze or lost a streak, no heal. `counts` are zeros, `none` is true for everyone.
    */
   void?: boolean;
+  /** A question of several right answers: every right option (shown indexes, ascending; `key` is the first). */
+  keys?: number[];
+  /** A text question: the accepted forms (`key` is -1, `counts` empty). */
+  forms?: string[];
+  /** A text question: the three answers typed most often. */
+  tops?: TopAnswer[];
 }
 
 export interface PlayerResult extends QuestionResult {
@@ -188,6 +250,11 @@ export interface PlayerResult extends QuestionResult {
   dmg: number;
   thawed: boolean;
   frozen: boolean;
+  /** Several right answers: this player's ticks and their share (1: the exact set; between 0 and 1: a partial hit). */
+  picks?: number[] | null;
+  share?: number;
+  /** A text question: what this player typed. */
+  typed?: string | null;
 }
 
 export interface Hit {
@@ -209,6 +276,8 @@ export interface TopRow {
   dmg: number;
   /** Previous place − current place; 0 for a new entry. */
   move: number;
+  /** A game with teams: the player's team. */
+  team?: number | null;
 }
 
 export interface Final {
@@ -239,6 +308,8 @@ interface StateBase {
   top: TopRow[] | null;
   /** A mixed game only (`settings.stand_every` > 0): the plan of its movement rounds. */
   mixed?: Mixed;
+  /** A game with teams: every team's standing, by place. */
+  teams?: TeamRow[];
 }
 
 export interface PlayerState extends StateBase {
@@ -259,6 +330,8 @@ export interface RosterRow {
   frozen: boolean;
   joined_at: string;
   answered: boolean;
+  /** A game with teams: the player's team. */
+  team?: number | null;
 }
 
 export interface HostState extends StateBase {
@@ -291,6 +364,17 @@ export interface ReviewItem {
   stand?: boolean;
   /** Its pictures, when it has any. */
   pictures?: LivePictures;
+  /** As the question's (QuestionKind): absent for one right option. */
+  kind?: Exclude<QuestionKind, 'single'>;
+  /** Several right answers: every right option, the own ticks and their share. */
+  keys?: number[];
+  picks?: number[] | null;
+  share?: number;
+  /** A text question: the accepted forms and the own text (null: none). */
+  forms?: string[];
+  typed?: string | null;
+  /** The author's explanation, when the question has one. */
+  explanation?: string;
 }
 
 export interface Review {
@@ -330,11 +414,12 @@ export type LiveErrorCode =
   | 'ML009'
   | 'ML010'
   | 'ML011'
+  | 'ML012'
   | 'network'
   | 'unknown';
 
 /** The codes the server refuses with (the body's `code`); any other is 'unknown'. */
-export const SERVER_CODES: ReadonlySet<string> = new Set(['28000', '42501', 'P0002', '22023', 'ML001', 'ML002', 'ML003', 'ML004', 'ML005', 'ML006', 'ML007', 'ML008', 'ML009', 'ML010', 'ML011']);
+export const SERVER_CODES: ReadonlySet<string> = new Set(['28000', '42501', 'P0002', '22023', 'ML001', 'ML002', 'ML003', 'ML004', 'ML005', 'ML006', 'ML007', 'ML008', 'ML009', 'ML010', 'ML011', 'ML012']);
 
 export class LiveError extends Error {
   readonly code: LiveErrorCode;
@@ -378,8 +463,19 @@ export interface LiveApi {
   join(pin: string, name: string, token: string, look: Look | null): Promise<JoinResult>;
   setLook(game: Uuid, token: string, look: Look): Promise<Look>;
   answer(game: Uuid, token: string, qi: number, choice: number): Promise<AnswerAck>;
+  /**
+   * An answer of any kind (`live_submit`, 20261102090000_live_kinds_teams.sql): the options ticked on a question of
+   * several right answers, the text of a text question (a tap may go here too). The checks and refusals of `answer`,
+   * plus ML004 kind (a text on a choice question or the other way round) and 22023 answer.
+   */
+  submit(game: Uuid, token: string, qi: number, answer: AnswerInput): Promise<AnswerAck>;
   state(game: Uuid, token: string, sinceRev?: number): Promise<PlayerState | Unchanged>;
   review(game: Uuid, token: string): Promise<Review>;
+  /**
+   * «Тренировать ошибки» (`live_practice`, the session's account): the game's mistakes go to the exam's plan. 28000 not
+   * signed in; ML012 practice (not a member and not offered) / open / removed / full; ML004 not_open before the podium.
+   */
+  practice(game: Uuid, token: string): Promise<PracticeResult>;
   /**
    * An object URL of a picture of a question this game has shown (`token`: the host's or a player's), read through the
    * quiz-media function and kept for the page's life. Absent where a server has no pictures (tests' stubs).
@@ -435,4 +531,25 @@ export function isStandRound(state: { question: Question | null } | null | undef
 export function untilStandRound(mixed: Mixed | null, qi: number): number | null {
   const next = mixed?.rounds.find((r) => r >= qi);
   return next === undefined ? null : next - qi;
+}
+
+// ─────────────── Several right answers, text answers, teams (20261102090000_live_kinds_teams.sql) ───────────────
+
+/** What the question asks for (QuestionKind): a missing `kind` is one right option. */
+export function questionKind(q: { kind?: unknown } | null | undefined): QuestionKind {
+  return q?.kind === 'multiple' || q?.kind === 'short' ? q.kind : 'single';
+}
+
+/** Every right option of a closed question (shown indexes): `keys` of several, else the one `key` (none for a text). */
+export function rightKeys(r: { key: number; keys?: unknown } | null | undefined): number[] {
+  if (!r) return [];
+  if (Array.isArray(r.keys) && r.keys.length > 0 && r.keys.every((k) => Number.isInteger(k) && k >= 0)) return r.keys as number[];
+  return r.key >= 0 ? [r.key] : [];
+}
+
+/** The teams of a state (by place), or null in a game without teams. */
+export function teamsOf(state: { teams?: unknown } | null | undefined): TeamRow[] | null {
+  const t = state?.teams;
+  if (!Array.isArray(t) || t.length === 0) return null;
+  return t.filter((r): r is TeamRow => typeof r === 'object' && r !== null && Number.isInteger((r as TeamRow).team));
 }

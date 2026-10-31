@@ -4,6 +4,7 @@ import type { Look } from '../../../lib/live/types';
 import { LiveChar } from './art';
 import type { PlayerController } from './controller';
 import { pinText } from './copy';
+import { TeamLine } from './TeamLine';
 
 /** Characters the crowd adds per frame: each brings six SVG layers to style and lay out. */
 const PER_FRAME = 6;
@@ -38,6 +39,8 @@ export interface LobbyProps {
   canEdit: boolean;
   /** A battle with movement rounds: the qi of its mini-games (docs/live/MODE_MIXED.md), told in the card. */
   rounds?: readonly number[] | null;
+  /** A game with teams: the player's team. */
+  team?: number | null;
 }
 
 /** «На вопросах 3 и 6 будет мини-игра. Там вы бегаете по арене.» (one round: «На вопросе 6 …»). */
@@ -47,12 +50,13 @@ export function miniGameLine(rounds: readonly number[]): string {
   return `${where} будет мини-игра. Там вы бегаете по арене.`;
 }
 
-export function Lobby({ ctl, look, name, players, pin, crowd, canEdit, rounds = null }: LobbyProps) {
+export function Lobby({ ctl, look, name, players, pin, crowd, canEdit, rounds = null, team = null }: LobbyProps) {
   return (
     <>
       <div className="lp-page">
         <h1 className="lp-h1">Вы в игре</h1>
         <p className="lp-sub">Ведущий начнёт, когда соберутся все.</p>
+        {team ? <TeamLine team={team} /> : null}
         <div className="lp-me-big">
           <div className="lp-floor" style={{ bottom: 12 }} />
           <LiveChar look={look} size={176} face="happy" move="cheer" title={`${name}, ваш персонаж`} />

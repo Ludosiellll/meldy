@@ -31,6 +31,7 @@ import type { CloseOutput } from './rules';
 import {
   LiveError,
   type AnswerAck,
+  type AnswerInput,
   type BossPhase,
   type CreateResult,
   type GameSource,
@@ -43,6 +44,7 @@ import {
   type Look,
   type PinResult,
   type PlayerState,
+  type PracticeResult,
   type Review,
   type Settings,
   type TgPostResult,
@@ -792,6 +794,28 @@ export function createFakeServer(options: FakeOptions = {}): LiveApi & {
       try {
         const { g, p } = player(game, tok);
         return reply(answerNow(g, p, qi, choice));
+      } catch (e) {
+        return fail(e as LiveError);
+      }
+    },
+
+    // The fake draws one right option only (its bank): a tap, or one tick, is the answer; a text has no question here.
+    submit(game: Uuid, tok: string, qi: number, answer: AnswerInput): Promise<AnswerAck> {
+      try {
+        const { g, p } = player(game, tok);
+        const choice = 'choice' in answer ? answer.choice : 'picks' in answer && answer.picks.length === 1 ? answer.picks[0] : null;
+        if (choice === null) throw new LiveError('ML004', 'kind');
+        return reply(answerNow(g, p, qi, choice));
+      } catch (e) {
+        return fail(e as LiveError);
+      }
+    },
+
+    // The fake keeps no exam plan: «Тренировать ошибки» is not offered there.
+    practice(game: Uuid, tok: string): Promise<PracticeResult> {
+      try {
+        player(game, tok);
+        throw new LiveError('ML012', 'practice', 403);
       } catch (e) {
         return fail(e as LiveError);
       }

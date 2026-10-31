@@ -8,7 +8,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { sharedPlaces, shownPlace } from '../../../lib/live/rules';
-import type { Boss, Final as FinalData, Look, TopRow, UnlockId } from '../../../lib/live/types';
+import type { Boss, Final as FinalData, Look, TeamRow, TopRow, UnlockId } from '../../../lib/live/types';
+import { teamResult } from './TeamLine';
 import { LiveChar } from './art';
 import type { PlayerController } from './controller';
 import { NBSP, UNLOCK_NAMES, nb, questions } from './copy';
@@ -63,6 +64,9 @@ export interface FinalProps {
   guest: boolean;
   /** The class's top five at the podium (the server's `top`); null when it did not come. */
   top: readonly TopRow[] | null;
+  /** A game with teams: the standings and the player's team. */
+  teams?: readonly TeamRow[] | null;
+  team?: number | null;
   meId: string;
   gameId: string;
   token: () => string | null;
@@ -70,7 +74,7 @@ export interface FinalProps {
   haptic: (kind: HapticKind) => void;
 }
 
-export function Final({ ctl, platform, final, boss, look, players, asked, guest, top, meId, gameId, token, shareUrl, haptic }: FinalProps) {
+export function Final({ ctl, platform, final, boss, look, players, asked, guest, top, teams = null, team = null, meId, gameId, token, shareUrl, haptic }: FinalProps) {
   const [shared, setShared] = useState<ShareResult | null>(null);
   const [busy, setBusy] = useState(false);
   const fired = useRef(false);
@@ -113,6 +117,7 @@ export function Final({ ctl, platform, final, boss, look, players, asked, guest,
       <div className="lp-page lp-final">
         <h1 className="lp-h1">{won ? 'Дедлайн повержен' : 'Дедлайн победил'}</h1>
         <p className="lp-sub">{won ? `Класс справился за${NBSP}${questions(asked)}` : `У Дедлайна осталось ${left}${NBSP}%`}</p>
+        {teams && team ? <p className="lp-final__team">{teamResult(teams, team)}</p> : null}
         {podium.length > 0 ? (
           <Podium rows={podium} meId={meId} mine={mine} won={won} />
         ) : (

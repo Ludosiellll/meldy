@@ -13,7 +13,7 @@
  */
 import type { Arena, ArenaShape, Boss, BossKind, Kit, MoveMap, Player, View } from '../../../../lib/live/three';
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook } from '../../../../lib/live/three';
-import { F_AWAY, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, resKeys, type StandState } from '../../../../lib/live/move/protocol';
 import type { MapJson } from '../../../../lib/live/move/sim';
 import { easeOutBack } from '../plan';
 import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
@@ -209,12 +209,12 @@ export class PhoneScene implements Backdrop {
     if (!arena || !boss) return;
     const fresh = st.res && nowRoom !== null && nowRoom - st.res.at < 1200;
     if (st.phase === 'reveal' && st.res && (this.phase !== 'reveal' || this.qi !== st.qi) && st.floor === 'down') {
-      const zone = (arena.map.zones ?? [])[st.res.key];
+      const zones = resKeys(st.res).map((k) => (arena.map.zones ?? [])[k]?.id ?? '');
       if (fresh) {
         // the boss jumped at zero (setAlarm); a result here first starts the jump now. The floor goes at the blow.
         if (this.stompedQi !== st.qi) this.stomp(st.qi);
         const impact = Math.max(this.impactAt, this.kit.now() + 0.05);
-        arena.collapse(zone?.id ?? '', impact);
+        arena.collapse(zones, impact);
         for (const id of st.res.fell) {
           const t = id === this.you ? this.me : this.tracked.get(id);
           if (!t) continue;
@@ -228,7 +228,7 @@ export class PhoneScene implements Backdrop {
         this.leanUntil = impact + LEAN_AFTER_S;
       } else {
         // A state seen after a reconnect: drawn as it is now, no stomp.
-        arena.collapse(zone?.id ?? '', this.kit.now() - 5);
+        arena.collapse(zones, this.kit.now() - 5);
       }
     }
     if (st.floor === 'up' && this.floor === 'down') arena.restore();

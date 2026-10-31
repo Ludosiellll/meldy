@@ -14,7 +14,7 @@
  */
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook, type Arena, type Boss, type BossKind, type Kit, type MoveMap, type Player, type PlayerLook, type View } from '../../../lib/live/three';
 import { collapseDownAfter } from '../../../lib/live/three/arenaPlan';
-import { F_AWAY, F_GHOST, F_ICE, KIND_NPC, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandResult, type StandState, type Welcome } from '../../../lib/live/move';
+import { F_AWAY, F_GHOST, F_ICE, KIND_NPC, KIND_PLAYER, ZONE_SHIFT, type MapJson, type RosterEntry, type StandHello, type StandResult, type StandState, type Welcome, resKeys } from '../../../lib/live/move';
 import type { Pose } from '../../../lib/live/move';
 
 /** Positions sampled each frame, reused (MoveClient.frameInto). */
@@ -157,7 +157,7 @@ export class StandScene {
   private cheerAt = Infinity;
   /** The floor's drop on screen (FloorShow): the zone that stays, its kit second, the room's `up` that waits. */
   private readonly floorShow = new FloorShow();
-  private collapseZone = '';
+  private collapseZone: readonly string[] = [];
   private collapseAt = -Infinity;
   private upRes: StandResult | null = null;
   /** Seconds from a collapse's start until the whole gap is down (collapseDownAfter for this arena). */
@@ -188,6 +188,7 @@ export class StandScene {
   private nextPuppet = -1;
   /** The battle's ice by live_players.id while the class stands round the boss (the database's word). */
   private icedPids: ReadonlySet<string> = new Set();
+  private teamColours: ReadonlyMap<string, string> = new Map();
   /**
    * Mode B (MODE_RUN.md): the boss follows the room's first hunter, smaller copies the others; off its stage `away`,
    * where it is drawn now.
@@ -303,6 +304,16 @@ export class StandScene {
     this.order = rows.slice();
     this.layout();
     this.reconcile();
+  }
+
+  /** The teams (CONTRACT §13): player id → its team's colour; each character wears it (a ring, its name tag). */
+  setTeams(colours: ReadonlyMap<string, string>): void {
+    this.teamColours = colours;
+    for (const a of this.actors.values()) this.paintTeam(a);
+  }
+
+  private paintTeam(a: Actor): void {
+    a.player?.setTeam((a.pid && this.teamColours.get(a.pid)) || null);
   }
 
   /** The battle's ice while the class stands round the boss; `instant`: as it is, without growing or breaking. */
@@ -557,6 +568,7 @@ export class StandScene {
       a.player = kit.createPlayer(look, a.name);
       a.player.setPosition(a.x, a.y, 0);
       if (a.iced) a.player.setIce(true, true);
+      this.paintTeam(a);
     }
   }
 
@@ -630,7 +642,7 @@ export class StandScene {
       // the boss jumped at zero (frame): the floor goes at its blow; a result that came late drops it at once
       if (this.stompedQi !== st.qi) this.stomp(st.qi, now);
       const impact = Math.max(this.impactAt, now + 0.05);
-      this.dropFloor(this.zoneIds[res.key] ?? '', impact);
+      this.dropFloor(resKeys(res).map((k) => this.zoneIds[k] ?? ''), impact);
       const fell = new Set(res.fell);
       let rise = Infinity;
       let cheer = Infinity;
@@ -642,7 +654,7 @@ export class StandScene {
           const start = Number.isFinite(drops) ? drops : impact + 0.35;
           a.fall = { x: a.x, y: a.y, start, rise: start + FALL_S, tile: Number.isFinite(drops), drawn: false };
           rise = Math.min(rise, a.fall.rise);
-        } else if ((a.flags & F_GHOST) === 0 && (a.flags >> ZONE_SHIFT) - 1 === res.key) {
+        } else if ((a.flags & F_GHOST) === 0 && resKeys(res).includes((a.flags >> ZONE_SHIFT) - 1)) {
           a.cheerFrom = impact + 0.45 + ((a.id * 7) % 10) * 0.04;
           a.cheerUntil = impact + 3.2;
           cheer = Math.min(cheer, a.cheerFrom);
@@ -652,7 +664,7 @@ export class StandScene {
       this.cheerAt = cheer;
     } else if (change === 'down' && res) {
       // seen late: the floor is already down, the fallen already ghosts
-      this.dropFloor(this.zoneIds[res.key] ?? '', now - 10);
+      this.dropFloor(resKeys(res).map((k) => this.zoneIds[k] ?? ''), now - 10);
       this.stompedQi = st.qi;
     } else if (change === 'up' && res) {
       // back now, or after the frame that shows the floor down (a slow or late frame: FloorShow)
@@ -671,7 +683,7 @@ export class StandScene {
   }
 
   /** The floor drops from kit second `tStart` (the blow); FloorShow learns when a frame shows it down. */
-  private dropFloor(zone: string, tStart: number): void {
+  private dropFloor(zone: readonly string[], tStart: number): void {
     this.arena?.collapse(zone, tStart);
     this.collapseZone = zone;
     this.collapseAt = tStart;
@@ -811,6 +823,7 @@ export class StandScene {
       let p = a.player;
       if (!p) {
         p = a.player = kit.createPlayer(a.look, a.name);
+        this.paintTeam(a);
         a.x = spot.x;
         a.y = spot.y;
         a.placed = true;
@@ -963,6 +976,7 @@ export class StandScene {
     if (!p) {
       if (!this.kit) return;
       p = a.player = this.kit.createPlayer(a.look, a.name);
+      this.paintTeam(a);
       a.x = pose.x;
       a.y = pose.y;
       p.setPosition(pose.x, pose.y, 0);

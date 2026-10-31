@@ -75,4 +75,32 @@ export const BATTLE_3D = {
   picture: 'Рисунок к вопросу',
   pictureBig: 'Рисунок к вопросу: показать крупно',
   pictureFailed: 'Рисунок не загрузился',
+  /** Several right answers (CONTRACT §3): the board says how many. */
+  multi: (n: number) => `Верных: ${n}${NBSP}— отметьте все`,
+  rightMany: 'Верные ответы',
+  /** A text answer. */
+  text: 'Напишите ответ на телефоне',
+  tops: 'Чаще писали',
+  topsNone: 'Ответов не было',
+};
+
+/** «два», «три»: how many right zones a movement round has (MODE_MIXED.md §5). */
+const ZONES_N = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть'] as const;
+export const MULTI_ZONES = {
+  /** «Верных ответов два — встаньте на любой». */
+  hint: (n: number) => `Верных ответов ${ZONES_N[n] ?? n}${NBSP}— встаньте на любой`,
+};
+
+/** Teams (CONTRACT §13): their names and colours, the same on the projector and the phones. */
+export const TEAM_NAMES = ['', 'Красные', 'Синие', 'Жёлтые', 'Зелёные'] as const;
+export const TEAM_COLOURS = ['', '#ef5b4c', '#2f74e8', '#f2b928', '#2fa866'] as const;
+export const TEAMS_COPY = {
+  name: (t: number) => TEAM_NAMES[t] ?? `Команда ${t}`,
+  board: 'Команды',
+  avgLabel: 'в среднем',
+  mvp: 'Лучший игрок',
+  players: (n: number) => `${n}${NBSP}${plural(n, ['игрок', 'игрока', 'игроков'])}`,
+  best: (name: string) => `лучший: ${name}`,
+  won: (t: number) => `Победили ${TEAM_NAMES[t] ?? `команда ${t}`}`,
+  lobby: 'Команды набираются сами: каждый новый игрок идёт в меньшую.',
 };

@@ -150,7 +150,7 @@ export function ReviewSheet({ log, roster, asked, onClose }: { log: LoggedQuesti
                     <>
                       <ul className="lvh-review-opts">
                         {q.options.map((o, k) => (
-                          <li key={k} data-key={q.key === k ? '' : undefined}>
+                          <li key={k} data-key={(q.keys ?? (q.key !== null ? [q.key] : [])).includes(k) ? '' : undefined}>
                             <span className={`lvh-review-badge lvh-tile--a${k}`}>
                               <TileShape k={k} />
                               {LETTERS[k]}
@@ -160,6 +160,7 @@ export function ReviewSheet({ log, roster, asked, onClose }: { log: LoggedQuesti
                           </li>
                         ))}
                       </ul>
+                      {q.forms && q.forms.length > 0 ? <p className="lvh-review-right">{REVIEW.forms(q.forms)}</p> : null}
                       {q.right !== null ? <p className="lvh-review-right">{REVIEW.right(q.right, q.players)}</p> : null}
                     </>
                   ) : null}

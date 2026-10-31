@@ -126,3 +126,11 @@ def test_stand_a_late_joiner_on_any_right_zone_keeps_its_floor():
             {"p": pid(2), "c": None, "ok": False, "pts": 0, "out": True, "ghost": False}]
     assert g.apply({"qi": 0, "key": 1, "keys": [1, 3], "counts": [0, 0, 0, 0], "rows": rows}, 300.0)
     assert g.res["fell"] == [b.id] and g.res["keys"] == [1, 3]
+
+
+def test_a_round_says_how_many_zones_are_right_and_nothing_more():
+    g = stand.StandGame(time_s=15, q_count=2)
+    g.begin(0, {"text": "?", "options": ["1", "2", "3", "4"], "multi": 2, "kind": "multiple"}, 100.0, 200.0, 0.0)
+    assert g.q == {"text": "?", "options": ["1", "2", "3", "4"], "multi": 2}
+    g.begin(1, {"text": "?", "options": ["1", "2"]}, 300.0, 400.0, 0.0)
+    assert g.q == {"text": "?", "options": ["1", "2"]}

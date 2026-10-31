@@ -34,8 +34,8 @@ export function mapHeight(width: number, room: number): number {
 export interface FloorLook {
   /** How many options the question has (zones beyond are closed); 4 in the lobby. */
   options: number;
-  /** The right zone while the floor is down, else null. */
-  keep: number | null;
+  /** The right zones while the floor is down (several for a question of several right answers), else null. */
+  keep: readonly number[] | null;
 }
 
 export class ArenaMap {
@@ -77,7 +77,7 @@ export class ArenaMap {
   }
 
   setFloor(look: FloorLook): void {
-    if (look.options === this.look.options && look.keep === this.look.keep) return;
+    if (look.options === this.look.options && (look.keep?.join(',') ?? null) === (this.look.keep?.join(',') ?? null)) return;
     this.look = look;
     this.floorDirty = true;
   }
@@ -186,7 +186,7 @@ export class ArenaMap {
     const font = Math.round(Math.min(34 * dpr, 110 * Math.min(sx, sy * 1.2)));
     this.map.zones.forEach((z, i) => {
       if (!z.rect) return;
-      if (down && i !== this.look.keep) return;
+      if (down && !this.look.keep?.includes(i)) return;
       const live = i < this.look.options;
       const x = X(z.rect.x);
       const y = Y(z.rect.y);

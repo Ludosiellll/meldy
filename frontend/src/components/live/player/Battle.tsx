@@ -13,11 +13,12 @@
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { sharedPlaces, shownPlace } from '../../../lib/live/rules';
-import type { BossPhase, Look, Me, PlayerResult, PlayerState, Question, TopRow } from '../../../lib/live/types';
+import { TeamsMini } from './TeamLine';
+import { questionKind, rightKeys, teamsOf, type BossPhase, type Look, type Me, type PlayerResult, type PlayerState, type Question, type TopRow } from '../../../lib/live/types';
 import { Shard, Star } from '../art/Fx';
 import { LiveBoss, LiveChar, reducedMotion } from './art';
 import type { Pick, PlayerController } from './controller';
-import { NBSP, multText, nb, orderText, seconds } from './copy';
+import { KINDS, NBSP, multText, nb, orderText, seconds } from './copy';
 import { OPTION_STYLES, optionLabel, optionSize, questionSize, type OptionShape } from './options';
 import type { HapticKind } from './platform';
 import { useLivePictures, type ShownPicture } from '../../../lib/live/pictures';
@@ -59,14 +60,16 @@ interface AnswerProps {
   disabled: boolean;
   look: AnsLook;
   mark: 'key' | 'wrong' | null;
+  /** A question of several right answers, before «Ответить»: this option is ticked (true) or not (false). */
+  tick?: boolean;
   /** The option's picture: a URL, null while it loads, false when it did not come; undefined — none. */
   picture?: ShownPicture;
   onPick: (index: number) => void;
 }
 
-const Answer = memo(function Answer({ index, text, disabled, look, mark, picture, onPick }: AnswerProps) {
+const Answer = memo(function Answer({ index, text, disabled, look, mark, tick, picture, onPick }: AnswerProps) {
   const o = OPTION_STYLES[index];
-  const status = mark === 'key' ? ', верный ответ' : mark === 'wrong' ? ', ваш ответ, неверный' : look === 'chosen' ? ', ваш ответ' : '';
+  const status = mark === 'key' ? ', верный ответ' : mark === 'wrong' ? ', ваш ответ, неверный' : look === 'chosen' ? ', ваш ответ' : tick ? ', отмечен' : '';
   // aria-disabled, not disabled: disabling the button the finger is on makes the browser move focus (a forced style
   // and layout) and React put it back (another) — 10–25 ms at ×4 CPU on the tap. A tap that does not count is ignored.
   return (
@@ -76,7 +79,9 @@ const Answer = memo(function Answer({ index, text, disabled, look, mark, picture
       data-size={optionSize(text)}
       data-look={look}
       data-mark={mark ?? undefined}
+      data-tick={tick ? '' : undefined}
       aria-disabled={disabled}
+      aria-pressed={tick === undefined ? undefined : tick}
       aria-label={`${optionLabel(index, text, picture !== undefined)}${status}`}
       data-pic={picture !== undefined ? '' : undefined}
       onClick={disabled ? undefined : () => onPick(index)}
@@ -236,6 +241,8 @@ type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
 interface SheetProps {
   result: PlayerResult;
   options: string[];
+  /** What the question asked for (questionKind): one right option, several, a text. */
+  kind: 'single' | 'multiple' | 'short';
   look: Look;
   frozenBefore: boolean;
   /** This player joined during the question: the server counted nothing for them (no answer, no freeze). */
@@ -276,6 +283,10 @@ export function missWords(r: { none: boolean; frozen: boolean; stand?: boolean }
 const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const r = p.result;
   const right = r.correct && !r.thawed;
+  const keys = rightKeys(r);
+  // several right answers, some of them ticked: a share of the damage (CONTRACT §3)
+  const partial = p.kind === 'multiple' && !r.correct && !r.none && (r.share ?? 0) > 0;
+  const hit = right || (partial && r.dmg > 0);
   const newlyFrozen = r.frozen && !p.frozenBefore;
   const meEl = useRef<HTMLDivElement>(null);
   const star = useRef<HTMLDivElement>(null);
@@ -283,7 +294,7 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   const seen = p.sitOut && r.none && !r.frozen;
   // a movement round that did not count (MODE_MIXED §6): nothing happened to anyone
   const voided = !!(r.stand && r.void);
-  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(seen ? 'idle' : voided ? (r.frozen ? 'frozen' : 'idle') : r.correct ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
+  const [face, setFace] = useState<'idle' | 'happy' | 'hurt' | 'frozen'>(seen ? 'idle' : voided ? (r.frozen ? 'frozen' : 'idle') : r.correct || hit ? 'happy' : r.frozen && !newlyFrozen ? 'frozen' : 'hurt');
   const [ice, setIce] = useState(r.thawed || (r.frozen && !newlyFrozen));
   const [move, setMove] = useState<'idle' | 'bounce' | 'hit'>('idle');
   const { haptic, onImpact, bossEl } = p;
@@ -292,7 +303,7 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
     const timers: ReturnType<typeof setTimeout>[] = [];
     const at = (ms: number, fn: () => void) => timers.push(setTimeout(fn, ms));
     const still = reducedMotion();
-    if (right) {
+    if (hit) {
       at(20, () => haptic('success'));
       at(420, () => setMove('bounce'));
       at(still ? 60 : 650, () => {
@@ -331,7 +342,11 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const keyText = `${OPTION_STYLES[r.key]?.letter ?? ''}${NBSP}·${NBSP}${p.options[r.key] ?? ''}`;
+  const keyText =
+    p.kind === 'short' ? (r.forms?.[0] ?? '') : keys.map((k) => `${OPTION_STYLES[k]?.letter ?? ''}${NBSP}·${NBSP}${p.options[k] ?? ''}`).join(', ');
+  const keyLabel = p.kind === 'short' ? KINDS.rightText : keys.length > 1 ? KINDS.rightMany : 'Верный ответ';
+  const typed = p.kind === 'short' && typeof r.typed === 'string' && r.typed ? r.typed : null;
+  const tops = p.kind === 'short' && Array.isArray(r.tops) && r.tops.length > 0 ? r.tops : null;
   let title: string;
   let body: ReactNode;
   if (voided) {
@@ -352,11 +367,35 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
     body = (
       <>
         <p>
-          Верный ответ: <b>{keyText}</b>
+          {keyLabel}: <b>{keyText}</b>
         </p>
         <p>Этот вопрос шёл без вас. Следующий{NBSP}— ваш.</p>
       </>
     );
+  } else if (partial) {
+    const picks = r.picks ?? [];
+    const got = picks.filter((k) => keys.includes(k)).length;
+    title = KINDS.partial;
+    body =
+      r.dmg > 0 ? (
+        <>
+          <span className="lp-big">−{nb(r.dmg)}</span>
+          <p>урона Дедлайну</p>
+          <div className="lp-pills">
+            <span className="lp-pill">{KINDS.partialOf(got, keys.length, picks.length - got)}</span>
+          </div>
+          <p className="lp-wide">
+            {keyLabel}: <b>{keyText}</b>
+          </p>
+        </>
+      ) : (
+        <>
+          <p>{KINDS.partialFrozen}</p>
+          <p className="lp-wide">
+            {keyLabel}: <b>{keyText}</b>
+          </p>
+        </>
+      );
   } else if (r.correct) {
     title = 'Верно';
     body = (
@@ -376,8 +415,13 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
     title = miss.title;
     body = (
       <>
+        {typed !== null ? (
+          <p>
+            {KINDS.mine}: «{typed}»
+          </p>
+        ) : null}
         <p>
-          Верный ответ: <b>{keyText}</b>
+          {keyLabel}: <b>{keyText}</b>
         </p>
         <p>{miss.line}</p>
       </>
@@ -385,11 +429,16 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
   }
   const healed = r.healed > 0;
   return (
-    <section className={`lp-sheet ${seen || voided ? 'lp-sheet--seen' : r.correct ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
+    <section className={`lp-sheet ${seen || voided ? 'lp-sheet--seen' : r.correct || hit ? 'lp-sheet--ok' : 'lp-sheet--bad'}`} aria-labelledby="lp-sheet-title">
       <h2 id="lp-sheet-title" role="status">
         {title}
       </h2>
       {body}
+      {tops ? (
+        <p className="lp-wide lp-tops">
+          {KINDS.tops}: {tops.map((t) => `«${t.text}» ${KINDS.topN(t.n)}`).join(', ')}
+        </p>
+      ) : null}
       {healed && <p className="lp-wide">Мало верных ответов: Дедлайн восстановил силы.</p>}
       {p.showPlace && (
         <div className="lp-place">
@@ -510,6 +559,10 @@ const PHASE_TEXT: Record<1 | 2, { title: string; text: string }> = {
 export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBefore, late, offsetMs, look, haptic }: BattleProps) {
   const closed = st.state === 'reveal' || st.state === 'leaderboard';
   const result = closed ? st.result : null;
+  const kind = questionKind(q);
+  // several right answers: the options ticked before «Ответить»; a text answer: what is typed so far
+  const [marked, setMarked] = useState<number[]>([]);
+  const [draft, setDraft] = useState('');
   const pics = useLivePictures(q.pictures, ctl.picture);
   const [zoom, setZoom] = useState(false);
   const closeZoom = useCallback(() => setZoom(false), []);
@@ -643,15 +696,40 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
   const picked = pick && pick.qi === q.qi ? pick : null;
   const sitOut = late && !picked && !closed;
   const missed = upNow && !picked;
-  const looks: AnsLook[] = q.options.map((_, i) => (picked ? (picked.choice === i ? 'chosen' : 'dim') : sitOut || missed ? 'dim' : 'idle'));
+  const mine = picked ? (picked.picks ?? (picked.choice >= 0 ? [picked.choice] : [])) : [];
+  const keys = rightKeys(result);
+  const looks: AnsLook[] = q.options.map((_, i) => (picked ? (mine.includes(i) ? 'chosen' : 'dim') : sitOut || missed ? 'dim' : 'idle'));
   const marks = q.options.map((_, i) => {
     if (!result) return null;
-    if (i === result.key) return 'key' as const;
-    if (picked && picked.choice === i) return 'wrong' as const;
+    if (keys.includes(i)) return 'key' as const;
+    if (mine.includes(i)) return 'wrong' as const;
     return null;
   });
   const closedLooks: AnsLook[] = q.options.map((_, i) => (marks[i] ? 'idle' : 'dim'));
-  const onPick = useMemo(() => (i: number) => ctl.answer(i), [ctl]);
+  const ticking = kind === 'multiple' && !picked && !closed;
+  const onPick = useMemo(
+    () =>
+      kind === 'multiple'
+        ? (i: number) => {
+            haptic('tap');
+            setMarked((m) => (m.includes(i) ? m.filter((x) => x !== i) : [...m, i].sort((a, b) => a - b)));
+          }
+        : (i: number) => ctl.answer(i),
+    [ctl, kind, haptic],
+  );
+  // At the phone's zero what is ticked or typed goes by itself (the server takes it up to 1.5 s after the end).
+  const autoSent = useRef(false);
+  useEffect(() => {
+    if (!upNow || picked || sitOut || autoSent.current) return;
+    if (kind === 'multiple' && marked.length > 0) {
+      autoSent.current = true;
+      ctl.answerPicks(marked);
+    } else if (kind === 'short' && draft.trim()) {
+      autoSent.current = true;
+      ctl.answerText(draft);
+    }
+  }, [upNow, picked, sitOut, kind, marked, draft, ctl]);
+  const canSend = isOpen && !picked && !closed && !sitOut && !upNow;
 
   // «Ответили N»: the larger of the ack's count and the last state's, at least this answer.
   const known = Math.max(answered ?? 0, st.answered);
@@ -711,7 +789,10 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
       {rule && !closed && <p className="lp-rule">{rule}</p>}
       <div className="lp-mid">
         {showTop ? (
-          <Top5 top={st.top as TopRow[]} meId={st.me.player_id} />
+          <>
+            {teamsOf(st) ? <TeamsMini teams={teamsOf(st)!} mine={st.me.team} /> : null}
+            <Top5 top={st.top as TopRow[]} meId={st.me.player_id} />
+          </>
         ) : (
           <>
             <h2 className="lp-q" data-size={questionSize(q.text)}>
@@ -731,11 +812,64 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           {line}
         </div>
       </div>
-      <div className="lp-answers" data-n={q.options.length} data-wait={!isOpen && !closed ? 'true' : 'false'}>
-        {q.options.map((text, i) => (
-          <Answer key={i} index={i} text={text} disabled={!isOpen || !!picked || closed || sitOut || upNow} look={closed ? closedLooks[i] : looks[i]} mark={marks[i]} picture={pics.options[i]} onPick={onPick} />
-        ))}
-      </div>
+      {kind === 'short' ? (
+        <form
+          className="lp-textans"
+          data-wait={!isOpen && !closed ? 'true' : 'false'}
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSend) ctl.answerText(draft);
+          }}
+        >
+          {picked || closed ? (
+            <p className="lp-textans__sent" data-mark={result ? (result.correct ? 'key' : 'wrong') : undefined}>
+              {picked?.text ? KINDS.sentText(picked.text) : result ? (result.forms?.[0] ? `${KINDS.rightText}: ${result.forms[0]}` : '') : ''}
+            </p>
+          ) : (
+            <>
+              <input
+                className="lp-textans__in"
+                type="text"
+                value={draft}
+                maxLength={200}
+                placeholder={KINDS.textPlaceholder}
+                aria-label={KINDS.textLabel}
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                enterKeyHint="send"
+                disabled={!isOpen || sitOut || upNow}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <button type="submit" className="lp-btn lp-btn--main lp-send" disabled={!canSend || !draft.trim()}>
+                {KINDS.send}
+              </button>
+            </>
+          )}
+        </form>
+      ) : (
+        <div className="lp-answers" data-n={q.options.length} data-wait={!isOpen && !closed ? 'true' : 'false'} data-multi={kind === 'multiple' ? '' : undefined}>
+          {kind === 'multiple' && q.multi && !closed ? <p className="lp-multi">{KINDS.multi(q.multi)}</p> : null}
+          {q.options.map((text, i) => (
+            <Answer
+              key={i}
+              index={i}
+              text={text}
+              disabled={!isOpen || !!picked || closed || sitOut || upNow}
+              look={closed ? closedLooks[i] : looks[i]}
+              mark={marks[i]}
+              tick={ticking ? marked.includes(i) : undefined}
+              picture={pics.options[i]}
+              onPick={onPick}
+            />
+          ))}
+          {kind === 'multiple' && !closed ? (
+            <button type="button" className="lp-btn lp-btn--main lp-send" disabled={!canSend || marked.length === 0} onClick={() => ctl.answerPicks(marked)}>
+              {picked ? KINDS.sentPicks(mine.length) : KINDS.send}
+            </button>
+          ) : null}
+        </div>
+      )}
       {zoom && typeof pics.stem === 'string' ? <PictureZoom url={pics.stem} onClose={closeZoom} /> : null}
       {banner && (
         <div className="lp-phase" role="status">
@@ -747,6 +881,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
         <ResultSheet
           result={result}
           options={q.options}
+          kind={kind}
           look={look}
           frozenBefore={frozenBefore}
           sitOut={late}

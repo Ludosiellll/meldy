@@ -746,8 +746,15 @@ else
     sed -e "s/'Два верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e'), 'correct'/'Два верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g'), 'correct'/" \
       "${pair%%:*}" > "${pair##*:}"
   done
-  [ "$(grep -c "'a', 'b', 'c', 'd', 'e', 'f', 'g'), 'correct'\|'1', '2', '3', '4', '5', '6', '7'), 'correct', jsonb_build_array(0)/\|'да', 'нет', '3', '4', '5', '6', '7')" "$KBATTLE")" -ge 4 ] \
-    && [ "$(grep -c "'Два верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g')" "$KWIDE" "$KCLOSE" | grep -c ':1$')" = 2 ] \
+  KFOUND=0
+  for k in "'Несколько верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g')" \
+           "'Столица Франции', 'options', jsonb_build_array('1', '2', '3', '4', '5', '6', '7')" \
+           "'С картинкой', 'options', jsonb_build_array('да', 'нет', '3', '4', '5', '6', '7')" \
+           "'Только несколько', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g')"; do
+    [ "$(grep -cF "$k" "$KBATTLE")" = 1 ] && KFOUND=$((KFOUND + 1))
+  done
+  [ $KFOUND = 4 ] \
+    && [ "$(grep -cF "'Два верных', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e', 'f', 'g')" "$KWIDE" "$KCLOSE" | grep -c ':1$')" = 2 ] \
     && ok "the older behaviours for the new rule: their questions of several right answers and text answers made unplayable" \
     || bad "the older behaviours for the new rule: the questions were not found"
   kind_contracts() {

@@ -19,6 +19,7 @@ import {
   LiveError,
   isUnchanged,
   pinRefusal,
+  type AnswerInput,
   type BodyId,
   type ColourId,
   type EyesId,
@@ -35,12 +36,45 @@ import { errorText } from './copy';
 import { readStore, writeStore, TOKEN_RE, type PlayerPlatform } from './platform';
 
 export type Step = 'pin' | 'builder' | 'joining' | 'game' | 'review' | 'gone';
+
+/** «Тренировать ошибки» (live_practice): idle, under way, done (the exam and how many), sign in first, or refused. */
+export type PracticeView =
+  | { status: 'idle' | 'busy' }
+  | { status: 'done'; containerId: string; saved: number }
+  | { status: 'signin' }
+  | { status: 'refused'; text: string };
+
+/** The words of a refusal of live_practice (ML012 and the review's own). */
+export function practiceRefusal(e: LiveError): string {
+  if (e.code === 'ML012') {
+    if (e.detail === 'open') return 'Тренировка откроется, когда закроется контрольная этого экзамена.';
+    if (e.detail === 'removed') return 'Учитель убрал вас из этого экзамена.';
+    if (e.detail === 'full') return 'В экзамене нет свободных мест.';
+    return 'Учитель не открыл тренировку по этой игре. Попросите у него ссылку на экзамен.';
+  }
+  if (e.code === 'P0002') return 'Тренировка открывается на том устройстве, где вы играли.';
+  if (e.code === 'ML002') return 'Эта игра закончилась больше 7 дней назад.';
+  return errorText(e, null);
+}
+
+/** The server's word on this player's answer to the current question (a reload, a lost ack): a tap, ticks or a text. */
+export function pickOf(st: PlayerState): Pick | null {
+  const me = st.me;
+  if (me.choice !== null) return { qi: st.qi, choice: me.choice, status: 'accepted', elapsedMs: null, order: null };
+  if (Array.isArray(me.picks) && me.picks.length > 0) return { qi: st.qi, choice: -1, picks: me.picks, status: 'accepted', elapsedMs: null, order: null };
+  if (typeof me.typed === 'string' && me.typed) return { qi: st.qi, choice: -1, text: me.typed, status: 'accepted', elapsedMs: null, order: null };
+  return null;
+}
 export type Part = 'body' | 'colour' | 'eyes' | 'hat';
 
 export interface Pick {
   qi: number;
-  /** Shown index. */
+  /** Shown index (a tap); -1 for the ticks of several right answers or a text answer. */
   choice: number;
+  /** A question of several right answers: the options ticked (shown indexes, ascending). */
+  picks?: number[];
+  /** A text question: the text sent (trimmed). */
+  text?: string;
   status: 'sending' | 'accepted' | 'retrying' | 'late';
   /**
    * Opening → the answer's arrival on the server's clock (the ack's `now`), ms: the time the damage was counted with.
@@ -87,6 +121,10 @@ export interface PlayerSnapshot {
   lateQi: number | null;
   review: Review | null;
   reviewError: string | null;
+  /** «Тренировать ошибки» on the review. */
+  practice: PracticeView;
+  /** The game the review is of (a game played here, or one opened by a link). */
+  reviewGame: string | null;
   /** Review opened from a link (Telegram `r_<game>`): no game screen behind it. */
   reviewOnly: boolean;
   /** Why the game cannot go on: a heading and a line (kicked, the game gone). */
@@ -255,6 +293,8 @@ export class PlayerController {
       lateQi: null,
       review: null,
       reviewError: null,
+      practice: { status: 'idle' },
+      reviewGame: null,
       reviewOnly: false,
       gone: null,
       modeHint: null,
@@ -310,7 +350,7 @@ export class PlayerController {
    * The way in: a PIN from the address or Telegram's start parameter, or a game's review (`r_<game>` in Telegram). A
    * PIN this tab already joined goes on with the kept token.
    */
-  async start(entry: { pin?: string | null; reviewGame?: string | null; mode?: string | null }): Promise<void> {
+  async start(entry: { pin?: string | null; reviewGame?: string | null; mode?: string | null; practice?: boolean }): Promise<void> {
     // React's StrictMode starts, disposes and starts again: the second start is the one that counts.
     this.disposed = false;
     const gen = ++this.gen;
@@ -321,6 +361,8 @@ export class PlayerController {
     }
     if (entry.reviewGame) {
       await this.openReviewOf(entry.reviewGame);
+      // back from the sign-in that «Тренировать ошибки» asked for: it goes on by itself
+      if (entry.practice && this.s.review && gen === this.gen) await this.practiceMistakes();
       return;
     }
     const pin = entry.pin && PIN_RE.test(entry.pin) ? entry.pin : null;
@@ -717,22 +759,21 @@ export class PlayerController {
       patch.modeHint = 'stand';
       if (this.s.pin) writeStore('session', MODE_KEY(this.s.pin), 'stand');
     }
+    const known = pickOf(st);
     if (st.qi !== this.s.turnQi && st.qi >= 0) {
       // A new question: its own figures.
       patch.turnQi = st.qi;
-      patch.pick = st.me.choice !== null ? { qi: st.qi, choice: st.me.choice, status: 'accepted', elapsedMs: null, order: null } : null;
+      patch.pick = known;
       patch.answered = null;
       patch.hpFrom = live ? st.boss.hp : null;
       patch.frozenBefore = live ? st.me.frozen : false;
     } else if (live) {
       patch.hpFrom = st.boss.hp;
       patch.frozenBefore = st.me.frozen;
-      if (st.me.choice !== null && (!this.s.pick || this.s.pick.qi !== st.qi)) {
-        patch.pick = { qi: st.qi, choice: st.me.choice, status: 'accepted', elapsedMs: null, order: null };
-      }
+      if (known && (!this.s.pick || this.s.pick.qi !== st.qi)) patch.pick = known;
     }
     // Joined after this question opened: the server takes no answer to it (live_answer: not_joined_yet).
-    if (live && st.question && st.me.choice === null && this.joinedAt !== null && Date.parse(st.question.opens_at) < this.joinedAt) {
+    if (live && st.question && !known && this.joinedAt !== null && Date.parse(st.question.opens_at) < this.joinedAt) {
       patch.lateQi = st.qi;
     }
     if (st.state === 'open') patch.answered = Math.max(st.answered, this.s.answered ?? 0);
@@ -793,7 +834,36 @@ export class PlayerController {
     this.send({ qi: q.qi, choice, opensAt: Date.parse(q.opens_at), closesAt: Date.parse(q.closes_at), timeMs: st.time_s * 1000 }, 0);
   }
 
-  private send(a: { qi: number; choice: number; opensAt: number; closesAt: number; timeMs: number }, attempt: number): void {
+  /**
+   * A question of several right answers: the options ticked, sent once («Ответить», or the phone's own zero with
+   * something ticked). The server scores the set (CONTRACT §3).
+   */
+  answerPicks(picks: readonly number[]): void {
+    const st = this.s.state;
+    const q = st?.question;
+    if (!st || !q || !this.isOpenNow() || !this.s.game || !this.token) return;
+    if (q.stand || this.s.lateQi === q.qi || (this.s.pick && this.s.pick.qi === q.qi)) return;
+    const set = Array.from(new Set(picks)).filter((i) => Number.isInteger(i) && i >= 0 && i < q.options.length).sort((a, b) => a - b);
+    if (set.length === 0) return;
+    this.set({ pick: { qi: q.qi, choice: -1, picks: set, status: 'sending', elapsedMs: null, order: null } });
+    this.platform.haptic('tap');
+    this.send({ qi: q.qi, choice: -1, input: { picks: set }, opensAt: Date.parse(q.opens_at), closesAt: Date.parse(q.closes_at), timeMs: st.time_s * 1000 }, 0);
+  }
+
+  /** A text question: the text typed, sent once (trimmed; 1–200 characters). */
+  answerText(raw: string): void {
+    const st = this.s.state;
+    const q = st?.question;
+    if (!st || !q || !this.isOpenNow() || !this.s.game || !this.token) return;
+    if (q.stand || this.s.lateQi === q.qi || (this.s.pick && this.s.pick.qi === q.qi)) return;
+    const text = raw.trim().slice(0, 200);
+    if (!text) return;
+    this.set({ pick: { qi: q.qi, choice: -1, text, status: 'sending', elapsedMs: null, order: null } });
+    this.platform.haptic('tap');
+    this.send({ qi: q.qi, choice: -1, input: { text }, opensAt: Date.parse(q.opens_at), closesAt: Date.parse(q.closes_at), timeMs: st.time_s * 1000 }, 0);
+  }
+
+  private send(a: { qi: number; choice: number; input?: AnswerInput; opensAt: number; closesAt: number; timeMs: number }, attempt: number): void {
     const game = this.s.game;
     const token = this.token;
     if (!game || !token) return;
@@ -802,8 +872,7 @@ export class PlayerController {
       const pick = this.s.pick;
       if (pick && pick.qi === qi) this.set({ pick: { ...pick, ...patch } });
     };
-    this.api
-      .answer(game.id, token, qi, a.choice)
+    (a.input ? this.api.submit(game.id, token, qi, a.input) : this.api.answer(game.id, token, qi, a.choice))
       .then((ack) => {
         // The ack's `now` is the server's clock at this answer: the time its damage is counted with (live_answer).
         const at = Date.parse(ack.now);
@@ -867,8 +936,30 @@ export class PlayerController {
     this.set({ step: 'game' });
   }
 
+  /**
+   * «Тренировать ошибки»: this player's mistakes of the game go to the exam's plan (live_practice, the session's
+   * account). Not signed in → `signin` (the screen offers the way there and back); ML012 and the rest → `refused`.
+   */
+  async practiceMistakes(): Promise<void> {
+    const gameId = this.s.game?.id ?? this.s.reviewGame;
+    if (!gameId || this.s.practice.status === 'busy') return;
+    const token = this.token ?? (await this.platform.readToken(gameId));
+    if (!token) {
+      this.set({ practice: { status: 'refused', text: practiceRefusal(new LiveError('P0002', 'token', 404)) } });
+      return;
+    }
+    this.set({ practice: { status: 'busy' } });
+    try {
+      const r = await this.api.practice(gameId, token);
+      this.set({ practice: { status: 'done', containerId: r.container_id, saved: r.saved } });
+    } catch (error) {
+      const e = error instanceof LiveError ? error : new LiveError('unknown');
+      this.set({ practice: e.code === '28000' ? { status: 'signin' } : { status: 'refused', text: practiceRefusal(e) } });
+    }
+  }
+
   private async openReviewOf(gameId: string): Promise<void> {
-    this.set({ step: 'review', reviewOnly: true });
+    this.set({ step: 'review', reviewOnly: true, reviewGame: gameId });
     const token = await this.platform.readToken(gameId);
     if (!token) {
       this.set({ reviewError: 'Разбор открывается на том устройстве, где вы играли.' });
@@ -893,7 +984,7 @@ export class PlayerController {
     this.reviewAsked = false;
     this.closeReadFor = -1;
     this.platform.setPlaying(false);
-    this.set({ step: 'pin', pin: '', game: null, state: null, pick: null, answered: null, review: null, reviewError: null, reviewOnly: false, turnQi: -1, hpFrom: null, lateQi: null, gone: null, error: null, notice: null, busy: false, modeHint: null });
+    this.set({ step: 'pin', pin: '', game: null, state: null, pick: null, answered: null, review: null, reviewError: null, practice: { status: 'idle' }, reviewGame: null, reviewOnly: false, turnQi: -1, hpFrom: null, lateQi: null, gone: null, error: null, notice: null, busy: false, modeHint: null });
   }
 
   /** The player's token (sharing asks the bot's function with it). */

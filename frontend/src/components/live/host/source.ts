@@ -18,6 +18,13 @@ export interface SourceQuestion {
   skip: SkipReason | null;
   /** Why a battle without mini-games skips it (2–6 options, pictures allowed). */
   wideSkip: SkipReason | null;
+  /**
+   * Why a game skips it under 20261102090000_live_kinds_teams.sql: several right answers and text answers play too
+   * (`playSkip`: a battle, with or without movement rounds), «Встань на ответ» takes no text answer (`standSkip`).
+   * Absent: an older preview (the wide rule).
+   */
+  playSkip?: SkipReason | null;
+  standSkip?: SkipReason | null;
 }
 
 export interface SourcePreview {
@@ -47,6 +54,21 @@ export function skipReason(item: Pick<TestItem, 'kind' | 'options' | 'correct' |
   return null;
 }
 
+/**
+ * Why a game skips the item with several right answers and text answers (meldy_private.live_playable(item, true) or
+ * live_more(item, text)): 2–6 options with one right or more, or a text answer with accepted forms when `text` (not
+ * in «Встань на ответ»).
+ */
+export function kindSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct'> & { answers?: readonly string[] }, text: boolean): SkipReason | null {
+  if (item.kind === 'short' || item.options.length === 0) {
+    if (!text) return 'short';
+    return item.answers === undefined || item.answers.length > 0 ? null : 'nokey';
+  }
+  if (item.correct.length === 0) return 'nokey';
+  if (item.options.length < 2 || item.options.length > 6) return 'options';
+  return null;
+}
+
 /** The question as one line for the list: its first line, cut at a word. */
 export function questionLine(stem: string, max = 110): string {
   const line = stem.replace(/\s+/g, ' ').trim();
@@ -64,7 +86,14 @@ export async function loadSource(containerId: string): Promise<SourcePreview> {
     containerId,
     title: summary.title,
     subjectIds,
-    questions: items.map((item) => ({ id: item.id, text: questionLine(item.stem), skip: skipReason(item), wideSkip: skipReason(item, true) })),
+    questions: items.map((item) => ({
+      id: item.id,
+      text: questionLine(item.stem),
+      skip: skipReason(item),
+      wideSkip: skipReason(item, true),
+      playSkip: kindSkip(item, true),
+      standSkip: kindSkip(item, false),
+    })),
   };
 }
 

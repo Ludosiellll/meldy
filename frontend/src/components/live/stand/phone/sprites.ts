@@ -9,7 +9,7 @@
  * allocation of its own.
  */
 import type { Pose as Sample } from '../../../../lib/live/move/interp';
-import { F_AWAY, isGhost, isIced, kindOf, KIND_PLAYER, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, isGhost, isIced, kindOf, KIND_PLAYER, resKeys, type RosterEntry, type StandState } from '../../../../lib/live/move/protocol';
 import type { GameMap } from '../../../../lib/live/move/sim';
 import { toPlayerLook, type PlayerLook } from '../../../../lib/live/three/look';
 import { paintThumb, thumbUrl } from '../../../../lib/live/three/thumbs';
@@ -47,7 +47,7 @@ export class SpriteView implements Backdrop {
   private floor: HTMLCanvasElement | null = null;
   private floorKey = '';
   private options: readonly string[] = [];
-  private keep: number | null = null;
+  private keep: readonly number[] | null = null;
   private w = 0;
   private h = 0;
   private dpr = 1;
@@ -114,8 +114,8 @@ export class SpriteView implements Backdrop {
   }
 
   setState(st: StandState): void {
-    const keep = st.phase === 'reveal' && st.floor === 'down' && st.res ? st.res.key : null;
-    if (keep !== this.keep) {
+    const keep = st.phase === 'reveal' && st.floor === 'down' && st.res ? resKeys(st.res) : null;
+    if ((keep?.join(',') ?? null) !== (this.keep?.join(',') ?? null)) {
       this.keep = keep;
       this.floorKey = '';
     }
@@ -142,7 +142,7 @@ export class SpriteView implements Backdrop {
       this.cam.y += (me.y - 60 - this.cam.y) * k;
       this.cam.ready = true;
     }
-    const key = `${this.w}|${this.h}|${this.keep}|${this.options.join('\u0001')}`;
+    const key = `${this.w}|${this.h}|${this.keep?.join(',') ?? null}|${this.options.join('\u0001')}`;
     if (key !== this.floorKey) this.paintFloor(key);
     const s = this.s;
     const ox = this.canvas.width / 2 - this.cam.x * s;
@@ -296,7 +296,7 @@ export class SpriteView implements Backdrop {
     }
     this.map.zones.forEach((z, i) => {
       if (!z.rect) return;
-      if (down && i !== this.keep) return;
+      if (down && !this.keep?.includes(i)) return;
       const live = i < this.options.length || this.options.length === 0;
       const { x, y, w, h } = z.rect;
       g.fillStyle = live ? ZONE_COLOURS[i] : '#cfc5b0';
