@@ -1,0 +1,83 @@
+/* The author's pages of «Соревнование по ссылке» (/live/challenge, /live/challenge/<id>) in the setup's look (host.css
+   .lvs-*, which follows the site's theme), and the lists on «Игры» and the test's page (.lcl-*). Motion: transform and
+   opacity only. */
+
+/* ─── the setup ─── */
+.lcs-game { margin-top: 20px; grid-template-areas: 'pic text'; }
+.lcs-pic { background: #e2f2e5; }
+.lcs-pic .lv-boss { left: 92px; }
+.lcs-clock { position: absolute; right: 8px; top: 8px; width: 34px; height: 34px; border-radius: 50%; background: #fff; display: grid; place-items: center; box-shadow: 0 0 0 2px #1b2230; }
+.lcs-clock svg { width: 22px; height: 22px; fill: none; stroke: #1b2230; stroke-width: 2.2; stroke-linecap: round; }
+.lcs-deadline { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.lcs-date { min-height: 46px; padding: 0 14px; border-radius: 14px; border: 0; background: var(--lvh-card); color: var(--lvh-ink); box-shadow: inset 0 0 0 1.5px var(--lvh-line); font: 500 17px/1 var(--ph-sans, system-ui); }
+.lcs-date:focus-visible { outline: 3px solid var(--lvh-yellow); outline-offset: 2px; }
+.lcs .lvs-rows { grid-template-columns: 1fr; max-width: 980px; }
+@media (max-width: 860px) {
+  .lcs-deadline { align-items: stretch; width: 100%; }
+  .lcs-deadline .lvs-seg button { flex: 1 1 auto; }
+}
+
+/* ─── the challenge's page ─── */
+.lcp .lvs-lead b { font-weight: 600; color: var(--lvh-ink); }
+.lcp .lvs-lead b[data-state='over'] { color: var(--lvh-ink-2); }
+.lcp-toplink { font: 500 18px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); text-decoration: underline; text-underline-offset: 3px; }
+.lcp-share { display: flex; gap: 22px; align-items: center; margin-top: 22px; padding: 18px; border-radius: 26px; background: var(--lvh-card); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+.lcp-qr-b { flex: none; width: 148px; height: 148px; padding: 0; border-radius: 16px; overflow: hidden; background: #fff; cursor: zoom-in; box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+.lcp-qr { display: block; width: 100%; height: 100%; }
+.lcp-share-text { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.lcp-label { font: 500 15px/1.2 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lcp-link { font: 700 clamp(20px, 2.4vw, 30px)/1.15 var(--ph-sans, system-ui); color: var(--lvh-ink); text-decoration: none; overflow-wrap: anywhere; letter-spacing: -0.01em; }
+.lcp-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.lcp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.lcp-close { color: var(--lvh-red-ink); }
+.lcp-ask { margin-top: 12px; padding: 14px 16px; border-radius: 18px; background: var(--lvh-soft); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+.lcp-ask p { margin: 0; font: 500 16px/1.45 var(--ph-sans, system-ui); }
+
+.lcp-results, .lcp-questions { margin-top: 30px; }
+.lcp-results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.lcp h2 { margin: 0; font: 700 24px/1.2 var(--ph-sans, system-ui); letter-spacing: -0.01em; }
+.lcp-results-head span { font: 500 16px/1.3 var(--ph-sans, system-ui); color: var(--lvh-ink-2); font-variant-numeric: tabular-nums; }
+.lcp-empty { margin: 12px 0 0; font: 400 17px/1.45 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lcp-table-wrap { margin-top: 12px; overflow-x: auto; border-radius: 20px; box-shadow: inset 0 0 0 1.5px var(--lvh-line); background: var(--lvh-card); }
+.lcp-table { width: 100%; border-collapse: collapse; font: 500 16.5px/1.25 var(--ph-sans, system-ui); font-variant-numeric: tabular-nums; }
+.lcp-table th { text-align: left; padding: 12px 14px; font: 600 13.5px/1.2 var(--ph-sans, system-ui); color: var(--lvh-ink-2); border-bottom: 1.5px solid var(--lvh-line); }
+.lcp-table td { padding: 8px 14px; border-bottom: 1px solid var(--lvh-line); vertical-align: middle; }
+.lcp-table tr:last-child td { border-bottom: 0; }
+.lcp-table .lcp-n { text-align: right; white-space: nowrap; }
+.lcp-table small { color: var(--lvh-ink-2); font-size: 13px; }
+.lcp-place { width: 56px; font-weight: 800; }
+.lcp-name { min-width: 180px; }
+.lcp-name { display: flex; align-items: center; gap: 10px; }
+.lcp-name > span { display: flex; flex-direction: column; min-width: 0; }
+.lcp-name small { margin-top: 2px; }
+.lcp-table tr[data-under] td { color: var(--lvh-ink-2); }
+.lcp-table tr[data-removed] td { opacity: 0.55; }
+.lcp-act { width: 1%; text-align: right; }
+.lcp-remove { padding: 8px 12px; border-radius: 999px; font: 600 14px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+.lcp-remove:focus-visible { outline: 3px solid var(--lvh-yellow); outline-offset: 2px; }
+
+.lcp-questions ol { list-style: none; margin: 12px 0 30px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lcp-questions li { display: grid; grid-template-columns: 32px minmax(0, 1fr) 160px; grid-template-areas: 'n t bar' 'n t s'; gap: 2px 14px; align-items: center; padding: 12px 16px; border-radius: 18px; background: var(--lvh-card); box-shadow: inset 0 0 0 1.5px var(--lvh-line); }
+.lcp-questions li[data-hard] { box-shadow: inset 0 0 0 2px var(--lvh-coral); }
+.lcp-qn { grid-area: n; font: 800 17px/1 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lcp-qt { grid-area: t; font: 500 16px/1.35 var(--ph-sans, system-ui); overflow-wrap: anywhere; }
+.lcp-qbar { grid-area: bar; height: 10px; border-radius: 6px; background: var(--lvh-line); overflow: hidden; position: relative; }
+.lcp-qbar i { position: absolute; inset: 0; background: var(--lvh-green); transform-origin: 0 50%; }
+.lcp-qs { grid-area: s; font: 500 13.5px/1.3 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
+.lcp-qs b { color: var(--lvh-coral); font-weight: 700; }
+@media (max-width: 700px) {
+  .lcp-share { flex-direction: column; align-items: flex-start; }
+  .lcp-qr-b { width: 132px; height: 132px; }
+  .lcp-questions li { grid-template-columns: 26px minmax(0, 1fr); grid-template-areas: 'n t' 'n bar' 'n s'; }
+  .lcp-table { font-size: 15px; }
+  .lcp-table th, .lcp-table td { padding-left: 10px; padding-right: 10px; }
+  .lcp-name { min-width: 140px; }
+}
+
+/* ─── the lists on «Игры» and the test's page ─── */
+.lcl { margin-top: 28px; }
+.lcl-h { margin: 0; font: 700 22px/1.2 var(--ph-sans, system-ui); letter-spacing: -0.01em; }
+.lcl-note { margin: 8px 0 0; font: 400 16px/1.45 var(--ph-sans, system-ui); color: var(--sf-muted, #4b515b); max-width: 640px; }
+.lcl-rows { margin-top: 12px; }
+.lcl-state { font-weight: 600; }
+.lcl-state[data-state='open'] { color: var(--sf-accent-fg, #1f5bc6); }

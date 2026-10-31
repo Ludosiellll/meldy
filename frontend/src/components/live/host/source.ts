@@ -32,6 +32,11 @@ export interface SourceQuestion {
    */
   playSkip?: SkipReason | null;
   standSkip?: SkipReason | null;
+  /**
+   * Why «Соревнование в своё время» skips it (meldy_private.live_challenge_kind, 20261106090100_live_challenge.sql): the
+   * battle's kinds, never a question with a picture. Absent: an older preview.
+   */
+  challengeSkip?: SkipReason | null;
 }
 
 export interface SourcePreview {
@@ -83,6 +88,11 @@ export function kindSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct'> & 
   return null;
 }
 
+/** Why a challenge skips the item: as a battle (kindSkip with text answers), and a picture anywhere in it. */
+export function challengeSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct' | 'images'> & { answers?: readonly string[] }): SkipReason | null {
+  return kindSkip(item, true) ?? (hasPicture(item) ? 'picture' : null);
+}
+
 /** The question as one line for the list: its first line, cut at a word. */
 export function questionLine(stem: string, max = 110): string {
   const line = stem.replace(/\s+/g, ' ').trim();
@@ -107,6 +117,7 @@ export async function loadSource(containerId: string): Promise<SourcePreview> {
       wideSkip: skipReason(item, true),
       playSkip: kindSkip(item, true),
       standSkip: kindSkip(item, false),
+      challengeSkip: challengeSkip(item),
     })),
   };
 }

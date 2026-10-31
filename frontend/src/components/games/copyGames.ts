@@ -34,6 +34,8 @@ export const GAMES = {
     title: 'Игра в классе',
     text: 'Откройте игру на проекторе или большом экране. Ученики входят с телефона по PIN или QR-коду, на сайте или в Telegram. Аккаунт им не нужен.',
     start: 'Начать игру',
+    /** Beside «Начать игру»: the own-time challenge by a link (docs/live/CHALLENGE.md). */
+    challenge: 'Соревнование по ссылке',
     /** What the projector's picture shows, for those who do not see it. */
     alt: 'Игра «Встань на ответ» на проекторе. Класс бежит к ответам, потом пол под неверными ответами проваливается.',
   },
@@ -60,6 +62,9 @@ export const GAMES = {
   pick: {
     title: 'Выберите тест или экзамен',
     lede: 'В игру идут вопросы с одним верным ответом.',
+    /** «Соревнование по ссылке» (docs/live/CHALLENGE.md). */
+    challengeTitle: 'Соревнование по какому тесту',
+    challengeLede: 'Каждый пройдёт тест сам, когда удобно, до срока. Таблица лидеров будет по той же ссылке.',
     test: 'Тест',
     exam: 'Экзамен',
     questions: (n: number) => `${n} ${plural(n, QUESTIONS)}`,

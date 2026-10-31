@@ -427,6 +427,8 @@ a.lvh-btn { text-decoration: none; }
 .lvs-top a { color: inherit; text-decoration: none; }
 .lvs-main { max-width: 1240px; margin: 0 auto; padding: 12px clamp(16px, 4vw, 56px) 0; }
 .lvs h1 { margin: 0; font: 700 clamp(30px, 4.2vw, 46px)/1.08 var(--ph-sans, system-ui); letter-spacing: -0.025em; text-wrap: balance; }
+.lvs-alt { margin: 8px 0 0; font: 500 17px/1.4 var(--ph-sans, system-ui); }
+.lvs-alt a { color: var(--lvh-ink); text-decoration: underline; text-underline-offset: 3px; }
 .lvs-lead { margin: 12px 0 0; font: 400 clamp(17px, 1.6vw, 21px)/1.4 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 .lvs-mode-art { position: absolute; inset: 0; }
 .lvs-mode-pic.lvs-mode-pic--stand { background: #dfe6fb; display: grid; place-items: center; }
@@ -493,6 +495,29 @@ a.lvh-btn { text-decoration: none; }
 .lvs-error { margin: 18px 0 0; font: 500 18px/1.4 var(--ph-sans, system-ui); color: var(--lvh-red-ink); }
 .lvs-state { margin: 28px 0 0; font: 400 19px/1.45 var(--ph-sans, system-ui); color: var(--lvh-ink-2); }
 .lvs-state button { text-decoration: underline; text-underline-offset: 3px; color: var(--lvh-ink); }
+/* The setup pages follow the site's theme (the projector's screen, .lvh, stays in the game's light palette): the same
+   tokens as the site's dark canvas (index.css .dark), the pictures as they are. */
+.dark .lvs {
+  --lvh-ink: #f3f3f0;
+  --lvh-ink-2: #a7adb7;
+  --lvh-canvas: #0b0f16;
+  --lvh-card: #141a24;
+  --lvh-soft: #1b2230;
+  --lvh-line: #262e3b;
+  --lvh-blue-soft: #1a2a47;
+  --lvh-red-ink: #ffb4ab;
+  --lvh-green-ink: #8fd3a5;
+  --lvh-green-soft: #1d3324;
+  --lvh-outline: #0b121c;
+  color-scheme: dark;
+}
+.dark .lvs-seg button[aria-checked='true'] { background: var(--lvh-ink); color: var(--lvh-canvas); }
+.dark .lvs .lvs-note-fix { color: #8db2f5; }
+.dark .lvs .lvh-btn--red { background: #b3261e; color: #fff; }
+.dark .lvs .lvs-mode-pic { box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.06); }
+@media (hover: hover) {
+  .dark .lvs .lvh-btn--white:not(:disabled):hover { background: var(--lvh-soft); box-shadow: inset 0 0 0 1.5px var(--lvh-ink-2); }
+}
 @media (max-width: 860px) {
   .lvs-rows { grid-template-columns: 1fr; }
 }

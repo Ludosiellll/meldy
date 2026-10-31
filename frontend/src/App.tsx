@@ -70,6 +70,8 @@ const LiveRoute = lazy(() => import('./pages/live/LiveRoute'));
 // The live game's player «Битва с монстром» (docs/live/CONTRACT.md): the site's /play and the Mini App's /tg/play.
 const PlayPage = lazy(() => import('./pages/play/PlayPage'));
 const TgPlayPage = lazy(() => import('./pages/play/TgPlayPage'));
+// «Соревнование в своё время» by its link (docs/live/CHALLENGE.md): /s/<code>, anyone, alone, before the deadline.
+const ChallengePage = lazy(() => import('./pages/challenge/ChallengePage'));
 const NewTestPage = lazy(() => import('./pages/test/NewTestPage'));
 // «Быстрая контрольная» (UX audit of 21.10): pasted questions to a link on one screen, and that link with its QR code.
 const QuickTestPage = lazy(() => import('./pages/test/QuickTestPage'));
@@ -208,6 +210,7 @@ export default function App() {
         <Route path={MINI_APP_PATH} element={<TelegramMiniApp />} />
         <Route path="/play" element={<PlayPage />} />
         <Route path="/tg/play" element={<TgPlayPage />} />
+        <Route path="/s/:code" element={<ChallengePage />} />
         <Route path="/" element={
           <PrivateRoute><SignedInShell /></PrivateRoute>
         }>

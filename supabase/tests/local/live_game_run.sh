@@ -38,11 +38,13 @@
 # numbers behaviour's games it changes on purpose adapted —, the mixed room end to end, its rollback, applied again)
 # → the calm stage: 20261106090000_live_calm.sql («Без спешки»: points only for right answers) the same way
 # (tests/live_calm.sql, live_calm_behaviour.sql, every live contract and behaviour above still green, the calm close
-# against backend/live_move_mixed.py, its rollback, applied again).
+# against backend/live_move_mixed.py, its rollback, applied again) → the challenge stage: 20261106090100_live_challenge.sql
+# («Соревнование в своё время») the same way (tests/live_challenge.sql, live_challenge_behaviour.sql, every live contract
+# and behaviour above still green, lib/challenge/rules.ts against the SQL on a grid, its rollback, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
-# Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
+# Env (optional): LIVE_PG_PORT (54460), LIVE_DB (live: the scratch database it drops and makes), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_RANGES=0 the ranges stage, LIVE_CALM=0 the calm stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_RANGES=0 the ranges stage, LIVE_CALM=0 the calm stage, LIVE_CHALLENGE=0 the challenge stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -57,7 +59,7 @@ CONTRACT=$SB/tests/live_game.sql
 BEHAVIOUR=$HERE/live_game_behaviour.sql
 export PGHOST=127.0.0.1 PGPORT=$PORT PGUSER=postgres
 PSQL=(psql -X -q -At -v ON_ERROR_STOP=1)
-DB=live
+DB=${LIVE_DB:-live}
 FAILS=0
 OKS=0
 ok() { printf '  ok    %s\n' "$1"; OKS=$((OKS + 1)); }
@@ -1071,6 +1073,68 @@ print(','.join(f'{k}:{ps[k][\"dmg\"]}:{str(ps[k][\"frozen\"]).lower()}' for k in
   [ "$(fingerprint)" = "$FCALM" ] && ok "the same catalog as the first calm apply" || bad "another catalog than the first calm apply"
   step "contract: live_calm.sql again" "$CCONTRACT"
   behave "calm behaviour again" "$CBEHAVIOUR" 'LIVE CALM BEHAVIOUR PASSED'
+fi
+
+# ─── «Соревнование в своё время» (20261106090100_live_challenge.sql) on top of the calm step ───
+# Its contract (tests/live_challenge.sql) and behaviour (live_challenge_behaviour.sql: create, the link, the start, a run
+# by the server's clock, the key's secrecy, the grading against a one-player battle with and without «Без спешки», the
+# table, the early close and the sweep, the review, practice, the limits, the author's views) fail before it; applied
+# twice (one catalog); every live contract and behaviour still holds (the migration only adds: four tables, the
+# throttle, public challenge_* functions and private live_challenge_* / live_run_* helpers); the numbers of the site's
+# mirror (frontend/src/lib/challenge/rules.ts) and of the SQL agree on a grid of 5184 answers and on a table of 120 runs
+# (live_challenge_mirror.mjs / .sql); the rollback twice (the calm step's catalog); applied again. LIVE_CHALLENGE=0 skips it.
+if [ "${LIVE_CHALLENGE:-1}" = 0 ] || [ "${LIVE_CALM:-1}" = 0 ] || [ "${LIVE_RANGES:-1}" = 0 ] || [ "${LIVE_NUMBERS:-1}" = 0 ] || [ "${LIVE_KINDS:-1}" = 0 ] || [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the challenge stage (LIVE_CHALLENGE=0, or a stage it needs skipped)"
+else
+  HMIG=$SB/migrations/20261106090100_live_challenge.sql
+  HDOWN=$SB/rollback/20261106090100_live_challenge_down.sql
+  HCONTRACT=$SB/tests/live_challenge.sql
+  HBEHAVIOUR=$HERE/live_challenge_behaviour.sql
+  challenge_contracts() {
+    calm_contracts "$1"
+    step "contract: live_calm.sql $1" "$CCONTRACT"
+  }
+  challenge_behaviours() {
+    calm_behaviours "$1"
+    behave "calm behaviour $1" "$CBEHAVIOUR" 'LIVE CALM BEHAVIOUR PASSED'
+  }
+  FNOCHAL=$(fingerprint)
+  if run "$HCONTRACT"; then bad "live_challenge.sql passes before its migration (it tests nothing)"; else ok "live_challenge.sql fails before its migration"; fi
+  if passes "$HBEHAVIOUR" 'LIVE CHALLENGE BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_challenge_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_challenge_behaviour fails before its migration"
+  fi
+  step "challenge migration, first apply" "$HMIG"
+  FCHAL=$(fingerprint)
+  [ "$FCHAL" != "$FNOCHAL" ] && ok "the challenge migration changed the catalog" || bad "the challenge migration changed nothing"
+  step "challenge migration, second apply (re-runnable)" "$HMIG"
+  [ "$(fingerprint)" = "$FCHAL" ] && ok "a second challenge apply changes nothing in the catalog" || bad "a second challenge apply changed the catalog"
+  step "contract: live_challenge.sql (the tables, the grants, the key's secrecy, the battle's grading, the limits)" "$HCONTRACT"
+  challenge_contracts "still holds after the challenge migration"
+  for i in 1 2; do
+    behave "challenge behaviour (run $i: the options' order is drawn at random)" "$HBEHAVIOUR" 'LIVE CHALLENGE BEHAVIOUR PASSED'
+  done
+  challenge_behaviours "unchanged after the challenge migration"
+  CH_JS=$(cd "$ROOT" && node --experimental-strip-types --no-warnings "$HERE/live_challenge_mirror.mjs" 2>&1)
+  CH_SQL=$("${PSQL[@]}" -d $DB -f "$HERE/live_challenge_mirror.sql" 2>&1 | grep -E '^(score|board) ')
+  if [ -n "$CH_JS" ] && [ "$CH_JS" = "$CH_SQL" ]; then
+    ok "the mirror: lib/challenge/rules.ts and the SQL agree ($(echo "$CH_JS" | tr '\n' ' ' | sed 's/ $//'))"
+  else
+    bad "the challenge mirror: TS «$CH_JS», SQL «$CH_SQL»"
+  fi
+  [ "$(fingerprint)" = "$FCHAL" ] && ok "the catalog unchanged by the challenge runs" || bad "the challenge runs changed the catalog"
+  step "challenge rollback" "$HDOWN"
+  [ "$(fingerprint)" = "$FNOCHAL" ] && ok "after the challenge rollback: the calm step's catalog (fingerprint)" \
+    || bad "after the challenge rollback: another catalog than the calm step's"
+  step "challenge rollback again (re-runnable)" "$HDOWN"
+  [ "$(fingerprint)" = "$FNOCHAL" ] && ok "after the second challenge rollback: still the calm step's catalog" || bad "after the second challenge rollback: another catalog"
+  if run "$HCONTRACT"; then bad "live_challenge.sql passes after its rollback"; else ok "live_challenge.sql fails after its rollback"; fi
+  challenge_behaviours "after the challenge rollback"
+  step "challenge migration after its rollback" "$HMIG"
+  [ "$(fingerprint)" = "$FCHAL" ] && ok "the same catalog as the first challenge apply" || bad "another catalog than the first challenge apply"
+  step "contract: live_challenge.sql again" "$HCONTRACT"
+  behave "challenge behaviour again" "$HBEHAVIOUR" 'LIVE CHALLENGE BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"

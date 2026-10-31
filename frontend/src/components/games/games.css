@@ -85,6 +85,10 @@
   text-wrap: pretty;
 }
 .gm-start { margin-top: 28px; }
+/* «Начать игру» and «Соревнование по ссылке» side by side (they wrap on a narrow screen). */
+.gm-starts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 28px; }
+.gm-starts > .gm-start { margin-top: 0; }
+.gm-challenges { margin-top: 36px; }
 
 /* The projector and, beside it, one student's phone in the same moment of the same game. */
 .gm-media {
@@ -260,6 +264,7 @@
   .gm-hero-words { padding: 0 8px; }
   .gm-hero-p { font-size: 16px; }
   .gm-start { margin-top: 20px; }
+  .gm-starts { margin-top: 20px; }
   .gm-media { gap: 8px; }
   .gm-proj { border-radius: 14px; }
   .gm-phone { padding: 4px; border-radius: 16px; }

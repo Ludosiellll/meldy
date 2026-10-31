@@ -7,7 +7,7 @@
  * folded. «Открыть комнату» stays in view at the bottom of the window: it creates the game (`live_create`, CONTRACT §8),
  * keeps the host token in this tab and opens /live/:id.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
@@ -26,37 +26,8 @@ import { MAX_GAME_QUESTIONS, MIN_GAME_QUESTIONS, amountChoices, fakeSource, load
 import { useBoundChats } from '../../components/live/host/TelegramPost';
 import { hostSound } from '../../components/live/host/sound';
 import '../../components/live/host/host.css';
-
-interface SegProps<T extends string | number | boolean> {
-  label: string;
-  value: T;
-  options: ReadonlyArray<{ value: T; text: string }>;
-  onChange: (v: T) => void;
-}
-
-function Seg<T extends string | number | boolean>({ label, value, options, onChange }: SegProps<T>) {
-  return (
-    <div className="lvs-seg" role="radiogroup" aria-label={label}>
-      {options.map((o) => (
-        <button key={String(o.value)} type="button" role="radio" aria-checked={o.value === value} onClick={() => onChange(o.value)}>
-          {o.text}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return (
-    <div className="lvs-row">
-      <span className="lvs-row-label">
-        {label}
-        {hint ? <span className="lvs-hint">{hint}</span> : null}
-      </span>
-      {children}
-    </div>
-  );
-}
+import { Row, Seg } from './setupParts';
+import { CHALLENGE_ENTRY } from '../../components/challenge/copyAuthor';
 
 /** The battle's picture; with an arena (a mini-game) the arena boss's picture in its corner. */
 function ModePicture({ arena = null }: { arena?: BossKind | null }) {
@@ -262,6 +233,12 @@ export default function LiveSetupPage() {
         ) : (
           <>
             <p className="lvs-lead">{SETUP.lead(Math.min(chosen, cap))}</p>
+            {/* The same test without a projector: each person alone, before a deadline (docs/live/CHALLENGE.md). */}
+            {!fake && containerId ? (
+              <p className="lvs-alt">
+                <Link to={`/live/challenge?c=${containerId}`}>{CHALLENGE_ENTRY.setupLink}</Link>
+              </p>
+            ) : null}
             <GameChoice pick={pick} count={Math.min(chosen, cap)} boss={boss} onChange={setPick} />
             <div className="lvs-rows">
               {pick !== 'none' ? (

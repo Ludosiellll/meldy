@@ -4,6 +4,7 @@ import Footage from '../components/film/Footage';
 import { Boss } from '../components/live/art/Boss';
 import { Character } from '../components/live/art/Character';
 import GamePicker from '../components/games/GamePicker';
+import ChallengeList from '../components/challenge/ChallengeList';
 import { GAMES, PLAY_PATH } from '../components/games/copyGames';
 import { liveGameOpen } from '../components/test/gameEntry';
 import { STAND_RUN, STAND_RUN_PHONE } from '../lib/footage';
@@ -18,7 +19,9 @@ import '../components/games/games.css';
  * «Игры» (/games; owner, 31.10: «есть ли обучение о том что эти мини-игры есть, да и в целом может отдельный Блок сверху
  * как "лекции"»): the live game in one place. What it is — the real game on the projector and one student's phone in the
  * same moment (lib/footage STAND_RUN and STAND_RUN_PHONE, kept in step as on the landing); «Начать игру» — the user's own
- * tests and exams (GamePicker), each to the game's setup /live/new; the three games in plain words; and for a student
+ * tests and exams (GamePicker), each to the game's setup /live/new; beside it «Соревнование по ссылке» (the same list, to
+ * /live/challenge, docs/live/CHALLENGE.md), whose challenges are listed under the games with their results; the three
+ * games in plain words; and for a student
  * «Войти в игру по коду», the phone's page /play. The games a teacher played are not listed: the server keeps no list a
  * page can read (live_games is closed to the client), and the tab that ran a game forgets it when closed.
  *
@@ -27,7 +30,8 @@ import '../components/games/games.css';
  */
 export default function Games() {
   useDocumentTitle(GAMES.title);
-  const [picking, setPicking] = useState(false);
+  // «Начать игру» or «Соревнование по ссылке» (docs/live/CHALLENGE.md): the same list of the user's tests and exams
+  const [picking, setPicking] = useState<'game' | 'challenge' | null>(null);
   const [lead, setLead] = useState<HTMLVideoElement | null>(null);
   const [follower, setFollower] = useState<HTMLVideoElement | null>(null);
   useEffect(() => (lead && follower ? follow(lead, follower, STAND_RUN.duration) : undefined), [lead, follower]);
@@ -59,9 +63,14 @@ export default function Games() {
           </h2>
           <p className="gm-hero-p">{GAMES.hero.text}</p>
           {open ? (
-            <button type="button" className="sf-primary gm-start" onClick={() => setPicking(true)} aria-haspopup="dialog">
-              {GAMES.hero.start}
-            </button>
+            <div className="gm-starts">
+              <button type="button" className="sf-primary gm-start" onClick={() => setPicking('game')} aria-haspopup="dialog">
+                {GAMES.hero.start}
+              </button>
+              <button type="button" className="sf-secondary gm-start gm-start--challenge" onClick={() => setPicking('challenge')} aria-haspopup="dialog">
+                {GAMES.hero.challenge}
+              </button>
+            </div>
           ) : null}
         </div>
         <div className="gm-media">
@@ -75,6 +84,9 @@ export default function Games() {
           </div>
         </div>
       </section>
+
+      {/* The user's own challenges by a link: their state, who leads, each to its page with the results. */}
+      {open ? <ChallengeList showEmpty className="gm-challenges" /> : null}
 
       <section className="gm-modes" aria-labelledby="gm-modes-h">
         <h2 id="gm-modes-h" className="gm-h2">
@@ -92,7 +104,7 @@ export default function Games() {
         <p className="gm-note">{GAMES.modesNote}</p>
       </section>
 
-      {picking ? <GamePicker onClose={() => setPicking(false)} /> : null}
+      {picking ? <GamePicker mode={picking} onClose={() => setPicking(null)} /> : null}
     </div>
   );
 }

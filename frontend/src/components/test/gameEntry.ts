@@ -15,6 +15,11 @@ export function liveGamePath(containerId: string): string {
   return `/live/new?c=${containerId}`;
 }
 
+/** «Соревнование по ссылке»'s setup for a test (docs/live/CHALLENGE.md). */
+export function challengePath(containerId: string): string {
+  return `/live/challenge?c=${containerId}`;
+}
+
 /** How many questions a test has, and how many of them have their key. */
 export function keyCounts(subjects: readonly Pick<SubjectFacts, 'keyed' | 'no_key'>[]): { total: number; keyed: number } {
   let total = 0;
