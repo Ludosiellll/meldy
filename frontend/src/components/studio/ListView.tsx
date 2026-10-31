@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { deleteItem } from '../../api/containers';
 import { newId } from '../../lib/studio/doc';
 import type { TestItem } from '../../types/container';
@@ -68,11 +68,19 @@ export default function ListView({
   const [waiting, setWaiting] = useState<Step | null>(null);
   const [status, setStatus] = useState('');
   const refocus = useRef<string | null>(null);
+  /** Renders a focus waits for its element: the editor comes in a transition, a render or two after the touch. */
+  const refocusTries = useRef(0);
   useLayoutEffect(() => {
     const selector = refocus.current;
     if (!selector) return;
+    const node = rootRef.current?.querySelector<HTMLElement>(selector);
+    if (!node && refocusTries.current < 2) {
+      refocusTries.current += 1;
+      return;
+    }
     refocus.current = null;
-    rootRef.current?.querySelector<HTMLElement>(selector)?.focus();
+    refocusTries.current = 0;
+    node?.focus();
   });
 
   const newType = editing?.startsWith(NEW) ? (editing.slice(NEW.length) as BuildType) : null;
@@ -85,9 +93,12 @@ export default function ListView({
     setEditError(null);
     if (step.kind === 'edit') {
       setChoosing(null);
-      setEditing(step.id);
+      // The editor comes in a transition: the touch paints at once (smoothness debt: opening it inside the touch took
+      // ~190 ms of a mid phone, most of it the editor's first layout).
+      startTransition(() => setEditing(step.id));
       setNotes((current) => ({ ...current, [step.id]: undefined }));
       refocus.current = `[data-editing="${step.id}"] .qe-stem`;
+      refocusTries.current = 0;
     } else if (step.kind === 'add') {
       setChoosing(step.at);
       refocus.current = `[data-place="${step.at}"] [data-type="single"]`;
@@ -188,6 +199,11 @@ export default function ListView({
     const at = onPage.findIndex((entry) => entry.block.id === block.id);
     const neighbour = onPage[at + (action === 'up' ? -1 : 1)];
     if (!neighbour) return;
+    // The moved card's button loses focus when React moves its row: React then reads the scroll of every box around it
+    // to give focus back, which laid the whole list out inside the touch (smoothness debt: ~120 ms of the touch on a
+    // mid phone). Let go of focus first; the layout effect below gives it back to the moved card's button.
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement && rootRef.current?.contains(focused)) focused.blur();
     studio.move(block.id, doc.blocks.findIndex((entry) => entry.id === neighbour.block.id));
     setStatus(BUILD.moved(at + (action === 'up' ? 0 : 2)));
     refocus.current = `[data-act="${action}:${item.id}"]`;

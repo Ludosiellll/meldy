@@ -1134,6 +1134,9 @@
 .st-text-confirm { margin: 0; }
 .st-scrollpage { flex: 1; min-height: 0; overflow-y: auto; }
 .st-listview { box-sizing: border-box; max-width: 900px; margin: 0 auto; padding: 24px var(--sf-g) 80px; }
+/* A card out of the window is not laid out or painted until it nears it (smoothness debt: opening «Список» laid out
+   and painted all 30 cards of a test in the touch). Its last size is kept, so the scroll does not jump back. */
+.st-listview .tb-list > li { content-visibility: auto; contain-intrinsic-size: auto 420px; }
 
 /* ---------------------------------------------------------------- the block menu, the sheets, the preview, the tour */
 .st-menu {

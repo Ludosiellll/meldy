@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, useCallback, useRef, type ReactNode } from 'react';
 import type { TestItem } from '../../types/container';
 import { KEYS, nb } from '../containers/copyImport';
 import BuildCard, { type CardAction } from './BuildCard';
@@ -36,7 +36,71 @@ interface Props {
   onKeep: (item: TestItem) => void;
 }
 
+/** The page's handlers, read when called: the rows keep one function each, so a row whose question did not change is
+ * not drawn again when the page draws (smoothness debt: every touch in the studio's «Список» drew all its cards). */
+function useLatest<T>(value: T) {
+  const ref = useRef(value);
+  ref.current = value;
+  return ref;
+}
+
+interface RowProps {
+  item: TestItem;
+  index: number;
+  last: boolean;
+  /** This question's request is on its way. */
+  busy: boolean;
+  locked: boolean;
+  note: CardNote | undefined;
+  asking: boolean;
+  group: boolean;
+  onAction: (item: TestItem, action: CardAction) => void;
+  onDelete: (item: TestItem) => void;
+  onKeep: (item: TestItem) => void;
+}
+
+/** One card with its line and its delete question: drawn again only when one of these changes. */
+const Row = memo(function Row({ item, index, last, busy, locked, note, asking, group, onAction, onDelete, onKeep }: RowProps) {
+  return (
+    <li data-item={item.id}>
+      <BuildCard
+        item={item}
+        number={index + 1}
+        first={index === 0}
+        last={last}
+        busy={busy}
+        locked={locked}
+        showActions={!asking}
+        onAction={(action) => onAction(item, action)}
+      >
+        {note ? (
+          <p className="tb-note" role={note.error ? 'alert' : note.quiet ? undefined : 'status'}>
+            {note.text}
+          </p>
+        ) : null}
+        {asking ? (
+          <div className="tb-note tb-confirm">
+            <p>{nb(BUILD.removeAsk(index + 1, group))}</p>
+            <p className="tb-confirm-acts">
+              <button type="button" className="sf-link" disabled={busy} onClick={() => onDelete(item)}>
+                {KEYS.removeYes}
+              </button>
+              <button type="button" className="sf-link" data-muted="" data-confirm-no={item.id} onClick={() => onKeep(item)}>
+                {KEYS.removeNo}
+              </button>
+            </p>
+          </div>
+        ) : null}
+      </BuildCard>
+    </li>
+  );
+});
+
 export default function QuestionList({ items, busy, notes, askDelete, group, editing, renderEditor, onAction, onDelete, onKeep }: Props) {
+  const handlers = useLatest({ onAction, onDelete, onKeep });
+  const act = useCallback((item: TestItem, action: CardAction) => handlers.current.onAction(item, action), [handlers]);
+  const remove = useCallback((item: TestItem) => handlers.current.onDelete(item), [handlers]);
+  const keep = useCallback((item: TestItem) => handlers.current.onKeep(item), [handlers]);
   if (items.length === 0) return null;
   return (
     <ol className="tb-list" aria-label={BUILD.list}>
@@ -50,40 +114,21 @@ export default function QuestionList({ items, busy, notes, askDelete, group, edi
             </li>
           );
         }
-        const note = notes[item.id];
-        const asking = askDelete === item.id;
         return (
-          <li key={item.id} data-item={item.id}>
-            <BuildCard
-              item={item}
-              number={index + 1}
-              first={index === 0}
-              last={index === items.length - 1}
-              busy={busy === item.id}
-              locked={busy !== null}
-              showActions={!asking}
-              onAction={(action) => onAction(item, action)}
-            >
-              {note ? (
-                <p className="tb-note" role={note.error ? 'alert' : note.quiet ? undefined : 'status'}>
-                  {note.text}
-                </p>
-              ) : null}
-              {asking ? (
-                <div className="tb-note tb-confirm">
-                  <p>{nb(BUILD.removeAsk(index + 1, group))}</p>
-                  <p className="tb-confirm-acts">
-                    <button type="button" className="sf-link" disabled={busy === item.id} onClick={() => onDelete(item)}>
-                      {KEYS.removeYes}
-                    </button>
-                    <button type="button" className="sf-link" data-muted="" data-confirm-no={item.id} onClick={() => onKeep(item)}>
-                      {KEYS.removeNo}
-                    </button>
-                  </p>
-                </div>
-              ) : null}
-            </BuildCard>
-          </li>
+          <Row
+            key={item.id}
+            item={item}
+            index={index}
+            last={index === items.length - 1}
+            busy={busy === item.id}
+            locked={busy !== null}
+            note={notes[item.id]}
+            asking={askDelete === item.id}
+            group={group}
+            onAction={act}
+            onDelete={remove}
+            onKeep={keep}
+          />
         );
       })}
     </ol>

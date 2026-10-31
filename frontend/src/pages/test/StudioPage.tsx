@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
@@ -131,6 +131,18 @@ export default function StudioPage() {
 
   const initialView = search.get('view');
   const [view, setView] = useState<StudioView>(VIEWS.includes(initialView as StudioView) ? (initialView as StudioView) : 'canvas');
+  /**
+   * The view a tap on «Холст · Список · Текст» chose, until the page has followed: the segment moves at once, the view
+   * itself comes in a transition (smoothness debt: «Список» mounted its 30 cards inside the tap, ~200 ms on a mid phone).
+   */
+  const [pressedView, setPressedView] = useState<StudioView | null>(null);
+  const chooseView = (next: StudioView) => {
+    setPressedView(next);
+    startTransition(() => {
+      setView(next);
+      setPressedView(null);
+    });
+  };
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
   /** The canvas's own facts (the chosen block, the text typed in…): read by the frame or gap they concern (canvasStore). */
   const [store] = useState(createCanvasStore);
@@ -377,7 +389,7 @@ export default function StudioPage() {
 
         <div className="st-seg st-views" role="group" aria-label={STUDIO.viewsLabel}>
           {VIEWS.map((name) => (
-            <button key={name} type="button" className="st-seg-btn" aria-pressed={view === name} onClick={() => setView(name)}>
+            <button key={name} type="button" className="st-seg-btn" aria-pressed={(pressedView ?? view) === name} onClick={() => chooseView(name)}>
               <UiIcon name={name} />
               <span>{STUDIO.views[name]}</span>
             </button>
