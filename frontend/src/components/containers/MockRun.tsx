@@ -11,7 +11,9 @@ import MockSetup from './MockSetup';
 import { Sheet } from './ui';
 import * as copy from './copy';
 import { comesBackWhen, dayIn, studyHref, subjectTitle } from './model';
-import { clock, drawMock, isAnswered, mockAnswers, scoreMock, type MockAnswer } from './mockModel';
+import { clock, drawMock, isAnswered, mockAnswers, scoreMock, type AnyAnswer } from './mockModel';
+import { neverInOrder, rightOrderOf } from '../../lib/kinds/shuffle';
+import { NEW_KINDS } from '../../types/container';
 import { newId } from './sessionStore';
 import { useWide } from './useWide';
 import { readDraftValue, setAddressParams, writeDraftValue } from '../../lib/urlState';
@@ -64,7 +66,10 @@ function placeOf(raw: string | null, total: number): number | null {
 }
 
 function orderFor(item: TestItem, runId: string): number[] {
-  if (item.kind === 'short') return [];
+  if (item.kind === 'short' || item.kind === 'number' || item.kind === 'cloze' || item.kind === 'essay') return [];
+  // release 48: order starts never in the right order; match keeps its left items and lists the right ones shuffled
+  if (item.kind === 'order') return neverInOrder(item.options.length, `${runId}:${item.id}`);
+  if (item.kind === 'match') return rightOrderOf(item.answers.length, `${runId}:${item.id}`);
   try {
     const order = optionOrder(item.options.length, item.keep_order, pinnedLast(item.options), `${runId}:${item.id}`);
     if (order.length === item.options.length && new Set(order).size === order.length) return order;
@@ -261,7 +266,7 @@ export default function MockRun({
     if (progress && !result) setAddressParams({ q: String(pos + 1) });
   }, [pos, progress, result]);
 
-  const update = (id: string, answer: MockAnswer) => {
+  const update = (id: string, answer: AnyAnswer) => {
     if (!progress) return;
     const next: MockProgress = { ...progress, answers: { ...progress.answers, [id]: answer } };
     setProgress(next);
@@ -356,7 +361,7 @@ export default function MockRun({
   const barText = copy.mockBar(pos + 1, total, timeText);
   const last = pos === total - 1;
   const answer = run.answers[id];
-  const picked = Array.isArray(answer) ? answer : null;
+  const picked = Array.isArray(answer) && !NEW_KINDS.includes(item?.kind ?? 'single') ? (answer as number[]) : null;
 
   return (
     <>
@@ -386,6 +391,11 @@ export default function MockRun({
             onText={(value) => update(id, value === '' ? null : value)}
             onSubmitText={() => (last ? setFinishOpen(true) : setPos(pos + 1))}
             stemRef={stemRef}
+            kindValue={answer ?? null}
+            onKind={(value) => update(id, value)}
+            right={item.answers}
+            rightOrder={item.kind === 'match' ? orders[id] : undefined}
+            readAloud
           />
         ) : null}
         <div className="ct-under ct-mock-all">

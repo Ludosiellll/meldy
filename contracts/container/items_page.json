@@ -18,7 +18,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "5f2aae69-a347-4273-8c8a-b14ad9e1d82e",
@@ -39,7 +43,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "26ffe35e-e40a-4e63-9991-7dc9306653d6",
@@ -60,7 +68,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "ed967f80-780c-4e02-8308-240f46227ff9",
@@ -81,7 +93,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "c461bce5-4962-4b12-8995-3bf5d47eb348",
@@ -102,7 +118,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "3cadced3-cb13-43d0-ab40-36eab6e51c20",
@@ -123,7 +143,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "9a68fcb2-052a-4b79-ba87-294b3391020d",
@@ -144,7 +168,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "12959232-6e10-4fa0-b214-da8591f9abfd",
@@ -165,7 +193,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "dacbfe75-fd39-4ec3-af3b-b35e4bab5bd9",
@@ -186,7 +218,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "0a5c4a39-e359-4682-b081-de0d5559667d",
@@ -207,7 +243,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "95f50b9a-17b0-448e-b1f3-d16b7bbc8fdf",
@@ -228,7 +268,11 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   },
   {
     "id": "4cb18d2f-1d64-448f-9e86-94c30d0584e7",
@@ -249,6 +293,10 @@
     "rev": 1,
     "updated_at": "2026-12-14T16:03:05.069454+00:00",
     "images": {},
-    "explanation": ""
+    "explanation": "",
+    "tolerance": null,
+    "unit": null,
+    "partial": false,
+    "material_ids": []
   }
 ]

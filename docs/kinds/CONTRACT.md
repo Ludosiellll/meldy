@@ -186,7 +186,8 @@ right. Calls:
 Review item fields for the new kinds: `chosen` in the attempt's shown indices (order, match), `text` (number, essay),
 `texts` (cloze), `right`, `credit`, and `right_items` (match: the right column as shown). With the answers shown:
 `key` (order: the right arrangement in shown indices; match: per left the shown index of its pair), `forms` (number:
-the accepted numbers; cloze: per gap its forms), `tolerance`, `unit`, the explanation. An essay always shows its `mark`
+the accepted numbers), `gap_forms` (cloze: per gap its forms), `gaps_right` (cloze: which gaps were right, shown with
+every review but the score), `tolerance`, `unit`, the explanation. An essay always shows its `mark`
 (verdict, quote) or `pending`.
 
 `quiz_attempt_answers` (the author) adds `credit`, `texts` (cloze) and `mark` (essay). `quiz_results` item stats:

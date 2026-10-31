@@ -191,7 +191,7 @@ begin
                      'match review');
   it := pg_temp.of(r -> 'items', 'id', pg_temp.id('q:4'));
   perform pg_temp.ok(not (it ->> 'right')::boolean and (it ->> 'credit')::numeric = 0.5 and it -> 'gaps_right' = '[true, false]'
-                     and it -> 'forms' = '[["Москва"], ["1147"]]' and it -> 'texts' = '["Москва", ""]' and it ->> 'partial' = 'true',
+                     and it -> 'gap_forms' = '[["Москва"], ["1147"]]' and it -> 'forms' = 'null' and it -> 'texts' = '["Москва", ""]' and it ->> 'partial' = 'true',
                      'cloze review: ' || it::text);
   it := pg_temp.of(r -> 'items', 'id', pg_temp.id('q:1'));
   perform pg_temp.ok((it ->> 'right')::boolean and it -> 'forms' = '["9.8"]' and (it ->> 'tolerance')::numeric = 0.1

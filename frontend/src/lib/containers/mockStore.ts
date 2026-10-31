@@ -14,7 +14,7 @@ export interface MockProgress {
   containerId: Uuid;
   subjectIds: Uuid[];
   itemIds: Uuid[];
-  answers: Record<string, number[] | string | null>; // item id → chosen (file indices) or text; null = unanswered
+  answers: Record<string, number[] | string | string[] | null>; // item id → chosen (file indices; order / match: the list as given) or text; cloze: a text per gap; null = unanswered
   marked: string[]; // «вернусь» marks
   startedAt: number;
   timeLimitS: number | null;

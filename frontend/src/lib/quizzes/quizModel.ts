@@ -150,7 +150,9 @@ export function clockText(seconds: number): string {
  * letters. A short answer has none; without shuffling, or when a question keeps its order, the file's order.
  */
 export function quizOrder(item: Pick<QuizAttemptItem, 'id' | 'kind' | 'options'> & { keep_order?: boolean }, attemptId: string, shuffle: boolean): number[] {
-  if (item.kind === 'short') return [];
+  if (item.kind === 'short' || item.kind === 'number' || item.kind === 'cloze' || item.kind === 'essay') return [];
+  // release 48: the server shows order's options in the attempt's own order already, and match's left items as written
+  if (item.kind === 'order' || item.kind === 'match') return (Array.isArray(item.options) ? item.options : []).map((_, index) => index);
   const options = Array.isArray(item.options) ? item.options : [];
   const files = options.map((_, index) => index);
   if (!shuffle) return files;

@@ -248,7 +248,8 @@ as $fn$
                                                                   (pg_catalog.string_to_array(p_text, E'\n'))[g.ord]))
                                              order by g.ord)
                                       from pg_catalog.unnest(p_i.answers) with ordinality as g(value, ord)),
-                     'forms', case when p_answers then (
+                     'forms', null,
+                     'gap_forms', case when p_answers then (
                                 select pg_catalog.jsonb_agg(pg_catalog.to_jsonb(pg_catalog.string_to_array(g.value, E'\n')) order by g.ord)
                                   from pg_catalog.unnest(p_i.answers) with ordinality as g(value, ord)) end)
               when 'essay' then pg_catalog.jsonb_build_object(

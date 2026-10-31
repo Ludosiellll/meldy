@@ -161,9 +161,14 @@ export interface QuizItemStat {
   shown: number;
   answered: number;
   correct: number;
-  /** Answers that chose option i (choice questions; [] for a short answer). */
+  /** Answers that chose option i (single / multiple; [] for every other kind). */
   picks: number[];
+  /** The commonest wrong answers of a short or a number question. */
   wrong_texts: Array<{ text: string; n: number }>;
+  /** The sum of credits (a new kind or partial credit, release 48): correct counts full answers only. */
+  credit?: number;
+  /** Essays not marked yet. */
+  pending?: number;
 }
 
 export interface QuizResults {
@@ -185,6 +190,31 @@ export interface AttemptAnswer {
   text: string | null;
   correct: boolean | null;
   answered_at: string;
+  /** A new kind or partial credit (release 48): 0..1. */
+  credit?: number;
+  /** cloze: one text per gap. */
+  texts?: string[] | null;
+  /** essay: the mark, null while waiting. */
+  mark?: EssayMark | null;
+  pending?: boolean;
+}
+export type EssayVerdict = 'full' | 'partial' | 'none';
+export interface EssayMark {
+  verdict: EssayVerdict;
+  quote: string | null;
+  source: 'ai' | 'author';
+  checked_at?: string;
+}
+/** quiz_essay_task (the author): what the check needs. */
+export interface EssayTask {
+  attempt_id: Uuid;
+  item_id: Uuid;
+  stem: string;
+  explanation: string | null;
+  material_ids: Uuid[];
+  text: string | null;
+  finished: boolean;
+  mark: EssayMark | null;
 }
 
 export interface QuizPreviewMe {
@@ -238,6 +268,12 @@ export interface QuizAttemptItem {
   code: boolean;
   keep_order: boolean;
   images: ItemImages | null;
+  /** Release 48 (docs/kinds/CONTRACT.md §3.1): partial credit; number — unit; match — the right items in the attempt's
+   *  order; cloze — the number of gaps. order's options come already in the attempt's order. */
+  partial?: boolean;
+  unit?: string | null;
+  right?: string[];
+  gaps?: number;
 }
 
 export interface QuizAttempt {
@@ -258,18 +294,19 @@ export interface QuizAttempt {
   /** The counted events so far (after a reload, the line under the clock goes on from it). */
   guard_count?: number;
   items: QuizAttemptItem[];
-  answers: Array<{ item_id: Uuid; chosen: number[] | null; text: string | null }>;
+  answers: Array<{ item_id: Uuid; chosen: number[] | null; text: string | null; texts?: string[] | null }>;
 }
 
-/** One answer as quiz_answer takes it: an empty choice or text takes the answer back. */
+/** One answer as quiz_answer takes it: an empty choice or text takes the answer back. Order and match: shown indices. */
 export interface QuizAnswerInput {
   item_id: Uuid;
   chosen?: number[] | null;
   text?: string | null;
+  texts?: string[] | null;
 }
 
 /** A question of the review (keep_order: since 20261016140000_quiz_result_order). */
-export interface QuizResultItem extends Omit<QuizAttemptItem, 'keep_order'> {
+export interface QuizResultItem extends Omit<QuizAttemptItem, 'keep_order' | 'right'> {
   keep_order?: boolean;
   chosen: number[] | null;
   text: string | null;
@@ -279,6 +316,19 @@ export interface QuizResultItem extends Omit<QuizAttemptItem, 'keep_order'> {
   forms: string[] | null;
   /** The author's explanation, only with the answers (release 47); null otherwise. */
   explanation?: string | null;
+  /** Release 48 (docs/kinds/CONTRACT.md §3.5), on a new kind or partial credit: the credit 0..1; order and match in
+   *  the attempt's shown indices; cloze's texts and which gaps were right; forms of number / cloze, tolerance; an
+   *  essay's mark. */
+  credit?: number;
+  partial?: boolean;
+  unit?: string | null;
+  tolerance?: number | null;
+  right_items?: string[];
+  texts?: string[] | null;
+  gaps_right?: boolean[];
+  gap_forms?: string[][] | null;
+  mark?: EssayMark | null;
+  pending?: boolean;
 }
 
 export interface QuizResult {
@@ -297,6 +347,8 @@ export interface QuizResult {
    */
   score?: number;
   max_score?: number;
+  /** Essays of the attempt the author has not marked yet (release 48); only when the attempt has essays. */
+  pending?: number;
   percent: number;
   pass_percent: number | null;
   passed: boolean | null;

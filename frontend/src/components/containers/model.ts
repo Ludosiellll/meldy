@@ -6,6 +6,8 @@
  * Inputs are the shared shapes of types/container.ts; the plan comes from lib/containers/plan.ts (planDay), its words
  * from lib/containers/words.ts. Day keys are 'YYYY-MM-DD'.
  */
+import { gradeAnswer } from '../../lib/kinds/answer';
+import { itemKeyed } from '../../types/container';
 import type {
   AnswerResult,
   ContainerKind,
@@ -340,7 +342,12 @@ export interface LocalAnswer {
 }
 
 /** The verdict on the device, from the cached key (the server's verdict wins when it arrives). */
-export function gradeLocal(item: TestItem, answer: LocalAnswer): boolean {
+export function gradeLocal(item: TestItem, answer: LocalAnswer & { texts?: string[] | null }): boolean {
+  if (item.kind !== 'single' && item.kind !== 'multiple' && item.kind !== 'short') {
+    // release 48: the grade_item twin (docs/kinds/CONTRACT.md §2.2); a right answer has credit 1
+    const value = item.kind === 'cloze' ? answer.texts ?? null : item.kind === 'number' || item.kind === 'essay' ? answer.text : answer.chosen;
+    return gradeAnswer(item, value).correct;
+  }
   if (item.kind === 'short') {
     if (answer.text === null) return false;
     const norm = shortNorm(answer.text);
@@ -558,7 +565,7 @@ export function setAsideIds(items: ReadonlyMap<string, TestItem>, input: PlanInp
   const out: string[] = [];
   for (const item of items.values()) {
     if (subjectId && item.subject_id !== subjectId) continue;
-    const keyed = item.kind === 'short' ? item.answers.length > 0 : item.correct.length > 0;
+    const keyed = itemKeyed(item);
     if (keyed && !planned.has(item.id)) out.push(item.id);
   }
   return out;

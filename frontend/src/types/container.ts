@@ -22,7 +22,12 @@ export type ContainerRole = 'owner' | 'member';
  */
 export type ContainerKind = 'exam' | 'test';
 
-/** single: one option; multiple: several, all or nothing; short: a typed short answer compared with the file's forms. */
+/**
+ * single: one option; multiple: several, all or nothing (or partial credit by the author's choice); short: a typed
+ * short answer compared with the file's forms. Release 48 (docs/kinds/CONTRACT.md): number — a typed number with a
+ * tolerance and a unit; order — put the options in the right order; match — pair each left item with a right one;
+ * cloze — gaps in one text; essay — a long answer checked by the lectures or by the author (quizzes only).
+ */
 export type ItemKind = 'single' | 'multiple' | 'short' | 'number' | 'order' | 'match' | 'cloze' | 'essay';
 export type KeySource =
   | 'bold' | 'underline' | 'italic' | 'color' | 'highlight' | 'shade' | 'marker' | 'key_column' | 'answer_line'
@@ -209,7 +214,21 @@ export interface TestItem {
   images?: ItemImages | null;
   /** «Пояснение» the author wrote (release 47), shown after an answer; '' — none. */
   explanation?: string;
+  /** number: the accepted distance (null — exact); PostgREST sends numeric as a JSON number (release 48). */
+  tolerance?: number | string | null;
+  /** number: the unit typed after the number may carry (null — none). */
+  unit?: string | null;
+  /** Partial credit in a quiz, by the author's choice (multiple, order, match, cloze). */
+  partial?: boolean;
+  /** essay: the author's lectures the check reads. */
+  material_ids?: string[];
 }
+/** The kinds of release 48 (docs/kinds/CONTRACT.md). */
+export const NEW_KINDS: readonly ItemKind[] = ['number', 'order', 'match', 'cloze', 'essay'];
+/** The kinds whose author may switch partial credit on. */
+export const PARTIAL_KINDS: readonly ItemKind[] = ['multiple', 'order', 'match', 'cloze'];
+/** Has a key a session can grade (test_items.keyed): an essay never has. */
+export const itemKeyed = (item: Pick<TestItem, 'correct' | 'answers'>) => item.correct.length > 0 || item.answers.length > 0;
 /**
  * Pictures of a question (owner, 2026-10-14: «а если вопрос является картинкой, что делать?»): storage paths
  * «<container id>/<sha256>.<ext>» of the bucket test-item-images, the stem's and each option's (file order).
@@ -225,7 +244,7 @@ export const pictureOption = (letter: string) => `Рисунок ${letter}`;
 export const isPictureWord = (text: string) => text.trim() === PICTURE_STEM || /^Рисунок [А-Я0-9]{1,2}$/.test(text.trim());
 export const PICTURE_LIMITS = { stem: 8, option: 4 } as const; // meldy_images_ok: paths per stem and per option
 export const TEST_ITEM_COLUMNS =
-  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at, images, explanation';
+  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at, images, explanation, tolerance, unit, partial, material_ids';
 
 // record_test_answers(p_answers) / container_mock_finish(p_run)
 /** The plan class an answer belongs to (for the student's own pace and miss rates). */
@@ -233,8 +252,9 @@ export type PlanCls = 'relearn' | 'confirm' | 'new_floor' | 'confirm_ai' | 'star
 export interface AnswerInput {
   client_event_id: string; // [A-Za-z0-9_:-]{8,120}, one per answer, kept by the offline queue
   item_id: Uuid;
-  chosen?: number | number[] | null; // single / multiple; null = «Не знаю»; multiple = the set (all or nothing)
-  text?: string | null; // short; null = «Не знаю»
+  chosen?: number | number[] | null; // single / multiple; null = «Не знаю»; multiple = the set; order: the arrangement; match: per left the right's index or -1
+  text?: string | null; // short, number; null = «Не знаю»
+  texts?: string[] | null; // cloze: one per gap ('' = empty); null = «Не знаю»
   rev?: number; // the item's rev the student saw: a newer one answers 'stale'
   shown_order?: number[]; // permutation of file indices as shown
   mode?: 'learn' | 'mock';
@@ -272,7 +292,9 @@ export interface AnswerResult {
   status: AnswerStatus;
   correct?: boolean;
   key?: number[]; // single / multiple: the key in file order
-  answers?: string[]; // short: the accepted forms
+  answers?: string[]; // short: the accepted forms; a new kind: its answers
+  tolerance?: number | null; // number (release 48)
+  unit?: string | null; // number (release 48)
   step?: AnswerStep;
   rev?: number;
   state?: AnswerState | null;
@@ -329,6 +351,10 @@ export interface ItemInput {
   flags?: string[];
   images?: ItemImages;
   explanation?: string; // ≤ 2000 characters; '' — none
+  tolerance?: number | string | null; // number: ≥ 0, at most six decimals
+  unit?: string | null; // number: 1..20 characters
+  partial?: boolean; // multiple, order, match, cloze
+  material_ids?: string[]; // essay: ≤ 10 of the author's lectures
 }
 export interface ItemsAdded {
   subject_id: Uuid;
@@ -336,7 +362,7 @@ export interface ItemsAdded {
   in_container: number; // ≤ 2000
   items: Array<{ ref: string; id: Uuid; position: number }>;
 }
-export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order' | 'images' | 'explanation'>>;
+export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order' | 'images' | 'explanation' | 'tolerance' | 'unit' | 'partial' | 'material_ids'>>;
 /** The most characters of an explanation (test_items_explanation_check). */
 export const EXPLANATION_MAX = 2000;
 export interface ItemUpdated {

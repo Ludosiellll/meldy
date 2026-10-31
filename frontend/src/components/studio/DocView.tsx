@@ -4,7 +4,11 @@ import { themeTokens } from '../../lib/studio/contrast';
 import { BLOCK_WORDS } from '../../lib/studio/doc';
 import { linkAddress } from '../../lib/studio/richText';
 import { cleanVideoUrl, videoEmbed } from '../../lib/studio/video';
-import { isPictureWord } from '../../types/container';
+import { isPictureWord, NEW_KINDS } from '../../types/container';
+import { gapForms } from '../../lib/kinds/cloze';
+import { neverInOrder, rightOrderOf } from '../../lib/kinds/shuffle';
+import KindBody from '../kinds/KindBody';
+import QText from '../kinds/QText';
 import { DOC_CAPTION_MAX, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type DocLayout, type ResultBand, type TestDoc } from '../../types/testDoc';
 import ItemPictures, { storedPictures } from '../containers/ItemPictures';
 import { CodeBlock } from '../containers/QuestionCard';
@@ -15,7 +19,7 @@ import Rich from './Rich';
 import { DOC, STUDIO } from './copyStudio';
 import { BlockIcon, UiIcon } from './icons';
 import { draggingFiles, pasteKeys, pictureFiles, type UploadStage } from './pictures';
-import { answered, missingRequired, questionNumbers, stepsOf, visibleBlocks, type Answer, type Answers, type DocItem, type DocResultView, type Step } from './docRun';
+import { answered, answerOfKind, kindValueOf, missingRequired, questionNumbers, stepsOf, visibleBlocks, type Answer, type Answers, type DocItem, type DocResultView, type Step } from './docRun';
 import './docview.css';
 
 /**
@@ -391,10 +395,22 @@ function Stem({ item, heading }: { item: DocItem; heading: 'h2' | 'h3' }) {
   const Tag = heading;
   return (
     <>
-      {parts.before && !pictureOnly ? <Tag className="dv-stem">{parts.before}</Tag> : <Tag className="sr-only">{item.stem.split('\n')[0]}</Tag>}
+      {item.kind === 'cloze' ? (
+        <Tag className="sr-only">{item.stem.replace(/_{3,}/g, '…')}</Tag>
+      ) : parts.before && !pictureOnly ? (
+        <Tag className="dv-stem">
+          <QText text={parts.before} />
+        </Tag>
+      ) : (
+        <Tag className="sr-only">{item.stem.split('\n')[0]}</Tag>
+      )}
       {pictures.length > 0 ? <ItemPictures sources={pictures} kind="stem" /> : null}
-      {parts.code ? <CodeBlock code={parts.code} /> : null}
-      {parts.after ? <p className="dv-stem-after">{parts.after}</p> : null}
+      {parts.code && item.kind !== 'cloze' ? <CodeBlock code={parts.code} /> : null}
+      {parts.after && item.kind !== 'cloze' ? (
+        <p className="dv-stem-after">
+          <QText text={parts.after} />
+        </p>
+      ) : null}
     </>
   );
 }
@@ -402,11 +418,11 @@ function Stem({ item, heading }: { item: DocItem; heading: 'h2' | 'h3' }) {
 function OptionWords({ item, index }: { item: DocItem; index: number }) {
   const text = item.options[index] ?? '';
   const sources = storedPictures(item.images?.options?.[index]);
-  if (sources.length === 0) return <>{text}</>;
+  if (sources.length === 0) return <QText text={text} />;
   return (
     <>
       <ItemPictures sources={sources} kind="option" />
-      {isPictureWord(text) ? <span className="sr-only">{text}</span> : <span className="dv-opt-words">{text}</span>}
+      {isPictureWord(text) ? <span className="sr-only">{text}</span> : <span className="dv-opt-words"><QText text={text} /></span>}
     </>
   );
 }
@@ -423,6 +439,46 @@ interface QuestionProps {
   /** Edit mode: the key is marked for the author. */
   showKey?: boolean;
   missing?: boolean;
+}
+
+/**
+ * A question of a new kind on the page (release 48). Answering: the kinds' own fields (order and match in the attempt's
+ * shown indices, or shuffled from the row in the author's preview). On the canvas: the fields drawn locked, with the
+ * key in them for the author — the right order, the pairs, each gap's first form, the first accepted number.
+ */
+function KindQuestion({ item, blockId, given, answer, onAnswer, showKey }: {
+  item: DocItem;
+  blockId: string;
+  given?: readonly number[];
+  answer?: Answer;
+  onAnswer?: (answer: Answer) => void;
+  showKey: boolean;
+}) {
+  const live = Boolean(onAnswer);
+  const fromAttempt = (item.right?.length ?? 0) > 0 || Boolean(given);
+  const right = item.kind === 'match' ? (item.right && item.right.length > 0 ? item.right : item.answers ?? []) : undefined;
+  const initialOrder = item.kind === 'order' ? (fromAttempt ? item.options.map((_, i) => i) : neverInOrder(item.options.length, blockId)) : undefined;
+  const rightOrder = item.kind === 'match' && !(item.right && item.right.length > 0) ? rightOrderOf((right ?? []).length, blockId) : undefined;
+  let value = kindValueOf(answer);
+  if (!live && showKey) {
+    if (item.kind === 'order' || item.kind === 'match') value = item.options.map((_, i) => i);
+    else if (item.kind === 'cloze') value = gapForms(item.answers ?? []).map((forms) => forms[0] ?? '');
+    else if (item.kind === 'number') value = item.answers?.[0] ?? '';
+  }
+  return (
+    <KindBody
+      kind={item.kind}
+      stem={item.stem}
+      options={item.options}
+      right={right}
+      rightOrder={rightOrder}
+      initialOrder={!live && showKey ? item.options.map((_, i) => i) : initialOrder}
+      unit={item.unit}
+      value={value}
+      onChange={live ? (next) => onAnswer?.(answerOfKind(next)) : undefined}
+      partial={live && item.partial}
+    />
+  );
 }
 
 /** A short answer is at most this long (quiz_answer keeps 200). */
@@ -455,7 +511,9 @@ function Question({ block, item, number, order: given, answer, onAnswer, showKey
         {block.required ? <span className="dv-q-meta">{DOC.required}</span> : null}
       </p>
       <Stem item={item} heading="h3" />
-      {item.kind === 'short' ? (
+      {NEW_KINDS.includes(item.kind) ? (
+        <KindQuestion item={item} blockId={block.id} given={given} answer={answer} onAnswer={onAnswer} showKey={showKey} />
+      ) : item.kind === 'short' ? (
         <label className="dv-short">
           <span className="dv-short-label">{DOC.shortLabel}</span>
           <input

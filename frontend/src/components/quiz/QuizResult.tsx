@@ -1,6 +1,10 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { isPictureWord } from '../../types/container';
+import { isPictureWord, NEW_KINDS } from '../../types/container';
+import { answered as kindAnswered } from '../../lib/kinds/answer';
+import KindBody, { EssayMarkLine, NumberKeyLine } from '../kinds/KindBody';
+import { KINDS } from '../kinds/copyKinds';
+import QText from '../kinds/QText';
 import type { QuizResult, QuizResultItem } from '../../types/quiz';
 import { containerErrorText } from '../../api/containers';
 import { joinPractice } from '../../api/quizzes';
@@ -49,7 +53,7 @@ import './quizTake.css';
 
 function OptionWords({ text, paths }: { text: string; paths: string[] | undefined }) {
   const sources = storedPictures(paths);
-  if (sources.length === 0) return <>{text}</>;
+  if (sources.length === 0) return <QText text={text} />;
   return (
     <>
       <ItemPictures sources={sources} kind="option" />
@@ -65,17 +69,34 @@ function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: nu
   const chosen = Array.isArray(item.chosen) ? item.chosen : [];
   const key = showKey && Array.isArray(item.key) ? item.key : [];
   const typed = typeof item.text === 'string' ? item.text.trim() : '';
-  const unanswered = item.kind === 'short' ? typed === '' : chosen.length === 0;
+  const newKind = NEW_KINDS.includes(item.kind);
+  const unanswered = newKind
+    ? !kindAnswered(item.kind === 'cloze' ? item.texts ?? null : item.kind === 'number' || item.kind === 'essay' ? typed : chosen)
+    : item.kind === 'short' ? typed === '' : chosen.length === 0;
   const options = Array.isArray(item.options) ? item.options : [];
   const explanation = typeof item.explanation === 'string' ? item.explanation.trim() : '';
   return (
     <li className="qt-ritem">
       <p className="ct-ctx">{unanswered ? `${RESULT.itemNo(no)} · ${RESULT.unanswered}` : RESULT.itemNo(no)}</p>
-      {stem.before && !pictureStem ? <h3 className="qt-rstem">{stem.before}</h3> : <h3 className="sr-only">{item.stem.split('\n')[0]}</h3>}
+      {item.kind === 'cloze' ? (
+        <h3 className="sr-only">{item.stem.replace(/_{3,}/g, '…')}</h3>
+      ) : stem.before && !pictureStem ? (
+        <h3 className="qt-rstem">
+          <QText text={stem.before} />
+        </h3>
+      ) : (
+        <h3 className="sr-only">{item.stem.split('\n')[0]}</h3>
+      )}
       <ItemPictures sources={stemPictures} kind="stem" />
-      {stem.code ? <CodeBlock code={stem.code} /> : null}
-      {stem.after ? <p className="ct-stem-after">{stem.after}</p> : null}
-      {item.kind === 'short' ? (
+      {stem.code && item.kind !== 'cloze' ? <CodeBlock code={stem.code} /> : null}
+      {stem.after && item.kind !== 'cloze' ? (
+        <p className="ct-stem-after">
+          <QText text={stem.after} />
+        </p>
+      ) : null}
+      {newKind ? (
+        <ReviewKind item={item} showKey={showKey} typed={typed} unanswered={unanswered} />
+      ) : item.kind === 'short' ? (
         <div className="qt-rshort">
           <p data-state={unanswered ? undefined : item.right ? 'file' : showKey ? 'wrong' : 'mine'}>{unanswered ? RESULT.shortNone : RESULT.shortMine(typed)}</p>
           {showKey && !item.right && Array.isArray(item.forms) && item.forms.length > 0 ? <p data-state="file">{RESULT.shortRight(item.forms)}</p> : null}
@@ -100,13 +121,69 @@ function ReviewItem({ item, no, showKey, order }: { item: QuizResultItem; no: nu
           })}
         </ul>
       )}
+      {item.kind === 'multiple' && item.partial && typeof item.credit === 'number' && item.credit > 0 && item.credit < 1 ? (
+        <p className="qt-credit">{KINDS.creditPart(item.credit)}</p>
+      ) : null}
       {explanation ? (
         <div className="qt-explain">
           <p className="qt-explain-h">{RESULT.explanation}</p>
-          <p className="qt-explain-t">{explanation}</p>
+          <p className="qt-explain-t">
+            <QText text={explanation} />
+          </p>
         </div>
       ) : null}
     </li>
+  );
+}
+
+/**
+ * A question of a new kind in the review (release 48, docs/kinds/CONTRACT.md §3.5): the person's answer on the kind's
+ * own fields, locked; with the answers the key on them too (the right place of each row, the right pair, each gap's
+ * forms, the accepted number); an essay with its mark and the lecture's quote, or «ещё не проверен».
+ */
+function ReviewKind({ item, showKey, typed, unanswered }: { item: QuizResultItem; showKey: boolean; typed: string; unanswered: boolean }) {
+  const chosen = Array.isArray(item.chosen) ? item.chosen : [];
+  const credit = typeof item.credit === 'number' ? item.credit : null;
+  const partLine = item.partial && credit !== null && credit > 0 && credit < 1 ? <p className="qt-credit">{KINDS.creditPart(credit)}</p> : null;
+  if (item.kind === 'number' || item.kind === 'essay') {
+    return (
+      <>
+        <div className="qt-rshort">
+          {item.kind === 'essay' && !unanswered ? (
+            <blockquote className="qt-ressay">{typed}</blockquote>
+          ) : (
+            <p data-state={unanswered ? undefined : item.right ? 'file' : showKey ? 'wrong' : 'mine'}>
+              {unanswered ? RESULT.shortNone : RESULT.shortMine(item.unit ? `${typed} ${item.unit}` : typed)}
+            </p>
+          )}
+        </div>
+        {item.kind === 'number' && showKey && !item.right && Array.isArray(item.forms) && item.forms.length > 0 ? (
+          <NumberKeyLine answers={item.forms} tolerance={item.tolerance} unit={item.unit} />
+        ) : null}
+        {item.kind === 'essay' ? <EssayMarkLine mark={item.mark ?? null} pending={item.pending} /> : null}
+      </>
+    );
+  }
+  const options = Array.isArray(item.options) ? item.options : [];
+  const key = showKey && Array.isArray(item.key) ? item.key : null;
+  return (
+    <>
+      <KindBody
+        kind={item.kind}
+        stem={item.stem}
+        options={options}
+        right={item.right_items ?? []}
+        unit={item.unit}
+        value={item.kind === 'cloze' ? item.texts ?? null : chosen.length > 0 ? chosen : null}
+        review={{
+          order: { key },
+          match: { key },
+          cloze: { right: Array.isArray(item.gaps_right) ? item.gaps_right : null, forms: showKey && Array.isArray(item.gap_forms) ? item.gap_forms : null },
+          right: item.right,
+        }}
+      />
+      {partLine}
+    </>
   );
 }
 
