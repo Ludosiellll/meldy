@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { TestItem } from '../../types/container';
+import { NEW_KINDS, type TestItem } from '../../types/container';
 import type { QuizAccent, QuizAttempt, QuizAttemptItem, QuizResult } from '../../types/quiz';
 import { quizOrder } from '../../lib/quizzes/quizModel';
 import { designDoc } from '../../lib/quizzes/design';
@@ -84,6 +84,8 @@ export function asTestItem(item: QuizAttemptItem, index: number): TestItem {
     rev: 0,
     updated_at: '',
     images: item.images ?? null,
+    ...(item.unit !== undefined ? { unit: item.unit } : {}),
+    ...(item.partial !== undefined ? { partial: Boolean(item.partial) } : {}),
   };
 }
 
@@ -212,7 +214,8 @@ function ClassicRun({
   const item = items[pos] ?? null;
   const card = item ? cards.get(item.id) ?? null : null;
   const answer = item ? answers[item.id] : undefined;
-  const picked = Array.isArray(answer) ? answer : null;
+  const newKind = item ? NEW_KINDS.includes(item.kind) : false;
+  const picked = Array.isArray(answer) && !newKind ? (answer as number[]) : null;
   const answeredCount = items.filter((entry) => isAnswered(answers[entry.id])).length;
   const missing = items.map((entry, index) => (isAnswered(answers[entry.id]) ? -1 : index + 1)).filter((n) => n > 0);
   const last = pos >= total - 1;
@@ -255,6 +258,11 @@ function ClassicRun({
             }}
             onSubmitText={() => (last ? setFinishOpen(true) : setPos(pos + 1))}
             stemRef={stemRef}
+            kindValue={answer ?? null}
+            onKind={(value) => run.update(item.id, value)}
+            right={item.right ?? []}
+            partialNote
+            readAloud
           />
         ) : null}
         <div className="ct-under ct-mock-all qt-under">

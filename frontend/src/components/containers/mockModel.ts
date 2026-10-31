@@ -1,5 +1,6 @@
 import type { AnswerInput, PlanInput, TestItem } from '../../types/container';
 import { prng } from '../../lib/containers/session';
+import { answered, answerFields, gradeAnswer, type KindAnswer } from '../../lib/kinds/answer';
 import { gradeLocal, testItemsOf } from './model';
 
 /**
@@ -8,6 +9,9 @@ import { gradeLocal, testItemsOf } from './model';
  * (an unanswered question is an error, decision 36), and the answers it sends (mode 'mock', unanswered as null).
  */
 export type MockAnswer = number[] | string | null;
+/** An answer of any kind (release 48: order and match keep a list in its order, cloze a text per gap). */
+export type AnyAnswer = KindAnswer;
+const OLD_KINDS = new Set(['single', 'multiple', 'short']);
 
 function shuffle<T>(list: T[], random: () => number): T[] {
   const out = [...list];
@@ -47,12 +51,14 @@ export function drawMock(input: PlanInput | null, bank: ReadonlyMap<string, Test
   return shuffle(picked, random);
 }
 
-export function isAnswered(answer: MockAnswer | undefined): boolean {
+export function isAnswered(answer: AnyAnswer | undefined): boolean {
   if (answer === null || answer === undefined) return false;
-  return typeof answer === 'string' ? answer.trim() !== '' : answer.length > 0;
+  if (typeof answer === 'string') return answer.trim() !== '';
+  if (answer.some((x) => typeof x === 'string') || answer.some((x) => typeof x === 'number' && x < 0)) return answered(answer);
+  return answer.length > 0;
 }
 
-export function scoreMock(itemIds: string[], answers: Record<string, MockAnswer>, bank: ReadonlyMap<string, TestItem>): { correct: number; unanswered: number; wrongIds: string[] } {
+export function scoreMock(itemIds: string[], answers: Record<string, AnyAnswer>, bank: ReadonlyMap<string, TestItem>): { correct: number; unanswered: number; wrongIds: string[] } {
   let correct = 0;
   let unanswered = 0;
   const wrongIds: string[] = [];
@@ -65,7 +71,9 @@ export function scoreMock(itemIds: string[], answers: Record<string, MockAnswer>
       continue;
     }
     if (!item) continue;
-    const ok = gradeLocal(item, typeof answer === 'string' ? { chosen: null, text: answer } : { chosen: answer as number[], text: null });
+    const ok = !OLD_KINDS.has(item.kind)
+      ? gradeAnswer(item, answer).correct
+      : gradeLocal(item, typeof answer === 'string' ? { chosen: null, text: answer } : { chosen: answer as number[], text: null });
     if (ok) correct += 1;
     else wrongIds.push(id);
   }
@@ -75,7 +83,7 @@ export function scoreMock(itemIds: string[], answers: Record<string, MockAnswer>
 export function mockAnswers(p: {
   runId: string;
   itemIds: string[];
-  answers: Record<string, MockAnswer>;
+  answers: Record<string, AnyAnswer>;
   orders: Record<string, number[]>;
   bank: ReadonlyMap<string, TestItem>;
 }): AnswerInput[] {
@@ -95,7 +103,13 @@ export function mockAnswers(p: {
       out.push({ ...base, text: isAnswered(answer) && typeof answer === 'string' ? answer.trim() : null });
       return;
     }
-    const chosen = isAnswered(answer) && Array.isArray(answer) ? [...answer].sort((a, b) => a - b) : null;
+    if (!OLD_KINDS.has(item.kind)) {
+      // release 48: number / cloze typed; order and match in file indices, the order shown kept when there is one
+      const shown = item.kind === 'order' || item.kind === 'match' ? p.orders[id] : undefined;
+      out.push({ ...base, ...answerFields(item.kind, answer), ...(shown && shown.length > 0 ? { shown_order: shown } : {}) });
+      return;
+    }
+    const chosen = isAnswered(answer) && Array.isArray(answer) ? [...(answer as number[])].sort((a, b) => a - b) : null;
     out.push({
       ...base,
       chosen: chosen === null ? null : item.kind === 'single' ? chosen[0] : chosen,

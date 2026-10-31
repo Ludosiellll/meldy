@@ -27,6 +27,8 @@ import {
 // ─────────────────────────────────────────── the words of the «занятие» ───────────────────────────────────────────
 
 export const S = {
+  /** Release 48: the author's explanation under the answer. */
+  explanation: W.EXPLANATION,
   dontKnow: 'Не знаю',
   finish: 'Закончить',
   answer: 'Ответить',
@@ -111,6 +113,8 @@ export interface Shown {
   again: boolean;
   /** Already in the answer log (the tick's flush, the doubt): «Нажали не туда?» is no longer possible. */
   recorded?: boolean;
+  /** The author's explanation (release 48: after the answer in the bot too); null — none. */
+  explanation?: string | null;
 }
 
 export type ReviewStage = 'review' | 'misclick' | 'doubt' | 'doubted';
@@ -128,6 +132,24 @@ const oneLine = (text: string) => String(text).replace(/\s*[\r\n]+\s*/g, ' ').tr
 const own = (text: string) => esc(text);
 /** A typed answer shown back: at most 200 characters. */
 const typedShown = (text: string) => ([...text].length > 200 ? `${[...text].slice(0, 199).join('').trimEnd()}…` : text);
+
+/** The explanation as the chat shows it: «Пояснение: …», at most 700 characters (a long one is cut at a word). */
+export const EXPLANATION_SHOWN = 700;
+function explanationBlock(text: string | null | undefined): string | null {
+  const words = String(text ?? '').trim();
+  if (!words) return null;
+  const chars = [...words];
+  const cut = chars.length > EXPLANATION_SHOWN ? `${chars.slice(0, EXPLANATION_SHOWN).join('').replace(/\s+\S*$/u, '')}…` : words;
+  return `${b(`${S.explanation}:`)} ${own(cut)}`;
+}
+
+/** The message with the explanation after an empty line, when the two fit Telegram's 4096 characters (else without it). */
+function withExplanation(text: string, explanation: string | null | undefined): string {
+  const block = explanationBlock(explanation);
+  if (!block) return text;
+  const joined = lines(text, '', block);
+  return visibleLength(joined) <= LIMITS.text ? joined : text;
+}
 
 /** «Компьютерные сети · 3 из 20», a retry «… · повтор, не считается». */
 export function headerText(v: Pick<QuestionView, 'subject' | 'n' | 'of' | 'retry'>): string {
@@ -292,13 +314,13 @@ export function reviewOut(v: QuestionView, shown: Shown, stage: ReviewStage, opt
     ...(stage === 'review' || stage === 'misclick' ? notes(v) : []),
     stage === 'doubt' ? null : numberLine(v.item),
   );
-  return { text, keyboard: reviewKeyboard(v, shown, stage, options) };
+  return { text: withExplanation(text, stage === 'review' ? shown.explanation : null), keyboard: reviewKeyboard(v, shown, stage, options) };
 }
 
 /** Z5, a typed answer that is right: «Верно: 32.» and «Дальше» (no line pops up for a message). */
-export function shortRightOut(v: QuestionView, form: string): Out {
+export function shortRightOut(v: QuestionView, form: string, explanation: string | null = null): Out {
   const line = v.item.kind === 'short' && form.trim() !== '' ? shortRight(oneLine(form)) : S.right;
-  const text = lines(t(headerText(v)), '', stemBlock(v.item, false), '', t(line), numberLine(v.item));
+  const text = withExplanation(lines(t(headerText(v)), '', stemBlock(v.item, false), '', t(line), numberLine(v.item)), explanation);
   return { text, keyboard: [row({ text: S.next, data: data(v, { a: 'next' }), style: 'primary' })] };
 }
 

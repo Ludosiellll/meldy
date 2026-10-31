@@ -8,6 +8,8 @@ import { BUILD, type BuildType } from './copyTest';
  */
 
 export const BUILD_TYPES: readonly BuildType[] = ['single', 'multiple', 'short', 'truefalse'];
+/** The studio's «Список» offers the kinds of release 48 too (the release-47 page keeps its four). */
+export const ALL_BUILD_TYPES: readonly BuildType[] = [...BUILD_TYPES, 'number', 'order', 'match', 'cloze', 'essay'];
 
 /** A question that has its key: ticked options, or the accepted forms of a short answer. */
 export const isKeyed = (item: Pick<TestItem, 'correct' | 'answers'>) => item.correct.length > 0 || item.answers.length > 0;
@@ -26,6 +28,7 @@ const isTrueFalse = (options: readonly string[]) => options.length === 2 && opti
 
 /** How the card names a question: «верно / неверно» is a one-answer question with exactly those two options. */
 export function typeOf(item: Pick<TestItem, 'kind' | 'options'>): BuildType {
+  if (item.kind === 'number' || item.kind === 'order' || item.kind === 'match' || item.kind === 'cloze' || item.kind === 'essay') return item.kind;
   if (item.kind === 'short') return 'short';
   if (item.kind === 'multiple') return 'multiple';
   return isTrueFalse(item.options) ? 'truefalse' : 'single';
@@ -37,7 +40,12 @@ export function typeOf(item: Pick<TestItem, 'kind' | 'options'>): BuildType {
  * «Неверно» kept in that order for «верно / неверно». Nothing is keyed: the author marks the right one.
  */
 export function templateItem(type: BuildType, subjectId: string, containerId: string): TestItem {
-  const options = type === 'short' ? [] : type === 'truefalse' ? [BUILD.trueWord, BUILD.falseWord] : ['', '', '', ''];
+  const options =
+    type === 'short' || type === 'number' || type === 'cloze' || type === 'essay' ? []
+    : type === 'truefalse' ? [BUILD.trueWord, BUILD.falseWord]
+    : type === 'order' ? ['', '', '']
+    : type === 'match' ? ['', '']
+    : ['', '', '', ''];
   return {
     id: `new-${type}`,
     container_id: containerId,
@@ -45,7 +53,7 @@ export function templateItem(type: BuildType, subjectId: string, containerId: st
     position: 0,
     file_no: '',
     topic: null,
-    kind: type === 'short' ? 'short' : type === 'multiple' ? 'multiple' : 'single',
+    kind: type === 'truefalse' ? 'single' : type,
     stem: '',
     options,
     correct: [],

@@ -157,7 +157,7 @@ describe('deriveSubjects: decisions 5, 6 and 7', () => {
     ]);
   });
 
-  it('maps kinds: truefalse → single, a short answer → short, order and match are not saved (decision 6)', () => {
+  it('maps kinds: truefalse → single, a short answer → short; order is saved as order (release 48), a match without two pairs is not', () => {
     const items = [
       item(1, { kind: 'truefalse', options: ['Верно', 'Неверно'], correct: [0], evidence: 'gift' }),
       item(2, { kind: 'open', options: [], correct: [], answer: 'Invoke; invoke()', evidence: 'gift', marks: {} }),
@@ -171,15 +171,34 @@ describe('deriveSubjects: decisions 5, 6 and 7', () => {
       [1, 'single'],
       [2, 'short'],
       [3, 'short'],
+      [4, 'order'],
     ]);
-    expect(subject.skippedKinds).toBe(2);
+    expect(subject.skippedKinds).toBe(1);
     expect(subject.oral.map((question) => question.position)).toEqual([6]);
     expect(subject.answerDropped).toBe(1);
     const inputs = itemInputs(subject, 'imp');
     expect(inputs[0]).toMatchObject({ kind: 'single', options: ['Верно', 'Неверно'], correct: [0], key_source: 'gift' });
     expect(inputs[1]).toMatchObject({ kind: 'short', options: [], correct: [], answers: ['Invoke', 'invoke()'], key_source: 'gift' });
     expect(inputs[2]).toMatchObject({ kind: 'short', answers: ['using'], key_source: 'answer_line' });
-    expect(totalsOf([subject]).skippedKinds).toBe(2);
+    expect(inputs[3]).toMatchObject({ kind: 'order', options: ['в', 'а', 'б'], correct: [0, 1, 2], answers: [] });
+    expect(totalsOf([subject]).skippedKinds).toBe(1);
+  });
+
+  it('saves a match with its pairs and a GIFT number with its tolerance (release 48)', () => {
+    const items = [
+      item(1, { kind: 'match', options: [], correct: [], text: 'Соедините', pairs: [['Франция', 'Париж'], ['Германия', 'Берлин']] }),
+      item(2, { kind: 'open', options: [], correct: [], text: 'Ускорение g', answer: '9.8', evidence: 'gift', marks: {}, number: { answers: ['9.8'], tolerance: '0.1' } }),
+      item(3, { kind: 'match', options: [], correct: [], text: 'Пары', pairs: [['А', '1'], ['Б', '1']] }),
+    ];
+    const [subject] = deriveSubjects([file(bank(items))]);
+    expect(subject.test.map((entry) => [entry.position, entry.kind])).toEqual([
+      [1, 'match'],
+      [2, 'number'],
+    ]);
+    expect(subject.skippedKinds).toBe(1);
+    const inputs = itemInputs(subject, 'imp');
+    expect(inputs[0]).toMatchObject({ kind: 'match', options: ['Франция', 'Германия'], answers: ['Париж', 'Берлин'], correct: [] });
+    expect(inputs[1]).toMatchObject({ kind: 'number', options: [], answers: ['9.8'], tolerance: '0.1', key_source: 'gift' });
   });
 
   it('saves an image question without its key until the author says it reads without the image (decision 7)', () => {

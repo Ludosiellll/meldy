@@ -11,7 +11,7 @@ import BuildToolbar, { type ToolbarPlace } from '../test/BuildToolbar';
 import QuestionList, { type CardNote } from '../test/QuestionList';
 import TypeChoice from '../test/TypeChoice';
 import { BUILD, type BuildType } from '../test/copyTest';
-import { copyInput, templateItem, typeOf } from '../test/buildModel';
+import { ALL_BUILD_TYPES, copyInput, templateItem, typeOf } from '../test/buildModel';
 import type { Build } from '../test/useBuild';
 import type { Studio } from './useStudio';
 import '../test/build.css';
@@ -219,7 +219,7 @@ export default function ListView({
 
   return (
     <div className="st-listview tb-body" ref={rootRef}>
-      <BuildToolbar
+      <BuildToolbar types={ALL_BUILD_TYPES}
         place="top"
         canAdd={list.length > 0}
         choosing={choosing === 'top'}
@@ -229,7 +229,7 @@ export default function ListView({
       {list.length === 0 && !newType ? (
         <div className="tb-empty">
           <p className="tb-lede">{BUILD.empty}</p>
-          <TypeChoice onPick={(type) => run({ kind: 'new', type })} quietLabel />
+          <TypeChoice onPick={(type) => run({ kind: 'new', type })} quietLabel types={ALL_BUILD_TYPES} />
         </div>
       ) : null}
       <QuestionList
@@ -298,7 +298,7 @@ export default function ListView({
           />
         </div>
       ) : list.length > 0 ? (
-        <BuildToolbar
+        <BuildToolbar types={ALL_BUILD_TYPES}
           place="end"
           canAdd
           choosing={choosing === 'end'}

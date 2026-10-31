@@ -1611,3 +1611,26 @@ def test_the_review_gets_the_file_lines_of_the_models_questions_too():
     assert set(range(model["lines"][0], model["lines"][1] + 1)) <= shown
     assert set(range(differ["lines"][0], differ["lines"][1] + 1)) <= shown
     assert 1 not in shown  # строки первого вопроса, уверенного и прочитанного одинаково, не уходят
+
+
+# ── Выпуск 48: число с допуском из GIFT и Moodle XML ─────────────────────────────
+
+
+def test_gift_number_keeps_the_tolerance():
+    from bank_parse import gift_number
+
+    assert gift_number("5") == {"answers": ["5"], "tolerance": None}
+    assert gift_number("9,8:0,1") == {"answers": ["9.8"], "tolerance": "0.1"}
+    assert gift_number("1..5") == {"answers": ["3"], "tolerance": "2"}
+    assert gift_number("=5:0.5 =4") == {"answers": ["5", "4"], "tolerance": "0.5"}
+    assert gift_number("пять") is None
+
+
+def test_gift_numeric_question_carries_number_beside_its_answer():
+    from bank_parse import parse_bank_text
+
+    result = parse_bank_text("::g:: Ускорение свободного падения, м/с² {#9.8:0.1}\n\n::pi:: Число пи {#3.14}\n")
+    first, second = result["items"][:2]
+    assert first["kind"] == "open" and first["answer"] == "9.8"
+    assert first["number"] == {"answers": ["9.8"], "tolerance": "0.1"}
+    assert second["number"] == {"answers": ["3.14"], "tolerance": None}

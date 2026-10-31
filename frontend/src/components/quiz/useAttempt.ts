@@ -3,7 +3,8 @@ import type { QuizAnswerInput, QuizAttempt, QuizAttemptItem, QuizResult } from '
 import { finishQuiz, quizResult, sendAnswers } from '../../api/quizzes';
 import { clockOffset, clockText, secondsLeft, timeStage } from '../../lib/quizzes/quizModel';
 import { track } from '../../lib/telemetry';
-import { isAnswered, type MockAnswer } from '../containers/mockModel';
+import { isAnswered, type AnyAnswer } from '../containers/mockModel';
+import { fromSaved, isKindAnswer, quizInput } from '../../lib/kinds/answer';
 import { RUN } from './copyTake';
 
 /**
@@ -20,7 +21,7 @@ import { RUN } from './copyTake';
  * it crosses that mark, and only for an attempt longer than the mark (timeStage).
  */
 
-export type QuizAnswer = MockAnswer;
+export type QuizAnswer = AnyAnswer;
 
 /** Quiet time before a change is sent. */
 export const SEND_DELAY_MS = 500;
@@ -35,7 +36,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isAnswerValue(value: unknown): value is QuizAnswer {
-  return value === null || typeof value === 'string' || (Array.isArray(value) && value.every((n) => Number.isInteger(n) && n >= 0));
+  return value === null || typeof value === 'string' || (Array.isArray(value) && value.every((n) => Number.isInteger(n) && n >= 0))
+    || isKindAnswer(value);
 }
 
 /** The unsent answers kept on this device (nothing when storage is closed or the copy is unreadable). */
@@ -62,7 +64,8 @@ function writePending(attemptId: string, pending: Record<string, QuizAnswer>): v
   }
 }
 
-function fromServer(answer: { chosen: number[] | null; text: string | null }): QuizAnswer {
+function fromServer(answer: { chosen: number[] | null; text: string | null; texts?: string[] | null }, kind?: QuizAttemptItem['kind']): QuizAnswer {
+  if (kind && !['single', 'multiple', 'short'].includes(kind)) return fromSaved(kind, answer);
   if (Array.isArray(answer.chosen) && answer.chosen.length > 0) return [...answer.chosen];
   if (typeof answer.text === 'string' && answer.text !== '') return answer.text;
   return null;
@@ -70,8 +73,9 @@ function fromServer(answer: { chosen: number[] | null; text: string | null }): Q
 
 /** One answer as quiz_answer takes it; an empty choice or text takes the answer back. */
 function toInput(itemId: string, answer: QuizAnswer, kind: QuizAttemptItem['kind']): QuizAnswerInput {
+  if (!['single', 'multiple', 'short'].includes(kind)) return quizInput(itemId, kind, answer);
   if (kind === 'short') return { item_id: itemId, text: typeof answer === 'string' ? answer.trim() : '' };
-  return { item_id: itemId, chosen: Array.isArray(answer) ? [...answer].sort((a, b) => a - b) : [] };
+  return { item_id: itemId, chosen: Array.isArray(answer) ? [...(answer as number[])].sort((a, b) => a - b) : [] };
 }
 
 function codeOf(error: unknown): string {
@@ -164,7 +168,8 @@ export function useAttempt(attempt: QuizAttempt, token: string | null, { onResul
   const [start] = useState(() => {
     const ids = new Set(items.map((item) => item.id));
     const answers: Record<string, QuizAnswer> = {};
-    for (const answer of attempt.answers ?? []) if (ids.has(answer.item_id)) answers[answer.item_id] = fromServer(answer);
+    const kindOf = new Map(items.map((item) => [item.id, item.kind]));
+    for (const answer of attempt.answers ?? []) if (ids.has(answer.item_id)) answers[answer.item_id] = fromServer(answer, kindOf.get(answer.item_id));
     const pending: Record<string, QuizAnswer> = {};
     for (const [itemId, value] of Object.entries(readPending(id))) {
       if (!ids.has(itemId)) continue;

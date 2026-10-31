@@ -1,5 +1,5 @@
 import { DRAFT_WORDS } from '../../lib/studio/checker';
-import { emptyDraft, inputOf, type Draft } from '../containers/keys/editorModel';
+import { emptyDraft, inputOf, switchKind, type Draft } from '../containers/keys/editorModel';
 import type { ItemInput } from '../../types/container';
 import { BUILD } from '../test/copyTest';
 import type { QuestionType } from './copyStudio';
@@ -22,6 +22,21 @@ export function draftOf(type: QuestionType): Draft {
       return { ...base, stem: DRAFT_WORDS.stem, options: [1, 2, 3, 4].map((n) => option(DRAFT_WORDS.option(n))), multiple: true };
     case 'single':
       return { ...base, stem: DRAFT_WORDS.stem, options: [1, 2, 3, 4].map((n) => option(DRAFT_WORDS.option(n))) };
+    // release 48: each new kind starts with a key the database takes, in the palette's words
+    case 'number':
+      return { ...switchKind({ ...base, stem: DRAFT_WORDS.stem }, 'number'), numbers: '0' };
+    case 'order':
+      return { ...switchKind({ ...base, stem: DRAFT_WORDS.stem }, 'order'), options: [1, 2, 3].map((n) => option(DRAFT_WORDS.option(n))) };
+    case 'match':
+      return {
+        ...switchKind({ ...base, stem: DRAFT_WORDS.stem }, 'match'),
+        options: [1, 2].map((n) => option(DRAFT_WORDS.option(n))),
+        rights: [1, 2].map((n) => `${DRAFT_WORDS.form} ${n}`),
+      };
+    case 'cloze':
+      return { ...switchKind({ ...base, stem: `${DRAFT_WORDS.stem} ___` }, 'cloze'), gaps: [DRAFT_WORDS.form] };
+    case 'essay':
+      return switchKind({ ...base, stem: DRAFT_WORDS.stem }, 'essay');
   }
 }
 

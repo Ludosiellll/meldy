@@ -49,3 +49,19 @@ export async function setMaterialVisibility(id: string, isPublic: boolean): Prom
   if (error) throw error;
   if (Array.isArray(data) && data.length === 0) throw new Error('Материал не изменён: нет прав на запись');
 }
+export interface LectureTitle {
+  id: string;
+  title: string;
+}
+
+/** The author's lectures by title, newest first (an essay's lectures to check by, release 48): nothing heavy is read. */
+export async function listLectures(userId: string): Promise<LectureTitle[]> {
+  const { data, error } = await supabase
+    .from('materials')
+    .select('id, title')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({ id: String(row.id), title: String(row.title ?? '') }));
+}

@@ -494,3 +494,17 @@
   .qt-cta-go.sf-primary,
   .qt-cta-go.sf-secondary { width: 100%; }
 }
+
+/* Release 48: an essay as the person wrote it, the share a partial answer earned. */
+.qt-ressay {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font-size: 16px;
+  line-height: 1.55;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.qt-credit { margin: 10px 0 0; font-size: 15px; font-weight: 600; color: var(--sf-ink); }

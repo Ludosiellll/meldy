@@ -11,17 +11,37 @@
  * Question blocks whose row is missing are left out everywhere (DocView skips them).
  */
 import type { TestItem } from '../../types/container';
+import { answered as kindAnswered, gradeAnswer, type KindAnswer } from '../../lib/kinds/answer';
 import type { DocBlock, QuestionBlock, ResultBand, TestDoc } from '../../types/testDoc';
 
 /** What DocView needs of a question row: the words and pictures; the key only where the page grades. */
 export type DocItem = Pick<TestItem, 'id' | 'kind' | 'stem' | 'options' | 'code'> &
-  Partial<Pick<TestItem, 'images' | 'correct' | 'answers' | 'explanation' | 'keep_order'>>;
+  Partial<Pick<TestItem, 'images' | 'correct' | 'answers' | 'explanation' | 'keep_order' | 'tolerance' | 'unit' | 'partial'>> & {
+    /** match on a participant's page: the right items in the attempt's order (release 48). */
+    right?: string[];
+  };
 
 export interface Answer {
-  /** single / multiple: the file indices chosen. */
+  /** single / multiple: the file indices chosen; order: the arrangement; match: per left the right's index or -1. */
   chosen?: number[];
-  /** short: the words typed. */
+  /** short, number, essay: the words typed. */
   text?: string;
+  /** cloze: a text per gap (release 48). */
+  texts?: string[];
+}
+
+/** An answer of a new kind as the kinds' fields hold it (components/kinds), and back. */
+export function kindValueOf(answer: Answer | undefined): KindAnswer {
+  if (!answer) return null;
+  if (answer.texts) return [...answer.texts];
+  if (answer.chosen) return [...answer.chosen];
+  return answer.text ?? null;
+}
+export function answerOfKind(value: KindAnswer): Answer {
+  if (value === null) return {};
+  if (typeof value === 'string') return { text: value };
+  if (value.length > 0 && typeof value[0] === 'string') return { texts: value as string[] };
+  return { chosen: value as number[] };
 }
 export type Answers = Readonly<Record<string, Answer | undefined>>;
 
@@ -85,6 +105,7 @@ export function stepsOf(doc: TestDoc, blocks: readonly DocBlock[]): Step[] {
 /** The answer holds something: a choice, or words. */
 export function answered(answer: Answer | undefined): boolean {
   if (!answer) return false;
+  if (answer.texts || answer.chosen?.some((index) => index < 0)) return kindAnswered(kindValueOf(answer));
   return (answer.chosen?.length ?? 0) > 0 || Boolean(answer.text && answer.text.trim());
 }
 
@@ -98,6 +119,28 @@ export const normShort = (text: string) => text.trim().toLowerCase().replace(/ё
 
 /** The answer is right by the row's key; null when the row has no key here (nothing to grade). */
 export function isRight(item: DocItem, answer: Answer | undefined): boolean | null {
+  const credit = creditOf(item, answer);
+  return credit === null ? null : credit === 1;
+}
+
+/** The answer's credit by the row's key (release 48: a share with partial credit); null when nothing can be graded here. */
+export function creditOf(item: DocItem, answer: Answer | undefined): number | null {
+  if (item.kind === 'essay') return null;
+  if (item.kind !== 'single' && item.kind !== 'multiple' && item.kind !== 'short') {
+    const answers = item.answers ?? [];
+    if (item.kind !== 'order' && answers.length === 0) return null;
+    return gradeAnswer({ kind: item.kind, options: item.options, correct: item.correct ?? [], answers, tolerance: item.tolerance,
+                         unit: item.unit, partial: item.partial }, kindValueOf(answer)).credit;
+  }
+  if (item.kind === 'multiple' && item.partial && (item.correct ?? []).length > 0) {
+    return gradeAnswer({ kind: 'multiple', options: item.options, correct: item.correct ?? [], answers: [], partial: true },
+                       answer?.chosen && answer.chosen.length > 0 ? answer.chosen : null).credit;
+  }
+  const right = rightOld(item, answer);
+  return right === null ? null : right ? 1 : 0;
+}
+
+function rightOld(item: DocItem, answer: Answer | undefined): boolean | null {
   if (item.kind === 'short') {
     const forms = item.answers ?? [];
     if (forms.length === 0) return null;
@@ -124,11 +167,12 @@ export function gradeDoc(doc: TestDoc, items: ReadonlyMap<string, DocItem>, answ
     if (block.type !== 'question') continue;
     const item = items.get(block.item_id);
     if (!item) continue;
-    const right = isRight(item, answers[block.item_id]);
-    if (right === null) continue;
+    const credit = creditOf(item, answers[block.item_id]);
+    if (credit === null) continue;
     max += block.points;
-    if (right) score += block.points;
+    score += block.points * credit;
   }
+  score = Math.round(score * 100) / 100;
   const percent = max > 0 ? Math.round((100 * score) / max) : 0;
   return { score, max, percent, band: bandFor(doc, percent) };
 }

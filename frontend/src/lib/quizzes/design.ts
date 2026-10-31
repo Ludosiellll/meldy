@@ -85,18 +85,30 @@ export function asDocItem(item: QuizAttemptItem): DocItem {
     code: Boolean(item.code),
     keep_order: Boolean(item.keep_order),
     images: item.images ?? null,
+    // release 48: only what the attempt's item carries (a new kind or partial credit)
+    ...(item.unit !== undefined ? { unit: item.unit } : {}),
+    ...(item.partial !== undefined ? { partial: Boolean(item.partial) } : {}),
+    ...(item.right !== undefined ? { right: item.right } : {}),
   };
 }
 
 /** The attempt's answer (QuizRun: file indices, the words, or null) as DocView holds it. */
-export function docAnswer(value: MockAnswer | undefined): Answer | undefined {
-  if (Array.isArray(value)) return value.length > 0 ? { chosen: [...value] } : undefined;
+export function docAnswer(value: MockAnswer | string[] | undefined): Answer | undefined {
+  if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'string') return { texts: [...(value as string[])] };
+  if (Array.isArray(value)) return value.length > 0 ? { chosen: [...(value as number[])] } : undefined;
   if (typeof value === 'string') return value === '' ? undefined : { text: value };
   return undefined;
 }
 
 /** DocView's answer as the attempt keeps it: an empty choice or empty words take the answer back (null). */
-export function attemptAnswer(answer: Answer, kind: QuizAttemptItem['kind'], textMax = 200): MockAnswer {
+export function attemptAnswer(answer: Answer, kind: QuizAttemptItem['kind'], textMax = 200): MockAnswer | string[] {
+  // release 48: the new kinds keep their lists as given (order, match), a text per gap (cloze), longer essays
+  if (kind === 'cloze') return answer.texts && answer.texts.some((t) => t.trim() !== '') ? answer.texts.map((t) => t.slice(0, 200)) : null;
+  if (kind === 'order' || kind === 'match') return answer.chosen && answer.chosen.some((v) => v >= 0) ? [...answer.chosen] : null;
+  if (kind === 'number' || kind === 'essay') {
+    const text = (answer.text ?? '').slice(0, kind === 'essay' ? 6000 : textMax);
+    return text.trim() === '' ? null : text;
+  }
   if (kind === 'short') {
     const text = (answer.text ?? '').slice(0, textMax);
     return text === '' ? null : text;

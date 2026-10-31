@@ -115,7 +115,9 @@ export type TupleChecks = [
 const every = <U extends string>(members: Record<U, true>): readonly string[] => Object.keys(members);
 
 const ROLES = every<ContainerRole>({ owner: true, member: true });
-const ITEM_KINDS = every<ItemKind>({ single: true, multiple: true, short: true });
+const ITEM_KINDS = every<ItemKind>({
+  single: true, multiple: true, short: true, number: true, order: true, match: true, cloze: true, essay: true,
+});
 const KEY_SOURCES = every<KeySource>({
   bold: true, underline: true, italic: true, color: true, highlight: true, shade: true, marker: true, key_column: true,
   answer_line: true, key_list: true, key_text: true, gift: true, first_option: true, manual: true, none: true,
@@ -376,7 +378,7 @@ describe('one container across the samples', () => {
     itemsPage.forEach((item, n) => {
       const [id, , topic, position, kind, rev, slow] = rows[n];
       expect({ id: item.id, topic: item.topic, position: item.position, rev: item.rev }).toEqual({ id, topic, position, rev });
-      expect(kind).toBe({ single: 0, multiple: 1, short: 2 }[item.kind]);
+      expect(kind).toBe(({ single: 0, multiple: 1, short: 2 } as Record<string, number>)[item.kind]);
       expect(slow).toBe(item.code || item.kind === 'multiple' ? 1 : 0);
       expect(item.correct.length).toBeGreaterThan(0);
       for (const index of item.correct) expect(index).toBeLessThan(item.options.length);

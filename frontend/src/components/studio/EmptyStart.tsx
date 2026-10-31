@@ -2,7 +2,7 @@ import { ACCENTS } from '../../lib/studio/contrast';
 import { TEMPLATES, type TemplateId } from '../../lib/studio/templates';
 import { STUDIO, type QuestionType } from './copyStudio';
 import { QuestionIcon } from './icons';
-import { QUESTION_KINDS } from './Palette';
+import { FIRST_KINDS as QUESTION_KINDS } from './Palette';
 
 /**
  * An empty test on the canvas (spec §47.6 «пустой тест — начать с шаблона или вставить готовый»): the four starters of

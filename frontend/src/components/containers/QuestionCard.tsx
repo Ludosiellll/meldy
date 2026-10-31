@@ -1,5 +1,9 @@
 import { forwardRef, type CSSProperties, type ReactNode, type Ref } from 'react';
-import { isPictureWord, type TestItem } from '../../types/container';
+import { isPictureWord, NEW_KINDS, type TestItem } from '../../types/container';
+import type { KindAnswer } from '../../lib/kinds/answer';
+import KindBody, { type KindReview } from '../kinds/KindBody';
+import QText from '../kinds/QText';
+import ReadAloud, { readText } from '../kinds/ReadAloud';
 import * as copy from './copy';
 import ItemPictures, { storedPictures } from './ItemPictures';
 import { leadingSpaces, stemParts } from './stemCode';
@@ -58,6 +62,18 @@ interface QuestionCardProps {
   onSubmitText: () => void;
   stemRef?: Ref<HTMLHeadingElement>;
   fileRef?: Ref<HTMLButtonElement>;
+  /** Release 48 (docs/kinds/CONTRACT.md): the answer of a new kind, before and after it is given. */
+  kindValue?: KindAnswer;
+  onKind?: (value: KindAnswer) => void;
+  /** After the answer (learn): the key of a new kind on its own fields. */
+  kindReview?: KindReview | null;
+  /** match: the right items (a session: the row's answers; a quiz: the attempt's own order) and the order to list them in. */
+  right?: string[];
+  rightOrder?: number[];
+  /** «Засчитывается частично» under a question with partial credit (a quiz; a session counts only full answers). */
+  partialNote?: boolean;
+  /** «Озвучить вопрос». */
+  readAloud?: boolean;
 }
 
 function Check() {
@@ -73,17 +89,18 @@ function Check() {
 /** An option's words and pictures; words that only stand for its picture are for screen readers. */
 function OptionWords({ text, paths }: { text: string; paths: string[] | undefined }) {
   const sources = storedPictures(paths);
-  if (sources.length === 0) return <>{text}</>;
+  if (sources.length === 0) return <QText text={text} />;
   return (
     <>
       <ItemPictures sources={sources} kind="option" />
-      {isPictureWord(text) ? <span className="sr-only">{text}</span> : <span className="ct-opt-words">{text}</span>}
+      {isPictureWord(text) ? <span className="sr-only">{text}</span> : <span className="ct-opt-words"><QText text={text} /></span>}
     </>
   );
 }
 
 const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function QuestionCard(props, ref) {
   const { item, order, context, mode, answered, ticked, picked, text, textInvalid, hint, onPick, onText, onSubmitText, stemRef, fileRef } = props;
+  const newKind = NEW_KINDS.includes(item.kind);
   // The flag of the import, and lines that clearly read as code even without it (stemCode.ts, usability check m1).
   const stem = stemParts(item.stem, item.code);
   const multiple = item.kind === 'multiple';
@@ -94,7 +111,27 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
   const learn = mode === 'learn';
 
   let body: ReactNode;
-  if (item.kind === 'short') {
+  if (newKind) {
+    // Release 48: the new kinds' own fields (components/kinds); a cloze shows its stem inside them, with the gaps.
+    body = (
+      <KindBody
+        key={item.id}
+        kind={item.kind}
+        stem={item.stem}
+        options={item.options}
+        right={props.right ?? item.answers}
+        rightOrder={props.rightOrder}
+        initialOrder={order}
+        unit={item.unit}
+        value={props.kindValue}
+        onChange={answered && learn ? undefined : props.onKind}
+        onSubmit={onSubmitText}
+        invalid={textInvalid}
+        review={learn ? props.kindReview ?? null : null}
+        partial={props.partialNote && item.partial}
+      />
+    );
+  } else if (item.kind === 'short') {
     const state = answered ? (answered.correct ? 'right' : 'wrong') : undefined;
     body = (
       <form
@@ -179,9 +216,13 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
   return (
     <div ref={ref} className="ct-q">
       <p className="ct-ctx">{context}</p>
-      {stem.before && !pictureStem ? (
+      {item.kind === 'cloze' ? (
+        <h1 className="sr-only" ref={stemRef} tabIndex={-1}>
+          {item.stem.replace(/_{3,}/g, '…')}
+        </h1>
+      ) : stem.before && !pictureStem ? (
         <h1 className="ct-stem" ref={stemRef} tabIndex={-1}>
-          {stem.before}
+          <QText text={stem.before} />
         </h1>
       ) : (
         <h1 className="sr-only" ref={stemRef} tabIndex={-1}>
@@ -189,8 +230,11 @@ const QuestionCard = forwardRef<HTMLDivElement, QuestionCardProps>(function Ques
         </h1>
       )}
       <ItemPictures sources={stemPictures} kind="stem" />
-      {stem.code ? <CodeBlock code={stem.code} /> : null}
-      {stem.after ? <p className="ct-stem-after">{stem.after}</p> : null}
+      {stem.code && item.kind !== 'cloze' ? <CodeBlock code={stem.code} /> : null}
+      {stem.after && item.kind !== 'cloze' ? <p className="ct-stem-after"><QText text={stem.after} /></p> : null}
+      {props.readAloud ? (
+        <ReadAloud text={readText({ kind: item.kind, stem: item.stem, options: item.options, right: props.right ?? item.answers, unit: item.unit })} />
+      ) : null}
       {multiple && (!answered || !learn) ? <p className="ct-hint">{copy.MULTIPLE_HINT}</p> : null}
       {hint}
       {body}

@@ -21,13 +21,15 @@ interface Props {
   onChoosing: (open: boolean) => void;
   onPick: (type: BuildType) => void;
   children?: ReactNode;
+  /** The kinds offered (TypeChoice's four by default; the studio's «Список» offers all). */
+  types?: readonly BuildType[];
 }
 
-export default function BuildToolbar({ place, canAdd, choosing, onChoosing, onPick, children }: Props) {
+export default function BuildToolbar({ place, canAdd, choosing, onChoosing, onPick, children, types }: Props) {
   return (
     <div className="tb-tools" data-place={place}>
       {canAdd && choosing ? (
-        <TypeChoice onPick={onPick} onCancel={() => onChoosing(false)} />
+        <TypeChoice onPick={onPick} onCancel={() => onChoosing(false)} types={types} />
       ) : (
         <div className="tb-tools-row">
           {canAdd ? (

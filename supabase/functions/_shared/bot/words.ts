@@ -61,6 +61,12 @@ export const START = 'Начать';
 export const OPEN_IN_MELDY = 'Открыть в Meldy';
 /** The Mini App button of the day card and of a session's record: today's session on the site, inside Telegram. */
 export const OPEN_SESSION = 'Открыть занятие';
+/** Release 48: questions the chat cannot ask (order, match, a cloze of several gaps) — a line and the Mini App. */
+export const OPEN_IN_APP = 'Открыть в приложении';
+export const inApp = (n: number) =>
+  `${glue(n, 'вопрос', 'вопроса', 'вопросов')} этого занятия — на порядок, пары или пропуски. Их удобнее решать в приложении.`;
+/** «Пояснение: …» under the answer (release 48). */
+export const EXPLANATION = 'Пояснение';
 export const SET_DATE = 'Указать дату';
 export const OTHER_EXAM = 'Другой экзамен';
 export const BACK = '‹ Назад';

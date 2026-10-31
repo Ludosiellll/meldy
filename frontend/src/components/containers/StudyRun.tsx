@@ -2,6 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { AnswerInput, AnswerResult, ContainerSummary, DayPlan, LocalDay, PlanInput, TestItem, UnitState } from '../../types/container';
 import { enqueueAnswers } from '../../lib/containers/answerQueue';
 import { afterAnswer, counter, optionOrder, pinnedLast, type QueueEntry } from '../../lib/containers/session';
+import { answered as hasAnswer, answerFields, gradeAnswer, type KindAnswer } from '../../lib/kinds/answer';
+import { gapForms } from '../../lib/kinds/cloze';
+import { shortNorm } from '../../lib/kinds/norm';
+import { neverInOrder, rightOrderOf } from '../../lib/kinds/shuffle';
+import { NEW_KINDS } from '../../types/container';
+import { KINDS } from '../kinds/copyKinds';
+import { NumberKeyLine } from '../kinds/KindBody';
+import type { KindReview } from '../kinds/KindBody';
 import { dayText } from '../../lib/containers/words';
 import { track } from '../../lib/telemetry';
 import { miniAppHaptic } from '../../lib/telegram/miniApp';
@@ -61,6 +69,8 @@ import './room.css';
 interface Pending {
   chosen: number[] | null;
   text: string | null;
+  /** Release 48: the answer of a new kind as given (order: the arrangement in file indices). */
+  value?: KindAnswer;
   dontKnow: boolean;
   correct: boolean;
   misclick: boolean;
@@ -100,7 +110,10 @@ function comesAgain(queue: QueueEntry[], pos: number, id: string, seed: string):
 }
 
 function shownOrder(item: TestItem, seed: string): number[] {
-  if (item.kind === 'short') return [];
+  if (item.kind === 'short' || item.kind === 'number' || item.kind === 'cloze' || item.kind === 'essay') return [];
+  // release 48: an order question starts never in the right order; match keeps its left items in the file's order
+  if (item.kind === 'order') return neverInOrder(item.options.length, seed);
+  if (item.kind === 'match') return item.options.map((_, index) => index);
   try {
     const order = optionOrder(item.options.length, item.keep_order, pinnedLast(item.options), seed);
     if (order.length === item.options.length && new Set(order).size === order.length) return order;
@@ -120,6 +133,7 @@ export default function StudyRun(props: StudyRunProps) {
   const [pending, setPending] = useState<Pending | null>(null);
   const [ticked, setTicked] = useState<number[]>([]);
   const [text, setText] = useState('');
+  const [kindValue, setKindValue] = useState<KindAnswer>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [doubtOpen, setDoubtOpen] = useState(false);
@@ -146,6 +160,7 @@ export default function StudyRun(props: StudyRunProps) {
   const item = base_ && patches[base_.id] ? { ...base_, ...patches[base_.id] } : base_;
   const seed = `${setup.id}:${pos}`;
   const order = useMemo(() => (item ? shownOrder(item, seed) : []), [item?.id, item?.options.length, seed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rightOrder = useMemo(() => (item && item.kind === 'match' ? rightOrderOf(item.answers.length, `${seed}:${item.id}`) : []), [item?.id, item?.answers.length, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // «7 из 20» (lib/containers/session.ts counter): a retry repeats the place it came back to.
   const count = useMemo(() => {
@@ -230,7 +245,13 @@ export default function StudyRun(props: StudyRunProps) {
         cls: setup.cls[item.id] ?? 'free',
         ...(entry.retry > 0 ? { retry: true } : {}),
         ...(answer.misclick ? { misclick: true } : {}),
-        ...(item.kind === 'short'
+        ...(NEW_KINDS.includes(item.kind)
+          ? {
+              ...answerFields(item.kind, answer.dontKnow ? null : answer.value),
+              ...(item.kind === 'order' && order.length > 0 ? { shown_order: order } : {}),
+              ...(item.kind === 'match' && rightOrder.length > 0 ? { shown_order: rightOrder } : {}),
+            }
+          : item.kind === 'short'
           ? { text: answer.dontKnow ? null : answer.text }
           : {
               chosen: answer.dontKnow ? null : item.kind === 'single' ? answer.chosen![0] : answer.chosen,
@@ -250,7 +271,7 @@ export default function StudyRun(props: StudyRunProps) {
       }
       return [...recordsNow, record];
     },
-    [item, entry, setup.id, setup.cls, tz, order, userId, merge],
+    [item, entry, setup.id, setup.cls, tz, order, rightOrder, userId, merge],
   );
 
   const persist = useCallback(
@@ -340,6 +361,7 @@ export default function StudyRun(props: StudyRunProps) {
       setPending(null);
       setTicked([]);
       setText('');
+      setKindValue(null);
       setHint(null);
       setKeyOpen(false);
       setDoubtOpen(false);
@@ -360,13 +382,14 @@ export default function StudyRun(props: StudyRunProps) {
   const nextRef = useRef(next);
   nextRef.current = next;
 
-  const answer = (choice: { chosen: number[] | null; text: string | null }) => {
+  const answer = (choice: { chosen: number[] | null; text: string | null }, value: KindAnswer = null) => {
     if (!item || pending || ended) return;
-    const dontKnow = item.kind === 'short' ? choice.text === null : choice.chosen === null;
-    const correct = !dontKnow && gradeLocal(item, choice);
+    const newKind = NEW_KINDS.includes(item.kind);
+    const dontKnow = newKind ? !hasAnswer(value) : item.kind === 'short' ? choice.text === null : choice.chosen === null;
+    const correct = !dontKnow && (newKind ? gradeAnswer(item, value).correct : gradeLocal(item, choice));
     const again = !correct && comesAgain(queue, pos, item.id, seed);
     setHint(null);
-    setPending({ ...choice, dontKnow, correct, misclick: false, again, at: Date.now() });
+    setPending({ ...choice, value: dontKnow ? null : value, dontKnow, correct, misclick: false, again, at: Date.now() });
     // Inside Telegram the phone answers too (lib/telegram/miniApp; nothing elsewhere).
     miniAppHaptic(correct ? 'success' : dontKnow ? 'warning' : 'error');
     // A right answer moves on by itself, unless the author explained the question: then it waits for «Дальше».
@@ -388,7 +411,7 @@ export default function StudyRun(props: StudyRunProps) {
   };
 
   const pick = (placeIndex: number) => {
-    if (!item || pending) return;
+    if (!item || pending || NEW_KINDS.includes(item.kind)) return;
     if (Date.now() - advancedAt.current < HOLD_GUARD_MS) return; // a held tap must not answer the next question
     const fileIndex = order[placeIndex];
     if (fileIndex === undefined) return;
@@ -402,6 +425,15 @@ export default function StudyRun(props: StudyRunProps) {
 
   const submit = () => {
     if (!item || pending) return;
+    if (NEW_KINDS.includes(item.kind)) {
+      // release 48: an order question is answered once a row moved or «Оставить такой порядок» was pressed
+      if (!hasAnswer(kindValue)) {
+        setHint(item.kind === 'number' ? KINDS.emptyNumber : item.kind === 'order' ? KINDS.emptyOrder : item.kind === 'match' ? KINDS.emptyMatch : item.kind === 'cloze' ? KINDS.emptyCloze : KINDS.emptyEssay);
+        return;
+      }
+      answer({ chosen: null, text: typeof kindValue === 'string' ? kindValue.trim() : null }, kindValue);
+      return;
+    }
     if (item.kind === 'multiple') {
       if (ticked.length === 0) {
         setHint(copy.MULTIPLE_EMPTY);
@@ -417,7 +449,7 @@ export default function StudyRun(props: StudyRunProps) {
     }
   };
 
-  const dontKnow = () => answer({ chosen: null, text: null });
+  const dontKnow = () => answer({ chosen: null, text: null }, null);
 
   const misclick = () => {
     if (!pending || pending.correct || pending.misclick || committed.current) return;
@@ -505,7 +537,7 @@ export default function StudyRun(props: StudyRunProps) {
         return;
       }
       const digit = /^[1-8]$/.test(event.key) ? Number(event.key) - 1 : LETTERS.indexOf(event.key.toUpperCase());
-      if (digit >= 0 && s.item.kind !== 'short') {
+      if (digit >= 0 && (s.item.kind === 'single' || s.item.kind === 'multiple')) {
         event.preventDefault();
         s.pick(digit);
       }
@@ -555,9 +587,33 @@ export default function StudyRun(props: StudyRunProps) {
   if (!item || !entry) return <>{bar}</>;
 
   // ── the question
+  const newKind = NEW_KINDS.includes(item.kind);
   const answered: Answered | null = pending
-    ? { chosen: pending.chosen, text: pending.text, dontKnow: pending.dontKnow, correct: !pending.dontKnow && gradeLocal(item, pending) }
+    ? {
+        chosen: pending.chosen,
+        text: pending.text,
+        dontKnow: pending.dontKnow,
+        correct: !pending.dontKnow && (newKind ? gradeAnswer(item, pending.value ?? null).correct : gradeLocal(item, pending)),
+      }
     : null;
+  // Release 48: after the answer the new kinds show their key on their own fields.
+  let kindReview: KindReview | null = null;
+  if (pending && newKind) {
+    const forms = gapForms(item.answers);
+    const texts = Array.isArray(pending.value) ? (pending.value as string[]) : [];
+    kindReview = {
+      order: { key: item.options.map((_, index) => index) },
+      match: { key: item.options.map((_, index) => index) },
+      cloze: {
+        right: forms.map((list, index) => {
+          const typed = shortNorm(String(texts[index] ?? ''));
+          return typed !== '' && list.some((form) => shortNorm(form) === typed);
+        }),
+        forms,
+      },
+      right: answered?.correct ?? false,
+    };
+  }
   const topicTitle = item.topic ? summary.subjects.find((s) => s.id === item.subject_id)?.topic_titles[item.topic - 1] : undefined;
   const topicNo = topicNumber(topicTitle);
   const context = [
@@ -577,6 +633,7 @@ export default function StudyRun(props: StudyRunProps) {
     if (fixedNow.current) verdict = copy.VERDICT_KEY_FIXED;
     else if (pending.misclick) verdict = copy.misclickLine(back);
     else if (answered.correct) verdict = item.kind === 'multiple' ? copy.verdictRightAll(item.correct.length) : copy.VERDICT_RIGHT;
+    else if (newKind) verdict = copy.glue(`${pending.dontKnow ? KINDS.dontKnowBelow : KINDS.wrongBelow} ${copy.comesBack(pending.again, back)}`);
     else if (item.kind === 'short') {
       const form = item.answers[0] ?? '';
       verdict = pending.dontKnow ? copy.shortDontKnow(form, pending.again, back, item.key_source) : copy.verdictShortWrong(form, pending.again, back, item.key_source);
@@ -625,7 +682,7 @@ export default function StudyRun(props: StudyRunProps) {
     }
   }
 
-  const needsSubmit = !pending && (item.kind === 'multiple' || item.kind === 'short');
+  const needsSubmit = !pending && (item.kind === 'multiple' || item.kind === 'short' || newKind);
   return (
     <>
       {bar}
@@ -649,7 +706,19 @@ export default function StudyRun(props: StudyRunProps) {
           onSubmitText={submit}
           stemRef={stemRef}
           fileRef={fileRef}
+          kindValue={pending ? pending.value ?? null : kindValue}
+          onKind={(value) => {
+            setKindValue(value);
+            if (hint) setHint(null);
+          }}
+          kindReview={kindReview}
+          right={item.answers}
+          rightOrder={rightOrder}
+          readAloud
         />
+        {pending && newKind && item.kind === 'number' && !answered?.correct ? (
+          <NumberKeyLine answers={item.answers} tolerance={item.tolerance} unit={item.unit} />
+        ) : null}
         {pending ? <Explanation text={item.explanation} /> : null}
         {under.length > 0 ? (
           <div ref={underRef} className="ct-under">
@@ -684,7 +753,7 @@ export default function StudyRun(props: StudyRunProps) {
             </button>
           </div>
         ) : null}
-        {wide && showKeys.current && item.kind !== 'short' ? <p className="ct-keyshint">{copy.KEYS_HINT}</p> : null}
+        {wide && showKeys.current && (item.kind === 'single' || item.kind === 'multiple') ? <p className="ct-keyshint">{copy.KEYS_HINT}</p> : null}
         {pending || needsSubmit ? (
           <div className="ct-bar">
             {verdict ? (

@@ -12,6 +12,8 @@ import type { Uuid } from '../types/container';
 import type { GuardEvent } from '../lib/quizzes/guard';
 import type {
   AttemptAnswer,
+  EssayMark,
+  EssayVerdict,
   QuizAnswerInput,
   QuizGuardEventRow,
   QuizAttempt,
@@ -225,4 +227,47 @@ export async function claimGuestAttempts(code: string, token: string): Promise<{
 /** «Тренировать эти вопросы»: the taker joins the quiz's exam as a member (the author offers it). */
 export async function joinPractice(code: string): Promise<{ container_id: Uuid }> {
   return shaped(await rpc('quiz_practice_join', { p_code: code }), 'quiz_practice_join', 'container_id');
+}
+
+// ── Release 48: essays (docs/kinds/CONTRACT.md §3.4) ────────────────────────────────────────────────────────────────
+
+/** The author's mark of an essay (null takes it back). The server keeps the author's word over the check's. */
+export async function essayMark(attemptId: Uuid, itemId: Uuid, verdict: EssayVerdict | null, quote: string | null = null): Promise<EssayMark | null> {
+  const raw = await rpc('quiz_essay_mark', { p_attempt_id: attemptId, p_item_id: itemId, p_verdict: verdict, p_quote: quote });
+  return isRecord(raw) ? (raw as unknown as EssayMark) : null;
+}
+
+export interface EssayCheck {
+  verdict: EssayVerdict;
+  quote: string | null;
+  mark: EssayMark | null;
+  points: Array<{ title: string; essential: boolean; status: string }>;
+}
+
+/** An error of the check: its code (no_lectures, not_in_lectures, unanswered, ai_limit…) and the server's words. */
+export class EssayCheckError extends Error {
+  constructor(public code: string, message: string, public status: number) {
+    super(message);
+  }
+}
+
+/** «Проверить по лекциям»: the backend checks the essay by the question's lectures and saves the mark (source ai). */
+export async function essayCheck(attemptId: Uuid, itemId: Uuid): Promise<EssayCheck> {
+  let response: Response;
+  try {
+    response = await fetch('/api/quiz/essay-check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attempt_id: attemptId, item_id: itemId }),
+    });
+  } catch {
+    throw new EssayCheckError('network', 'Нет связи. Повторите, когда интернет вернётся.', 0);
+  }
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const detail = isRecord(body) && typeof body.detail === 'string' ? body.detail : 'Проверка не получилась. Повторите через минуту.';
+    const code = isRecord(body) && typeof body.code === 'string' ? body.code : String(response.status);
+    throw new EssayCheckError(code, detail, response.status);
+  }
+  return body as EssayCheck;
 }

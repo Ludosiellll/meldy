@@ -1,3 +1,6 @@
+import EssayMarker from './EssayMarker';
+import { KINDS } from '../kinds/copyKinds';
+import { gapForms } from '../../lib/kinds/cloze';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { attemptAnswers, attemptEvents, resetAttempt } from '../../api/quizzes';
 import { attemptPercent, clockText, dateTimeText, minutesTaken, peopleRows, pointsOf, secondsLeft, type PersonRow } from '../../lib/quizzes/quizModel';
@@ -233,6 +236,7 @@ export default function QuizPeople({ quiz, attempts, items, subjects, offsetMs, 
             setRemoved((current) => new Set(current).add(attemptId));
             onChanged();
           }}
+          onMarked={onChanged}
         />
       ) : null}
     </div>
@@ -247,6 +251,8 @@ interface PersonAnswersProps {
   now: number;
   onClose: () => void;
   onReset: (attemptId: string) => void;
+  /** An essay was marked: the results are read again (the score changed). */
+  onMarked: () => void;
 }
 
 /** «14:32:05» of an event, in the device's time. */
@@ -258,6 +264,13 @@ function eventTime(iso: string): string {
 
 /** One answer's words: «Б. Стрелка» for one option, «А и В» for several, ««текст»» for a short answer. */
 function chosenText(item: TestItem | null, answer: AttemptAnswer): string {
+  // release 48: the new kinds in their own words (file indices: the author's view)
+  if (item && item.kind === 'order') return (answer.chosen ?? []).map((index, at) => `${at + 1}. ${item.options[index] ?? '?'}`).join('; ') || '—';
+  if (item && item.kind === 'match') {
+    return (answer.chosen ?? []).map((right, left) => `${item.options[left] ?? '?'} → ${right >= 0 ? item.answers[right] ?? '?' : '—'}`).join('; ') || '—';
+  }
+  if (item && item.kind === 'cloze') return (answer.texts ?? (answer.text ?? '').split('\n')).map((t) => (t.trim() ? `«${t.trim()}»` : '—')).join(' · ');
+  if (item && item.kind === 'number' && answer.text) return `«${answer.text}»`;
   if (answer.text !== null && answer.text !== undefined && answer.text !== '') return `«${answer.text}»`;
   const chosen = answer.chosen ?? [];
   if (chosen.length === 0) return '—';
@@ -266,6 +279,11 @@ function chosenText(item: TestItem | null, answer: AttemptAnswer): string {
 }
 
 function keyText(item: TestItem): string | null {
+  if (item.kind === 'number') return item.answers.length > 0 ? QA_PEOPLE.key(KINDS.numberRight(item.answers, item.tolerance, item.unit)) : null;
+  if (item.kind === 'order') return QA_PEOPLE.key(item.options.join(' → '));
+  if (item.kind === 'match') return QA_PEOPLE.key(item.options.map((left, index) => `${left} → ${item.answers[index] ?? '?'}`).join('; '));
+  if (item.kind === 'cloze') return QA_PEOPLE.key(gapForms(item.answers).map((forms) => forms.join(' / ')).join(' · '));
+  if (item.kind === 'essay') return null;
   if (item.kind === 'short') return item.answers.length > 0 ? QA_PEOPLE.forms(item.answers.join('; ')) : null;
   if (item.correct.length === 0) return null;
   if (item.correct.length === 1 && item.options[item.correct[0]] !== undefined) return QA_PEOPLE.key(`${letter(item.correct[0])}. ${item.options[item.correct[0]]}`);
@@ -273,7 +291,7 @@ function keyText(item: TestItem): string | null {
 }
 
 /** The answers of one person, attempt by attempt (quiz_attempt_answers), with «Сбросить попытку». */
-function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset }: PersonAnswersProps) {
+function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset, onMarked }: PersonAnswersProps) {
   const switchId = useId();
   const [shownId, setShownId] = useState(row.counted.id);
   const shown = row.all.find((attempt) => attempt.id === shownId) ?? row.counted;
@@ -425,8 +443,29 @@ function PersonAnswers({ row, items, subjects, offsetMs, now, onClose, onReset }
                   {answer.correct === null ? null : <span className="qa-ans-mark">{answer.correct ? QA_PEOPLE.right : QA_PEOPLE.wrong}</span>}
                 </p>
                 {item ? <p className="qa-ans-stem">{item.stem}</p> : null}
-                <p className="qa-ans-line">{QA_PEOPLE.answer(chosenText(item, answer))}</p>
-                {item ? <p className="qa-ans-line" data-muted="">{key ?? QA_PEOPLE.noKey}</p> : null}
+                {item && item.kind === 'essay' ? (
+                  <EssayMarker
+                    attemptId={shown.id}
+                    item={item}
+                    answer={answer}
+                    onMarked={(mark) => {
+                      setAnswers((current) => {
+                        const entry = current[shown.id];
+                        if (!entry) return current;
+                        return { ...current, [shown.id]: { ...entry, list: entry.list.map((a) => (a.item_id === answer.item_id ? { ...a, mark, pending: !mark } : a)) } };
+                      });
+                      onMarked();
+                    }}
+                  />
+                ) : (
+                  <>
+                    <p className="qa-ans-line">{QA_PEOPLE.answer(chosenText(item, answer))}</p>
+                    {typeof answer.credit === 'number' && answer.credit > 0 && answer.credit < 1 ? (
+                      <p className="qa-ans-line">{KINDS.creditPart(answer.credit)}</p>
+                    ) : null}
+                    {item ? <p className="qa-ans-line" data-muted="">{key ?? QA_PEOPLE.noKey}</p> : null}
+                  </>
+                )}
               </li>
             );
           })}

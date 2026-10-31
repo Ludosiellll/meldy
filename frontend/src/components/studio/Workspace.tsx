@@ -103,7 +103,7 @@ export function hintOf(block: DocBlock, layout: DocLayout, item: DocItem | undef
       // Each kind is asked for what it has: a short answer has no options, «верно / неверно» has a statement.
       const kind = typeOf(row);
       if (isDraftQuestion(row)) return kind === 'short' ? STUDIO.hints.questionDraftShort : kind === 'truefalse' ? STUDIO.hints.questionDraftTrueFalse : STUDIO.hints.questionDraft;
-      if (row.correct.length === 0 && row.answers.length === 0) return STUDIO.hints.questionNoKey;
+      if (row.correct.length === 0 && row.answers.length === 0 && row.kind !== 'essay') return STUDIO.hints.questionNoKey;
       if (block.required && layout === 'one_by_one') return STUDIO.hints.questionRequired;
       return kind === 'short' ? STUDIO.hints.questionShort : STUDIO.hints.question;
     }

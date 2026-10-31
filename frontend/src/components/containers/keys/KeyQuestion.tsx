@@ -1,5 +1,7 @@
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
-import { isPictureWord } from '../../../types/container';
+import { isPictureWord, NEW_KINDS, type ItemKind } from '../../../types/container';
+import { KindKeyView } from '../../kinds/KindBody';
+import QText from '../../kinds/QText';
 import { EDITOR, letter, nb, QUEUE } from '../copyImport';
 import ItemPictures, { type PictureSource } from '../ItemPictures';
 import { leadingSpaces, stemParts } from '../stemCode';
@@ -30,7 +32,7 @@ interface Props {
   stem: string;
   code?: boolean;
   options: string[];
-  kind: 'single' | 'multiple' | 'short';
+  kind: ItemKind;
   answers?: string[];
   /** The key now (file indices): «Ключ» beside each. */
   current?: number[];
@@ -52,6 +54,9 @@ interface Props {
   pictures?: { stem: PictureSource[]; options: PictureSource[][] } | null;
   /** «Пояснение» of the question ('' or missing — none). */
   explanation?: string | null;
+  /** number (release 48): the tolerance and the unit, shown with the key. */
+  tolerance?: number | string | null;
+  unit?: string | null;
 }
 
 /**
@@ -64,7 +69,9 @@ export function Explanation({ text }: { text: string | null | undefined }) {
   return (
     <div className="kq-explain">
       <p className="kq-explain-h">{EDITOR.explanationShown}</p>
-      <p className="kq-explain-t">{words}</p>
+      <p className="kq-explain-t">
+        <QText text={words} />
+      </p>
     </div>
   );
 }
@@ -122,6 +129,8 @@ export default function KeyQuestion({
   headingId,
   pictures = null,
   explanation = null,
+  tolerance = null,
+  unit = null,
 }: Props) {
   const fallbackId = useId();
   const contextId = headingId ?? fallbackId;
@@ -142,9 +151,13 @@ export default function KeyQuestion({
         {nb(context)}
       </p>
       {reason ? <div className="kq-reason">{reason}</div> : null}
-      <Stem text={stem} code={code} pictures={pictures?.stem ?? []} />
+      {kind === 'cloze' ? null : <Stem text={stem} code={code} pictures={pictures?.stem ?? []} />}
 
-      {kind === 'short' ? (
+      {NEW_KINDS.includes(kind) ? (
+        <div className="kq-kind">
+          <KindKeyView kind={kind} stem={stem} options={options} answers={answers} tolerance={tolerance} unit={unit} />
+        </div>
+      ) : kind === 'short' ? (
         <div className="kq-short">
           <label className="kq-label" htmlFor={`${contextId}-forms`}>
             {QUEUE.shortForms}

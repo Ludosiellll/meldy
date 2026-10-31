@@ -346,6 +346,9 @@ export const QA_PEOPLE = {
 
 /** «Вопросы»: the hardest first, the picks of each option, the common wrong short answers. */
 export const QA_QUESTIONS = {
+  /** Release 48: essays the author has not marked yet; the share of credit on a question with partial credit. */
+  essaysWaiting: (n: number) => `Ждут вашей оценки: ${n}`,
+  creditLine: (credit: number, shown: number) => `В среднем засчитано ${Math.round((100 * credit) / Math.max(1, shown))} %`,
   title: 'Вопросы',
   hint: 'Сначала самые трудные. Ваши попытки не считаем.',
   line: (context: string, correct: number, shown: number, percent: number | null) =>

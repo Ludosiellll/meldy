@@ -660,3 +660,10 @@
   .sf-page.qa-page .qa-tab { padding: 0 12px; }
   .sf-page.qa-page .qa-pick { grid-template-columns: 20px minmax(0, 1fr) 32px 40px; gap: 8px; }
 }
+
+/* Release 48: an essay marked by the author (EssayMarker). */
+.qa-essay { display: grid; gap: 10px; margin-top: 8px; }
+.qa-essay-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.qa-essay-cost { font-size: 14px; color: var(--sf-muted); }
+.qa-essay-word { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.qa-essay-label { font-size: 14px; color: var(--sf-muted); margin-right: 2px; }
