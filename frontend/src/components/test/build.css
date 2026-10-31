@@ -256,11 +256,11 @@
 /* ---------------------------------------------------------------- the bar at the bottom */
 /* A phone with the tab bar: the bar stands on it, not under it. */
 @media (max-width: 1023px) {
-  .sf-shell[data-tabs] .sf-page.tb-page > .ex-cta { bottom: calc(var(--sf-tabs-h, 56px) + env(safe-area-inset-bottom)); }
+  .sf-shell[data-tabs] .sf-page.tb-page > .ex-cta { bottom: calc(var(--sf-tabs-h, 56px) + var(--sf-safe-b)); }
 }
 /* A phone with little on the page: the bar still stands at the bottom of the screen, where the thumb is. */
 .sf-page.tb-page[data-frame='s']:has(> .ex-cta) { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
-.sf-shell[data-tabs] .sf-page.tb-page[data-frame='s']:has(> .ex-cta) { min-height: calc(100dvh - var(--sf-bar-h, 52px) - var(--sf-tabs-h, 56px) - env(safe-area-inset-bottom)); }
+.sf-shell[data-tabs] .sf-page.tb-page[data-frame='s']:has(> .ex-cta) { min-height: calc(100dvh - var(--sf-bar-h, 52px) - var(--sf-tabs-h, 56px) - var(--sf-safe-b)); }
 .sf-page.tb-page[data-frame='s'] > .ex-cta { margin-top: auto; }
 .sf-page.tb-page[data-frame='s']:has(> .ex-cta) > :nth-last-child(2) { margin-bottom: 24px; }
 .sf-page.tb-page .ex-cta .ex-cta-why { color: var(--sf-muted); }

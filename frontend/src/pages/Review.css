@@ -173,16 +173,16 @@
   z-index: 3;
   /* 12 px wider than the column on each side, so a stuck row also covers the card's ring. */
   margin: 34px -12px 0;
-  padding: 20px 12px calc(18px + env(safe-area-inset-bottom, 0px));
+  padding: 20px 12px calc(18px + var(--sf-safe-b));
   background: linear-gradient(to bottom, transparent, var(--sf-canvas) 20px);
   scroll-margin-bottom: 16px;
 }
 @media (max-width: 1023px) {
   /* Above the bottom tabs: the bar is --sf-tabs-h tall plus the safe area (components/layout.css). */
   .sf-shell[data-tabs] .rv .rv-controls {
-    bottom: calc(var(--sf-tabs-h, 62px) + env(safe-area-inset-bottom, 0px));
+    bottom: calc(var(--sf-tabs-h, 62px) + var(--sf-safe-b));
     padding-bottom: 12px;
-    scroll-margin-bottom: calc(var(--sf-tabs-h, 62px) + env(safe-area-inset-bottom, 0px) + 12px);
+    scroll-margin-bottom: calc(var(--sf-tabs-h, 62px) + var(--sf-safe-b) + 12px);
   }
 }
 .rv-controls + .rv-diary { margin-top: 38px; }

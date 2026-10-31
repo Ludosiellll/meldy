@@ -74,7 +74,7 @@ export default function PWAUpdater() {
       ),
       // On phones and tablets the offer rises above the tab bar and a page's bottom action (layout.css,
       // exams.css: up to about 80 px), so neither is covered while it waits.
-      { id: UPDATE_TOAST_ID, duration: Infinity, position: 'bottom-right', className: 'max-lg:mb-[calc(84px+env(safe-area-inset-bottom))]' },
+      { id: UPDATE_TOAST_ID, duration: Infinity, position: 'bottom-right', className: 'max-lg:mb-[calc(84px+var(--sf-safe-b))]' },
     );
   }, [shown]);
 

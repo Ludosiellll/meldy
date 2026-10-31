@@ -97,8 +97,9 @@
 }
 .sf-quota:focus-visible .sf-quota-tip { opacity: 1; visibility: visible; transform: none; transition: none; }
 
-/* Short lines: only the ring, the number inside it (the words are the button's name). */
-@media (max-width: 639px), (min-width: 1024px) and (max-width: 1179px) {
+/* Short lines: only the ring, the number inside it (the words are the button's name). A computer's line keeps the ring up
+   to 1279 px since it holds six sections («Игры», 31.10). */
+@media (max-width: 639px), (min-width: 1024px) and (max-width: 1279px) {
   .sf-shell .sf-quota {
     justify-content: center;
     width: 40px;

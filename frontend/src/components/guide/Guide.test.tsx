@@ -88,7 +88,7 @@ describe('the guide chapters', () => {
       'Лекции',
       'Экзамены',
       'Тесты',
-      'Игра в классе',
+      'Игры',
       'Повторение',
       'Прогресс',
       'Лимит ИИ',
@@ -102,7 +102,8 @@ describe('the guide chapters', () => {
     expect(chapterIndexFor('/exams/c/abc')).toBe(3);
     expect(chapterIndexFor('/exams/c/abc/settings')).toBe(3);
     expect(chapterIndexFor('/exams')).toBe(3);
-    // The game's own pages (the setup, the projector) are «Игра в классе», after «Тесты».
+    // «Игры» and the game's own pages (the setup, the projector), after «Тесты».
+    expect(chapterIndexFor('/games')).toBe(5);
     expect(chapterIndexFor('/live/new')).toBe(5);
     expect(chapterIndexFor('/live/g-1')).toBe(5);
     expect(chapterIndexFor('/mistakes')).toBe(6);
@@ -173,8 +174,8 @@ describe('the first run', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(dialog).toHaveFocus();
     expect(goal()).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: /Готовлюсь к экзамену/ })).toHaveTextContent('4 коротких шага');
-    expect(within(dialog).getByRole('button', { name: /Даю тест ученикам/ })).toHaveTextContent('3 коротких шага');
+    expect(within(dialog).getByRole('button', { name: /Готовлюсь к экзамену/ })).toHaveTextContent('5 коротких шагов');
+    expect(within(dialog).getByRole('button', { name: /Даю тест ученикам/ })).toHaveTextContent('4 коротких шага');
     expect(within(dialog).getByRole('button', { name: 'Показать все разделы' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Пропустить знакомство' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Закрыть' })).toBeInTheDocument();
@@ -218,12 +219,12 @@ describe('the first run', () => {
     expect(dialog.contains(document.activeElement)).toBe(true);
   });
 
-  it('«Готовлюсь к экзамену»: four cards — «Сегодня», «Экзамены», «Повторение», «Лимит ИИ» — and «Начать» ends on «Сегодня»', async () => {
+  it('«Готовлюсь к экзамену»: five cards — «Сегодня», «Экзамены», «Повторение», «Игры», «Лимит ИИ» — and «Начать» ends on «Сегодня»', async () => {
     renderAt('/dashboard');
     await firstRunOpen();
     fireEvent.click(within(panel()!).getByRole('button', { name: /Готовлюсь к экзамену/ }));
     expect(within(panel()!).getByRole('heading', { name: 'Сегодня' })).toBeInTheDocument();
-    expect(panel()).toHaveTextContent('1 из 4');
+    expect(panel()).toHaveTextContent('1 из 5');
     expect(within(panel()!).getByRole('button', { name: 'Пропустить знакомство' })).toBeInTheDocument();
     expect(document.querySelector('.sf-bar-link[href="/dashboard"]')).toHaveAttribute('data-guide-spot');
     next();
@@ -234,9 +235,15 @@ describe('the first run', () => {
     next();
     expect(where()).toBe('/review');
     expect(within(panel()!).getByRole('heading', { name: 'Повторение' })).toBeInTheDocument();
+    // «Игры» (owner, 31.10): the section, lit in the top line, and how a student gets into a game.
+    next();
+    expect(where()).toBe('/games');
+    expect(within(panel()!).getByRole('heading', { name: 'Игры' })).toBeInTheDocument();
+    expect(panel()).toHaveTextContent('Войти в игру по коду');
+    expect(document.querySelector('.sf-bar-link[href="/games"]')).toHaveAttribute('data-guide-spot');
     // The last card is the limit: the app stays put, the meter in the top line lights up.
     next();
-    expect(where()).toBe('/review');
+    expect(where()).toBe('/games');
     expect(within(panel()!).getByRole('heading', { name: 'Лимит ИИ' })).toBeInTheDocument();
     expect(screen.getByTestId('quota-meter')).toHaveAttribute('data-guide-spot');
     expect(within(panel()!).queryByRole('button', { name: /Дальше/ })).toBeNull();
@@ -259,20 +266,27 @@ describe('the first run', () => {
     expect(panel()).toBeNull();
   });
 
-  it('«Даю тест ученикам»: three cards on «Тесты», and the last one opens «Быстрая контрольная»', async () => {
+  it('«Даю тест ученикам»: three cards on «Тесты», then «Игры», and the last one opens «Быстрая контрольная»', async () => {
     renderAt('/dashboard');
     await firstRunOpen();
     fireEvent.click(within(panel()!).getByRole('button', { name: /Даю тест ученикам/ }));
     await waitFor(() => expect(where()).toBe('/exams'));
     expect(within(panel()!).getByRole('heading', { name: 'Быстрая контрольная' })).toBeInTheDocument();
-    expect(panel()).toHaveTextContent('1 из 3');
+    expect(panel()).toHaveTextContent('1 из 4');
     expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
     next();
     expect(within(panel()!).getByRole('heading', { name: 'Как ученик пишет' })).toBeInTheDocument();
     next();
     expect(within(panel()!).getByRole('heading', { name: 'Результаты' })).toBeInTheDocument();
-    // The last card is words only.
+    // «Результаты» is words only.
     expect(panel()!.querySelector('.gd-clip')).toBeNull();
+    // The last card: «Игры», the game on the projector, and how to start one.
+    next();
+    expect(where()).toBe('/games');
+    expect(within(panel()!).getByRole('heading', { name: 'Игры' })).toBeInTheDocument();
+    expect(panel()).toHaveTextContent('нажмите «Начать игру»');
+    expect(panel()!.querySelector('.gd-clip')).not.toBeNull();
+    expect(document.querySelector('.sf-bar-link[href="/games"]')).toHaveAttribute('data-guide-spot');
     fireEvent.click(within(panel()!).getByRole('button', { name: 'Сделать контрольную' }));
     expect(panel()).toBeNull();
     await waitFor(() => expect(where()).toBe('/tests/quick'));

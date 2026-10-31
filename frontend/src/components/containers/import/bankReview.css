@@ -128,7 +128,7 @@
 .br-act[data-quiet] { background: transparent; color: var(--sf-muted); }
 .br-act:disabled { opacity: .55; cursor: default; }
 
-.br-foot { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--sf-canvas) 70%, transparent); }
+.br-foot { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; padding: 12px 0 calc(12px + var(--sf-safe-b)); background: linear-gradient(to top, var(--sf-canvas) 70%, transparent); }
 .br-done { min-height: 48px; }
 
 @media (max-width: 520px) {

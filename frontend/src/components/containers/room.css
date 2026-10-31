@@ -234,7 +234,7 @@
   bottom: 0;
   z-index: 20;
   margin: 28px calc(-1 * var(--sf-g)) -40px;
-  padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
+  padding: 12px var(--sf-g) calc(12px + var(--sf-safe-b));
   /* Opaque, as the oral pages' bars (LIB-27): through a translucent bar the lines under it read as a second text. */
   background: var(--sf-canvas);
   box-shadow: 0 -1px 0 var(--sf-line);

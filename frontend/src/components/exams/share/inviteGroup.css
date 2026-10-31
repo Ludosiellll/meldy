@@ -179,7 +179,7 @@
 
 @media (max-width: 639px) {
   .ig-layer { place-items: end stretch; padding: 0; }
-  .ig-box { width: 100%; max-height: 92dvh; padding: 22px 16px calc(20px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; }
+  .ig-box { width: 100%; max-height: 92dvh; padding: 22px 16px calc(20px + var(--sf-safe-b)); border-radius: 24px 24px 0 0; }
   .ig-h { font-size: 22px; }
   .ig-row { flex-direction: column; }
   .ig-copy, .ig-go.sf-primary, .ig-copy-text { width: 100%; justify-self: stretch; }

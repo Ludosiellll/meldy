@@ -593,7 +593,7 @@
   max-height: 78vh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 12px var(--sf-g) calc(24px + env(safe-area-inset-bottom));
+  padding: 12px var(--sf-g) calc(24px + var(--sf-safe-b));
   border-radius: 28px 28px 0 0;
   box-shadow: var(--sf-pop-shadow);
 }

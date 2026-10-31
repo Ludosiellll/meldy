@@ -1186,7 +1186,7 @@
 .st-sheet-head { position: relative; display: flex; flex: none; align-items: center; gap: 8px; padding: 20px 10px 8px 20px; }
 .st-sheet-grip { position: absolute; top: 8px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: var(--sf-line); }
 .st-sheet-title { flex: 1; margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.015em; }
-.st-sheet-body { padding: 0 16px calc(28px + env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+.st-sheet-body { padding: 0 16px calc(28px + var(--sf-safe-b)); overflow-y: auto; overscroll-behavior: contain; }
 .st-sheet-wrap[data-away] { visibility: hidden; }
 .st-sheet .st-palette .st-side-h { display: none; }
 /* «Проверка теста» in its own sheet: the sheet's title says it. */
@@ -1337,7 +1337,7 @@
  * ([hidden], phone.ts bottomBarShown) and keeps its place, so the page does not jump.
  */
 .st-phonebar { display: none; }
-.st-page:is([data-frame='s'], [data-frame='m']) { --st-bottom-bar: calc(67px + env(safe-area-inset-bottom)); }
+.st-page:is([data-frame='s'], [data-frame='m']) { --st-bottom-bar: calc(67px + var(--sf-safe-b)); }
 .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar {
   position: sticky;
   bottom: 0;
@@ -1345,7 +1345,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  padding: 10px 12px calc(10px + var(--sf-safe-b));
   border-top: 1px solid var(--sf-line);
   background: color-mix(in srgb, var(--sf-canvas) 92%, transparent);
   -webkit-backdrop-filter: blur(14px);
@@ -1459,9 +1459,9 @@
  */
 @media (max-height: 500px) {
   .sf-shell:has(.st-page:is([data-frame='s'], [data-frame='m'])) > .sf-bar { position: relative; }
-  .st-page:is([data-frame='s'], [data-frame='m']) { --sf-bar-h: 0px; --st-bottom-bar: calc(55px + env(safe-area-inset-bottom)); }
+  .st-page:is([data-frame='s'], [data-frame='m']) { --sf-bar-h: 0px; --st-bottom-bar: calc(55px + var(--sf-safe-b)); }
   .st-page:is([data-frame='s'], [data-frame='m']) .st-bar { min-height: 0; padding-block: 4px; }
-  .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar { padding-block: 5px calc(5px + env(safe-area-inset-bottom)); }
+  .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar { padding-block: 5px calc(5px + var(--sf-safe-b)); }
   .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar :is(.st-tool, .st-send) { height: 44px; }
   .st-page:is([data-frame='s'], [data-frame='m']) .st-phonebar .st-tool-icon { width: 44px; }
   .st-page[data-frame='m'] .st-canvas { padding: 8px; }
