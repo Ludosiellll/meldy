@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="multichoice">
+    <questiontext format="html"><text><![CDATA[<p>Где хранят аптечку?<br>]]></text></questiontext>
+    <answer fraction="100"><text>На видном месте</text>
+    <answer fraction="0"><text>В сейфе</text></answer>
+  </question>
+  <question type="cloze">
+    <questiontext format="html"><text><![CDATA[<p>Жгут накладывают не более чем на {1:SHORTANSWER:=1 час</p>]]></text></questiontext>
+  </question>
+  <question type="truefalse">
+    <questiontext format="html"><text>Пострадавшему с ожогом дают воду.</text></questiontext>
+    <answer fraction="100"><text>true</text></answer>
+    <answer fraction="0"><text>false</text></answer>
+  </question>
+</quiz>
+<garbage>

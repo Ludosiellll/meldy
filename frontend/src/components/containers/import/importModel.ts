@@ -6,6 +6,8 @@
  * - kinds (decision 6): single / multiple stay; truefalse → single; an open question with a short answer from the
  *   file («Впишите…», GIFT {=…}) → short; an open question without one → the subject's ORAL part; order / match →
  *   not saved, one preview line.
+ * - release 49 (GIFT, Moodle XML): the file's explanation goes with every kind (≤ EXPLANATION_MAX); a Moodle cloze
+ *   becomes a cloze question (its gaps' forms); a match keeps its extra right items (distractors).
  * - lost images (decision 7): an image question the author did not confirm is saved WITHOUT a key, so no session
  *   offers it (plan_inputs plans every keyed item), and keeps the flag has_image for the pages to name it.
  * - carried pictures (owner, 2026-10-14): a DOCX's pictures come with the parse (BankItem.images, ids of
@@ -22,7 +24,7 @@
  *   keep_order for «Все перечисленные» / «Ни один…», ref = `<import id>:<position>`.
  */
 import {
-  PICTURE_LIMITS, PICTURE_STEM, pictureOption,
+  EXPLANATION_MAX, PICTURE_LIMITS, PICTURE_STEM, pictureOption,
   type BankItem, type BankParseResult, type ItemInput, type ItemKind, type KeySource, type PlanInput, type PlanItem,
 } from '../../../types/container';
 import { subjectFromFileName } from './subjectName';
@@ -144,6 +146,8 @@ export interface DraftItem {
   images: DraftImages | null;
   /** number (release 48): the tolerance; absent — exact. */
   tolerance?: string | null;
+  /** Release 49: the file's explanation (GIFT «####…», Moodle feedback); absent — none. */
+  explanation?: string;
 }
 
 export interface DraftImages {
@@ -301,6 +305,38 @@ export function kindDraft(item: BankItem, context: { fileId: string; twin: strin
   if (!text) return null;
   let options: string[];
   let answers: string[] = [];
+  const explanation = explanationOf(item);
+  if (item.kind === 'cloze') {
+    const gaps = clozeAnswers(text, item.gaps ?? []);
+    if (!gaps) return null;
+    return {
+      uid: `${context.fileId}:${item.position}`,
+      fileId: context.fileId,
+      position: item.position,
+      label: (item.label ?? '').trim(),
+      text,
+      rawOptions: [],
+      optionMap: [],
+      options: [],
+      correct: [],
+      rawCorrect: [],
+      marked: [],
+      kind: 'cloze',
+      answers: gaps,
+      keySource: evidenceSource(item.evidence) === 'none' ? 'key_text' : evidenceSource(item.evidence),
+      code: Boolean(item.code),
+      keepOrder: false,
+      flags: [],
+      topic: null,
+      topicTitle: null,
+      problems: [],
+      imageLost: false,
+      blocked: false,
+      twin: context.twin,
+      images: null,
+      ...(explanation ? { explanation } : {}),
+    };
+  }
   if (item.kind === 'order') {
     const all = item.options.map((option) => option.trim());
     const order = item.order ?? [];
@@ -311,6 +347,14 @@ export function kindDraft(item: BankItem, context: { fileId: string; twin: strin
     options = pairs.map(([left]) => left);
     answers = pairs.map(([, right]) => right);
     if (answers.some((right) => !right || right.length > 200) || new Set(answers.map(shortNorm)).size !== answers.length) return null;
+    // Release 49: extra right items (a Moodle or GIFT distractor), up to 10 right items in all; a repeat is left out.
+    const seen = new Set(answers.map(shortNorm));
+    for (const raw of item.extras ?? []) {
+      const extra = String(raw).trim();
+      if (answers.length >= MATCH_RIGHT_MAX || !extra || extra.length > 200 || !shortNorm(extra) || seen.has(shortNorm(extra))) continue;
+      seen.add(shortNorm(extra));
+      answers.push(extra);
+    }
   }
   if (options.length < 2 || options.length > 8 || options.some((option) => !option || option.length > 600)) return null;
   return {
@@ -338,7 +382,35 @@ export function kindDraft(item: BankItem, context: { fileId: string; twin: strin
     blocked: false,
     twin: context.twin,
     images: null,
+    ...(explanation ? { explanation } : {}),
   };
+}
+
+const MATCH_RIGHT_MAX = 10;
+const GAPS_MAX = 10;
+const GAP_FORMS_MAX = 10;
+const GAP_FORM_CHARS = 200;
+
+/** The file's explanation, trimmed to what an item keeps (release 49); '' — none. */
+export function explanationOf(item: Pick<BankItem, 'explanation'>): string {
+  return (item.explanation ?? '').trim().slice(0, EXPLANATION_MAX).trim();
+}
+
+/**
+ * A cloze's answers as test_items keeps them (docs/kinds/CONTRACT.md §1): one element per gap «___» of the stem, its
+ * forms joined by a line break; null when they do not fit (a gap count that differs, an empty or too long form).
+ */
+export function clozeAnswers(stem: string, gaps: readonly (readonly string[])[]): string[] | null {
+  const runs = stem.match(/_{3,}/g)?.length ?? 0;
+  if (gaps.length < 1 || gaps.length > GAPS_MAX || runs !== gaps.length) return null;
+  const out: string[] = [];
+  for (const raw of gaps) {
+    const forms = Array.from(new Set(raw.map((form) => String(form).replace(/\s+/g, ' ').trim()).filter(Boolean)));
+    if (forms.length < 1 || forms.length > GAP_FORMS_MAX) return null;
+    if (forms.some((form) => form.length > GAP_FORM_CHARS || shortNorm(form) === '')) return null;
+    out.push(forms.join('\n'));
+  }
+  return out;
 }
 
 export function draftItem(item: BankItem, context: ItemContext): DraftItem {
@@ -379,6 +451,7 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
       kind: 'number',
       answers: item.number.answers.slice(0, 10),
       tolerance: item.number.tolerance,
+      ...(explanationOf(item) ? { explanation: explanationOf(item) } : {}),
       keySource: evidenceSource(item.evidence) === 'none' ? 'answer_line' : evidenceSource(item.evidence),
       keepOrder: false,
       flags: cleanFlags(item.flags.filter((flag) => !KEY_FLAGS.has(flag) && !SHAPE_FLAGS.has(flag)), { duplicate: unresolvedDuplicate, tooLong: item.flags.includes('too_long') }),
@@ -413,6 +486,7 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
       problems: sortProblems(problems),
       imageLost: false,
       blocked: !text,
+      ...(explanationOf(item) ? { explanation: explanationOf(item) } : {}),
     };
   }
 
@@ -515,6 +589,7 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
     imageLost,
     blocked,
     images,
+    ...(explanationOf(item) ? { explanation: explanationOf(item) } : {}),
   };
 }
 
@@ -656,8 +731,9 @@ export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits 
           asOral(Boolean(item.answer));
           continue;
         }
-        if (item.kind === 'order' || item.kind === 'match') {
-          // Release 48: order and match are questions of their own kinds now (none is thrown away when it has its key).
+        if (item.kind === 'order' || item.kind === 'match' || item.kind === 'cloze') {
+          // Release 48: order and match are questions of their own kinds now (none is thrown away when it has its key);
+          // release 49: so is a Moodle cloze.
           const kept = kindDraft(item, { fileId: file.id, twin: twinOf.get(item.position) ?? null });
           if (!kept) {
             skippedKinds += 1;
@@ -880,12 +956,12 @@ export function pictureIds(subject: Pick<DraftSubject, 'test'>): string[] {
  */
 export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string, place: PicturePlace = () => null): ItemInput[] {
   return subject.test.map((item) => {
-    if (item.kind === 'number' || item.kind === 'order' || item.kind === 'match') {
+    if (item.kind === 'number' || item.kind === 'order' || item.kind === 'match' || item.kind === 'cloze') {
       // release 48 (docs/kinds/CONTRACT.md §1): their key is in options / answers
       const input: ItemInput = {
         ref: `${importId}:${item.position}`,
         stem: item.text,
-        options: item.kind === 'number' ? [] : item.options,
+        options: item.kind === 'number' || item.kind === 'cloze' ? [] : item.options,
         correct: item.kind === 'order' ? item.options.map((_, index) => index) : [],
         answers: item.kind === 'order' ? [] : item.answers,
         kind: item.kind,
@@ -897,6 +973,7 @@ export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string
         flags: item.flags,
       };
       if (item.kind === 'number' && item.tolerance) input.tolerance = item.tolerance;
+      if (item.explanation) input.explanation = item.explanation;
       return input;
     }
     const input: ItemInput = {
@@ -913,6 +990,7 @@ export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string
       flags: item.flags,
     };
     if (item.kind === 'short') input.answers = item.answers;
+    if (item.explanation) input.explanation = item.explanation;
     if (item.images) {
       const stem = item.images.stem.map(place);
       const options = item.images.options.map((list) => list.map(place));

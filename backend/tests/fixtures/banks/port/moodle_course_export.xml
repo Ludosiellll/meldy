@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+<!-- question: 0  -->
+  <question type="category">
+    <category>
+      <text>$course$/top/По умолчанию для БЖД-21/Тема 1. Пожарная безопасность</text>
+    </category>
+    <info format="moodle_auto_format">
+      <text>Категория по умолчанию для вопросов курса.</text>
+    </info>
+    <idnumber></idnumber>
+  </question>
+
+<!-- question: 18342  -->
+  <question type="multichoice">
+    <name>
+      <text>Огнетушитель ОУ</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Каким огнетушителем можно тушить электроустановки под напряжением до 1000&nbsp;В?</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>Углекислотный огнетушитель (ОУ) не проводит ток: им тушат установки под напряжением до 1000&nbsp;В.</p>]]></text>
+    </generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html">
+      <text>Ваш ответ верный.</text>
+    </correctfeedback>
+    <partiallycorrectfeedback format="html">
+      <text>Ваш ответ частично правильный.</text>
+    </partiallycorrectfeedback>
+    <incorrectfeedback format="html">
+      <text>Ваш ответ неправильный.</text>
+    </incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Углекислотным (ОУ)</p>]]></text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Пенным (ОВП)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Пена проводит ток.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Водой из внутреннего крана</p>]]></text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+  </question>
+
+<!-- question: 18343  -->
+  <question type="multichoice">
+    <name>
+      <text>Классы пожаров</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Какие классы пожаров относятся к горению твёрдых и жидких веществ?</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <single>false</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answer fraction="50" format="html">
+      <text>A</text>
+      <feedback format="html">
+        <text><![CDATA[<p>Класс A — твёрдые вещества.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="50" format="html">
+      <text>B</text>
+      <feedback format="html"><text></text></feedback>
+    </answer>
+    <answer fraction="-100" format="html">
+      <text>E</text>
+      <feedback format="html"><text></text></feedback>
+    </answer>
+  </question>
+
+<!-- question: 18344  -->
+  <question type="truefalse">
+    <name>
+      <text>Лифт при пожаре</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>При пожаре можно спускаться на лифте.</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <answer fraction="0" format="moodle_auto_format">
+      <text>true</text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>false</text>
+      <feedback format="html">
+        <text><![CDATA[<p>Лифт может остановиться между этажами, а шахта работает как дымоход.</p>]]></text>
+      </feedback>
+    </answer>
+  </question>
+
+<!-- question: 18345  -->
+  <question type="numerical">
+    <name>
+      <text>Сбор группы</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Сколько секунд даётся на сбор группы у эвакуационного выхода по инструкции? (число)</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>90</text>
+      <feedback format="html">
+        <text>Полторы минуты.</text>
+      </feedback>
+      <tolerance>5</tolerance>
+    </answer>
+    <unitgradingtype>0</unitgradingtype>
+    <unitpenalty>0.1000000</unitpenalty>
+    <showunits>3</showunits>
+    <unitsleft>0</unitsleft>
+  </question>
+
+<!-- question: 18346  -->
+  <question type="shortanswer">
+    <name>
+      <text>Телефон</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Единый номер вызова экстренных служб с мобильного телефона:</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <usecase>0</usecase>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>112</text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+    <answer fraction="50" format="moodle_auto_format">
+      <text>101</text>
+      <feedback format="html">
+        <text>Это номер пожарной службы.</text>
+      </feedback>
+    </answer>
+  </question>
+
+<!-- question: 18347  -->
+  <question type="matching">
+    <name>
+      <text>Знаки</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Соотнесите цвет сигнального знака и его смысл.</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>ГОСТ 12.4.026: красный — запрет, жёлтый — предупреждение, зелёный — безопасность.</p>]]></text>
+    </generalfeedback>
+    <shuffleanswers>true</shuffleanswers>
+    <subquestion format="html">
+      <text><![CDATA[<p>Красный</p>]]></text>
+      <answer>
+        <text>Запрет</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text><![CDATA[<p>Жёлтый</p>]]></text>
+      <answer>
+        <text>Предупреждение</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text><![CDATA[<p>Зелёный</p>]]></text>
+      <answer>
+        <text>Безопасность</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text></text>
+      <answer>
+        <text>Предписание</text>
+      </answer>
+    </subquestion>
+  </question>
+
+<!-- question: 18348  -->
+  <question type="cloze">
+    <name>
+      <text>План эвакуации</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>План эвакуации вывешивают на каждом {1:SHORTANSWER:=этаже#Верно~%100%этаже здания}. Его пересматривают не реже раза в {1:NUMERICAL:=5:0} лет. Пути эвакуации на плане — {1:MULTICHOICE:~красные~=зелёные~синие} стрелки.</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>Зелёный цвет на плане значит «путь к выходу».</p>]]></text>
+    </generalfeedback>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+  </question>
+
+<!-- question: 18349  -->
+  <question type="cloze">
+    <name>
+      <text>Несколько ответов в пропуске</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Отметьте первичные средства: {1:MULTIRESPONSE:%50%огнетушитель~%50%песок~%-100%пожарная машина}</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html"><text></text></generalfeedback>
+  </question>
+
+<!-- question: 18350  -->
+  <question type="ordering">
+    <name>
+      <text>Порядок действий</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Расставьте действия при обнаружении возгорания по порядку.</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <layouttype>VERTICAL</layouttype>
+    <selecttype>ALL</selecttype>
+    <selectcount>0</selectcount>
+    <gradingtype>ABSOLUTE_POSITION</gradingtype>
+    <showgrading>SHOW</showgrading>
+    <numberingstyle>none</numberingstyle>
+    <answer fraction="1.0000000" format="html">
+      <text><![CDATA[<p>Сообщить по телефону 101 или 112</p>]]></text>
+    </answer>
+    <answer fraction="2.0000000" format="html">
+      <text><![CDATA[<p>Предупредить людей рядом</p>]]></text>
+    </answer>
+    <answer fraction="3.0000000" format="html">
+      <text><![CDATA[<p>Покинуть помещение и закрыть дверь</p>]]></text>
+    </answer>
+    <answer fraction="4.0000000" format="html">
+      <text><![CDATA[<p>Встретить пожарных</p>]]></text>
+    </answer>
+  </question>
+
+<!-- question: 18351  -->
+  <question type="essay">
+    <name>
+      <text>Эссе</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Опишите, как устроена эвакуация в вашем корпусе.</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html"><text></text></generalfeedback>
+    <responseformat>editor</responseformat>
+  </question>
+
+<!-- question: 18352  -->
+  <question type="ddwtos">
+    <name>
+      <text>Перетаскивание</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Огнетушитель проверяют раз в [[1]].</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html"><text></text></generalfeedback>
+    <dragbox><text>год</text><group>1</group></dragbox>
+    <dragbox><text>день</text><group>1</group></dragbox>
+  </question>
+
+<!-- question: 18353  -->
+  <question type="description">
+    <name><text>Справка</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Дальше вопросы по первой помощи.</p>]]></text></questiontext>
+  </question>
+
+</quiz>

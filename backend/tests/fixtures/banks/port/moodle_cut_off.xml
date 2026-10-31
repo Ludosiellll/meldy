@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+<!-- question: 0  -->
+  <question type="category">
+    <category>
+      <text>$course$/top/По умолчанию для БЖД-21/Тема 1. Пожарная безопасность</text>
+    </category>
+    <info format="moodle_auto_format">
+      <text>Категория по умолчанию для вопросов курса.</text>
+    </info>
+    <idnumber></idnumber>
+  </question>
+
+<!-- question: 18342  -->
+  <question type="multichoice">
+    <name>
+      <text>Огнетушитель ОУ</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Каким огнетушителем можно тушить электроустановки под напряжением до 1000&nbsp;В?</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>Углекислотный огнетушитель (ОУ) не проводит ток: им тушат установки под напряжением до 1000&nbsp;В.</p>]]></text>
+    </generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html">
+      <text>Ваш ответ верный.</text>
+    </correctfeedback>
+    <partiallycorrectfeedback format="html">
+      <text>Ваш ответ частично правильный.</text>
+    </partiallycorrectfeedback>
+    <incorrectfeedback format="html">
+      <text>Ваш ответ неправильный.</text>
+    </incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Углекислотным (ОУ)</p>]]></text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Пенным (ОВП)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Пена проводит ток.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p dir="ltr" style="text-align: left;">Водой из внутреннего крана</p>]]></text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+  </question>
+
+<!-- question: 18343  -->
+  <question type="multichoice">
+    <name>
+      <text>Классы пожаров</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Какие классы пожаров относятся к горению твёрдых и жидких веществ?</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <single>false</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answer fraction="50" format="html">
+      <text>A</text>
+      <feedback format="html">
+        <text><![CDATA[<p>Класс A — твёрдые вещества.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="50" format="html">
+      <text>B</text>
+      <feedback format="html"><text></text></feedback>
+    </answer>
+    <answer fraction="-100" format="html">
+      <text>E</text>
+      <feedback format="html"><text></text></feedback>
+    </answer>
+  </question>
+
+<!-- question: 18344  -->
+  <question type="truefalse">
+    <name>
+      <text>Лифт при пожаре</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>При пожаре можно спускаться на лифте.</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <answer fraction="0" format="moodle_auto_format">
+      <text>true</text>
+      <feedback format="html">
+        <text></text>
+      </feedback>
+    </answer>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>false</text>
+      <feedback format="html">
+        <text><![CDATA[<p>Лифт может остановиться между этажами, а шахта работает как дымоход.</p>]]></text>
+      </feedback>
+    </answer>
+  </question>
+
+<!-- question: 18345  -->
+  <question type="numerical">
+    <name>
+      <text>Сбор группы</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Сколько секунд даётся на сбор группы у эвакуационного выхода по инструкции? (число)</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <answer fraction="100" format="moodle_auto_format">
+      <text>90</text>
+      <feedback format="html">
+        <text>Полторы минуты.</text>
+      </feedback>
+      <tolerance>5</tolerance>
+    </answer>
+    <unitgradingtype>0</unitgradingtype>
+    <unitpenalty>0.1000000</unitpenalty>
+    <showunits>3</showunits>
+    <unitsleft>0</unitsleft>
+  </question>
+
+<!-- question: 18346  -->
+  <question type="shortanswer">
+    <name>
+      <text>Телефон</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>Единый номер вызова экстренных служб с мобильного телефона:</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text></text>
+    </generalfeedback>
+    <usecase>0</usecase>
+    <answer fraction="100" format="mo

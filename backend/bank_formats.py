@@ -6,9 +6,12 @@ TXT, bank_parse.decode_text). HTML — абзацы, пункты списков
 курсив, цвет, выделение (mark, background), моноширинный (code, pre); флажок и радиокнопка (checked) — отметка варианта;
 картинка — флаг has_image (её не скачиваем). PDF — текстовый слой PyPDF2 (уже в зависимостях): строки как у
 page.extract_text, жирный и курсив — по имени шрифта («Arial-BoldMT»); PDF без текста — скан, BankError 422 scan_pdf.
-Moodle XML — вопросы целиком (multichoice, truefalse, shortanswer, numerical, matching, essay) с ответами из разметки.
+Moodle XML — вопросы целиком (multichoice, truefalse, shortanswer, numerical, matching, essay) с ответами из разметки;
+выпуск 49: пояснение (generalfeedback, иначе отзыв верного ответа), ordering (порядок — как в файле), лишние правые
+элементы соответствия, cloze (встроенные ответы {1:SHORTANSWER:=…} — пропуски; что из них брать, решает bank_parse).
 
-Безопасность: XML и HTML разбирает lxml без подстановки сущностей и без сети; script, style и комментарии не читаются;
+Безопасность: Moodle XML читает defusedxml (выпуск 49), объявление DOCTYPE убрано до разбора; битый файл и HTML разбирает
+lxml без подстановки сущностей и без сети; script, style и комментарии не читаются;
 PDF — не больше PDF_MAX_PAGES страниц; из файла ничего не исполняется и ничего не скачивается.
 """
 
@@ -465,6 +468,15 @@ class MoodleQuestion:
     tolerances: list[str] = field(default_factory=list)  # numerical: допуск каждого верного ответа (выпуск 48)
     category: Optional[str] = None
     images: int = 0
+    # выпуск 49
+    explanation: str = ""  # generalfeedback, иначе отзыв первого верного ответа
+    extras: list[str] = field(default_factory=list)  # matching: правые элементы без пары (лишние)
+    cloze_text: str = ""  # cloze: текст, где на месте каждого встроенного ответа стоит GAP_MARK
+    cloze: list[tuple[str, list[tuple[float, str]]]] = field(default_factory=list)  # cloze: (вид, [(доля, ответ)]) по пропускам
+
+
+_WHOLE_PRE_RE = re.compile(r"^\s*<pre(?:\s[^>]*)?>(.*)</pre>\s*$", re.S | re.I)
+_BR_RE = re.compile(r"<br\s*/?>", re.I)
 
 
 def _html_text(value: Optional[str]) -> tuple[str, int]:
@@ -473,6 +485,12 @@ def _html_text(value: Optional[str]) -> tuple[str, int]:
         return "", 0
     if "<" not in value:
         return value.strip(), 0
+    whole_pre = _WHOLE_PRE_RE.match(value)
+    if whole_pre and "<img" not in value.lower() and "</pre" not in whole_pre.group(1).lower():  # выпуск 49: поле — код целиком (<pre>): отступы строк сохраняются
+        import html as _html
+
+        inner = _BR_RE.sub("\n", whole_pre.group(1))
+        return _html.unescape(re.sub(r"<[^>]+>", "", inner)).strip("\n").rstrip(), 0
     blocks = read_html(f"<html><body>{value}</body></html>".encode("utf-8"))
     lines: list[str] = []
     images = 0
@@ -493,12 +511,91 @@ def _fraction(value: Optional[str]) -> float:
         return 0.0
 
 
-def read_moodle(contents: bytes) -> list[MoodleQuestion]:
-    """Вопросы Moodle XML по порядку. Неизвестный вид (cloze, перетаскивание…) — открытый вопрос с текстом."""
+# Встроенный ответ cloze (Moodle multianswer): {1:SHORTANSWER:=Берлин#верно~%50%Berlin}. Вид — как в Moodle
+# (question/type/multianswer, ANSWER_TYPE_DEF_REGEX), ответы через «~», доля «=» или «%50%», отзыв после «#»; «\\»
+# экранирует знак. Пропуск в тексте — GAP_MARK (знак из личной области Unicode: в тексте вопроса его не бывает).
+GAP_MARK = chr(0xE000)
+_CLOZE_RE = re.compile(r"\{(\d*):([A-Za-z_]{2,40}):((?:\\.|[^\\{}])*)\}", re.S)
+_CLOZE_ALT_RE = re.compile(r"^(=|%(-?\d+(?:[.,]\d*)?)%)?(.*)$", re.S)
+MAX_CLOZE_EMBEDS = 40
+
+
+def _cloze_answer(value: str) -> str:
+    """Текст встроенного ответа: экранирование снято, HTML — текстом, пробелы — одним."""
+    import html as _html
+
+    value = re.sub(r"\\(.)", r"\1", value)
+    value = _html_text(value)[0] if "<" in value else _html.unescape(value)
+    return " ".join(value.split())
+
+
+def _cloze_embeds(raw: str) -> tuple[str, list[tuple[str, list[tuple[float, str]]]]]:
+    """Текст cloze с GAP_MARK на месте встроенных ответов и их разбор: (вид в верхнем регистре, [(доля, ответ)])."""
+    embeds: list[tuple[str, list[tuple[float, str]]]] = []
+
+    def swap(match: "re.Match[str]") -> str:
+        if len(embeds) >= MAX_CLOZE_EMBEDS:
+            return match.group(0)
+        alternatives: list[tuple[float, str]] = []
+        for part in re.split(r"(?<!\\)~", match.group(3)):
+            found = _CLOZE_ALT_RE.match(part.strip())
+            if not found or not found.group(3).strip():
+                continue
+            if found.group(1) == "=":
+                weight = 100.0
+            elif found.group(2):
+                weight = float(found.group(2).replace(",", ".") or 0)
+            else:
+                weight = 0.0
+            answer = re.split(r"(?<!\\)#", found.group(3), maxsplit=1)[0]
+            alternatives.append((weight, _cloze_answer(answer)))
+        embeds.append((match.group(2).upper(), alternatives))
+        return GAP_MARK
+
+    text = _CLOZE_RE.sub(swap, raw or "")
+    return text, embeds
+
+
+def _feedback(element) -> str:
+    """Текст отзыва (generalfeedback, feedback): HTML — текстом."""
+    if element is None:
+        return ""
+    return _html_text(element.findtext("text"))[0]
+
+
+_DOCTYPE_RE = re.compile(rb"<!DOCTYPE\s[^\[>]*(?:\[.*?\]\s*)?>", re.S | re.I)
+
+
+def _without_doctype(contents: bytes) -> bytes:
+    """Файл без объявления DOCTYPE (выпуск 49). Moodle его не пишет; в файле он нужен только для сущностей — внешних
+    (чтение файлов и сети) и вложенных («миллиард смехов»). lxml их и так не подставляет, но с ними обрывает разбор и
+    теряет вопросы после них; без объявления неизвестная сущность просто пропадает из текста."""
+    head = contents[:4096]
+    if b"<!DOCTYPE" not in head.upper():
+        return contents
+    return _DOCTYPE_RE.sub(b"", contents, count=1)
+
+
+def _moodle_root(contents: bytes):
+    """Корень Moodle XML (выпуск 49). Сначала defusedxml (expat без DTD, сущностей и внешних ссылок); файл, который
+    так не читается (оборван, битая разметка, неизвестная сущность), — lxml в режиме восстановления, тоже без
+    подстановки сущностей и без сети: он читает то, что можно, как раньше."""
+    data = _without_doctype(contents)
+    try:
+        from defusedxml import ElementTree as safe_tree
+
+        return safe_tree.fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
+    except Exception as exc:  # ParseError, DTDForbidden…: читаем бережно, как до выпуска 49
+        print(f"Moodle XML read with recovery: {type(exc).__name__}")
     from lxml import etree
 
     parser = etree.XMLParser(resolve_entities=False, no_network=True, load_dtd=False, huge_tree=False, recover=True)
-    root = etree.fromstring(contents, parser)
+    return etree.fromstring(data, parser)
+
+
+def read_moodle(contents: bytes) -> list[MoodleQuestion]:
+    """Вопросы Moodle XML по порядку. Неизвестный вид (перетаскивание…) — открытый вопрос с текстом."""
+    root = _moodle_root(contents)
     if root is None:
         raise ValueError("empty xml")
     out: list[MoodleQuestion] = []
@@ -533,5 +630,23 @@ def read_moodle(contents: bytes) -> list[MoodleQuestion]:
                 right = (sub.findtext("answer/text") or "").strip()
                 if left:
                     item.pairs.append((left, right))
+                elif right:
+                    item.extras.append(right)  # выпуск 49: подвопрос без текста — лишний правый элемент
+        elif kind == "ordering":
+            # выпуск 49 (qtype_ordering): элементы в верном порядке — в порядке <answer> в файле, как их читает Moodle
+            for answer in question.findall("answer"):
+                option, _ = _html_text(answer.findtext("text"))
+                item.options.append(option)
+        elif kind == "cloze":
+            raw = question.findtext("questiontext/text") or ""
+            marked, item.cloze = _cloze_embeds(raw)
+            if item.cloze:
+                item.cloze_text, _ = _html_text(marked)
+        item.explanation = _feedback(question.find("generalfeedback"))
+        if not item.explanation:
+            for answer in question.findall("answer"):
+                if _fraction(answer.get("fraction")) >= 100 and kind != "ordering":
+                    item.explanation = _feedback(answer.find("feedback"))
+                    break
         out.append(item)
     return out
