@@ -9,9 +9,10 @@
  *   5. the night's close: delete the unused card, take the keyboard off the last summary;
  *   6. K3 after an exam's date;
  *   7. pending answers older than 30 minutes recorded as given (T5's `bot_flush_pending`);
- *   8. «sweep»: the pictures of deleted exams and tests (`ports.sweep`, sweep.ts; nothing without the port);
- *   9. «monitor»: the site's outage monitor (`ports.monitor`, monitor.ts), off until bot.config.monitor_chat_id is set;
- *  10. `bot_tick_beat` with the tick's numbers.
+ *   8. «quiz»: the authors' quiz messages and shares (`ports.quiz`, quiz.ts; nothing without the port);
+ *   9. «sweep»: the pictures of deleted exams and tests (`ports.sweep`, sweep.ts; nothing without the port);
+ *  10. «monitor»: the site's outage monitor (`ports.monitor`, monitor.ts), off until bot.config.monitor_chat_id is set;
+ *  11. `bot_tick_beat` with the tick's numbers.
  *
  * At most once (decision 7): `bot_delivery_sending` right before the call to Telegram; false → not sent. A timeout or a
  * network error after it leaves the row in `sending` (it becomes `unknown`, never sent again). A 429 means Telegram did
@@ -245,6 +246,7 @@ export async function runTick(ctx: Ctx, ports: Ports, options: TickOptions = {})
     ['night', () => dayClose(ctx, deadline, pace, limit)],
     ['k3', () => afterDate(ctx, deadline, pace, limit)],
     ['flush', () => flushPending(ctx)],
+    ['quiz', () => (ports.quiz ? ports.quiz.tick(ctx, tools) : Promise.resolve({}))],
     ['sweep', () => (ports.sweep ? ports.sweep.tick(ctx, tools) : Promise.resolve({}))],
     ['monitor', () => ports.monitor.tick(ctx, tools)],
   ];

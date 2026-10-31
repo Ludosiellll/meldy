@@ -260,6 +260,7 @@ export const QA_STATS = {
   tabs: 'Результаты',
   tabPeople: 'Участники',
   tabQuestions: 'Вопросы',
+  tabRepeat: 'Повторить',
   download: 'Скачать таблицу',
   downloading: 'Готовим таблицу…',
   downloadFailed: 'Не получилось собрать таблицу. Попробуйте ещё раз.',
@@ -289,8 +290,17 @@ export const QA_PEOPLE = {
   flag: (counted: number) => (counted > 0 ? `${counted} ${plural(counted, 'уход', 'ухода', 'уходов')}` : 'копирование'),
   flagLabel: (counted: number) =>
     counted > 0 ? `Уходил со страницы ${counted} ${plural(counted, 'раз', 'раза', 'раз')}` : 'Копировал или вставлял текст',
-  onlyFlagged: 'Только с нарушениями',
-  noneFlagged: 'Попыток с нарушениями нет.',
+  /** Signals, not accusations (spec «Выпуск 49»): «отметки», never «нарушения». */
+  onlyFlagged: 'Только с отметками',
+  noneFlagged: 'Попыток с отметками нет.',
+  /** Release 49: many answers in very little time (lib/quizzes/analysis.ts fastSign). */
+  fast: 'быстро',
+  /** Neutral (review 2026-11-05: «Ответил» named a man): «20 ответов за 40 секунд». */
+  fastLabel: (answers: number, seconds: number) =>
+    `${answers} ${plural(answers, 'ответ', 'ответа', 'ответов')} за ${seconds} ${plural(seconds, 'секунду', 'секунды', 'секунд')}`,
+  /** Under the list when any mark is shown: what the marks are and are not. */
+  notProof:
+    'Отметки видите только вы. Это не доказательство: со страницы уводят и звонок, и уведомление, а быстро отвечает и тот, кто знает. Решайте сами, стоит ли поговорить.',
   /** The timeline of «Защита от списывания» in the answers sheet. */
   eventsTitle: 'Что записала защита',
   eventsLoading: 'Загружаем записи…',
@@ -361,6 +371,109 @@ export const QA_QUESTIONS = {
   wrongText: (text: string, n: number) => `«${text}» · ${n} ${plural(n, 'раз', 'раза', 'раз')}`,
   edit: 'Изменить',
   empty: 'Вопросы появятся здесь, когда ученики начнут писать. Ваши попытки не считаем.',
+} as const;
+
+/**
+ * Release 49 (lib/quizzes/analysis.ts): how well each question tells those who know from those who do not, the trap
+ * option, the usual time, retakes and another quiz of the same exam. Plain words, no «дискриминативность».
+ */
+export const QA_ANALYSIS = {
+  verdict: {
+    good: 'Хорошо отличает тех, кто знает, от тех, кто нет.',
+    weak: 'Отличает знающих слабо.',
+    poor: 'Почти не отличает знающих от незнающих. Этот вопрос стоит переписать.',
+    reverse: 'Сильные ученики ошибаются здесь чаще слабых. Проверьте верный ответ или перепишите вопрос.',
+  },
+  /** The share right among the strongest and the weakest 27 % (by the rest of their attempt). */
+  groups: (upper: number, lower: number) => `Из сильных верно ${upper} %, из слабых\u00a0— ${lower} %.`,
+  /** Under the threshold: no verdict yet. */
+  wait: (min: number, now: number) =>
+    `Насколько каждый вопрос отличает знающих, скажем, когда сдадут хотя бы ${min} человек. Сейчас сдали ${now}.`,
+  how: 'Сильные и слабые — по остальным вопросам той же попытки.',
+  rewrite: (numbers: string) => `Стоит переписать: ${numbers}.`,
+  trap: (letter: string, n: number, answered: number) => `Ловушка — вариант ${letter}: его выбрали ${n} из ${answered}.`,
+  trapWord: 'ловушка',
+  time: (text: string) => `Обычно отвечают за ${text}.`,
+  retakes: (people: number, first: number, last: number) =>
+    `Пересдавали ${people} ${plural(people, 'человек', 'человека', 'человек')}: в первый раз в среднем ${first} %, в последний — ${last} %.`,
+  compare: 'Сравнить с',
+  compareNone: 'не сравнивать',
+  compareOption: (title: string, n: number) => `${title} (${n} ${plural(n, 'сдал', 'сдали', 'сдали')})`,
+  compareLine: (title: string, common: number, here: number, there: number) =>
+    `На ${common} ${plural(common, 'общем вопросе', 'общих вопросах', 'общих вопросах')}: здесь верно ${here} %, в «${title}» — ${there} %.`,
+  compareNoCommon: (title: string) => `У «${title}» нет общих вопросов с этой контрольной.`,
+  compareItem: (title: string, percent: number, shown: number) => `В «${title}»: ${percent} % из ${shown}.`,
+  compareHint: 'Каждому классу — своя контрольная из этого теста, и их можно сравнить по тем же вопросам.',
+  compareLoading: 'Считаем сравнение…',
+  compareFailed: 'Не получилось посчитать сравнение. Выберите контрольную ещё раз.',
+  loading: 'Считаем разбор…',
+  failed: 'Не получилось посчитать разбор. Результаты выше — верные.',
+  retry: 'Повторить',
+} as const;
+
+/** «Повторить»: who should repeat what, and the one button that sends each member their mistakes into training. */
+export const QA_REPEAT = {
+  tab: 'Повторить',
+  title: 'Кому что повторить',
+  hint: 'По последней попытке каждого: неверные ответы, засчитанные частично и вопросы без ответа.',
+  empty: 'Здесь появится, кому что повторить, когда ученики сдадут контрольную.',
+  allRight: 'всё верно',
+  count: (n: number) => `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')}`,
+  guest: 'без входа',
+  outside: (test: boolean) => (test ? 'не в тесте' : 'не в экзамене'),
+  sent: 'в тренировке',
+  send: 'Отправить каждому его ошибки в тренировку',
+  sending: 'Отправляем…',
+  sendHow: (test: boolean) =>
+    `Каждому, кто с аккаунтом и состоит в ${test ? 'тесте' : 'экзамене'}, — вопросы с ошибками из его последней попытки. Они придут в его повторение. Нажать ещё раз можно: отправленное не задвоится.`,
+  guests: (n: number) =>
+    `${n} ${plural(n, 'человек писал', 'человека писали', 'человек писали')} без входа. Им отправить нельзя: у гостя нет тренировки. Свой разбор они видят после сдачи.`,
+  outsidePractice: (n: number, test: boolean) =>
+    `${n} ${plural(n, 'человек', 'человека', 'человек')} не в ${test ? 'тесте' : 'экзамене'}. Они могут сами нажать «Тренировать эти вопросы» после закрытия контрольной.`,
+  outsideNoPractice: (n: number, test: boolean) =>
+    `${n} ${plural(n, 'человек', 'человека', 'человек')} не в ${test ? 'тесте' : 'экзамене'}, им отправить нельзя. Чтобы они могли тренироваться сами, включите в настройках «После сдачи предложить тренировать эти вопросы».`,
+  done: (people: number, answers: number) =>
+    `Отправили: ${people} ${plural(people, 'человеку', 'людям', 'людям')}, ${answers} ${plural(answers, 'вопрос', 'вопроса', 'вопросов')} в повторение.`,
+  nothingNew: 'Новых ошибок нет: всё уже в тренировке.',
+  /** A big class goes in batches of 50 (quiz_send_mistakes): the line while it goes. */
+  progress: (done: number, total: number) => `Отправляем: ${done} из ${total}…`,
+  /** Mistakes not sent: the person has answered them in training since the attempt. */
+  learned: (n: number) =>
+    `${n} ${plural(n, 'вопрос', 'вопроса', 'вопросов')} не ${plural(n, 'отправлен', 'отправлены', 'отправлены')}: участники уже повторили их сами после контрольной.`,
+  nothing: 'Отправлять нечего: у участников экзамена нет ошибок.',
+  failed: 'Не получилось отправить. Попробуйте ещё раз.',
+} as const;
+
+/**
+ * Telegram on the results page (release 49, 20261105090100_quiz_telegram): the bot tells the author who finished and
+ * the summary at the close; the link goes into a group chat of the exam with one press.
+ */
+export const QA_TELEGRAM = {
+  title: 'Telegram',
+  notice: 'Сообщать о сдачах',
+  noticeOption: (mode: 'each' | 'digest' | 'off') => ({ each: 'о каждой работе', digest: 'сводкой раз в час', off: 'не сообщать' })[mode],
+  noticeHint: (mode: 'each' | 'digest' | 'off') =>
+    ({
+      each: 'Бот напишет, кто сдал и сколько набрал. Не больше трёх сообщений за 10 минут, дальше — сводкой. С\u00a022 до\u00a08 молчит. Когда контрольная закроется, пришлёт итог.',
+      digest: 'Раз в час — одно сообщение со всеми, кто сдал. С\u00a022 до\u00a08 бот молчит. Когда контрольная закроется, пришлёт итог.',
+      off: 'Бот может писать вам, кто сдал контрольную и с каким результатом, и прислать итог после закрытия.',
+    })[mode],
+  notLinked: 'Подключите Telegram — и бот напишет, кто сдал контрольную и с каким результатом.',
+  link: 'Подключить Telegram',
+  blocked: 'Бот в Telegram остановлен. Откройте чат с ботом и нажмите «Перезапустить», тогда он сможет писать.',
+  toGroup: (title: string | null) => (title ? `Отправить ссылку в «${title}»` : 'Отправить ссылку в беседу'),
+  shared: (title: string | null) => `Бот отправит ссылку в «${title ?? 'беседу'}» в течение минуты.`,
+  already: (title: string | null) => `Сегодня ссылка уже ушла в «${title ?? 'беседу'}».`,
+  sharedBefore: (when: string) => `Ссылка уходила в беседу ${when}.`,
+  closed: 'Контрольная закрыта: ссылку отправлять незачем.',
+  noGroup: 'Этой беседы больше нет у экзамена. Обновите страницу.',
+  noLink: 'Сначала подключите Telegram.',
+  /** telegram_quiz_notice refused: the Telegram link went meanwhile (22023 link). */
+  linkGone: 'Telegram больше не подключён. Подключите его, и бот сможет писать.',
+  shareAnywhere: 'Поделиться в Telegram',
+  shareText: (title: string) => `Контрольная «${title}»`,
+  saving: 'Сохраняем…',
+  failed: 'Не получилось. Попробуйте ещё раз.',
 } as const;
 
 /** P0002 of a quiz function: the quiz, not the exam, is gone. */

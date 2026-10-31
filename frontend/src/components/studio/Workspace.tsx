@@ -25,6 +25,7 @@ import type { DocBlock, DocLayout, TestDoc } from '../../types/testDoc';
 import { typeOf } from '../test/buildModel';
 import { useCanvas, type CanvasStore } from './canvasStore';
 import DocView, { type DocEditApi, type EditFrameProps, type EditGapProps } from './DocView';
+import { ItemPercentsProvider, PercentChip } from './itemPercents';
 import type { DocItem } from './docRun';
 import BlockMenu from './BlockMenu';
 import { STUDIO, type Panel } from './copyStudio';
@@ -304,6 +305,7 @@ const CanvasFrame = memo(function CanvasFrame({ block, index, count, number, ite
         </p>
       ) : null}
       {hint ? <p className="st-hint">{hint}</p> : null}
+      {block.type === 'question' && !hint ? <PercentChip itemId={block.item_id} /> : null}
     </div>
   );
 });
@@ -1316,8 +1318,8 @@ export default function Workspace({
     canvasClick,
     fileChosen,
   };
-  // DndContext's child: one element for the canvas's life.
-  const body = useMemo(() => <CanvasBody />, []);
+  // DndContext's child: one element for the canvas's life (with the questions' percents of release 49 around it).
+  const body = useMemo(() => <ItemPercentsProvider containerId={containerId}><CanvasBody /></ItemPercentsProvider>, [containerId]);
 
   return (
     <ActionsContext.Provider value={actions}>

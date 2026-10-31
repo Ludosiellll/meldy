@@ -15,6 +15,7 @@
  * - `files` (T9): a document in a private chat and the `/telegram/file` route; `voice` (T10): a voice message;
  * - `monitor` (monitor.ts): the tick's step «monitor», the site's outage monitor, after the other steps;
  * - `sweep` (sweep.ts, optional): the tick's step «sweep», the pictures of deleted exams and tests, before «monitor».
+ * - `quiz` (quiz.ts, optional): the tick's step «quiz», the authors' quiz messages and shares, before «sweep».
  */
 import { decode, type Callback, type GoMode } from './codec.ts';
 import { dayCard, examList } from './card.ts';
@@ -175,6 +176,14 @@ export interface SweepPort {
   tick(ctx: Ctx, tools: TickTools): Promise<StepStats>;
 }
 
+/**
+ * The authors' quiz messages (quiz.ts, release 49): the tick's step «quiz», before «sweep». Optional: without it the
+ * step does nothing.
+ */
+export interface QuizPort {
+  tick(ctx: Ctx, tools: TickTools): Promise<StepStats>;
+}
+
 export interface Ports {
   session: SessionPort;
   group: GroupPort;
@@ -183,6 +192,7 @@ export interface Ports {
   webapp: WebAppPort;
   monitor: MonitorPort;
   sweep?: SweepPort;
+  quiz?: QuizPort;
   /** The live game (game.ts): /telegram/game/join, /game/post, /game/sync. */
   game: GamePort;
 }

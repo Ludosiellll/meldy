@@ -60,6 +60,8 @@ const RPC_ALLOWED = new Set([
   'bot_learn_left',
   // The pictures of deleted exams and tests (sweep.ts; migration 20261103090200_picture_sweep.sql).
   'bot_picture_sweep', 'bot_picture_swept',
+  // The authors' quiz messages and shares (quiz.ts; migration 20261105090100_quiz_telegram.sql).
+  'bot_quiz_notices',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {

@@ -153,7 +153,91 @@ describe('render budget: the question editor (audit #3)', () => {
     const option = screen.getByLabelText(EDITOR.option('Б')) as HTMLTextAreaElement;
     expect(countLayoutReads(() => fireEvent.change(option, { target: { value: 'Управлени' } }))).toBeLessThanOrEqual(1);
   });
+
+  // Release 49: a key in «Ключи» laid the page out three times in Chromium at CPU ×4 (the browser's edit, a read after
+  // the height was written, the frame). A read after a write lays the page out on the spot, so a key now writes nothing
+  // before it reads, and writes only when the text took a new line.
+  it('a key writes no height before it reads, and none at all while the text keeps its lines; shorter after a pause', () => {
+    vi.useFakeTimers();
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    const layout = browserLayout();
+    try {
+      render(<QuestionEditor containerId={ITEM.container_id} item={ITEM} context="№ 1" group={false} onSave={vi.fn()} onCancel={vi.fn()} />);
+      const stem = screen.getByLabelText(EDITOR.stem) as HTMLTextAreaElement;
+      const option = screen.getByLabelText(EDITOR.option('Б')) as HTMLTextAreaElement;
+      const tall = stem.style.height;
+      expect(tall).toBe(`${naturalHeight(stem)}px`);
+      expect(layout.trace(() => fireEvent.change(stem, { target: { value: `${ITEM.stem} и` } }))).toBe('r');
+      expect(layout.trace(() => fireEvent.change(option, { target: { value: 'Управлени' } }))).toBe('r');
+      const longer = `${ITEM.stem} и ещё немного слов, чтобы перейти на строку ниже`;
+      expect(layout.trace(() => fireEvent.change(stem, { target: { value: longer } }))).toBe('rw');
+      expect(stem.style.height).toBe(`${naturalHeight(stem)}px`);
+      expect(layout.trace(() => fireEvent.change(stem, { target: { value: ITEM.stem } }))).toBe('r');
+      expect(stem.style.height).not.toBe(tall);
+      // The pause: both fields typed in take their natural height together — one layout for the two.
+      expect(layout.trace(() => act(() => vi.advanceTimersByTime(1000)))).toBe('wrrw');
+      expect(stem.style.height).toBe(tall);
+    } finally {
+      layout.restore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('a key in the fields of a new kind reads no layout and writes no height', () => {
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    const layout = browserLayout();
+    try {
+      const order: TestItem = { ...ITEM, kind: 'order', stem: 'Расставьте по порядку', options: ['Вход', 'Управление', 'Выход'], correct: [], partial: false };
+      render(<QuestionEditor containerId={ITEM.container_id} item={order} context="№ 1" group={false} onSave={vi.fn()} onCancel={vi.fn()} />);
+      const first = screen.getByLabelText('Пункт 1') as HTMLInputElement;
+      expect(layout.trace(() => fireEvent.change(first, { target: { value: 'Вход и' } }))).toBe('');
+    } finally {
+      layout.restore();
+    }
+  });
 });
+
+/** A field's natural height as a browser lays it out here: 26 px of padding and 23 px a line of 40 characters. */
+function naturalHeight(field: HTMLTextAreaElement): number {
+  return 26 + 23 * field.value.split('\n').reduce((lines, line) => lines + Math.max(1, Math.ceil(line.length / 40)), 0);
+}
+
+/**
+ * A browser's layout for the editor's fields: a field's scroll height is its natural height, or the height it is
+ * held at when that is more. `trace(run)` tells what `run` did, in order: «r» a read of the layout, «w» the fields'
+ * heights written since the last read (a read right after a write lays the page out on the spot).
+ */
+function browserLayout() {
+  const own = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollHeight');
+  let trace = '';
+  const writes = new MutationObserver(() => undefined);
+  writes.observe(document.body, { attributes: true, attributeFilter: ['style'], subtree: true });
+  const wrote = () => writes.takeRecords().some((record) => record.target instanceof HTMLTextAreaElement);
+  Object.defineProperty(Element.prototype, 'scrollHeight', {
+    configurable: true,
+    get(this: Element) {
+      if (wrote()) trace += 'w';
+      trace += 'r';
+      if (!(this instanceof HTMLTextAreaElement)) return 0;
+      const held = Number.parseFloat(this.style.height);
+      return Math.max(naturalHeight(this), Number.isFinite(held) ? held : 0);
+    },
+  });
+  return {
+    trace(run: () => void): string {
+      wrote();
+      trace = '';
+      run();
+      if (wrote()) trace += 'w';
+      return trace;
+    },
+    restore() {
+      writes.disconnect();
+      if (own) Object.defineProperty(Element.prototype, 'scrollHeight', own);
+      else delete (Element.prototype as unknown as Record<string, unknown>).scrollHeight;
+    },
+  };
+}
 
 const SUMMARY = {
   content: ['## Архитектура', '', 'Слои: $x_1$, скрытые, выходной.', '', '## Обучение', '', 'Ошибка идёт назад: $$E = \\sum_i e_i^2$$', '', '## Активация', '', 'Сигмоида и ReLU.'].join('\n'),

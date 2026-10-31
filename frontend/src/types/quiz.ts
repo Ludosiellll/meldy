@@ -184,6 +184,92 @@ export interface QuizMark {
   correct: boolean;
 }
 
+/**
+ * quiz_analysis (release 49, 20261105090000_quiz_stats): a cell of an attempt — the question's index in
+ * QuizAnalysis.items, its credit 0..1 (null while an essay waits for its mark) and the seconds spent on it, from the
+ * answer saved before it (null: no answer).
+ */
+export type QuizAnalysisCell = [index: number, credit: number | null, seconds: number | null];
+export interface QuizAnalysisAttempt {
+  id: Uuid;
+  /** As QuizAttemptRow.person. */
+  person: string;
+  n: number;
+  guest: boolean;
+  /** An account in the exam now: its mistakes can go to training. */
+  member: boolean;
+  /** Its mistakes went to training already (quiz_send_mistakes). */
+  sent: boolean;
+  started_at: string;
+  finished_at: string;
+  cells: QuizAnalysisCell[];
+}
+/** Another quiz of the same exam or test, named and counted (its questions come with quiz_compare when picked). */
+export interface QuizAnalysisOther {
+  id: Uuid;
+  title: string;
+  created_at: string;
+  closed: boolean;
+  attempts: number;
+}
+/** quiz_compare: the quiz picked to compare with, per question [item id, shown, credit]. */
+export interface QuizCompare {
+  id: Uuid;
+  title: string;
+  attempts: number;
+  /** The latest attempts only (up to 25 000 answers). */
+  capped: boolean;
+  items: Array<[itemId: Uuid, shown: number, credit: number]>;
+}
+/** The finished attempts of others than the author, for the statistics a psychometrician would compute. */
+export interface QuizAnalysis {
+  quiz_id: Uuid;
+  server_now: string;
+  /** The questions in the exam's order; the cells point into this list. */
+  items: Uuid[];
+  attempts: QuizAnalysisAttempt[];
+  others: QuizAnalysisOther[];
+  /** The latest attempts only (up to 25 000 answers): older ones were left out. */
+  capped?: boolean;
+}
+/**
+ * quiz_send_mistakes, one batch (≤ 50 people): people who got mistakes now and how many; people whose mistakes went
+ * before; people with nothing left to send; mistakes not sent because answered in training since (learned); accounts
+ * outside the exam; guests; whether the quiz offers «Тренироваться дальше»; the accounts in all, how many are left after
+ * this batch, and where the next batch starts (null — done).
+ */
+export interface MistakesSent {
+  people: number;
+  answers: number;
+  again: number;
+  clean: number;
+  learned: number;
+  outside: number;
+  guests: number;
+  practice: boolean;
+  total: number;
+  left: number;
+  next: Uuid | null;
+}
+/** Release 49 (20261105090100_quiz_telegram): the author's Telegram side of a quiz. */
+export type QuizNotice = 'each' | 'digest' | 'off';
+export interface QuizTelegramState {
+  /** The author's Telegram is linked; blocked — they stopped the bot there. */
+  linked: boolean;
+  blocked: boolean;
+  notice: QuizNotice;
+  /** Group chats bound to the exam where the bot still is; shared_at — the quiz's link went there last. */
+  groups: Array<{ chat_id: number; title: string | null; shared_at: string | null }>;
+}
+export type QuizShareStatus = 'queued' | 'already' | 'closed' | 'no_group' | 'no_link';
+
+/** test_item_percents: per question of the exam, the finished attempts of others that got it and their credit. */
+export interface ItemPercent {
+  item_id: Uuid;
+  shown: number;
+  credit: number;
+}
+
 export interface AttemptAnswer {
   item_id: Uuid;
   chosen: number[] | null;
