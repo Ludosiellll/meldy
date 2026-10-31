@@ -49,6 +49,7 @@ export const KINDS = {
   matchSet: (right: string, left: string) => `${right} — к строке ${left}.`,
   matchCleared: (left: string) => `Строка ${left} без пары.`,
   matchExtra: 'Лишние ответы останутся без пары.',
+  extrasKey: (extras: string[]) => `Лишние ответы: ${extras.join(', ')}.`,
   gapLabel: (n: number, of: number) => (of > 1 ? `Пропуск ${n} из ${of}` : 'Пропуск'),
   clozeHint: (n: number) => (n > 1 ? `Впишите слова в ${n} ${plural(n, 'пропуск', 'пропуска', 'пропусков')}.` : 'Впишите слово в пропуск.'),
   essayLabel: 'Ваш ответ',

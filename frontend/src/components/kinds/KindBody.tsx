@@ -4,7 +4,7 @@ import type { EssayMark } from '../../types/quiz';
 import type { KindAnswer } from '../../lib/kinds/answer';
 import { gapCount } from '../../lib/kinds/cloze';
 import ClozeText, { type ClozeReview } from './ClozeText';
-import { KINDS } from './copyKinds';
+import { KINDS, num } from './copyKinds';
 import MatchBoard, { type MatchReview } from './MatchBoard';
 import OrderList, { type OrderReview } from './OrderList';
 import QText from './QText';
@@ -189,7 +189,7 @@ export function KindKeyView({ kind, stem, options, answers, tolerance, unit }: {
   if (kind === 'essay') return null;
   const identityValue = options.map((_, i) => i);
   const forms = kind === 'cloze' ? answers.map((gap) => gap.split('\n').map((f) => f.trim()).filter(Boolean)) : [];
-  const value = kind === 'order' || kind === 'match' ? identityValue : kind === 'cloze' ? forms.map((list) => list[0] ?? '') : kind === 'number' ? answers[0] ?? '' : null;
+  const value = kind === 'order' || kind === 'match' ? identityValue : kind === 'cloze' ? forms.map((list) => list[0] ?? '') : kind === 'number' ? num(answers[0] ?? '') : null;
   return (
     <>
       <KindBody kind={kind} stem={stem} options={options} right={answers} initialOrder={identityValue} unit={unit} value={value} />
@@ -205,9 +205,7 @@ export function KindKeyView({ kind, stem, options, answers, tolerance, unit }: {
         </ul>
       ) : null}
       {kind === 'match' && answers.length > options.length ? (
-        <p className="kd-note">
-          {KINDS.matchExtra} {answers.slice(options.length).join(', ')}
-        </p>
+        <p className="kd-note">{KINDS.extrasKey(answers.slice(options.length))}</p>
       ) : null}
     </>
   );
