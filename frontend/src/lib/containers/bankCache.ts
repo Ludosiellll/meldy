@@ -10,7 +10,7 @@ import type { TestItem, Uuid } from '../../types/container';
 import { deviceDelete, deviceGet, devicePut } from './deviceDb';
 
 /** The record's layout; a record of another layout is not read (it is fetched again and replaced). */
-export const BANK_CACHE_VERSION = 1;
+export const BANK_CACHE_VERSION = 2; // 2: the kinds of release 48 are kept (a bank stored before read them as one answer)
 
 interface BankRecord {
   v: number;
