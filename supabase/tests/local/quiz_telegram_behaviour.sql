@@ -120,6 +120,7 @@ select pg_temp.put('qobj', public.quiz_create(pg_temp.c('x')::uuid, jsonb_build_
   'shuffle_options', false, 'same_set', true, 'attempts', null, 'pass_percent', 50))::text);
 select pg_temp.put('q', pg_temp.c('qobj')::jsonb ->> 'id'), pg_temp.put('code', pg_temp.c('qobj')::jsonb ->> 'code');
 select pg_temp.as_role('postgres');
+insert into auth.users (id) values ('ffffffff-0000-0000-0000-000000000006') on conflict do nothing;
 insert into bot.links (user_id, tg_user_id, chat_id, tz) values ('aaaaaaaa-0000-0000-0000-000000000001', 7001, 7001, 'Europe/Minsk');
 insert into bot.groups (chat_id, container_id, owner_id, title, tz)
 values (-100500, pg_temp.c('x')::uuid, 'aaaaaaaa-0000-0000-0000-000000000001', '9 «А» — математика', 'Europe/Minsk');
@@ -135,6 +136,19 @@ begin
 end;
 $do$;
 select pg_temp.expect_error(format('select public.telegram_quiz_notice(%L, %L)', pg_temp.c('q'), 'loud'), '22023', 'an unknown mode');
+-- without a linked Telegram notices cannot be switched on (off can), and the tick never looks at such a watch
+select pg_temp.as_role('postgres');
+update bot.links set unlinked_at = now() where tg_user_id = 7001;
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+select pg_temp.expect_error(format('select public.telegram_quiz_notice(%L, %L)', pg_temp.c('q'), 'each'), '22023', 'notices without a link');
+select pg_temp.ok(public.telegram_quiz_notice(pg_temp.c('q')::uuid, 'off') ->> 'notice' = 'off', 'off without a link');
+select pg_temp.as_role('postgres');
+update bot.quiz_watch set mode = 'each' where quiz_id = pg_temp.c('q')::uuid;  -- as if switched on before the unlink
+select pg_temp.ok(pg_temp.tick(0) = '[]'::jsonb and (select checked_at is null from bot.quiz_watch where quiz_id = pg_temp.c('q')::uuid),
+                  'the tick skips a watch whose author has no link');
+update bot.quiz_watch set mode = 'off' where quiz_id = pg_temp.c('q')::uuid;
+update bot.links set unlinked_at = null where tg_user_id = 7001;
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
 select pg_temp.as_role('authenticated', 'bbbbbbbb-0000-0000-0000-000000000002');
 select pg_temp.expect_error(format('select public.telegram_quiz_state(%L)', pg_temp.c('q')), 'P0002', 'B reads A''s state');
 select pg_temp.expect_error(format('select public.telegram_quiz_notice(%L, %L)', pg_temp.c('q'), 'each'), 'P0002', 'B switches A''s notices');
@@ -258,8 +272,67 @@ begin
                      and (r -> 0 -> 'hardest' -> 0 ->> 'percent')::integer = 40, format('the hardest: %s', r -> 0 -> 'hardest'));
   perform pg_temp.ok(not exists (select 1 from bot.quiz_notices n where n.quiz_id = pg_temp.c('q')::uuid and n.handled_at is null),
                      'the waiting finish went with the close');
+  perform pg_temp.ok((select n.summary ->> 'people' from bot.quiz_notices n where n.quiz_id = pg_temp.c('q')::uuid and n.kind = 'close') = '10'
+                     and r -> 0 -> 'sample' = 'null'::jsonb, 'the summary is kept with the close (all graded)');
+  perform pg_temp.put('close1', (r -> 0)::text);
+end;
+$do$;
+-- the bot died before sending: a minute later the row comes again, from the kept summary — nothing graded again
+delete from public.quiz_answers w using public.quiz_attempts a where a.id = w.attempt_id and a.quiz_id = pg_temp.c('q')::uuid;
+do $do$
+declare r jsonb := pg_temp.tick(127);
+begin
+  perform pg_temp.ok(jsonb_array_length(r) = 1 and r -> 0 = pg_temp.c('close1')::jsonb, format('the same summary again: %s', r));
   perform pg_temp.sent(r -> 0);
   perform pg_temp.ok(pg_temp.tick(200) = '[]'::jsonb, 'the close once');
+end;
+$do$;
+
+-- 7b. Open again: watched again (review 2026-11-05: notices stopped silently); a finish is told; a new close, a new summary.
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+select public.quiz_update(pg_temp.c('q')::uuid, jsonb_build_object('closes_at', (now() + interval '3 days')::text));
+select public.telegram_quiz_notice(pg_temp.c('q')::uuid, 'each');  -- (it was «digest» since section 6)
+select pg_temp.put('f1', pg_temp.take('ffffffff-0000-0000-0000-000000000006', 'Фёдор', true));
+do $do$
+declare r jsonb := pg_temp.tick(210);
+begin
+  perform pg_temp.ok((select closed_at is null from bot.quiz_watch where quiz_id = pg_temp.c('q')::uuid), 'watched again');
+  perform pg_temp.ok(jsonb_array_length(r) = 1 and r -> 0 ->> 'kind' = 'one' and r -> 0 ->> 'name' = 'Фёдор', format('a finish after the reopen: %s', r));
+  perform pg_temp.sent(r -> 0);
+end;
+$do$;
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+select public.quiz_close(pg_temp.c('q')::uuid);
+select pg_temp.as_role('postgres');
+update public.quizzes set closed_at = now() + interval '1 minute' where id = pg_temp.c('q')::uuid;  -- (now() never moves here)
+do $do$
+declare r jsonb := pg_temp.tick(215);
+begin
+  perform pg_temp.ok(jsonb_array_length(r) = 1 and r -> 0 ->> 'kind' = 'close' and (r -> 0 ->> 'people')::integer = 11,
+                     format('a second close, its own summary: %s', r));
+  perform pg_temp.ok((select count(*) from bot.quiz_notices n where n.quiz_id = pg_temp.c('q')::uuid and n.kind = 'close') = 2, 'two closes kept');
+  perform pg_temp.sent(r -> 0);
+end;
+$do$;
+
+-- 7c. At most one close summary is computed a call: two quizzes closed at once go in two ticks.
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+select pg_temp.put('q3', public.quiz_create(pg_temp.c('x')::uuid, jsonb_build_object(
+  'title', 'Третья', 'subject_ids', jsonb_build_array(pg_temp.c('s')), 'item_count', 2)) ->> 'id');
+select pg_temp.put('q4', public.quiz_create(pg_temp.c('x')::uuid, jsonb_build_object(
+  'title', 'Четвёртая', 'subject_ids', jsonb_build_array(pg_temp.c('s')), 'item_count', 2)) ->> 'id');
+select public.telegram_quiz_notice(pg_temp.c('q3')::uuid, 'each'), public.telegram_quiz_notice(pg_temp.c('q4')::uuid, 'each');
+select public.quiz_close(pg_temp.c('q3')::uuid), public.quiz_close(pg_temp.c('q4')::uuid);
+do $do$
+declare r jsonb := pg_temp.tick(220);
+declare r2 jsonb;
+begin
+  perform pg_temp.ok(jsonb_array_length(r) = 1 and r -> 0 ->> 'kind' = 'close', format('one close this call: %s', r));
+  perform pg_temp.sent(r -> 0);
+  r2 := pg_temp.tick(221);
+  perform pg_temp.ok(jsonb_array_length(r2) = 1 and r2 -> 0 ->> 'kind' = 'close' and r2 -> 0 ->> 'quiz_id' <> r -> 0 ->> 'quiz_id',
+                     format('the other the next call: %s', r2));
+  perform pg_temp.sent(r2 -> 0);
 end;
 $do$;
 
@@ -297,7 +370,44 @@ begin
 end;
 $do$;
 
--- 9. A blocked link gets nothing; off drops what waits; no link: the share says so.
+-- 8b. A row handed again keeps the rules of a new one: not at night, not while paused; too old — skipped; out of
+--     tries — failed (never left claimed for good); a share to a group the bot left — failed.
+select pg_temp.as_role('postgres');
+insert into bot.deliveries (kind, chat_id, link_id, local_day, ref, attempts)
+select 'notice', 7001, l.id, current_date, 'qz:test-' || g, case g when 3 then 3 else 1 end from bot.links l, generate_series(1, 3) g
+ where l.tg_user_id = 7001;
+insert into bot.quiz_sends (delivery_id, quiz_id, kind, made_at, handed_at)
+select d.id, pg_temp.c('q')::uuid, 'one', case d.ref when 'qz:test-2' then pg_temp.at(300) - interval '4 days' else pg_temp.at(300) end,
+       pg_temp.at(290)
+  from bot.deliveries d where d.ref like 'qz:test-%';
+insert into bot.quiz_notices (quiz_id, attempt_id, kind, score, max_score, delivery_id, handled_at)
+select pg_temp.c('q')::uuid, pg_temp.c('f1')::uuid, 'done', 2, 2, d.id, pg_temp.at(290) from bot.deliveries d where d.ref = 'qz:test-1'
+on conflict do nothing;
+do $do$
+declare r jsonb;
+begin
+  perform pg_temp.ok(pg_temp.tick(10 * 60 + 30) = '[]'::jsonb, 'not at night (22:30)');
+  perform pg_temp.ok((select status from bot.deliveries where ref = 'qz:test-1') = 'claimed', 'still claimed for the morning');
+  r := pg_temp.tick(301);
+  perform pg_temp.ok((select status from bot.deliveries where ref = 'qz:test-2') = 'skipped', 'too old: skipped');
+  perform pg_temp.ok((select status from bot.deliveries where ref = 'qz:test-3') = 'failed', 'out of tries: failed');
+  perform pg_temp.ok(jsonb_array_length(r) = 1 and r -> 0 ->> 'kind' = 'one', format('the one in the day: %s', r));
+  perform pg_temp.sent(r -> 0);
+end;
+$do$;
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+select pg_temp.put('q5', public.quiz_create(pg_temp.c('x')::uuid, jsonb_build_object(
+  'title', 'Пятая', 'subject_ids', jsonb_build_array(pg_temp.c('s')), 'item_count', 2)) ->> 'id');
+select pg_temp.ok(public.telegram_quiz_share(pg_temp.c('q5')::uuid, -100500) ->> 'status' = 'queued', 'queued again for a new quiz');
+select pg_temp.as_role('postgres');
+update bot.groups set left_at = now() where chat_id = -100500;
+select pg_temp.ok(pg_temp.tick(302) = '[]'::jsonb, 'the bot left the group: nothing handed');
+select pg_temp.ok((select d.status from bot.deliveries d join bot.quiz_sends s on s.delivery_id = d.id
+                    where s.quiz_id = pg_temp.c('q5')::uuid) = 'failed', 'the share failed, not left claimed');
+update bot.groups set left_at = null where chat_id = -100500;
+
+-- 9. A blocked link: nothing, not even looked at (review 2026-11-05: the tick's work only for linked authors); after the
+--    unblock the finish is told; off drops what waits; a blocked link cannot share.
 select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
 select public.telegram_quiz_notice(pg_temp.c('q2')::uuid, 'each');
 select pg_temp.as_role('postgres');
@@ -306,18 +416,56 @@ select pg_temp.put('code', pg_temp.c('q2obj')::jsonb ->> 'code');
 select pg_temp.take(null, 'Гость 7', true, 7);
 update bot.links set blocked_at = now() where tg_user_id = 7001;
 select pg_temp.ok(pg_temp.tick(400) = '[]'::jsonb, 'blocked: nothing');
-select pg_temp.ok(exists (select 1 from bot.quiz_notices n where n.quiz_id = pg_temp.c('q2')::uuid and n.handled_at is null), 'it waits');
+select pg_temp.ok(not exists (select 1 from bot.quiz_notices n where n.quiz_id = pg_temp.c('q2')::uuid), 'not even looked at');
 select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
 select pg_temp.ok(public.telegram_quiz_state(pg_temp.c('q2')::uuid) ->> 'blocked' = 'true', 'the state says blocked');
 select pg_temp.ok(public.telegram_quiz_share(pg_temp.c('q2')::uuid, -100500) ->> 'status' = 'no_link', 'a blocked link cannot share');
+select pg_temp.as_role('postgres');
+update bot.links set blocked_at = null where tg_user_id = 7001;
+do $do$
+declare r jsonb := pg_temp.tick(401);
+begin
+  perform pg_temp.ok(jsonb_array_length(r) = 1 and r -> 0 ->> 'name' = 'Гость 7', format('told after the unblock: %s', r));
+  perform pg_temp.sent(r -> 0);
+end;
+$do$;
+select pg_temp.take(null, 'Гость 9', true, 9);
+select pg_temp.ok(pg_temp.tick(10 * 60 + 40) = '[]'::jsonb, 'at night it is noted and waits');
+select pg_temp.ok(exists (select 1 from bot.quiz_notices n where n.quiz_id = pg_temp.c('q2')::uuid and n.handled_at is null), 'it waits');
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
 select public.telegram_quiz_notice(pg_temp.c('q2')::uuid, 'off');
 select pg_temp.as_role('postgres');
 select pg_temp.ok(not exists (select 1 from bot.quiz_notices n where n.quiz_id = pg_temp.c('q2')::uuid and n.handled_at is null), 'off drops it');
-update bot.links set blocked_at = null where tg_user_id = 7001;
-select pg_temp.ok(pg_temp.tick(401) = '[]'::jsonb, 'off: nothing after the unblock');
+select pg_temp.ok(pg_temp.tick(402) = '[]'::jsonb, 'off: nothing in the day');
 -- the tables are the functions' only
 select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
 select pg_temp.expect_error('select count(*) from bot.quiz_watch', '42501', 'a user reads the watch table');
+
+-- 10. One quiz that fails never stops the rest (review 2026-11-05): its close summary raises; the call goes on and
+--     counts it, another quiz's finish is still told.
+select pg_temp.as_role('postgres');
+create or replace function meldy_private.quiz_close_summary(p_q public.quizzes) returns jsonb language plpgsql stable
+set search_path = '' as $fn$ begin raise exception 'boom'; end; $fn$;
+select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+select pg_temp.put('q6', public.quiz_create(pg_temp.c('x')::uuid, jsonb_build_object(
+  'title', 'Шестая', 'subject_ids', jsonb_build_array(pg_temp.c('s')), 'item_count', 2)) ->> 'id');
+select pg_temp.put('q7obj', public.quiz_create(pg_temp.c('x')::uuid, jsonb_build_object(
+  'title', 'Седьмая', 'subject_ids', jsonb_build_array(pg_temp.c('s')), 'item_count', 2))::text);
+select public.telegram_quiz_notice(pg_temp.c('q6')::uuid, 'each'),
+       public.telegram_quiz_notice((pg_temp.c('q7obj')::jsonb ->> 'id')::uuid, 'each');
+select public.quiz_close(pg_temp.c('q6')::uuid);
+select pg_temp.put('code', pg_temp.c('q7obj')::jsonb ->> 'code');
+select pg_temp.take(null, 'Гость 8', true, 8);
+do $do$
+declare r jsonb;
+begin
+  perform pg_temp.as_role('service_role');
+  r := public.bot_quiz_notices(20, pg_temp.at(500));
+  perform pg_temp.as_role('postgres');
+  perform pg_temp.ok((r ->> 'errors')::integer = 1, format('the failing quiz counted: %s', r ->> 'errors'));
+  perform pg_temp.ok(jsonb_array_length(r -> 'rows') = 1 and r -> 'rows' -> 0 ->> 'name' = 'Гость 8', format('the other told: %s', r -> 'rows'));
+end;
+$do$;
 
 rollback;
 \echo QUIZ TELEGRAM BEHAVIOUR PASSED

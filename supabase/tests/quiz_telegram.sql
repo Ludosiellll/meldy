@@ -1,8 +1,9 @@
 -- Run once after migration 20261105090100_quiz_telegram.sql: the read-only check of that apply. A DO block that raises
 -- nothing when every check holds (supabase/migrate.py); it raises the name of the first one that does not. Catalog only.
 -- Checks: bot.quiz_watch (mode each | digest | off, default off), bot.quiz_sends and bot.quiz_notices exist with row
--- security on, no policy and no grant to a client role or service_role; the private helpers quiz_score, quiz_tg_state,
--- quiz_of_author and quiz_tg_row are executable by no client role; telegram_quiz_state / _notice / _share are SECURITY
+-- security on, no policy and no grant to a client role or service_role, the done score and the close summary kept, one
+-- close per quiz and close time; the private helpers quiz_score, quiz_tg_state, quiz_of_author, quiz_close_summary and
+-- quiz_tg_row are executable by no client role; telegram_quiz_state / _notice / _share are SECURITY
 -- DEFINER with an empty search_path, check the author, and are executable by authenticated only; bot_quiz_notices is
 -- SECURITY DEFINER with an empty search_path, checks the service role first, and is executable by service_role only.
 -- The behaviour is rehearsed locally: supabase/tests/local/quiz_stats_telegram_run.sh (quiz_telegram_behaviour.sql);
@@ -38,12 +39,19 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'bot' AND indexname = 'quiz_notices_done_key'
                   AND indexdef LIKE 'CREATE UNIQUE INDEX%(attempt_id) WHERE (kind = ''done''::text)')
      OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes WHERE schemaname = 'bot' AND indexname = 'quiz_notices_close_key'
-                     AND indexdef LIKE 'CREATE UNIQUE INDEX%(quiz_id) WHERE (kind = ''close''::text)') THEN
-    RAISE EXCEPTION 'one_notice_an_attempt_one_close_a_quiz';
+                     AND indexdef LIKE 'CREATE UNIQUE INDEX%(quiz_id, close_at) WHERE (kind = ''close''::text)') THEN
+    RAISE EXCEPTION 'one_notice_an_attempt_one_close_a_quiz_and_time';
+  END IF;
+  IF (SELECT pg_catalog.count(*) FROM information_schema.columns
+       WHERE table_schema = 'bot' AND table_name = 'quiz_notices' AND column_name IN ('score', 'max_score', 'close_at', 'summary')) <> 4
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns
+                     WHERE table_schema = 'bot' AND table_name = 'quiz_watch' AND column_name = 'checked_at') THEN
+    RAISE EXCEPTION 'kept_score_summary_and_round';
   END IF;
 
   FOREACH v_fn IN ARRAY ARRAY['meldy_private.quiz_score(uuid)', 'meldy_private.quiz_tg_state(public.quizzes,uuid)',
-                              'meldy_private.quiz_of_author(uuid,uuid)', 'meldy_private.quiz_tg_row(bigint)'] LOOP
+                              'meldy_private.quiz_of_author(uuid,uuid)', 'meldy_private.quiz_tg_row(bigint)',
+                              'meldy_private.quiz_close_summary(public.quizzes)'] LOOP
     IF pg_catalog.to_regprocedure(v_fn) IS NULL THEN
       RAISE EXCEPTION 'helper_exists: %', v_fn;
     END IF;

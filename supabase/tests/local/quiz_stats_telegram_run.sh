@@ -187,6 +187,8 @@ checks() {  # <label>: every contract and behaviour after the files
   behave "$1: quiz_stats_behaviour.sql (analysis, mistakes into training, the canvas's percents)" "$STATS" 'QUIZ STATS BEHAVIOUR PASSED'
   behave "$1: quiz_telegram_behaviour.sql (the author's notices, the digest, the close, the share)" "$TG" 'QUIZ TELEGRAM BEHAVIOUR PASSED'
   behave "$1: picture_sweep_behaviour.sql (the bot's other tick functions as before)" "$HERE/picture_sweep_behaviour.sql" 'PICTURE SWEEP PASSED'
+  behave "$1: telegram_bot_claims.sql (K2 with bot.answered_since skipping source quiz)" "$HERE/telegram_bot_claims.sql" 'TELEGRAM BOT CLAIMS PASSED'
+  behave "$1: telegram_bot_behaviour.sql (T1 as before)" "$HERE/telegram_bot_behaviour.sql" 'TELEGRAM BOT CHECKS PASSED'
   behave "$1: question_kinds_quiz_behaviour.sql (the quiz of release 48 as before)" "$HERE/question_kinds_quiz_behaviour.sql" 'QUESTION KINDS QUIZ BEHAVIOUR PASSED'
   behave "$1: containers_behaviour.sql" "$HERE/containers_behaviour.sql" 'CONTAINER CHECKS PASSED'
 }
