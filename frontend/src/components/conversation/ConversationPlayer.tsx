@@ -46,7 +46,7 @@ import {
   VISUALS_CONTEXT_LIMIT,
   VISUALS_MAX_LINES,
 } from './persistence';
-import { isJobRunning, publishLines, runJob, useJobStatus, useLinesFeed } from './jobs';
+import { checkJob, isJobRunning, publishLines, runJob, useJobStatus, useLinesFeed } from './jobs';
 import type {
   ConversationFlashcard,
   ConversationLine,
@@ -954,20 +954,27 @@ export default function ConversationPlayer({
     void runJob(
       'create',
       id,
-      async begin => {
+      async (begin, signal) => {
         if (!(await energyAllows(userId, 'Создание подкаста'))) return;
+        checkJob(signal);
         begin();
         const snapshot = await loadMaterialSnapshot(id);
         const context = conversationContext(snapshot);
         if (!context) throw new ConversationError('В лекции слишком мало текста, чтобы составить подкаст.');
-        const payload = await postJson('/api/podcast/generate', {
-          context,
-          title: materialTitle,
-          terms: conversationTerms(snapshot, fallbackTerms),
-          recognized,
-        });
+        const payload = await postJson(
+          '/api/podcast/generate',
+          {
+            context,
+            title: materialTitle,
+            terms: conversationTerms(snapshot, fallbackTerms),
+            recognized,
+          },
+          signal,
+        );
         const generated = parseGeneratedLines(payload);
         if (!generated.length) throw new ConversationError('Не получилось составить подкаст. Попробуйте ещё раз.');
+        // Остановленная работа (лекцию удалили, из аккаунта вышли, срок вышел) ничего не сохраняет.
+        checkJob(signal);
         await saveConversationLines(id, generated);
         // Энергию списываем только после успешного сохранения.
         await chargeEnergy(userId);
@@ -989,8 +996,9 @@ export default function ConversationPlayer({
     void runJob(
       'visuals',
       id,
-      async begin => {
+      async (begin, signal) => {
         if (!(await energyAllows(userId, 'Подбор схем'))) return;
+        checkJob(signal);
         begin();
         const snapshot = await loadMaterialSnapshot(id);
         const stored = Array.isArray(snapshot.summaryJson.podcast) ? (snapshot.summaryJson.podcast as unknown[]) : [];
@@ -1009,9 +1017,10 @@ export default function ConversationPlayer({
           context: conversationContext(snapshot, VISUALS_CONTEXT_LIMIT),
           terms: conversationTerms(snapshot, fallbackTerms),
           recognized,
-        });
+        }, signal);
         const { lines: merged, added } = mergeVisualsByIndex(base, payload);
         if (!added) throw new ConversationError('Не получилось подобрать схемы. Попробуйте ещё раз.');
+        checkJob(signal);
         await saveConversationLines(id, merged);
         await chargeEnergy(userId);
         publishLines(id, merged);

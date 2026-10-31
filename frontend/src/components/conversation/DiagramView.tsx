@@ -1,6 +1,6 @@
 import { useId, useMemo, type CSSProperties } from 'react';
 import type { DiagramVisual } from './types';
-import { fitDiagram, type DiagramLayout, type LayoutEdge, type Point } from './diagramLayout';
+import { fitDiagram, labelRect, type DiagramLayout, type LayoutEdge, type Point } from './diagramLayout';
 import { useElementWidth } from './useElementWidth';
 
 /** Рёбра на экране — 1,6 px, шеврон — 9 px, при любом уменьшении через viewBox. */
@@ -163,6 +163,25 @@ export default function DiagramView({ visual, maxHeight, reveal = false }: Diagr
           );
         })}
 
+        {/* A label no clean place was found for stands on a plate of the sheet's colour: the line passes under it. */}
+        {layout.edges
+          .filter(edge => edge.labelPlate && edge.labelText && edge.labelX !== undefined && edge.labelY !== undefined)
+          .map(edge => {
+            const plate = labelRect(edge.labelText as string, edge.labelX as number, edge.labelY as number, edge.labelAnchor ?? 'middle', layout.unit);
+            return (
+              <rect
+                key={`plate-${edge.key}`}
+                className="cv-elabel-plate"
+                data-plate={edge.key}
+                x={plate.x}
+                y={plate.y}
+                width={plate.w}
+                height={plate.h}
+                rx={plate.h / 2}
+                style={reveal ? delay(endDelay(edge)) : undefined}
+              />
+            );
+          })}
         {layout.edges
           .filter(edge => edge.labelText && edge.labelX !== undefined && edge.labelY !== undefined)
           .map(edge => (

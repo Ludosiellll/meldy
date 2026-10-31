@@ -7,6 +7,7 @@ import { ru } from 'date-fns/locale';
 import toast from 'react-hot-toast';
 import ResultsPanel from '../components/ResultsPanel';
 import ExpressPrepView from '../components/ExpressPrepView';
+import { cancelJobs } from '../components/conversation/jobs';
 import { useAuth } from '../hooks/useAuth';
 import { useConfirm } from '../contexts/ConfirmContext';
 import { deleteMaterial, getMaterialById, updateMaterialSubject, setMaterialVisibility, updateMaterialTitle } from '../api/materials';
@@ -571,6 +572,8 @@ export default function MaterialDetail() {
       toast.error('Не удалось удалить лекцию. Повторите через минуту.');
       return;
     }
+    // A podcast, pictures or a cheat sheet still being made for it has nowhere to be saved: stopped quietly.
+    cancelJobs(id);
     forgetLecture(user?.id, id);
     toast.success('Лекция удалена');
     navigate('/library', { replace: true });

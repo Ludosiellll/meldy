@@ -88,15 +88,23 @@ export function saveCheatsheet(materialId: string, cheatsheet: string): Promise<
   return patchSummaryJson(materialId, { cheatsheet }, 'Не удалось сохранить выжимку. Попробуйте ещё раз.');
 }
 
-export async function postJson(url: string, body: unknown): Promise<unknown> {
+/** Остановленный запрос (signal работы, jobs.ts): причина остановки, не «нет связи». */
+function stopped(signal: AbortSignal | undefined): unknown {
+  return signal?.aborted ? signal.reason ?? new DOMException('Aborted', 'AbortError') : null;
+}
+
+export async function postJson(url: string, body: unknown, signal?: AbortSignal): Promise<unknown> {
   let response: Response;
   try {
     response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal,
     });
   } catch {
+    const reason = stopped(signal);
+    if (reason) throw reason;
     throw new ConversationError('Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.');
   }
   if (response.status === 429) {
@@ -126,6 +134,8 @@ export async function postJson(url: string, body: unknown): Promise<unknown> {
   try {
     return await response.json();
   } catch {
+    const reason = stopped(signal);
+    if (reason) throw reason;
     throw new ConversationError('Сервер вернул непонятный ответ. Попробуйте ещё раз.');
   }
 }

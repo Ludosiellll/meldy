@@ -391,10 +391,13 @@ html[data-stage] .cv-meta { display: none; }
 .cv-edge,
 .cv-arrow { fill: none; stroke: color-mix(in srgb, var(--ph-paper-ink) 60%, transparent); stroke-linecap: round; stroke-linejoin: round; }
 .cv-elabel { font-family: var(--ph-serif); font-weight: 400; fill: var(--ph-paper-muted); stroke: var(--ph-paper); stroke-linejoin: round; paint-order: stroke; }
+/* The plate under a label a line would cross (narrow phone sheets): the sheet's own colour, the line goes under it. */
+.cv-elabel-plate { fill: var(--ph-paper); stroke: none; }
 /* At the start of a line the picture comes in by layers: words fade in 150 ms, lines draw in 250 ms,
    80 ms between layers, never longer than 600 ms in all (the delays are set per element). */
 .cv-dgm svg[data-reveal] .cv-node,
 .cv-dgm svg[data-reveal] .cv-elabel,
+.cv-dgm svg[data-reveal] .cv-elabel-plate,
 .cv-dgm svg[data-reveal] .cv-arrow { animation: cv-fade 150ms ease both; }
 .cv-dgm svg[data-reveal] .cv-edge { stroke-dasharray: 1 1; animation: cv-draw 250ms cubic-bezier(.42, 0, .22, 1) both; }
 
@@ -760,6 +763,7 @@ html[data-stage] .cv-meta { display: none; }
   .cv-layer[data-enter],
   .cv-dgm svg[data-reveal] .cv-node,
   .cv-dgm svg[data-reveal] .cv-elabel,
+  .cv-dgm svg[data-reveal] .cv-elabel-plate,
   .cv-dgm svg[data-reveal] .cv-arrow,
   .cv-dgm svg[data-reveal] .cv-edge { animation: none; }
   .cv-dgm svg[data-reveal] .cv-edge { stroke-dasharray: none; }
