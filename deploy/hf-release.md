@@ -4,6 +4,28 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 49: tests move in and out (GIFT, Aiken, Moodle XML, Kahoot) and a test made from a lecture with its sentence (from the commit of this entry)
+
+- **Why**: Test_Builder_Spec_2026-10-18, «Выпуск 49»: a teacher is not locked in; a test from a lecture carries where its
+  answer comes from. The owner, 31.10: «доделай … конструктор тестов».
+- **Import**: Moodle XML (read safely: defusedxml, no DTD, entities or network; at most 256 levels and 400 000 elements),
+  GIFT and Aiken, with explanations (`####`, `#feedback`, `<generalfeedback>`), number tolerance, matching with extra
+  answers, ordering and gaps carried into the release-48 kinds. Word and Excel import unchanged.
+- **Export** (`POST /api/tests/export`, no AI): GIFT and Moodle XML as Moodle 4.5 reads them, Aiken (one-answer questions;
+  every question left out is named), a Kahoot sheet in their template's layout (text never as formulas). «Скачать» in
+  the studio shows what goes into the file first.
+- **Lecture → test**: «Сделать контрольную / Добавить в тест» on a lecture's self-test (free, no model); «Сгенерировать
+  из лекции, текста или файла» in the studio (the price of «Тест заново», 5 a minute, 20 a day; units back when no
+  answer is found in the text). Each question carries a real sentence of the lecture, chosen by code, never by the
+  model; the key is checked against it («проверено» / «проверьте» / dropped). The generator keeps the model's fragment
+  ids instead of throwing them away.
+- **Review fixes before release** (independent review): two regular expressions whose time grew with the square of a
+  crafted file (17–31 s at 100 KB, the whole server stalled) → one bounded scan, 0.00 s; zip bombs and PDFs over 500
+  pages stopped in `parser.extract_text` (covers `/api/analyze` too; 427 MB → 19 MB on a 200 KB bomb); lecture items
+  capped and off the event loop; the model's cached answer forgotten on a refund; GIFT number answers escaped; bad keys
+  never crash an export.
+- **Order**: no migrations; backend and site together (this Space). The bot's copy changed only in types.
+
 ## 2026-10-31 — Release 48.5: «Без спешки» — a battle where points come only from being right (from the commit of this entry)
 
 - **Why**: release 50 of the test builder program (Test_Builder_Spec_2026-10-18, «Режимы»): a serious check in the class
