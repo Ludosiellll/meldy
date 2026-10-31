@@ -560,6 +560,18 @@ const DRAFT_WORDS: Record<DraftProblem, string> = {
   forms: 'после «=» напишите верный ответ.',
   form_long: 'ответ длиннее 200 знаков. Сократите его.',
   explanation_long: 'пояснение длиннее 2000 знаков. Сократите его.',
+  // release 48: the new kinds are edited on the canvas, never from the text (their block keeps its key)
+  numbers: 'у вопроса нет верного числа.',
+  tolerance: 'допуск — не число.',
+  unit_long: 'единица длиннее 20 знаков.',
+  pairs: 'у строки нет пары.',
+  pairs_same: 'два одинаковых ответа.',
+  pair_long: 'ответ длиннее 200 знаков.',
+  pairs_many: 'ответов больше десяти.',
+  gaps: 'в тексте нет пропуска.',
+  gaps_many: 'пропусков больше десяти.',
+  gap_forms: 'у пропуска нет верного ответа.',
+  materials_many: 'лекций больше десяти.',
 };
 
 function questionProblems(draft: Draft, question: QuestionText, lines: Lines): TextProblem[] {

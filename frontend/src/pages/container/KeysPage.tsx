@@ -1,3 +1,5 @@
+import { NEW_KINDS } from '../../types/container';
+import { KIND_NAMES } from '../../components/kinds/copyKinds';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { addItems, deleteItem, fetchDoubts, keepKey, updateItem } from '../../api/containers';
@@ -17,6 +19,13 @@ import { TO_EXAMS } from '../../components/containers/copy';
 import type { DoubtRow, ItemPatch, SummarySubject, TestItem, Uuid } from '../../types/container';
 import '../../components/exams/exams.css';
 import './KeysPage.css';
+
+/** The key line of a question of a new kind (release 48). */
+const KIND_KEY = {
+  kind: (name: string) => `${name}: ключ — в полях выше.`,
+  essay: (lectures: number) =>
+    lectures > 0 ? `Развёрнутый ответ. Проверка по лекциям: ${lectures}.` : 'Развёрнутый ответ. Проверяете вы, лекции не выбраны.',
+};
 
 /**
  * /exams/c/:id/keys — «Вопросы и ключи», the author's keys (spec decision 14, §16 #44; Concept 1 §3.11 with the design critique I8):
@@ -120,7 +129,7 @@ export default function KeysPage() {
     () => [...items].sort((a, b) => (order.get(a.subject_id) ?? 0) - (order.get(b.subject_id) ?? 0) || a.position - b.position),
     [items, order],
   );
-  const noKey = sorted.filter((item) => !isKeyed(item));
+  const noKey = sorted.filter((item) => !isKeyed(item) && item.kind !== 'essay');
   const doubted = sorted.filter((item) => doubtOf.has(item.id));
   const manual = sorted.filter((item) => item.key_source === 'manual' && isKeyed(item));
   const check = sorted.filter((item) => !isKeyed(item) || doubtOf.has(item.id));
@@ -294,7 +303,7 @@ export default function KeysPage() {
         />
       );
     }
-    const keyed = isKeyed(item);
+    const keyed = isKeyed(item) || item.kind === 'essay';
     const multiple = item.kind === 'multiple';
     const tapMode: TapMode = item.kind === 'short' ? 'none' : multiple ? 'keys' : 'key';
     const reasonLines: string[] = [];
@@ -314,7 +323,12 @@ export default function KeysPage() {
       );
     }
     const current = item.kind === 'short' ? [] : item.correct;
-    const keyLine = item.kind === 'short' ? (item.answers.length ? KEYS.currentShort(item.answers.join('; ')) : KEYS.noKeyNow) : keyed ? KEYS.current(lettersText(item.correct)) : KEYS.noKeyNow;
+    // release 48: a new kind shows its key on its own fields (KindKeyView); its line names the kind
+    const keyLine = NEW_KINDS.includes(item.kind)
+      ? item.kind === 'essay'
+        ? KIND_KEY.essay((item.material_ids ?? []).length)
+        : KIND_KEY.kind(KIND_NAMES[item.kind])
+      : item.kind === 'short' ? (item.answers.length ? KEYS.currentShort(item.answers.join('; ')) : KEYS.noKeyNow) : keyed ? KEYS.current(lettersText(item.correct)) : KEYS.noKeyNow;
     const note = notes[item.id];
     const actions: KeyAction[] = [{ key: 'edit', label: KEYS.edit, onClick: () => openEditor(item.id) }];
     if (doubt && keyed) actions.push({ key: 'keep', label: KEYS.keep, onClick: () => void keep(item) });
@@ -343,9 +357,11 @@ export default function KeysPage() {
         options={item.options}
         kind={item.kind}
         answers={item.answers}
+        tolerance={item.tolerance}
+        unit={item.unit}
         current={current}
-        tapMode={owner ? tapMode : 'none'}
-        instruction={owner && item.kind !== 'short' ? (multiple ? QUEUE.pickKeys : QUEUE.pickKey) : null}
+        tapMode={owner && (item.kind === 'single' || item.kind === 'multiple') ? tapMode : 'none'}
+        instruction={owner && (item.kind === 'single' || item.kind === 'multiple') ? (multiple ? QUEUE.pickKeys : QUEUE.pickKey) : null}
         busy={busy === item.id}
         onTap={(index) => {
           if (item.correct.length === 1 && item.correct[0] === index) return;

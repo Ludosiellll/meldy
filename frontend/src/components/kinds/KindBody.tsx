@@ -172,3 +172,43 @@ export function OrderKeyLine({ items, keyOrder }: { items: string[]; keyOrder: n
     </div>
   );
 }
+
+/**
+ * The key of a question of a new kind as its author looks at it (Ключи, the studio's canvas): the kind's fields locked,
+ * filled with the key — the items in the right order, the pairs, each gap's first form, the first accepted number — and
+ * a line of what else counts (the other numbers, the tolerance; the other forms of a gap).
+ */
+export function KindKeyView({ kind, stem, options, answers, tolerance, unit }: {
+  kind: ItemKind;
+  stem: string;
+  options: string[];
+  answers: string[];
+  tolerance?: number | string | null;
+  unit?: string | null;
+}) {
+  if (kind === 'essay') return null;
+  const identityValue = options.map((_, i) => i);
+  const forms = kind === 'cloze' ? answers.map((gap) => gap.split('\n').map((f) => f.trim()).filter(Boolean)) : [];
+  const value = kind === 'order' || kind === 'match' ? identityValue : kind === 'cloze' ? forms.map((list) => list[0] ?? '') : kind === 'number' ? answers[0] ?? '' : null;
+  return (
+    <>
+      <KindBody kind={kind} stem={stem} options={options} right={answers} initialOrder={identityValue} unit={unit} value={value} />
+      {kind === 'number' ? <NumberKeyLine answers={answers} tolerance={tolerance} unit={unit} /> : null}
+      {kind === 'cloze' && forms.some((list) => list.length > 1) ? (
+        <ul className="kd-gap-list">
+          {forms.map((list, index) => (
+            <li key={index}>
+              <span className="kd-gap-n">{KINDS.gapLabel(index + 1, forms.length)}</span>
+              <span>{list.join(' / ')}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {kind === 'match' && answers.length > options.length ? (
+        <p className="kd-note">
+          {KINDS.matchExtra} {answers.slice(options.length).join(', ')}
+        </p>
+      ) : null}
+    </>
+  );
+}

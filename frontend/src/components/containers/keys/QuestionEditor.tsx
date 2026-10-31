@@ -14,13 +14,21 @@ import {
   patchOf,
   removeOption,
   resetsProgress,
+  switchKind,
   tickOnly,
   toggleTick,
   EXPLANATION_COUNT_FROM,
   LIMITS,
   type Draft,
 } from './editorModel';
+import KindFields, { PartialCheck } from './KindFields';
+import { KIND_NAMES } from '../../kinds/copyKinds';
 import './keys.css';
+
+/** The kinds a new question can be (release 48 adds the last five; «Выбор из вариантов» holds one or several). */
+const KIND_CHOICES = ['choice', 'short', 'number', 'order', 'match', 'cloze', 'essay'] as const;
+type KindChoice = (typeof KIND_CHOICES)[number];
+const kindChoiceOf = (draft: Draft): KindChoice => draft.kind ?? (draft.short ? 'short' : 'choice');
 
 /**
  * The author's editor of one question in «Вопросы и ключи» (spec 2026-10-16 part 1) and «Конструктор» (release 47):
@@ -155,7 +163,7 @@ export default function QuestionEditor({
   if (base.stamp !== itemStamp) setBase({ stamp: itemStamp, draft });
   const touched = base.stamp === itemStamp && draft !== base.draft;
   const resets = Boolean(item && patch && group && resetsProgress(item, patch));
-  const noKey = !draft.short && draft.correct.length === 0 && draft.options.length >= 2;
+  const noKey = !draft.kind && !draft.short && draft.correct.length === 0 && draft.options.length >= 2;
   const explained = explanationText(draft).length;
   const canSave = !busy && loading === 0 && problems.length === 0 && !unchanged;
   const dirty = useMemo(() => draftChanged(item, draft), [item, draft]);
@@ -355,13 +363,26 @@ export default function QuestionEditor({
     >
       <p className="kq-context">{nb(context)}</p>
 
-      {!item ? (
-        <fieldset className="qe-kind">
+      {!item && !trueFalse ? (
+        <fieldset className="qe-kind" data-many="">
           <legend className="sr-only">{EDITOR.label}</legend>
-          {[false, true].map((short) => (
-            <label key={String(short)} className="qe-kind-option">
-              <input type="radio" name={`${id}-kind`} checked={draft.short === short} onChange={() => setDraft((current) => ({ ...current, short, correct: short ? [] : current.correct }))} />
-              <span>{short ? EDITOR.kindShort : EDITOR.kindChoice}</span>
+          {KIND_CHOICES.map((choice) => (
+            <label key={choice} className="qe-kind-option">
+              <input
+                type="radio"
+                name={`${id}-kind`}
+                checked={kindChoiceOf(draft) === choice}
+                onChange={() =>
+                  setDraft((current) =>
+                    choice === 'choice' || choice === 'short'
+                      ? current.kind
+                        ? switchKind(current, choice)
+                        : { ...current, short: choice === 'short', correct: choice === 'short' ? [] : current.correct }
+                      : switchKind(current, choice),
+                  )
+                }
+              />
+              <span>{choice === 'choice' ? EDITOR.kindChoice : choice === 'short' ? EDITOR.kindShort : KIND_NAMES[choice]}</span>
             </label>
           ))}
         </fieldset>
@@ -395,7 +416,9 @@ export default function QuestionEditor({
       </div>
       {pictureLine('stem')}
 
-      {draft.short ? (
+      {draft.kind ? (
+        <KindFields id={id} draft={draft} busy={busy} setDraft={setDraft} />
+      ) : draft.short ? (
         <>
           <label className="qe-label" htmlFor={`${id}-forms`}>
             {EDITOR.forms}
@@ -477,6 +500,9 @@ export default function QuestionEditor({
               </button>
             ) : null}
           </div>
+          {several && !trueFalse ? (
+            <PartialCheck id={id} kind="multiple" checked={Boolean(draft.partial)} busy={busy} onChange={(on) => setDraft((current) => ({ ...current, partial: on }))} />
+          ) : null}
           {trueFalse ? null : (
             <div className="qe-row">
               {draft.options.length < LIMITS.optionsMax ? (
