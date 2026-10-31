@@ -288,7 +288,8 @@ begin
 end;
 $do$;
 
--- 4c. A big class goes in batches of 50: 120 more members, one mistake each; the page calls until next is null.
+-- 4c. A big class goes in batches of 50: 120 more members, one mistake each; the page calls until next is null. The
+--     cursor is the person's hash as quiz_results shows it (16 hex), never an account id (review 2026-11-05).
 insert into auth.users (id) select ('00000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 120) g;
 insert into public.container_members (container_id, user_id)
 select pg_temp.c('x')::uuid, ('00000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 120) g;
@@ -300,11 +301,12 @@ select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
 do $do$
 declare
   r jsonb;
-  v_after uuid := null;
+  v_after text := null;
   v_calls integer := 0;
   v_answers integer := 0;
   v_people integer := 0;
   v_first jsonb;
+  v_cursors text[] := '{}';
 begin
   loop
     r := public.quiz_send_mistakes(pg_temp.c('q')::uuid, v_after);
@@ -313,16 +315,30 @@ begin
     v_answers := v_answers + (r ->> 'answers')::integer;
     v_people := v_people + (r ->> 'people')::integer;
     exit when r -> 'next' = 'null'::jsonb or v_calls > 10;
-    v_after := (r ->> 'next')::uuid;
+    v_after := r ->> 'next';
+    v_cursors := v_cursors || v_after;
   end loop;
-  perform pg_temp.ok((v_first ->> 'people')::integer = 50 and (v_first ->> 'total')::integer = 123
-                     and (v_first ->> 'left')::integer = 73 and v_first ->> 'next' is not null,
+  perform pg_temp.ok((v_first ->> 'total')::integer = 123 and (v_first ->> 'left')::integer = 73,
                      format('the first batch: 50 of 123, 73 left: %s', v_first));
+  -- each cursor is a person's hash (md5 of the account and the quiz, as quiz_results' «person»), not the account
+  perform pg_temp.ok(cardinality(v_cursors) = 2
+                     and (select bool_and(c ~ '^[0-9a-f]{16}$'
+                                          and exists (select 1 from (select ('00000000-0000-4000-8000-' || lpad(g::text, 12, '0')) as u
+                                                                       from generate_series(1, 120) g
+                                                                     union all select unnest(array['bbbbbbbb-0000-0000-0000-000000000002',
+                                                                       'cccccccc-0000-0000-0000-000000000003', 'dddddddd-0000-0000-0000-000000000004'])) x
+                                                       where left(md5(x.u || pg_temp.c('q')), 16) = c and position(c in x.u) = 0))
+                            from unnest(v_cursors) c),
+                     format('opaque cursors: %s', v_cursors));
   perform pg_temp.ok(v_calls = 3 and v_people = 120 and v_answers = 120, format('three calls, 120 people (%s, %s, %s)', v_calls, v_people, v_answers));
   r := public.quiz_send_mistakes(pg_temp.c('q')::uuid);
-  perform pg_temp.ok((r ->> 'answers')::integer = 0 and (r ->> 'again')::integer = 50, format('again: nothing new in the first batch: %s', r));
+  perform pg_temp.ok((r ->> 'answers')::integer = 0
+                     and (r ->> 'again')::integer + (r ->> 'clean')::integer + (r ->> 'outside')::integer = 50,
+                     format('again: nothing new in the first batch: %s', r));
 end;
 $do$;
+select pg_temp.expect_error(format('select public.quiz_send_mistakes(%L, %L)', pg_temp.c('q'), 'bbbbbbbb-0000-0000-0000-000000000002'),
+                            '22023', 'an account id is no cursor');
 reset role;
 
 -- 5. The canvas's percents: every quiz of the exam, finished attempts of others.
