@@ -20,6 +20,7 @@
  *   «message to edit not found» → the same screen as a new message; the session follows it (`bot_session_move`).
  */
 import { encode, SID_RE, type GoMode, type SessionAct } from './codec.ts';
+import { t } from './html.ts';
 import { dayCard, planInputOf } from './card.ts';
 import { DbError, type BotDb, type Link, type Today } from './db.ts';
 import { transient } from './ledger.ts';
@@ -94,6 +95,8 @@ export interface Review {
   key: number[];
   /** A short answer's accepted forms. */
   answers: string[];
+  /** The author's explanation, after the answer (release 48); null — none. */
+  explanation?: string | null;
   recorded: boolean;
   misclick: boolean;
   doubt: boolean;
@@ -166,7 +169,8 @@ export interface StartArgs {
 
 /** CONTRACT_T5 «Functions», one method each. */
 export interface SessionApi {
-  items(tgUserId: number, containerId: string, itemIds: string[]): Promise<{ status: Status; items: ItemFacts[] }>;
+  /** inApp (release 48): the keyed questions of the block the bot leaves to the site (order, match, several gaps). */
+  items(tgUserId: number, containerId: string, itemIds: string[]): Promise<{ status: Status; items: ItemFacts[]; inApp?: number }>;
   start(tgUserId: number, args: StartArgs): Promise<Reply>;
   view(tgUserId: number, sid: string, pos: number | null): Promise<Reply>;
   /** A typed short answer passes sid and pos null. */
@@ -191,7 +195,12 @@ const msOf = (v: unknown): number | null => {
   return Number.isFinite(at) ? at : null;
 };
 const count = (v: unknown) => Math.max(0, Math.round(num(v) ?? 0));
-const kindOf = (v: unknown): ItemKind | null => (v === 'single' || v === 'multiple' || v === 'short' ? v : null);
+/**
+ * The kinds the bot asks (release 48: a number and a one-gap cloze are typed answers, so the bot asks them as short ones —
+ * the server grades them by their own rule; order, match and a cloze of several gaps stay on the site).
+ */
+const kindOf = (v: unknown): ItemKind | null =>
+  v === 'single' || v === 'multiple' || v === 'short' ? v : v === 'number' || v === 'cloze' ? 'short' : null;
 
 function toFigure(raw: unknown): SessionFigure & { gained: number; dropped: number; started: number; tooEarly: number } {
   const f = obj(raw);
@@ -280,6 +289,7 @@ function toView(raw: unknown): ViewData | null {
           text: str(r.text),
           key: ints(r.key),
           answers: strs(r.answers),
+          explanation: str(r.explanation),
           recorded: r.recorded === true,
           misclick: r.misclick === true,
           doubt: r.doubt === true,
@@ -341,7 +351,8 @@ export function sessionApi(db: BotDb): SessionApi {
         if (!id || !kind) return [];
         return [{ id, subjectId: str(i.subject_id) ?? '', kind, keepOrder: i.keep_order === true, code: i.code === true, rev: num(i.rev) ?? 1, options: strs(i.options) }];
       });
-      return { status, items };
+      const inApp = num(r.in_app) ?? 0;
+      return { status, items, ...(inApp > 0 ? { inApp } : {}) };
     },
     start: (tg, a) => call('bot_session_start', {
       p_tg_user_id: tg, p_sid: a.sid, p_container_id: a.containerId, p_subject_id: a.subjectId, p_kind: a.kind,
@@ -407,6 +418,7 @@ export function shownOf(view: ViewData): Shown {
     text: r?.text ?? null,
     again: view.retry < 2,
     recorded: r?.recorded ?? false,
+    explanation: r?.explanation ?? null,
   };
 }
 
@@ -421,7 +433,7 @@ export function screenOf(row: SessionRow, view: ViewData, site: string, mask = 0
   if (r.correct) {
     const typed = r.text ?? '';
     const form = r.answers.find((a) => a.trim() !== '' && typed.trim() !== '' && normEq(a, typed)) ?? r.answers[0] ?? typed;
-    return shortRightOut(v, form);
+    return shortRightOut(v, form, r.explanation ?? null);
   }
   const stage = r.misclick ? 'misclick' : r.doubt ? 'doubted' : 'review';
   return reviewOut(v, shownOf(view), stage, { site, back });
@@ -739,6 +751,7 @@ export function createSession(options: SessionOptions = {}): SessionPort {
       let reply: Reply | null = null;
       let stale = false;
       let sid = '';
+      let inApp = 0;
       for (let attempt = 0; exam && attempt < 3 && !reply; attempt += 1) {
         sid = newSid(random);
         const block = pickBlock(exam, go.mode, sid);
@@ -747,6 +760,7 @@ export function createSession(options: SessionOptions = {}): SessionPort {
         if (facts.status === 'unlinked') return tap.answer(W.NOT_LINKED);
         if (facts.status !== 'ok') break;
         const queue = startQueue(block, facts.items, sid);
+        inApp = facts.inApp ?? 0;
         if (queue.length === 0) break;
         const started = await api.start(tg, {
           sid, containerId: exam.id, subjectId: block.subjectId, kind: block.kind, queue, messageId: inPlace ? tap.messageId : null,
@@ -778,6 +792,14 @@ export function createSession(options: SessionOptions = {}): SessionPort {
       if (!inPlace && tap.messageId) await editKeyboard(ctx.tg, { chatId: tap.chatId, messageId: tap.messageId, keyboard: null }).catch(() => undefined);
       const shownIn = reply.session.messageId ?? (inPlace ? tap.messageId : null);
       await show(ctx, api, tg, tap.chatId, shownIn, reply);
+      // Release 48: questions of the block the chat cannot ask (order, match, a cloze of several gaps) wait on the site.
+      if (inApp > 0 && exam) {
+        await send(ctx.tg, {
+          chatId: tap.chatId,
+          text: t(W.inApp(inApp)),
+          keyboard: [[{ text: W.OPEN_IN_APP, webApp: `${ctx.site}${W.PATH.miniApp(exam.id)}` }]],
+        }).catch(() => undefined);
+      }
       // The session this one replaced keeps its record (no key stays in the chat), without buttons.
       const old = reply.replaced;
       if (old && old.sid !== reply.session.sid && old.messageId && old.messageId !== shownIn) {
