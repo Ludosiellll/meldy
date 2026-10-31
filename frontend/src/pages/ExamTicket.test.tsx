@@ -1673,6 +1673,23 @@ describe('ExamTicket: when the browser does not recognise speech', () => {
     );
   });
 
+  it('guards a tab close while recorded speech waits for the server, before any word is on the page', async () => {
+    seedDatabase();
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    act(() => recognition().onerror?.({ error: 'network' }));
+    const listening = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(listening);
+    // Listening with nothing said: nothing to lose, no question.
+    expect(listening.defaultPrevented).toBe(false);
+    act(() => media.recorders[0].piece());
+    expect(screen.getByText('Распознаём сказанное…')).toBeInTheDocument();
+    const recorded = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(recorded);
+    expect(recorded.defaultPrevented).toBe(true);
+  });
+
   it('moves to the server when the browser sends no words, and then says who hears the answer', async () => {
     seedDatabase();
     await renderPage(ticketUrl());

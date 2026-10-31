@@ -848,7 +848,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
   }, [save, state.evaluation.status, state.phase, state.save.status]);
 
   // ── Leaving ──
-  const unsaved = hasUnsavedAnswer(state, answerText);
+  // The browser asks before a tab close or a reload only while an answer is unsent: typed or recognised words, the
+  // check, the follow-up, an unsaved protocol — and speech the server has recorded but not recognised yet (its words
+  // are not in the answer's text: it used to leave without a question).
+  const unsaved = hasUnsavedAnswer(state, answerText) || (state.phase === 'answering' && voiceAnswer && speech.pending > 0);
   useEffect(() => {
     if (!unsaved) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
