@@ -4,9 +4,9 @@
 // the tick's deadline; without the migration, «missing»; the step in the tick between «flush» and «sweep».
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { inert, visibleText, WORD_JOINER } from './html.ts';
+import { inert, visibleLength, visibleText, WORD_JOINER } from './html.ts';
 import { setLogSink } from './log.ts';
-import { createQuizNotices, parseRows, QUIZ_LIMIT, QW, render, type QuizRow } from './quiz.ts';
+import { createQuizNotices, NAME_MAX, parseRows, QUIZ_LIMIT, QW, render, TEXT_MAX, type QuizRow } from './quiz.ts';
 import { STUBS, type Ctx } from './router.ts';
 import { createTelegram } from './tg.ts';
 import { runTick } from './tick.ts';
@@ -234,5 +234,26 @@ test('the close of a big class says the average comes from the latest finishes (
     'Труднее всего: № 7 — 20 %.',
     'Средний результат, проходной балл и трудные вопросы — по последним работам 200 человек.',
   ].join('\n'));
+});
+
+test('a name made inert stays short, and a digest never passes Telegram\'s 4096 characters (review 2026-11-05)', () => {
+  const row = (r: Record<string, unknown>) => parseRows({ rows: [{ ...base, delivery_id: 1, chat_id: 1, ...r }] }).rows[0] as QuizRow;
+  const at80 = '@'.repeat(80);
+  const one = words(render(row({ kind: 'one', name: at80, score: 1, max: 2 }), SITE).text).split('\n')[1];
+  const name = one.slice('Новая работа: '.length, one.indexOf(' — '));
+  assert.ok([...name].length <= NAME_MAX, `${[...name].length} characters`);
+  assert.ok(name.endsWith('…'));
+  // 30 such names and a long title: the list stops where the message would pass the limit, the rest is «и ещё N»
+  const people = Array.from({ length: 30 }, (_, i) => ({ name: `${at80}${i}`, score: 1, max: 2 }));
+  const out = render(row({ kind: 'digest', title: 'Я'.repeat(120), people, count: 200, done: 240 }), SITE);
+  assert.ok(visibleLength(out.text) <= TEXT_MAX, `${visibleLength(out.text)} characters`);
+  assert.ok(visibleLength(out.text) <= 4096);
+  const text = words(out.text);
+  const listed = text.split('\n').filter((line) => line.startsWith('@')).length;
+  assert.ok(listed > 0 && listed <= 30);
+  assert.ok(text.includes(QW.more(200 - listed)), 'the rest as «и ещё N»');
+  // ordinary names: all 30 shown, as before
+  const plain = render(row({ kind: 'digest', people: people.map((p, i) => ({ ...p, name: `Ученик ${i}` })), count: 30, done: 30 }), SITE);
+  assert.equal(words(plain.text).split('\n').filter((line) => line.startsWith('Ученик')).length, 30);
 });
 

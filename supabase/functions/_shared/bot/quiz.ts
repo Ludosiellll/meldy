@@ -18,7 +18,7 @@
  * inert: never a link, a mention or a command in the author's chat).
  */
 import { DbError } from './db.ts';
-import { b, inert, lines, t } from './html.ts';
+import { b, inert, lines, t, visibleLength } from './html.ts';
 import { errorName, log } from './log.ts';
 import type { Ctx, QuizPort } from './router.ts';
 import type { StepStats, TickTools } from './tick.ts';
@@ -102,8 +102,21 @@ const plural = (n: number, one: string, few: string, many: string) => {
 /** «17», «16,5». */
 const score = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
 const percent = (got: number, max: number) => (max > 0 ? Math.round((100 * got) / max) : 0);
-/** A participant's name, as they typed it but never a link (inert), and never empty in the message. */
-const who = (name: string) => (name.trim() ? inert(name.trim()) : 'Участник');
+/** Telegram takes at most 4096 characters after the entities are parsed; a message stays under this. */
+export const TEXT_MAX = 4000;
+/**
+ * A name in a message: at most this many characters once made inert (inert adds a joiner after each sign, so a name
+ * of 80 «@» grew to 159; review 2026-11-05).
+ */
+export const NAME_MAX = 60;
+
+/** A participant's name, as they typed it but never a link (inert), at most NAME_MAX characters, never empty. */
+function who(name: string): string {
+  const clean = name.trim();
+  if (!clean) return 'Участник';
+  const chars = [...inert(clean)];
+  return chars.length > NAME_MAX ? `${chars.slice(0, NAME_MAX - 1).join('')}…` : chars.join('');
+}
 
 export const QW = {
   title: (title: string) => `Контрольная «${title}»`,
@@ -158,12 +171,16 @@ export function render(row: QuizRow, site: string): Out {
     return { text: lines(b(QW.title(row.title)), t(QW.one(row.name, row.score, row.max))), keyboard: [[{ text: QW.results, url: resultsUrl(site, row) }]] };
   }
   if (row.kind === 'digest') {
-    const shown = row.people.map((p) => t(QW.person(p.name, p.score, p.max)));
-    const more = row.count - row.people.length;
-    return {
-      text: lines(b(QW.title(row.title)), t(QW.digestHead(row.count)), ...shown, more > 0 ? t(QW.more(more)) : null, '', t(QW.done(row.done))),
-      keyboard: [[{ text: QW.results, url: resultsUrl(site, row) }]],
-    };
+    // As many names as fit under TEXT_MAX; the rest are «и ещё N».
+    const head = [b(QW.title(row.title)), t(QW.digestHead(row.count))];
+    const tail = (n: number) => [row.count - n > 0 ? t(QW.more(row.count - n)) : null, '', t(QW.done(row.done))];
+    let shown: string[] = [];
+    for (const p of row.people) {
+      const next = [...shown, t(QW.person(p.name, p.score, p.max))];
+      if (visibleLength(lines(...head, ...next, ...tail(next.length))) > TEXT_MAX) break;
+      shown = next;
+    }
+    return { text: lines(...head, ...shown, ...tail(shown.length)), keyboard: [[{ text: QW.results, url: resultsUrl(site, row) }]] };
   }
   if (row.kind === 'close') {
     return {
