@@ -19,10 +19,10 @@ const HERE = decodeURIComponent(import.meta.url.replace(/^file:\/\//, ''));
 const SRC = HERE.slice(0, HERE.lastIndexOf('/src/') + '/src/'.length);
 
 /**
- * The live game's own pages (components/live: the projector's setup and the phone's /play) keep their insets: the phone's
- * game is laid out by the live game's own rules. telegram.css is where the Telegram inset is made from env() on purpose.
+ * telegram.css is where the Telegram inset is made from env() on purpose. The live game's pages (components/live: the
+ * setup's footer, the phone's /play and /tg/play) add --sf-safe-b too, so in Telegram they keep Telegram's inset.
  */
-const OWN_INSETS = [/^components\/live\//, /^styles\/telegram\.css$/];
+const OWN_INSETS = [/^styles\/telegram\.css$/];
 
 async function sources(): Promise<Array<{ path: string; text: string }>> {
   const fs = await nodeFs();
