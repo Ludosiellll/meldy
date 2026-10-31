@@ -4,7 +4,7 @@
 // the tick's deadline; without the migration, «missing»; the step in the tick between «flush» and «sweep».
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { visibleText } from './html.ts';
+import { inert, visibleText, WORD_JOINER } from './html.ts';
 import { setLogSink } from './log.ts';
 import { createQuizNotices, parseRows, QUIZ_LIMIT, QW, render, type QuizRow } from './quiz.ts';
 import { STUBS, type Ctx } from './router.ts';
@@ -202,3 +202,37 @@ test('in the tick: the step «quiz» runs between «flush» and «sweep», its n
   }
   assert.ok(!lines.some((line) => line.includes('Иванов')), 'no name in the log');
 });
+
+test('a name that looks like a link, a mention or a command is never one in the author\'s chat (inert, in html.ts)', async () => {
+  const names = ['t.me/evil_bot', '@evil_bot', 'https://evil.example/x', '#скидка', '/start', 'mail@evil.example', '+79991234567', '$BTC'];
+  for (const name of names) {
+    const out = inert(name);
+    assert.equal(out.replaceAll(WORD_JOINER, ''), name, 'reads the same');
+    assert.doesNotMatch(out, /[@#$/:][^\u2060]/u, `${name}: a sign without a joiner after it`);
+    assert.doesNotMatch(out, /\.[^\s.\u2060]/u, `${name}: a dot glued to a word`);
+    assert.doesNotMatch(out, /\d{4}/u, `${name}: four digits in a row`);
+  }
+  assert.equal(inert('Иванов Иван'), 'Иванов Иван', 'an ordinary name is left as it is');
+  const s = setup();
+  s.due({ kind: 'one', name: 't.me/evil_bot @evil_bot', score: 1, max: 2 });
+  s.due({ kind: 'digest', people: [{ name: '/start', score: 1, max: 2 }], count: 1, done: 3 });
+  await s.tick();
+  for (const call of s.ft.of('sendMessage')) {
+    assert.doesNotMatch(visibleText(call.params.text), /t\.me\/|@evil|\/start/u, 'no live pattern in the message');
+    assert.equal(call.params.reply_markup.inline_keyboard.length, 1, 'the only link is the results button');
+  }
+});
+
+test('the close of a big class says the average comes from the latest finishes (kept with the summary)', async () => {
+  const s = setup();
+  s.due({ kind: 'close', people: 1000, avg_percent: 64, passed: 150, sample: 200, hardest: [{ no: '7', percent: 20 }] });
+  await s.tick();
+  assert.equal(words(s.ft.of('sendMessage')[0].params.text), [
+    'Контрольная «Контрольная <9А>» закрыта',
+    'Сдали: 1000 человек. Средний результат — 64 %.',
+    'Набрали проходной балл: 150 из 200.',
+    'Труднее всего: № 7 — 20 %.',
+    'Средний результат, проходной балл и трудные вопросы — по последним работам 200 человек.',
+  ].join('\n'));
+});
+

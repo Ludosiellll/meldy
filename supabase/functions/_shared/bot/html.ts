@@ -55,6 +55,22 @@ export function pre(text: string, lang: string | null = null): string {
   return `<pre>${esc(text)}</pre>`;
 }
 
+/** U+2060 WORD JOINER: invisible, no width, never a line break. */
+export const WORD_JOINER = '\u2060';
+
+/**
+ * Someone else's words made inert before they go into a message (release 49 review: a participant named «t.me/x» or
+ * «@x_bot» became a link in the author's chat): Telegram links a URL, a domain, an @username, a #hashtag, a $cashtag, a
+ * /command, an e-mail and a phone number; a word joiner after each of «@ # $ / : .» and between long runs of digits
+ * breaks every one of them, and the text reads the same. Plain text in, plain text out (escape it after).
+ */
+export function inert(text: string): string {
+  return String(text)
+    .replace(/([@#$/:])(?=\S)/g, `$1${WORD_JOINER}`)
+    .replace(/\.(?=[^\s.])/g, `.${WORD_JOINER}`)
+    .replace(/(\d{3})(?=\d)/g, `$1${WORD_JOINER}`);
+}
+
 /** «ёлочки» around a name. */
 export function quoted(text: string): string {
   return `«${text}»`;

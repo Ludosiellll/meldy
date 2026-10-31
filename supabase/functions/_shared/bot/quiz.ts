@@ -14,10 +14,11 @@
  * a 429 puts the row back (`bot_delivery_retry`) and stops the step; a 400/403 closes it as failed (403 in a private
  * chat: the author blocked the bot, `bot_chat_event(blocked)`); a timeout leaves it in sending (it becomes unknown).
  * Rows not reached before the tick's deadline stay claimed; the database hands them again after a minute. Without the
- * migration the step answers «missing». Names are the participants' own words: always escaped.
+ * migration the step answers «missing». Names are the participants' own words: always escaped and made inert (html.ts
+ * inert: never a link, a mention or a command in the author's chat).
  */
 import { DbError } from './db.ts';
-import { b, lines, t } from './html.ts';
+import { b, inert, lines, t } from './html.ts';
 import { errorName, log } from './log.ts';
 import type { Ctx, QuizPort } from './router.ts';
 import type { StepStats, TickTools } from './tick.ts';
@@ -37,7 +38,7 @@ interface Base {
 export type QuizRow =
   | (Base & { kind: 'one'; name: string; score: number; max: number })
   | (Base & { kind: 'digest'; people: Array<{ name: string; score: number; max: number }>; count: number; done: number })
-  | (Base & { kind: 'close'; people: number; avgPercent: number | null; passed: number | null; hardest: Array<{ no: string; percent: number }> })
+  | (Base & { kind: 'close'; people: number; avgPercent: number | null; passed: number | null; sample: number | null; hardest: Array<{ no: string; percent: number }> })
   | (Base & { kind: 'share'; code: string; closesAt: string | null; itemCount: number; timeLimitS: number | null; guests: boolean; tz: string });
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -75,7 +76,7 @@ export function parseRows(raw: unknown): { rows: QuizRow[]; bad: number } {
         const x = (h && typeof h === 'object' ? h : {}) as Record<string, unknown>;
         return { no: str(x.no) ?? '', percent: num(x.percent) ?? 0 };
       }).filter((h) => h.no !== '');
-      rows.push({ ...base, kind: 'close', people: num(r.people) ?? 0, avgPercent: num(r.avg_percent), passed: num(r.passed), hardest });
+      rows.push({ ...base, kind: 'close', people: num(r.people) ?? 0, avgPercent: num(r.avg_percent), passed: num(r.passed), sample: num(r.sample), hardest });
     } else if (r.kind === 'share' && CODE_RE.test(str(r.code) ?? '')) {
       rows.push({
         ...base, kind: 'share', code: str(r.code) as string, closesAt: str(r.closes_at), itemCount: num(r.item_count) ?? 0,
@@ -101,8 +102,8 @@ const plural = (n: number, one: string, few: string, many: string) => {
 /** «17», «16,5». */
 const score = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
 const percent = (got: number, max: number) => (max > 0 ? Math.round((100 * got) / max) : 0);
-/** A participant's name, as they typed it (never empty in the message). */
-const who = (name: string) => (name.trim() ? name.trim() : 'Участник');
+/** A participant's name, as they typed it but never a link (inert), and never empty in the message. */
+const who = (name: string) => (name.trim() ? inert(name.trim()) : 'Участник');
 
 export const QW = {
   title: (title: string) => `Контрольная «${title}»`,
@@ -116,6 +117,8 @@ export const QW = {
   people: (n: number, avg: number | null) =>
     `Сдали: ${n} ${plural(n, 'человек', 'человека', 'человек')}.${avg === null ? '' : ` Средний результат — ${avg} %.`}`,
   passed: (passed: number, people: number) => `Набрали проходной балл: ${passed} из ${people}.`,
+  /** A big class: the average, the pass mark and the hardest come from the latest finishes only. */
+  sample: (n: number) => `Средний результат, проходной балл и трудные вопросы — по последним работам ${n} ${plural(n, 'человека', 'человек', 'человек')}.`,
   hardest: (list: Array<{ no: string; percent: number }>) => `Труднее всего: ${list.map((h) => `№ ${h.no} — ${h.percent} %`).join(', ')}.`,
   facts: (items: number, minutes: number | null, until: string | null) =>
     [`${items} ${plural(items, 'вопрос', 'вопроса', 'вопросов')}`, minutes ? `${minutes} ${plural(minutes, 'минута', 'минуты', 'минут')}` : null, until ? `до ${until}` : null]
@@ -167,8 +170,9 @@ export function render(row: QuizRow, site: string): Out {
       text: lines(
         b(QW.closedTitle(row.title)),
         row.people === 0 ? t(QW.nobody) : t(QW.people(row.people, row.avgPercent)),
-        row.people > 0 && row.passed !== null ? t(QW.passed(row.passed, row.people)) : null,
+        row.people > 0 && row.passed !== null ? t(QW.passed(row.passed, row.sample ?? row.people)) : null,
         row.people > 0 && row.hardest.length > 0 ? t(QW.hardest(row.hardest)) : null,
+        row.people > 0 && row.sample !== null ? t(QW.sample(row.sample)) : null,
       ),
       keyboard: [[{ text: QW.review, url: resultsUrl(site, row, 'questions') }]],
     };
