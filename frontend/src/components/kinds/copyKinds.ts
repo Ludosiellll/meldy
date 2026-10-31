@@ -41,7 +41,7 @@ export const KINDS = {
   orderTaken: (text: string, place: number, of: number) => `Взята строка ${text}, место ${place} из ${of}. Стрелки — передвинуть, пробел — поставить.`,
   orderDropped: (text: string, place: number, of: number) => `Строка ${text} поставлена на место ${place} из ${of}.`,
   orderCancelled: 'Перестановка отменена.',
-  matchHint: 'Выберите пару каждой строке. Можно перетащить ответ из списка под таблицей.',
+  matchHint: 'Выберите пару каждой строке или перетащите ответ снизу на строку.',
   matchPick: 'Выбрать',
   matchNone: 'Не выбрано',
   matchPool: 'Ответы',

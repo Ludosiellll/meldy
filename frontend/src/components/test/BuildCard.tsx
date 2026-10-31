@@ -1,3 +1,5 @@
+import { NEW_KINDS } from '../../types/container';
+import { KindKeyView } from '../kinds/KindBody';
 import { useId, type CSSProperties, type ReactNode } from 'react';
 import { isPictureWord, type TestItem } from '../../types/container';
 import { KEYS, letter, QUEUE } from '../containers/copyImport';
@@ -5,6 +7,10 @@ import ItemPictures, { storedPictures, type PictureSource } from '../containers/
 import { leadingSpaces, stemParts } from '../containers/stemCode';
 import { isKeyed, typeOf } from './buildModel';
 import { BUILD } from './copyTest';
+
+/** An essay's card line (release 48): checked by its lectures, or by the author. */
+const essayLine = (lectures: number) =>
+  lectures > 0 ? `Развёрнутый ответ: проверка по лекциям (${lectures}), ваша оценка главнее.` : 'Развёрнутый ответ: оцениваете вы.';
 
 /**
  * One question of the builder (spec 2026-10-18 §47.2): its number and kind, the question (code shown as typed, each
@@ -96,9 +102,18 @@ export default function BuildCard({ item, number, first, last, busy, locked, sho
         <span className="tb-flag">{BUILD.types[type]}</span>
       </header>
 
-      <Stem text={item.stem} code={item.code} pictures={pictures} />
+      {item.kind === 'cloze' ? null : <Stem text={item.stem} code={item.code} pictures={pictures} />}
 
-      {item.kind === 'short' ? (
+      {NEW_KINDS.includes(item.kind) ? (
+        // release 48: a new kind's key on its own fields; an essay names the lectures it is checked by
+        item.kind === 'essay' ? (
+          <p className="tb-forms-label">{essayLine((item.material_ids ?? []).length)}</p>
+        ) : (
+          <div className="tb-kind">
+            <KindKeyView kind={item.kind} stem={item.stem} options={item.options} answers={item.answers} tolerance={item.tolerance} unit={item.unit} />
+          </div>
+        )
+      ) : item.kind === 'short' ? (
         item.answers.length > 0 ? (
           <div className="tb-forms">
             <p className="tb-forms-label">{BUILD.forms}</p>
@@ -133,7 +148,7 @@ export default function BuildCard({ item, number, first, last, busy, locked, sho
           })}
         </ol>
       )}
-      {item.kind !== 'short' && !keyed ? <p className="tb-warn">{BUILD.noKey}</p> : null}
+      {item.kind !== 'short' && item.kind !== 'essay' && !keyed ? <p className="tb-warn">{BUILD.noKey}</p> : null}
 
       {explanation ? (
         <div className="tb-expl">

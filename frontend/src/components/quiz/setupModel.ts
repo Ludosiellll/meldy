@@ -10,8 +10,9 @@ import type { TestItem } from '../../types/container';
 import type { QuizRow, QuizSettings } from '../../types/quiz';
 import { COUNT_OPTIONS, defaultMinutes, MAX_ITEMS } from '../../lib/quizzes/quizModel';
 
-/** A question goes into a quiz only with a key (the database's `keyed` column). */
-export const isKeyed = (item: Pick<TestItem, 'correct' | 'answers'>) => item.correct.length > 0 || item.answers.length > 0;
+/** A question goes into a quiz only with a key (the database's `keyed` column), or as an essay (release 48: the pool takes it). */
+export const isKeyed = (item: Pick<TestItem, 'correct' | 'answers'> & { kind?: string }) =>
+  item.correct.length > 0 || item.answers.length > 0 || item.kind === 'essay';
 
 /** Keyed questions by subject. */
 export function keyedBySubject(items: Iterable<TestItem>): Map<string, number> {

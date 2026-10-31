@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
 import { isPictureWord, NEW_KINDS, type ItemKind } from '../../../types/container';
 import { KindKeyView } from '../../kinds/KindBody';
+import QText from '../../kinds/QText';
 import { EDITOR, letter, nb, QUEUE } from '../copyImport';
 import ItemPictures, { type PictureSource } from '../ItemPictures';
 import { leadingSpaces, stemParts } from '../stemCode';
@@ -68,7 +69,9 @@ export function Explanation({ text }: { text: string | null | undefined }) {
   return (
     <div className="kq-explain">
       <p className="kq-explain-h">{EDITOR.explanationShown}</p>
-      <p className="kq-explain-t">{words}</p>
+      <p className="kq-explain-t">
+        <QText text={words} />
+      </p>
     </div>
   );
 }

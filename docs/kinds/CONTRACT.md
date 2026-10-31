@@ -86,7 +86,7 @@ The element of `AnswerInput` gets one more key, `texts`. Indices are file indice
 | `number` | `text`: the typed string (≤ 1000 characters, not blank) | `text: null` |
 | `order` | `chosen`: the arrangement, top to bottom — a permutation of `0..n−1` | `chosen: null` |
 | `match` | `chosen`: per left item (file order) the index of its right item in `answers`, or `-1` (left empty); length n | `chosen: null` (or all `-1`) |
-| `cloze` | `texts`: one string per gap (≤ 200 characters each; `''` = left empty) | `texts: null` (or all blank) |
+| `cloze` | `texts`: one string per gap (≤ 200 characters each; `''` = left empty); a one-gap cloze also takes `text` (the bot) | `texts: null` (or all blank) |
 | `essay` | not recorded here (`no_key`) | — |
 
 `shown_order` is optional: for `order` a permutation of `0..n−1` (the order the items were first shown), for `match` a
@@ -102,7 +102,7 @@ with `partial`.
 - `number`: right ⇔ `meldy_number_right(text, answers, tolerance, unit)`. `o_text` = the text.
 - `order`: right ⇔ `chosen = [0, 1, …, n−1]`. `o_chosen` = the arrangement (not sorted).
 - `match`: right ⇔ `chosen[i] = i` for every i. `o_chosen` = the chosen list as given (with `-1`).
-- `cloze`: gap k right ⇔ `meldy_short_norm(texts[k])` equals the normalised form of one of its forms; right ⇔ every gap
+- `cloze` (`text` on a one-gap cloze is read as `texts: [text]`): gap k right ⇔ `meldy_short_norm(texts[k])` equals the normalised form of one of its forms; right ⇔ every gap
   right. `o_text` = the texts joined by `\n` (a newline inside a gap becomes a space).
 - `o_result`: `right` / `wrong` / `dont_know` as before.
 
@@ -214,6 +214,10 @@ covers `short` and `number`, and a new `credit` (the sum of credits) beside `cor
   explanations, on every web surface above (not in code stems, not in the bot). Loaded only when a text has a formula.
 - **«Озвучить вопрос»** for the participant (контрольная, session): reads the stem, the options (or the items) through
   Meldy's voice (`/api/tts`) when signed in, the browser's own voice otherwise; formulas are read as written.
+- **Bot:** `bot_session_items` gives number and one-gap cloze (the bot asks them as typed answers) and, only when
+  it left some out, `in_app` = the keyed order / match / several-gap cloze questions of the block; the bot then sends
+  «N вопросов … Их удобнее решать в приложении» with «Открыть в приложении» (the Mini App). The view's review gives a
+  number's values with the unit, a gap's forms, and `explanation` (only when the question has one).
 - **Keyboard and screen readers:** an order item is a list of buttons — Space/Enter takes an item, ↑/↓ moves it, Space
   drops it; «Выше» / «Ниже» buttons on each row; the live region says «Пункт 2 из 4». A match left item has a select of
   the right items (and drag onto it); the pair is announced.
