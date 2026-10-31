@@ -94,6 +94,15 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
   (the study's own rule: case, ё, spaces and one trailing dot do not matter); then as a right tap. `counts` is `[]`.
   The close keeps the question's **tops**: the three normal forms typed most often (by count, then the text), rude
   ones left out (`meldy_private.live_name_rude`), each with `n` and `ok`.
+- A number answer (`typed`, since `20261102090100_live_numbers.sql`) is right when
+  `public.meldy_number_right(typed, forms, tolerance, unit)` (docs/kinds/CONTRACT.md §1.1: spaces, a comma, «−», the
+  unit after it do not matter; within the tolerance of an accepted number); then as a right tap; no partial credit.
+  `counts` is `[]`. The close keeps the question's **tops** — the three numbers typed nearest a right value (by
+  distance, then count, then value), each `{text, n, ok}` with `text` the value as a plain decimal without trailing
+  zeros — and its **spread**, up to 60 values typed (the most typed) with their counts `[[text, n], …]` by value, for
+  the projector's number line. A typed number is read by `meldy_private.live_number_value` (the rule's own reading:
+  the rehearsal checks it on contracts/kinds/number_vectors.json); what is no number counts as wrong and is never
+  shown, so no word reaches the projector from a number question.
 - Worked example (rehearsed in `live_kinds_teams_behaviour.sql` and `test_live_kinds.py`): keys `[0, 2]`, T = 20 s;
   Дима ticks 0 and 2 at 1000 ms (streak 0) → 98 (right); Лена ticks 2 at 2000 ms → share 0.5, `round(95 × 0.5) = 48`
   (streak 0, not frozen); Боря ticks 0 and 1 → share 0, wrong, frozen.
@@ -107,6 +116,11 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
   rounds' places (`meldy_private.live_arrange`: each round's place holding a text answer swaps with the nearest choice
   question on a button place, the later one on a tie; while the choice questions are fewer than the rounds, the last
   text answer is dropped and counted in `skipped`). The item's explanation is copied (`explanation`) for the review.
+- Since `20261102090100_live_numbers.sql` a **number** item (release 48, docs/kinds/CONTRACT.md: 1–10 accepted
+  numbers, a tolerance, a unit) plays wherever a text answer may (`kind = 'number'`: no options, `key = -1`, `forms` =
+  the accepted numbers, `tolerance` and `unit` copied, the unit trimmed): only ever a button question, never on a
+  movement round's place, never in «Встань на ответ». Order, match, cloze and essay items never play (the setup names
+  each: «Нужно расставить по порядку.», «Нужно сопоставить пары.», «Пропуски в тексте.», «Развёрнутый ответ.»).
 - Before it: plays items with exactly one correct option of 2–6, pictures allowed, in every game: a battle, a battle with movement
   rounds and «Встань на ответ» (20261030090000_live_pictures.sql for the battle, 30.10; 20261031090000_live_wide_rounds.sql
   for the rest: the arena has six zones and its boards show the pictures; the room's write `live_stand_close` takes the
@@ -251,7 +265,8 @@ check through `live_join`.
 `live_submit(p_game uuid, p_token text, p_qi int, p_answer jsonb) → {"accepted": true, "answered": 18, "now": "…"}`
 — an answer of any kind with `live_answer`'s checks in its order: `{"choice": n}`, `{"picks": [n, …]}` (1–6 different
 shown indexes; one pick on a single answer is that choice) or `{"text": "…"}` (trimmed 1–200 characters, not empty
-once normalised). `ML004 kind`, `22023 answer` as above.
+once normalised; a text answers a text or a number question — a text that is no number is taken there and is
+wrong). `ML004 kind`, `22023 answer` as above.
 `live_practice(p_game uuid, p_token text) → {"container_id", "joined", "saved", "mistakes"}` — §14.
 `live_state(p_game uuid, p_token text, p_since_rev bigint) → PlayerState | {rev, now, unchanged: true}`
 `live_review(p_game uuid, p_token text) → Review` — podium/ended.
@@ -296,7 +311,13 @@ once normalised). `ML004 kind`, `22023 answer` as above.
 "me":       {…, "picks": [2]}  |  {…, "typed": "Питер"};  {…, "team": 1}
 "teams":    [{"team": 2, "players": 3, "dmg": 912, "avg": 304.0, "place": 1}, …]      // by place, from the lobby on
 "roster": [{…, "team": 1}], "top": [{…, "team": 1}], "settings": {…, "teams": 2}
-// Review items: + "kind", "keys", "picks", "share" | "kind", "forms", "typed"; + "explanation" when the item has one
+// A number question (20261102090100_live_numbers.sql):
+"question": {…, "kind": "number", "unit": "м", "options": []}                     // unit null: none
+"result":   {…, "forms": ["42"], "tolerance": 0.5, "unit": "м", "tops": [{"text": "41.6", "n": 1, "ok": true}]}
+            // + HostState: "spread": [["41.6", 1], ["42", 3], ["43", 1]]   + PlayerState: "typed": "41,6 м"
+"me":       {…, "typed": "41,6 м"}
+// Review items: + "kind", "keys", "picks", "share" | "kind", "forms", "typed" | "kind", "forms", "tolerance", "unit",
+// "typed"; + "explanation" when the item has one
 // (correct: the close's verdict — the exact set, a right zone, a right text)
 ```
 
@@ -415,12 +436,13 @@ no room.
   left without an answer while playing it (not a void movement round), is recorded once as this user's answer of today
   through the study core (`meldy_private.record_test_answers_for`, source `web`): the same row and rule step as a
   wrong answer on the site, so «Повторить ошибки» brings them back. `client_event_id` = `live:<game>:<qi>`: a second
-  press records nothing twice (`saved` counts both).
+  press records nothing twice (`saved` counts both). The answer goes as the player gave it: the options (file
+  indexes), the text of a text or a number question, or none (`dont_know`).
 - The phone: «Готово: 3 вопроса в тренировке экзамена.» and «Открыть экзамен»; a guest (no session) is asked to sign
   in («Войти и тренировать») and comes back to `/play?r=<game>&practice=1` — the token stays in the tab — where it runs
   by itself; in Telegram there is no site session: the line says to play from the site with an account.
 
-## 15. Screens of several right answers and text answers
+## 15. Screens of several right answers, text answers and numbers
 
 - **Phone, several right answers** (`player/Battle.tsx`): «Верных: 2 — отметьте все» over the options; a tap ticks or
   unticks an option (a check on white, `aria-pressed`); «Ответить» sends the set (`live_submit` `picks`) once; at the
@@ -437,4 +459,18 @@ no room.
   ошибки» (§14).
 - **Setup** (`pages/live/LiveSetupPage.tsx`): its preview counts questions of several right answers and text answers as
   played (a text answer not in «Встань на ответ»: `source.ts` `kindSkip`), and offers «Команды».
+- **Phone, a number** (`player/NumberPad.tsx`): a keypad where the options would be — the number as typed with the
+  question's unit after it, 0–9, «,» (a first comma writes «0,»), «−» (turns the sign over), «⌫», «Ответить»
+  (`live_submit` `text`, only when it reads as a number); the phone's own keyboard never opens; at the phone's zero a
+  number typed goes by itself. The sheet: «Вы ввели: 41 м», «Верный ответ: 42 ± 0,5 м», «Ближе всех: 42 м — 2 раза,
+  …». Numbers are said the Russian way (`lib/live/numbers.ts`: «3,14», «−12», «12 500»).
+- **Projector, a number** (`stand/BattleHost.tsx`, `stand/NumberLine.tsx`): «Введите число на телефоне» and «Ответ в м»
+  on the board; at the reveal the right number with its tolerance and unit, and under it «Ответы класса»: a number
+  line with the right value's green pin and its tolerance band, a stem per value typed (its height the count, green
+  inside the band, coral outside; the wild answers counted at the ends, «← 2»), then «Ближе всех» with the three
+  nearest and their counts. The line covers the bands and the middle 80 % of the answers. The flat screen
+  (`host/Panel.tsx`) shows the key and the same line; the teacher's «Разбор» says «Верный ответ: 42 ± 0,5 м».
+- **Review on the phone**: «Вы ввели: …» and «Верный ответ: …» with the tolerance and unit; «Тренировать ошибки» sends a
+  number mistake with the own text (the study core grades it by the same rule).
 - Release order: the site and the Space first (they read the new keys and run without them), then the migration.
+  For the numbers: 20261101090000 (live) and 20261102090000 first, then the site, then 20261102090100.

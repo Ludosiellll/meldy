@@ -31,7 +31,9 @@ describe('the kinds on the wire', () => {
     expect(questionKind({})).toBe('single');
     expect(questionKind({ kind: 'multiple' })).toBe('multiple');
     expect(questionKind({ kind: 'short' })).toBe('short');
-    expect(questionKind({ kind: 'number' })).toBe('single');
+    expect(questionKind({ kind: 'number' })).toBe('number');
+    // a kind this client does not know yet reads as one right option
+    expect(questionKind({ kind: 'order' })).toBe('single');
     expect(questionKind(null)).toBe('single');
   });
 

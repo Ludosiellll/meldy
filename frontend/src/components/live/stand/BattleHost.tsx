@@ -36,6 +36,8 @@ import { FpsReadout, fpsWanted } from './FpsReadout';
 import { LEAP_OUT_S } from './formation';
 import { ArenaHp, MixedBoard, NO_REVEAL, useMixedReveal, type RevealView } from './MixedHost';
 import { BigPicture, OptionPic, StemFigure } from './figure';
+import { NumberLine } from './NumberLine';
+import { numberAnswer, typedText } from '../../../lib/live/numbers';
 import { arenaOn, revealPlan, strongest } from './mixed';
 import type { TimerFace } from './plan';
 import { battleRows, fastestHit, frozenPids, tapRevealOf, tapTimerFace } from './battle';
@@ -207,7 +209,8 @@ interface TapBoardProps {
   stoppedAt: number | null;
 }
 
-function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: TapBoardProps) {
+/** Exported for its tests (NumberBoard.test.tsx); the screen below is the only user. */
+export function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: TapBoardProps) {
   const width = useStageWidth();
   const [big, setBig] = useState(false);
   useEffect(() => setBig(false), [q.qi, s.state]);
@@ -226,6 +229,9 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
   const kind = questionKind(q);
   const keys = rightKeys(result);
   const tops = result && kind === 'short' ? (result.tops ?? []) : null;
+  // a number question's reveal: the right value with its band, and where the class's answers fell (CONTRACT §15)
+  const line = result && kind === 'number' ? result : null;
+  const boardW = Math.min(1120, width - 660);
   return (
     <div className="lvmx lvbt" data-phase={phase}>
       {max > 0 ? <ArenaHp hp={hp} max={max} width={width} /> : null}
@@ -238,6 +244,10 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
               {kind === 'short' ? (
                 <div className="lvst-answer lvbt-answer-text">
                   <span>{result.forms?.[0] ?? ''}</span>
+                </div>
+              ) : kind === 'number' ? (
+                <div className="lvst-answer lvbt-answer-text">
+                  <span>{numberAnswer(result.forms, result.tolerance, result.unit ?? q.unit)}</span>
                 </div>
               ) : (
                 <div className="lvst-answer" data-many={keys.length > 1 ? '' : undefined}>
@@ -261,15 +271,41 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
                       ? BATTLE_3D.ready
                       : kind === 'short'
                         ? BATTLE_3D.text
-                        : BATTLE_3D.hint}
+                        : kind === 'number'
+                          ? BATTLE_3D.number
+                          : BATTLE_3D.hint}
               </span>
               {kind === 'multiple' && q.multi ? <span className="lvbt-multi">{BATTLE_3D.multi(q.multi)}</span> : null}
+              {kind === 'number' && q.unit ? <span className="lvbt-multi">{BATTLE_3D.unit(q.unit)}</span> : null}
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
               </h1>
             </div>
           )}
         </section>
+        {line ? (
+          <div className="lvbt-tops lvbt-line" key={`n${q.qi}`}>
+            <span className="lvst-hint">{BATTLE_3D.line}</span>
+            {(line.spread ?? []).length > 0 ? (
+              <NumberLine forms={line.forms ?? []} tolerance={line.tolerance} unit={line.unit ?? q.unit} spread={line.spread} width={boardW - 36} height={138} />
+            ) : (
+              <p className="lvbt-tops-none">{BATTLE_3D.topsNone}</p>
+            )}
+            {(line.tops ?? []).length > 0 ? (
+              <div className="lvbt-near">
+                <span>{BATTLE_3D.near}</span>
+                <ol>
+                  {(line.tops ?? []).map((t) => (
+                    <li key={t.text} data-ok={t.ok ? '' : undefined}>
+                      <span className="lvbt-top-text">{typedText(t.text, line.unit ?? q.unit)}</span>
+                      <b>{nb(t.n)}</b>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         {tops ? (
           <div className="lvbt-tops" key={`t${q.qi}`}>
             <span className="lvst-hint">{BATTLE_3D.tops}</span>
@@ -296,7 +332,7 @@ function TapBoard({ s, q, pics, reveal, beat, opensAt, closesAt, stoppedAt }: Ta
               </li>
             ))}
           </ol>
-        ) : kind === 'short' ? null : (
+        ) : kind === 'short' || kind === 'number' ? null : (
           <ol className="lvst-options lvbt-options" key={`o${q.qi}`} data-revealed={result ? '' : undefined} data-wide={wide ? '' : undefined}>
             {q.options.map((text, i) => {
               const pic = pics.options[i];

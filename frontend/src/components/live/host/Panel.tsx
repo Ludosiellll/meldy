@@ -8,7 +8,9 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { sharedPlaces } from '../../../lib/live/rules';
 import type { ShownPicture, ShownPictures } from '../../../lib/live/pictures';
-import { rightKeys, type HostResult, type Question, type TopRow } from '../../../lib/live/types';
+import { questionKind, rightKeys, type HostResult, type Question, type TopRow } from '../../../lib/live/types';
+import { numberAnswer } from '../../../lib/live/numbers';
+import { NumberLine } from '../stand/NumberLine';
 import { Character } from '../art/Character';
 import { BATTLE, BOARD, LETTERS, nb } from './copy';
 import { optionFont, questionFont } from './layout';
@@ -242,6 +244,20 @@ export function QuestionPanel({ question, result, closing = null, late = false, 
           </div>
         ) : null}
       </div>
+      {questionKind(question) === 'number' ? (
+        <div className="lvh-number" aria-live="polite">
+          {revealed && result ? (
+            <>
+              <p className="lvh-number-key">
+                {BATTLE.numberKey} <b>{numberAnswer(result.forms, result.tolerance, result.unit ?? question.unit)}</b>
+              </p>
+              <NumberLine forms={result.forms ?? []} tolerance={result.tolerance} unit={result.unit ?? question.unit} spread={result.spread} width={820} height={130} tone="light" />
+            </>
+          ) : (
+            <p className="lvh-number-key">{question.unit ? BATTLE.numberUnit(question.unit) : BATTLE.number}</p>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }
