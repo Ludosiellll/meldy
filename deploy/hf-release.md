@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 50: «Соревнование в своё время» — a link with a deadline, each plays alone, a leaderboard (from the commit of this entry)
+
+- **Why**: Test_Builder_Spec_2026-10-18, «Режимы» item 3: the same game, but each plays when it suits them, until a
+  deadline; a table by link, with the review.
+- **Author**: «Соревнование по ссылке» on «Игры» and a test's page → a test or exam, a deadline, «Без спешки» / speed
+  points, the number of questions, «Верный ответ — после каждого вопроса / в конце» → a link and a QR; results in the
+  same place; «Закрыть досрочно»; «Убрать» a name from the table.
+- **Player** (/s/<code>, no account): a name and a character, then the questions one by one against the boss, graded by
+  the battle's rules (several right with a share, typed answers, numbers on the keypad) on the server's clock; the
+  explanation after each (or all at the end); place and points, the review, «Тренировать ошибки» (a week after the end,
+  as the battle's), the table (points, right answers, time; top 50 and your own row).
+- **Fair and safe** (independent review, then fixes): a guest token stored as sha256 only; a key only after you answered
+  or the time ran out; one run per token or account; each run sees its own option order; 60 starts in 10 minutes per
+  address per link (a class of 40 behind one school address fits), runs that never started freed after 15 minutes, 300
+  places; the item's version kept so an edited key is not graded wrongly. Not stopped: someone who plays twice from
+  another device knows the answers — the setup says so in one line.
+- **Also**: /live/new follows the dark theme.
+- **Order**: this site, then migration 20261106090100. The Space has nothing new.
+
 ## 2026-10-31 — Release 49.1: question stats for the author, «Повторить» into each person's training, honest signals, Telegram notices (from the commit of this entry)
 
 - **Why**: Test_Builder_Spec_2026-10-18, «Выпуск 49»: stats «как у психометриста, но по-человечески», honest signals, the
