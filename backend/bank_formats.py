@@ -515,9 +515,11 @@ def _fraction(value: Optional[str]) -> float:
 # (question/type/multianswer, ANSWER_TYPE_DEF_REGEX), ответы через «~», доля «=» или «%50%», отзыв после «#»; «\\»
 # экранирует знак. Пропуск в тексте — GAP_MARK (знак из личной области Unicode: в тексте вопроса его не бывает).
 GAP_MARK = chr(0xE000)
-_CLOZE_RE = re.compile(r"\{(\d*):([A-Za-z_]{2,40}):((?:\\.|[^\\{}])*)\}", re.S)
+# «(?<!\\)»: экранированная «\{» встроенный ответ не начинает (иначе каждая такая скобка — просмотр до конца текста).
+_CLOZE_RE = re.compile(r"(?<!\\)\{(\d*):([A-Za-z_]{2,40}):((?:\\.|[^\\{}])*)\}", re.S)
 _CLOZE_ALT_RE = re.compile(r"^(=|%(-?\d+(?:[.,]\d*)?)%)?(.*)$", re.S)
 MAX_CLOZE_EMBEDS = 40
+MAX_CLOZE_TEXT = 20_000  # знаков HTML текста cloze: длиннее — не cloze, а открытый вопрос, как раньше
 
 
 def _cloze_answer(value: str) -> str:
@@ -532,6 +534,8 @@ def _cloze_answer(value: str) -> str:
 def _cloze_embeds(raw: str) -> tuple[str, list[tuple[str, list[tuple[float, str]]]]]:
     """Текст cloze с GAP_MARK на месте встроенных ответов и их разбор: (вид в верхнем регистре, [(доля, ответ)])."""
     embeds: list[tuple[str, list[tuple[float, str]]]] = []
+    if len(raw or "") > MAX_CLOZE_TEXT:
+        return raw or "", embeds
 
     def swap(match: "re.Match[str]") -> str:
         if len(embeds) >= MAX_CLOZE_EMBEDS:
@@ -563,28 +567,114 @@ def _feedback(element) -> str:
     return _html_text(element.findtext("text"))[0]
 
 
-_DOCTYPE_RE = re.compile(rb"<!DOCTYPE\s[^\[>]*(?:\[.*?\]\s*)?>", re.S | re.I)
+PROLOG_SCAN_BYTES = 64 * 1024  # объявление XML, комментарии и DOCTYPE ищутся только в начале файла
+MAX_XML_DEPTH = 256  # вложенность элементов: у Moodle — 6–8 уровней; глубже — не вопросы, а ловушка для памяти
+MAX_XML_ELEMENTS = 400_000  # у вопроса Moodle — до 30–40 элементов; 2000 вопросов банка — около 80 000
+
+
+class XmlRefused(ValueError):
+    """Файл не читается вовсе: дерево было бы слишком глубоким или слишком большим для памяти."""
+
+
+class XmlTooDeep(XmlRefused):
+    """Элементы вложены глубже MAX_XML_DEPTH."""
+
+
+class XmlTooBig(XmlRefused):
+    """Элементов больше MAX_XML_ELEMENTS."""
+
+
+def _prolog_end(data: bytes) -> int:
+    """Где кончается пролог: BOM, пробелы, <?xml …?> и комментарии в первых PROLOG_SCAN_BYTES байтах (один проход)."""
+    limit = min(len(data), PROLOG_SCAN_BYTES)
+    at = 3 if data.startswith(b"\xef\xbb\xbf") else 0
+    while at < limit:
+        if data[at] in (0x20, 0x09, 0x0D, 0x0A):
+            at += 1
+        elif data.startswith(b"<?", at):
+            end = data.find(b"?>", at + 2, limit)
+            if end < 0:
+                break
+            at = end + 2
+        elif data.startswith(b"<!--", at):
+            end = data.find(b"-->", at + 4, limit)
+            if end < 0:
+                break
+            at = end + 3
+        else:
+            break
+    return at
 
 
 def _without_doctype(contents: bytes) -> bytes:
     """Файл без объявления DOCTYPE (выпуск 49). Moodle его не пишет; в файле он нужен только для сущностей — внешних
     (чтение файлов и сети) и вложенных («миллиард смехов»). lxml их и так не подставляет, но с ними обрывает разбор и
-    теряет вопросы после них; без объявления неизвестная сущность просто пропадает из текста."""
-    head = contents[:4096]
-    if b"<!DOCTYPE" not in head.upper():
+    теряет вопросы после них; без объявления неизвестная сущность просто пропадает из текста.
+
+    Убирается только DOCTYPE пролога (не «<!DOCTYPE html>» в тексте вопроса), без регулярных выражений: поиск вперёд в
+    первых PROLOG_SCAN_BYTES байтах, время линейное. Объявление, которое так не найти (внутренний набор с «]» в
+    значении, слишком длинный), остаётся: defusedxml его не примет, а lxml прочтёт файл без DTD и без сети."""
+    start = _prolog_end(contents)
+    if contents[start:start + 9].upper() != b"<!DOCTYPE":
         return contents
-    return _DOCTYPE_RE.sub(b"", contents, count=1)
+    limit = min(len(contents), start + PROLOG_SCAN_BYTES)
+    close = contents.find(b">", start, limit)
+    bracket = contents.find(b"[", start, limit)
+    if bracket >= 0 and (close < 0 or bracket < close):
+        subset_end = contents.find(b"]", bracket, limit)
+        close = contents.find(b">", subset_end, limit) if subset_end >= 0 else -1
+        if close < 0 or contents[subset_end + 1:close].strip():
+            return contents
+    elif close < 0:
+        return contents
+    return contents[:start] + contents[close + 1:]
+
+
+class _DepthLimited:
+    """Сборщик дерева для defusedxml, который останавливает файл глубже MAX_XML_DEPTH (XmlTooDeep) и больше
+    MAX_XML_ELEMENTS элементов (XmlTooBig): дерево не растёт сверх этого в памяти."""
+
+    def __init__(self) -> None:
+        from xml.etree.ElementTree import TreeBuilder
+
+        self.builder = TreeBuilder()
+        self.depth = 0
+        self.count = 0
+
+    def start(self, tag, attrs):
+        self.depth += 1
+        self.count += 1
+        if self.depth > MAX_XML_DEPTH:
+            raise XmlTooDeep(f"deeper than {MAX_XML_DEPTH}")
+        if self.count > MAX_XML_ELEMENTS:
+            raise XmlTooBig(f"more than {MAX_XML_ELEMENTS} elements")
+        return self.builder.start(tag, attrs)
+
+    def end(self, tag):
+        self.depth -= 1
+        return self.builder.end(tag)
+
+    def data(self, text):
+        return self.builder.data(text)
+
+    def close(self):
+        return self.builder.close()
 
 
 def _moodle_root(contents: bytes):
-    """Корень Moodle XML (выпуск 49). Сначала defusedxml (expat без DTD, сущностей и внешних ссылок); файл, который
-    так не читается (оборван, битая разметка, неизвестная сущность), — lxml в режиме восстановления, тоже без
-    подстановки сущностей и без сети: он читает то, что можно, как раньше."""
+    """Корень Moodle XML (выпуск 49). Сначала defusedxml (expat без DTD, сущностей и внешних ссылок, вложенность — до
+    MAX_XML_DEPTH, элементов — до MAX_XML_ELEMENTS); файл, который так не читается (оборван, битая разметка, неизвестная сущность), — lxml в режиме
+    восстановления, тоже без подстановки сущностей, без сети и без огромных деревьев (huge_tree=False): он читает то,
+    что можно, как раньше. Слишком глубокий или слишком большой файл не читается вовсе (XmlRefused)."""
     data = _without_doctype(contents)
     try:
-        from defusedxml import ElementTree as safe_tree
+        from defusedxml.ElementTree import DefusedXMLParser
 
-        return safe_tree.fromstring(data, forbid_dtd=True, forbid_entities=True, forbid_external=True)
+        parser = DefusedXMLParser(target=_DepthLimited(), forbid_dtd=True, forbid_entities=True, forbid_external=True)
+        parser.feed(data)
+        return parser.close()
+    except XmlRefused:
+        raise
     except Exception as exc:  # ParseError, DTDForbidden…: читаем бережно, как до выпуска 49
         print(f"Moodle XML read with recovery: {type(exc).__name__}")
     from lxml import etree
@@ -639,7 +729,7 @@ def read_moodle(contents: bytes) -> list[MoodleQuestion]:
                 item.options.append(option)
         elif kind == "cloze":
             raw = question.findtext("questiontext/text") or ""
-            marked, item.cloze = _cloze_embeds(raw)
+            marked, item.cloze = _cloze_embeds(raw)  # длиннее MAX_CLOZE_TEXT — без пропусков: открытый вопрос
             if item.cloze:
                 item.cloze_text, _ = _html_text(marked)
         item.explanation = _feedback(question.find("generalfeedback"))

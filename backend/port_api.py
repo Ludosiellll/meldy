@@ -36,7 +36,7 @@ import bank_export
 import lecture_items
 import quota
 from agents import base as ai_base
-from agents.base import AIError
+from agents.base import AIError, BaseAgent
 from agents.coordinator import CoordinatorAgent
 from plans import AI_COSTS
 from ratelimit import limiter, user_or_ip_key
@@ -69,7 +69,7 @@ NO_FILE_TEXT_DETAIL = "В файле почти нет текста. Сканы 
 UNREADABLE_DETAIL = "Не удалось прочитать файл. Сохраните его заново или пришлите в другом формате."
 UNSUPPORTED_DETAIL = "Подойдёт PDF, Word (DOCX), PowerPoint (PPTX), TXT, MD или HTML."
 TEXT_TOO_LONG_DETAIL = "Текст слишком длинный: максимум 300 000 знаков."
-NO_ITEMS_DETAIL = "Ни один вопрос не сверился с текстом: ответов в нём не нашлось. Единицы вернулись."
+NO_ITEMS_DETAIL = "Ответов ни на один вопрос в тексте не нашлось, поэтому вопросов нет. Единицы вернулись."
 READ_FAILED_DETAIL = "Не удалось прочитать лекцию. Повторите через минуту."
 
 
@@ -170,10 +170,17 @@ def _sources(summary: Any, text: Any) -> list[dict]:
     grounding = summary.get("grounding") if isinstance(summary, dict) else None
     sources = grounding.get("sources") if isinstance(grounding, dict) else None
     if isinstance(sources, list):
-        kept = [s for s in sources if isinstance(s, dict) and isinstance(s.get("id"), str) and isinstance(s.get("text"), str)]
+        kept = [s for s in sources[:lecture_items.MAX_FRAGMENTS]
+                if isinstance(s, dict) and isinstance(s.get("id"), str) and isinstance(s.get("text"), str)]
         if kept:
             return kept
-    return build_source_chunks(text) if isinstance(text, str) else []
+    return build_source_chunks(text[:TEXT_MAX_CHARS]) if isinstance(text, str) else []
+
+
+def _lecture_items(row: dict, where: str) -> tuple[list[dict], int]:
+    """Самопроверка лекции → вопросы с цитатой (в потоке: quiz_json и фрагменты пишет клиент, их размер не ограничен)."""
+    quiz = _quiz_list(row.get("quiz_json"))[:lecture_items.MAX_QUESTIONS]
+    return lecture_items.items_from_quiz(quiz, _sources(_jsonish(row.get("summary_json")), row.get("original_text")), where)
 
 
 @router.post(FROM_LECTURE_PATH)
@@ -183,12 +190,10 @@ async def from_lecture(request: Request):
     try:
         body = await _json(request, 4096)
         row = await _material(request, body.get("material_id"), "title,quiz_json,summary_json,original_text")
-        quiz = _quiz_list(row.get("quiz_json"))
-        if not quiz:
+        if not _quiz_list(row.get("quiz_json")):
             raise _Refused(422, "no_quiz", NO_QUIZ_DETAIL)
         title = " ".join(str(row.get("title") or "").split())[:200]
-        items, dropped = lecture_items.items_from_quiz(quiz, _sources(_jsonish(row.get("summary_json")), row.get("original_text")),
-                                                       lecture_items.source_label("lecture", title))
+        items, dropped = await asyncio.to_thread(_lecture_items, row, lecture_items.source_label("lecture", title))
     except _Refused as refused:
         return _error(refused.status, refused.code, refused.detail)
     return {"title": title, "items": items, "dropped": dropped}
@@ -226,19 +231,23 @@ async def _file_text(request: Request) -> tuple[str, str, int]:
         contents = await read_upload_with_limit(upload)  # type: ignore[arg-type]
     except HTTPException as exc:
         raise _Refused(413, "too_big", str(exc.detail)) from None
-    from parser import UnsupportedFormat, extract_text
+    from parser import FileTooLarge, UnsupportedFormat, extract_text
 
     try:
+        # parser.extract_text checks a DOCX or PPTX archive's sizes before unpacking and reads a PDF's first pages only
         text = await asyncio.to_thread(extract_text, contents, name)
     except UnsupportedFormat as exc:
         raise _Refused(415, "unsupported", str(exc) or UNSUPPORTED_DETAIL) from None
+    except FileTooLarge as exc:
+        raise _Refused(413, "too_big", str(exc)) from None
     except Exception as exc:
         print(f"Test file read failed: {type(exc).__name__}")
         raise _Refused(422, "unreadable", UNREADABLE_DETAIL) from None
-    if _letters(text or "") < TEXT_MIN_CHARS:
+    text = (text or "")[:TEXT_MAX_CHARS]
+    if _letters(text) < TEXT_MIN_CHARS:
         raise _Refused(422, "no_text", NO_FILE_TEXT_DETAIL)
     title = os.path.splitext(name.rsplit("/", 1)[-1])[0][:200]
-    return text[:TEXT_MAX_CHARS], title, _count(form.get("count"))
+    return text, title, _count(form.get("count"))
 
 
 @contextlib.asynccontextmanager
@@ -271,7 +280,7 @@ async def generate_test(request: Request):
             count = _count(body.get("count"))
             if body.get("material_id") is not None:
                 row = await _material(request, body.get("material_id"), "title,original_text,summary_json")
-                text = row.get("original_text") if isinstance(row.get("original_text"), str) else ""
+                text = row.get("original_text")[:TEXT_MAX_CHARS] if isinstance(row.get("original_text"), str) else ""
                 title = " ".join(str(row.get("title") or "").split())[:200]
                 summary = _jsonish(row.get("summary_json"))
                 recording = isinstance(summary, dict) and summary.get("recognized") == "recording"
@@ -298,7 +307,10 @@ async def generate_test(request: Request):
         )
         result = section.get("result") if isinstance(section, dict) else None
         chunks = (section.get("grounding") or {}).get("sources") or build_source_chunks(text)
-        items, dropped = lecture_items.items_from_quiz(_quiz_list(result), chunks, where)
+        items, dropped = await asyncio.to_thread(lecture_items.items_from_quiz, _quiz_list(result), chunks, where)
         if not items:
-            raise AIError(422, "no_items", NO_ITEMS_DETAIL)  # единицы возвращаются (refund_on_failure)
+            # Единицы возвращаются (refund_on_failure), и ответ модели уходит из кэша процесса: иначе «Тест заново»
+            # лекции с тем же текстом отдал бы его бесплатно.
+            BaseAgent.forget(coordinator.raws.get("quiz"))
+            raise AIError(422, "no_items", NO_ITEMS_DETAIL)
     return {"title": title, "items": items, "dropped": dropped, "units": charge.units}

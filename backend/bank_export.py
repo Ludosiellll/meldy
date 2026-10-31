@@ -117,16 +117,42 @@ def _clean(text: object) -> str:
     return _CONTROL_RE.sub("", str(text or "")).replace("\r\n", "\n").replace("\r", "\n")
 
 
+_NUMBER_RE = re.compile(r"^-?\d{1,30}(?:\.\d{1,10})?$")  # test_items: число «Число» — канонический текст
+
+
 def _tolerance(value: object) -> Optional[str]:
-    if value is None or value == "":
+    """Допуск как неотрицательное конечное число («0.1»); ноль, пусто и всё прочее — None."""
+    from decimal import Decimal, InvalidOperation
+
+    if value is None or value == "" or isinstance(value, bool):
         return None
-    text = str(value).strip()
-    if not re.fullmatch(r"\d+(?:\.\d+)?", text):
-        try:
-            text = format(float(text), "f").rstrip("0").rstrip(".")
-        except ValueError:
-            return None
-    return None if float(text) == 0 else text
+    try:
+        number = Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return None
+    if not number.is_finite() or number <= 0 or number > Decimal(10) ** 9:
+        return None
+    text = format(number.normalize(), "f")
+    return text if re.fullmatch(r"\d+(?:\.\d{1,6})?", text) else None
+
+
+def _list(value: object) -> list:
+    return value if isinstance(value, list) else []
+
+
+def _indices(value: object, size: int) -> list[int]:
+    """Номера верных вариантов: целые (не True/False) от 0 до size − 1, без повторов."""
+    out: list[int] = []
+    for entry in _list(value):
+        if type(entry) is int:
+            index = entry
+        elif isinstance(entry, str) and entry.isdigit():
+            index = int(entry)
+        else:
+            continue
+        if 0 <= index < size and index not in out:
+            out.append(index)
+    return out
 
 
 def items_from_rows(rows: Iterable[dict]) -> list[ExportItem]:
@@ -141,12 +167,16 @@ def items_from_rows(rows: Iterable[dict]) -> list[ExportItem]:
         images = row.get("images") or {}
         pictures = bool(row.get("pictures")) or bool(
             isinstance(images, dict) and (images.get("stem") or any(images.get("options") or [])))
+        options = [_clean(option).strip() for option in _list(row.get("options"))]
+        answers = [_clean(answer) for answer in _list(row.get("answers"))]
+        if kind == "number":  # только числа (контракт test_items): иначе в GIFT ушла бы разметка
+            answers = [answer.strip() for answer in answers if _NUMBER_RE.match(answer.strip())]
         out.append(ExportItem(
             kind=kind,
             stem=_clean(row.get("stem")).strip(),
-            options=[_clean(option).strip() for option in row.get("options") or []],
-            correct=[int(i) for i in row.get("correct") or [] if isinstance(i, int) or str(i).isdigit()],
-            answers=[_clean(answer) for answer in row.get("answers") or []],
+            options=options,
+            correct=_indices(row.get("correct"), len(options)),
+            answers=answers,
             explanation=_clean(row.get("explanation")).strip(),
             tolerance=_tolerance(row.get("tolerance")),
             unit=(str(row.get("unit")).strip() or None) if row.get("unit") else None,
@@ -214,9 +244,9 @@ def gift_question(item: ExportItem) -> tuple[Optional[str], Optional[str]]:
     if item.kind == "number":
         tolerance = f":{item.tolerance}" if item.tolerance else ""
         if len(item.answers) == 1:
-            body = f"#{item.answers[0]}{tolerance}"
+            body = f"#{_gift(item.answers[0])}{tolerance}"
         else:
-            body = "#\n\t" + "\n\t".join(f"={answer}{tolerance}" for answer in item.answers)
+            body = "#\n\t" + "\n\t".join(f"={_gift(answer)}{tolerance}" for answer in item.answers)
         return f"{name}{stem}{{{body}{general}\n}}", None
     if item.kind == "match":
         n = len(item.options)

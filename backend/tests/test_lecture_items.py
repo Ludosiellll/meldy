@@ -272,3 +272,106 @@ def test_generate_runs_the_lecture_quiz_section_with_its_fragments(api, monkeypa
     assert api.post("/api/tests/generate", json={"material_id": MATERIAL, "count": 20}).status_code == 200
     assert seen == {"name": "quiz", "settings": {"quiz_count": 20, "quiz_difficulty": "mixed", "quiz_type": "multiple"}, "recording": True}
     assert asyncio.iscoroutinefunction(port_api.generate_test)
+
+
+# ── review of r49-port (2026-10-31) ─────────────────────────────────────────────
+
+
+def test_many_questions_and_fragments_stay_cheap_and_capped():
+    """Review #3: quiz_json and grounding.sources are written by the client; 8 ms a question with 80 fragments ran on
+    the event loop. The sentences' stems are computed once, at most 50 questions and 80 fragments are read."""
+    import time
+
+    chunks = [{"id": f"S{i:02d}", "text": LECTURE} for i in range(1, 2001)]
+    quiz = [quiz_item(f"Чем Центральный банк борется с инфляцией? {i}", ["Ключевой ставкой", "Налогами"], "A") for i in range(500)]
+    started = time.monotonic()
+    items, dropped = lecture_items.items_from_quiz(quiz, chunks)
+    assert time.monotonic() - started < 1
+    assert len(items) + dropped == lecture_items.MAX_QUESTIONS
+    assert len(lecture_items.prepare(chunks)) == lecture_items.MAX_FRAGMENTS
+
+
+def test_from_lecture_runs_off_the_event_loop_with_capped_input(api, monkeypatch):
+    seen = []
+    real = port_api.asyncio.to_thread
+
+    async def spy(fn, *args, **kwargs):
+        seen.append(fn.__name__)
+        return await real(fn, *args, **kwargs)
+
+    monkeypatch.setattr(port_api.asyncio, "to_thread", spy)
+    api.state_["row"]["quiz_json"] = {"quiz": [QUIZ["quiz"][0]] * 400}
+    api.state_["row"]["summary_json"] = {"grounding": {"sources": CHUNKS * 500}}
+    response = api.post("/api/tests/from-lecture", json={"material_id": MATERIAL})
+    assert response.status_code == 200 and len(response.json()["items"]) == lecture_items.MAX_QUESTIONS
+    assert seen == ["_lecture_items"]
+
+
+def test_generate_counts_letters_of_the_cut_text_only(api, monkeypatch):
+    lengths = []
+    real = port_api._letters
+    monkeypatch.setattr(port_api, "_letters", lambda text: lengths.append(len(text)) or real(text))
+    api.state_["row"]["original_text"] = LECTURE + "я" * 3_000_000
+    assert api.post("/api/tests/generate", json={"material_id": MATERIAL}).status_code == 200
+    assert lengths and max(lengths) <= port_api.TEXT_MAX_CHARS
+
+
+def test_a_refund_for_no_items_also_forgets_the_cached_answer(api):
+    """Review #5: the refunded answer stayed in the process cache, and /api/analyze/section with the same text would
+    have replayed it for free."""
+    raw = json.dumps({"quiz": [quiz_item("Кто ввёл индекс цен?", ["Ласпейрес", "Пааше"], "A")]}, ensure_ascii=False)
+    api.state_["answer"] = raw
+    BaseAgent._run_cache[("cached-quiz",)] = raw  # what BaseAgent.run keeps for this prompt and text
+    BaseAgent._run_cache[("other",)] = "другой ответ"
+    response = api.post("/api/tests/generate", json={"text": LECTURE})
+    assert response.status_code == 422 and response.json()["code"] == "no_items"
+    assert ("cached-quiz",) not in BaseAgent._run_cache and ("other",) in BaseAgent._run_cache
+    assert api.state_["charges"][0].refunded is True
+    assert "Единицы вернулись" in response.json()["detail"]
+
+
+def test_generate_refuses_a_zip_bomb_before_unpacking_it(api):
+    """Review #4: a 200 KB DOCX unpacking to 200 MB reached 427 MB of memory."""
+    response = api.post("/api/tests/generate", files={"file": ("bomb.docx", docx_bomb(40), "application/octet-stream")})
+    assert response.status_code == 413 and response.json()["code"] == "too_big"
+    assert api.state_["charges"] == [] and api.state_["prompts"] == []
+
+
+def docx_bomb(megabytes: int) -> bytes:
+    import io
+    import zipfile
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+        archive.writestr("[Content_Types].xml", "<Types/>")
+        with archive.open("word/document.xml", "w", force_zip64=True) as part:
+            part.write(b"<w:document><w:body><w:p><w:r><w:t>")
+            for _ in range(megabytes):
+                part.write(b"a" * (1 << 20))
+            part.write(b"</w:t></w:r></w:p></w:body></w:document>")
+    return buffer.getvalue()
+
+
+def test_extract_text_checks_office_archives_and_caps_pdf_pages(monkeypatch):
+    """Review #4, for every caller of parser.extract_text (/api/analyze, the exam list, /api/tests/generate)."""
+    import resource
+    import time
+
+    import parser as text_parser
+
+    bomb = docx_bomb(200)
+    assert len(bomb) < 300_000
+    before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    started = time.monotonic()
+    for name in ("bomb.docx", "bomb.pptx"):
+        with pytest.raises(text_parser.FileTooLarge):
+            text_parser.extract_text(bomb, name)
+    assert time.monotonic() - started < 1
+    assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 50 * 1024  # KB: nothing unpacked
+    with pytest.raises(ValueError):
+        text_parser.extract_text(b"not a zip", "x.docx")
+    pdf = (Path(__file__).resolve().parent / "fixtures" / "lecture_qa" / "cell_lecture_chromium.pdf").read_bytes()  # 2 pages
+    whole = text_parser.extract_text(pdf, "x.pdf")
+    monkeypatch.setattr(text_parser, "PDF_TEXT_MAX_PAGES", 1)
+    first = text_parser.extract_text(pdf, "x.pdf")
+    assert first and len(first) < len(whole) and whole.startswith(first[:50])

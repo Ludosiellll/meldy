@@ -24,6 +24,9 @@ from typing import Any, Iterable, Optional
 from retrieval import STOPWORDS, stem, tokenize
 
 QUOTE_MAX_CHARS = 320
+MAX_QUESTIONS = 50  # вопросов за раз: у самопроверки — до 20; quiz_json пишет клиент, длина ничем не ограничена
+MAX_FRAGMENTS = 80  # как utils.build_source_chunks; summary_json.grounding.sources тоже пишет клиент
+FRAGMENT_CHARS = 2000  # фрагмент анализа — до 850 знаков; длиннее — прислан не анализом
 EXPLANATION_MAX_CHARS = 2000
 MIN_ANSWER_SHARE = 0.5
 _SENTENCE_RE = re.compile(r"(?<=[.!?…])\s+(?=[«\"(A-ZА-ЯЁ0-9])|\n+")
@@ -76,29 +79,45 @@ def _share(words: set[str], sentence_words: set[str]) -> float:
     return len(words & sentence_words) / len(words) if words else 0.0
 
 
-def source_phrase(question: str, right: str, wrongs: list[str], chunks: list[dict], prefer: Iterable[str] = ()) -> Optional[dict]:
-    """Фраза-источник для вопроса: {"quote", "source_id", "checked"} или None — верного ответа в тексте нет."""
+def prepare(chunks: Iterable[dict]) -> list[tuple[Any, list[tuple[str, set[str]]]]]:
+    """Фрагменты с предложениями и основами их слов — один раз на все вопросы (до MAX_FRAGMENTS фрагментов, каждый
+    до FRAGMENT_CHARS знаков)."""
+    out = []
+    for chunk in chunks:
+        if len(out) >= MAX_FRAGMENTS:
+            break
+        if not isinstance(chunk, dict):
+            continue
+        text = str(chunk.get("text") or "")[:FRAGMENT_CHARS]
+        out.append((chunk.get("id"), [(sentence, stems(sentence)) for sentence in sentences(text)]))
+    return out
+
+
+def source_phrase(question: str, right: str, wrongs: list[str], chunks: list[dict], prefer: Iterable[str] = (),
+                  prepared: Optional[list] = None) -> Optional[dict]:
+    """Фраза-источник для вопроса: {"quote", "source_id", "checked"} или None — верного ответа в тексте нет.
+    prepared — prepare(chunks), когда вопросов несколько."""
     right_words = stems(right)
     if not right_words:
         return None
     question_words = stems(question) - right_words
     wrong_words = [stems(wrong) - right_words for wrong in wrongs]
-    preferred = [source_id for source_id in prefer if isinstance(source_id, str)]
-    order = sorted(chunks, key=lambda chunk: (chunk.get("id") not in preferred,
-                                              preferred.index(chunk["id"]) if chunk.get("id") in preferred else 0))
+    preferred = [source_id for source_id in prefer if isinstance(source_id, str)][:5]
+    fragments = prepared if prepared is not None else prepare(chunks)
+    order = sorted(fragments, key=lambda fragment: (fragment[0] not in preferred,
+                                                    preferred.index(fragment[0]) if fragment[0] in preferred else 0))
     best: Optional[tuple[tuple, dict]] = None
-    for rank, chunk in enumerate(order):
-        for sentence in sentences(str(chunk.get("text") or "")):
-            words = stems(sentence)
+    for rank, (source_id, lines) in enumerate(order):
+        for sentence, words in lines:
             answer = _share(right_words, words)
             if answer < MIN_ANSWER_SHARE:
                 continue
             rival = max((_share(wrong, words) for wrong in wrong_words if wrong), default=0.0)
             checked = rival < answer
             asked = len(question_words & words)
-            score = (checked, round(answer, 3), asked, chunk.get("id") in preferred, -rank)
+            score = (checked, round(answer, 3), asked, source_id in preferred, -rank)
             if best is None or score > best[0]:
-                best = (score, {"quote": _cut(sentence), "source_id": chunk.get("id"), "checked": checked})
+                best = (score, {"quote": _cut(sentence), "source_id": source_id, "checked": checked})
     return best[1] if best else None
 
 
@@ -123,21 +142,24 @@ def with_quote(explanation: str, quote: str, where: str = "Из лекции") -
 
 def items_from_quiz(quiz: Iterable[dict], chunks: list[dict], where: str = "Из лекции") -> tuple[list[dict], int]:
     """Вопросы самопроверки → вопросы теста с цитатой и сверкой ключа; второе — сколько не предложено (ответа нет в
-    тексте или вопрос не читается)."""
+    тексте или вопрос не читается). Берутся первые MAX_QUESTIONS вопросов и MAX_FRAGMENTS фрагментов."""
     out: list[dict] = []
     dropped = 0
-    for item in quiz:
+    prepared = prepare(chunks)
+    for item in list(quiz)[:MAX_QUESTIONS]:
         if not isinstance(item, dict):
             dropped += 1
             continue
-        stem_text = " ".join(str(item.get("question") or "").split())
-        options = [option_body(str(option)) for option in item.get("options") or [] if str(option).strip()]
+        stem_text = " ".join(str(item.get("question") or "")[:4000].split())
+        raw_options = item.get("options") if isinstance(item.get("options"), list) else []
+        options = [option_body(str(option)[:600]) for option in raw_options[:9] if str(option).strip()]
         index = correct_index(item.get("correct"), options)
         if not stem_text or not 2 <= len(options) <= 8 or index is None or len(set(o.lower() for o in options)) != len(options):
             dropped += 1
             continue
+        own = item.get("source_ids")
         phrase = source_phrase(stem_text, options[index], [o for k, o in enumerate(options) if k != index], chunks,
-                               item.get("source_ids") or [])
+                               own if isinstance(own, list) else [], prepared)
         if phrase is None:
             dropped += 1
             continue

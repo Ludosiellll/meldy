@@ -108,15 +108,145 @@ def test_the_moodle_reader_parses_with_defusedxml_first(monkeypatch):
     from defusedxml import ElementTree as safe_tree
 
     used = []
-    real = safe_tree.fromstring
+    real = safe_tree.DefusedXMLParser
 
-    def spy(data, **kwargs):
-        used.append(kwargs)
-        return real(data, **kwargs)
+    def spy(**kwargs):
+        used.append({key: kwargs[key] for key in ("forbid_dtd", "forbid_entities", "forbid_external")})
+        return real(**kwargs)
 
-    monkeypatch.setattr(safe_tree, "fromstring", spy)
+    monkeypatch.setattr(safe_tree, "DefusedXMLParser", spy)
     questions = bank_formats.read_moodle((PORT / "moodle_course_export.xml").read_bytes())
     assert used == [{"forbid_dtd": True, "forbid_entities": True, "forbid_external": True}] and len(questions) == 11
+
+
+# ── review of r49-port (2026-10-31): time, memory, the prolog only ───────────────
+
+
+def test_doctype_strip_is_linear_on_adversarial_input():
+    """Review #1: «<!DOCTYPE » repeated took 17 s for 100 KB (the regex rescanned from every match, holding the GIL)."""
+    import bank_formats
+
+    for unit in (b"<!DOCTYPE ", b"<!DOCTYPE a [", b"<!-- x --><!DOCTYPE "):
+        data = b'<?xml version="1.0"?><quiz>' + unit * (200 * 1024 // len(unit))
+        started = time.monotonic()
+        bank_formats._without_doctype(data)
+        assert time.monotonic() - started < 1, unit
+    data = b'<?xml version="1.0"?>' + b"<!-- c -->" * 30_000 + b"<quiz/>"  # a long prolog: the scan stops at 64 KB
+    started = time.monotonic()
+    assert bank_formats._without_doctype(data) == data and time.monotonic() - started < 1
+    started = time.monotonic()
+    with pytest.raises(BankError):
+        parse_bank_file(b'<?xml version="1.0"?><quiz>' + b"<!DOCTYPE " * 20_000, "export.xml")
+    assert time.monotonic() - started < 1
+
+
+def test_cloze_embeds_are_linear_on_escaped_braces():
+    """Review #2: every «\\{» started a scan to the end (100 KB took 31 s). The regex skips escaped braces, and a
+    cloze text over MAX_CLOZE_TEXT is not read for gaps."""
+    import bank_formats
+
+    unit = "\\{1:SA:"
+    raw = "{1:SA:" + unit * (200 * 1024 // len(unit))
+    started = time.monotonic()
+    bank_formats._CLOZE_RE.sub("", raw)  # the regex alone, past the size cap
+    bank_formats._cloze_embeds(raw)
+    assert time.monotonic() - started < 1
+    assert bank_formats._cloze_embeds(raw) == (raw, [])  # too long for a cloze: an open question, as before
+    text, embeds = bank_formats._cloze_embeds("Цена \\{1:SA:=x} и {1:SA:=Берлин}.")
+    assert embeds == [("SA", [(100.0, "Берлин")])] and text.startswith("Цена \\{1:SA:=x} и ")
+    data = ('<?xml version="1.0" encoding="UTF-8"?>\n<quiz><question type="cloze"><questiontext format="html"><text>'
+            + raw[:60_000] + "</text></questiontext></question></quiz>").encode()
+    started = time.monotonic()
+    assert parse_bank_file(data, "export.xml")["items"][0]["kind"] == "open"
+    assert time.monotonic() - started < 1
+
+
+def test_only_the_prologs_doctype_is_removed_not_one_in_question_text():
+    """Review #7: «What does <!DOCTYPE html> declare?» lost its words. Only the prolog is touched now."""
+    import bank_formats
+
+    doc = (b'<?xml version="1.0" encoding="UTF-8"?>\n<quiz>\n<question type="multichoice"><questiontext format="html"><text>'
+           b"<![CDATA[<p>What does &lt;!DOCTYPE html&gt; declare?</p><!DOCTYPE x>]]></text></questiontext>"
+           b'<answer fraction="100"><text>HTML5</text></answer><answer fraction="0"><text>XHTML</text></answer></question></quiz>')
+    assert bank_formats._without_doctype(doc) == doc
+    assert bank_formats.read_moodle(doc)[0].text == "What does <!DOCTYPE html> declare?"
+    prolog = b'\xef\xbb\xbf<?xml version="1.0"?>\n<!-- export -->\n<!DOCTYPE quiz [<!ENTITY a "b">]>\n<quiz/>'
+    assert bank_formats._without_doctype(prolog) == b'\xef\xbb\xbf<?xml version="1.0"?>\n<!-- export -->\n\n<quiz/>'
+    assert bank_formats._without_doctype(b'<!DOCTYPE quiz SYSTEM "x.dtd"><quiz/>') == b"<quiz/>"
+
+
+def test_a_file_nested_too_deep_is_refused_fast():
+    """Review #8: a 12 MB deeply nested file took 633 MB in the defusedxml tree. Deeper than MAX_XML_DEPTH — unreadable."""
+    import bank_formats
+
+    n = 300_000
+    data = b'<?xml version="1.0"?><quiz>' + b"<a>" * n + b"</a>" * n + b"</quiz>"
+    started = time.monotonic()
+    with pytest.raises(bank_formats.XmlTooDeep):
+        bank_formats.read_moodle(data)
+    with pytest.raises(BankError) as raised:
+        parse_bank_file(data, "deep.xml")
+    assert raised.value.code == "unreadable" and time.monotonic() - started < 2
+    ok = ('<?xml version="1.0"?><quiz>' + "<a>" * 200 + "</a>" * 200
+          + '<question type="essay"><questiontext><text>Глубоко?</text></questiontext></question></quiz>').encode()
+    assert [q.text for q in bank_formats.read_moodle(ok)] == ["Глубоко?"]  # 200 levels are still read
+    flat = b'<?xml version="1.0"?><quiz>' + b"<a/>" * (bank_formats.MAX_XML_ELEMENTS + 10) + b"</quiz>"
+    started = time.monotonic()
+    with pytest.raises(bank_formats.XmlTooBig):
+        bank_formats.read_moodle(flat)
+    assert time.monotonic() - started < 2
+
+
+def test_entities_files_and_the_network_are_never_reached(tmp_path):
+    """The review's crafted files: an external entity, a parameter entity, an external DTD and a URL, each after a
+    5 KB comment (past the old 4 KB head) or right after the declaration, and «]>» inside an entity value."""
+    import socket
+    import threading
+
+    secret = tmp_path / "secret.txt"
+    secret.write_text("SECRET_HOST_CONTENT_12345")
+    dtd = tmp_path / "evil.dtd"
+    dtd.write_text('<!ENTITY leaked "PARAM_DTD_LOADED">')
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(5)
+    server.settimeout(0.5)
+    port = server.getsockname()[1]
+    hits = []
+
+    def serve():
+        try:
+            while True:
+                conn, _ = server.accept()
+                hits.append(conn.recv(100))
+                conn.close()
+        except OSError:
+            pass
+
+    thread = threading.Thread(target=serve, daemon=True)
+    thread.start()
+    pad = "<!-- <quiz> " + "x" * 5000 + " -->"
+    question = '<quiz><question type="essay"><questiontext><text>A&x;B &leaked;</text></questiontext></question></quiz>'
+    heads = [
+        f'<!DOCTYPE quiz [<!ENTITY x SYSTEM "file://{secret}">]>',
+        f'<!DOCTYPE quiz [<!ENTITY % p SYSTEM "file://{dtd}"> %p;]>',
+        f'<!DOCTYPE quiz SYSTEM "file://{dtd}">',
+        f'<!DOCTYPE quiz [<!ENTITY x SYSTEM "http://127.0.0.1:{port}/ent">]>',
+        f'<!DOCTYPE quiz SYSTEM "http://127.0.0.1:{port}/dtd">',
+        f'<!DOCTYPE quiz [<!ENTITY y "]>"><!ENTITY x SYSTEM "file://{secret}">]>',
+    ]
+    for head in heads:
+        for before in ("", pad):
+            data = f'<?xml version="1.0"?>{before}{head}{question}'.encode()
+            try:
+                result = parse_bank_file(data, "quiz.xml")
+            except BankError:
+                continue
+            text = str(result)
+            assert "SECRET_HOST" not in text and "PARAM_DTD_LOADED" not in text, head
+    server.close()
+    thread.join(timeout=2)
+    assert hits == []
 
 
 # ── GIFT ────────────────────────────────────────────────────────────────────────

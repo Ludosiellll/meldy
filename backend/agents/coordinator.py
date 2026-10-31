@@ -546,6 +546,9 @@ class CoordinatorAgent:
         self.base = BaseAgent(api_key)
         # What the second reading of the конспект changed (notes_check), for the results event.
         self.checks: dict[str, dict] = {}
+        # The last raw answer of each section (release 49: a caller that throws a usable answer away evicts it from
+        # the process cache with BaseAgent.forget, as /api/tests/generate does when no question checks).
+        self.raws: dict[str, str] = {}
 
     async def _run_agent(
         self, name: str, prompt: str, text: str, source_chunks: list, *, recording: bool = False
@@ -572,6 +575,7 @@ class CoordinatorAgent:
                 left = max(0.05, deadline - loop.time())
                 raw = await self.base.run(prompt, text, json_mode=json_mode,
                                           timeout=min(ai_call_timeout_seconds(), left))
+                self.raws[name] = raw
                 payload, status = validate_section(name, raw, source_text=text)
                 if status == "ok":
                     # Latin look-alikes in Russian words are replaced silently; a word with a real

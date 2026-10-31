@@ -216,3 +216,32 @@ def test_export_route_needs_a_session_and_a_known_format(api):
     for body in ({"format": "pdf", "items": []}, {"format": "gift", "items": "x"}, {"format": "gift", "items": [{"kind": "x"}]}):
         response = api.post("/api/tests/export", json=body)
         assert response.status_code == 400 and response.json()["code"] == "bad_request"
+
+
+# ── review of r49-port (2026-10-31) ─────────────────────────────────────────────
+
+
+def test_a_number_answer_cannot_inject_gift_markup():
+    """Review #9: number answers went into GIFT unescaped; now only numbers are taken, and they are escaped too."""
+    rows = [{"kind": "number", "stem": "Сколько?", "answers": ["5}\n\n::Injected::Evil question{=yes ~no}\n\n::x::y{#1", "7"]},
+            {"kind": "single", "stem": "Дальше", "options": ["а", "б"], "correct": [0]}]
+    text = bank_export.export("gift", "Т", rows).data.decode("utf-8")
+    assert "Injected" not in text and "{#7\n}" in text
+    items = parse_bank_file(text.encode(), "x.gift")["items"]
+    assert [item["text"] for item in items] == ["Сколько?", "Дальше"] and items[0]["number"]["answers"] == ["7"]
+    only_bad = bank_export.export("gift", "Т", [{"kind": "number", "stem": "?", "answers": ["x}"]}])
+    assert only_bad.skipped == [{"number": "1", "reason": bank_export.WHY_NO_KEY}]
+
+
+@pytest.mark.parametrize("correct", [[99], [True], [-1], ["1x"], "0", None])
+def test_a_key_out_of_range_is_no_key_in_every_format(correct):
+    """Review #9: Aiken took _LETTERS[99] (a 500) and accepted True and -1."""
+    rows = [{"kind": "single", "stem": "Вопрос?", "options": ["а", "б"], "correct": correct}]
+    for fmt in bank_export.FORMATS:
+        done = bank_export.export(fmt, "Т", rows)
+        assert done.count == 0 and done.skipped == [{"number": "1", "reason": bank_export.WHY_NO_KEY}], fmt
+
+
+def test_tolerance_is_a_finite_non_negative_number():
+    assert [bank_export._tolerance(v) for v in (0.1, "0.25", "1e-3", "nan", "inf", -1, True, "x", 0, 2e9)] == [
+        "0.1", "0.25", "0.001", None, None, None, None, None, None, None]

@@ -40,6 +40,32 @@ class UnsupportedFormat(ValueError):
     """A format the app knows but cannot read. The message is shown to the user as is."""
 
 
+class FileTooLarge(ValueError):
+    """A DOCX or PPTX that would unpack to more than the reader takes (a zip bomb). The message is shown as is."""
+
+
+# A Word or PowerPoint file is checked by its archive's declared sizes before anything is unpacked (review of
+# release 49: a 200 KB DOCX unpacked to 200 MB took 427 MB of memory): one XML part up to EXTRACT_XML_PART_BYTES (a
+# 300-page lecture's document.xml is a few MB), the whole archive up to bank_docx.MAX_ARCHIVE_BYTES. A PDF gives the
+# text of its first PDF_TEXT_MAX_PAGES pages.
+EXTRACT_XML_PART_BYTES = 24 * 1024 * 1024
+PDF_TEXT_MAX_PAGES = 500
+FILE_TOO_LARGE_DETAIL = "Файл слишком большой после распаковки. Разделите его на части и загрузите по очереди."
+
+
+def _check_office_archive(contents: bytes) -> None:
+    import zipfile
+
+    from bank_docx import ArchiveTooLarge, check_archive
+
+    try:
+        check_archive(contents, max_part=EXTRACT_XML_PART_BYTES)
+    except ArchiveTooLarge:
+        raise FileTooLarge(FILE_TOO_LARGE_DETAIL) from None
+    except (zipfile.BadZipFile, ValueError, OSError) as exc:
+        raise ValueError(f"not an archive: {type(exc).__name__}") from None
+
+
 def unsupported_format_detail(filename: str, content_type: Optional[str] = None, *, media: bool = False) -> str:
     """Why a file of this format is not taken, in Russian: the old Word and PowerPoint formats by name,
     a recording or a photo by its kind with the formats that fit it, anything else with the list of
@@ -65,8 +91,10 @@ def extract_text(contents: bytes, filename: str) -> str:
     if ext == "pdf":
         return _extract_pdf(contents)
     elif ext == "docx":
+        _check_office_archive(contents)
         return _extract_docx(contents)
     elif ext == "pptx":
+        _check_office_archive(contents)
         return _extract_pptx(contents)
     elif ext == "ppt":
         raise UnsupportedFormat(PPT_LEGACY_DETAIL)
@@ -100,7 +128,7 @@ def _extract_pdf(contents: bytes) -> str:
         from PyPDF2 import PdfReader
         reader = PdfReader(io.BytesIO(contents))
         units: list[str] = []
-        for page in reader.pages:
+        for page in reader.pages[:PDF_TEXT_MAX_PAGES]:
             paragraphs = _pdf_page_paragraphs(page, reader)
             if paragraphs is None:
                 page_text = page.extract_text()

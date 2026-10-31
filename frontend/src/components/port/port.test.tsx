@@ -96,6 +96,11 @@ describe('copyPort', () => {
     expect(seen(PORT.found(5, 2))).toBe('Готово: 5 вопросов. Ещё 2 не вошли: их ответа нет в тексте.');
     expect(seen(PORT.addedTo(1, 'Т'))).toBe('1 вопрос добавлен в тест «Т».');
   });
+
+  it('promises a refund only in the case the server refunds: no question found its answer in the text (review #6)', () => {
+    expect(seen(PORT.cost(7))).toBe('Спишет 7 единиц дневного лимита ИИ. Если в тексте не найдётся ответа ни на один вопрос, единицы вернутся.');
+    expect(PORT.cost(7)).not.toMatch(/сверит/);
+  });
 });
 
 describe('ExportSheet', () => {
