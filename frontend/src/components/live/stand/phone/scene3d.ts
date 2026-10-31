@@ -19,6 +19,7 @@ import { easeOutBack } from '../plan';
 import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
 import { LIGHT_LEVEL, PHONE_LEVELS, PHONE_PIXEL_RATIO, PhoneGovernor } from './quality';
 import type { Backdrop, FrameInput } from './sprites';
+import { BossCopies } from '../bossCopies';
 
 export { PHONE_PIXEL_RATIO };
 /** How the phone pins its view (StandGame: localStorage `meldy.live.view`): auto, the best level, the light level. */
@@ -98,6 +99,7 @@ export class PhoneScene implements Backdrop {
   ) {
     this.level = pin === 'light' ? LIGHT_LEVEL : 0;
     this.governor = new PhoneGovernor(this.level, pin !== 'auto');
+    this.copies = new BossCopies(() => this.kit, bossKind, STAGE_BOSS_HEIGHT[bossKind] * HUNTER_SCALE);
   }
 
   /**
@@ -136,6 +138,7 @@ export class PhoneScene implements Backdrop {
     // The stand arena's zones are rectangles (MODE_STAND §3), the kit's MoveMap shape.
     this.arena = this.kit.createArena(map as unknown as MoveMap, shape, { signScale: SIGN_SCALE, tileSegments: 1 });
     this.boss = this.kit.createBoss(this.bossKind, shape?.stage ? { height: STAGE_BOSS_HEIGHT[this.bossKind] } : {});
+    this.copies.prepare();
     const f = shape?.floor;
     const bounds = f ? { x0: f.x, y0: f.y, x1: f.x + f.cols * f.tile, y1: f.y + f.rows * f.tile } : { x0: 0, y0: 0, x1: map.w, y1: map.h };
     const bossTop = (STAGE_BOSS_HEIGHT[this.bossKind] + 0.4) * 50;
@@ -318,6 +321,8 @@ export class PhoneScene implements Backdrop {
 
   // ── mode B: «Дедлайн» hunting (MODE_RUN.md) ──
   private readonly hunters = new Map<number, { model: Boss; x: number; y: number }>();
+  /** Smaller copies of the boss for the other hunters (mode B). */
+  private readonly copies: BossCopies;
   private bossAway = false;
   private bossX = 0;
   private bossY = 0;
@@ -345,7 +350,8 @@ export class PhoneScene implements Backdrop {
         seen.add(id);
         let h = this.hunters.get(id);
         if (!h) {
-          const model = this.kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] * HUNTER_SCALE });
+          const model = this.copies.make();
+          if (!model) continue;
           model.setPhase('chase');
           h = { model, x: p.x, y: p.y };
           this.hunters.set(id, h);

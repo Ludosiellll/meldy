@@ -22,6 +22,7 @@ type Poses = Map<number, Pose>;
 import { FALL_S, FloorShow, changeOf, easeOutBack, fallFrame, tally, timerFace, type FallPlan, type TimerFace } from './plan';
 import { facing, leapAt, leapPoint, ringSpots, type Spot } from './formation';
 import type { StandRoom } from './room';
+import { BossCopies } from './bossCopies';
 
 /** The moments the screen plays sounds on: the last seconds' ticks, the alarm, the boss's jump and blow, the first
  * ghost rising, the first cheer of those who stood, the floor coming back; freeze and thaw: a mixed game's ice formed or
@@ -194,6 +195,8 @@ export class StandScene {
    * where it is drawn now.
    */
   private readonly hunters = new Map<number, { model: Boss; x: number; y: number }>();
+  /** Smaller copies of the boss for the other hunters (mode B). */
+  private readonly copies: BossCopies;
   private bossAway = false;
   private bossX = 0;
   private bossY = 0;
@@ -216,6 +219,7 @@ export class StandScene {
       onCaught: (id) => this.onCaught(id),
     };
     room.sceneHooks.add(this.hooks);
+    this.copies = new BossCopies(() => this.kit, bossKind, STAGE_BOSS_HEIGHT[bossKind] * HUNTER_SCALE);
     this.paused = options.paused === true;
     const c = room.client;
     this.hello = c.stand.hello;
@@ -533,6 +537,7 @@ export class StandScene {
     this.downAfter = collapseDownAfter(this.map, { floor: world.floor, stage: world.stage });
     this.zoneIds = (this.map.zones ?? []).map((z) => z.id);
     this.boss = kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] });
+    this.copies.taken();
     this.frameCamera();
     if (w) for (const e of w.roster) if (e[1] === KIND_PLAYER) this.addActor(e);
     const st = this.state ?? this.room.client.stand.state;
@@ -903,7 +908,8 @@ export class StandScene {
       seen.add(id);
       let h = this.hunters.get(id);
       if (!h) {
-        const model = kit.createBoss(this.bossKind, { height: STAGE_BOSS_HEIGHT[this.bossKind] * HUNTER_SCALE });
+        const model = this.copies.make();
+        if (!model) continue;
         model.setPhase('chase');
         h = { model, x: pose.x, y: pose.y };
         this.hunters.set(id, h);
