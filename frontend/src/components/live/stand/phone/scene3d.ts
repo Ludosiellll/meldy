@@ -20,6 +20,7 @@ import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
 import { LIGHT_LEVEL, PHONE_LEVELS, PHONE_PIXEL_RATIO, PhoneGovernor } from './quality';
 import type { Backdrop, FrameInput } from './sprites';
 import { BossCopies } from '../bossCopies';
+import { describeError } from './arenaLoader';
 
 export { PHONE_PIXEL_RATIO };
 /** How the phone pins its view (StandGame: localStorage `meldy.live.view`): auto, the best level, the light level. */
@@ -83,6 +84,8 @@ export class PhoneScene implements Backdrop {
   private readonly screen: Screen = { width: 390, height: 844, top: 200, bottom: 170 };
   private band: { top: number; bottom: number } | null = null;
   private canvas: HTMLCanvasElement | null = null;
+  /** Why the last mount failed (for the arena's trace). */
+  mountError: string | null = null;
   private observer: ResizeObserver | null = null;
   private readonly onVisible = () => {
     if (!document.hidden) this.governor.begin();
@@ -117,8 +120,9 @@ export class PhoneScene implements Backdrop {
       const dense = (window.devicePixelRatio || 1) >= 2;
       const lv = PHONE_LEVELS[this.level];
       this.view = this.kit.mount(canvas, { maxPixelRatio: PHONE_PIXEL_RATIO, quality: lv.kit, maxFps: lv.fps, antialias: !dense, tagScale: 1.15, tagHeight: 2.55 });
-    } catch {
+    } catch (e) {
       this.view = null;
+      this.mountError = describeError(e);
       return false;
     }
     this.canvas = canvas;

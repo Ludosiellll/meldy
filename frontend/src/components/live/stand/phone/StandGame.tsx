@@ -42,8 +42,10 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   const st = s.state;
 
   // The 3D arena: loaded and warmed up while the player waits in the lobby, so the first question does not stall.
-  // A weak phone draws it lighter (scene3d.ts, quality.ts); only a phone without WebGL 2 plays the flat view.
-  const { canvasRef, spritesRef, scene, sprites, flat } = usePhoneArena(session, v);
+  // A weak phone draws it lighter (scene3d.ts, quality.ts); the flat view plays without WebGL 2, or until the 3D is in.
+  const phase = v.state?.phase ?? null;
+  const inQuestion = phase === 'countdown' || phase === 'open' || phase === 'reveal';
+  const { canvasRef, canvasKey, spritesRef, scene, sprites, flat, view3d, why } = usePhoneArena(session, v, inQuestion);
 
   // The database's watch: off while the room works, on again when the room is gone or silent for long.
   useEffect(() => {
@@ -61,7 +63,6 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   }, [v.status, v.ready, v.lost, ctl]);
 
   // The podium: one read for the final numbers and the parts this game opened.
-  const phase = v.state?.phase ?? null;
   const askedFinal = useRef(false);
   useEffect(() => {
     if ((phase === 'podium' || phase === 'ended') && !askedFinal.current) {
@@ -76,7 +77,6 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   }, [s.step, phase, ctl]);
 
   // the question's pictures: the database question's, while it is the room's
-  const inQuestion = phase === 'countdown' || phase === 'open' || phase === 'reveal';
   const pictures = useLivePictures(inQuestion && st?.question && v.state && st.qi === v.state.qi ? st.question.pictures : undefined, ctl.picture);
 
   if (s.step === 'builder') {
@@ -163,7 +163,15 @@ export default function StandGame({ ctl, s, platform, haptic }: StandGameProps) 
   const question = phase === 'countdown' || phase === 'open' || phase === 'reveal';
   return (
     <>
-      <canvas className="sp-3d" ref={canvasRef} data-on={!flat && !!scene && question ? 'true' : undefined} aria-hidden="true" />
+      <canvas
+        key={canvasKey}
+        className="sp-3d"
+        ref={canvasRef}
+        data-on={!flat && !!scene && question ? 'true' : undefined}
+        data-view3d={view3d}
+        data-why={why ?? undefined}
+        aria-hidden="true"
+      />
       <canvas className="sp-3d" ref={spritesRef} data-on={flat && !!sprites && question ? 'true' : undefined} aria-hidden="true" />
       <StandPlay
         session={session}

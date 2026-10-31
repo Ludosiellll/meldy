@@ -78,8 +78,6 @@ export default function MixedPhone({ ctl, s, platform: _platform, haptic, childr
   const v = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const st = s.state!;
   const on = arenaOn(st, v.state);
-  // the 3D arena (or the flat view without WebGL): loaded in the lobby, the canvases kept for the whole game
-  const { canvasRef, spritesRef, scene, sprites, flat, backdrop } = usePhoneArena(session, v);
 
   // the room's picture of this round when it has one, else the database's
   const room = v.state && v.state.round === 'stand' && v.state.qi >= st.qi ? v.state : null;
@@ -106,13 +104,24 @@ export default function MixedPhone({ ctl, s, platform: _platform, haptic, childr
   const mixed = useMemo(() => ({ frozen, outcome }), [frozen, outcome]);
 
   const question = on && (shown.phase === 'countdown' || shown.phase === 'open' || shown.phase === 'reveal');
+  // the 3D arena (the flat view without WebGL 2, or until the 3D is in): loaded in the lobby, the canvases kept for
+  // the whole game; a 3D that gets ready during a movement round comes in after it
+  const { canvasRef, canvasKey, spritesRef, scene, sprites, flat, backdrop, view3d, why } = usePhoneArena(session, v, question);
   // the question's pictures: the database question's, while it is the round's
   const pictures = useLivePictures(question && st.question && st.qi === qi ? st.question.pictures : undefined, ctl.picture);
   const noLink = on && v.status !== 'open';
   const showFps = fpsWanted();
   return (
     <>
-      <canvas className="sp-3d" ref={canvasRef} data-on={question && !flat && !!scene ? 'true' : undefined} aria-hidden="true" />
+      <canvas
+        key={canvasKey}
+        className="sp-3d"
+        ref={canvasRef}
+        data-on={question && !flat && !!scene ? 'true' : undefined}
+        data-view3d={view3d}
+        data-why={why ?? undefined}
+        aria-hidden="true"
+      />
       <canvas className="sp-3d" ref={spritesRef} data-on={question && flat && !!sprites ? 'true' : undefined} aria-hidden="true" />
       {on ? (
         <StandPlay

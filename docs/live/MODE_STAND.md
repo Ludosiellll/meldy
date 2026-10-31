@@ -272,8 +272,9 @@ The phone (`components/live/stand/phone`): during countdown, open and reveal the
 KIT_3D.md): the same arena, signs, heroes, boss, stomp and ghosts, seen at the projector's tilt, closer, the camera
 following the own hero («Вы» and a white ring) with the arena's whole depth between the question card on top (the four
 answers in the floor's layout) and the stick bottom left, a small map and «Вы на ответе Б» bottom right; the result
-cards over the arena. A weak phone draws the same 3D lighter (resolution, then 30 frames a second); only a phone
-without WebGL plays the flat view. The lobby, the leaderboard and the podium are pages with the 2D map. Others carry no
+cards over the arena. A weak phone draws the same 3D lighter (resolution, then 30 frames a second); a phone without
+WebGL 2 plays the flat view, and any phone plays it while its 3D is still loading or being tried again (KIT_3D.md:
+the 3D comes in between questions). The lobby, the leaderboard and the podium are pages with the 2D map. Others carry no
 name tag on a phone (§5 of CONTRACT.md: a phone is told no one else's name). The
 database is read at the join, at the podium (`final.unlocked_now`) and when the room is gone, never while it works.
 The hero picker shows the kit's pictures before the join when the link says `mode=stand` (else after the join, in the
