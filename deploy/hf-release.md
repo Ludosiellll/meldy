@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 47.34: a section «Игры», «Сегодня» scrolls smoothly on a computer, no band under the phone tabs (from the commit of this entry)
+
+- **Why**: the owner, 31.10: «есть ли обучение о том что эти мини-игры есть … может отдельный блок сверху как
+  "лекции"»; «Сегодня» on a computer «подлагивает, а при проматывании экран моргает»; on a phone (DuckDuckGo,
+  Android) «разрыв от строки управления телефоном до блоков слишком большой».
+- **«Игры»**: a section after «Лекции» in a computer's top line, page /games: what the game is (the projector and a
+  student's phone, recorded), «Начать игру» with a choice of the author's tests and exams (a row with nothing
+  playable says why), «Войти в игру по коду» (→ /play), the three kinds of game in plain words. Up to 1439 px
+  «Разобрать лекцию» is «+ Лекция» and up to 1279 px the limit is its ring, so six sections fit from 1024 px. A phone
+  keeps five tabs: a row «Игры» on «Сегодня» with «Войти по коду», and «Игры» in the account menu. The first-run guide
+  has a step «Игры» with the game's footage in both paths.
+- **«Сегодня» on scroll**: measured, the cause was the cards' hover: cards sliding under the pointer ran their 0.9 s
+  shadow transition and the exam card was painted again on almost every frame. While the window scrolls the page now
+  takes no pointer events (back 150 ms after the last scroll; only with a mouse or trackpad). 1436×726 at 125 %:
+  frames over 20 ms 96 of 247 → 1 of 268, GPU work per scroll 2.1 s → 0.19 s; CLS 0 before and after.
+- **Phone bottom bars**: the WebView reported the safe area though the page is not edge-to-edge, so the tab bar added it
+  twice (112 px instead of 62 at a 50 px inset). Every bottom bar now adds `--sf-safe-b`: 0 on the site, Telegram's own
+  inset in the Mini App (unchanged there).
+
 ## 2026-10-30 — Release 47.33: «Убеги от Дедлайна» — every second movement round the boss hunts the class; with 47.32 (from the commit of this entry)
 
 - **Why**: 47.32 did not go out (its test job lost one tap in a studio phone test; the test now waits for the phone's
