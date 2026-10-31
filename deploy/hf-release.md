@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 48.5: «Без спешки» — a battle where points come only from being right (from the commit of this entry)
+
+- **Why**: release 50 of the test builder program (Test_Builder_Spec_2026-10-18, «Режимы»): a serious check in the class
+  game without the race.
+- **Now**: a battle setting «Без спешки: Нет / Да», off by default. On: a right answer is 100, a partial one its share,
+  however fast; nobody freezes for a mistake, in any phase or movement round; «Очки за скорость» is hidden. The
+  projector shows «без спешки: очки только за верные ответы» and names nobody as fastest; the phone says «Отвечайте
+  спокойно…», «ошибка ничего не отнимает». The boss, reveal, review and «Тренировать ошибки» as before. Every other
+  game's messages unchanged, key for key.
+- **Also**: the `live_numbers.sql` check holds both before and after the ranges migration (it failed on live after
+  20261102090200 by design).
+- **Order**: this site, then migration 20261106090000. The Space has nothing new.
+
 ## 2026-10-31 — Release 48.4: questions of the new kinds open as themselves in «Ключи», sessions and results (from the commit of this entry)
 
 - **Why**: found while building release 49: `normalizeItem` (`frontend/src/api/containers.ts`) kept only single, multiple
