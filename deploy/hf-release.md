@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 48.1: the phone keeps its 3D arena through a reconnect and reaches 3D after a slow or failed load (from the commit of this entry)
+
+- **Why**: the owner, 31.10, on the game video's phone: «почему тут в 2-д а не в 3-д»; «просто чтобы не было таких ошибок с
+  2д и 3д». Cause found: the phone's 3D was rebuilt on every socket reconnect (a new room map object), the old scene's
+  dispose lost the canvas's WebGL context, the new scene failed to mount on it and the phone stayed flat for the whole
+  game. A screen lock, a Wi-Fi ↔ mobile switch or a 4 s stall on a weak phone could do it in class.
+- **Now** (`components/live/stand/phone/arena.ts`, `arenaLoader.ts`): the scene is keyed on the map's content, so a
+  reconnect keeps it; a failed model download is retried (2, 5, 10, 20, then every 30 s, up to 12 tries), a failed
+  draw 3 times, each on a fresh canvas; while 3D loads the flat view plays and 3D comes in between questions. Only a
+  phone without WebGL 2 (or pinned to 2D) stays flat. The 3D canvas carries `data-view3d` / `data-why`, and the
+  console says why 3D is off. Proven in Chromium with 4 phones in one game (normal with two drops, held models,
+  aborted models, no WebGL 2).
+
 ## 2026-10-31 — Release 48: new kinds of questions, several right and typed answers in the class game, teams, ten small debts (from the commit of this entry)
 
 - **Why**: the owner, 31.10: «добавь вопросы недостающие (несколько верных, вводы чисел и тому подобного), доделай
