@@ -182,7 +182,8 @@ function useTapReveal(s: HostState, scene: RefObject<StandScene | null>, sound: 
       at(Math.max(plan.end, blow + 400), () => setView((v) => ({ ...v, hp: res.hp ?? v.hp, chips: top(), strike: true })));
     };
     // Everyone answered before the time ran out: «Все ответили», the boss braces itself, then the key.
-    const answers = result.counts.reduce((a, b) => a + b, 0);
+    // the answers in: a one-answer question's counts, else the answer rows (ticks count per option; a text has none)
+    const answers = questionKind(st.question) === 'single' ? result.counts.reduce((a, b) => a + b, 0) : st.answered;
     const early = Date.now() < closesAt - 400 && answers >= answerable(st.roster, st.question?.opens_at);
     if (early) {
       onBeat('all');

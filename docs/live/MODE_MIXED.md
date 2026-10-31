@@ -156,6 +156,13 @@ A movement round is closed by the battle's close; only the source of the answers
 - **Heal** (the question opened in phase 2): fewer right answers than ⌈⅔ × active players⌉ and the boss alive → +5 % of
   `hp_max`. Phases only grow; a question keeps the phase it opened with.
 - A late joiner (joined after the round opened) counts nothing and loses nothing; a kicked player is left out.
+- **Several right answers** (`20261102090000_live_kinds_teams.sql`, `CONTRACT.md` §3): standing on **any** right zone
+  is a right answer with the full damage (no share in the arena: a character stands on one zone). Every right zone
+  stays up at the stomp; the room's `res` carries `keys` (every right zone) and its `q` carries `multi` (how many are
+  right), both only for such a question, so a one-answer round's messages are as before. The board says «Верных
+  ответов два — встаньте на любой» (`MULTI_ZONES.hint`), the phone's card the same; the reveal shows every right
+  option. A text answer never falls on a movement round (`CONTRACT.md` §4: `live_arrange`).
+- **Teams** play the movement rounds as any question: each character wears its team's ring and tag (`CONTRACT.md` §13).
 
 **Worked example A** (rehearsed: `live_mixed_behaviour.sql` §4, `test_live_mixed.py`). 4 players, 6 questions, every 3rd
 a movement round, T = 20 s, speed on; `hp_max = 4 × 6 × 55 = 1320`. After two button questions the boss has 1013 HP,
