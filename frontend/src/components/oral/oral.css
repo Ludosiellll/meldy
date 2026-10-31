@@ -413,8 +413,8 @@
 /* The answer to the question sits under it, in a white block on the blue card. */
 .sf-page .or-examiner .or-said.or-examiner-answer { margin: 16px 0 0; padding: 12px 18px 10px; border: 0; border-radius: 22px; background: var(--sf-surface); }
 .sf-page .or-examiner-answer .or-said-text { font-size: 18px; }
-/* While the examiner asks, the transcript keeps its place unseen: the block does not move when the microphone opens. */
-.sf-page .or-examiner-listen[data-waiting] { visibility: hidden; }
+/* While the examiner asks, the transcript keeps its place, so the block does not move when the microphone opens. It is
+   shown with a line saying when the microphone opens (it stood there unseen: an empty band in the blue card). */
 .sf-page .or-examiner .or-text-field { min-height: 120px; }
 .sf-page .or-examiner .or-acts { margin-top: 20px; }
 @media (min-width: 1024px) {

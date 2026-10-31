@@ -139,6 +139,12 @@ export function serverVoiceLine(settling: boolean, pending: number, paused: bool
 export const SWITCHED_TO_SERVER_NOTICE = 'Браузер не смог распознать речь. Дальше её распознаёт сервер Meldy. Сказанное сохранено.';
 export const CHOSE_SERVER_NOTICE = 'Браузер не присылает распознанный текст. Дальше речь распознаёт сервер Meldy, текст появляется после каждой паузы.';
 
+/**
+ * The answer's place under the examiner's question while the question is said (voice): it used to stand there unseen,
+ * an empty band in the card for as long as the voice spoke.
+ */
+export const FOLLOWUP_WAITING_LINE = 'Микрофон включится после вопроса.';
+
 /** The examiner's voice starts this long after the follow-up appears: the brace, then the words, then the voice. */
 export const FOLLOWUP_VOICE_DELAY_MS = 300;
 
@@ -810,7 +816,8 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     });
     const run = current.run;
     const attemptId = current.attempt.attemptId;
-    const before = current.history?.state.readiness ?? 'untested';
+    // Unknown when the history never came back: the sheet then reads the state before this answer from the journal.
+    const before = current.history ? current.history.state.readiness : null;
     const startedAt = new Date().toISOString();
     dispatch({ type: 'save_start' });
     const answerText = { text: current.attempt.transcript, examId, questionHash: target.question_hash };
@@ -2026,7 +2033,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
                       interimText={speech.interimText}
                       underlined={new Set()}
                       seed={seedFrom(seedBase, 'followup')}
-                      emptyText="Говорите — я слушаю."
+                      emptyText={followup.stage === 'asking' ? FOLLOWUP_WAITING_LINE : 'Говорите — я слушаю.'}
                     />
                   </div>
                 ) : null}

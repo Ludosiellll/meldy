@@ -367,4 +367,22 @@ describe('browser storage', () => {
       { hash: 'a'.repeat(32), question_id: Q1, before: 'once' },
     ]);
   });
+
+  it('carries no state when the page never read the question’s history, so the sheet takes it from the journal', async () => {
+    const { parsePeakFlags, peakChange } = await import('../../components/exams/peak');
+    addPeakFlag('exam-2', { hash: 'c'.repeat(32), questionId: 'q3', before: null });
+    const raw = window.sessionStorage.getItem('meldy_exam_peak_exam-2');
+    expect(JSON.parse(raw ?? '[]')).toEqual([{ hash: 'c'.repeat(32), question_id: 'q3' }]);
+    const [flag] = parsePeakFlags(raw);
+    expect(flag.before).toBeNull();
+    // An answer passed yesterday and one today: before today's answer the journal says «once», not «untested».
+    const event = (day: string, at: string) => ({
+      id: `e-${day}`, created_at: at, local_date: day, material_id: null, kind: 'exam_answer' as const, item_key: `q:${'c'.repeat(32)}`,
+      correct: true, score: 0.8, confidence: null, source_ids: [], session_id: `s-${day}`, payload: { grade: 4, score_pct: 80 },
+    });
+    const answers = [event('2026-10-29', '2026-10-29T08:00:00Z'), event('2026-10-30', '2026-10-30T09:00:00Z')];
+    const change = peakChange(answers, [], flag.before, new Date('2026-10-30T10:00:00Z'));
+    expect(change?.before.readiness).toBe('once');
+    expect(change?.after.readiness).toBe('confirmed');
+  });
 });

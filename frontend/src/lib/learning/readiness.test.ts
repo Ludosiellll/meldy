@@ -7,6 +7,7 @@ import {
   SELF_RATING_CONFIDENCE,
   SELF_RATING_LABELS,
   confidenceVsConfirmed,
+  daysSinceDay,
   emptyQuestionState,
   examSummary,
   questionState,
@@ -313,17 +314,42 @@ describe('the rule «подтверждено» (Jury_Check item 3)', () => {
     expect(questionState(enough, []).readiness).toBe('confirmed');
   });
 
-  it('is «пора проверить» exactly 14 days after the last засчитанный answer, and still confirmed', () => {
+  it('is «пора проверить» from the 14th calendar day after the last засчитанный answer, and still confirmed', () => {
     const answers = [pass(HASH_A, '2026-09-20', 10), pass(HASH_A, '2026-09-21', 10), pass(HASH_A, '2026-09-25', 12)];
-    const last = Date.parse(answers[2].created_at);
     const day = 86_400_000;
-    const before = questionState(answers, [], new Date(last + CONFIRM_STALE_DAYS * day - 1));
+    // The last day before: 8 October, a millisecond before midnight (13 days after 25 September).
+    const before = questionState(answers, [], new Date(2026, 9, 9).getTime() - 1);
     expect(before).toMatchObject({ readiness: 'confirmed', stale: false });
-    const at = questionState(answers, [], new Date(last + CONFIRM_STALE_DAYS * day));
+    // 9 October from its first moment, even before the hour of the answer (one clock: the calendar, as the sheet's words).
+    const at = questionState(answers, [], new Date(2026, 9, 9, 0, 0));
     expect(at).toMatchObject({ readiness: 'confirmed', stale: true, lastPassAt: answers[2].created_at, confirmedOn: '2026-09-21' });
+    expect(daysSinceDay('2026-09-25', new Date(2026, 9, 9, 0, 0))).toBe(CONFIRM_STALE_DAYS);
     // Counted from the last засчитанный answer, not from the day it was first confirmed.
     expect(questionState(answers, [], new Date(Date.parse(answers[1].created_at) + 15 * day)).stale).toBe(false);
     expect(questionState(answers.slice(0, 2), [], new Date(Date.parse(answers[1].created_at) + 15 * day)).stale).toBe(true);
+  });
+
+  it('says «пора проверить» exactly when the sheet says «14 дней назад» or more, at every hour around the boundary', () => {
+    // The debt: the flag counted 14 × 24 h of the server's clock, the sheet's words calendar days, so «Выучено 14 дней
+    // назад.» could stand without «Пора проверить.» until the hour of the answer came round again.
+    for (const hour of [0, 9, 12, 23]) {
+      const answers = [pass(HASH_A, '2026-09-19', 10), pass(HASH_A, '2026-09-21', hour, 30)];
+      for (let at = new Date(2026, 9, 3, 0, 0).getTime(); at <= new Date(2026, 9, 7, 0, 0).getTime(); at += 3_600_000) {
+        const state = questionState(answers, [], at);
+        expect(state.readiness).toBe('confirmed');
+        const words = daysSinceDay(state.lastPassDate, at) as number;
+        expect(state.stale, `answered at ${hour}:30, now ${new Date(at).toString()}`).toBe(words >= CONFIRM_STALE_DAYS);
+      }
+    }
+  });
+
+  it('counts calendar days from a local day in the browser’s zone, and nothing for no day', () => {
+    expect(daysSinceDay('2026-10-09', new Date(2026, 9, 9, 23, 59))).toBe(0);
+    expect(daysSinceDay('2026-10-08', new Date(2026, 9, 9, 0, 1))).toBe(1);
+    expect(daysSinceDay('2026-09-25', new Date(2026, 9, 9).getTime())).toBe(14);
+    expect(daysSinceDay('2026-10-10', new Date(2026, 9, 9))).toBe(-1);
+    expect(daysSinceDay(null)).toBeNull();
+    expect(daysSinceDay('9 октября')).toBeNull();
   });
 
   it('names the earliest moment a засчитанный answer would confirm a question passed once, and when that moment has come', () => {

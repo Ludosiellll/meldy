@@ -21,7 +21,10 @@
  *   over); one more засчитанный answer on a later day at least 20 hours after the restart →
  *   подтверждено.
  * Fourteen days after the last засчитанный answer a подтверждённый question is «пора проверить»
- * (`stale`): it still counts as подтверждён, the sheet says how old the confirmation is.
+ * (`stale`): it still counts as подтверждён, the sheet says how old the confirmation is. The fourteen
+ * days are calendar days of the student's day (local_date) to today in the browser's zone — the same
+ * count the sheet shows as «N дней назад» (daysSinceDay), so «14 дней назад» is always «пора проверить»
+ * and «13 дней назад» never is (before, the flag counted 14 × 24 hours of the server's clock).
  */
 import type { LearningEvent, SelfRating } from '../../types/learning.ts';
 
@@ -33,7 +36,7 @@ export type Readiness = 'untested' | 'once' | 'confirmed' | 'not_passed';
 
 /** The first and the last засчитанный answer of a series must be at least this far apart (server time). */
 export const CONFIRM_MIN_HOURS = 20;
-/** A confirmation whose last засчитанный answer is this old is «пора проверить». */
+/** A confirmation whose last засчитанный answer is this many calendar days old is «пора проверить». */
 export const CONFIRM_STALE_DAYS = 14;
 
 const HOUR_MS = 3_600_000;
@@ -153,6 +156,21 @@ export function midnightAfter(key: string | null): number | null {
 }
 
 /**
+ * Calendar days from a local day 'yyyy-MM-dd' to the local day of `now` (browser time zone): 0 today, 1 yesterday;
+ * null for no day. The one clock of «пора проверить» and of the sheet's «N дней назад» (components/exams/sheetModel).
+ */
+export function daysSinceDay(key: string | null | undefined, now: Date | number = new Date()): number | null {
+  const match = typeof key === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(key) : null;
+  if (!match) return null;
+  const day = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(day.getTime())) return null;
+  const at = new Date(timeOf(now));
+  const today = new Date(at.getFullYear(), at.getMonth(), at.getDate());
+  // Rounded: a day across a clock change is 23 or 25 hours long.
+  return Math.round((today.getTime() - day.getTime()) / DAY_MS);
+}
+
+/**
  * Both conditions of the rule between the first answer of a series and a later one. The cheat sheet
  * erases a line by the same rule (lib/exams/cheatSheet.ts).
  */
@@ -212,8 +230,8 @@ export function questionState(answers: LearningEvent[], ratings: LearningEvent[]
     const first = series.find((event) => event !== start && meetsRule(start, event)) ?? end;
     confirmedAt = first.created_at;
     confirmedOn = first.local_date;
-    const last = serverTime(end);
-    stale = last !== null && at - last >= CONFIRM_STALE_DAYS * DAY_MS;
+    const days = daysSinceDay(end.local_date, at);
+    stale = days !== null && days >= CONFIRM_STALE_DAYS;
   } else if (readiness === 'once' && start) {
     const begin = serverTime(start);
     const midnight = midnightAfter(start.local_date);
