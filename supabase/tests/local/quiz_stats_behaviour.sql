@@ -139,8 +139,9 @@ declare
   b jsonb;
   k1 integer; k2 integer; k3 integer; k4 integer;
 begin
-  perform pg_temp.ok((select string_agg(k, ',' order by k) from jsonb_object_keys(r) k) = 'attempts,items,others,quiz_id,server_now',
+  perform pg_temp.ok((select string_agg(k, ',' order by k) from jsonb_object_keys(r) k) = 'attempts,capped,items,others,quiz_id,server_now',
                      'analysis keys');
+  perform pg_temp.ok(r ->> 'capped' = 'false', 'nothing left out');
   perform pg_temp.ok(jsonb_array_length(items) = 4, 'four questions');
   select o - 1 into k1 from jsonb_array_elements_text(items) with ordinality x(v, o) where v = pg_temp.id('q:1');
   select o - 1 into k2 from jsonb_array_elements_text(items) with ordinality x(v, o) where v = pg_temp.id('q:2');
@@ -163,20 +164,30 @@ begin
                      'the guest');
   perform pg_temp.ok(jsonb_array_length(r -> 'others') = 1 and r -> 'others' -> 0 ->> 'id' = pg_temp.c('q2')
                      and (r -> 'others' -> 0 ->> 'attempts')::integer = 1 and r -> 'others' -> 0 ->> 'title' = 'Контрольная 9Б'
-                     and r -> 'others' -> 0 -> 'items' = '[[0, 1, 1], [1, 1, 1], [2, 1, 1], [3, 1, 1]]'::jsonb,
-                     format('the other quiz: %s', r -> 'others'));
+                     and not (r -> 'others' -> 0) ? 'items',
+                     format('the other quiz, named and counted only: %s', r -> 'others'));
+  -- the one picked for the comparison: per question by id
+  r := public.quiz_compare(pg_temp.c('q')::uuid, pg_temp.c('q2')::uuid);
+  perform pg_temp.ok(r ->> 'id' = pg_temp.c('q2') and (r ->> 'attempts')::integer = 1 and r ->> 'capped' = 'false'
+                     and jsonb_array_length(r -> 'items') = 4
+                     and (select bool_and((x ->> 1)::integer = 1 and (x ->> 2)::numeric = 1) from jsonb_array_elements(r -> 'items') x)
+                     and (select array_agg(x ->> 0 order by x ->> 0) from jsonb_array_elements(r -> 'items') x)
+                         = (select array_agg(v order by v) from unnest(array[pg_temp.id('q:1'), pg_temp.id('q:2'), pg_temp.id('q:3'), pg_temp.id('q:4')]) v),
+                     format('the comparison: %s', r));
   perform pg_temp.ok(r::text not like '%Борис%' and r::text not like '%Лондон%', 'no names or answers in the analysis');
 end;
 $do$;
 select pg_temp.as_user('bbbbbbbb-0000-0000-0000-000000000002');
 select pg_temp.expect_error(format('select public.quiz_analysis(%L)', pg_temp.c('q')), 'P0002', 'B reads A''s analysis');
 select pg_temp.expect_error(format('select public.quiz_send_mistakes(%L)', pg_temp.c('q')), 'P0002', 'B sends A''s mistakes');
+select pg_temp.expect_error(format('select public.quiz_compare(%L, %L)', pg_temp.c('q'), pg_temp.c('q2')), 'P0002', 'B compares A''s quizzes');
 select pg_temp.expect_error(format('select public.test_item_percents(%L)', pg_temp.c('x')), 'P0002', 'B reads A''s percents');
 select pg_temp.as_user('');
 select pg_temp.expect_error(format('select public.quiz_analysis(%L)', pg_temp.c('q')), '42501', 'anon');
 select pg_temp.expect_error(format('select public.quiz_send_mistakes(%L)', pg_temp.c('q')), '42501', 'anon sends');
 select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
 select pg_temp.expect_error('select public.quiz_analysis(''00000000-0000-4000-8000-000000000000'')', 'P0002', 'no such quiz');
+select pg_temp.expect_error(format('select public.quiz_compare(%L, %L)', pg_temp.c('q'), '00000000-0000-4000-8000-000000000000'), 'P0002', 'a quiz of no exam');
 
 -- 4. The mistakes into training (sent as A; what landed is read as the database's owner: RLS keeps B's answers from A).
 select pg_temp.put('send1', public.quiz_send_mistakes(pg_temp.c('q')::uuid)::text);
@@ -189,8 +200,19 @@ declare
   r jsonb := pg_temp.c('send1')::jsonb;
   n integer;
 begin
-  perform pg_temp.ok(r = '{"people": 2, "answers": 4, "again": 0, "clean": 0, "outside": 1, "guests": 1, "practice": true}'::jsonb,
-                     format('the first send: %s', r));
+  perform pg_temp.ok(r - 'next' = '{"people": 2, "answers": 4, "again": 0, "clean": 0, "learned": 0, "outside": 1, "guests": 1,
+                                    "practice": true, "total": 3, "left": 0}'::jsonb and r -> 'next' = 'null'::jsonb,
+                     format('the first send (one batch: B, C and D; the author left out): %s', r));
+  -- the author's sending is not the person answering: its own source, on the attempt's day; the bot's K2 is not fooled
+  perform pg_temp.ok(not exists (select 1 from public.test_answers t where t.client_event_id like 'qz:%' and t.source <> 'quiz'),
+                     'source quiz');
+  perform pg_temp.ok(not exists (select 1 from public.test_answers t where t.client_event_id like 'qz:%'
+                                    and t.user_id = 'bbbbbbbb-0000-0000-0000-000000000002'
+                                    and t.local_date <> (select (a.finished_at at time zone 'utc')::date from public.quiz_attempts a
+                                                          where a.id = pg_temp.c('b1')::uuid)),
+                     'on the day of the attempt');
+  perform pg_temp.ok(not bot.answered_since('bbbbbbbb-0000-0000-0000-000000000002', now() - interval '1 hour'),
+                     'bot.answered_since does not count them');
   select count(*) into n from public.test_answers t
    where t.user_id = 'bbbbbbbb-0000-0000-0000-000000000002' and t.client_event_id like 'qz:%' and t.mode = 'learn' and not t.correct;
   perform pg_temp.ok(n = 3, format('B''s three mistakes in training (%s)', n));
@@ -229,7 +251,7 @@ do $do$
 declare
   r jsonb := pg_temp.c('send3')::jsonb;
 begin
-  perform pg_temp.ok(r ->> 'people' = '1' and r ->> 'answers' = '1' and r ->> 'again' = '1', format('the new attempt: %s', r));
+  perform pg_temp.ok(r ->> 'people' = '1' and r ->> 'answers' = '1' and r ->> 'again' = '1' and r ->> 'learned' = '0', format('the new attempt: %s', r));
   perform pg_temp.ok(exists (select 1 from public.test_answers t
                               where t.client_event_id = 'qz:' || replace(pg_temp.c('b2'), '-', '') || ':' || replace(pg_temp.id('q:1'), '-', '')),
                      'its mistake under its own id');
@@ -241,18 +263,107 @@ update public.container_members set left_at = now() where user_id = 'cccccccc-00
 select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
 select pg_temp.ok((public.quiz_send_mistakes(pg_temp.c('q')::uuid) ->> 'outside') = '2', 'C after leaving is outside');
 
+-- 4b. What a person has learned since the attempt stays learned (review 2026-11-05: an old mistake reset it). C's
+--     q:1 was wrong in the attempt; C rejoins, answers q:1 in training after the attempt, and then the author sends.
+reset role;
+update public.container_members set left_at = null where user_id = 'cccccccc-0000-0000-0000-000000000003';
+delete from public.test_answers where user_id = 'cccccccc-0000-0000-0000-000000000003' and client_event_id like 'qz:%';
+update public.test_item_states s
+   set last_result = 'right', right_count = s.right_count + 1,
+       last_answer_at = (select a.finished_at from public.quiz_attempts a where a.id = pg_temp.c('c1')::uuid) + interval '1 minute'
+ where s.user_id = 'cccccccc-0000-0000-0000-000000000003' and s.item_id = pg_temp.id('q:1')::uuid;
+select pg_temp.put('c_state', (select to_jsonb(s) from public.test_item_states s
+                                where s.user_id = 'cccccccc-0000-0000-0000-000000000003' and s.item_id = pg_temp.id('q:1')::uuid)::text);
+select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
+select pg_temp.put('send4', public.quiz_send_mistakes(pg_temp.c('q')::uuid)::text);
+reset role;
+do $do$
+declare
+  r jsonb := pg_temp.c('send4')::jsonb;
+begin
+  perform pg_temp.ok(r ->> 'learned' = '1' and r ->> 'answers' = '0' and r ->> 'clean' = '1', format('C''s learned question is not sent: %s', r));
+  perform pg_temp.ok((select to_jsonb(s) from public.test_item_states s
+                       where s.user_id = 'cccccccc-0000-0000-0000-000000000003' and s.item_id = pg_temp.id('q:1')::uuid)
+                     = pg_temp.c('c_state')::jsonb, 'what C learned stays as it was');
+end;
+$do$;
+
+-- 4c. A big class goes in batches of 50: 120 more members, one mistake each; the page calls until next is null.
+insert into auth.users (id) select ('00000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 120) g;
+insert into public.container_members (container_id, user_id)
+select pg_temp.c('x')::uuid, ('00000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid from generate_series(1, 120) g;
+insert into public.quiz_attempts (quiz_id, user_id, name, n, item_ids, started_at, finished_at, finish_reason)
+select pg_temp.c('q')::uuid, ('00000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'Ученик ' || g, 1,
+       array[pg_temp.id('q:1')::uuid], now() - interval '1 hour', now() - interval '50 minutes', 'sent'
+  from generate_series(1, 120) g;
+select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
+do $do$
+declare
+  r jsonb;
+  v_after uuid := null;
+  v_calls integer := 0;
+  v_answers integer := 0;
+  v_people integer := 0;
+  v_first jsonb;
+begin
+  loop
+    r := public.quiz_send_mistakes(pg_temp.c('q')::uuid, v_after);
+    v_calls := v_calls + 1;
+    if v_calls = 1 then v_first := r; end if;
+    v_answers := v_answers + (r ->> 'answers')::integer;
+    v_people := v_people + (r ->> 'people')::integer;
+    exit when r -> 'next' = 'null'::jsonb or v_calls > 10;
+    v_after := (r ->> 'next')::uuid;
+  end loop;
+  perform pg_temp.ok((v_first ->> 'people')::integer = 50 and (v_first ->> 'total')::integer = 123
+                     and (v_first ->> 'left')::integer = 73 and v_first ->> 'next' is not null,
+                     format('the first batch: 50 of 123, 73 left: %s', v_first));
+  perform pg_temp.ok(v_calls = 3 and v_people = 120 and v_answers = 120, format('three calls, 120 people (%s, %s, %s)', v_calls, v_people, v_answers));
+  r := public.quiz_send_mistakes(pg_temp.c('q')::uuid);
+  perform pg_temp.ok((r ->> 'answers')::integer = 0 and (r ->> 'again')::integer = 50, format('again: nothing new in the first batch: %s', r));
+end;
+$do$;
+reset role;
+
 -- 5. The canvas's percents: every quiz of the exam, finished attempts of others.
+select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
 do $do$
 declare
   r jsonb := public.test_item_percents(pg_temp.c('x')::uuid);
   q1 jsonb := (select x from jsonb_array_elements(r -> 'items') x where x ->> 'item_id' = pg_temp.id('q:1'));
   q2 jsonb := (select x from jsonb_array_elements(r -> 'items') x where x ->> 'item_id' = pg_temp.id('q:2'));
 begin
-  -- q:1 — B1 right, B9 right, B2 wrong, C wrong, D wrong, the guest right: 6 shown, 3 right (the author's and E's left out)
-  perform pg_temp.ok((r ->> 'attempts')::integer = 6, format('six attempts: %s', r ->> 'attempts'));
-  perform pg_temp.ok((q1 ->> 'shown')::integer = 6 and (q1 ->> 'credit')::numeric = 3, format('q:1 %s', q1));
+  -- q:1 — B1 right, B9 right, B2 wrong, C wrong, D wrong, the guest right, the 120 of 4c without an answer: 126 shown,
+  -- 3 right (the author's and E's left out)
+  perform pg_temp.ok((r ->> 'attempts')::integer = 126 and r ->> 'capped' = 'false', format('126 attempts: %s', r - 'items'));
+  perform pg_temp.ok((q1 ->> 'shown')::integer = 126 and (q1 ->> 'credit')::numeric = 3, format('q:1 %s', q1));
   -- q:2 — B1 0.5, B9 1, B2 1, C 1, D 0, guest 0
   perform pg_temp.ok((q2 ->> 'shown')::integer = 6 and (q2 ->> 'credit')::numeric = 3.5, format('q:2 %s', q2));
+end;
+$do$;
+-- The cost is answers, not attempts (review 2026-11-05): another test whose 101 attempts carry 200 questions each —
+-- the latest 100 make 20 000 answers, the oldest is left out and said so.
+reset role;
+select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
+select pg_temp.put('s9', (public.container_create('Большой', null, '[{"title":"Вопросы"}]') -> 'subjects' -> 0 ->> 'id'));
+select pg_temp.put('x9', (select container_id::text from public.container_subjects where id = pg_temp.c('s9')::uuid));
+select public.container_items_add(pg_temp.c('s9')::uuid, jsonb_build_array(
+  jsonb_build_object('ref', 'b:1', 'kind', 'single', 'stem', 'Один', 'options', jsonb_build_array('да', 'нет'), 'correct', jsonb_build_array(0))));
+select pg_temp.put('i9', (select i.id::text from public.test_items i where i.subject_id = pg_temp.c('s9')::uuid));
+select pg_temp.put('q9', public.quiz_create(pg_temp.c('x9')::uuid, jsonb_build_object(
+  'title', 'Большая', 'subject_ids', jsonb_build_array(pg_temp.c('s9')), 'item_count', 1)) ->> 'id');
+reset role;
+insert into public.quiz_attempts (quiz_id, user_id, name, n, item_ids, started_at, finished_at, finish_reason)
+select pg_temp.c('q9')::uuid, ('00000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'Ученик ' || g, 1,
+       array_fill(pg_temp.c('i9')::uuid, array[200]), now() - interval '2 hours', now() - make_interval(mins => g), 'sent'
+  from generate_series(1, 101) g;
+select pg_temp.as_user('aaaaaaaa-0000-0000-0000-000000000001');
+do $do$
+declare
+  r jsonb := public.test_item_percents(pg_temp.c('x9')::uuid);
+begin
+  perform pg_temp.ok((r ->> 'attempts')::integer = 100 and r ->> 'capped' = 'true'
+                     and (r -> 'items' -> 0 ->> 'shown')::integer = 20000, format('capped by answers: %s', r));
 end;
 $do$;
 
