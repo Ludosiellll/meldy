@@ -100,8 +100,9 @@ describe('discrimination (item-rest correlation)', () => {
 
 describe('the trap option', () => {
   const item = { kind: 'single' as const, options: ['А', 'Б', 'В', 'Г'], correct: [0] };
-  it('is the wrong option chosen most, from 2 people and a fifth of the answers', () => {
+  it('is the wrong option chosen most, from 2 people and a quarter of the answers', () => {
     expect(trapOf({ picks: [10, 6, 2, 2], answered: 20 }, item)).toEqual({ index: 1, n: 6, answered: 20 });
+    expect(trapOf({ picks: [12, 4, 2, 2], answered: 20 }, item)).toBeNull();
     expect(trapOf({ picks: [17, 1, 1, 1], answered: 20 }, item)).toBeNull();
     expect(trapOf({ picks: [1, 1, 0, 0], answered: 2 }, item)).toBeNull();
   });

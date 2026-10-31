@@ -1,0 +1,19 @@
+/* The share of right answers on a question block of the studio's canvas (itemPercents.tsx, release 49): a quiet
+   chip under the block's right corner, in the gap before the next block (never over the question's own words); the
+   chosen block's hint takes that place, so the chip waits until the block is let go. It never takes a press. */
+.st-block > .st-percent {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 14px;
+  z-index: 3;
+  margin: 0;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sf-surface) 92%, transparent);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: var(--sf-muted);
+  font: 600 12px/1.45 var(--ph-sans);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}

@@ -10,7 +10,7 @@
  *   people did not all score the same on it: with fewer, one lucky guess turns it over. Thresholds by the usual rule of
  *   thumb for classroom tests: 0.3 and up — tells them apart well; 0.15 — weakly; under that — hardly (rewrite it);
  *   below −0.05 — those who know do worse here (check the key).
- * - The trap: the wrong option chosen most, when at least 2 people and a fifth of those who answered chose it.
+ * - The trap: the wrong option chosen most, when at least 2 people and a quarter of those who answered chose it.
  * - Time: the median of the seconds of the answered cells, from MIN_FOR_TIME answers.
  * - Retakes: people with two finished attempts or more, their first and their last attempt's percent.
  * - Groups: another quiz of the same exam (a class gets its own link) on the questions both had.
@@ -148,7 +148,7 @@ export function trapOf(stat: Pick<QuizItemStat, 'picks' | 'answered'>, item: Pic
     if (!best || n > best.n) best = { index, n, answered: stat.answered };
   });
   const found = best as Trap | null;
-  if (!found || found.n < 2 || found.n < stat.answered / 5) return null;
+  if (!found || found.n < 2 || found.n < stat.answered / 4) return null;
   return found;
 }
 

@@ -384,7 +384,7 @@ export const QA_ANALYSIS = {
     reverse: 'Сильные ученики ошибаются здесь чаще слабых. Проверьте верный ответ или перепишите вопрос.',
   },
   /** The share right among the strongest and the weakest 27 % (by the rest of their attempt). */
-  groups: (upper: number, lower: number) => `Из сильных верно ${upper} %, из слабых — ${lower} %.`,
+  groups: (upper: number, lower: number) => `Из сильных верно ${upper} %, из слабых\u00a0— ${lower} %.`,
   /** Under the threshold: no verdict yet. */
   wait: (min: number, now: number) =>
     `Насколько каждый вопрос отличает знающих, скажем, когда сдадут хотя бы ${min} человек. Сейчас сдали ${now}.`,

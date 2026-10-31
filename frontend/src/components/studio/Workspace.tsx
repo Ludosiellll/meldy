@@ -25,6 +25,7 @@ import type { DocBlock, DocLayout, TestDoc } from '../../types/testDoc';
 import { typeOf } from '../test/buildModel';
 import { useCanvas, type CanvasStore } from './canvasStore';
 import DocView, { type DocEditApi, type EditFrameProps, type EditGapProps } from './DocView';
+import { ItemPercentsProvider, PercentChip } from './itemPercents';
 import type { DocItem } from './docRun';
 import BlockMenu from './BlockMenu';
 import { STUDIO, type Panel } from './copyStudio';
@@ -304,6 +305,7 @@ const CanvasFrame = memo(function CanvasFrame({ block, index, count, number, ite
         </p>
       ) : null}
       {hint ? <p className="st-hint">{hint}</p> : null}
+      {block.type === 'question' && !hint ? <PercentChip itemId={block.item_id} /> : null}
     </div>
   );
 });
@@ -1320,7 +1322,7 @@ export default function Workspace({
           accessibility={accessibility}
           autoScroll={autoScroll}
         >
-          {body}
+          <ItemPercentsProvider containerId={containerId}>{body}</ItemPercentsProvider>
         </DndContext>
       </CanvasDataContext.Provider>
     </ActionsContext.Provider>
