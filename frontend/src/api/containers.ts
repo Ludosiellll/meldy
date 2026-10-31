@@ -18,7 +18,7 @@ import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
 import { notifyAIUsageChanged } from './limits';
 import {
-  TEST_ITEM_COLUMNS,
+  NEW_KINDS, TEST_ITEM_COLUMNS,
   type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerKind, type ContainerRpc,
   type ContainerSettings, type ContainerSummary, type ContainersOverview, type CreateSubjectInput, type DayKey,
   type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkPreview,
@@ -235,7 +235,7 @@ function normalizePlanInputs(raw: unknown): PlanInputsWire {
   } as unknown as PlanInputsWire;
 }
 
-const KINDS: ReadonlySet<string> = new Set(['single', 'multiple', 'short']);
+const KINDS: ReadonlySet<string> = new Set(['single', 'multiple', 'short', ...NEW_KINDS]);
 
 /** One test_items row; null when it is not one. */
 export function normalizeItem(raw: unknown): TestItem | null {
@@ -263,6 +263,11 @@ export function normalizeItem(raw: unknown): TestItem | null {
     updated_at: typeof raw.updated_at === 'string' ? raw.updated_at : '',
     images: itemImages(raw.images),
     explanation: typeof raw.explanation === 'string' ? raw.explanation : '',
+    // Release 48: the number's distance and unit, partial credit, the essay's lectures (they were dropped here before).
+    tolerance: typeof raw.tolerance === 'number' || typeof raw.tolerance === 'string' ? raw.tolerance : null,
+    unit: typeof raw.unit === 'string' ? raw.unit : null,
+    partial: raw.partial === true,
+    material_ids: strings(raw.material_ids),
   };
 }
 
