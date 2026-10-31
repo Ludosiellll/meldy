@@ -1,7 +1,7 @@
 /**
  * Reading one file or one pasted list for the import page (package D3a).
  *
- * - DOCX, XLSX, PDF, TXT, MD, CSV, HTML, Moodle XML and pasted text go to the question-bank importer
+ * - DOCX, XLSX, PDF, TXT, MD, CSV, HTML, Moodle XML, GIFT (release 49) and pasted text go to the question-bank importer
  *   (api/containers.ts parseBank, POST /api/exams/parse-bank) with the file's format (auto | test | open) and the
  *   student's key list (key_text). A PDF is read from its text layer (bold by the font's name).
  * - A scanned PDF has no text layer: the importer answers scan_pdf, and the file is read as before by the oral list's
@@ -16,9 +16,9 @@ import type { BankItem, BankParseResult } from '../../../types/container';
 import { PARSE_ERRORS } from '../copyImport';
 import type { FileFormat } from './importModel';
 
-export const ACCEPT = '.docx,.xlsx,.pdf,.txt,.md,.csv,.html,.htm,.xml,.doc';
+export const ACCEPT = '.docx,.xlsx,.pdf,.txt,.md,.csv,.html,.htm,.xml,.gift,.doc';
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
-const READABLE = new Set(['docx', 'xlsx', 'pdf', 'txt', 'md', 'csv', 'html', 'htm', 'xml']);
+const READABLE = new Set(['docx', 'xlsx', 'pdf', 'txt', 'md', 'csv', 'html', 'htm', 'xml', 'gift']);
 
 export class ReadError extends Error {
   readonly code: string;

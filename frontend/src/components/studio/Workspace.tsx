@@ -458,6 +458,8 @@ export interface WorkspaceProps {
   onSideOpen: (open: boolean) => void;
   /** «Холст» is the view shown (kept mounted under «Список» and «Текст»: coming back is instant). */
   active?: boolean;
+  /** Release 49: «Сгенерировать из лекции, текста или файла» at the end of the palette. */
+  onGenerate?: () => void;
 }
 
 /** What the settings get from the canvas: pictures go through its file field and its uploads. */
@@ -491,6 +493,7 @@ interface CanvasData {
   agent: RefObject<FocusPlan>;
   talk: RefObject<(words: string) => void>;
   palette: (entry: PaletteEntry) => void;
+  generate?: () => void;
   sideNode: ReactNode;
   paletteOpen: boolean;
   sideOpen: boolean;
@@ -529,7 +532,7 @@ function CanvasBody() {
       <div className="st-work" data-phone={phone ? '' : undefined} hidden={!d.active}>
         {phone ? null : (
           <aside className="st-col st-col-left" data-tour="palette" aria-label={STUDIO.palette}>
-            <Palette disabled={d.disabled} onPick={d.palette} />
+            <Palette disabled={d.disabled} onPick={d.palette} onGenerate={d.generate} />
           </aside>
         )}
 
@@ -563,7 +566,7 @@ function CanvasBody() {
 
       {phone && d.active && d.paletteOpen ? (
         <Sheet title={STUDIO.palette} onClose={d.closePalette} away={d.sheetAway}>
-          <Palette disabled={d.disabled} hint={false} onPick={d.palette} />
+          <Palette disabled={d.disabled} hint={false} onPick={d.palette} onGenerate={d.generate} />
         </Sheet>
       ) : null}
       {/* «Проверка теста» has its own title: the tabs of the settings are not shown over it (StudioPage, Side `tabs`). */}
@@ -628,6 +631,7 @@ export default function Workspace({
   sideOpen,
   onSideOpen,
   active = true,
+  onGenerate,
 }: WorkspaceProps) {
   const { doc, rows } = studio;
   // The ids keep their array while the order is the same (the keyboard's drag reads them; a key typed changes nothing).
@@ -1270,6 +1274,14 @@ export default function Workspace({
   const events = useRef({ enter: fileEnter, over: fileOver, leave: fileLeave, drop: fileDrop });
   events.current = { enter: fileEnter, over: fileOver, leave: fileLeave, drop: fileDrop };
 
+  // The palette's «Сгенерировать…»: on a phone its sheet closes first (release 49).
+  const generate = useMemo(
+    () => (onGenerate ? () => {
+      if (phone) onPaletteOpen(false);
+      onGenerate();
+    } : undefined),
+    [onGenerate, onPaletteOpen, phone],
+  );
   const dragEntry = dragId !== null ? paletteEntry(dragId) : null;
   const dragBlock = dragId !== null && !dragEntry ? doc.blocks.find((block) => block.id === dragId) ?? null : null;
   const data: CanvasData = {
@@ -1286,6 +1298,7 @@ export default function Workspace({
     agent,
     talk,
     palette: palettePick,
+    generate,
     sideNode: active && (!phone || sideOpen) ? side(sideApi) : null,
     paletteOpen,
     sideOpen,

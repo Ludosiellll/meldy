@@ -1,4 +1,6 @@
 import { memo, type PointerEventHandler } from 'react';
+import { PORT } from '../port/copyPort';
+import { GenerateIcon } from '../port/portIcons';
 import { useDraggable } from '@dnd-kit/core';
 import type { DocBlockType } from '../../types/testDoc';
 import { STUDIO, type QuestionType } from './copyStudio';
@@ -61,7 +63,7 @@ function Item({ entry, disabled, onPick }: { entry: PaletteEntry; disabled: bool
   );
 }
 
-function Palette({ disabled, onPick, hint = true }: { disabled: boolean; onPick: (entry: PaletteEntry) => void; hint?: boolean }) {
+function Palette({ disabled, onPick, hint = true, onGenerate }: { disabled: boolean; onPick: (entry: PaletteEntry) => void; hint?: boolean; onGenerate?: () => void }) {
   return (
     <div className="st-palette">
       <h2 className="st-side-h">{STUDIO.palette}</h2>
@@ -82,6 +84,13 @@ function Palette({ disabled, onPick, hint = true }: { disabled: boolean; onPick:
           <Item key={type} entry={{ kind: 'question', type }} disabled={disabled} onPick={onPick} />
         ))}
       </ul>
+      {/* Release 49: questions from a lecture, a text or a file (components/port/GenerateSheet). */}
+      {onGenerate ? (
+        <button type="button" className="st-pal-item pt-pal-gen" aria-disabled={disabled || undefined} onClick={() => !disabled && onGenerate()}>
+          <GenerateIcon />
+          <span>{PORT.generateOpen}</span>
+        </button>
+      ) : null}
     </div>
   );
 }

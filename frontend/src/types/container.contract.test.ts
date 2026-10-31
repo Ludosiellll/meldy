@@ -140,7 +140,7 @@ const ORAL_STATUSES = every<OralSyncResponse['oral'][number]['status']>({
   copied: true, bound: true, not_ready: true, closed: true, failed: true,
 });
 const BANK_KINDS = every<BankItemKind>({
-  single: true, multiple: true, truefalse: true, open: true, order: true, match: true, unknown: true,
+  single: true, multiple: true, truefalse: true, open: true, order: true, match: true, cloze: true, unknown: true,
 });
 const SUBJECT_EVIDENCE = every<BankParseResult['subjects'][number]['evidence']>({
   heading: true, heading_level: true, restart: true, none: true,

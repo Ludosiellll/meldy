@@ -107,7 +107,7 @@ __all__ = [
     "tsv_table",
 ]
 
-FILE_EXTENSIONS = ("docx", "txt", "md", "xlsx", "csv", "html", "htm", "xml", "pdf")
+FILE_EXTENSIONS = ("docx", "txt", "md", "xlsx", "csv", "html", "htm", "xml", "pdf", "gift")  # gift — выпуск 49
 KEY_MODES = ("auto", "first_option", "none")
 FORMAT_MODES = ("auto", "test", "open")
 
@@ -118,6 +118,7 @@ MAX_QUESTION_CHARS = 4000
 MAX_OPTION_CHARS = 600
 MAX_OPTIONS_OUT = 20  # больше вариантов у вопроса — ошибка разбора (флаг many_options), список не раздуваем
 MAX_LABEL_CHARS = 16
+MAX_EXPLANATION_CHARS = 2000  # test_items_explanation_check (выпуск 48)
 MAX_TITLE_CHARS = 200
 MAX_HEADING_CHARS = 200  # строка длиннее — не заголовок предмета
 MAX_SKIPPED = 50
@@ -380,7 +381,7 @@ MOODLE_CHROME_RE = re.compile(
 SUBNUMBER_RE = re.compile(r"^(\d{1,2})\.(\d{1,3})\.?\s+(?=[^\W\d_])(.*[?:.…])\s*$", re.S)
 # Ответы GIFT: «{=верно ~неверно}», «{#5}», «{T}» — скобка не впритык к слову или «$», внутри первым «=», «~», «#число»
 # или T/F. Код в скобках — не GIFT: «{ x = 100; }», «${#arr[@]}», «List{T}», «std::cout».
-GIFT_ANSWERS_RE = re.compile(r"(?<![\w$])\{\s*(?:[=~][^{}]*|#\s*[-=\d][^{}]*|(?:T|F|TRUE|FALSE)\s*)\}", re.I)
+GIFT_ANSWERS_RE = re.compile(r"(?<![\w$])\{\s*(?:[=~][^{}]*|#\s*[-=\d][^{}]*|(?:T|F|TRUE|FALSE)\s*(?:#[^{}]*)?)\}", re.I)
 GIFT_TITLE_RE = re.compile(r"^[ \t]*::[^:\n]{1,200}::", re.M)
 
 # Заголовок предмета. «Дисциплина: Основы программирования», «Предмет «История»», «Курс: Сети»:
@@ -665,6 +666,10 @@ class Item:
     alt: Optional[dict] = None  # разбор с ИИ: другая версия вопроса, когда правила и ИИ разошлись
     grid: bool = False  # варианты по два в строке («а) …<tab>в) …»): порядок — по буквам
     number: Optional[dict] = None  # числовой ответ (выпуск 48): {"answers": ["9.8"], "tolerance": "0.1" | None}
+    # выпуск 49 (GIFT, Moodle XML)
+    explanation: str = ""  # пояснение: «####…» GIFT, generalfeedback Moodle, иначе отзыв верного ответа
+    gaps: list[list[str]] = field(default_factory=list)  # cloze: принимаемые формы каждого пропуска «___»
+    extras: list[str] = field(default_factory=list)  # match: правые элементы без пары (лишние)
 
     def flag(self, name: str) -> None:
         if name not in self.flags:
@@ -2129,6 +2134,79 @@ def looks_like_gift(text: str) -> bool:
     return answers == 1 and ("$CATEGORY" in text or GIFT_TITLE_RE.search(text) is not None)
 
 
+AIKEN_OPTION_RE = re.compile(r"^([A-Z])[.)]\s+(\S.*)$")
+AIKEN_ANSWER_RE = re.compile(r"^ANSWER\s*:\s*([A-Za-z])\s*$", re.I)
+AIKEN_NUMBERED_RE = re.compile(r"^(?:\d{1,4}\s*[.)]|(?:question|вопрос|задание)\s*№?\s*\d+)", re.I)
+
+
+def _aiken_block(lines: list[str]) -> Optional[tuple[list[str], list[str], Optional[str]]]:
+    """Блок Aiken (выпуск 49): строки вопроса, варианты «A. …» подряд с буквы A, необязательная строка «ANSWER: B»
+    в конце — (вопрос, варианты, буква ответа или None); иначе None."""
+    answer = None
+    if lines and AIKEN_ANSWER_RE.match(lines[-1]):
+        answer = AIKEN_ANSWER_RE.match(lines[-1]).group(1).upper()
+        lines = lines[:-1]
+    first = next((i for i, line in enumerate(lines) if AIKEN_OPTION_RE.match(line)), None)
+    if not first:  # нет вариантов или нет строки вопроса
+        return None
+    stem, rest = lines[:first], lines[first:]
+    options = []
+    for offset, line in enumerate(rest):
+        found = AIKEN_OPTION_RE.match(line)
+        if not found or found.group(1) != chr(ord("A") + offset):
+            return None
+        options.append(found.group(2).strip())
+    if len(options) < 2:
+        return None
+    return stem, options, answer
+
+
+def _aiken_blocks(text: str) -> list[list[str]]:
+    return [[line.strip() for line in chunk.split("\n") if line.strip()]
+            for chunk in re.split(r"\n\s*\n", text.replace("\r\n", "\n")) if chunk.strip()]
+
+
+def looks_like_aiken(text: str) -> bool:
+    """Файл Aiken (Moodle): каждый блок через пустую строку — вопрос, варианты «A.» / «A)» с латинской буквы A подряд и
+    строка «ANSWER: B»; строка ответа есть хотя бы у половины блоков (у остальных её могли забыть)."""
+    if "ANSWER" not in text:
+        return False
+    blocks = _aiken_blocks(text)
+    read = [_aiken_block(block) for block in blocks]
+    if not blocks or any(entry is None or AIKEN_NUMBERED_RE.match(entry[0][0]) for entry in read):
+        return False  # не Aiken или вопросы с номерами («Question 1.», «1.»): их читает общий разбор, как раньше
+    with_answer = sum(1 for block in blocks if block[-1].startswith("ANSWER"))  # «ANSWER» — заглавными, как в Moodle
+    return with_answer >= 1 and with_answer * 2 >= len(read)
+
+
+def read_aiken(text: str) -> Reader:
+    """Aiken (выпуск 49): вопрос — строки до вариантов, варианты по буквам, ключ — «ANSWER: B» (evidence answer_line);
+    буква, которой нет среди вариантов, — флаг key_invalid, нет строки ответа — без ключа."""
+    reader = Reader(line_word="строка")
+    reader.layouts["aiken"] += 1
+    line_no = 1
+    for chunk in re.split(r"(\n\s*\n)", text.replace("\r\n", "\n")):
+        if not chunk.strip():
+            line_no += chunk.count("\n")
+            continue
+        lines = [line.strip() for line in chunk.split("\n") if line.strip()]
+        entry = _aiken_block(lines)
+        start = line_no + len(chunk) - len(chunk.lstrip("\n"))
+        line_no += chunk.count("\n")
+        if entry is None:
+            continue
+        stem, options, answer = entry
+        item = reader.new_item("", "\n".join(stem), f"строка {start}")
+        item.options = [Option(text=option, runs=[Run(text=option)]) for option in options]
+        if answer is not None:
+            index = ord(answer) - ord("A")
+            if 0 <= index < len(options):
+                item.correct, item.evidence = [index], "answer_line"
+            else:
+                item.flag("key_invalid")
+    return reader
+
+
 def read_gift(text: str) -> Reader:
     reader = Reader(line_word="строка")
     reader.layouts["gift"] += 1
@@ -2137,6 +2215,15 @@ def read_gift(text: str) -> Reader:
         for key, back in GIFT_BACK.items():
             value = value.replace(key, back)
         return value.strip()
+
+    def plain(value: str, html: bool) -> str:
+        """Текст поля GIFT: экранирование снято; у вопроса «[html]» — HTML текстом (выпуск 49)."""
+        value = unescape(value).replace("\x07", "\\")
+        return bank_formats._html_text(value)[0] if html and "<" in value else value
+
+    def feedback(body: str) -> str:
+        """Отзыв ответа: текст после первой «#» (выпуск 49)."""
+        return body.split("#", 1)[1] if "#" in body else ""
 
     lines = [line for line in text.replace("\r\n", "\n").split("\n") if not line.strip().startswith("//")]
     raw = "\n".join(lines).replace("\\\\", "\x07")
@@ -2148,7 +2235,10 @@ def read_gift(text: str) -> Reader:
             continue
         category = re.match(r"^\$CATEGORY:\s*(.+)$", chunk)
         if category:
-            reader.heading(unescape(category.group(1)).replace("\x07", "\\"), "topic")
+            title = unescape(category.group(1)).replace("\x07", "\\")
+            if title.startswith("$"):  # путь Moodle «$course$/top/…/Тема 3» (выпуск 49): тема — последняя часть
+                title = title.rstrip("/").split("/")[-1].strip() or title
+            reader.heading(title, "topic")
             continue
         chunk = re.sub(r"^::.*?::", "", chunk, flags=re.S).strip()
         # от первой «{» до последней «}» (как ^(.*?)\{(.*)\}(.*)$, но без перебора)
@@ -2158,34 +2248,67 @@ def read_gift(text: str) -> Reader:
                 reader.skipped.append(unescape(chunk)[:SKIPPED_CHARS])
             continue
         head, answers, tail = chunk[:open_at], chunk[open_at + 1:close_at].strip(), chunk[close_at + 1:]
-        stem = unescape(head + (" ___ " + tail if tail.strip() else "")).replace("\x07", "\\")
+        if tail.strip():  # пропуск посреди фразы (выпуск 49: без лишних пробелов, перед знаком препинания — без пробела)
+            rest = tail.lstrip()
+            head = (head.rstrip() + " " if head.strip() else "") + "___" + ("" if rest[:1] in ".,;:!?)»…" else " ") + rest
+        stem = unescape(head).replace("\x07", "\\")
+        html = stem.lower().startswith("[html]")
         stem = re.sub(r"^\[(?:html|moodle|markdown|plain)\]", "", stem)
+        if html and "<" in stem:
+            stem = bank_formats._html_text(stem)[0]
+        # общее пояснение — после последней «####» (как в Moodle, question/format/gift)
+        general = ""
+        cut = answers.rfind("####")
+        if cut >= 0:
+            general, answers = plain(answers[cut + 4:], html), answers[:cut].strip()
         item = reader.new_item("", stem, "GIFT")
-        if answers.upper() in ("T", "TRUE", "F", "FALSE"):
+        head_word = answers.split("#", 1)[0].strip().upper()
+        if head_word in ("T", "TRUE", "F", "FALSE"):
             item.kind = "truefalse"
             item.options = [Option(text="Верно"), Option(text="Неверно")]
-            item.correct = [0 if answers.upper().startswith("T") else 1]
+            item.correct = [0 if head_word.startswith("T") else 1]
             item.evidence = "gift"
+            # {T#отзыв на неверный ответ#отзыв на верный}: пояснение — общее, иначе более длинный отзыв (короткий —
+            # обычно «Верно.»; объясняет чаще отзыв на неверный ответ)
+            bits = answers.split("#", 2)
+            right = plain(bits[2], html) if len(bits) > 2 else ""
+            wrong = plain(bits[1], html) if len(bits) > 1 else ""
+            item.explanation = general or (wrong if len(wrong) > len(right) else right)
             continue
         if answers.startswith("#"):
             item.kind, item.answer, item.evidence = "open", answers[1:].split(":")[0].strip(), "gift"
             item.number = gift_number(unescape(answers[1:]))  # выпуск 48: число с допуском, не только запись
+            if item.number:  # выпуск 49: запись ответа — само число («=%100%443:0#» из Moodle — «443»)
+                item.answer = item.number["answers"][0]
+            first = re.split(r"(?<!^)=", answers[1:].strip().lstrip("="))[0]
+            item.explanation = general or plain(feedback(first), html)
             continue
         parts = re.findall(r"([=~])\s*((?:%-?\d+(?:\.\d+)?%)?)([^=~]*)", answers)
         if parts and all(sign == "=" for sign, _, _ in parts) and all("->" in body for _, _, body in parts):
             item.kind = "match"
-            item.pairs = [tuple(unescape(x) for x in body.split("->", 1)) for _, _, body in parts]
+            for _, _, body in parts:
+                left, right = (plain(x, html) for x in body.split("->", 1))
+                if left:
+                    item.pairs.append((left, right))
+                elif right:
+                    item.extras.append(right)  # выпуск 49: «= -> лишний» — правый элемент без пары
+            item.explanation = general
             continue
         if parts and all(sign == "=" for sign, _, _ in parts):
             item.kind, item.answer, item.evidence = "open", "; ".join(unescape(body.split("#")[0]) for _, _, body in parts), "gift"
+            item.explanation = general or plain(feedback(parts[0][2]), html)
             continue
+        right_feedback = ""
         for sign, weight, body in parts:
-            option_text = unescape(body.split("#")[0]).replace("\x07", "\\")
+            option_text = plain(body.split("#")[0], html)
             value = 100.0 if sign == "=" else float(weight.strip("%")) if weight else 0.0
             item.options.append(Option(text=option_text, runs=[Run(text=option_text)]))
             item.weights.append(value)
+            if value > 0 and not right_feedback:
+                right_feedback = plain(feedback(body), html)
         item.correct = [i for i, w in enumerate(item.weights) if w > 0]
         item.evidence = "gift" if item.options else ""
+        item.explanation = general or right_feedback
         if len(item.correct) > 1:
             item.kind = "multiple"
     return reader
@@ -2553,8 +2676,8 @@ def classify(item: Item, format_mode: str = "auto", *, marked: bool = False, sha
     """Вид вопроса по устройству, а не по словам: отмеченный вариант (оформление, маркер, флажок) или ключ-буква —
     выбор (single / multiple); «порядок» — ключ-перестановка, места числами или задание «Расположите…» без отметок;
     «соответствие» — ключ-пары или задание «Установите соответствие…» без отметок."""
-    if item.kind in ("open", "match", "truefalse", "multiple"):
-        return
+    if item.kind in ("open", "match", "truefalse", "multiple", "cloze") or (item.kind == "order" and item.evidence == "gift"):
+        return  # вид задан разметкой файла (GIFT, Moodle XML) или устройством вопроса
     text = item.text
     if not item.options:
         if format_mode != "test":
@@ -3027,6 +3150,12 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
         })
         if item.number:  # выпуск 48: число с допуском (GIFT «{#…}», Moodle numerical)
             out_items[-1]["number"] = item.number
+        if item.explanation:  # выпуск 49: пояснение из файла (GIFT «####…» и «#…», Moodle feedback)
+            out_items[-1]["explanation"] = item.explanation[:MAX_EXPLANATION_CHARS].rstrip()
+        if item.gaps:  # выпуск 49: cloze — формы каждого пропуска по порядку
+            out_items[-1]["gaps"] = [list(forms) for forms in item.gaps]
+        if item.extras:  # выпуск 49: лишние правые элементы соответствия
+            out_items[-1]["extras"] = [extra[:MAX_OPTION_CHARS] for extra in item.extras[:MAX_OPTIONS_OUT]]
         if item.source:  # разбор с ИИ (bank_ai): откуда вопрос и вторая версия, если правила и ИИ разошлись
             out_items[-1]["source"] = item.source
             out_items[-1]["alt"] = item.alt
@@ -3057,7 +3186,7 @@ def _result(reader: Reader, items: list[Item], signal: Optional[str], table: dic
                      for key in sorted(used)},
         "stats": {
             "items": len(items),
-            "with_key": sum(1 for item in items if item.correct or item.order or item.answer or item.pairs),
+            "with_key": sum(1 for item in items if item.correct or item.order or item.answer or item.pairs or item.gaps),
             "no_key": sum(1 for item in items if "no_key" in item.flags),
             "ambiguous": sum(1 for item in items if set(item.flags) & AMBIGUOUS_FLAGS),
             "to_check": len(items) - clean,
@@ -3517,10 +3646,10 @@ def hand_text(text: str) -> str:
 
 def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str] = None, format_mode: str = "auto",
                     key_file: Optional[list[dict]] = None, key_section: Optional[int] = None, markdown: bool = False,
-                    hand: bool = False) -> dict:
+                    hand: bool = False, gift: bool = False) -> dict:
     """Вставленный текст (или текст TXT/MD) → предпросмотр банка. markdown — файл .md. Ошибки — BankError.
     hand — текст быстрой контрольной (paste_api.py): учитель отмечает ответы сам (hand_text), «*» у одного вопроса —
-    уже ключ."""
+    уже ключ. gift — файл .gift (выпуск 49): читается как GIFT, даже если в нём один вопрос без названия."""
     _check_modes(key_mode, format_mode)
     text = clean_text(text or "")
     if len(text) > MAX_TOTAL_CHARS:
@@ -3528,8 +3657,10 @@ def parse_bank_text(text: str, *, key_mode: str = "auto", key_text: Optional[str
     if hand:
         text = hand_text(text)
     user_keys = _user_keys(key_text)
-    if looks_like_gift(text):
+    if looks_like_gift(text) or (gift and GIFT_ANSWERS_RE.search(text)):
         return _checked(finish(read_gift(text), key_mode=key_mode, user_keys=user_keys, format_mode=format_mode), format_mode)
+    if looks_like_aiken(text):  # выпуск 49: Aiken — свой разбор (вопрос без «?» тоже вопрос)
+        return _checked(finish(read_aiken(text), key_mode=key_mode, user_keys=user_keys, format_mode=format_mode), format_mode)
     text = forms_text(text)
     table = tsv_table(text)
     blocks: list[Block] = [table] if table is not None else list(text_blocks(text, markdown=markdown))
@@ -3622,9 +3753,80 @@ def read_moodle_reader(questions: list) -> "Reader":
                     item.number = {"answers": list(dict.fromkeys(numbers))[:10], "tolerance": top if top not in (None, "0") else None}
         elif question.kind == "matching" and question.pairs:
             item.kind, item.pairs = "match", list(question.pairs)
+            item.extras = list(question.extras)  # выпуск 49: лишние правые элементы
+        elif question.kind == "ordering" and len(question.options) >= 2:
+            # выпуск 49: порядок — элементы в верном порядке (как в файле)
+            item.kind, item.evidence = "order", "gift"
+            item.options = [Option(text=text, runs=[Run(text=text)]) for text in question.options]
+            item.order = list(range(len(item.options)))
+        elif question.kind == "cloze" and (cloze := moodle_cloze(question)) is not None:
+            item.kind, item.evidence = "cloze", "gift"  # выпуск 49: пропуски в тексте
+            item.text, item.gaps = cloze
         else:
-            item.kind = "open"  # эссе, cloze, перетаскивание: текст вопроса, ответа нет
+            item.kind = "open"  # эссе, перетаскивание, cloze, который не перенести: текст вопроса, ответа нет
+        item.explanation = question.explanation
     return reader
+
+
+CLOZE_TYPED = {"SHORTANSWER", "SA", "MW", "SHORTANSWER_C", "SAC", "MWC"}
+CLOZE_NUMBER = {"NUMERICAL", "NM"}
+CLOZE_CHOICE = {"MULTICHOICE", "MC", "MULTICHOICE_V", "MCV", "MULTICHOICE_H", "MCH", "MULTICHOICE_S", "MCS",
+                "MULTICHOICE_VS", "MCVS", "MULTICHOICE_HS", "MCHS"}
+MAX_GAPS = 10  # test_items: cloze — 1..10 пропусков, 1..10 форм в каждом, форма 1..200 знаков (docs/kinds/CONTRACT.md)
+MAX_GAP_FORMS = 10
+MAX_GAP_FORM_CHARS = 200
+_CLOZE_LEFT_RE = re.compile(r"\{\d*:[A-Za-z_]{2,40}:")
+
+
+def moodle_cloze(question) -> Optional[tuple[str, list[list[str]]]]:
+    """Вопрос Moodle cloze → (текст с «___» на месте пропусков, формы каждого пропуска) или None — перенести нельзя
+    (тогда он остаётся открытым, как раньше). Пропуск SHORTANSWER — его верные (100 %) ответы; NUMERICAL — число без
+    допуска (и с запятой); MULTICHOICE — верный вариант, а варианты — в скобках после пропуска по алфавиту (иначе
+    вопрос нельзя решить, а порядок файла часто выдаёт ответ). MULTIRESPONSE, допуск, «*» в ответе — None."""
+    mark = bank_formats.GAP_MARK
+    text = question.cloze_text
+    if not question.cloze or not text or len(question.cloze) > MAX_GAPS or text.count(mark) != len(question.cloze):
+        return None
+    if re.search(r"_{3,}", text) or _CLOZE_LEFT_RE.search(text):
+        return None  # свои «___» в тексте спутают пропуски; встроенный ответ, который не прочитан
+    gaps: list[list[str]] = []
+    shown: list[str] = []
+    for kind, alternatives in question.cloze:
+        right = [answer for weight, answer in alternatives if weight >= 100 and answer]
+        suffix = ""
+        if kind in CLOZE_TYPED:
+            if any("*" in form for form in right):
+                return None  # «*» в Moodle — любой ответ
+            forms = right
+        elif kind in CLOZE_NUMBER:
+            forms = []
+            for answer in right:
+                value, _, tolerance = answer.partition(":")
+                if tolerance.strip() and canonical_number(tolerance) not in ("0", None):
+                    return None
+                number = canonical_number(value)
+                if number is None or (tolerance.strip() and canonical_number(tolerance) is None):
+                    return None
+                forms += [number] + ([number.replace(".", ",")] if "." in number else [])
+        elif kind in CLOZE_CHOICE:
+            if len(right) != 1:
+                return None
+            forms = right
+            choices = sorted(dict.fromkeys(answer for _, answer in alternatives if answer), key=str.casefold)
+            if len(choices) < 2:
+                return None
+            suffix = " (" + " / ".join(choices) + ")"
+        else:
+            return None
+        forms = list(dict.fromkeys(" ".join(form.split()) for form in forms))
+        if not forms or len(forms) > MAX_GAP_FORMS or any(
+                not form or len(form) > MAX_GAP_FORM_CHARS or not re.search(r"\w", form) for form in forms):
+            return None
+        gaps.append(forms)
+        shown.append("___" + suffix)
+    pieces = text.split(mark)
+    out = pieces[0] + "".join(gap + piece for gap, piece in zip(shown, pieces[1:]))
+    return out.strip(), gaps
 
 
 def read_key_file(contents: bytes, name: str) -> list[dict]:
@@ -3653,7 +3855,8 @@ def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_t
     kind, value = _file_input(contents, name, pictures)
     if kind == "text":
         return parse_bank_text(value, key_mode=key_mode, key_text=key_text, format_mode=format_mode,  # type: ignore[arg-type]
-                               key_file=key_file, key_section=key_section, markdown=name.lower().endswith(".md"))
+                               key_file=key_file, key_section=key_section, markdown=name.lower().endswith(".md"),
+                               gift=name.lower().endswith(".gift"))
     if kind == "moodle":
         reader = read_moodle_reader(value)  # type: ignore[arg-type]
         result = _finish_with_key_file(reader, key_mode=key_mode, user_keys=_user_keys(key_text), format_mode=format_mode,
