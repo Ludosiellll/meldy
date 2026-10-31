@@ -533,6 +533,22 @@ describe('the lecture header (design critique 12)', () => {
     expect(screen.getByText(/^Физика · /, { selector: '.md-meta' })).toBeInTheDocument();
     expect(api.updateMaterialSubject).not.toHaveBeenCalled();
   });
+
+  it('a rename the database did not save keeps the old title and says so (debt of 19.10: it only logged)', async () => {
+    const api = await import('../api/materials');
+    vi.mocked(api.updateMaterialTitle).mockRejectedValueOnce(new Error('Материал не изменён: нет прав на запись'));
+    renderPage('/library/m1');
+    const before = (await screen.findByRole('heading', { level: 1 })).textContent;
+    await chooseFromMenu('Переименовать');
+    fireEvent.change(screen.getByRole('textbox', { name: 'Название лекции' }), { target: { value: 'Не сохранится' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(state.toastError).toHaveBeenCalledWith('Не удалось сохранить название. Попробуйте ещё раз.'));
+    expect(screen.queryByRole('heading', { level: 1, name: 'Не сохранится' })).not.toBeInTheDocument();
+    // The field stays open with what was typed, so «Сохранить» can be pressed again.
+    expect(screen.getByRole('textbox', { name: 'Название лекции' })).toHaveValue('Не сохранится');
+    fireEvent.click(screen.getByRole('button', { name: 'Отмена' }));
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(before ?? '');
+  });
 });
 
 describe('mode switcher', () => {

@@ -29,14 +29,23 @@ export async function deleteMaterial(id: string) {
   if (error) throw error;
 }
 
-export async function updateMaterialSubject(id: string, subject: string) {
-  const { error } = await supabase.from('materials').update({ subject }).eq('id', id);
-  if (error) console.error('updateMaterialSubject error:', error);
+/**
+ * One write to the caller's own lecture. A failed request, or a write that changed no row (someone else's lecture, one
+ * deleted meanwhile), throws: the page keeps the old value and says the change was not saved (a rename used to only
+ * log its error, and the new title showed as if it were saved).
+ */
+async function updateOwnMaterial(id: string, values: Record<string, unknown>): Promise<void> {
+  const { data, error } = await supabase.from('materials').update(values).eq('id', id).select('id');
+  if (error) throw error;
+  if (Array.isArray(data) && data.length === 0) throw new Error('Материал не изменён: нет прав на запись');
 }
 
-export async function updateMaterialTitle(id: string, title: string) {
-  const { error } = await supabase.from('materials').update({ title }).eq('id', id);
-  if (error) console.error('updateMaterialTitle error:', error);
+export async function updateMaterialSubject(id: string, subject: string): Promise<void> {
+  await updateOwnMaterial(id, { subject });
+}
+
+export async function updateMaterialTitle(id: string, title: string): Promise<void> {
+  await updateOwnMaterial(id, { title });
 }
 
 /**
@@ -45,7 +54,5 @@ export async function updateMaterialTitle(id: string, title: string) {
  * страница не показывает «открыт по ссылке» и не копирует мёртвую ссылку.
  */
 export async function setMaterialVisibility(id: string, isPublic: boolean): Promise<void> {
-  const { data, error } = await supabase.from('materials').update({ is_public: isPublic }).eq('id', id).select('id');
-  if (error) throw error;
-  if (Array.isArray(data) && data.length === 0) throw new Error('Материал не изменён: нет прав на запись');
+  await updateOwnMaterial(id, { is_public: isPublic });
 }
