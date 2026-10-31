@@ -499,17 +499,17 @@
     bottom: 0;
     z-index: 6;
     margin: 14px calc(-1 * var(--az-g)) 0;
-    padding: 12px var(--az-g) calc(12px + env(safe-area-inset-bottom));
+    padding: 12px var(--az-g) calc(12px + var(--sf-safe-b));
     background: color-mix(in srgb, var(--sf-canvas) 86%, transparent);
     -webkit-backdrop-filter: saturate(1.4) blur(14px);
     backdrop-filter: saturate(1.4) blur(14px);
     box-shadow: 0 -1px 0 var(--sf-line);
   }
-  .sf-shell[data-tabs] .az-launch { bottom: calc(var(--sf-tabs-h, 0px) + env(safe-area-inset-bottom)); padding-bottom: 12px; }
+  .sf-shell[data-tabs] .az-launch { bottom: calc(var(--sf-tabs-h, 0px) + var(--sf-safe-b)); padding-bottom: 12px; }
   .az-launch .az-step-n { display: none; }
   .az-launch .az-start { max-width: 560px; margin: 0 auto; }
-  .az-file-error { scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom)); }
-  .sf-shell[data-tabs] .az-file-error { scroll-margin-bottom: calc(96px + var(--sf-tabs-h, 0px) + env(safe-area-inset-bottom)); }
+  .az-file-error { scroll-margin-bottom: calc(96px + var(--sf-safe-b)); }
+  .sf-shell[data-tabs] .az-file-error { scroll-margin-bottom: calc(96px + var(--sf-tabs-h, 0px) + var(--sf-safe-b)); }
 }
 
 /* ---------------------------------------------------------------- motion */

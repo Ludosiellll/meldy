@@ -157,7 +157,7 @@
   left: 0;
   width: auto;
   max-height: min(82vh, calc(100dvh - var(--fp-top, 0px) - 16px));
-  padding: 0 20px calc(24px + env(safe-area-inset-bottom));
+  padding: 0 20px calc(24px + var(--sf-safe-b));
   border-radius: 32px 32px 0 0;
   animation-name: fp-up;
   animation-duration: 280ms;

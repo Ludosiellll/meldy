@@ -2,10 +2,12 @@
    hangs on html.tg-mode, which only a Telegram Mini App session sets: outside Telegram nothing here applies.
 
    Telegram's script gives the safe areas as CSS variables (Bot API 8.0): --tg-safe-area-inset-* for the device (the
-   home indicator, the notch), --tg-content-safe-area-inset-* for Telegram's own controls. The site's bottom bars add
-   env(safe-area-inset-bottom), which a Telegram WebView may report as 0; here they take the larger of the two. */
+   home indicator, the notch), --tg-content-safe-area-inset-* for Telegram's own controls. A Telegram WebView may report
+   env(safe-area-inset-bottom) as 0; here the bottom inset is the larger of the two. The site's bottom bars add
+   --sf-safe-b, which is 0 on the site (index.css: its page never goes under the system's bars) and this inset here. */
 html.tg-mode {
   --tg-bottom: max(env(safe-area-inset-bottom), var(--tg-safe-area-inset-bottom, 0px));
+  --sf-safe-b: var(--tg-bottom);
   min-height: var(--tg-viewport-stable-height, 100vh);
   overscroll-behavior-y: none;
 }

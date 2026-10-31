@@ -485,8 +485,8 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
     display: flex;
     justify-content: space-between;
     box-sizing: border-box;
-    height: calc(56px + env(safe-area-inset-bottom));
-    padding: 0 20px env(safe-area-inset-bottom);
+    height: calc(56px + var(--sf-safe-b));
+    padding: 0 20px var(--sf-safe-b);
     border-top: 1px solid var(--sf-line);
     background: var(--sf-canvas);
     font-family: var(--ph-sans);
@@ -512,10 +512,10 @@ html[data-stage]:not(.dark) .sf-page { --ph-edge: rgba(11, 18, 28, .22); } /* ne
     height: 2px;
     background: var(--sf-ink);
   }
-  .sf-shell[data-tabs] .sf-main { padding-bottom: calc(56px + env(safe-area-inset-bottom)); }
+  .sf-shell[data-tabs] .sf-main { padding-bottom: calc(56px + var(--sf-safe-b)); }
 }
 @media (max-width: 374px) {
-  .sf-tabbar { padding: 0 12px env(safe-area-inset-bottom); }
+  .sf-tabbar { padding: 0 12px var(--sf-safe-b); }
   .sf-tablink { font-size: 14px; }
 }
 

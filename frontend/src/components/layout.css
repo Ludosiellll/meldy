@@ -8,6 +8,11 @@
 .sf-cta-plus { display: none; }
 .sf-cta-short { display: none; }
 
+/* ---------------------------------------------------------------- while the window scrolls */
+/* No hover in the page while it scrolls (lib/scrollHover.ts): a card that slides under the pointer does not run its
+   hover transition, which painted the whole card again on every frame of the scroll. */
+.sf-main[data-scrolling] { pointer-events: none; }
+
 /* ---------------------------------------------------------------- the account menu */
 /* «Что даёт PRO»: a quiet blue line of the same row height. */
 .sf-shell .sf-acct-pro {
@@ -23,6 +28,50 @@
   border-top: 2px solid currentColor;
   border-right: 2px solid currentColor;
   transform: rotate(45deg);
+}
+
+/* ---------------------------------------------------------------- a computer's short line */
+/* Up to 1439 px a computer's line holds six sections («Игры» since 31.10): «Разобрать лекцию» is «+ Лекция» there, as on a
+   tablet (the full words stay for screen readers), and the sections sit a little closer; the limit is its ring up to
+   1279 px (quotaMeter.css). */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .sf-shell .sf-bar .sf-nav-cta {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 16px 0 13px;
+    border-radius: 999px;
+  }
+  .sf-shell .sf-bar .sf-cta-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sf-shell .sf-bar .sf-cta-plus { position: relative; display: block; width: 18px; height: 18px; }
+  .sf-shell .sf-bar .sf-cta-plus::before,
+  .sf-shell .sf-bar .sf-cta-plus::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 18px;
+    height: 2.5px;
+    margin-top: -1.25px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+  .sf-shell .sf-bar .sf-cta-plus::after { transform: rotate(90deg); }
+  .sf-shell .sf-bar .sf-cta-short { display: inline; font-size: 15px; font-weight: 600; line-height: 1; letter-spacing: -.01em; }
+  .sf-shell .sf-bar-in { gap: 20px; }
+  .sf-shell .sf-bar-link { padding: 0 11px; }
 }
 
 /* ---------------------------------------------------------------- phones and tablets */
@@ -102,8 +151,8 @@
     align-items: stretch;
     justify-content: space-around;
     gap: 2px;
-    height: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom));
-    padding: 0 6px env(safe-area-inset-bottom);
+    height: calc(var(--sf-tabs-h) + var(--sf-safe-b));
+    padding: 0 6px var(--sf-safe-b);
   }
   /* No min-width: 0 — a tab is never narrower than its word («Повторение» is the longest). */
   .sf-shell .sf-tablink {
@@ -141,7 +190,7 @@
   .sf-shell .sf-tablink[aria-current='page'] { background: none; color: var(--sf-ink); font-weight: 600; }
   .sf-shell .sf-tablink[aria-current='page'] .sf-tab-ico { background: var(--sf-ink); color: var(--sf-canvas); }
   .sf-shell .sf-tablink:focus-visible { outline-offset: -2px; }
-  .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + env(safe-area-inset-bottom)); }
+  .sf-shell[data-tabs] .sf-main { padding-bottom: calc(var(--sf-tabs-h) + var(--sf-safe-b)); }
 }
 /* Where the line has room — a section's own page (the wordmark, not «‹ Родитель») from 360 px — the «+»
    carries its word, «+ Лекция», so it reads apart from a page's own «Новый экзамен +». On a detail page

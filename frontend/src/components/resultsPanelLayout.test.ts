@@ -81,7 +81,7 @@ describe('the podcast player on a phone sticks above the bottom bar, not under i
   it('keeps the bar’s own height under the player: 62 px, the last row of the player was under the bar at 56', async () => {
     const player = rules((await nodeFs()).readFileSync(`${SRC}components/conversation/conversation.css`, 'utf8'))
       .find(rule => rule.media === '@media (max-width: 639px)' && rule.selector === '.sf-shell[data-tabs] .cv-player');
-    expect(player?.body).toMatch(/bottom:\s*calc\(var\(--sf-tabs-h, 62px\) \+ env\(safe-area-inset-bottom\)\)/);
+    expect(player?.body).toMatch(/bottom:\s*calc\(var\(--sf-tabs-h, 62px\) \+ var\(--sf-safe-b\)\)/);
     const layout = rules((await nodeFs()).readFileSync(`${SRC}components/layout.css`, 'utf8'));
     expect(layout.find(rule => rule.media === '@media (max-width: 1023px)' && rule.selector === '.sf-shell')?.body)
       .toMatch(/--sf-tabs-h:\s*62px/);

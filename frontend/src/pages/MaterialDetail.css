@@ -168,7 +168,7 @@ html[data-stage] .md-crumb { display: none; }
     z-index: 20;
     display: block;
     margin: 24px calc(-1 * var(--sf-g)) -96px;
-    padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
+    padding: 12px var(--sf-g) calc(12px + var(--sf-safe-b));
     background: color-mix(in srgb, var(--sf-canvas) 86%, transparent);
     -webkit-backdrop-filter: saturate(1.4) blur(14px);
     backdrop-filter: saturate(1.4) blur(14px);

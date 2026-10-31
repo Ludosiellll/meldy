@@ -65,6 +65,7 @@ const PAGES = {
   Analyze: () => import('../pages/Analyze'),
   MistakeDiary: () => import('../pages/MistakeDiary'),
   KnowledgeMap: () => import('../pages/KnowledgeMap'),
+  Games: () => import('../pages/Games'),
 } satisfies Record<string, Loader>;
 
 export type SignedInPage = keyof typeof PAGES;
@@ -99,6 +100,7 @@ const SIGNED_IN_PAGES: ReadonlyArray<readonly [RegExp, SignedInPage]> = [
   [/^\/analyze\/?$/, 'Analyze'],
   [/^\/mistakes\/?$/, 'MistakeDiary'],
   [/^\/knowledge-map\/?$/, 'KnowledgeMap'],
+  [/^\/games\/?$/, 'Games'],
 ];
 
 /** The page a signed-in address fetches together with the shell, or null (it then loads after the shell). */

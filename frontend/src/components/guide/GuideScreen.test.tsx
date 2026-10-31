@@ -61,23 +61,23 @@ describe('the guide names what is on screen', () => {
     expect(within(panel()!).getByRole('button', { name: 'Контрольная' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('«?» on a test’s own page (it says «game») opens «Игра в классе», with «Провести игру» and the way to the tests', () => {
+  it('«?» on a test’s own page (it says «game») opens «Игры», with «Начать игру» and the way to the section', () => {
     renderWith('/exams/c/abc', <div data-guide-chapter="game" />);
     fireEvent.click(screen.getByRole('button', { name: 'Как пользоваться Meldy' }));
-    expect(within(panel()!).getByRole('heading', { name: 'Игра в классе' })).toBeInTheDocument();
-    expect(panel()).toHaveTextContent('Откройте тест и нажмите «Провести игру».');
-    expect(within(panel()!).getByRole('link', { name: 'Открыть раздел' })).toHaveAttribute('href', '/exams?view=tests');
-    // «Экзамены» lights up in the menu: the tests are there.
-    expect(document.querySelector('.sf-bar-link[href="/exams"]')).toHaveAttribute('data-guide-spot');
+    expect(within(panel()!).getByRole('heading', { name: 'Игры' })).toBeInTheDocument();
+    expect(panel()).toHaveTextContent('В разделе «Игры» нажмите «Начать игру» и выберите тест или экзамен.');
+    expect(within(panel()!).getByRole('link', { name: 'Открыть раздел' })).toHaveAttribute('href', '/games');
+    // «Игры» lights up in the top line (owner, 31.10: a section of its own).
+    expect(document.querySelector('.sf-bar-link[href="/games"]')).toHaveAttribute('data-guide-spot');
     // «Назад» is «Тесты».
     fireEvent.click(within(panel()!).getByRole('button', { name: 'Назад' }));
     expect(within(panel()!).getByRole('heading', { name: 'Быстрая контрольная' })).toBeInTheDocument();
   });
 
-  it('on the tests themselves «Игра в классе» has no «Открыть раздел»: the page is the one it opens', () => {
-    renderWith('/exams?view=tests', <div data-guide-chapter="game" />);
+  it('on «Игры» itself the chapter has no «Открыть раздел»: the page is the one it opens', () => {
+    renderWith('/games', <div data-guide-chapter="game" />);
     fireEvent.click(screen.getByRole('button', { name: 'Как пользоваться Meldy' }));
-    expect(within(panel()!).getByRole('heading', { name: 'Игра в классе' })).toBeInTheDocument();
+    expect(within(panel()!).getByRole('heading', { name: 'Игры' })).toBeInTheDocument();
     expect(within(panel()!).queryByRole('link', { name: 'Открыть раздел' })).toBeNull();
   });
 

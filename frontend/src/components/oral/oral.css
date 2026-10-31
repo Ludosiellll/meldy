@@ -539,7 +539,7 @@
   box-sizing: border-box;
   max-height: 78vh;
   overflow-y: auto;
-  padding: 24px calc(var(--sf-g) + 6px) calc(14px + env(safe-area-inset-bottom));
+  padding: 24px calc(var(--sf-g) + 6px) calc(14px + var(--sf-safe-b));
   border-radius: 28px 28px 0 0;
   background: var(--sf-surface);
   box-shadow: 0 0 0 1px var(--sf-line), var(--m-lift-shadow);
@@ -813,8 +813,8 @@
   .sf-room-bar[data-back] .or-bar-right { margin-right: auto; }
   /* Nothing hides under the fixed answer bar: 12 + 52 + 12 px and the safe area (a second row when a
      narrow phone wraps the pill under its link), plus a little air. */
-  .sf-page.or-room { display: block; padding-top: 16px; padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
-  .sf-page.or-room[data-phase='protocol'] { display: flex; flex-direction: column-reverse; gap: 24px; padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .sf-page.or-room { display: block; padding-top: 16px; padding-bottom: calc(96px + var(--sf-safe-b)); }
+  .sf-page.or-room[data-phase='protocol'] { display: flex; flex-direction: column-reverse; gap: 24px; padding-bottom: calc(150px + var(--sf-safe-b)); }
   .sf-page .or-privacy-link { margin-top: 14px; }
   .sf-page .or-ticket { padding: 20px 20px 22px; border-radius: 32px; }
   .sf-page .or-ticket-no { font-size: 15px; line-height: 21px; }
@@ -875,14 +875,14 @@
     justify-content: flex-start;
     gap: 8px 14px;
     margin: 0;
-    padding: 12px var(--sf-g) calc(12px + env(safe-area-inset-bottom));
+    padding: 12px var(--sf-g) calc(12px + var(--sf-safe-b));
     background: var(--sf-canvas);
     box-shadow: 0 -1px 0 var(--sf-line);
   }
   .sf-page .or-examiner .or-acts { margin-top: 0; }
   .sf-page .or-acts > .sf-link { flex: none; }
   /* The refused-paste line comes into view above the pinned bar, as the room's own bottom padding does. */
-  .sf-page .or-paste-note { scroll-margin-bottom: calc(96px + env(safe-area-inset-bottom)); }
+  .sf-page .or-paste-note { scroll-margin-bottom: calc(96px + var(--sf-safe-b)); }
   /* The bar's pill is compact (52 high, a 34 px circle), so a link and the pill share a 360 px line;
      on a narrower phone the pill wraps under the link and takes the line. */
   .sf-page .or-acts .sf-primary { order: 3; flex: none; width: auto; height: 52px; margin-left: auto; padding: 0 6px 0 18px; gap: 8px; font-size: 16px; }
@@ -898,7 +898,7 @@
      has no rows and no strip: its line stays, it says why nothing is marked (EX-28). */
   .sf-page.or-room:not([data-phase='ready']) .or-note:not([data-exam]) { display: none; }
   /* A saved protocol read later has no answer bar (EX-33: its question is gone): no room kept for one. */
-  .sf-page.or-room[data-phase='protocol']:not(:has(.or-acts)) { padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
+  .sf-page.or-room[data-phase='protocol']:not(:has(.or-acts)) { padding-bottom: calc(32px + var(--sf-safe-b)); }
   .sf-page .or-sheet[data-collapsed][data-empty] { display: none; }
   .sf-page .or-psheet { padding: 18px 10px 18px; border-radius: 32px; }
   .sf-page .or-ph, .sf-page .or-prelim, .sf-page .or-asked { padding-left: 8px; padding-right: 8px; }
@@ -932,8 +932,8 @@
   .sf-page .or-choice > .sf-primary:only-child .or-pill-long { display: inline; }
   .sf-page .or-choice > .sf-primary:only-child .or-pill-short { display: none; }
   .sf-page .or-choice > .or-alt { padding: 0 12px; }
-  .sf-page.or-room { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
-  .sf-page .or-paste-note { scroll-margin-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .sf-page.or-room { padding-bottom: calc(150px + var(--sf-safe-b)); }
+  .sf-page .or-paste-note { scroll-margin-bottom: calc(150px + var(--sf-safe-b)); }
 }
 
 /* Voice recognised on the server: the microphone level and what is happening with the words. */

@@ -28,6 +28,7 @@ import { learnedQuestionsLine, learnLeftLine, readyTodayLine } from '../lib/cont
 import DailyReminder from '../components/reminders/DailyReminder';
 import GoalDoors from '../components/quick/GoalDoors';
 import QuestionOfDay from '../components/exams/share/QuestionOfDay';
+import TodayGames from '../components/games/TodayGames';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
 import { useContainerData } from '../lib/containers/hooks';
@@ -1256,6 +1257,8 @@ export default function Dashboard() {
     content = (
       <>
         {head}
+        {/* «Игры» on a phone (its tabs have no room for them): one row under the greeting, «Войти по коду» a tap away. */}
+        {phone ? <TodayGames /> : null}
         {stepsShown ? <FirstStepsCard steps={steps} folded={stepsFolded} lead={stepsLead} onToggle={toggleSteps} /> : null}
         {/* A new account has only the steps: the desk would be empty cards and zeros. */}
         {newAccount && stepsLead ? null : (

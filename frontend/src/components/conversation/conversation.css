@@ -588,11 +588,11 @@ html[data-stage] .cv-meta { display: none; }
     grid-template-areas: 'segs segs' 'transport speed' 'pos text';
     gap: 4px 12px;
     margin: 10px -4px 0;
-    padding: 8px 14px calc(6px + env(safe-area-inset-bottom));
+    padding: 8px 14px calc(6px + var(--sf-safe-b));
     border-radius: 26px;
     background: var(--cv-bar-solid, var(--sf-canvas));
   }
-  .sf-shell[data-tabs] .cv-player { bottom: calc(var(--sf-tabs-h, 62px) + env(safe-area-inset-bottom)); }
+  .sf-shell[data-tabs] .cv-player { bottom: calc(var(--sf-tabs-h, 62px) + var(--sf-safe-b)); }
   .cv-transport { gap: 6px; }
   .cv-play { width: 56px; height: 56px; margin: 0 2px; }
   .cv-pos { justify-self: start; align-self: center; }

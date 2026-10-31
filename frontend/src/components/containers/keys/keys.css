@@ -432,7 +432,7 @@
     bottom: 0;
     z-index: 3;
     margin: 18px -16px -16px;
-    padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+    padding: 12px 16px calc(14px + var(--sf-safe-b));
     border-radius: 0 0 24px 24px;
     background: var(--sf-surface);
     box-shadow: 0 -1px 0 var(--sf-line);

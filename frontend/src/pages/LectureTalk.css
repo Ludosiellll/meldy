@@ -227,13 +227,13 @@
 /* ---------------------------------------------------------------- phone and tablet */
 @media (max-width: 1023px) {
   /* Nothing hides under the fixed bar: up to two rows (the words, then the pill) and the safe area. */
-  .sf-page.or-room.lt-room { display: block; padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
-  .sf-page.or-room-single.lt-room { padding-top: 20px; padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+  .sf-page.or-room.lt-room { display: block; padding-bottom: calc(150px + var(--sf-safe-b)); }
+  .sf-page.or-room-single.lt-room { padding-top: 20px; padding-bottom: calc(110px + var(--sf-safe-b)); }
   .sf-page .lt-start { padding: 24px 22px 26px; border-radius: 32px; }
 }
 /* Under 360 px the start screen's bar takes two rows (128 px): the card's end must stay above it. */
 @media (max-width: 359px) {
-  .sf-page.or-room-single.lt-room { padding-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .sf-page.or-room-single.lt-room { padding-bottom: calc(150px + var(--sf-safe-b)); }
 }
 @media (max-width: 1023px) {
   .sf-page .lt-start-title { font-size: 34px; }
@@ -255,7 +255,7 @@
   .sf-page .lt-answer,
   .sf-page .lt-notice,
   .sf-page .lt-error,
-  .sf-page .lt-wait { scroll-margin-bottom: calc(150px + env(safe-area-inset-bottom)); }
+  .sf-page .lt-wait { scroll-margin-bottom: calc(150px + var(--sf-safe-b)); }
   .sf-page .lt-left .lt-proto { display: none; }
   .sf-page .lt-sheet-open { display: inline-flex; font-size: 15px; }
   .sf-page .lt-desk { margin-top: 14px; }

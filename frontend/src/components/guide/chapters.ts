@@ -1,7 +1,7 @@
 /**
  * The guide's chapters: one per item of the menu, in the order of the menu, with «Разобрать лекцию»
  * after «Сегодня» (that is where a new student starts), «Тесты» after «Экзамены» (its door, «Новый тест», is
- * on «Экзамены»), «Игра в классе» after «Тесты» (a game is played on a test), and «Лимит ИИ» last: the meter in the top line that every AI action spends. Each has a short
+ * on «Экзамены»), «Игры» after «Тесты» (a game is played on a test), and «Лимит ИИ» last: the meter in the top line that every AI action spends. Each has a short
  * clip (scenes/), a title and a line or two of text in the words the screens use. The mistakes diary is told
  * inside «Повторение» and the knowledge map inside «Прогресс»: that is where they live in the menu.
  *
@@ -66,13 +66,20 @@ const TESTS_TEXT =
 export const PLAY_SITE = 'ludosiel-studyforge.hf.space/play';
 
 /**
- * «Игра в классе» (the live game, release 47.12), for the owner's questions of 21.10: «а где на сайте указать что ты
- * хочешь такую игру? и обучение по тому как ее сделать? где это будет и можно ли с сайта играть, или только в тг?». Where
- * it starts, the two games, what the class needs and how students join, in short sentences (the plain-words rules).
- * Each game's name follows «В игре» (21.10): «В «Встань на ответ»» read as a slip.
+ * «Игры» (the live game, release 47.12), for the owner's questions of 21.10: «а где на сайте указать что ты хочешь такую
+ * игру? и обучение по тому как ее сделать? где это будет и можно ли с сайта играть, или только в тг?» — and of 31.10:
+ * «может отдельный Блок сверху как "лекции"». The section «Игры» (/games) is where it starts; then the two games, what the
+ * class needs and how students join, in short sentences (the plain-words rules). Each game's name follows «В игре»
+ * (21.10): «В «Встань на ответ»» read as a slip.
  */
 export const GAME_TEXT =
-  `Откройте тест и нажмите «Провести игру». В игре «Битва с монстром» все отвечают кнопками. В игре «Встань на ответ» каждый ведёт героя к ответу. Нужен проектор или большой экран. Ученики входят на ${PLAY_SITE} по PIN или QR-коду. Войти можно и через Telegram.`;
+  `В разделе «Игры» нажмите «Начать игру» и выберите тест или экзамен. В игре «Битва с монстром» все отвечают кнопками. В игре «Встань на ответ» каждый ведёт героя к ответу. Нужен проектор или большой экран. Ученики входят на ${PLAY_SITE} по PIN или QR-коду.`;
+
+/** The first run's card about the games for a student (firstRun.ts, the exam's way): how to join, and that one can host. */
+export const GAME_STUDENT = {
+  title: 'Игры',
+  text: 'На паре преподаватель может провести игру на проекторе. Вы входите с телефона по QR-коду или через «Войти в игру по коду» в разделе «Игры». Свою игру можно провести по своему тесту.',
+} as const;
 
 const units = (n: number) => `${n} ${plural(n, ['единица', 'единицы', 'единиц'])}`;
 
@@ -173,14 +180,16 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
   },
   {
     id: 'game',
-    tab: 'Игра в классе',
-    // A game starts from a test: «Открыть раздел» opens the tests, each with «Провести игру»; «Экзамены» lights up.
-    route: '/exams?view=tests',
-    // The game's own pages (/live/new, /live/:id) are outside the menu; the test's own page says it is this chapter
-    // (TestHome's data-guide-chapter).
-    match: /^\/live(?:\/|$)/,
-    title: 'Игра в классе',
+    tab: 'Игры',
+    // The section «Игры» (31.10): «Открыть раздел» opens it and its item lights up in the top line.
+    route: '/games',
+    // The game's own pages (/live/new, /live/:id) are its too; the test's own page says it is this chapter (TestHome's
+    // data-guide-chapter).
+    match: /^\/(?:games|live)(?:\/|$)/,
+    title: 'Игры',
     text: GAME_TEXT,
+    // Five tabs leave no room for a sixth: below 1024 px «Игры» is a row on «Сегодня» and a line in the account menu.
+    phone: 'На телефоне — строка «Игры» на «Сегодня» и в меню аккаунта.',
     spot: 'link',
   },
   {

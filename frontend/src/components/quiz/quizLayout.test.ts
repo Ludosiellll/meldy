@@ -78,13 +78,13 @@ describe('the quiz pages’ bar and the tab bar (release 47.1)', () => {
     const quiz = rules(await read('components/quiz/quizAuthor.css'));
     const lifted = find(quiz, '.sf-shell[data-tabs] .sf-page.qa-page > .ex-cta', PHONES);
     expect(lifted).toBeDefined();
-    expect(declaration(lifted!.body, 'bottom')).toBe('calc(var(--sf-tabs-h, 62px) + var(--tg-bottom, env(safe-area-inset-bottom)))');
+    expect(declaration(lifted!.body, 'bottom')).toBe('calc(var(--sf-tabs-h, 62px) + var(--tg-bottom, var(--sf-safe-b)))');
     // The tab bar holds the safe area; the bar does not add it twice.
     expect(declaration(lifted!.body, 'padding-bottom')).toBe('12px');
     // The tab bar: that height, at the bottom of the window, over the page's bars.
     const layout = rules(await read('components/layout.css'));
     expect(declaration(find(layout, '.sf-shell', PHONES)!.body, '--sf-tabs-h')).toBe('62px');
-    expect(declaration(find(layout, '.sf-shell .sf-tabbar', PHONES)!.body, 'height')).toBe('calc(var(--sf-tabs-h) + env(safe-area-inset-bottom))');
+    expect(declaration(find(layout, '.sf-shell .sf-tabbar', PHONES)!.body, 'height')).toBe('calc(var(--sf-tabs-h) + var(--sf-safe-b))');
     const telegram = rules(await read('styles/telegram.css'));
     expect(declaration(find(telegram, 'html.tg-mode .sf-shell .sf-tabbar', PHONES)!.body, 'height')).toBe('calc(var(--sf-tabs-h) + var(--tg-bottom))');
   });
@@ -93,7 +93,7 @@ describe('the quiz pages’ bar and the tab bar (release 47.1)', () => {
     const quiz = rules(await read('components/quiz/quizAuthor.css'));
     const tall = find(quiz, ".sf-shell[data-tabs] .sf-page.qa-page[data-frame='s']:has(> .ex-cta)");
     expect(declaration(tall!.body, 'min-height')).toBe(
-      'calc(100dvh - var(--sf-bar-h, 52px) - var(--sf-tabs-h, 62px) - var(--tg-bottom, env(safe-area-inset-bottom)))',
+      'calc(100dvh - var(--sf-bar-h, 52px) - var(--sf-tabs-h, 62px) - var(--tg-bottom, var(--sf-safe-b)))',
     );
   });
 });
