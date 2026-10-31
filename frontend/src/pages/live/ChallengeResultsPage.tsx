@@ -174,7 +174,7 @@ export default function ChallengeResultsPage() {
           <>
             <h1>{r.title}</h1>
             <p className="lvs-lead">
-              {CPAGE.meta(r.q_count, r.time_s, !!r.calm)} · <b data-state={r.state}>{stateLine(r)}</b>
+              {CPAGE.meta(r.q_count, r.time_s, !!r.calm, r.reveal === 'end')} · <b data-state={r.state}>{stateLine(r)}</b>
             </p>
             <section className="lcp-share" aria-label={CPAGE.link}>
               <button type="button" className="lcp-qr-b" onClick={() => setQr(true)} aria-label={CPAGE.qr}>

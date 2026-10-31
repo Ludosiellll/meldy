@@ -145,6 +145,7 @@ interface FakeChallenge {
   timeS: number;
   speed: boolean;
   calm: boolean;
+  reveal: 'each' | 'end';
   deadline: number;
   closedAt: number | null;
   createdAt: number;
@@ -162,6 +163,11 @@ export interface FakeChallengeOptions {
 }
 
 const iso = (ms: number) => new Date(ms).toISOString();
+/** «Верный ответ — в конце»: the result without the key, the forms and the explanation (as the server's). */
+function hideKey(r: RunResult): RunResult {
+  const { key: _key, keys: _keys, forms: _forms, tolerance: _tolerance, unit: _unit, explanation: _explanation, ...rest } = r;
+  return { ...rest, hidden: true };
+}
 const norm = (s: string) => s.trim().toLowerCase().replace(/ё/g, 'е').replace(/\s+/g, ' ').replace(/\.$/, '');
 const numberOf = (s: string) => {
   const t = s.replace(/\s/g, '').replace(',', '.').replace('−', '-').replace(/[^0-9.+-].*$/, '');
@@ -175,7 +181,7 @@ export function createFakeChallengeApi(options: FakeChallengeOptions = {}): Chal
   let seq = 0;
   const id = (p: string) => `00000000-0000-4000-8000-${p}${String(++seq).padStart(12 - p.length, '0')}`;
   const challenges: FakeChallenge[] = [];
-  const make = (title: string, code: string, questions: readonly FakeQuestion[], s: { timeS: number; speed: boolean; calm: boolean; deadline: number }): FakeChallenge => {
+  const make = (title: string, code: string, questions: readonly FakeQuestion[], s: { timeS: number; speed: boolean; calm: boolean; deadline: number; reveal?: 'each' | 'end' }): FakeChallenge => {
     const c: FakeChallenge = {
       id: id('c'),
       code,
@@ -185,6 +191,7 @@ export function createFakeChallengeApi(options: FakeChallengeOptions = {}): Chal
       timeS: s.timeS,
       speed: s.calm ? false : s.speed,
       calm: s.calm,
+      reveal: s.reveal ?? 'each',
       deadline: s.deadline,
       closedAt: null,
       createdAt: now(),
@@ -222,6 +229,7 @@ export function createFakeChallengeApi(options: FakeChallengeOptions = {}): Chal
     time_s: c.timeS,
     speed: c.speed,
     ...(c.calm ? { calm: true as const } : {}),
+    ...(c.reveal === 'end' ? { reveal: 'end' as const } : {}),
     deadline: iso(c.deadline),
     state: over(c) ? 'over' : 'open',
     over: c.closedAt !== null && c.closedAt < c.deadline ? 'closed' : now() >= c.deadline ? 'deadline' : null,
@@ -324,7 +332,7 @@ export function createFakeChallengeApi(options: FakeChallengeOptions = {}): Chal
         a && a.at !== null
           ? { ...(a.picks ? { picks: a.picks } : a.typed !== undefined ? { typed: a.typed } : { choice: a.choice }), elapsed_ms: a.result?.elapsed_ms ?? null }
           : null,
-      result: a?.result ?? null,
+      result: a?.result ? (c.reveal === 'end' && r.finishedAt === null ? hideKey(a.result) : a.result) : null,
     };
   };
 
@@ -334,7 +342,7 @@ export function createFakeChallengeApi(options: FakeChallengeOptions = {}): Chal
       const deadline = Date.parse(settings.deadline);
       if (!Number.isFinite(deadline) || deadline < now() + 5 * 60_000) throw new LiveError('22023', 'deadline');
       const code = `demo${String(challenges.length).padStart(8, '0')}`.replace(/[ilou]/g, 'x');
-      const c = make('Базы данных', code, options.questions ?? FAKE_QUESTIONS, { timeS: settings.time_s, speed: settings.speed, calm: !!settings.calm, deadline });
+      const c = make('Базы данных', code, options.questions ?? FAKE_QUESTIONS, { timeS: settings.time_s, speed: settings.speed, calm: !!settings.calm, deadline, reveal: settings.reveal });
       return { challenge_id: c.id, code: c.code, path: `/s/${c.code}`, url: `${window.location.origin}/s/${c.code}`, q_count: c.questions.length, skipped: 0, deadline: iso(c.deadline) };
     },
     async close(challenge) {

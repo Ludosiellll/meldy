@@ -67,6 +67,7 @@ export default function ChallengeSetupPage() {
   const [time, setTime] = useState<ChallengeTime>(20);
   const [calm, setCalm] = useState(false);
   const [speed, setSpeed] = useState(true);
+  const [reveal, setReveal] = useState<'each' | 'end'>('each');
   const [amount, setAmount] = useState<number | null>(null);
   const [opening, setOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -113,7 +114,7 @@ export default function ChallengeSetupPage() {
     try {
       const created = await api.create(
         { container_id: source.containerId, subject_ids: source.subjectIds, count: chosen },
-        { time_s: time, speed: speed && !calm, ...(calm ? { calm: true } : {}), deadline: deadline.toISOString() },
+        { time_s: time, speed: speed && !calm, ...(calm ? { calm: true } : {}), ...(reveal === 'end' ? { reveal: 'end' as const } : {}), deadline: deadline.toISOString() },
       );
       navigate(`/live/challenge/${created.challenge_id}${fake ? '?fake=1' : ''}`);
     } catch (e) {
@@ -121,7 +122,7 @@ export default function ChallengeSetupPage() {
       setError(CSETUP.error[code] ?? CSETUP.error.other);
       setOpening(false);
     }
-  }, [api, source, opening, tooFew, deadlineGood, chosen, time, speed, calm, deadline, navigate, fake]);
+  }, [api, source, opening, tooFew, deadlineGood, chosen, time, speed, calm, reveal, deadline, navigate, fake]);
 
   if (needsSignIn) return <Navigate to={loginFor(pathname, search)} replace />;
 
@@ -205,6 +206,17 @@ export default function ChallengeSetupPage() {
                   />
                 </Row>
               )}
+              <Row label={CSETUP.reveal} hint={CSETUP.revealHint}>
+                <Seg
+                  label={CSETUP.reveal}
+                  value={reveal}
+                  options={[
+                    { value: 'each' as const, text: CSETUP.revealEach },
+                    { value: 'end' as const, text: CSETUP.revealEnd },
+                  ]}
+                  onChange={setReveal}
+                />
+              </Row>
               {choices.length > 1 ? (
                 <Row label={CSETUP.amount} hint={CSETUP.amountHint}>
                   <Seg

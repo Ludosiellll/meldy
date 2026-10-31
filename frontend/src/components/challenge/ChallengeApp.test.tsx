@@ -8,6 +8,7 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFakeChallengeApi } from '../../lib/challenge/api';
+import { LiveError } from '../../lib/live/types';
 import { ChallengeApp } from './ChallengeApp';
 import { ChallengeController } from './controller';
 import { CH } from './copy';
@@ -191,6 +192,53 @@ describe('the challenge’s own cases', () => {
     expect(screen.queryByRole('button', { name: CH.intro.start })).toBeNull();
     await click(CH.intro.board);
     expect(view.container.querySelectorAll('.lc-row')).toHaveLength(3);
+  });
+
+  it('«Верный ответ — в конце»: the verdict and the points at once, the key and the explanation only in the review', async () => {
+    const api = createFakeChallengeApi({ readyMs: 0, now });
+    const made = await api.create({ container_id: 'c', subject_ids: ['s'], count: 5 }, { time_s: 20, speed: true, reveal: 'end', deadline: new Date(Date.now() + 86_400_000).toISOString() });
+    const { view, ctl } = await mount(made.code, api);
+    expect(plain(view.container.textContent)).toContain(CH.intro.onceEnd);
+    await toFirstQuestion();
+    await click(/COMMIT/);
+    const sheet = view.container.querySelector('.lc-sheet')!;
+    expect(sheet.querySelector('[role="status"]')?.textContent).toBe(CH.sheet.wrong);
+    expect(plain(sheet.textContent)).toContain(CH.sheet.later);
+    expect(plain(sheet.textContent)).not.toContain('Верный ответ:');
+    expect(plain(sheet.textContent)).not.toContain('ROLLBACK отменяет');
+    expect(view.container.querySelector('.lp-ans[data-mark]')).toBeNull();
+    // the rest run out by the server's clock; the last one ends the run
+    for (let i = 1; i < 5; i += 1) {
+      await click(CH.sheet.next);
+      clock += 25_000;
+      await act(async () => {
+        await ctl.refresh();
+      });
+      await flush();
+    }
+    await click(CH.sheet.final);
+    await click(CH.final.review);
+    expect(view.container.querySelectorAll('.lp-rv-item')).toHaveLength(5);
+    expect(plain(view.container.textContent)).toContain('ROLLBACK отменяет все изменения');
+    expect(view.container.querySelector('.lp-rv-opt[data-key="true"]')?.textContent).toContain('ROLLBACK');
+  });
+
+  it('a run that gave its place back (never started for 15 minutes) starts again from the intro', async () => {
+    const api = createFakeChallengeApi({ readyMs: 0, now });
+    const { ctl } = await mount('demxchamp123', api);
+    await click(CH.intro.start);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Имя в игре'), { target: { value: 'Долгий' } });
+    });
+    await click('Готово');
+    api.next = async () => {
+      throw new LiveError('P0002', 'token', 404);
+    };
+    await click(CH.ready.go);
+    expect(screen.getByRole('button', { name: CH.intro.start })).toBeInTheDocument();
+    expect(screen.getByRole('alert').textContent).toBe(CH.builder.stale);
+    expect(window.localStorage.getItem('meldy.challenge.demxchamp123')).toBeNull();
+    ctl.dispose();
   });
 
   it('one who joined but never started, after the close: the intro says it is over', async () => {

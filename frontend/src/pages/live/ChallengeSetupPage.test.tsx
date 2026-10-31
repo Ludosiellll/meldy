@@ -95,10 +95,27 @@ describe('the setup of «Соревнование по ссылке»', () => {
     const [source, settings] = create.mock.calls[0];
     expect(source).toEqual({ container_id: 'c1', subject_ids: ['s1'], count: 12 });
     expect(settings).toMatchObject({ time_s: 30, speed: false, calm: true });
+    expect(settings).not.toHaveProperty('reveal');
     const days = (Date.parse(settings.deadline) - Date.now()) / 86_400_000;
     expect(days).toBeGreaterThan(6);
     expect(days).toBeLessThan(8.1);
     expect(screen.getByText('Страница соревнования')).toBeInTheDocument();
+  });
+
+  it('«Верный ответ — в конце» goes with the settings, and the setup names what it cannot stop', async () => {
+    const view = await open();
+    expect(view.container.textContent).toContain(CSETUP.revealHint);
+    expect(within(screen.getByRole('radiogroup', { name: CSETUP.reveal })).getAllByRole('radio').map((r) => [r.textContent, r.getAttribute('aria-checked')])).toEqual([
+      [CSETUP.revealEach, 'true'],
+      [CSETUP.revealEnd, 'false'],
+    ]);
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('radiogroup', { name: CSETUP.reveal })).getByRole('radio', { name: CSETUP.revealEnd }));
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: CSETUP.create }));
+    });
+    expect(create.mock.calls[0][1]).toMatchObject({ reveal: 'end' });
   });
 
   it('a date of one’s own outside 5 minutes to 30 days keeps the button shut', async () => {

@@ -101,12 +101,12 @@ export function ChallengeApp({ ctl, signInHref }: ChallengeAppProps) {
 
 // ─────────────────────────────────────────── the intro ───────────────────────────────────────────
 
-function Rules({ calm }: { calm: boolean }) {
+function Rules({ calm, reveal = false }: { calm: boolean; reveal?: boolean }) {
   return (
     <ul className="lc-rules">
       <li>{calm ? CH.intro.calm : CH.intro.speed}</li>
       <li>{calm ? CH.intro.calmBoss : CH.intro.boss}</li>
-      <li>{CH.intro.once}</li>
+      <li>{reveal ? CH.intro.onceEnd : CH.intro.once}</li>
     </ul>
   );
 }
@@ -133,7 +133,7 @@ function Intro({ ctl, s }: { ctl: ChallengeController; s: ChallengeSnapshot }) {
           <>
             <p className="lc-until">{CH.intro.until(dateText(info.deadline))}</p>
             <div className="lp-card">
-              <Rules calm={!!info.calm} />
+              <Rules calm={!!info.calm} reveal={info.reveal === 'end'} />
             </div>
             <p className="lc-played">{CH.intro.played(info.finished)}</p>
           </>
@@ -305,9 +305,13 @@ function QuestionScreen({ ctl, s, st }: { ctl: ChallengeController; s: Challenge
   const k = boss.hp_max > 0 ? hpShown / boss.hp_max : 0;
 
   const mine = answered ? (answered.picks ?? (answered.choice !== undefined ? [answered.choice] : [])) : s.sending && kind === 'multiple' ? marked : [];
-  const keys = result ? (result.keys ?? [result.key]) : [];
-  const looks: AnsLook[] = q.options.map((_, i) => (closed ? (keys.includes(i) || mine.includes(i) ? 'idle' : 'dim') : mine.includes(i) ? 'chosen' : answered || s.sending ? 'dim' : 'idle'));
-  const marks = q.options.map((_, i) => (!result ? null : keys.includes(i) ? ('key' as const) : mine.includes(i) ? ('wrong' as const) : null));
+  // «Верный ответ — в конце»: no key on the buttons until the run is over (the own answer stays marked as chosen)
+  const keys = result && !result.hidden ? (result.keys ?? (result.key !== undefined ? [result.key] : [])) : [];
+  const hidden = !!result?.hidden;
+  const looks: AnsLook[] = q.options.map((_, i) =>
+    closed && !hidden ? (keys.includes(i) || mine.includes(i) ? 'idle' : 'dim') : mine.includes(i) ? 'chosen' : answered || s.sending || closed ? 'dim' : 'idle',
+  );
+  const marks = q.options.map((_, i) => (!result || hidden ? null : keys.includes(i) ? ('key' as const) : mine.includes(i) ? ('wrong' as const) : null));
   const canSend = isOpen && !answered && !s.sending;
 
   const calm = !!st.challenge.calm;
@@ -384,7 +388,7 @@ function QuestionScreen({ ctl, s, st }: { ctl: ChallengeController; s: Challenge
         <div className="lp-textans lp-numans" data-wait={!openNow && !closed ? 'true' : 'false'}>
           {answered || closed ? (
             <p className="lp-textans__sent" data-mark={result ? (result.correct ? 'key' : 'wrong') : undefined}>
-              {answered?.typed ? KINDS.sentNumber(typedText(answered.typed, q.unit ?? null)) : result ? `${KINDS.rightText}: ${numberAnswer(result.forms, result.tolerance, result.unit ?? q.unit ?? null)}` : ''}
+              {answered?.typed ? KINDS.sentNumber(typedText(answered.typed, q.unit ?? null)) : result && !hidden ? `${KINDS.rightText}: ${numberAnswer(result.forms, result.tolerance, result.unit ?? q.unit ?? null)}` : ''}
             </p>
           ) : (
             <NumberPad value={draft} unit={q.unit ?? null} enabled={canSend} onChange={setDraft} onSend={() => send({ text: draft })} />
@@ -453,13 +457,14 @@ function QuestionScreen({ ctl, s, st }: { ctl: ChallengeController; s: Challenge
 }
 
 /** «Верный ответ: Б · текст» / the accepted forms / the number with its tolerance. */
-function keyLine(st: RunState): { label: string; text: string } {
+function keyLine(st: RunState): { label: string; text: string } | null {
   const r = st.result!;
+  if (r.hidden) return null;
   const q = st.question!;
   const kind = kindOf(q);
   if (kind === 'short') return { label: KINDS.rightText, text: (r.forms ?? []).join(', ') };
   if (kind === 'number') return { label: KINDS.rightText, text: numberAnswer(r.forms, r.tolerance, r.unit ?? q.unit ?? null) };
-  const keys = r.keys ?? [r.key];
+  const keys = r.keys ?? (r.key !== undefined ? [r.key] : []);
   return {
     label: keys.length > 1 ? KINDS.rightMany : 'Верный ответ',
     text: keys.map((key) => `${OPTION_STYLES[key]?.letter ?? ''}${NBSP}·${NBSP}${q.options[key] ?? ''}`).join(', '),
@@ -528,11 +533,12 @@ const Sheet = memo(function Sheet({ ctl, st, busy, felled }: { ctl: ChallengeCon
             {kind === 'number' ? `${KINDS.mineNumber}: ${typedText(typed, st.question!.unit ?? null)}` : `${KINDS.mine}: «${typed}»`}
           </p>
         ) : null}
-        {!r.correct || kind === 'short' || kind === 'number' ? (
+        {key && (!r.correct || kind === 'short' || kind === 'number') ? (
           <p className="lp-wide">
             {key.label}: <b>{key.text}</b>
           </p>
         ) : null}
+        {r.hidden ? <p className="lp-wide">{CH.sheet.later}</p> : null}
         {lines.map((l) => (
           <p key={l} className="lp-wide">
             {l}

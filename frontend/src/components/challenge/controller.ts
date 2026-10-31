@@ -324,6 +324,7 @@ export class ChallengeController {
       this.route(got);
     } catch (error) {
       const e = error instanceof LiveError ? error : new LiveError('unknown');
+      if (this.stale(e)) return;
       if (e.code === 'ML004' || e.code === 'ML002') {
         // the server's word wins: read the run as it is
         await this.refresh();
@@ -388,12 +389,27 @@ export class ChallengeController {
     try {
       const got = await this.call(() => this.api.state(this.s.code, this.token!));
       this.set({ state: got, info: got.challenge, ...(hpFrom !== null && got.result ? { hpFrom } : {}) });
-      if (this.s.step === 'question' || this.s.step === 'ready') this.route(got);
+      // a question just graded (its time ran out) stays on the screen with its sheet, the last one too («Итог»)
+      const graded = this.s.step === 'question' && !!got.result && !!got.question && got.result.qi === got.question.qi;
+      if (!graded && (this.s.step === 'question' || this.s.step === 'ready')) this.route(got);
     } catch (error) {
       const e = error instanceof LiveError ? error : new LiveError('unknown');
+      if (this.stale(e)) return;
       if (e.code === '42501') this.set({ step: 'gone', gone: CH.gone.removed });
       else this.set({ error: errorWords(e) });
     }
+  }
+
+  /**
+   * The server no longer knows this token (a run never started gives its place back after 15 minutes): the token goes,
+   * and the person starts again from the intro.
+   */
+  private stale(e: LiveError): boolean {
+    if (e.code !== 'P0002' || e.detail !== 'token') return false;
+    dropChallengeToken(this.s.code);
+    this.token = null;
+    this.set({ step: 'intro', state: null, busy: false, sending: false, error: CH.builder.stale });
+    return true;
   }
 
   /** «Итог» after the last result. */

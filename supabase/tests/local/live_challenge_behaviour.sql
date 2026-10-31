@@ -169,6 +169,39 @@ create or replace function pg_temp.part_of(p_q jsonb) returns jsonb language sql
   select case p_q ->> 'kind' when 'multiple' then jsonb_build_object('picks', jsonb_build_array((p_q -> 'keys' ->> 0)::integer))
                              else pg_temp.wrong_of(p_q) end
 $fn$;
+-- An answer given in the question's order of the options (as the rows of live_challenge_questions and live_questions
+-- hold them), turned into the run's own order (meldy_private.live_run_perm) as its device would send it: indexes that
+-- are no option of the question stay as they are (the refusals).
+create or replace function pg_temp.in_run(p_code text, p_tok text, p_qi integer, p_answer jsonb) returns jsonb language plpgsql as $fn$
+declare v_role text := current_user; v_perm smallint[]; v_n integer; v jsonb := p_answer;
+begin
+  perform set_config('role', 'none', true);
+  select meldy_private.live_run_perm(r.id, q.qi, jsonb_array_length(q.options), q.keep_order), jsonb_array_length(q.options)
+    into v_perm, v_n
+    from public.live_runs r join public.live_challenges c on c.id = r.challenge_id
+    join public.live_challenge_questions q on q.challenge_id = c.id and q.qi = p_qi
+   where c.code = p_code and r.token_hash = meldy_private.live_hash(p_tok);
+  if v_role <> 'postgres' then
+    perform set_config('role', v_role, true);
+  end if;
+  if v_perm is null or v_n = 0 then
+    return p_answer;
+  end if;
+  if jsonb_typeof(p_answer -> 'choice') = 'number' and (p_answer ->> 'choice')::integer between 0 and v_n - 1 then
+    v := jsonb_set(p_answer, '{choice}', to_jsonb(array_position(v_perm, (p_answer ->> 'choice')::smallint) - 1));
+  elsif jsonb_typeof(p_answer -> 'picks') = 'array' then
+    v := jsonb_build_object('picks', (select jsonb_agg(case when jsonb_typeof(x) = 'number' and (x #>> '{}')::integer between 0 and v_n - 1
+                                                            then to_jsonb(array_position(v_perm, (x #>> '{}')::smallint) - 1) else x end)
+                                        from jsonb_array_elements(p_answer -> 'picks') x));
+  end if;
+  return v;
+end;
+$fn$;
+create or replace function pg_temp.answer(p_code text, p_tok text, p_qi integer, p_answer jsonb) returns jsonb language plpgsql as $fn$
+begin
+  return public.challenge_answer(p_code, p_tok, p_qi, pg_temp.in_run(p_code, p_tok, p_qi, p_answer));
+end;
+$fn$;
 create or replace function pg_temp.cs(p_code text, p_tok text) returns jsonb language sql as $fn$
   select public.challenge_state(p_code, p_tok)
 $fn$;
@@ -176,7 +209,7 @@ create or replace function pg_temp.cn(p_code text, p_tok text, p_qi integer) ret
   select pg_temp.e(format('select public.challenge_next(%L, %L, %s)', p_code, p_tok, p_qi))
 $fn$;
 create or replace function pg_temp.ca(p_code text, p_tok text, p_qi integer, p_answer jsonb) returns text language sql as $fn$
-  select pg_temp.e(format('select public.challenge_answer(%L, %L, %s, %L)', p_code, p_tok, p_qi, p_answer))
+  select pg_temp.e(format('select pg_temp.answer(%L, %L, %s, %L)', p_code, p_tok, p_qi, p_answer))
 $fn$;
 create or replace function pg_temp.dl(p_hours numeric default 24) returns text language sql stable as $fn$
   select (now() + make_interval(secs => (p_hours * 3600)::double precision))::text
@@ -341,7 +374,7 @@ begin
                      '22023/answer@400');
   perform pg_temp.eq('nothing graded by the refusals', pg_temp.ra(v_run, 0) ->> 'settled_at', null);
   perform pg_temp.rtick(v_run, 1);
-  s := public.challenge_answer(v_code, pg_temp.tok(1), 0, pg_temp.right_of(v_q));
+  s := pg_temp.answer(v_code, pg_temp.tok(1), 0, pg_temp.right_of(v_q));
   perform pg_temp.eq('right at 1 s of 20: the battle''s damage', (s -> 'result' ->> 'correct') || '/' || (s -> 'result' ->> 'dmg') || '/' || (s -> 'result' ->> 'elapsed_ms') || '/' ||
                      (s -> 'run' ->> 'dmg') || '/' || (s -> 'run' ->> 'streak') || '/' || (s -> 'run' -> 'boss' ->> 'hp'),
                      'true/98/1000/98/1/122');
@@ -368,12 +401,12 @@ begin
   -- the third: wrong (frozen); the fourth: right (thaws: no damage)
   perform public.challenge_next(v_code, pg_temp.tok(1), 2);
   perform pg_temp.rtick(v_run, 5);
-  s := public.challenge_answer(v_code, pg_temp.tok(1), 2, pg_temp.wrong_of(pg_temp.cq(pg_temp.g('a'), 2)));
+  s := pg_temp.answer(v_code, pg_temp.tok(1), 2, pg_temp.wrong_of(pg_temp.cq(pg_temp.g('a'), 2)));
   perform pg_temp.eq('wrong: frozen', (s -> 'result' ->> 'correct') || '/' || (s -> 'result' ->> 'frozen') || '/' || (s -> 'run' ->> 'frozen'), 'false/true/true');
   perform pg_temp.eq('the run is not over', (s -> 'run' ->> 'finished') || '/' || coalesce(s -> 'run' ->> 'place', 'null'), 'false/null');
   perform public.challenge_next(v_code, pg_temp.tok(1), 3);
   perform pg_temp.rtick(v_run, 4);
-  s := public.challenge_answer(v_code, pg_temp.tok(1), 3, pg_temp.right_of(pg_temp.cq(pg_temp.g('a'), 3)));
+  s := pg_temp.answer(v_code, pg_temp.tok(1), 3, pg_temp.right_of(pg_temp.cq(pg_temp.g('a'), 3)));
   perform pg_temp.eq('right while frozen: thawed, no damage', (s -> 'result' ->> 'correct') || '/' || (s -> 'result' ->> 'thawed') || '/' || (s -> 'result' ->> 'dmg') || '/' ||
                      (s -> 'run' ->> 'frozen') || '/' || (s -> 'run' ->> 'dmg') || '/' || (s -> 'run' ->> 'right'), 'true/true/0/false/98/2');
   perform pg_temp.eq('the last question: the run is finished, first of one', (s -> 'run' ->> 'finished') || '/' || (s -> 'run' ->> 'place') || '/' ||
@@ -452,7 +485,7 @@ begin
         s := pg_temp.cs(v_code, pg_temp.tok(71));
       else
         perform pg_temp.rtick(v_run, v_ms[v_qi + 1] / 1000.0);
-        s := public.challenge_answer(v_code, pg_temp.tok(71), v_qi, v_a);
+        s := pg_temp.answer(v_code, pg_temp.tok(71), v_qi, v_a);
       end if;
       -- the same verdict, damage, streak, ice, boss
       v_lp := pg_temp.sudo(format('select to_jsonb(p) from public.live_players p where p.game_id = %L', v_g));
@@ -552,7 +585,7 @@ begin
   -- Миша is on question 2, its time running; Оля opened question 1 and went away
   perform public.challenge_next(v_code, pg_temp.tok(41), 0);
   perform pg_temp.rtick(pg_temp.run(v_ch, pg_temp.tok(41)), 4);
-  perform public.challenge_answer(v_code, pg_temp.tok(41), 0, pg_temp.right_of(pg_temp.cq(v_ch, 0)));
+  perform pg_temp.answer(v_code, pg_temp.tok(41), 0, pg_temp.right_of(pg_temp.cq(v_ch, 0)));
   perform public.challenge_next(v_code, pg_temp.tok(41), 1);
   perform public.challenge_next(v_code, pg_temp.tok(43), 0);
   perform pg_temp.who('anon');
@@ -569,7 +602,7 @@ begin
   perform pg_temp.eq('no new start', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Петя', pg_temp.tok(44))), 'ML002/closed@400');
   perform pg_temp.eq('one who never started gets no question', pg_temp.cn(v_code, pg_temp.tok(42), 0), 'ML002/closed@400');
   perform pg_temp.rtick(pg_temp.run(v_ch, pg_temp.tok(41)), 5);
-  s := public.challenge_answer(v_code, pg_temp.tok(41), 1, pg_temp.right_of(pg_temp.cq(v_ch, 1)));
+  s := pg_temp.answer(v_code, pg_temp.tok(41), 1, pg_temp.right_of(pg_temp.cq(v_ch, 1)));
   perform pg_temp.eq('the question already open is answered in its time, and the run ends', (s -> 'result' ->> 'correct') || '/' || (s -> 'run' ->> 'finished') || '/' ||
                      (s -> 'run' ->> 'place'), 'true/true/1');
   perform pg_temp.eq('no question after the end', (pg_temp.e(format('select public.challenge_next(%L, %L, 2)', v_code, pg_temp.tok(41)))) || '/' ||
@@ -672,7 +705,8 @@ begin
   perform pg_temp.who('postgres', null, '203.0.113.7');
   v_ip := meldy_private.quiz_ip_hash();
   perform pg_temp.yes('the address is read', v_ip ~ '^[0-9a-f]{64}$');
-  insert into meldy_private.live_challenge_hits (ip_hash, at) select v_ip, now() - interval '10 seconds' from generate_series(1, 119);
+  -- the address's other starts of the last minute were on another link (the per-link limits of an address do not see them)
+  insert into meldy_private.live_challenge_hits (ip_hash, challenge_id, at) select v_ip, pg_temp.g('a'), now() - interval '10 seconds' from generate_series(1, 119);
   perform pg_temp.who('anon', null, '203.0.113.7');
   perform pg_temp.eq('the 120th start of an address', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Сто двадцать', pg_temp.tok(60))), 'ok');
   perform pg_temp.eq('the 121st', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Лишний', pg_temp.tok(61))), 'ML005/join@429');
@@ -727,6 +761,225 @@ begin
     and exists (select 1 from jsonb_array_elements(r -> 'items') x where x ->> 'code' = pg_temp.c('ac') and x -> 'leader' ->> 'name' = 'Дима'));
   perform pg_temp.eq('one exam''s', (select count(*) from jsonb_array_elements(public.challenges_mine(pg_temp.g('m')) -> 'items'))::text, '2');
   perform pg_temp.yes('no token, no hash in the list', pg_temp.clean(r));
+end
+$t$;
+
+-- ─── 11. Every run sees the options in its own order (the same on every read); an item that keeps its order keeps it ───
+do $t$
+declare r jsonb; s jsonb; v_ch uuid; v_code text; v_n integer; v_qi integer; v_q jsonb; v_orders text[] := '{}'; v_keytext text;
+        v_moved integer := 0; v_kind text; v_rv jsonb;
+begin
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  r := public.container_create('Порядок', null, '[{"title":"Всё"}]');
+  perform pg_temp.put('o', r ->> 'container_id');
+  perform pg_temp.put('os', r -> 'subjects' -> 0 ->> 'id');
+  perform public.container_items_add((r -> 'subjects' -> 0 ->> 'id')::uuid, jsonb_build_array(
+    jsonb_build_object('ref', 'o:1', 'stem', 'O1 один', 'options', jsonb_build_array('альфа', 'бета', 'гамма', 'дельта', 'эпсилон', 'дзета'), 'correct', jsonb_build_array(4),
+                       'explanation', 'Пятый.'),
+    jsonb_build_object('ref', 'o:2', 'stem', 'O2 два', 'kind', 'multiple', 'options', jsonb_build_array('a', 'b', 'c', 'd', 'e'), 'correct', jsonb_build_array(1, 3)),
+    jsonb_build_object('ref', 'o:3', 'stem', 'O3 по порядку', 'options', jsonb_build_array('Все', 'Ни один', 'Оба', 'Не знаю'), 'correct', jsonb_build_array(2),
+                       'keep_order', true)));
+  r := public.challenge_create(format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('o'), pg_temp.c('os'))::jsonb,
+                               format('{"deadline": "%s"}', pg_temp.dl())::jsonb);
+  v_ch := (r ->> 'challenge_id')::uuid;
+  v_code := r ->> 'code';
+  perform pg_temp.who('anon');
+  for v_n in 90 .. 97 loop
+    perform public.challenge_join(v_code, 'Порядок ' || v_n, pg_temp.tok(v_n), null);
+  end loop;
+  for v_qi in 0 .. 2 loop
+    v_q := pg_temp.cq(v_ch, v_qi);
+    v_kind := v_q ->> 'kind';
+    v_orders := '{}';
+    for v_n in 90 .. 97 loop
+      s := public.challenge_next(v_code, pg_temp.tok(v_n), v_qi);
+      perform pg_temp.eq('the same order on every read', (pg_temp.cs(v_code, pg_temp.tok(v_n)) -> 'question' ->> 'options'), s -> 'question' ->> 'options');
+      perform pg_temp.eq('the same options', (select string_agg(x, ',' order by x) from jsonb_array_elements_text(s -> 'question' -> 'options') x),
+                         (select string_agg(x, ',' order by x) from jsonb_array_elements_text(v_q -> 'options') x));
+      v_orders := v_orders || (s -> 'question' ->> 'options');
+      perform pg_temp.rtick(pg_temp.run(v_ch, pg_temp.tok(v_n)), 4);
+      if v_kind = 'single' then
+        -- half the class taps the question's own index of the key, half the option of the key's text in its own order
+        v_keytext := v_q -> 'options' ->> (v_q ->> 'key')::integer;
+        if v_n % 2 = 0 then
+          -- the question's own index is right exactly when this run shows the key there
+          s := public.challenge_answer(v_code, pg_temp.tok(v_n), v_qi, jsonb_build_object('choice', (v_q ->> 'key')::integer));
+          perform pg_temp.eq('a tap is graded in the run''s own order', s -> 'result' ->> 'correct', ((s -> 'result' ->> 'key') = (v_q ->> 'key'))::text);
+        else
+          s := public.challenge_answer(v_code, pg_temp.tok(v_n), v_qi, jsonb_build_object('choice',
+                 (select o - 1 from jsonb_array_elements_text(s -> 'question' -> 'options') with ordinality t(x, o) where x = v_keytext)));
+          perform pg_temp.eq('the key''s text in the own order is right', s -> 'result' ->> 'correct', 'true');
+        end if;
+        perform pg_temp.eq('the key comes back in the own order', s -> 'question' -> 'options' ->> (s -> 'result' ->> 'key')::integer, v_keytext);
+        if not (v_q ->> 'keep_order')::boolean and (s -> 'result' ->> 'key') <> (v_q ->> 'key') then
+          v_moved := v_moved + 1;
+        end if;
+      else
+        s := pg_temp.answer(v_code, pg_temp.tok(v_n), v_qi, pg_temp.right_of(v_q));
+        perform pg_temp.eq('the right ticks, turned into the own order, are right', s -> 'result' ->> 'correct', 'true');
+        perform pg_temp.eq('the own ticks come back as sent', (select string_agg(x, ',' order by x::integer) from jsonb_array_elements_text(s -> 'answer' -> 'picks') x),
+                           (select string_agg(x, ',' order by x::integer) from jsonb_array_elements_text(pg_temp.in_run(v_code, pg_temp.tok(v_n), v_qi, pg_temp.right_of(v_q)) -> 'picks') x));
+      end if;
+    end loop;
+    if (v_q ->> 'keep_order')::boolean then
+      perform pg_temp.eq('an item that keeps its order: every run sees it so', (select count(distinct x)::text from unnest(v_orders) x) || '/' || v_orders[1],
+                         '1/' || (v_q ->> 'options'));
+    else
+      perform pg_temp.yes('another order for another run (' || v_kind || ')', (select count(distinct x) from unnest(v_orders) x) >= 3);
+    end if;
+  end loop;
+  perform pg_temp.yes('the key is not at the same place for every run («it is В» carries over nowhere)', v_moved >= 1);
+  -- the review: the run's order, the key and the own answer in it
+  s := public.challenge_review(v_code, pg_temp.tok(91));
+  for v_rv in select x from jsonb_array_elements(s -> 'items') x loop
+    if v_rv ->> 'kind' is null then
+      perform pg_temp.eq('review: the key and the own choice in the own order', (v_rv -> 'options' ->> (v_rv ->> 'key')::integer) || '/' || (v_rv ->> 'correct'),
+                         (v_rv -> 'options' ->> (v_rv ->> 'choice')::integer) || '/true');
+    else
+      perform pg_temp.eq('review: the keys and the own ticks in the own order', (v_rv -> 'keys')::text || '/' || (v_rv ->> 'correct'), (v_rv -> 'picks')::text || '/true');
+    end if;
+  end loop;
+end
+$t$;
+
+-- ─── 12. «Верный ответ — в конце»: the verdict and the points at once, the key and the explanation once the run is over ───
+do $t$
+declare r jsonb; s jsonb; v_ch uuid; v_code text; v_qi integer;
+begin
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  perform pg_temp.eq('reveal of no kind', pg_temp.e(format('select public.challenge_create(%L, %L)',
+    format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('o'), pg_temp.c('os')), format('{"deadline": "%s", "reveal": "never"}', pg_temp.dl()))),
+    '22023/reveal@400');
+  r := public.challenge_create(format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('o'), pg_temp.c('os'))::jsonb,
+                               format('{"deadline": "%s", "reveal": "end"}', pg_temp.dl())::jsonb);
+  v_ch := (r ->> 'challenge_id')::uuid;
+  v_code := r ->> 'code';
+  perform pg_temp.who('anon');
+  perform pg_temp.eq('the link says the answers come at the end', public.challenge_info(v_code) ->> 'reveal', 'end');
+  perform public.challenge_join(v_code, 'Конец', pg_temp.tok(98), null);
+  for v_qi in 0 .. 2 loop
+    perform public.challenge_next(v_code, pg_temp.tok(98), v_qi);
+    perform pg_temp.rtick(pg_temp.run(v_ch, pg_temp.tok(98)), 4);
+    s := pg_temp.answer(v_code, pg_temp.tok(98), v_qi, pg_temp.right_of(pg_temp.cq(v_ch, v_qi)));
+    if v_qi < 2 then
+      perform pg_temp.eq('graded: the verdict and the points, no key, no explanation', (s -> 'result' ->> 'correct') || '/' || ((s -> 'result' ->> 'dmg')::integer > 0)::text || '/' ||
+                         (s -> 'result' ->> 'hidden') || '/' || (s::text ~ '"(key|keys|forms|tolerance|explanation)"')::text, 'true/true/true/false');
+      perform pg_temp.yes('not on a reload either', pg_temp.cs(v_code, pg_temp.tok(98))::text !~ '"(key|keys|explanation)"');
+    else
+      perform pg_temp.eq('the last answer ends the run: now the key', (s -> 'run' ->> 'finished') || '/' || ((s -> 'result') ? 'key')::text || '/' ||
+                         coalesce(s -> 'result' ->> 'hidden', 'null'), 'true/true/null');
+    end if;
+  end loop;
+  s := public.challenge_review(v_code, pg_temp.tok(98));
+  perform pg_temp.yes('the review: every key and the explanation', jsonb_array_length(s -> 'items') = 3
+    and (select bool_and(x ? 'key') from jsonb_array_elements(s -> 'items') x)
+    and exists (select 1 from jsonb_array_elements(s -> 'items') x where x ->> 'explanation' = 'Пятый.'));
+end
+$t$;
+
+-- ─── 13. One address cannot lock a link: 60 starts in 10 minutes and 150 a day per address on a link; runs never started
+--     free their place after 15 minutes ───
+do $t$
+declare r jsonb; v_ch uuid; v_code text; v_ip text; v_other uuid;
+begin
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  r := public.challenge_create(format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('o'), pg_temp.c('os'))::jsonb,
+                               format('{"deadline": "%s"}', pg_temp.dl())::jsonb);
+  v_ch := (r ->> 'challenge_id')::uuid;
+  v_code := r ->> 'code';
+  v_other := pg_temp.g('a');
+  perform pg_temp.who('postgres', null, '203.0.113.40');
+  v_ip := meldy_private.quiz_ip_hash();
+  -- a class of 40 behind one school address, then 19 more within ten minutes: all in
+  insert into meldy_private.live_challenge_hits (ip_hash, challenge_id, at) select v_ip, v_ch, now() - interval '5 minutes' from generate_series(1, 59);
+  perform pg_temp.who('anon', null, '203.0.113.40');
+  perform pg_temp.eq('the 60th start of an address on a link in ten minutes', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Шестьдесят', pg_temp.tok(110))), 'ok');
+  perform pg_temp.eq('the 61st', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Лишний', pg_temp.tok(111))), 'ML005/join@429');
+  perform pg_temp.yes('with Retry-After (at most ten minutes)', (current_setting('live_test.headers')::jsonb ->> 'Retry-After')::integer between 1 and 600);
+  perform pg_temp.eq('the same address on another link', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', pg_temp.c('ac'), 'Другая ссылка', pg_temp.tok(112))), 'ok');
+  -- the day: three classes of the school on one link; then no more from that address
+  perform pg_temp.who('postgres');
+  update meldy_private.live_challenge_hits set at = now() - interval '3 hours' where challenge_id = v_ch;
+  insert into meldy_private.live_challenge_hits (ip_hash, challenge_id, at) select v_ip, v_ch, now() - interval '2 hours' from generate_series(1, 89);
+  perform pg_temp.who('anon', null, '203.0.113.40');
+  perform pg_temp.eq('the 150th start of an address on a link in a day', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Сто пятьдесят', pg_temp.tok(113))), 'ok');
+  perform pg_temp.eq('the 151st', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Лишний', pg_temp.tok(114))), 'ML005/join@429');
+  perform pg_temp.who('anon', null, '198.51.100.40');
+  perform pg_temp.eq('another address is fine', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Сосед', pg_temp.tok(115))), 'ok');
+  -- the places: 297 runs that never opened a question, all but 10 of them started 20 minutes ago
+  perform pg_temp.who('postgres');
+  insert into public.live_runs (challenge_id, token_hash, name, look, hp, hp_max, joined_at)
+  select v_ch, md5('s' || i) || md5('t' || i), 'Не начал ' || i, '{"body": "round", "colour": "blue", "eyes": "round", "hat": "none"}', 165, 165,
+         now() - case when i <= 10 then interval '5 minutes' else interval '20 minutes' end
+    from generate_series(1, 300 - (select count(*) from public.live_runs where challenge_id = v_ch)) i;
+  update public.live_runs set removed_at = now() where challenge_id = v_ch and name = 'Не начал 11';
+  perform pg_temp.eq('the link is full', (select count(*) from public.live_runs where challenge_id = v_ch)::text, '300');
+  perform pg_temp.who('anon', null, '192.0.2.40');
+  perform pg_temp.eq('a start frees the places of runs never started for 15 minutes', pg_temp.e(format('select public.challenge_join(%L, %L, %L, null)', v_code, 'Новый', pg_temp.tok(116))), 'ok');
+  perform pg_temp.who('postgres');
+  perform pg_temp.eq('those went; the recent ones, the ones that played and the one taken off stay',
+                     (select count(*) filter (where name like 'Не начал %') || '/' || count(*) filter (where removed_at is not null)
+                        || '/' || count(*) filter (where name in ('Шестьдесят', 'Сто пятьдесят', 'Сосед', 'Новый'))
+                        from public.live_runs where challenge_id = v_ch), '11/1/4');
+end
+$t$;
+
+-- ─── 14. «Тренировать ошибки»: only a finished run, until a week after the end; an item whose key changed since is «stale» ───
+do $t$
+declare r jsonb; v_ch uuid := pg_temp.g('a'); v_code text := pg_temp.c('ac'); v_qi integer; v_short integer;
+begin
+  -- a member plays the whole of challenge «a» without an answer
+  perform pg_temp.who('postgres');
+  insert into public.container_members (container_id, user_id) values (pg_temp.g('k'), 'eeeeeeee-0000-0000-0000-000000000005') on conflict do nothing;
+  perform pg_temp.who('anon');
+  perform public.challenge_join(v_code, 'Ева', pg_temp.tok(120), null);
+  perform pg_temp.who('authenticated', 'eeeeeeee-0000-0000-0000-000000000005');
+  perform public.challenge_next(v_code, pg_temp.tok(120), 0);
+  perform pg_temp.eq('not before the run is over', pg_temp.e(format('select public.challenge_practice(%L, %L)', v_code, pg_temp.tok(120))), 'ML004/not_done@400');
+  for v_qi in 0 .. 3 loop
+    perform pg_temp.rtick(pg_temp.run(v_ch, pg_temp.tok(120)), 25);
+    if v_qi < 3 then
+      perform public.challenge_next(v_code, pg_temp.tok(120), v_qi + 1);
+    end if;
+  end loop;
+  perform pg_temp.eq('the run is over', pg_temp.cs(v_code, pg_temp.tok(120)) -> 'run' ->> 'finished', 'true');
+  -- the key of the text question changes after the challenge was made: its rev moves
+  v_short := (select (x ->> 'qi')::integer from jsonb_array_elements(pg_temp.sudo(format('select jsonb_agg(to_jsonb(q)) from public.live_challenge_questions q where q.challenge_id = %L', v_ch))) x
+               where x ->> 'kind' = 'short');
+  perform pg_temp.who('postgres');
+  update public.test_items set answers = array_append(answers, 'Мск') where id = (pg_temp.cq(v_ch, v_short) ->> 'item_id')::uuid;
+  perform pg_temp.who('authenticated', 'eeeeeeee-0000-0000-0000-000000000005');
+  r := public.challenge_practice(v_code, pg_temp.tok(120));
+  perform pg_temp.eq('four mistakes, three recorded: the changed item is stale, never graded by its new key', (r ->> 'mistakes') || '/' || (r ->> 'saved'), '4/3');
+  perform pg_temp.who('postgres');
+  perform pg_temp.eq('nothing recorded for it', (select count(*) from public.test_answers where user_id = 'eeeeeeee-0000-0000-0000-000000000005'
+                     and item_id = (pg_temp.cq(v_ch, v_short) ->> 'item_id')::uuid)::text, '0');
+  -- a week after the end: no more
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  perform public.challenge_close(v_ch);
+  perform pg_temp.ctick(v_ch, 8 * 86400);
+  perform pg_temp.who('authenticated', 'eeeeeeee-0000-0000-0000-000000000005');
+  perform pg_temp.eq('a week after the end', pg_temp.e(format('select public.challenge_practice(%L, %L)', v_code, pg_temp.tok(120))), 'ML002/expired@400');
+  perform pg_temp.who('anon');
+  perform pg_temp.eq('the review stays', jsonb_array_length(public.challenge_review(v_code, pg_temp.tok(120)) -> 'items')::text, '4');
+end
+$t$;
+
+-- ─── 15. The token is checked before the challenge is read; only calls that cannot be refused after it sweep ───
+do $t$
+declare v_ch uuid := pg_temp.g('b'); v_code text := pg_temp.c('bc');
+begin
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  perform public.challenge_close(v_ch);
+  perform pg_temp.ctick(v_ch, 40);
+  perform pg_temp.who('anon');
+  perform pg_temp.eq('a token of no shape: refused before anything', pg_temp.e(format('select public.challenge_state(%L, %L)', v_code, 'bad')), 'P0002/token@404');
+  perform pg_temp.eq('an answer of no shape', pg_temp.e(format('select public.challenge_answer(%L, %L, 0, %L)', v_code, 'bad', '{"choice": 0}')), 'P0002/token@404');
+  perform pg_temp.eq('a code of no shape with a good token', pg_temp.e(format('select public.challenge_next(%L, %L, 0)', 'x', pg_temp.tok(35))), 'P0002/code@404');
+  perform pg_temp.eq('a refused answer (the run is over)', split_part(pg_temp.e(format('select public.challenge_answer(%L, %L, 3, %L)', v_code, pg_temp.tok(35), '{"choice": 0}')), '/', 1), 'ML004');
+  perform pg_temp.eq('nothing swept by them', (pg_temp.sudo(format('select to_jsonb(swept_at is null) from public.live_challenges where id = %L', v_ch)) #>> '{}'), 'true');
+  perform pg_temp.cs(v_code, pg_temp.tok(35));
+  perform pg_temp.eq('the own state sweeps, once its run is found', (pg_temp.sudo(format('select to_jsonb(swept_at is not null) from public.live_challenges where id = %L', v_ch)) #>> '{}'), 'true');
 end
 $t$;
 

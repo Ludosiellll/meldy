@@ -27,6 +27,10 @@
 -- (and those contracts' rule for them: search_path = '', no EXECUTE for the API roles).
 -- Re-runnable: IF NOT EXISTS, OR REPLACE, guarded blocks. The whole file is one request (supabase/migrate.py).
 
+-- A table lock held by a busy game must not make the apply queue every other query behind it: give up after 5 s and
+-- try again later (one request: the whole file is one transaction, so nothing of it stays).
+set local lock_timeout = '5s';
+
 do $do$
 begin
   if pg_catalog.to_regclass('public.live_games') is null
@@ -46,6 +50,8 @@ $do$;
 
 -- 1a. A challenge: its source, its link code (meldy_private.random_code: 12 characters), the settings, the deadline and
 --     an early close, the questions' count. swept_at: when every run still under way at the end was closed (once).
+--     reveal: when a run sees a question's key and explanation — 'each' (after that question, the default) or 'end'
+--     (once the run is finished).
 create table if not exists public.live_challenges (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null references auth.users(id) on delete cascade,
@@ -61,6 +67,7 @@ create table if not exists public.live_challenges (
   deadline timestamptz not null,
   closed_at timestamptz,
   swept_at timestamptz,
+  reveal text not null default 'each',
   created_at timestamptz not null default now(),
   constraint live_challenges_title_check check (char_length(btrim(title)) between 1 and 200),
   constraint live_challenges_code_check check (code ~ '^[0-9a-hjkmnp-tv-z]{12}$'),
@@ -69,7 +76,8 @@ create table if not exists public.live_challenges (
   constraint live_challenges_q_count_check check (q_count between 1 and 30),
   constraint live_challenges_skipped_check check (skipped >= 0),
   constraint live_challenges_deadline_check check (deadline > created_at and deadline <= created_at + interval '31 days'),
-  constraint live_challenges_closed_check check (closed_at is null or closed_at >= created_at)
+  constraint live_challenges_closed_check check (closed_at is null or closed_at >= created_at),
+  constraint live_challenges_reveal_check check (reveal in ('each', 'end'))
 );
 create unique index if not exists live_challenges_code_uidx on public.live_challenges (code);
 create index if not exists live_challenges_owner_idx on public.live_challenges (owner_id, created_at desc);
@@ -80,7 +88,9 @@ comment on table public.live_challenges is 'Own-time challenges («Соревн�
 
 -- 1b. The questions, frozen at create (an edit of the exam does not change a challenge): as live_questions — text and
 --     options in the shown order, the key as a shown index (keys for several right answers), the accepted forms of a
---     text answer or the accepted numbers of a number question with its tolerance and unit, the explanation.
+--     text answer or the accepted numbers of a number question with its tolerance and unit, the explanation. keep_order:
+--     the item keeps its options' order (no run shuffles them); item_rev: the item's rev at create («Тренировать
+--     ошибки» sends it, so an item whose key changed since is «stale», never graded by the new key).
 create table if not exists public.live_challenge_questions (
   challenge_id uuid not null references public.live_challenges(id) on delete cascade,
   qi smallint not null,
@@ -95,6 +105,8 @@ create table if not exists public.live_challenge_questions (
   tolerance numeric,
   unit text,
   explanation text,
+  keep_order boolean not null default false,
+  item_rev integer,
   primary key (challenge_id, qi),
   constraint live_challenge_questions_qi_check check (qi between 0 and 29),
   constraint live_challenge_questions_kind_check check (kind in ('single', 'multiple', 'short', 'number')),
@@ -197,12 +209,15 @@ create index if not exists live_run_answers_challenge_idx on public.live_run_ans
 alter table public.live_run_answers enable row level security;
 comment on table public.live_run_answers is 'Answers of challenge runs, one a run and question: only through the public.challenge_* functions.';
 
--- 1e. The address throttle of starts (HMAC of the address, meldy_private.quiz_ip_hash), as live_join_hits; two minutes kept.
+-- 1e. The address throttle of starts (HMAC of the address, meldy_private.quiz_ip_hash), as live_join_hits, with the link
+--     it started on (per address and link limits); a day kept.
 create table if not exists meldy_private.live_challenge_hits (
   ip_hash text not null,
+  challenge_id uuid not null,
   at timestamptz not null default now()
 );
 create index if not exists live_challenge_hits_idx on meldy_private.live_challenge_hits (ip_hash, at);
+create index if not exists live_challenge_hits_link_idx on meldy_private.live_challenge_hits (challenge_id, ip_hash, at);
 create index if not exists live_challenge_hits_at_idx on meldy_private.live_challenge_hits (at);
 alter table meldy_private.live_challenge_hits enable row level security;
 
@@ -271,6 +286,21 @@ set search_path = ''
 as $fn$
   select case when p_c.closed_at is not null then least(p_c.closed_at, p_c.deadline)
               when pg_catalog.now() >= p_c.deadline then p_c.deadline end
+$fn$;
+
+-- 2d. The order a run sees a question's options in (CHALLENGE.md §4): the question's own order shuffled once per run and
+--     question — the same on every read (the md5 of the run, the question and the option) and another for every run, so
+--     «it is В» from one run says nothing in the next; an item that keeps its order keeps it. Element k is the question's
+--     option index shown as the run's option k: run → question p[k + 1], question → run array_position(p, i) - 1.
+create or replace function meldy_private.live_run_perm(p_run uuid, p_qi integer, p_n integer, p_keep boolean)
+returns smallint[]
+language sql
+immutable
+set search_path = ''
+as $fn$
+  select coalesce(pg_catalog.array_agg(i::smallint order by case when p_keep then '' else pg_catalog.md5(p_run::text || ':' || p_qi || ':' || i) end, i),
+                  '{}'::smallint[])
+    from pg_catalog.generate_series(0, p_n - 1) i
 $fn$;
 
 -- ─────────────────────────────────────────── 3. The engine ───────────────────────────────────────────
@@ -439,7 +469,8 @@ begin
 end;
 $fn$;
 
--- 3d. The challenge of a link code (P0002 code 404), swept when it is due; locked when p_lock.
+-- 3d. The challenge of a link code (P0002 code 404); locked when p_lock. It sweeps nothing: a call that may still fail
+--     after it would take its sweep back with it (the sweep runs where nothing fails after it: live_challenge_sweep_due).
 create or replace function meldy_private.live_challenge_of(p_code text, p_lock boolean)
 returns public.live_challenges
 language plpgsql
@@ -452,26 +483,38 @@ begin
   if p_code is null or p_code !~ '^[0-9a-hjkmnp-tv-z]{12}$' then
     perform meldy_private.live_fail('P0002', 'code', 404);
   end if;
-  select c.* into v_c from public.live_challenges c where c.code = p_code;
+  if p_lock then
+    select c.* into v_c from public.live_challenges c where c.code = p_code for update;
+  else
+    select c.* into v_c from public.live_challenges c where c.code = p_code;
+  end if;
   if v_c.id is null then
     perform meldy_private.live_fail('P0002', 'code', 404);
-  end if;
-  if v_c.swept_at is null and meldy_private.live_challenge_over(v_c)
-     and pg_catalog.now() >= meldy_private.live_challenge_end_at(v_c) + interval '35 seconds' then
-    perform meldy_private.live_challenge_sweep(v_c.id);
-  end if;
-  if p_lock then
-    select c.* into v_c from public.live_challenges c where c.id = v_c.id for update;
-  else
-    select c.* into v_c from public.live_challenges c where c.id = v_c.id;
   end if;
   return v_c;
 end;
 $fn$;
 
+-- 3d'. The sweep when it is due (over, 35 s after the end, not yet swept). Called only where nothing can fail after it
+--     (info, the table, the own state after its token was found, the author's results, list and close).
+create or replace function meldy_private.live_challenge_sweep_due(p_c public.live_challenges)
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $fn$
+begin
+  if p_c.swept_at is null and meldy_private.live_challenge_over(p_c)
+     and pg_catalog.now() >= meldy_private.live_challenge_end_at(p_c) + interval '35 seconds' then
+    perform meldy_private.live_challenge_sweep(p_c.id);
+  end if;
+end;
+$fn$;
+
 -- 3e. A run of this challenge by its device's token (P0002 token 404; taken off by the author → 42501 removed 403), locked
---     and brought up to the server's time.
-create or replace function meldy_private.live_run_of(p_c public.live_challenges, p_token text)
+--     and brought up to the server's time. The run is found (or refused) before anything is written; p_sweep: then the
+--     challenge's sweep when due (its lock first, then the runs': the order every writer keeps), then this run's lock.
+create or replace function meldy_private.live_run_of(p_c public.live_challenges, p_token text, p_sweep boolean)
 returns public.live_runs
 language plpgsql
 volatile
@@ -482,8 +525,7 @@ declare
 begin
   if p_token is not null and p_token ~ '^[A-Za-z0-9_-]{43}$' then
     select r.* into v_r from public.live_runs r
-     where r.challenge_id = p_c.id and r.token_hash = meldy_private.live_hash(p_token)
-       for update;
+     where r.challenge_id = p_c.id and r.token_hash = meldy_private.live_hash(p_token);
   end if;
   if v_r.id is null then
     perform meldy_private.live_fail('P0002', 'token', 404);
@@ -491,6 +533,10 @@ begin
   if v_r.removed_at is not null then
     perform meldy_private.live_fail('42501', 'removed', 403);
   end if;
+  if p_sweep then
+    perform meldy_private.live_challenge_sweep_due(p_c);
+  end if;
+  perform 1 from public.live_runs r where r.id = v_r.id for update;
   return meldy_private.live_run_settle(v_r.id);
 end;
 $fn$;
@@ -530,11 +576,14 @@ as $fn$
     'playing', (select pg_catalog.count(*) from public.live_runs r
                  where r.challenge_id = p_c.id and r.finished_at is null and r.removed_at is null and r.qi >= 0))
     || case when p_c.calm then '{"calm": true}'::jsonb else '{}'::jsonb end
+    || case when p_c.reveal = 'end' then '{"reveal": "end"}'::jsonb else '{}'::jsonb end
 $fn$;
 
--- 4b. A run as its own device sees it: the run's numbers and its boss; the current question (never its key before the
---     answer or the end of its time); the own answer; the result once graded (the key, the accepted forms, the
---     explanation); the place once finished.
+-- 4b. A run as its own device sees it: the run's numbers and its boss; the current question with its options in the run's
+--     own order (live_run_perm: every index here is the run's); never its key before the answer or the end of its time;
+--     the own answer; the result once graded — the verdict and the points, and the key, the accepted forms and the
+--     explanation, except in a challenge whose answers come at the end (reveal 'end') while the run is not finished:
+--     then {"hidden": true} instead of them; the place once finished.
 create or replace function meldy_private.live_run_json(p_c public.live_challenges, p_r public.live_runs)
 returns jsonb
 language plpgsql
@@ -547,34 +596,49 @@ declare
   v_question jsonb;
   v_answer jsonb;
   v_result jsonb;
+  v_perm smallint[];
+  v_hide boolean := p_c.reveal = 'end' and p_r.finished_at is null;
 begin
   if p_r.qi >= 0 then
     select q.* into v_q from public.live_challenge_questions q where q.challenge_id = p_c.id and q.qi = p_r.qi;
     select a.* into v_a from public.live_run_answers a where a.run_id = p_r.id and a.qi = p_r.qi;
+    v_perm := meldy_private.live_run_perm(p_r.id, v_q.qi, pg_catalog.jsonb_array_length(v_q.options), v_q.keep_order);
     v_question := pg_catalog.jsonb_build_object(
-      'qi', v_q.qi, 'text', v_q.text, 'options', v_q.options, 'opens_at', meldy_private.live_iso(v_a.opens_at),
-      'closes_at', meldy_private.live_iso(v_a.closes_at), 'phase', v_a.phase)
+      'qi', v_q.qi, 'text', v_q.text,
+      'options', (select coalesce(pg_catalog.jsonb_agg(v_q.options -> x.f::integer order by x.n), '[]'::jsonb)
+                    from pg_catalog.unnest(v_perm) with ordinality as x(f, n)),
+      'opens_at', meldy_private.live_iso(v_a.opens_at), 'closes_at', meldy_private.live_iso(v_a.closes_at), 'phase', v_a.phase)
       || case when v_q.kind = 'multiple' then pg_catalog.jsonb_build_object('kind', 'multiple', 'multi', pg_catalog.cardinality(v_q.keys))
               when v_q.kind = 'short' then pg_catalog.jsonb_build_object('kind', 'short')
               when v_q.kind = 'number' then pg_catalog.jsonb_build_object('kind', 'number', 'unit', v_q.unit)
               else '{}'::jsonb end;
     if v_a.at is not null then
-      v_answer := case when v_a.picks is not null then pg_catalog.jsonb_build_object('picks', pg_catalog.to_jsonb(v_a.picks))
+      v_answer := case when v_a.picks is not null
+                       then pg_catalog.jsonb_build_object('picks', (select pg_catalog.to_jsonb(pg_catalog.array_agg((pg_catalog.array_position(v_perm, x) - 1)::smallint
+                                                                            order by pg_catalog.array_position(v_perm, x)))
+                                                                      from pg_catalog.unnest(v_a.picks) x))
                        when v_a.typed is not null then pg_catalog.jsonb_build_object('typed', v_a.typed)
-                       else pg_catalog.jsonb_build_object('choice', v_a.choice) end
+                       else pg_catalog.jsonb_build_object('choice', pg_catalog.array_position(v_perm, v_a.choice) - 1) end
                   || pg_catalog.jsonb_build_object('elapsed_ms', v_a.elapsed_ms);
     end if;
     if v_a.settled_at is not null then
       v_result := pg_catalog.jsonb_build_object(
-        'qi', v_q.qi, 'key', v_q.key, 'correct', v_a.correct, 'none', v_a.at is null, 'dmg', v_a.dmg,
+        'qi', v_q.qi, 'correct', v_a.correct, 'none', v_a.at is null, 'dmg', v_a.dmg,
         'thawed', v_a.thawed, 'frozen', v_a.frozen, 'healed', v_a.healed, 'phase_changed', v_a.phase_changed,
         'elapsed_ms', v_a.elapsed_ms)
-        || case when v_q.kind = 'multiple' then pg_catalog.jsonb_build_object('keys', pg_catalog.to_jsonb(v_q.keys), 'share', v_a.share)
-                when v_q.kind = 'short' then pg_catalog.jsonb_build_object('forms', pg_catalog.to_jsonb(v_q.forms))
-                when v_q.kind = 'number' then pg_catalog.jsonb_build_object('forms', pg_catalog.to_jsonb(v_q.forms),
-                                                                            'tolerance', v_q.tolerance, 'unit', v_q.unit)
-                else '{}'::jsonb end
-        || case when v_q.explanation is not null then pg_catalog.jsonb_build_object('explanation', v_q.explanation) else '{}'::jsonb end;
+        || case when v_q.kind = 'multiple' then pg_catalog.jsonb_build_object('share', v_a.share) else '{}'::jsonb end
+        || case when v_hide then '{"hidden": true}'::jsonb
+                else pg_catalog.jsonb_build_object('key', case when v_q.key < 0 then v_q.key else pg_catalog.array_position(v_perm, v_q.key) - 1 end)
+                     || case when v_q.kind = 'multiple'
+                             then pg_catalog.jsonb_build_object('keys', (select pg_catalog.to_jsonb(pg_catalog.array_agg((pg_catalog.array_position(v_perm, k) - 1)::smallint
+                                                                                order by pg_catalog.array_position(v_perm, k)))
+                                                                          from pg_catalog.unnest(v_q.keys) k))
+                             when v_q.kind = 'short' then pg_catalog.jsonb_build_object('forms', pg_catalog.to_jsonb(v_q.forms))
+                             when v_q.kind = 'number' then pg_catalog.jsonb_build_object('forms', pg_catalog.to_jsonb(v_q.forms),
+                                                                                         'tolerance', v_q.tolerance, 'unit', v_q.unit)
+                             else '{}'::jsonb end
+                     || case when v_q.explanation is not null then pg_catalog.jsonb_build_object('explanation', v_q.explanation) else '{}'::jsonb end
+           end;
     end if;
   end if;
   return pg_catalog.jsonb_build_object(
@@ -624,7 +688,8 @@ $fn$;
 
 -- 5a. A challenge from a test or an exam of the caller's (as live_create's source: {quiz_id} — its draw, at most 30 — or
 --     {container_id, subject_ids, count 3–30} drawn now). p_settings: time_s 10 | 20 | 30 (20), speed (true), calm
---     (false; calm keeps no points for speed), deadline (an ISO time 5 minutes to 30 days ahead; 22023 deadline). The
+--     (false; calm keeps no points for speed), reveal 'each' | 'end' ('each': the key after each question; 'end': once
+--     the run is finished; 22023 reveal), deadline (an ISO time 5 minutes to 30 days ahead; 22023 deadline). The
 --     questions are copied now. 20 creates an hour (ML005 create), 20 open challenges (ML009), no playable question
 --     (ML008, details = how many were skipped). Old challenges go 90 days after their end.
 create or replace function public.challenge_create(p_source jsonb, p_settings jsonb)
@@ -640,6 +705,7 @@ declare
   v_time integer;
   v_speed boolean;
   v_calm boolean;
+  v_reveal text;
   v_deadline timestamptz;
   v_quiz public.quizzes;
   v_container uuid;
@@ -678,6 +744,12 @@ begin
   if v_calm then
     v_speed := false;
   end if;
+  -- when a run sees the keys: after each question (default), or at the end of the run
+  if v_settings ? 'reveal' and (pg_catalog.jsonb_typeof(v_settings -> 'reveal') <> 'string'
+                                or (v_settings ->> 'reveal') not in ('each', 'end')) then
+    perform meldy_private.live_fail('22023', 'reveal');
+  end if;
+  v_reveal := coalesce(v_settings ->> 'reveal', 'each');
   if pg_catalog.jsonb_typeof(v_settings -> 'deadline') is distinct from 'string'
      or pg_catalog.char_length(v_settings ->> 'deadline') > 40
      or (v_settings ->> 'deadline') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}' then
@@ -788,9 +860,9 @@ begin
   for v_attempt in 1 .. 20 loop
     begin
       insert into public.live_challenges (owner_id, container_id, quiz_id, title, code, time_s, speed, calm, q_count,
-                                          skipped, deadline)
+                                          skipped, deadline, reveal)
       values (v_user, v_container, v_quiz.id, pg_catalog.left(pg_catalog.btrim(v_title), 200), meldy_private.random_code(),
-              v_time, v_speed, v_calm, pg_catalog.cardinality(v_items), v_skipped, v_deadline)
+              v_time, v_speed, v_calm, pg_catalog.cardinality(v_items), v_skipped, v_deadline, v_reveal)
       returning * into v_c;
       exit;
     exception
@@ -807,11 +879,11 @@ begin
     v_kind := meldy_private.live_challenge_kind(v_item);
     if v_kind in ('short', 'number') then
       insert into public.live_challenge_questions (challenge_id, qi, item_id, kind, text, options, shown, key, forms, tolerance,
-                                                   unit, explanation)
+                                                   unit, explanation, item_rev)
       values (v_c.id, v_ord, v_item.id, v_kind, v_item.stem, '[]'::jsonb, '{}'::smallint[], -1, v_item.answers,
               case when v_kind = 'number' then v_item.tolerance end,
               case when v_kind = 'number' then nullif(pg_catalog.btrim(v_item.unit), '') end,
-              nullif(pg_catalog.btrim(v_item.explanation), ''));
+              nullif(pg_catalog.btrim(v_item.explanation), ''), v_item.rev);
     else
       if v_item.keep_order then
         select pg_catalog.array_agg(s::smallint order by s) into v_shown
@@ -823,12 +895,13 @@ begin
       v_keys := case when v_kind = 'multiple'
                      then (select pg_catalog.array_agg((pg_catalog.array_position(v_shown, c) - 1)::smallint order by pg_catalog.array_position(v_shown, c))
                              from (select distinct c from pg_catalog.unnest(v_item.correct) c) k) end;
-      insert into public.live_challenge_questions (challenge_id, qi, item_id, kind, text, options, shown, key, keys, explanation)
+      insert into public.live_challenge_questions (challenge_id, qi, item_id, kind, text, options, shown, key, keys, explanation,
+                                                   keep_order, item_rev)
       values (v_c.id, v_ord, v_item.id, v_kind, v_item.stem,
               (select pg_catalog.jsonb_agg(v_item.options -> s.f::integer order by s.n)
                  from pg_catalog.unnest(v_shown) with ordinality as s(f, n)),
               v_shown, coalesce(v_keys[1], (pg_catalog.array_position(v_shown, v_item.correct[1]) - 1)::smallint), v_keys,
-              nullif(pg_catalog.btrim(v_item.explanation), ''));
+              nullif(pg_catalog.btrim(v_item.explanation), ''), v_item.keep_order, v_item.rev);
     end if;
     v_ord := v_ord + 1;
   end loop;
@@ -839,7 +912,8 @@ begin
 end;
 $fn$;
 
--- 5b. The author's own challenge (P0002 challenge 404, someone else's 42501 author 403), swept when due; locked when p_lock.
+-- 5b. The author's own challenge (P0002 challenge 404, someone else's 42501 author 403); locked when p_lock. No sweep here
+--     (live_challenge_sweep_due, where nothing fails after it).
 create or replace function meldy_private.live_challenge_owned(p_challenge uuid, p_lock boolean)
 returns public.live_challenges
 language plpgsql
@@ -859,10 +933,6 @@ begin
   end if;
   if v_c.owner_id <> v_user then
     perform meldy_private.live_fail('42501', 'author', 403);
-  end if;
-  if v_c.swept_at is null and meldy_private.live_challenge_over(v_c)
-     and pg_catalog.now() >= meldy_private.live_challenge_end_at(v_c) + interval '35 seconds' then
-    perform meldy_private.live_challenge_sweep(v_c.id);
   end if;
   if p_lock then
     select c.* into v_c from public.live_challenges c where c.id = p_challenge for update;
@@ -885,6 +955,7 @@ as $fn$
 declare
   v_c public.live_challenges := meldy_private.live_challenge_owned(p_challenge, true);
 begin
+  perform meldy_private.live_challenge_sweep_due(v_c);
   if v_c.closed_at is null and pg_catalog.now() < v_c.deadline then
     update public.live_challenges c set closed_at = pg_catalog.now() where c.id = p_challenge returning * into v_c;
   end if;
@@ -925,6 +996,7 @@ as $fn$
 declare
   v_c public.live_challenges := meldy_private.live_challenge_owned(p_challenge, false);
 begin
+  perform meldy_private.live_challenge_sweep_due(v_c);
   return meldy_private.live_challenge_json(v_c) || pg_catalog.jsonb_build_object(
     'challenge_id', v_c.id, 'container_id', v_c.container_id, 'quiz_id', v_c.quiz_id, 'skipped', v_c.skipped,
     'path', '/s/' || v_c.code, 'url', 'https://ludosiel-studyforge.hf.space/s/' || v_c.code,
@@ -1009,15 +1081,20 @@ as $fn$
 declare
   v_c public.live_challenges := meldy_private.live_challenge_of(p_code, false);
 begin
+  perform meldy_private.live_challenge_sweep_due(v_c);
   return meldy_private.live_challenge_json(v_c) || pg_catalog.jsonb_build_object('now', meldy_private.live_iso(pg_catalog.clock_timestamp()));
 end;
 $fn$;
 
 -- 6b. The start (anon or signed in): the token is made on the device (43 base64url characters); the database keeps its
 --     sha256 and never returns it. The same token (or the same signed-in account, whose new token then replaces the
---     old one) gets its run back. A new run: not after the end (ML002 deadline / closed), 120 a minute per address and
---     120 a minute per link (ML005 join, 429 with Retry-After), 300 runs (ML001), the name (ML006), the look (ML007; none
---     given: the saved one of an account, else the name's).
+--     old one) gets its run back. A new run: not after the end (ML002 deadline / closed); runs that never opened a
+--     question 15 minutes after their start go first (they hold no place); then the limits (ML005 join, 429 with
+--     Retry-After): 120 a minute per address over every link (the live game's), and on this link 60 in 10 minutes and
+--     150 a day per address — a class of up to 40 behind one school NAT starts in a few minutes with room for a third
+--     more (a reopened browser, a late group), three such classes may share one link in a day, and one address can
+--     never hold more than half of the 300 places — and 120 a minute per link whatever the address; 300 runs (ML001);
+--     the name (ML006), the look (ML007; none given: the saved one of an account, else the name's).
 create or replace function public.challenge_join(p_code text, p_name text, p_token text, p_look jsonb default null)
 returns jsonb
 language plpgsql
@@ -1062,14 +1139,29 @@ begin
   if meldy_private.live_challenge_over(v_c) then
     perform meldy_private.live_fail('ML002', case when v_c.closed_at is not null and v_c.closed_at < v_c.deadline then 'closed' else 'deadline' end);
   end if;
+  -- runs that never opened a question 15 minutes after their start hold no place (an abandoned «Готовы?», a flood)
+  delete from public.live_runs r
+   where r.challenge_id = v_c.id and r.qi = -1 and r.removed_at is null and r.joined_at < pg_catalog.now() - interval '15 minutes';
   v_ip := meldy_private.quiz_ip_hash();
   if v_ip is not null then
-    delete from meldy_private.live_challenge_hits h where h.at <= pg_catalog.now() - interval '2 minutes';
+    delete from meldy_private.live_challenge_hits h where h.at <= pg_catalog.now() - interval '1 day';
     if (select pg_catalog.count(*) from meldy_private.live_challenge_hits h
          where h.ip_hash = v_ip and h.at > pg_catalog.now() - interval '1 minute') >= 120 then
       perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
         (select pg_catalog.min(h.at) from meldy_private.live_challenge_hits h
           where h.ip_hash = v_ip and h.at > pg_catalog.now() - interval '1 minute'), interval '1 minute'));
+    end if;
+    if (select pg_catalog.count(*) from meldy_private.live_challenge_hits h
+         where h.challenge_id = v_c.id and h.ip_hash = v_ip and h.at > pg_catalog.now() - interval '10 minutes') >= 60 then
+      perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
+        (select pg_catalog.min(h.at) from meldy_private.live_challenge_hits h
+          where h.challenge_id = v_c.id and h.ip_hash = v_ip and h.at > pg_catalog.now() - interval '10 minutes'), interval '10 minutes'));
+    end if;
+    if (select pg_catalog.count(*) from meldy_private.live_challenge_hits h
+         where h.challenge_id = v_c.id and h.ip_hash = v_ip and h.at > pg_catalog.now() - interval '1 day') >= 150 then
+      perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
+        (select pg_catalog.min(h.at) from meldy_private.live_challenge_hits h
+          where h.challenge_id = v_c.id and h.ip_hash = v_ip and h.at > pg_catalog.now() - interval '1 day'), interval '1 day'));
     end if;
   end if;
   if (select pg_catalog.count(*) from public.live_runs r
@@ -1100,7 +1192,7 @@ begin
   values (v_c.id, v_hash, v_user, v_name, v_look, 55 * v_c.q_count, 55 * v_c.q_count)
   returning * into v_r;
   if v_ip is not null then
-    insert into meldy_private.live_challenge_hits (ip_hash) values (v_ip);
+    insert into meldy_private.live_challenge_hits (ip_hash, challenge_id) values (v_ip, v_c.id);
   end if;
   return meldy_private.live_run_json(v_c, v_r);
 end;
@@ -1115,9 +1207,15 @@ security definer
 set search_path = ''
 as $fn$
 declare
-  v_c public.live_challenges := meldy_private.live_challenge_of(p_code, false);
-  v_r public.live_runs := meldy_private.live_run_of(v_c, p_token);
+  v_c public.live_challenges;
+  v_r public.live_runs;
 begin
+  if p_token is null or p_token !~ '^[A-Za-z0-9_-]{43}$' then
+    perform meldy_private.live_fail('P0002', 'token', 404);
+  end if;
+  v_c := meldy_private.live_challenge_of(p_code, false);
+  v_r := meldy_private.live_run_of(v_c, p_token, true);
+  select c.* into v_c from public.live_challenges c where c.id = v_c.id;
   return meldy_private.live_run_json(v_c, v_r);
 end;
 $fn$;
@@ -1133,11 +1231,16 @@ security definer
 set search_path = ''
 as $fn$
 declare
-  v_c public.live_challenges := meldy_private.live_challenge_of(p_code, false);
-  v_r public.live_runs := meldy_private.live_run_of(v_c, p_token);
+  v_c public.live_challenges;
+  v_r public.live_runs;
   v_a public.live_run_answers;
   v_now timestamptz := pg_catalog.now();
 begin
+  if p_token is null or p_token !~ '^[A-Za-z0-9_-]{43}$' then
+    perform meldy_private.live_fail('P0002', 'token', 404);
+  end if;
+  v_c := meldy_private.live_challenge_of(p_code, false);
+  v_r := meldy_private.live_run_of(v_c, p_token, false);
   if v_r.finished_at is not null or (p_qi is not null and p_qi = v_r.qi and v_r.qi >= 0) then
     return meldy_private.live_run_json(v_c, v_r);
   end if;
@@ -1167,7 +1270,8 @@ $fn$;
 
 -- 6e. An answer to the current question, timed and graded by the server at once: from opens_at to closes_at + 1.5 s
 --     (ML004 early / late), once (ML004 twice), of the question's kind (live_submit's shapes: {"choice": n},
---     {"picks": [n, …]} or {"text": "…"}; ML004 kind, 22023 answer). The state comes back with the result.
+--     {"picks": [n, …]} or {"text": "…"}; ML004 kind, 22023 answer) — indexes in the run's own order (live_run_perm),
+--     kept in the question's. The state comes back with the result.
 create or replace function public.challenge_answer(p_code text, p_token text, p_qi integer, p_answer jsonb)
 returns jsonb
 language plpgsql
@@ -1176,8 +1280,8 @@ security definer
 set search_path = ''
 as $fn$
 declare
-  v_c public.live_challenges := meldy_private.live_challenge_of(p_code, false);
-  v_r public.live_runs := meldy_private.live_run_of(v_c, p_token);
+  v_c public.live_challenges;
+  v_r public.live_runs;
   v_a public.live_run_answers;
   v_q public.live_challenge_questions;
   v_now timestamptz := pg_catalog.now();
@@ -1185,11 +1289,20 @@ declare
   v_choice smallint;
   v_picks smallint[];
   v_typed text;
+  v_perm smallint[];
 begin
+  if p_token is null or p_token !~ '^[A-Za-z0-9_-]{43}$' then
+    perform meldy_private.live_fail('P0002', 'token', 404);
+  end if;
+  v_c := meldy_private.live_challenge_of(p_code, false);
+  v_r := meldy_private.live_run_of(v_c, p_token, false);
   if v_r.qi < 0 or p_qi is null or p_qi <> v_r.qi then
     perform meldy_private.live_fail('ML004', 'bad_qi');
   end if;
   select a.* into v_a from public.live_run_answers a where a.run_id = v_r.id and a.qi = v_r.qi;
+  if v_a.run_id is null then
+    perform meldy_private.live_fail('ML004', 'bad_qi');
+  end if;
   if v_a.settled_at is not null then
     perform meldy_private.live_fail('ML004', case when v_a.at is null then 'late' else 'twice' end);
   end if;
@@ -1238,6 +1351,9 @@ begin
       select pg_catalog.array_agg((x #>> '{}')::smallint order by (x #>> '{}')::integer) into v_picks
         from pg_catalog.jsonb_array_elements(p_answer -> 'picks') x;
     end if;
+    -- the run sees the options in its own order: back to the question's (live_run_perm)
+    v_perm := meldy_private.live_run_perm(v_r.id, v_q.qi, v_options, v_q.keep_order);
+    select pg_catalog.array_agg(v_perm[x + 1] order by v_perm[x + 1]) into v_picks from pg_catalog.unnest(v_picks) x;
     if v_q.kind = 'single' then
       if pg_catalog.cardinality(v_picks) <> 1 then
         perform meldy_private.live_fail('22023', 'answer');
@@ -1266,6 +1382,7 @@ declare
   v_c public.live_challenges := meldy_private.live_challenge_of(p_code, false);
   v_me uuid;
 begin
+  perform meldy_private.live_challenge_sweep_due(v_c);
   if p_token is not null and p_token ~ '^[A-Za-z0-9_-]{43}$' then
     select r.id into v_me from public.live_runs r
      where r.challenge_id = v_c.id and r.token_hash = meldy_private.live_hash(p_token) and r.removed_at is null;
@@ -1275,7 +1392,8 @@ end;
 $fn$;
 
 -- 6g. The own review of a finished run (ML004 not_done before): the own answers and the keys of the questions this run
---     was shown and graded — never another question's key. The items as live_review's (CONTRACT §8).
+--     was shown and graded — never another question's key — in the run's own order of the options. The items as
+--     live_review's (CONTRACT §8).
 create or replace function public.challenge_review(p_code text, p_token text)
 returns jsonb
 language plpgsql
@@ -1284,18 +1402,31 @@ security definer
 set search_path = ''
 as $fn$
 declare
-  v_c public.live_challenges := meldy_private.live_challenge_of(p_code, false);
-  v_r public.live_runs := meldy_private.live_run_of(v_c, p_token);
+  v_c public.live_challenges;
+  v_r public.live_runs;
 begin
+  if p_token is null or p_token !~ '^[A-Za-z0-9_-]{43}$' then
+    perform meldy_private.live_fail('P0002', 'token', 404);
+  end if;
+  v_c := meldy_private.live_challenge_of(p_code, false);
+  v_r := meldy_private.live_run_of(v_c, p_token, false);
   if v_r.finished_at is null then
     perform meldy_private.live_fail('ML004', 'not_done');
   end if;
   return pg_catalog.jsonb_build_object('items', (
     select coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
-             'qi', q.qi, 'text', q.text, 'options', q.options, 'key', q.key, 'choice', a.choice, 'correct', a.correct)
+             'qi', q.qi, 'text', q.text,
+             'options', (select coalesce(pg_catalog.jsonb_agg(q.options -> x.f::integer order by x.n), '[]'::jsonb)
+                           from pg_catalog.unnest(o.p) with ordinality as x(f, n)),
+             'key', case when q.key < 0 then q.key else pg_catalog.array_position(o.p, q.key) - 1 end,
+             'choice', pg_catalog.array_position(o.p, a.choice) - 1, 'correct', a.correct)
              || case when q.kind = 'multiple'
-                     then pg_catalog.jsonb_build_object('kind', 'multiple', 'keys', pg_catalog.to_jsonb(q.keys), 'picks', pg_catalog.to_jsonb(a.picks),
-                                                        'share', coalesce(a.share, 0))
+                     then pg_catalog.jsonb_build_object('kind', 'multiple',
+                            'keys', (select pg_catalog.to_jsonb(pg_catalog.array_agg((pg_catalog.array_position(o.p, k) - 1)::smallint
+                                                                order by pg_catalog.array_position(o.p, k))) from pg_catalog.unnest(q.keys) k),
+                            'picks', (select pg_catalog.to_jsonb(pg_catalog.array_agg((pg_catalog.array_position(o.p, k) - 1)::smallint
+                                                                 order by pg_catalog.array_position(o.p, k))) from pg_catalog.unnest(a.picks) k),
+                            'share', coalesce(a.share, 0))
                      when q.kind = 'short'
                      then pg_catalog.jsonb_build_object('kind', 'short', 'forms', pg_catalog.to_jsonb(q.forms), 'typed', a.typed)
                      when q.kind = 'number'
@@ -1306,6 +1437,7 @@ begin
              order by q.qi), '[]'::jsonb)
       from public.live_run_answers a
       join public.live_challenge_questions q on q.challenge_id = a.challenge_id and q.qi = a.qi
+      cross join lateral (select meldy_private.live_run_perm(v_r.id, q.qi, pg_catalog.jsonb_array_length(q.options), q.keep_order) as p) o
      where a.run_id = v_r.id and a.settled_at is not null));
 end;
 $fn$;
@@ -1313,9 +1445,11 @@ $fn$;
 -- 6h. «Тренировать ошибки» of a finished run, as live_practice (CONTRACT §14): the session's account (28000), the token of
 --     a run of the link; the exam's author or an active member, else — when the challenge was made from a quiz whose
 --     author offers practice and no quiz of the exam is open — the player joins the exam as quiz_practice_join makes a
---     member; anyone else ML012 practice. Every graded question of the run from an item still in the exam that was wrong,
---     partly right or left without an answer is recorded once as this user's answer of today through the study core
---     (record_test_answers_for, source web, client_event_id lc:<run>:<qi>: a second press records nothing twice).
+--     member; anyone else ML012 practice. Only for a finished run (ML004 not_done) and until a week after the end
+--     (ML002 expired). Every graded question of the run from an item still in the exam that was wrong, partly right or
+--     left without an answer is recorded once as this user's answer of today through the study core
+--     (record_test_answers_for, source web, client_event_id lc:<run>:<qi>: a second press records nothing twice), with
+--     the item's rev at create: an item whose key changed since is «stale» there, never graded by the new key.
 create or replace function public.challenge_practice(p_code text, p_token text)
 returns jsonb
 language plpgsql
@@ -1338,10 +1472,17 @@ begin
   if v_user is null then
     perform meldy_private.live_fail('28000', null, 401);
   end if;
+  if p_token is null or p_token !~ '^[A-Za-z0-9_-]{43}$' then
+    perform meldy_private.live_fail('P0002', 'token', 404);
+  end if;
   v_c := meldy_private.live_challenge_of(p_code, false);
-  v_r := meldy_private.live_run_of(v_c, p_token);
+  v_r := meldy_private.live_run_of(v_c, p_token, false);
   if v_r.finished_at is null then
     perform meldy_private.live_fail('ML004', 'not_done');
+  end if;
+  -- as live_practice: a week after the end
+  if meldy_private.live_challenge_end_at(v_c) < pg_catalog.now() - interval '7 days' then
+    perform meldy_private.live_fail('ML002', 'expired');
   end if;
   if meldy_private.role_in(v_user, v_c.container_id) is null then
     if v_c.quiz_id is not null then
@@ -1376,6 +1517,7 @@ begin
   select pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
            'client_event_id', 'lc:' || pg_catalog.replace(v_r.id::text, '-', '') || ':' || q.qi,
            'item_id', q.item_id, 'mode', 'learn')
+           || case when q.item_rev is not null then pg_catalog.jsonb_build_object('rev', q.item_rev) else '{}'::jsonb end
            || case when q.kind in ('short', 'number') then pg_catalog.jsonb_build_object('text', a.typed)
                    else pg_catalog.jsonb_build_object('chosen',
                           (select pg_catalog.to_jsonb(pg_catalog.array_agg(q.shown[x + 1] order by q.shown[x + 1]))
@@ -1409,7 +1551,8 @@ revoke all on function
   meldy_private.live_challenge_over(public.live_challenges), meldy_private.live_challenge_end_at(public.live_challenges),
   meldy_private.live_run_score(uuid, integer, smallint, smallint[], text, timestamptz),
   meldy_private.live_run_settle(uuid), meldy_private.live_challenge_sweep(uuid),
-  meldy_private.live_challenge_of(text, boolean), meldy_private.live_run_of(public.live_challenges, text),
+  meldy_private.live_challenge_of(text, boolean), meldy_private.live_challenge_sweep_due(public.live_challenges),
+  meldy_private.live_run_of(public.live_challenges, text, boolean), meldy_private.live_run_perm(uuid, integer, integer, boolean),
   meldy_private.live_run_place(public.live_runs), meldy_private.live_challenge_json(public.live_challenges),
   meldy_private.live_run_json(public.live_challenges, public.live_runs),
   meldy_private.live_challenge_board_json(public.live_challenges, uuid),

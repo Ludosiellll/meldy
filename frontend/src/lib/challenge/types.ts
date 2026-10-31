@@ -16,6 +16,8 @@ export interface ChallengeInfo {
   speed: boolean;
   /** «Без спешки»: present (true) only in such a challenge. */
   calm?: true;
+  /** «Верный ответ — в конце»: present only then; the keys and explanations come once the run is finished. */
+  reveal?: 'end';
   deadline: string;
   state: 'open' | 'over';
   /** Why it is over: closed early by the author, or the deadline passed; null while open. */
@@ -74,7 +76,8 @@ export interface RunAnswer {
 /** The current question once graded (answered, or its time ran out): the key, the verdict, the explanation. */
 export interface RunResult {
   qi: number;
-  key: number;
+  /** The key in the run's own order of the options; absent while hidden. */
+  key?: number;
   keys?: number[];
   forms?: string[];
   tolerance?: number | null;
@@ -90,6 +93,8 @@ export interface RunResult {
   phase_changed: BossPhase | null;
   elapsed_ms: number | null;
   explanation?: string;
+  /** «Верный ответ — в конце» and the run not finished: no key, forms or explanation yet (the verdict and points are here). */
+  hidden?: true;
 }
 
 export interface RunState {
@@ -133,6 +138,8 @@ export interface ChallengeSettings {
   time_s: 10 | 20 | 30;
   speed: boolean;
   calm?: boolean;
+  /** When a person sees the keys: after each question (default) or once the run is finished. */
+  reveal?: 'each' | 'end';
   /** ISO time, 5 minutes to 30 days ahead. */
   deadline: string;
 }

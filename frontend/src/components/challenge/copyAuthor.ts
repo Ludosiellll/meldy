@@ -38,6 +38,12 @@ export const CSETUP = {
   speed: 'Очки за скорость',
   speedOn: 'Да',
   speedOff: 'Нет',
+  /** When a person sees the keys and the explanations. */
+  reveal: 'Верный ответ',
+  revealEach: 'После каждого вопроса',
+  revealEnd: 'В конце',
+  /** The one line that names what no setting can stop. */
+  revealHint: 'Порядок вариантов у каждого свой. Но кто пройдёт второй раз с другого устройства, будет знать ответы.',
   amount: 'Вопросов',
   amountAll: (n: number) => `все ${n}`,
   amountHint: 'Каждый получит одни и те же вопросы в одном порядке.',
@@ -85,7 +91,8 @@ export const CPAGE = {
     closed: (d: string) => `Закрыто досрочно ${d}`,
     deadline: (d: string) => `Срок вышел ${d}`,
   },
-  meta: (n: number, t: number, calm: boolean) => `${QUESTIONS(n)} · ${t}${NBSP}с на вопрос · ${calm ? 'без спешки' : 'очки за скорость'}`,
+  meta: (n: number, t: number, calm: boolean, end = false) =>
+    `${QUESTIONS(n)} · ${t}${NBSP}с на вопрос · ${calm ? 'без спешки' : 'очки за скорость'}${end ? ' · ответы в конце' : ''}`,
   finished: (n: number) => `Прошли: ${n}`,
   playing: (n: number) => `Играют сейчас: ${n}`,
   table: 'Результаты',

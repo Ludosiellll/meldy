@@ -113,14 +113,30 @@ BEGIN
   IF pg_catalog.strpos(v_src, 'v_user uuid := auth.uid();') = 0 OR pg_catalog.strpos(v_src, 'if v_c.owner_id <> v_user then') = 0 THEN
     RAISE EXCEPTION 'author_is_the_owner';
   END IF;
+  -- the token's shape is checked before the challenge is read, and only the own state (nothing fails after it) sweeps
   FOR v_fn IN SELECT p.proname, p.prosrc FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
                WHERE n.nspname = 'public' AND p.proname IN ('challenge_state', 'challenge_next', 'challenge_answer', 'challenge_review',
                                                             'challenge_practice') LOOP
-    IF pg_catalog.strpos(v_fn.prosrc, 'meldy_private.live_run_of(v_c, p_token)') = 0 THEN
-      RAISE EXCEPTION 'own_run_by_the_token: %', v_fn.proname;
+    IF pg_catalog.strpos(v_fn.prosrc, 'meldy_private.live_run_of(v_c, p_token, ' || CASE WHEN v_fn.proname = 'challenge_state' THEN 'true' ELSE 'false' END || ')') = 0
+       OR pg_catalog.strpos(v_fn.prosrc, 'if p_token is null or p_token !~ ''^[A-Za-z0-9_-]{43}$'' then') = 0
+       OR pg_catalog.strpos(v_fn.prosrc, 'if p_token is null or p_token !~ ''^[A-Za-z0-9_-]{43}$'' then')
+          > pg_catalog.strpos(v_fn.prosrc, 'meldy_private.live_challenge_of(p_code, false)') THEN
+      RAISE EXCEPTION 'own_run_by_the_token_checked_first: %', v_fn.proname;
     END IF;
   END LOOP;
-  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_run_of(public.live_challenges,text)'::regprocedure;
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+              WHERE (n.nspname, p.proname) IN (('meldy_private', 'live_challenge_of'), ('meldy_private', 'live_challenge_owned'),
+                                               ('public', 'challenge_join'), ('public', 'challenge_next'), ('public', 'challenge_answer'),
+                                               ('public', 'challenge_review'), ('public', 'challenge_practice'), ('public', 'challenge_remove'))
+                AND p.prosrc ~ 'sweep') THEN
+    RAISE EXCEPTION 'no_sweep_where_a_refusal_may_follow';
+  END IF;
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_run_of(public.live_challenges,text,boolean)'::regprocedure;
+  IF pg_catalog.strpos(v_src, 'if p_sweep then') > pg_catalog.strpos(v_src, 'perform 1 from public.live_runs r where r.id = v_r.id for update;')
+     OR pg_catalog.strpos(v_src, 'if p_sweep then') < pg_catalog.strpos(v_src, 'live_fail(''42501'', ''removed'', 403)') THEN
+    RAISE EXCEPTION 'sweep_after_the_run_is_found_before_its_lock';
+  END IF;
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_run_of(public.live_challenges,text,boolean)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'r.challenge_id = p_c.id and r.token_hash = meldy_private.live_hash(p_token)') = 0
      OR pg_catalog.strpos(v_src, 'live_fail(''42501'', ''removed'', 403)') = 0 THEN
     RAISE EXCEPTION 'run_of_this_link_and_token';
@@ -141,9 +157,24 @@ BEGIN
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_run_json(public.live_challenges,public.live_runs)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'if v_a.settled_at is not null then
       v_result := pg_catalog.jsonb_build_object(
-        ''qi'', v_q.qi, ''key'', v_q.key') = 0
+        ''qi'', v_q.qi, ''correct''') = 0
+     OR pg_catalog.strpos(v_src, 'v_hide boolean := p_c.reveal = ''end'' and p_r.finished_at is null;') = 0
+     OR pg_catalog.strpos(v_src, '|| case when v_hide then ''{"hidden": true}''::jsonb') = 0
      OR (SELECT pg_catalog.count(*) FROM pg_catalog.regexp_matches(v_src, '''(key|keys|forms|tolerance|explanation)''', 'g')) <> 6 THEN
-    RAISE EXCEPTION 'key_only_once_graded';
+    RAISE EXCEPTION 'key_only_once_graded_and_at_the_end_when_asked';
+  END IF;
+  -- every run sees the options in its own order, the same on every read; answers come back to the question's order
+  IF pg_catalog.strpos(v_src, 'v_perm := meldy_private.live_run_perm(p_r.id, v_q.qi, pg_catalog.jsonb_array_length(v_q.options), v_q.keep_order);') = 0
+     OR meldy_private.live_run_perm('00000000-0000-4000-8000-000000000001', 0, 4, false) <> meldy_private.live_run_perm('00000000-0000-4000-8000-000000000001', 0, 4, false)
+     OR (SELECT pg_catalog.array_agg(x ORDER BY x) FROM pg_catalog.unnest(meldy_private.live_run_perm('00000000-0000-4000-8000-000000000001', 3, 6, false)) x) <> '{0,1,2,3,4,5}'::smallint[]
+     OR meldy_private.live_run_perm('00000000-0000-4000-8000-000000000001', 0, 5, true) <> '{0,1,2,3,4}'::smallint[]
+     OR meldy_private.live_run_perm('00000000-0000-4000-8000-000000000001', 0, 0, false) <> '{}'::smallint[] THEN
+    RAISE EXCEPTION 'per_run_order';
+  END IF;
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'public.challenge_answer(text,text,integer,jsonb)'::regprocedure;
+  IF pg_catalog.strpos(v_src, 'v_perm := meldy_private.live_run_perm(v_r.id, v_q.qi, v_options, v_q.keep_order);') = 0
+     OR pg_catalog.strpos(v_src, 'select pg_catalog.array_agg(v_perm[x + 1] order by v_perm[x + 1]) into v_picks') = 0 THEN
+    RAISE EXCEPTION 'answers_back_in_the_questions_order';
   END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'public.challenge_review(text,text)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'where a.run_id = v_r.id and a.settled_at is not null') = 0
@@ -184,20 +215,20 @@ BEGIN
     RAISE EXCEPTION 'numbers_are_the_battles';
   END IF;
   v_q := row(null, 0, null, 'multiple', 'Q', '["a","b","c","d"]'::jsonb, '{0,1,2,3}'::smallint[], 0, '{0,2}'::smallint[], null,
-             null, null, null)::public.live_challenge_questions;
+             null, null, null, false, null)::public.live_challenge_questions;
   IF meldy_private.live_challenge_share(v_q, null, '{0,2}', null) <> 1 OR meldy_private.live_challenge_share(v_q, null, '{2}', null) <> 0.5
      OR meldy_private.live_challenge_share(v_q, null, '{0,1}', null) <> 0 OR meldy_private.live_challenge_share(v_q, null, null, null) <> 0 THEN
     RAISE EXCEPTION 'share_of_ticks';
   END IF;
-  v_q := row(null, 0, null, 'short', 'Q', '[]'::jsonb, '{}'::smallint[], -1, null, '{Москва}'::text[], null, null, null)::public.live_challenge_questions;
+  v_q := row(null, 0, null, 'short', 'Q', '[]'::jsonb, '{}'::smallint[], -1, null, '{Москва}'::text[], null, null, null, false, null)::public.live_challenge_questions;
   IF meldy_private.live_challenge_share(v_q, null, null, '  москва. ') <> 1 OR meldy_private.live_challenge_share(v_q, null, null, 'Питер') <> 0 THEN
     RAISE EXCEPTION 'share_of_a_text';
   END IF;
-  v_q := row(null, 0, null, 'number', 'Q', '[]'::jsonb, '{}'::smallint[], -1, null, '{42}'::text[], 0.5, 'м', null)::public.live_challenge_questions;
+  v_q := row(null, 0, null, 'number', 'Q', '[]'::jsonb, '{}'::smallint[], -1, null, '{42}'::text[], 0.5, 'м', null, false, null)::public.live_challenge_questions;
   IF meldy_private.live_challenge_share(v_q, null, null, '41,6 м') <> 1 OR meldy_private.live_challenge_share(v_q, null, null, '43') <> 0 THEN
     RAISE EXCEPTION 'share_of_a_number';
   END IF;
-  v_q := row(null, 0, null, 'single', 'Q', '["a","b"]'::jsonb, '{1,0}'::smallint[], 1, null, null, null, null, null)::public.live_challenge_questions;
+  v_q := row(null, 0, null, 'single', 'Q', '["a","b"]'::jsonb, '{1,0}'::smallint[], 1, null, null, null, null, null, false, null)::public.live_challenge_questions;
   IF meldy_private.live_challenge_share(v_q, 1::smallint, null, null) <> 1 OR meldy_private.live_challenge_share(v_q, 0::smallint, null, null) <> 0 THEN
     RAISE EXCEPTION 'share_of_a_tap';
   END IF;
@@ -212,6 +243,27 @@ BEGIN
      OR pg_catalog.strpos(v_src, 'v_hash := meldy_private.live_hash(p_token);') = 0 THEN
     RAISE EXCEPTION 'join_limits_120_a_minute_per_address_and_link_300_runs_name_look';
   END IF;
+  IF pg_catalog.strpos(v_src, 'h.challenge_id = v_c.id and h.ip_hash = v_ip and h.at > pg_catalog.now() - interval ''10 minutes'') >= 60 then') = 0
+     OR pg_catalog.strpos(v_src, 'h.challenge_id = v_c.id and h.ip_hash = v_ip and h.at > pg_catalog.now() - interval ''1 day'') >= 150 then') = 0
+     OR pg_catalog.strpos(v_src, 'insert into meldy_private.live_challenge_hits (ip_hash, challenge_id) values (v_ip, v_c.id);') = 0
+     OR pg_catalog.strpos(v_src, 'r.qi = -1 and r.removed_at is null and r.joined_at < pg_catalog.now() - interval ''15 minutes''') = 0
+     OR pg_catalog.strpos(v_src, 'interval ''15 minutes''') > pg_catalog.strpos(v_src, ') >= 300 then') THEN
+    RAISE EXCEPTION 'per_address_and_link_limits_and_unstarted_runs_free_their_place';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = 'meldy_private' AND c.table_name = 'live_challenge_hits'
+                    AND c.column_name = 'challenge_id' AND c.is_nullable = 'NO')
+     OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes i WHERE i.schemaname = 'meldy_private' AND i.indexname = 'live_challenge_hits_link_idx') THEN
+    RAISE EXCEPTION 'hits_by_link';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'live_challenges'
+                    AND c.column_name = 'reveal' AND c.is_nullable = 'NO' AND c.column_default LIKE '''each''%')
+     OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k WHERE k.conrelid = 'public.live_challenges'::regclass AND k.conname = 'live_challenges_reveal_check')
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'live_challenge_questions'
+                       AND c.column_name = 'keep_order' AND c.is_nullable = 'NO')
+     OR NOT EXISTS (SELECT 1 FROM information_schema.columns c WHERE c.table_schema = 'public' AND c.table_name = 'live_challenge_questions'
+                       AND c.column_name = 'item_rev') THEN
+    RAISE EXCEPTION 'reveal_keep_order_item_rev';
+  END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_challenge_board_json(public.live_challenges,uuid)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'pg_catalog.rank() over (order by r.dmg desc, r.right_n desc, r.time_ms)') = 0
      OR pg_catalog.strpos(v_src, 'limit 50') = 0 THEN
@@ -221,8 +273,12 @@ BEGIN
   IF pg_catalog.strpos(v_src, 'meldy_private.record_test_answers_for(v_user, v_answers, ''web'', 30)') = 0
      OR pg_catalog.strpos(v_src, '''client_event_id'', ''lc:'' || pg_catalog.replace(v_r.id::text, ''-'', '''') || '':'' || q.qi') = 0
      OR pg_catalog.strpos(v_src, 'meldy_private.quiz_practice_ready(v_c.container_id)') = 0
-     OR pg_catalog.strpos(v_src, 'v_q.offer_practice') = 0 THEN
-    RAISE EXCEPTION 'practice_as_live_practice';
+     OR pg_catalog.strpos(v_src, 'v_q.offer_practice') = 0
+     OR pg_catalog.strpos(v_src, 'if meldy_private.live_challenge_end_at(v_c) < pg_catalog.now() - interval ''7 days'' then
+    perform meldy_private.live_fail(''ML002'', ''expired'');') = 0
+     OR pg_catalog.strpos(v_src, 'if v_r.finished_at is null then') = 0
+     OR pg_catalog.strpos(v_src, 'pg_catalog.jsonb_build_object(''rev'', q.item_rev)') = 0 THEN
+    RAISE EXCEPTION 'practice_as_live_practice_a_week_after_the_end_with_the_items_rev';
   END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_challenge_kind(public.test_items)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'else meldy_private.live_more(p_item, true)') = 0 OR pg_catalog.strpos(v_src, 'p_item.images -> ''stem''') = 0 THEN
