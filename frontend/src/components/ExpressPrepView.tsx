@@ -7,7 +7,7 @@ import { useEnergyConfirm } from '../hooks/useEnergyConfirm';
 import ConversationPlayer from './conversation/ConversationPlayer';
 import CheatsheetSheet from './CheatsheetSheet';
 import { ConversationError, postJson, saveCheatsheet } from './conversation/persistence';
-import { runJob, useJobStatus } from './conversation/jobs';
+import { checkJob, runJob, useJobStatus } from './conversation/jobs';
 import type { ConversationFlashcard, PodcastLine } from './conversation/types';
 import './ExpressPrepView.css';
 
@@ -72,13 +72,16 @@ export default function ExpressPrepView({
     void runJob(
       'cheatsheet',
       id,
-      async begin => {
+      async (begin, signal) => {
         if (!context.trim()) throw new ConversationError('Недостаточно текста для выжимки.');
         if (userId && !(await verifyEnergy(userId, AI_COSTS.cheatsheet, 'Создание выжимки'))) return;
+        checkJob(signal);
         begin();
-        const payload = (await postJson('/api/quick-prep', { context, recognized })) as { cheatsheet?: unknown } | null;
+        const payload = (await postJson('/api/quick-prep', { context, recognized }, signal)) as { cheatsheet?: unknown } | null;
         const next = typeof payload?.cheatsheet === 'string' ? payload.cheatsheet.trim() : '';
         if (!next) throw new ConversationError(CHEATSHEET_FAILED);
+        // Остановленная работа (лекцию удалили, из аккаунта вышли, срок вышел) ничего не сохраняет.
+        checkJob(signal);
         // Меняется только cheatsheet: разговор, сохранённый за это время, остаётся.
         await saveCheatsheet(id, next);
         // Единицы списал сервер до модели (и вернул бы при сбое): обновляем остаток на экране.

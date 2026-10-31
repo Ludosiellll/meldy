@@ -499,8 +499,13 @@ export function rememberLiveMarks(mode: TicketMode, on: boolean): void {
   if (mode !== 'exam') writeLiveMarks(on);
 }
 
-/** Adds a just-saved question to the sheet's flag: its hash and its readiness before the answer. */
-export function addPeakFlag(examId: string, entry: { hash: string; questionId: string; before: Readiness }): void {
+/**
+ * Adds a just-saved question to the sheet's flag: its hash and its readiness before the answer. `before` is null when
+ * the page never read the question's history (the read failed or had not come back): then the flag carries no state
+ * and the sheet takes it from the journal (components/exams/peak.ts peakChange). It used to say «untested» then, which
+ * the sheet took over the journal's own state.
+ */
+export function addPeakFlag(examId: string, entry: { hash: string; questionId: string; before: Readiness | null }): void {
   try {
     const key = `${PEAK_PREFIX}${examId}`;
     const raw = window.sessionStorage.getItem(key);
@@ -516,7 +521,7 @@ export function addPeakFlag(examId: string, entry: { hash: string; questionId: s
     const next = list.filter(
       (item) => !(item && typeof item === 'object' && (item as Record<string, unknown>).hash === entry.hash),
     );
-    next.push({ hash: entry.hash, question_id: entry.questionId, before: entry.before });
+    next.push(entry.before ? { hash: entry.hash, question_id: entry.questionId, before: entry.before } : { hash: entry.hash, question_id: entry.questionId });
     window.sessionStorage.setItem(key, JSON.stringify(next.slice(-4)));
   } catch {
     // the sheet just draws without the change

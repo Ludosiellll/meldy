@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { startTransition, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useReducedMotion } from 'framer-motion';
 import toast from 'react-hot-toast';
 import { Pause, Play, SkipBack, SkipForward, X } from 'lucide-react';
@@ -46,7 +46,7 @@ import {
   VISUALS_CONTEXT_LIMIT,
   VISUALS_MAX_LINES,
 } from './persistence';
-import { isJobRunning, publishLines, runJob, useJobStatus, useLinesFeed } from './jobs';
+import { checkJob, isJobRunning, publishLines, runJob, useJobStatus, useLinesFeed } from './jobs';
 import type {
   ConversationFlashcard,
   ConversationLine,
@@ -262,6 +262,10 @@ interface LineRoom {
   first: number[];
 }
 const lineRooms = new Map<string, LineRoom>();
+/** Invisible copies added in one step after the player's first frame (each step its own short task). */
+const COPIES_PER_FRAME = 3;
+/** The height the invisible copies gave the pictures' cell, per conversation (its texts) and window width, px. */
+const layerHeights = new Map<string, number>();
 const roomKey = (texts: string, width: number) => `${width}|${texts}`;
 function keepRoom(key: string, room: LineRoom) {
   lineRooms.delete(key);
@@ -361,6 +365,25 @@ export default function ConversationPlayer({
   const voices = useMemo(() => assignVoices(speakers), [speakers]);
   // Каждое изображение один раз: по ним лист получает высоту самого большого.
   const layers = useMemo(() => conversation.filter(line => !line.carried), [conversation]);
+  // Невидимые копии приходят после первого кадра плеера, в переходах (startTransition), по COPIES_PER_FRAME за кадр:
+  // касание «Подкаста» рисует только изображение на листе, а копии раскладываются потом, частями, и ни одна часть не
+  // держит страницу долго (аудит плавности: 13 копий раскладывали страницу ~300 мс касания на среднем телефоне). Лист,
+  // уже знавший свою высоту при этом разговоре и этой ширине окна, держит её с первого кадра (layerHeights).
+  const [copiesCount, setCopiesCount] = useState(0);
+  const copiesShown = copiesCount >= layers.length;
+  // Схема и график занимают --cv-h: лист разговора с ними не ниже этого и до прихода копий (conversation.css data-full).
+  const fullSheet = useMemo(() => layers.some(layer => layer.visual.type === 'chart' || layer.visual.type === 'diagram'), [layers]);
+  useEffect(() => {
+    if (copiesShown) return;
+    let timer = 0;
+    const frame = window.requestAnimationFrame(() => {
+      timer = window.setTimeout(() => startTransition(() => setCopiesCount(count => Math.min(layers.length, count + COPIES_PER_FRAME))), 0);
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [copiesShown, copiesCount, layers.length]);
   // План для заставки начала: какие темы появятся на листе дальше (без вопросов, цитат и повторов).
   const outline = useMemo<OutlineItem[]>(() => {
     const opening = conversation[0]?.visual;
@@ -454,6 +477,23 @@ export default function ConversationPlayer({
 
   // Другие реплики (не только новые схемы к тем же): то, что звучало, к ним уже не относится.
   const textsKey = useMemo(() => JSON.stringify(conversation.map(line => line.text)), [conversation]);
+  const layersRef = useRef<HTMLDivElement | null>(null);
+  const layersKey = roomKey(textsKey, viewport.width);
+  const keptLayersHeight = copiesShown ? undefined : layerHeights.get(layersKey);
+  // The copies' height, read when the browser reports it (a ResizeObserver: no layout of its own), for the next opening.
+  useEffect(() => {
+    const cell = layersRef.current;
+    if (!copiesShown || !cell || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(entries => {
+      const height = Math.round(entries[entries.length - 1]?.contentRect.height ?? 0);
+      if (height <= 0) return;
+      layerHeights.delete(layersKey);
+      layerHeights.set(layersKey, height);
+      if (layerHeights.size > 24) layerHeights.delete(layerHeights.keys().next().value as string);
+    });
+    observer.observe(cell);
+    return () => observer.disconnect();
+  }, [copiesShown, layersKey]);
   const textsKeyRef = useRef(textsKey);
   useEffect(() => {
     if (textsKeyRef.current === textsKey) return;
@@ -914,20 +954,27 @@ export default function ConversationPlayer({
     void runJob(
       'create',
       id,
-      async begin => {
+      async (begin, signal) => {
         if (!(await energyAllows(userId, 'Создание подкаста'))) return;
+        checkJob(signal);
         begin();
         const snapshot = await loadMaterialSnapshot(id);
         const context = conversationContext(snapshot);
         if (!context) throw new ConversationError('В лекции слишком мало текста, чтобы составить подкаст.');
-        const payload = await postJson('/api/podcast/generate', {
-          context,
-          title: materialTitle,
-          terms: conversationTerms(snapshot, fallbackTerms),
-          recognized,
-        });
+        const payload = await postJson(
+          '/api/podcast/generate',
+          {
+            context,
+            title: materialTitle,
+            terms: conversationTerms(snapshot, fallbackTerms),
+            recognized,
+          },
+          signal,
+        );
         const generated = parseGeneratedLines(payload);
         if (!generated.length) throw new ConversationError('Не получилось составить подкаст. Попробуйте ещё раз.');
+        // Остановленная работа (лекцию удалили, из аккаунта вышли, срок вышел) ничего не сохраняет.
+        checkJob(signal);
         await saveConversationLines(id, generated);
         // Энергию списываем только после успешного сохранения.
         await chargeEnergy(userId);
@@ -949,8 +996,9 @@ export default function ConversationPlayer({
     void runJob(
       'visuals',
       id,
-      async begin => {
+      async (begin, signal) => {
         if (!(await energyAllows(userId, 'Подбор схем'))) return;
+        checkJob(signal);
         begin();
         const snapshot = await loadMaterialSnapshot(id);
         const stored = Array.isArray(snapshot.summaryJson.podcast) ? (snapshot.summaryJson.podcast as unknown[]) : [];
@@ -969,9 +1017,10 @@ export default function ConversationPlayer({
           context: conversationContext(snapshot, VISUALS_CONTEXT_LIMIT),
           terms: conversationTerms(snapshot, fallbackTerms),
           recognized,
-        });
+        }, signal);
         const { lines: merged, added } = mergeVisualsByIndex(base, payload);
         if (!added) throw new ConversationError('Не получилось подобрать схемы. Попробуйте ещё раз.');
+        checkJob(signal);
         await saveConversationLines(id, merged);
         await chargeEnergy(userId);
         publishLines(id, merged);
@@ -1085,10 +1134,16 @@ export default function ConversationPlayer({
           <div ref={bodyRef} className="cv-sheet-body">
             {/*
               Все изображения разговора лежат в одной ячейке сетки невидимыми копиями,
-              поэтому лист сразу получает высоту самого большого и не прыгает между репликами.
+              поэтому лист получает высоту самого большого и не прыгает между репликами.
+              Копии приходят после первого кадра плеера (copiesShown).
             */}
-            <div className="cv-layers">
-              {layers.map(layer => (
+            <div
+              ref={layersRef}
+              className="cv-layers"
+              data-full={!copiesShown && fullSheet ? '' : undefined}
+              style={keptLayersHeight ? { minHeight: keptLayersHeight } : undefined}
+            >
+              {layers.slice(0, copiesCount).map(layer => (
                 <div key={`measure-${layer.visualFrom}`} aria-hidden="true" data-scene-layer="measure" data-measure="" className="cv-layer">
                   <ConversationVisual
                     visual={layer.visual}

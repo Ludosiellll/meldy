@@ -325,3 +325,32 @@ describe('a diagram of words (spec 5.7, step A)', () => {
     expect(rootNodeId({ nodes: [{ id: 'a', label: 'А' }, { id: 'b', label: 'Б' }], edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'a' }] })).toBeNull();
   });
 });
+
+describe('a diagram’s edge label a line would cross (debt of 19.10)', () => {
+  it('stands on a plate drawn over the lines and under its own words', () => {
+    const visual = {
+      type: 'diagram' as const,
+      title: 'Цикл тепловой машины',
+      nodes: [{ id: 'a', label: 'Нагреватель' }, { id: 'b', label: 'Рабочее тело' }, { id: 'c', label: 'Холодильник' }, { id: 'd', label: 'Работа' }],
+      edges: [
+        { from: 'a', to: 'b', label: 'отдаёт тепло Q1' },
+        { from: 'b', to: 'c', label: 'отдаёт тепло Q2' },
+        { from: 'b', to: 'd', label: 'совершает работу' },
+        { from: 'c', to: 'a', label: 'цикл повторяется' },
+      ],
+    };
+    const { container } = render(<ConversationVisual visual={visual} origin="model" provenance={{ kind: 'none' }} budget={296} />);
+    const svg = container.querySelector('svg') as SVGSVGElement;
+    const plates = [...svg.querySelectorAll('rect.cv-elabel-plate')];
+    expect(plates.length).toBeGreaterThanOrEqual(1);
+    const order = [...svg.children].map((node) => node.getAttribute('class'));
+    // Lines first, then the plates, then the words: a plate hides the line under a label, never a word.
+    expect(order.lastIndexOf('cv-edge')).toBeLessThan(order.indexOf('cv-elabel-plate'));
+    expect(order.lastIndexOf('cv-elabel-plate')).toBeLessThan(order.indexOf('cv-elabel'));
+    for (const plate of plates) {
+      const label = [...svg.querySelectorAll('text.cv-elabel')].find((text) => text.textContent?.startsWith('отдаёт тепло'));
+      expect(label).toBeTruthy();
+      expect(Number(plate.getAttribute('width'))).toBeGreaterThan(0);
+    }
+  });
+});

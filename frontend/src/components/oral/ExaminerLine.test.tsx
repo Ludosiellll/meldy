@@ -111,6 +111,50 @@ describe('<ExaminerLine>', () => {
     height.mockRestore();
   });
 
+  it('a line that comes and goes (a hint, the microphone’s line) moves the block up once and never back down', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+    vi.stubGlobal('innerHeight', 720);
+    let observed: (() => void) | null = null;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(callback: () => void) {
+          observed = callback;
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    let blockHeight = 440;
+    const rect = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 0, width: 0, height, x: 0, y: top, toJSON: () => ({}) });
+    const spy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      if (this.getAttribute('data-point') === 'p4') return rect(450, 52) as DOMRect;
+      if (this.classList.contains('or-examiner')) return rect(130, blockHeight) as DOMRect;
+      return rect(0, 0) as DOMRect;
+    });
+    const height = vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.classList.contains('or-examiner') ? blockHeight : 0;
+    });
+    const { container } = render(
+      <div>
+        <div data-point="p4" />
+        <ExaminerLine question="Вопрос?" alignTo="p4" />
+      </div>,
+    );
+    const block = container.querySelector('.or-examiner') as HTMLElement;
+    const margins = [block.style.marginTop];
+    // «Говорите, я слушаю» comes and goes three times: the block is 40 px taller, then as before.
+    for (const next of [480, 440, 480, 440, 480, 440]) {
+      blockHeight = next;
+      act(() => observed?.());
+      margins.push(block.style.marginTop);
+    }
+    // Before the fix: 162, 122, 162, 122, 162, 122, 162 — up and down at every change.
+    expect(margins).toEqual(['162px', '122px', '122px', '122px', '122px', '122px', '122px']);
+    spy.mockRestore();
+    height.mockRestore();
+  });
+
   it('stays in the column’s flow on a phone', () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
     const { container } = render(

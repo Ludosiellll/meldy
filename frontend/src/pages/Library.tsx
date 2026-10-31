@@ -10,6 +10,7 @@ import { useConfirm } from '../contexts/ConfirmContext';
 import { deleteMaterial, getMaterials, updateMaterialTitle } from '../api/materials';
 import { listExamShelves, type ExamShelf } from '../api/exams';
 import { pluralRu } from '../components/conversation/visuals';
+import { cancelJobs } from '../components/conversation/jobs';
 import { KIND_LABELS, KIND_WORDS, formatDay, lecturesWord, phoneExamDay, subjectOf } from '../lib/exams/format';
 import { glue } from '../lib/oral/format';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -598,6 +599,8 @@ export default function Library() {
         return;
       }
       setEntries((previous) => (previous ?? []).filter((item) => item.id !== entry.id));
+      // A podcast or a cheat sheet still being made for it has nowhere to be saved: stopped quietly.
+      cancelJobs(entry.id);
       // Its folder mark and its row in this device's list go too (the same as from the lecture page).
       forgetLecture(userId, entry.id);
       if (assignments[entry.id]) setAssignments(withFolder(assignments, entry.id, ''));

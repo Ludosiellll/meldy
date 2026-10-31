@@ -498,3 +498,52 @@ describe('diagram on the paper sheet: Literata 20, a scale rule, no overlaps', (
     expect(phoneFit.layout.fontSize * phoneFit.scale).toBeGreaterThanOrEqual(16);
   });
 });
+
+describe('edge labels on a narrow phone sheet (debt of 19.10: arrow captions touched the lines)', () => {
+  /** The cycle of a heat engine, as the podcast drew it at 320–412 px: «отдаёт тепло Q2» had no clean place. */
+  const nodes: DiagramNode[] = [
+    { id: 'a', label: 'Нагреватель' },
+    { id: 'b', label: 'Рабочее тело' },
+    { id: 'c', label: 'Холодильник' },
+    { id: 'd', label: 'Работа' },
+  ];
+  const edges: DiagramEdge[] = [
+    { from: 'a', to: 'b', label: 'отдаёт тепло Q1' },
+    { from: 'b', to: 'c', label: 'отдаёт тепло Q2' },
+    { from: 'b', to: 'd', label: 'совершает работу' },
+    { from: 'c', to: 'a', label: 'цикл повторяется' },
+  ];
+  /** The letters' band of a drawn label (labelRect without its halo), in the layout's units. */
+  const lettersOf = (edge: DiagramLayout['edges'][number], unit: number) => {
+    const rect = labelRect(edge.labelText as string, edge.labelX as number, edge.labelY as number, edge.labelAnchor ?? 'middle', unit);
+    return { x: rect.x + 3 * unit, y: (edge.labelY as number) - 4 * unit, w: Math.max(0, rect.w - 6 * unit), h: 8 * unit };
+  };
+
+  it('a line through a label’s letters runs under a plate of the sheet’s colour; a clean label has none', () => {
+    for (const width of [250, 290, 306, 326, 344, 360, 380]) {
+      const { layout } = fitDiagram(nodes, edges, width, 296);
+      let plates = 0;
+      for (const edge of layout.edges.filter((item) => item.labelText)) {
+        const letters = lettersOf(edge, layout.unit);
+        const crossed = layout.edges.some((other) => polylineHitsRect(other.points, letters));
+        // Every crossed label has its plate, and the plate covers the letters the line would cross.
+        expect(Boolean(edge.labelPlate), `${width}px «${edge.labelText}»`).toBe(crossed);
+        if (edge.labelPlate) {
+          plates += 1;
+          const plate = labelRect(edge.labelText as string, edge.labelX as number, edge.labelY as number, edge.labelAnchor ?? 'middle', layout.unit);
+          expect(plate.x).toBeLessThanOrEqual(letters.x);
+          expect(plate.x + plate.w).toBeGreaterThanOrEqual(letters.x + letters.w);
+          expect(plate.y).toBeLessThanOrEqual(letters.y);
+          expect(plate.y + plate.h).toBeGreaterThanOrEqual(letters.y + letters.h);
+        }
+      }
+      // This diagram has no clean place for «отдаёт тепло Q2» on any phone sheet.
+      expect(plates, `${width}px`).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('on a computer’s sheet the same diagram needs no plate', () => {
+    const { layout } = fitDiagram(nodes, edges, 1032, 338);
+    expect(layout.edges.filter((edge) => edge.labelPlate)).toEqual([]);
+  });
+});

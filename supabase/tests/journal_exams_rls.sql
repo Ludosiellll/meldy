@@ -8,6 +8,12 @@
 -- RPCs (security invoker, empty search_path, executable by authenticated only) and the question
 -- normalisation vectors. Every comparison with a value read from the catalog is NULL-safe
 -- (IS DISTINCT FROM): a missing column or default must fail, not pass as NULL.
+-- The migration's revokes and grants, each one (added on 2026-10-31: the checks above read only SELECT and INSERT of anon
+-- and UPDATE and DELETE of learning_events): anon holds no privilege of any kind on the five tables; authenticated
+-- holds no TRUNCATE, REFERENCES or TRIGGER on any of them and no UPDATE on exam_materials, and holds exactly what the
+-- migration grants (learning_events SELECT and INSERT; exams, exam_questions and oral_rubrics SELECT, INSERT, UPDATE and
+-- DELETE; exam_materials SELECT, INSERT and DELETE); PUBLIC holds no EXECUTE on the two question-hash functions and the
+-- three RPCs, anon none on the hash functions, which authenticated and service_role may run.
 DO $$
 DECLARE
   t text;
@@ -88,6 +94,48 @@ BEGIN
        OR NOT has_function_privilege('authenticated', f, 'EXECUTE')
        OR has_function_privilege('anon', f, 'EXECUTE') THEN
       RAISE EXCEPTION 'rpc % must exist, be security invoker with an empty search_path, executable by authenticated only', f;
+    END IF;
+  END LOOP;
+
+  -- The revokes and grants of the migration, each one.
+  FOREACH t IN ARRAY ARRAY['learning_events','exams','exam_materials','exam_questions','oral_rubrics'] LOOP
+    FOREACH f IN ARRAY ARRAY['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER'] LOOP
+      IF has_table_privilege('anon', 'public.' || t, f) THEN
+        RAISE EXCEPTION 'anon holds % on % (revoke all ... from anon)', f, t;
+      END IF;
+    END LOOP;
+    FOREACH f IN ARRAY ARRAY['TRUNCATE','REFERENCES','TRIGGER'] LOOP
+      IF has_table_privilege('authenticated', 'public.' || t, f) THEN
+        RAISE EXCEPTION 'authenticated holds % on % (revoked by the migration)', f, t;
+      END IF;
+    END LOOP;
+  END LOOP;
+  IF has_table_privilege('authenticated', 'public.exam_materials', 'UPDATE') THEN
+    RAISE EXCEPTION 'authenticated holds UPDATE on exam_materials (revoked by the migration)';
+  END IF;
+  IF EXISTS (SELECT 1
+               FROM (VALUES ('learning_events', 'SELECT'), ('learning_events', 'INSERT'),
+                            ('exams', 'SELECT'), ('exams', 'INSERT'), ('exams', 'UPDATE'), ('exams', 'DELETE'),
+                            ('exam_questions', 'SELECT'), ('exam_questions', 'INSERT'), ('exam_questions', 'UPDATE'), ('exam_questions', 'DELETE'),
+                            ('oral_rubrics', 'SELECT'), ('oral_rubrics', 'INSERT'), ('oral_rubrics', 'UPDATE'), ('oral_rubrics', 'DELETE'),
+                            ('exam_materials', 'SELECT'), ('exam_materials', 'INSERT'), ('exam_materials', 'DELETE')) AS wanted (tbl, priv)
+              WHERE NOT has_table_privilege('authenticated', 'public.' || wanted.tbl, wanted.priv)) THEN
+    RAISE EXCEPTION 'authenticated lacks a privilege the migration grants';
+  END IF;
+  FOREACH f IN ARRAY ARRAY['public.meldy_normalize_question(text)', 'public.meldy_question_hash(text)',
+                           'public.review_flashcard(uuid,integer,text,date,uuid)', 'public.record_quiz_attempt(jsonb)',
+                           'public.record_oral_attempt(jsonb)'] LOOP
+    IF to_regprocedure(f) IS NULL
+       OR EXISTS (SELECT 1 FROM pg_catalog.pg_proc p, pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) a
+                   WHERE p.oid = to_regprocedure(f) AND a.grantee = 0 AND a.privilege_type = 'EXECUTE') THEN
+      RAISE EXCEPTION 'PUBLIC may execute % (revoke all ... from public)', f;
+    END IF;
+  END LOOP;
+  FOREACH f IN ARRAY ARRAY['public.meldy_normalize_question(text)', 'public.meldy_question_hash(text)'] LOOP
+    IF has_function_privilege('anon', f, 'EXECUTE')
+       OR NOT has_function_privilege('authenticated', f, 'EXECUTE')
+       OR NOT has_function_privilege('service_role', f, 'EXECUTE') THEN
+      RAISE EXCEPTION '% must be executable by authenticated and service_role only', f;
     END IF;
   END LOOP;
 

@@ -95,11 +95,11 @@ async function folderPaths(bucket: string, containerId: string): Promise<string[
 }
 
 /**
- * The pictures of an exam or a test go with it (live check of 47.4: a deleted test's cover and page pictures kept
- * opening from the public bucket quiz-covers): its folder in quiz-covers and in test-item-images, through the author's
- * own session. The storage policies («Quiz covers: owner reads / deletes», «Test item images: read own or joined /
- * owner deletes») know the owner from the container's row, so this runs before the row is deleted. The number of
- * pictures removed; a failure throws (the caller goes on with the delete).
+ * Every picture of an exam or a test, through the author's own session: its folder in quiz-covers and in
+ * test-item-images. The storage policies («Quiz covers: owner reads / deletes», «Test item images: read own or joined /
+ * owner deletes») know the owner from the container's row, so it works only while the row exists. The number of
+ * pictures removed; a failure throws. Not called when an exam is deleted any more: the server removes the folders after
+ * the delete (api/containers.ts deleteContainer); kept for a clean-up the author asks for.
  */
 export async function removeContainerPictures(containerId: string): Promise<number> {
   if (!UUID_RE.test(containerId)) return 0;

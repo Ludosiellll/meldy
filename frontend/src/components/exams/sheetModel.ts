@@ -4,7 +4,7 @@
  * mapping run; nothing here reads the network or storage.
  */
 import type { ExamQuestion, TicketLayout } from '../../api/exams';
-import { emptyQuestionState, READINESS_LABELS, type QuestionState, type Readiness, type SelfRating } from '../../lib/learning/readiness';
+import { daysSinceDay, emptyQuestionState, READINESS_LABELS, type QuestionState, type Readiness, type SelfRating } from '../../lib/learning/readiness';
 import {
   layoutShares,
   layoutSharesIf,
@@ -14,7 +14,7 @@ import {
   type ShareQuestion,
   type ShareResult,
 } from '../../lib/exams/ticketMath';
-import { daysUntil, formatDay, fragmentNumber, questionNumber } from '../../lib/exams/format';
+import { formatDay, fragmentNumber, questionNumber } from '../../lib/exams/format';
 import { pluralRu } from '../conversation/visuals';
 import { ty } from '../landing/typo';
 import type { SheetCoverage } from './marks';
@@ -503,10 +503,12 @@ export function knowPassedSentence(value: { ratedKnowAnswered: number; ratedKnow
   return `Из ${value.ratedKnowAnswered}${which} на которые вы ответили, полный ответ в ${value.ratedKnowPassed}.`;
 }
 
-/** Calendar days from a local day to today (0 for today), or null. */
+/**
+ * Calendar days from a local day to today (0 for today), or null: readiness's own count (daysSinceDay), the one that
+ * makes a question «пора проверить», so the words and the flag never disagree at the 14th day.
+ */
 export function daysAgo(key: string | null | undefined, now: Date = new Date()): number | null {
-  const days = daysUntil(key, now);
-  return days === null ? null : -days;
+  return daysSinceDay(key, now);
 }
 
 /**

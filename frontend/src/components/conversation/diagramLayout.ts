@@ -113,6 +113,11 @@ export interface LayoutEdge {
   labelX?: number;
   labelY?: number;
   labelAnchor?: 'start' | 'middle' | 'end';
+  /**
+   * Подпись стоит на подложке цвета листа (labelRect): на узком листе для неё не нашлось места, которое не перечёркивает
+   * чужая линия, и линия уходит под подложку, а не через буквы (долг 19.10: подписи на телефоне касались линий).
+   */
+  labelPlate?: boolean;
   /** Ломаная линии связи: у кривой и дуги — частые точки на ней, у прямой — концы, у обходной — углы. */
   points: Point[];
   /** SVG-путь линии. */
@@ -927,6 +932,8 @@ function placeLabels(pending: PendingEdge[], boxes: LayoutBox[], width: number):
     edge.labelX = best.candidate.x;
     edge.labelY = best.candidate.y;
     edge.labelAnchor = best.candidate.anchor;
+    const ink = labelInkRect(text, best.candidate.x, best.candidate.y, best.candidate.anchor);
+    if (strokes.some(points => polylineHitsRect(points, ink))) edge.labelPlate = true;
     placed.push(labelRect(text, best.candidate.x, best.candidate.y, best.candidate.anchor));
   }
   return pending.map(item => item.edge);

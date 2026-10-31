@@ -40,8 +40,8 @@ export default defineConfig({
       },
       // start_url and scope stay the plugin's defaults («/»), as in every release so far: an installed
       // app keeps its identity. The PNG icons are rendered from pwa-512x512.svg by scripts/og/render.mjs
-      // and come first, so a platform that picks by size takes them; the SVGs stay (the service worker
-      // shows /pwa-192x192.svg on notifications, and manifest icons are precached).
+      // and come first, so a platform that picks by size takes them; the SVGs stay (manifest icons are
+      // precached).
       manifest: {
         name: 'Meldy — подготовка к экзамену и конструктор тестов',
         short_name: 'Meldy',

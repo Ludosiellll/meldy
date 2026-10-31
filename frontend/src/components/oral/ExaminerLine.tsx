@@ -95,14 +95,23 @@ export default function ExaminerLine({ question, onRepeat, alignTo, children }: 
     if (!block || typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
     const wide = window.matchMedia('(min-width: 1024px)');
     const asked = alignTo && /^p[1-6]$/.test(alignTo) ? alignTo : null;
-    /** A computer: the block moves down to the asked row's height, never further than the window allows. */
-    const placeAtRow = (pointId: string) => {
+    /** How far below its own place the block stands now (px over its base margin). */
+    let placed = 0;
+    /**
+     * A computer: the block moves down to the asked row's height, never further than the window allows. When the block
+     * only changed its height (`grew`: a hint came or went, the microphone's line, the transcript), it moves up when it
+     * must, to keep its buttons in view, and never back down: a line that comes and goes made it jump up and down at
+     * every change (the examiner's block jittered under its ResizeObserver).
+     */
+    const placeAtRow = (pointId: string, upOnly: boolean) => {
       const row = document.querySelector<HTMLElement>(`[data-point="${pointId}"]`);
       if (!row) return;
       const box = block.getBoundingClientRect();
       const top = row.getBoundingClientRect().top - box.top;
       const room = window.innerHeight - box.bottom;
-      const delta = Math.max(0, Math.min(top - ROW_LEAD_PX, room - WINDOW_GAP_PX));
+      let delta = Math.max(0, Math.min(top - ROW_LEAD_PX, room - WINDOW_GAP_PX));
+      if (upOnly) delta = Math.min(delta, placed);
+      placed = delta;
       if (delta > 0) block.style.marginTop = `${BASE_MARGIN_PX + delta}px`;
     };
     const place = (moment: 'shown' | 'grew' | 'resized') => {
@@ -114,7 +123,8 @@ export default function ExaminerLine({ question, onRepeat, alignTo, children }: 
         else revealInRoom(block, 'smooth', 'answer', true);
         return;
       }
-      if (asked) placeAtRow(asked);
+      if (asked) placeAtRow(asked, moment === 'grew');
+      else placed = 0;
     };
     place('shown');
     const onResize = () => place('resized');

@@ -5,7 +5,8 @@ import { createFakeSupabase } from '../lib/oral/testing/fakeSupabase';
 import { DEMO_ANSWER, DEMO_QUESTION, DEMO_RUBRIC, demoRubricResponse } from '../lib/oral/testing/fixtures';
 import { CHECK_AFTER_FAILED_CHECK_MS, CHECK_CONFIRM_TIMEOUT_MS, CHECK_FOLLOWUP_TIMEOUT_MS, DONT_KNOW_VERDICT } from '../lib/oral/oralApi';
 import type { RecognitionResultEvent } from '../hooks/useSpeechAnswer';
-import { CHOSE_SERVER_NOTICE, EXAM_MODE_LINE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE, nextStepLine } from './ExamTicket';
+import { CHOSE_SERVER_NOTICE, EXAM_MODE_LINE, FOLLOWUP_WAITING_LINE, PRIVACY_LINE, PRIVACY_SERVER_LINE, SAVE_WAIT_MS, SWITCHED_TO_SERVER_NOTICE, nextStepLine } from './ExamTicket';
+import oralCss from '../components/oral/oral.css?raw';
 import { SCALE_NOTE } from '../components/oral/OralProtocol';
 import { PASTE_REFUSED } from '../lib/oral/pasteGuard';
 
@@ -1672,6 +1673,23 @@ describe('ExamTicket: when the browser does not recognise speech', () => {
     );
   });
 
+  it('guards a tab close while recorded speech waits for the server, before any word is on the page', async () => {
+    seedDatabase();
+    await renderPage(ticketUrl());
+    await readyToAnswer();
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    act(() => recognition().onerror?.({ error: 'network' }));
+    const listening = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(listening);
+    // Listening with nothing said: nothing to lose, no question.
+    expect(listening.defaultPrevented).toBe(false);
+    act(() => media.recorders[0].piece());
+    expect(screen.getByText('Распознаём сказанное…')).toBeInTheDocument();
+    const recorded = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(recorded);
+    expect(recorded.defaultPrevented).toBe(true);
+  });
+
   it('moves to the server when the browser sends no words, and then says who hears the answer', async () => {
     seedDatabase();
     await renderPage(ticketUrl());
@@ -2107,6 +2125,32 @@ describe('ExamTicket: the jury’s fixes (Jury_Check 2026-10-03)', () => {
     expect(waiting).not.toHaveAttribute('data-waiting');
     expect(waiting).not.toHaveAttribute('aria-hidden');
     expect(within(waiting).getByText('Ваш ответ на вопрос')).toBeInTheDocument();
+  });
+
+  it('while the examiner asks, the answer’s place says when the microphone opens: no empty band in the card (voice)', async () => {
+    vi.stubGlobal('webkitSpeechRecognition', FakeRecognition);
+    seedDatabase();
+    const { container } = await renderPage(ticketUrl());
+    await readyToAnswer();
+    await waitFor(() => expect(ttsTexts()).toContain('Не расслышал ответ'));
+    fireEvent.click(screen.getByRole('button', { name: 'Отвечать голосом' }));
+    const rec = recognition();
+    act(() => rec.say([[DEMO_ANSWER, true]]));
+    fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
+    act(() => rec.end());
+    await screen.findByText(`«${Q4}»`);
+    const waiting = container.querySelector('.or-examiner .or-examiner-listen') as HTMLElement;
+    expect(waiting).toHaveAttribute('data-waiting');
+    expect(within(waiting).getByText(FOLLOWUP_WAITING_LINE)).toBeInTheDocument();
+    // On a computer the place is drawn (it was visibility: hidden); a phone still leaves it out until the microphone opens.
+    expect(oralCss).not.toMatch(/\.or-examiner-listen\[data-waiting\]\s*\{\s*visibility:\s*hidden/);
+    await waitFor(() => expect(audiosFor(Q4)).toHaveLength(1));
+    act(() => audiosFor(Q4)[0].onended?.());
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(350);
+    });
+    expect(within(waiting).queryByText(FOLLOWUP_WAITING_LINE)).toBeNull();
+    expect(within(waiting).getByText('Говорите — я слушаю.')).toBeInTheDocument();
   });
 
   describe('«как на экзамене» (item 11)', () => {

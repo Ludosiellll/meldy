@@ -12,8 +12,6 @@ pydantic==2.14.1
 youtube-transcript-api==1.2.4
 slowapi==0.1.10
 httpx==0.28.1
-pywebpush==2.5.0
-apscheduler==3.11.3
 edge-tts==7.2.8
 beautifulsoup4==4.15.0
 snowballstemmer==3.1.1

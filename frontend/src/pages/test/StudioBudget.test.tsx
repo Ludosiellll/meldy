@@ -304,3 +304,43 @@ describe('the studio’s render budget on a phone, a page of 30 blocks', () => {
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
   });
 });
+
+describe('the studio’s «Список» on a phone (smoothness debt: a touch there took ≈ 172 ms of a mid phone)', () => {
+  async function openList() {
+    await openPage();
+    const touched = measure(() => fireEvent.click(screen.getByRole('button', { name: STUDIO.views.list })));
+    await screen.findAllByRole('button', { name: 'Ниже' });
+    return touched;
+  }
+
+  it('the tap on «Список» moves the segment in its own commit; the list of cards comes in a later one', async () => {
+    const touched = await openList();
+    expect(touched.commits.length, touched.commits.map((c) => c.join(',')).join(' | ')).toBeGreaterThanOrEqual(2);
+    expect(touched.commits[0]).not.toContain('ListView');
+    expect(touched.commits[0]).not.toContain('BuildCard');
+    expect(touched.components).toContain('ListView');
+    expect(screen.getByRole('button', { name: STUDIO.views.list })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('«Ниже» redraws the two cards that swapped, not the whole list', async () => {
+    await openList();
+    const cards = () => Array.from(document.querySelectorAll<HTMLElement>('.tb-list > li')).map((row) => row.dataset.item);
+    const before = cards();
+    expect(before.length).toBeGreaterThanOrEqual(6);
+    const moved = measure(() => fireEvent.click(screen.getAllByRole('button', { name: 'Ниже' })[0]));
+    expect(cards().slice(0, 2)).toEqual([before[1], before[0]]);
+    expect(moved.components.filter((name) => name === 'BuildCard').length, moved.components.join(', ')).toBeLessThanOrEqual(2);
+    // The moved card's «Ниже» has the focus back.
+    expect(document.activeElement).toHaveAttribute('data-act', `down:${before[0]}`);
+  });
+
+  it('«Изменить»: the tap’s own commit has no editor; it comes in a later commit, with the focus in its question', async () => {
+    await openList();
+    const opened = measure(() => fireEvent.click(screen.getAllByRole('button', { name: 'Изменить' })[1]));
+    expect(opened.commits[0]).not.toContain('QuestionEditor');
+    expect(opened.components).toContain('QuestionEditor');
+    // The other cards did not render for it.
+    expect(opened.components.filter((name) => name === 'BuildCard').length, opened.components.join(', ')).toBeLessThanOrEqual(1);
+    expect(document.activeElement?.classList.contains('qe-stem')).toBe(true);
+  });
+});
