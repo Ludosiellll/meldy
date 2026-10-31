@@ -10,7 +10,7 @@
 --    kind. The old kinds go through meldy_private.grade_answer unchanged (its six columns exactly); the new column
 --    o_credit is 1 for a right answer and 0 otherwise, except multiple with partial credit. The new kinds: number (text,
 --    public.meldy_number_right), order (chosen = the arrangement), match (chosen = per left item the index of its right
---    item, -1 = empty), cloze (texts, one per gap), essay (text, never right: it is checked in the quiz). Shared cases:
+--    item, -1 = empty), cloze (texts, one per gap; one gap also takes text), essay (text, never right: it is checked in the quiz). Shared cases:
 --    contracts/kinds/grade_vectors.json; TS twin frontend/src/lib/kinds/grade.ts.
 -- 2. The answer core grades with grade_item; for an item of a new kind its reply gives key and answers (and tolerance,
 --    unit for number). The rule «верно в два разных дня» counts right answers only, as before (credit is not part of it).
@@ -88,6 +88,12 @@ begin
   -- cloze: texts, one string per gap ('' = left empty), null = «Не знаю»; no shown order.
   if p_i.kind = 'cloze' then
     v_n := pg_catalog.cardinality(p_i.answers);
+    -- a cloze of one gap also takes «text» (the bot's typed answer): the same as texts of one element
+    if v_n = 1 and not (p_a ? 'texts') and p_a ? 'text' then
+      p_a := (p_a - 'text') || pg_catalog.jsonb_build_object('texts',
+               case when pg_catalog.jsonb_typeof(p_a -> 'text') = 'null' then 'null'::jsonb
+                    else pg_catalog.jsonb_build_array(p_a -> 'text') end);
+    end if;
     v_type := pg_catalog.jsonb_typeof(p_a -> 'texts');
     if v_type = 'null' then
       o_result := 'dont_know';

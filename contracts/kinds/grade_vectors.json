@@ -54,7 +54,9 @@
   {"name": "cloze null", "item": {"kind": "cloze", "answers": ["Москва"]}, "answer": {"texts": null}, "valid": true, "correct": false, "result": "dont_know", "credit": 0},
   {"name": "cloze wrong count", "item": {"kind": "cloze", "answers": ["Москва", "1147"]}, "answer": {"texts": ["Москва"]}, "valid": false},
   {"name": "cloze not strings", "item": {"kind": "cloze", "answers": ["Москва"]}, "answer": {"texts": [5]}, "valid": false},
-  {"name": "cloze a text instead", "item": {"kind": "cloze", "answers": ["Москва"]}, "answer": {"text": "Москва"}, "valid": false},
+  {"name": "cloze of one gap takes a text", "item": {"kind": "cloze", "answers": ["Москва\nмосква-град"]}, "answer": {"text": "Москва-град"}, "valid": true, "correct": true, "result": "right", "credit": 1},
+  {"name": "cloze of one gap, text null", "item": {"kind": "cloze", "answers": ["Москва"]}, "answer": {"text": null}, "valid": true, "correct": false, "result": "dont_know", "credit": 0},
+  {"name": "cloze of two gaps takes no text", "item": {"kind": "cloze", "answers": ["Москва", "1147"]}, "answer": {"text": "Москва"}, "valid": false},
   {"name": "cloze too long", "item": {"kind": "cloze", "answers": ["Москва"]}, "answer": {"texts": ["xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"]}, "valid": false}
  ]
 }

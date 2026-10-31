@@ -101,8 +101,10 @@ export function gradeItem(item: GradeItem, answer: GradeAnswer): Grade {
   }
   if (item.kind === 'cloze') {
     const forms = gapForms(item.answers);
-    if (answer.texts === null) return noOrder ? DONT_KNOW : INVALID;
-    const texts = answer.texts;
+    // a cloze of one gap also takes «text» (the bot's typed answer)
+    const texts = answer.texts === undefined && forms.length === 1 && answer.text !== undefined
+      ? (answer.text === null ? null : [answer.text]) : answer.texts;
+    if (texts === null) return noOrder ? DONT_KNOW : INVALID;
     if (!Array.isArray(texts) || texts.length !== forms.length || !texts.every((t) => typeof t === 'string' && t.length <= 200)
         || !noOrder) return INVALID;
     if (texts.every((t) => shortNorm(t) === '')) return DONT_KNOW;
