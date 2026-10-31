@@ -169,14 +169,14 @@ export const GOAL = {
   tryLink: 'Попробовать на примере',
 } as const;
 
-/** The first-run guide: its first card, the way out, and the three cards for a teacher. */
+/** The first-run guide: its first card, the way out, and the three cards for a teacher (firstRun.ts adds «Игры» to each way). */
 export const GUIDE_START = {
   kicker: 'Знакомство с Meldy',
   title: 'Что вы хотите сделать?',
   lede: 'Покажем только нужное. Остальное откроется по кнопке «?» вверху.',
   ledePhone: 'Покажем только нужное. Остальное откроется в меню профиля.',
-  examSteps: '4 коротких шага',
-  testSteps: '3 коротких шага',
+  examSteps: '5 коротких шагов',
+  testSteps: '4 коротких шага',
   all: 'Показать все разделы',
   skip: 'Пропустить знакомство',
   next: 'Дальше',

@@ -30,6 +30,50 @@
   transform: rotate(45deg);
 }
 
+/* ---------------------------------------------------------------- a computer's short line */
+/* Up to 1439 px a computer's line holds six sections («Игры» since 31.10): «Разобрать лекцию» is «+ Лекция» there, as on a
+   tablet (the full words stay for screen readers), and the sections sit a little closer; the limit is its ring up to
+   1279 px (quotaMeter.css). */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .sf-shell .sf-bar .sf-nav-cta {
+    position: relative;
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    height: 44px;
+    padding: 0 16px 0 13px;
+    border-radius: 999px;
+  }
+  .sf-shell .sf-bar .sf-cta-t {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .sf-shell .sf-bar .sf-cta-plus { position: relative; display: block; width: 18px; height: 18px; }
+  .sf-shell .sf-bar .sf-cta-plus::before,
+  .sf-shell .sf-bar .sf-cta-plus::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 18px;
+    height: 2.5px;
+    margin-top: -1.25px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+  .sf-shell .sf-bar .sf-cta-plus::after { transform: rotate(90deg); }
+  .sf-shell .sf-bar .sf-cta-short { display: inline; font-size: 15px; font-weight: 600; line-height: 1; letter-spacing: -.01em; }
+  .sf-shell .sf-bar-in { gap: 20px; }
+  .sf-shell .sf-bar-link { padding: 0 11px; }
+}
+
 /* ---------------------------------------------------------------- phones and tablets */
 @media (max-width: 1023px) {
   .sf-shell { --sf-tabs-h: 62px; }

@@ -32,7 +32,7 @@ vi.mock('../contexts/ThemeProvider', async (importOriginal) => ({
 vi.mock('../hooks/useInstallPWA', () => ({ useInstallPWA: () => ({ handleInstallClick: vi.fn(), showInstall: mocks.showInstall }) }));
 vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() }) }));
 
-import Layout, { DESK_LINKS, NAV_ITEMS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining, sectionOf } from './Layout';
+import Layout, { DESK_LINKS, GAMES_ITEM, NAV_ITEMS, PHONE_TABS, backLinkFor, hidesBottomNav, isRoomPath, quotaRemaining, sectionOf } from './Layout';
 import { LOW_SHARE, quotaLevel, quotaSentence } from './QuotaMeter';
 import { rememberAttachedExams, rememberContainerTitle } from '../lib/containers/titleCache';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
@@ -77,11 +77,11 @@ afterEach(() => {
 });
 
 describe('the menu: five sections around the core', () => {
-  it('is one line of the five sections — Сегодня, Экзамены, Лекции, Повторение, Прогресс — and no sidebar', async () => {
+  it('is one line of the five sections and «Игры» after «Лекции» (owner, 31.10) — and no sidebar', async () => {
     renderAt('/dashboard');
     const links = within(deskNav()).getAllByRole('link');
-    expect(links.map((link) => link.textContent?.replace(/\d+/g, '').trim())).toEqual(['Сегодня', 'Экзамены', 'Лекции', 'Повторение', 'Прогресс']);
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/dashboard', '/exams', '/library', '/review', '/analytics']);
+    expect(links.map((link) => link.textContent?.replace(/\d+/g, '').trim())).toEqual(['Сегодня', 'Экзамены', 'Лекции', 'Игры', 'Повторение', 'Прогресс']);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/dashboard', '/exams', '/library', '/games', '/review', '/analytics']);
     for (const link of links) expect(link.className).toBe('sf-bar-link');
     expect(within(bar()).queryByRole('link', { name: /Карта знаний|Дневник ошибок|Библиотека/ })).toBeNull();
     expect(document.querySelector('aside')).toBeNull();
@@ -179,8 +179,10 @@ describe('phones and tablets (spec 4.2)', () => {
     // «Сегодня» is a calendar: the sun is the theme button in the top line, and one picture means one thing.
     expect(within(tabs).getByRole('link', { name: 'Сегодня' }).querySelector('svg')).toHaveClass('lucide-calendar-days');
     expect(tabs.querySelector('.lucide-sun')).toBeNull();
-    expect(DESK_LINKS).toBe(NAV_ITEMS);
+    // «Игры» is the computer's sixth item only: six tabs do not fit at 360 px (a row on «Сегодня» and the account menu).
     expect(PHONE_TABS).toBe(NAV_ITEMS);
+    expect(DESK_LINKS).toEqual([...NAV_ITEMS.slice(0, 3), GAMES_ITEM, ...NAV_ITEMS.slice(3)]);
+    expect(within(tabs).queryByRole('link', { name: 'Игры' })).toBeNull();
     await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 
@@ -516,7 +518,23 @@ describe('account menu', () => {
     expect(within(menu).getByRole('link', { name: 'Профиль' })).toHaveAttribute('href', '/profile');
     expect(within(menu).queryByRole('link', { name: /Мои группы|Диалоги/ })).toBeNull();
     expect(within(menu).queryByRole('button', { name: /Уведомления/ })).toBeNull();
-    expect(within(menu).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/profile']);
+    // «Игры»: on a phone and a tablet the way to the section (its tabs have no room for a sixth).
+    expect(within(menu).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual(['/profile', '/games']);
+  });
+
+  it('«Игры» (owner, 31.10): the top line lights it on its page, no phone tab does, the account menu leads there', async () => {
+    renderAt('/games');
+    expect(within(deskNav()).getByRole('link', { name: 'Игры' })).toHaveAttribute('aria-current', 'page');
+    expect(within(deskNav()).getAllByRole('link').filter((link) => link.hasAttribute('aria-current'))).toHaveLength(1);
+    expect(sectionOf('/games')).toBe(GAMES_ITEM);
+    expect(sectionOf('/games/')).toBe(GAMES_ITEM);
+    expect(sectionOf('/gamesx')).toBeNull();
+    const tabs = tabBar()!;
+    expect(within(tabs).getAllByRole('link').filter((link) => link.hasAttribute('aria-current'))).toHaveLength(0);
+    openMenu();
+    const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
+    expect(within(menu).getByRole('link', { name: 'Игры' })).toHaveAttribute('href', '/games');
+    await waitFor(() => expect(mocks.checkAILimit).toHaveBeenCalled());
   });
 });
 
@@ -812,7 +830,7 @@ describe('inside Telegram (the Mini App: meldy-notes 10_Project/Telegram_Mini_Ap
     expect(bar().querySelector('.sf-back')).toBeNull();
     expect(document.querySelector('.sf-shell')).not.toHaveAttribute('data-back');
     expect(within(bar()).queryByRole('button', { name: /^Включить (тёмную|светлую) тему$/ })).toBeNull();
-    expect(within(deskNav()).getAllByRole('link')).toHaveLength(5);
+    expect(within(deskNav()).getAllByRole('link')).toHaveLength(6);
     fireEvent.click(screen.getByRole('button', { name: 'Алина: профиль, справка' }));
     const menu = screen.getByRole('dialog', { name: 'Меню аккаунта' });
     expect(within(menu).getByRole('link', { name: 'Профиль' })).toHaveAttribute('href', '/profile');

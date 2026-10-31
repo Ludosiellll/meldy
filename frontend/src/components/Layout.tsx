@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, CalendarDays, GraduationCap, Repeat, TrendingUp, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, Gamepad2, GraduationCap, Repeat, TrendingUp, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { getProfile, type UserProfile } from '../api/social';
 import { ErrorBoundary } from './ErrorBoundary';
@@ -32,8 +32,8 @@ import './layout.css';
  * «+ Лекция» is at the top of «Лекции» and in the lectures of «Сегодня», the guide in the account menu) — and five
  * tabs at the bottom, an icon over a word («Повторение» with a badge of the cards due).
  * The menu is the core of Meldy: «Сегодня», «Экзамены», «Лекции», «Повторение» (with the mistakes
- * diary) and «Прогресс» (with the knowledge map). The window scrolls (not <main>), so a page opens at
- * its top and «назад» returns to where it was.
+ * diary) and «Прогресс» (with the knowledge map); on a computer «Игры» too, after «Лекции» (GAMES_ITEM).
+ * The window scrolls (not <main>), so a page opens at its top and «назад» returns to where it was.
  *
  * Inside Telegram (lib/telegram/miniApp, meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5) the shell
  * keeps its sections and drops what makes no sense there: «‹ Родитель» (Telegram's own «Назад» stands in:
@@ -65,15 +65,22 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/analytics', label: 'Прогресс', match: /^\/(analytics|knowledge-map)(\/|$)/, icon: TrendingUp },
 ];
 
-/** The desktop line: «Сегодня · Экзамены · Лекции · Повторение 11 · Прогресс». */
-export const DESK_LINKS = NAV_ITEMS;
+/**
+ * «Игры» (owner, 31.10: «может отдельный Блок сверху как "лекции"»): the live game's section, /games. A sixth item of the
+ * top line on a computer; a phone's five tabs have no room for it at 360 px, so there it is a row on «Сегодня» and a
+ * line in the account menu.
+ */
+export const GAMES_ITEM: NavItem = { to: '/games', label: 'Игры', match: /^\/games(\/|$)/, icon: Gamepad2 };
 
-/** The phone tabs: the same five sections. */
+/** The desktop line: «Сегодня · Экзамены · Лекции · Игры · Повторение 11 · Прогресс». */
+export const DESK_LINKS: NavItem[] = [...NAV_ITEMS.slice(0, 3), GAMES_ITEM, ...NAV_ITEMS.slice(3)];
+
+/** The phone tabs: the five sections. */
 export const PHONE_TABS = NAV_ITEMS;
 
 /** The section whose item is current at `pathname`, or null (the profile, the upload page, …). */
 export function sectionOf(pathname: string): NavItem | null {
-  return NAV_ITEMS.find((item) => item.match.test(pathname)) ?? null;
+  return DESK_LINKS.find((item) => item.match.test(pathname)) ?? null;
 }
 
 /**
@@ -437,6 +444,10 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         ) : null}
       </div>
       <Link className="sf-acct-item" to="/profile">Профиль</Link>
+      {/* «Игры» on a phone and a tablet, whose tabs have no room for it (on a computer it is in the top line too). */}
+      <Link className="sf-acct-item" to={GAMES_ITEM.to}>
+        {GAMES_ITEM.label}
+      </Link>
       {/* The way to the guide on a phone, whose line has no «?»: the focus goes back to the account button, so the guide
           gives it back there when it closes. */}
       <button

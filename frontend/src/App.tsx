@@ -35,6 +35,7 @@ const LectureTalk = lazy(() => import('./pages/LectureTalk'));
 const Review = lazy(() => import('./pages/Review'));
 const MistakeDiary = lazy(() => import('./pages/MistakeDiary'));
 const Analytics = lazy(() => import('./pages/Analytics'));
+const Games = lazy(() => import('./pages/Games'));
 const KnowledgeMap = lazy(() => import('./pages/KnowledgeMap'));
 const AuthCallback = lazy(() => import('./pages/AuthCallback'));
 const Profile = lazy(() => import('./pages/Profile'));
@@ -246,6 +247,7 @@ export default function App() {
           <Route path="exams/:id/report" element={<ExamReport />} />
           <Route path="mistakes" element={<MistakeDiary />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="games" element={<Games />} />
           <Route path="knowledge-map" element={<KnowledgeMap />} />
         </Route>
         <Route path="/shared/:id" element={<SharedMaterial />} />
