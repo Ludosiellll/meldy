@@ -16,6 +16,9 @@ import type {
   ItemPercent,
   MistakesSent,
   QuizAnalysis,
+  QuizNotice,
+  QuizShareStatus,
+  QuizTelegramState,
   EssayVerdict,
   QuizAnswerInput,
   QuizGuardEventRow,
@@ -171,6 +174,36 @@ export async function sendMistakes(quizId: Uuid): Promise<MistakesSent> {
     guests: num(raw.guests),
     practice: raw.practice === true,
   };
+}
+
+function telegramState(raw: unknown): QuizTelegramState {
+  const r = shaped<Record<string, unknown>>(raw, 'telegram_quiz_state', 'linked');
+  const notice = r.notice === 'each' || r.notice === 'digest' ? r.notice : 'off';
+  return {
+    linked: r.linked === true,
+    blocked: r.blocked === true,
+    notice,
+    groups: rows<Record<string, unknown>>(r.groups, 'chat_id')
+      .filter((g) => typeof g.chat_id === 'number')
+      .map((g) => ({ chat_id: g.chat_id as number, title: typeof g.title === 'string' ? g.title : null, shared_at: typeof g.shared_at === 'string' ? g.shared_at : null })),
+  };
+}
+
+/** Release 49: the author's Telegram for this quiz — linked, the notices chosen, the group chats of the exam. */
+export async function quizTelegramState(quizId: Uuid): Promise<QuizTelegramState> {
+  return telegramState(await rpc('telegram_quiz_state', { p_quiz_id: quizId }));
+}
+
+/** Each finish, a digest an hour, or nothing; → the state after the change. */
+export async function setQuizNotice(quizId: Uuid, mode: QuizNotice): Promise<QuizTelegramState> {
+  return telegramState(await rpc('telegram_quiz_notice', { p_quiz_id: quizId, p_mode: mode }));
+}
+
+/** The quiz's link into a group chat of the exam, once a day per chat; the bot posts it within a minute. */
+export async function shareQuizToGroup(quizId: Uuid, chatId: number): Promise<{ status: QuizShareStatus; title: string | null }> {
+  const r = shaped<Record<string, unknown>>(await rpc('telegram_quiz_share', { p_quiz_id: quizId, p_chat_id: chatId }), 'telegram_quiz_share', 'status');
+  const status = (['queued', 'already', 'closed', 'no_group', 'no_link'] as const).find((s) => s === r.status) ?? 'no_group';
+  return { status, title: typeof r.title === 'string' ? r.title : null };
 }
 
 /** The studio's canvas: per question of the exam or test, the finished quiz attempts of others and their credit. */

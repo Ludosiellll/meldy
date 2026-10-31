@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   deleteQuiz: vi.fn(),
   quizAnalysis: vi.fn(),
   sendMistakes: vi.fn(),
+  quizTelegramState: vi.fn(),
   state: { summary: null as unknown, items: null as unknown },
 }));
 vi.mock('../../api/quizzes', () => ({
@@ -23,6 +24,10 @@ vi.mock('../../api/quizzes', () => ({
   deleteQuiz: api.deleteQuiz,
   quizAnalysis: api.quizAnalysis,
   sendMistakes: api.sendMistakes,
+  // release 49: Telegram on the page (its own tests: QuizTelegram.test.tsx); an older server without it
+  quizTelegramState: api.quizTelegramState,
+  setQuizNotice: vi.fn(),
+  shareQuizToGroup: vi.fn(),
 }));
 vi.mock('../../lib/containers/hooks', () => ({
   useContainerData: () => ({
@@ -142,6 +147,7 @@ beforeEach(() => {
   api.quizMarks.mockReset().mockResolvedValue([]);
   api.quizAnalysis.mockReset();
   api.sendMistakes.mockReset();
+  api.quizTelegramState.mockReset().mockRejectedValue(new Error('PGRST202'));
   serve(20);
 });
 afterEach(() => {

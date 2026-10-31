@@ -15,6 +15,7 @@ import QuizPeople from '../../components/quiz/QuizPeople';
 import QuizQuestions from '../../components/quiz/QuizQuestions';
 import QuizShare from '../../components/quiz/QuizShare';
 import QuizRepeat from '../../components/quiz/QuizRepeat';
+import QuizTelegram from '../../components/quiz/QuizTelegram';
 import { analysisStamp, useQuizAnalysis } from '../../components/quiz/useQuizAnalysis';
 import { fastSigns } from '../../lib/quizzes/analysis';
 import { QA_ERRORS, QA_LIST, QA_STATS } from '../../components/quiz/copyAuthor';
@@ -371,6 +372,7 @@ export default function QuizStatsPage() {
           {announce}
         </p>
         <QuizShare url={url} title={quiz.title} />
+        <QuizTelegram quizId={quizId} url={url} title={quiz.title} closed={quiz.state === 'closed'} />
         <p className="qa-acts">
           <Link className="sf-link" to={`${listPath}/${quizId}/edit`}>
             {QA_STATS.edit}

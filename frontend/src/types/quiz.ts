@@ -233,6 +233,18 @@ export interface MistakesSent {
   guests: number;
   practice: boolean;
 }
+/** Release 49 (20261105090100_quiz_telegram): the author's Telegram side of a quiz. */
+export type QuizNotice = 'each' | 'digest' | 'off';
+export interface QuizTelegramState {
+  /** The author's Telegram is linked; blocked — they stopped the bot there. */
+  linked: boolean;
+  blocked: boolean;
+  notice: QuizNotice;
+  /** Group chats bound to the exam where the bot still is; shared_at — the quiz's link went there last. */
+  groups: Array<{ chat_id: number; title: string | null; shared_at: string | null }>;
+}
+export type QuizShareStatus = 'queued' | 'already' | 'closed' | 'no_group' | 'no_link';
+
 /** test_item_percents: per question of the exam, the finished attempts of others that got it and their credit. */
 export interface ItemPercent {
   item_id: Uuid;

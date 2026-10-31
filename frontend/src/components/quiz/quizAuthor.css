@@ -520,6 +520,13 @@
 .sf-page.qa-page .qa-q-skip { font-size: 14px; color: var(--sf-muted); }
 .sf-page.qa-page .qa-q-foot .sf-link { margin-left: auto; font-size: 15px; }
 
+/* ── Release 49: Telegram under the sharing pills (QuizTelegram) ── */
+.sf-page.qa-page .qa-tg { display: grid; gap: 0; margin: 0 0 4px; }
+.sf-page.qa-page .qa-tg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 15px; color: var(--sf-muted); }
+.sf-page.qa-page .qa-tg-hint { max-width: 640px; margin: 6px 0 0; }
+.sf-page.qa-page .qa-tg-hint .sf-link { font-size: 14px; }
+.sf-page.qa-page .qa-tg-shares { margin-top: 10px; }
+
 /* ── Release 49 (lib/quizzes/analysis.ts): the verdict, the trap, the usual time, the comparison; «Повторить» ── */
 .sf-page.qa-page .qa-insight { display: grid; gap: 8px; margin: 0 0 16px; padding: 16px 20px; border-radius: 24px; background: var(--sf-surface-soft); box-shadow: inset 0 0 0 1px var(--sf-line); }
 .sf-page.qa-page .qa-insight-line { margin: 0; font-size: 15px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }

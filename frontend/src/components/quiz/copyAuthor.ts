@@ -436,6 +436,36 @@ export const QA_REPEAT = {
   failed: 'Не получилось отправить. Попробуйте ещё раз.',
 } as const;
 
+/**
+ * Telegram on the results page (release 49, 20261105090100_quiz_telegram): the bot tells the author who finished and
+ * the summary at the close; the link goes into a group chat of the exam with one press.
+ */
+export const QA_TELEGRAM = {
+  title: 'Telegram',
+  notice: 'Сообщать о сдачах',
+  noticeOption: (mode: 'each' | 'digest' | 'off') => ({ each: 'о каждой работе', digest: 'сводкой раз в час', off: 'не сообщать' })[mode],
+  noticeHint: (mode: 'each' | 'digest' | 'off') =>
+    ({
+      each: 'Бот напишет, кто сдал и сколько набрал. Не больше трёх сообщений за 10 минут, дальше — сводкой. С 22 до 8 молчит. Когда контрольная закроется, пришлёт итог.',
+      digest: 'Раз в час — одно сообщение со всеми, кто сдал. С 22 до 8 бот молчит. Когда контрольная закроется, пришлёт итог.',
+      off: 'Бот может писать вам, кто сдал контрольную и с каким результатом, и прислать итог после закрытия.',
+    })[mode],
+  notLinked: 'Подключите Telegram — и бот напишет, кто сдал контрольную и с каким результатом.',
+  link: 'Подключить Telegram',
+  blocked: 'Бот в Telegram остановлен. Откройте чат с ботом и нажмите «Перезапустить», тогда он сможет писать.',
+  toGroup: (title: string | null) => (title ? `Отправить ссылку в «${title}»` : 'Отправить ссылку в беседу'),
+  shared: (title: string | null) => `Бот отправит ссылку в «${title ?? 'беседу'}» в течение минуты.`,
+  already: (title: string | null) => `Сегодня ссылка уже ушла в «${title ?? 'беседу'}».`,
+  sharedBefore: (when: string) => `Ссылка уходила в беседу ${when}.`,
+  closed: 'Контрольная закрыта: ссылку отправлять незачем.',
+  noGroup: 'Этой беседы больше нет у экзамена. Обновите страницу.',
+  noLink: 'Сначала подключите Telegram.',
+  shareAnywhere: 'Поделиться в Telegram',
+  shareText: (title: string) => `Контрольная «${title}»`,
+  saving: 'Сохраняем…',
+  failed: 'Не получилось. Попробуйте ещё раз.',
+} as const;
+
 /** P0002 of a quiz function: the quiz, not the exam, is gone. */
 export const QA_ERRORS: Record<string, string> = {
   P0002: 'Такой контрольной нет. Возможно, её удалили.',
