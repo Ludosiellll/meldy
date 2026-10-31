@@ -71,9 +71,23 @@ self.addEventListener('message', (event) => {
   }
 });
 
+/**
+ * Browser reminders are gone: the Telegram bot sends them since 2026-10-11, and the server's push path (its
+ * subscriptions, its daily send) was removed. A subscription a browser kept from before is dropped, so the push
+ * service holds nothing for this site; this worker shows no notifications.
+ */
+function dropPushSubscription() {
+  const manager = self.registration && self.registration.pushManager;
+  if (!manager || typeof manager.getSubscription !== 'function') return Promise.resolve();
+  return manager
+    .getSubscription()
+    .then((subscription) => (subscription ? subscription.unsubscribe() : undefined))
+    .catch(() => undefined);
+}
+
 self.addEventListener('activate', (event) => {
   // «navigations» held copies of pages from older releases (see the page route below): no longer read.
-  event.waitUntil(Promise.all([self.clients.claim(), caches.delete('navigations')]));
+  event.waitUntil(Promise.all([self.clients.claim(), caches.delete('navigations'), dropPushSubscription()]));
 });
 
 /**
@@ -128,52 +142,3 @@ registerRoute(navigationRoute);
 
 // Precache static assets injected by Vite: the hashed files, the offline page.
 precacheAndRoute(self.__WB_MANIFEST || []);
-
-// Push notifications event listener
-self.addEventListener('push', (event) => {
-  let data = {};
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch (e) {
-      data = { title: 'Meldy', body: event.data.text() };
-    }
-  }
-
-  const title = data.title || 'Напоминание о повторении';
-  const options = {
-    body: data.body || 'Пора повторить карточки!',
-    icon: '/pwa-192x192.svg',
-    badge: '/pwa-192x192.svg',
-    data: {
-      url: data.url || '/'
-    }
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(title, options)
-  );
-});
-
-// Notification click event listener
-self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
-
-  const urlToOpen = event.notification.data.url;
-
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Check if there is already a window/tab open with the target URL
-      for (let i = 0; i < windowClients.length; i++) {
-        const client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
-        }
-      }
-      // If not, open a new window/tab
-      if (self.clients.openWindow) {
-        return self.clients.openWindow(urlToOpen);
-      }
-    })
-  );
-});

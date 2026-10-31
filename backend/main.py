@@ -55,7 +55,6 @@ import audio_pieces
 import recording_queue
 from utils import is_video_link, is_youtube_link, scrape_url, strip_transcript_times
 import youtube_video
-from push_router import router as push_router, load_subscriptions, VAPID_PRIVATE_KEY, VAPID_CLAIMS
 from exams_api import router as exams_router
 from bank_api import router as bank_router
 from bank_ai import router as bank_ai_router
@@ -69,9 +68,6 @@ import telemetry_api
 import try_api
 import bot_bridge
 import live_move_api
-
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from pywebpush import webpush, WebPushException
 
 app = FastAPI(title="Meldy API", version="1.0.0")
 
@@ -270,9 +266,8 @@ async def require_authenticated_user(request: Request) -> dict:
     return dict(user)
 
 
-# Open without a session: the health check, the statistics that signed-out visitors send too (telemetry_api.py),
-# the push key, which is public by design (push_router.py; checked by .github/workflows/rotate-vapid.yml), what a
-# group link is before its classmate signs in (exam_shares.py: the status and the exam's title only), the AI
+# Open without a session: the health check, the statistics that signed-out visitors send too (telemetry_api.py), what
+# a group link is before its classmate signs in (exam_shares.py: the status and the exam's title only), the AI
 # check of the no-sign-up example (try_api.py: its own questions only, its own key and caps, no units, no writes), and
 # the Telegram bot's voice bridge (bot_bridge.py: a single-use ticket from the database is its whole authority).
 PUBLIC_API_PATHS = frozenset(
@@ -280,7 +275,6 @@ PUBLIC_API_PATHS = frozenset(
         "/api/health",
         "/api/health/deep",
         telemetry_api.TELEMETRY_PATH,
-        "/api/push/key",
         "/api/exam-shares/preview",
         try_api.TRY_EVALUATE_PATH,
         bot_bridge.BOT_VOICE_PATH,
@@ -304,7 +298,6 @@ async def protect_backend_api(request: Request, call_next):
     return await call_next(request)
 
 
-app.include_router(push_router, prefix="/api/push", tags=["push"])
 # «Билеты», «Ответ вслух» and the exam cheat sheet declare their own full /api/... paths.
 app.include_router(exams_router)
 app.include_router(bank_router)  # «Тест с вариантами»: разбор банка вопросов (bank_api.py)
@@ -327,41 +320,14 @@ app.include_router(bot_bridge.router)
 # WebSockets: the socket checks the live game's own player or host token in its first message.
 app.include_router(live_move_api.router)
 
-scheduler = AsyncIOScheduler()
-
-async def scheduled_reminders():
-    if not VAPID_PRIVATE_KEY:
-        return
-    subs = load_subscriptions()
-    for user_id, sub_info in subs.items():
-        try:
-            webpush(
-                subscription_info=sub_info,
-                data=json.dumps({
-                    "title": "Meldy",
-                    "body": "Пора повторить карточки! Зайдите в приложение, чтобы закрепить знания.",
-                    "url": "/review"
-                }),
-                vapid_private_key=VAPID_PRIVATE_KEY,
-                vapid_claims=VAPID_CLAIMS
-            )
-            print(f"Sent scheduled push to {user_id}")
-        except Exception as e:
-            print(f"Failed to send scheduled push to {user_id}: {e}")
 
 @app.on_event("startup")
 async def startup_event():
-    scheduler.add_job(scheduled_reminders, 'interval', hours=24) # Daily reminders
-    scheduler.start()
     # The ~150 000 objects of the imports live as long as the process; a full garbage collection walking them took
     # ~115 ms (measured 2026-10-21) and stalled the movement rooms' 50 ms ticks (live_move_api.py). Frozen, the
     # collector skips them.
     gc.collect()
     gc.freeze()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    scheduler.shutdown()
 
 
 class LastAnswer(BaseModel):

@@ -211,14 +211,41 @@ describe('as before the change', () => {
     expect(cacheStorage.delete).toHaveBeenCalledWith('navigations');
   });
 
-  it('shows a push as a notification', async () => {
+});
+
+describe('browser reminders are gone (the bot sends them; the server’s push path was removed)', () => {
+  afterEach(() => {
+    delete (worker.registration as { pushManager?: unknown }).pushManager;
+  });
+
+  it('shows nothing for a push and listens for neither push nor a notification’s click', async () => {
     await dispatch('push', { data: { json: () => ({ title: 'Повторение', body: 'Пора повторить 3 карточки', url: '/review' }) } });
-    expect(worker.registration.showNotification).toHaveBeenCalledWith('Повторение', {
-      body: 'Пора повторить 3 карточки',
-      icon: '/pwa-192x192.svg',
-      badge: '/pwa-192x192.svg',
-      data: { url: '/review' },
-    });
+    await dispatch('notificationclick', { notification: { close: vi.fn(), data: { url: '/review' } } });
+    expect(worker.registration.showNotification).not.toHaveBeenCalled();
+    expect(worker.clients.openWindow).not.toHaveBeenCalled();
+    expect(swSource).not.toMatch(/addEventListener\(\s*['"](push|notificationclick)['"]/);
+  });
+
+  it('drops a subscription a browser kept from before when it activates', async () => {
+    const unsubscribe = vi.fn(() => Promise.resolve(true));
+    const getSubscription = vi.fn(() => Promise.resolve({ unsubscribe }));
+    (worker.registration as { pushManager?: unknown }).pushManager = { getSubscription };
+    await dispatch('activate');
+    expect(getSubscription).toHaveBeenCalledTimes(1);
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+    expect(worker.clients.claim).toHaveBeenCalled();
+  });
+
+  it('activates as before with no subscription, with no push manager, and when the push service fails', async () => {
+    const getSubscription = vi.fn(() => Promise.resolve(null));
+    (worker.registration as { pushManager?: unknown }).pushManager = { getSubscription };
+    await dispatch('activate');
+    expect(getSubscription).toHaveBeenCalledTimes(1);
+    delete (worker.registration as { pushManager?: unknown }).pushManager;
+    await expect(dispatch('activate')).resolves.toBeDefined();
+    (worker.registration as { pushManager?: unknown }).pushManager = { getSubscription: () => Promise.reject(new Error('push service down')) };
+    await expect(dispatch('activate')).resolves.toBeDefined();
+    expect(cacheStorage.delete).toHaveBeenCalledWith('navigations');
   });
 });
 
