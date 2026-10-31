@@ -385,6 +385,27 @@ describe('items by keyset pages', () => {
     expect(items[501]).toMatchObject({ subject_id: S1, position: 1 });
   });
 
+  it('reads the kinds of release 48 with their own fields; an unknown kind is read as one answer', async () => {
+    const base = rows(S1, 1)[0];
+    const served = [
+      { ...base, id: 'k-number', position: 1, kind: 'number', options: [], correct: [], answers: ['9.81'], tolerance: 0.01, unit: 'м/с²', partial: false, material_ids: [] },
+      { ...base, id: 'k-order', position: 2, kind: 'order', options: ['А', 'Б', 'В'], correct: [], answers: [], tolerance: null, unit: null, partial: true, material_ids: [] },
+      { ...base, id: 'k-match', position: 3, kind: 'match', options: ['Вода', 'Соль'], correct: [], answers: ['H2O', 'NaCl', 'CO2'], tolerance: null, unit: null, partial: false, material_ids: [] },
+      { ...base, id: 'k-cloze', position: 4, kind: 'cloze', options: [], correct: [], answers: ['Москва\nмосква-град', '1147'], tolerance: null, unit: null, partial: true, material_ids: [] },
+      { ...base, id: 'k-essay', position: 5, kind: 'essay', options: [], correct: [], answers: [], tolerance: null, unit: null, partial: false, material_ids: ['m-1', 42] },
+      { ...base, id: 'k-later', position: 6, kind: 'drawing', options: ['А', 'Б'], correct: [0], answers: [] },
+    ];
+    db.table = () => ({ data: served, error: null, status: 200 });
+    const items = await fetchItemsPage(S1, 0);
+    expect(items.map((item) => item.kind)).toEqual(['number', 'order', 'match', 'cloze', 'essay', 'single']);
+    expect(items[0]).toMatchObject({ answers: ['9.81'], tolerance: 0.01, unit: 'м/с²', partial: false });
+    expect(items[1]).toMatchObject({ options: ['А', 'Б', 'В'], partial: true, tolerance: null, unit: null });
+    expect(items[2]).toMatchObject({ options: ['Вода', 'Соль'], answers: ['H2O', 'NaCl', 'CO2'] });
+    expect(items[3]).toMatchObject({ answers: ['Москва\nмосква-град', '1147'], partial: true });
+    expect(items[4].material_ids).toEqual(['m-1']);
+    expect(items[5]).toMatchObject({ partial: false, tolerance: null, unit: null, material_ids: [] });
+  });
+
   it('stops on a page that does not move on instead of reading forever, and keeps each item once', async () => {
     db.table = () => ({ data: rows(S1, 500, 1).map((row) => ({ ...row, position: 7 })), error: null, status: 200 });
     const items = await fetchAllItems([S1]);

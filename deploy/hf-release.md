@@ -4,6 +4,15 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 48.4: questions of the new kinds open as themselves in «Ключи», sessions and results (from the commit of this entry)
+
+- **Why**: found while building release 49: `normalizeItem` (`frontend/src/api/containers.ts`) kept only single, multiple
+  and short and dropped tolerance, unit, partial and the essay's lectures, so «Ключи» would open a number, order, match,
+  gaps or essay question in the one-answer editor, and a session or the results would read it as one answer. No such
+  question exists on the live database yet (checked 31.10), so nothing was damaged.
+- **Now**: the five kinds and their fields are read as they are; the stored bank cache goes to version 2, so every exam's
+  questions are fetched again once. Cherry-picked from the release 49 branch (4d613b2).
+
 ## 2026-10-31 — Release 48.3: a number in the mini-game — four ranges on the floor (from the commit of this entry)
 
 - **Why**: the program of 31.10 — the mini-games to the end, with numbers. 48.2 brought a number as a typed button
