@@ -188,6 +188,8 @@ export interface Question {
   multi?: number;
   /** A number question: the unit an answer is in (null: none), shown beside the keypad. */
   unit?: string | null;
+  /** A number question played as ranges on the arena (20261102090200_live_ranges.sql): the options are the ranges. */
+  ranges?: boolean;
 }
 
 /** A mixed game's plan (in PlayerState and HostState from the lobby on): N and the qi of every movement round. */
@@ -250,6 +252,8 @@ export interface QuestionResult {
   /** A number question: the accepted distance (null: exact) and the unit (null: none). */
   tolerance?: number | null;
   unit?: string | null;
+  /** A number question played as ranges: `key` / `keys` are the right ranges, `forms` the true value. */
+  ranges?: boolean;
 }
 
 export interface PlayerResult extends QuestionResult {
@@ -387,6 +391,8 @@ export interface ReviewItem {
   /** A number question: the accepted distance (null: exact) and the unit (null: none). */
   tolerance?: number | null;
   unit?: string | null;
+  /** A number question played as ranges: `choice` is the range stood on, `key` / `keys` the right ones. */
+  ranges?: boolean;
   /** The author's explanation, when the question has one. */
   explanation?: string;
 }

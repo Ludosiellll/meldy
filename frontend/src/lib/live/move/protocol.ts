@@ -172,6 +172,16 @@ export interface StandQuestion {
   options: string[];
   /** Several right zones: how many (the boards say «встаньте на любой»); absent for one. */
   multi?: number;
+  /** A number question played as ranges (20261102090200_live_ranges.sql): the options are ranges; its unit. */
+  ranges?: true;
+  unit?: string;
+}
+
+/** A range round's true value (20261102090200_live_ranges.sql): the accepted numbers, the tolerance, the unit. */
+export interface StandNumber {
+  forms: string[];
+  tolerance: number | null;
+  unit: string | null;
 }
 
 /** A closed question (only in `reveal`). Entity ids are the snapshot ids. */
@@ -181,6 +191,8 @@ export interface StandResult {
   key: number;
   /** A question of several right answers: every right zone (they all stay up; standing on any is right). */
   keys?: number[];
+  /** A number question played as ranges: the true value the boards show inside the right range. */
+  num?: StandNumber;
   /** Answers per zone (ghosts too), length = options. */
   counts: number[];
   /** Alive players on the right zone («Устояли N из M»). */
@@ -328,6 +340,7 @@ export function parseStand(obj: unknown): StandMessage | null {
       if (!r || !isNum(r.key) || !Array.isArray(r.fell) || !Array.isArray(r.back) || !isNum(r.back_at)) return null;
       if (r.void !== undefined && typeof r.void !== 'boolean') return null;
       if (r.keys !== undefined && (!Array.isArray(r.keys) || !r.keys.every(isNum))) return null;
+      if (r.num !== undefined && (!r.num || typeof r.num !== 'object' || !Array.isArray(r.num.forms))) return null;
       if (r.hp !== undefined && r.hp !== null && !isNum(r.hp)) return null;
       if ((r.thawed !== undefined && !Array.isArray(r.thawed)) || (r.froze !== undefined && !Array.isArray(r.froze))) return null;
     }

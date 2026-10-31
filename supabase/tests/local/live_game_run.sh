@@ -32,11 +32,14 @@
 # stage: the rest of the live order before it (release 47's and 48's other migrations, the question kinds among them),
 # then 20261102090100_live_numbers.sql (number questions in a battle) the same way (tests/live_numbers.sql,
 # live_numbers_behaviour.sql, every live contract and behaviour above still green, the reading of a typed number against
-# public.meldy_number_right on contracts/kinds/number_vectors.json, its rollback back to the step before, applied again).
+# public.meldy_number_right on contracts/kinds/number_vectors.json, its rollback back to the step before, applied again)
+# → the ranges stage: 20261102090200_live_ranges.sql (a number on a movement round's place played as ranges) the same
+# way (tests/live_ranges.sql, live_ranges_behaviour.sql, every live contract and behaviour above still green — the two
+# numbers checks it changes on purpose adapted —, the mixed and the stand rooms end to end, its rollback, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_RANGES=0 the ranges stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -919,6 +922,90 @@ SQL
   [ "$(fingerprint)" = "$FNUM" ] && ok "the same catalog as the first numbers apply" || bad "another catalog than the first numbers apply"
   step "contract: live_numbers.sql again" "$NCONTRACT"
   behave "numbers behaviour again" "$NBEHAVIOUR" 'LIVE NUMBERS BEHAVIOUR PASSED'
+fi
+
+# ─── A number on a movement round's place, played as ranges (20261102090200_live_ranges.sql) on top of the numbers step ───
+# Its contract (tests/live_ranges.sql) and behaviour (live_ranges_behaviour.sql: the ranges at their boundaries and a
+# sweep, a battle whose round draws a number as ranges, «Встань на ответ» of numbers, practice, a battle without rounds)
+# fail before it; applied twice (one catalog); every live contract and behaviour still holds — the numbers step's own
+# two checks of «a number only where a text answer may» (live_more in «Встань на ответ», live_arrange keeping numbers
+# off the rounds) and its section 6 (the games those checks played) are what this migration changes on purpose: they
+# run adapted (the ranges behaviour plays those games under the new rule); the mixed and the stand rooms end to end;
+# the rollback twice (the numbers step's catalog); applied again. LIVE_RANGES=0 skips the stage.
+if [ "${LIVE_RANGES:-1}" = 0 ] || [ "${LIVE_NUMBERS:-1}" = 0 ] || [ "${LIVE_KINDS:-1}" = 0 ] || [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the ranges stage (LIVE_RANGES=0, or a stage it needs skipped)"
+else
+  RMIG=$SB/migrations/20261102090200_live_ranges.sql
+  RDOWN=$SB/rollback/20261102090200_live_ranges_down.sql
+  RCONTRACT=$SB/tests/live_ranges.sql
+  RBEHAVIOUR=$HERE/live_ranges_behaviour.sql
+  NCONTRACT_R=$WORK/live_numbers_ranges.sql
+  NBEHAVIOUR_R=$WORK/live_numbers_behaviour_ranges.sql
+  sed -e "s/ OR meldy_private.live_more(v_item, false) IS NOT NULL THEN/ THEN/" \
+      -e "/OR pg_catalog.strpos(v_src, 'pg_catalog.array_agg(i.kind in (''short'', ''number'') order by x.ord)') = 0 THEN/{s/^     OR /     OR /;s/ OR pg_catalog.strpos(v_src, 'pg_catalog.array_agg(i.kind in (''short'', ''number'') order by x.ord)') = 0 THEN/ THEN/}" \
+      "$NCONTRACT" > "$NCONTRACT_R"
+  sed -e "/live_more: no number in «Встань на ответ»/d" -e "/^-- ─── 6\. A battle with movement rounds: a number never stands on a round/,/^-- ─── 7\./{/^-- ─── 7\./!d}" \
+      "$NBEHAVIOUR" > "$NBEHAVIOUR_R"
+  if [ "$(grep -c "live_more(v_item, false) IS NOT NULL\|array_agg(i.kind in (''short'', ''number'')" "$NCONTRACT_R")" = 0 ] \
+     && [ "$(grep -c "live_more(v_item, false) IS NOT NULL\|array_agg(i.kind in (''short'', ''number'')" "$NCONTRACT")" = 2 ] \
+     && [ "$(grep -c "no number in «Встань на ответ»\|^-- ─── 6\." "$NBEHAVIOUR_R")" = 0 ] \
+     && [ "$(wc -l < "$NBEHAVIOUR")" -gt "$(wc -l < "$NBEHAVIOUR_R")" ] && [ "$(grep -c '^-- ─── 7\.' "$NBEHAVIOUR_R")" = 1 ]; then
+    ok "the numbers step's checks of «a number only where a text answer may» adapted for the ranges (two in its contract, two in its behaviour)"
+  else
+    bad "the numbers step's superseded checks were not found"
+  fi
+  range_contracts() {
+    number_contracts "$1"
+    step "contract: live_numbers.sql (its two superseded checks left out) $1" "$NCONTRACT_R"
+  }
+  range_behaviours() {
+    number_behaviours "$1"
+    behave "numbers behaviour (its section 6 left out) $1" "$NBEHAVIOUR_R" 'LIVE NUMBERS BEHAVIOUR PASSED'
+  }
+  FNORANGE=$(fingerprint)
+  if run "$RCONTRACT"; then bad "live_ranges.sql passes before its migration (it tests nothing)"; else ok "live_ranges.sql fails before its migration"; fi
+  if passes "$RBEHAVIOUR" 'LIVE RANGES BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_ranges_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_ranges_behaviour fails before its migration"
+  fi
+  step "contract: live_numbers.sql in full before the ranges migration" "$NCONTRACT"
+  step "ranges migration, first apply" "$RMIG"
+  FRANGE=$(fingerprint)
+  [ "$FRANGE" != "$FNORANGE" ] && ok "the ranges migration changed the catalog" || bad "the ranges migration changed nothing"
+  step "ranges migration, second apply (re-runnable)" "$RMIG"
+  [ "$(fingerprint)" = "$FRANGE" ] && ok "a second ranges apply changes nothing in the catalog" || bad "a second ranges apply changed the catalog"
+  step "contract: live_ranges.sql (the column, the checks, the ranges, create, the close, what leaves)" "$RCONTRACT"
+  range_contracts "still holds after the ranges migration"
+  for i in 1 2 3; do
+    behave "ranges behaviour (run $i: the right range's place is drawn at random)" "$RBEHAVIOUR" 'LIVE RANGES BEHAVIOUR PASSED'
+  done
+  range_behaviours "unchanged after the ranges migration"
+  if [ "${LIVE_E2E:-1}" = 0 ]; then
+    echo "  skip  the rooms end to end after the ranges migration (LIVE_E2E=0)"
+  elif [ -z "$PGRST" ] || [ ! -x "$PGRST" ] || ! "$PY" -c "import fastapi, uvicorn, websockets, httpx" 2>/dev/null; then
+    echo "  skip  the rooms end to end after the ranges migration: needs LIVE_PGRST and LIVE_PY"
+  else
+    if LIVE_PY="$PY" bash "$HERE/live_mixed_e2e.sh" "$PGRST" "$DB" > "$WORK/mixed_e2e_ranges.log" 2>&1; then
+      ok "the mixed room end to end after the ranges migration: $(grep -E '^MIXED E2E' "$WORK/mixed_e2e_ranges.log" | tail -1)"
+    else
+      bad "the mixed room end to end after the ranges migration (log: $WORK/mixed_e2e_ranges.log)"
+      grep -Ev '^\s*$' "$WORK/mixed_e2e_ranges.log" | tail -8 | sed 's/^/    /'
+    fi
+  fi
+  [ "$(fingerprint)" = "$FRANGE" ] && ok "the catalog unchanged by the ranges runs" || bad "the ranges runs changed the catalog"
+  step "ranges rollback" "$RDOWN"
+  [ "$(fingerprint)" = "$FNORANGE" ] && ok "after the ranges rollback: the numbers step's catalog (fingerprint)" \
+    || bad "after the ranges rollback: another catalog than the numbers step's"
+  step "ranges rollback again (re-runnable)" "$RDOWN"
+  [ "$(fingerprint)" = "$FNORANGE" ] && ok "after the second ranges rollback: still the numbers step's catalog" || bad "after the second ranges rollback: another catalog"
+  if run "$RCONTRACT"; then bad "live_ranges.sql passes after its rollback"; else ok "live_ranges.sql fails after its rollback"; fi
+  step "contract: live_numbers.sql in full after the ranges rollback" "$NCONTRACT"
+  behave "numbers behaviour in full after the ranges rollback" "$NBEHAVIOUR" 'LIVE NUMBERS BEHAVIOUR PASSED'
+  step "ranges migration after its rollback" "$RMIG"
+  [ "$(fingerprint)" = "$FRANGE" ] && ok "the same catalog as the first ranges apply" || bad "another catalog than the first ranges apply"
+  step "contract: live_ranges.sql again" "$RCONTRACT"
+  behave "ranges behaviour again" "$RBEHAVIOUR" 'LIVE RANGES BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"
