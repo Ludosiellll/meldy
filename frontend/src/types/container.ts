@@ -23,7 +23,7 @@ export type ContainerRole = 'owner' | 'member';
 export type ContainerKind = 'exam' | 'test';
 
 /** single: one option; multiple: several, all or nothing; short: a typed short answer compared with the file's forms. */
-export type ItemKind = 'single' | 'multiple' | 'short';
+export type ItemKind = 'single' | 'multiple' | 'short' | 'number' | 'order' | 'match' | 'cloze' | 'essay';
 export type KeySource =
   | 'bold' | 'underline' | 'italic' | 'color' | 'highlight' | 'shade' | 'marker' | 'key_column' | 'answer_line'
   | 'key_list' | 'key_text' | 'gift' | 'first_option' | 'manual' | 'none';

@@ -1,5 +1,5 @@
 import { useEffect, useId, useState, type CSSProperties, type ReactNode } from 'react';
-import { isPictureWord } from '../../../types/container';
+import { isPictureWord, type ItemKind } from '../../../types/container';
 import { EDITOR, letter, nb, QUEUE } from '../copyImport';
 import ItemPictures, { type PictureSource } from '../ItemPictures';
 import { leadingSpaces, stemParts } from '../stemCode';
@@ -30,7 +30,7 @@ interface Props {
   stem: string;
   code?: boolean;
   options: string[];
-  kind: 'single' | 'multiple' | 'short';
+  kind: ItemKind;
   answers?: string[];
   /** The key now (file indices): «Ключ» beside each. */
   current?: number[];
