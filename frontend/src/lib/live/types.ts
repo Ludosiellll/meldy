@@ -54,6 +54,8 @@ export interface Settings {
    * join, a team's score is its players' average (CONTRACT §13). Returned in the settings of a game with teams only.
    */
   teams?: Teams;
+  /** «Без спешки»: points only for right answers (a battle only; speed is then false). Absent or false: as before. */
+  calm?: boolean;
 }
 
 /** The setup's «Команды»: none, 2, 3 or 4. */
@@ -325,6 +327,11 @@ interface StateBase {
   mixed?: Mixed;
   /** A game with teams: every team's standing, by place. */
   teams?: TeamRow[];
+  /**
+   * «Без спешки» (20261106090000_live_calm.sql): a right answer deals 100 (a partial one its share), no points for
+   * speed or a streak, nobody freezes. Present (true) only in such a game.
+   */
+  calm?: true;
 }
 
 export interface PlayerState extends StateBase {

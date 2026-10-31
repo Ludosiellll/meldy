@@ -134,3 +134,16 @@ def test_a_round_says_how_many_zones_are_right_and_nothing_more():
     assert g.q == {"text": "?", "options": ["1", "2", "3", "4"], "multi": 2}
     g.begin(1, {"text": "?", "options": ["1", "2"]}, 300.0, 400.0, 0.0)
     assert g.q == {"text": "?", "options": ["1", "2"]}
+
+
+def test_a_calm_close_is_a_hundred_for_every_right_answer_and_freezes_nobody():
+    """«Без спешки» (20261106090000_live_calm.sql): no speed, no streak bonus, no ice — even with the boss angry."""
+    ps = {k: dict(dmg=0, streak=s, best=s, right=0, frozen=False, thaws=0) for k, s in (("a", 3), ("b", 0), ("c", 1), ("d", 0), ("e", 2))}
+    out = mixed.close_round(ps, [("a", 1, 500), ("b", 1, 19000), ("c", 2, 3000), ("e", [1], 2000)], ["a", "b", "c", "d", "e"],
+                            key=1, keys=[1, 2], n_options=4, time_s=20, speed=False, hp=900, hp_max=1000, q_phase=1, phase=1, calm=True)
+    assert [ps[k]["dmg"] for k in "abcde"] == [100, 100, 100, 0, 50]
+    assert not any(p["frozen"] for p in ps.values()) and out.frozen_now == []
+    assert ps["a"]["streak"] == 4 and ps["a"]["best"] == 4
+    plain = {k: dict(dmg=0, streak=0, best=0, right=0, frozen=False, thaws=0) for k in ("x", "y")}
+    mixed.close_round(plain, [("x", 0, 1000)], ["x", "y"], key=1, n_options=4, time_s=20, speed=True, hp=900, hp_max=1000, q_phase=1, phase=1)
+    assert plain["x"]["frozen"] and plain["y"]["frozen"]            # without the setting: ice as before
