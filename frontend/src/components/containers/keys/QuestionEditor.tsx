@@ -96,6 +96,24 @@ function grow(fields: readonly HTMLTextAreaElement[]) {
   });
 }
 
+/**
+ * Fields typed in, grown without laying the page out again (release 49: a key in «Ключи» laid it out three times — the
+ * browser's own edit, this read after a write, the frame): the scroll height is read first, while the page is still
+ * laid out from the key's edit, and the height is written only when the text no longer fits. A field never gets shorter
+ * here; that needs its natural height (grow) and waits for a pause in the typing (SHRINK_AFTER_MS).
+ */
+function growTyped(fields: readonly HTMLTextAreaElement[]) {
+  if (fields.length === 0) return;
+  const heights = fields.map((field) => field.scrollHeight);
+  fields.forEach((field, index) => {
+    const held = Number.parseFloat(field.style.height);
+    if (heights[index] > 0 && !(heights[index] <= held)) field.style.height = `${heights[index]}px`;
+  });
+}
+
+/** A pause in the typing after which the fields typed in take their natural height again (they may have got shorter). */
+const SHRINK_AFTER_MS = 400;
+
 function PictureIcon() {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -179,22 +197,46 @@ export default function QuestionEditor({
   // Every field as tall as its text: after a change only the field whose text (or face) changed — the one being typed
   // in — and every field when the column's width changes (a phone turned) or the fonts come. The width is the
   // observer's report, never read from the page.
+  // A field whose text changed with its face kept (typed in) only grows at once (growTyped); the rest — a new field, a
+  // new face, a forced pass — are sized in full. The fields typed in are sized in full after a pause, to get shorter.
   const sized = useRef(new WeakMap<HTMLTextAreaElement, string>());
+  const typedSince = useRef(new Set<HTMLTextAreaElement>());
+  const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sizeAll = (force = false) => {
     const form = formRef.current;
     if (!form) return;
     const due: HTMLTextAreaElement[] = [];
+    const typed: HTMLTextAreaElement[] = [];
     form.querySelectorAll<HTMLTextAreaElement>(GROWS).forEach((field) => {
-      const stamp = `${field.dataset.code ?? ''}:${field.value}`;
-      if (!force && sized.current.get(field) === stamp) return;
+      const face = `${field.dataset.code ?? ''}:`;
+      const stamp = `${face}${field.value}`;
+      const was = sized.current.get(field);
+      if (!force && was === stamp) return;
       sized.current.set(field, stamp);
-      due.push(field);
+      if (!force && was?.startsWith(face) && field.style.height) typed.push(field);
+      else due.push(field);
     });
+    growTyped(typed);
     grow(due);
+    if (typed.length === 0) return;
+    for (const field of typed) typedSince.current.add(field);
+    if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
+    shrinkTimer.current = setTimeout(() => {
+      shrinkTimer.current = null;
+      const fields = [...typedSince.current].filter((field) => field.isConnected);
+      typedSince.current.clear();
+      grow(fields);
+    }, SHRINK_AFTER_MS);
   };
   const sizeAllRef = useRef(sizeAll);
   sizeAllRef.current = sizeAll;
   useLayoutEffect(() => sizeAll());
+  useEffect(
+    () => () => {
+      if (shrinkTimer.current !== null) clearTimeout(shrinkTimer.current);
+    },
+    [],
+  );
   useEffect(() => {
     const form = formRef.current;
     if (!form) return;
