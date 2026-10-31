@@ -1305,8 +1305,8 @@ export default function Workspace({
     canvasClick,
     fileChosen,
   };
-  // DndContext's child: one element for the canvas's life.
-  const body = useMemo(() => <CanvasBody />, []);
+  // DndContext's child: one element for the canvas's life (with the questions' percents of release 49 around it).
+  const body = useMemo(() => <ItemPercentsProvider containerId={containerId}><CanvasBody /></ItemPercentsProvider>, [containerId]);
 
   return (
     <ActionsContext.Provider value={actions}>
@@ -1322,7 +1322,7 @@ export default function Workspace({
           accessibility={accessibility}
           autoScroll={autoScroll}
         >
-          <ItemPercentsProvider containerId={containerId}>{body}</ItemPercentsProvider>
+          {body}
         </DndContext>
       </CanvasDataContext.Provider>
     </ActionsContext.Provider>

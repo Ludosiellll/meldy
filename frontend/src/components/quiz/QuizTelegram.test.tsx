@@ -12,7 +12,8 @@ import { QA_TELEGRAM } from './copyAuthor';
 /** Release 49 (20261105090100_quiz_telegram): Telegram on the author's results page. */
 const QUIZ = '7a3e7c1e-1d2b-4c5e-9f0a-1b2c3d4e5f60';
 const URL_ = 'https://meldy.example/k/k7m2p9q4r8st';
-const text = () => (document.body.textContent ?? '').replace(/ /g, ' ');
+const plain = (value: string) => value.replace(/\u00a0/g, ' ');
+const text = () => plain(document.body.textContent ?? '');
 const state = (over: Partial<QuizTelegramState> = {}): QuizTelegramState => ({
   linked: true,
   blocked: false,
@@ -40,11 +41,11 @@ describe('the notices', () => {
     show();
     const select = await screen.findByRole('combobox', { name: QA_TELEGRAM.notice });
     expect(select.textContent).toContain(QA_TELEGRAM.noticeOption('off'));
-    expect(text()).toContain(QA_TELEGRAM.noticeHint('off'));
+    expect(text()).toContain(plain(QA_TELEGRAM.noticeHint('off')));
     fireEvent.click(select);
     fireEvent.click(screen.getByRole('option', { name: QA_TELEGRAM.noticeOption('each') }));
     await waitFor(() => expect(api.setQuizNotice).toHaveBeenCalledWith(QUIZ, 'each'));
-    await waitFor(() => expect(text()).toContain(QA_TELEGRAM.noticeHint('each')));
+    await waitFor(() => expect(text()).toContain(plain(QA_TELEGRAM.noticeHint('each'))));
   });
 
   it('a failed save goes back and says so', async () => {
