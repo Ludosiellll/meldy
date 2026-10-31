@@ -191,6 +191,16 @@ describe('holdsUpdate', () => {
     }
   });
 
+  it('holds it while a live game runs: the projector and the phones', () => {
+    for (const path of ['/live/3f2a9c1e-0000-4000-8000-000000000000', '/live/abc/', '/play', '/play/', '/tg/play', '/tg/play/']) {
+      expect(holdsUpdate(path), path).toBe(true);
+    }
+    // the setup (/live/new) is a page like any other
+    for (const path of ['/live/new', '/live', '/players', '/tg']) {
+      expect(holdsUpdate(path), path).toBe(false);
+    }
+  });
+
   it('lets it through everywhere else', () => {
     for (const path of [
       '/', '/dashboard', '/exams', '/exams/abc', '/library', '/library/abc', '/review', '/mistakes', '/analytics',

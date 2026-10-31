@@ -61,7 +61,10 @@ export const TAKEOVER_RETRY_MS = 5_000;
  * editor (questions not saved yet). So are an exam container's «занятие» and «Как на экзамене» (an unfinished
  * session or run, also rooms of Layout) and the import page /exams/import (the parsed preview of the files would be
  * lost). There the offer is not shown either. The rooms are repeated here, not imported: Layout is a file of its own
- * that the first screen does not carry (appUpdate.test.ts keeps the two lists together).
+ * that the first screen does not carry (appUpdate.test.ts keeps the two lists together). And the live game:
+ * its projector (/live/<game>) and the phones (/play, /tg/play) — a game runs there for its whole length, the offer
+ * would sit over the arena on the class's screen, and a reload in the middle would drop the projector's sounds and the
+ * phone's answer.
  */
 const HOLD_SCREENS: readonly RegExp[] = [
   /^\/exams\/[^/]+\/(draw|ticket|report)\/?$/,
@@ -71,6 +74,8 @@ const HOLD_SCREENS: readonly RegExp[] = [
   /^\/exams\/(new|[^/]+\/edit)\/?$/,
   /^\/exams\/c\/[^/]+\/(study|mock)\/?$/,
   /^\/exams\/import\/?$/,
+  /^\/live\/(?!new\/?$)[^/]+\/?$/,
+  /^\/(tg\/)?play\/?$/,
 ];
 
 export function holdsUpdate(pathname: string): boolean {
