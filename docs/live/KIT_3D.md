@@ -13,9 +13,14 @@ the own hero left and right; the arena's whole depth sits between the question c
 shift: `CameraSpec.shift`). The own hero wears «Вы» and a white ring (`player.setOwn`). The signs are 0.7 of the
 projector's and the tiles simpler (`createArena(map, shape, { signScale: 0.7, tileSegments: 1 })`). It draws lighter than
 the projector: no outlines, at most 1.25 pixels a point, and its own ladder (`phone/quality.ts`) lowers the glows, then
-the resolution, and at last caps it at 30 frames a second (`view.setMaxFps`): the light view is still 3D. Only a phone
-without WebGL 2 plays the flat view: the pictures of §6 as sprites from above (`sprites.ts`). The hero picker shows the
-pictures (§6).
+the resolution, and at last caps it at 30 frames a second (`view.setMaxFps`): the light view is still 3D. The flat
+view (the pictures of §6 as sprites from above, `sprites.ts`) plays for good only on a phone without WebGL 2 (or one
+pinned to it); otherwise only until the 3D is in (`phone/arenaLoader.ts`): a failed download is tried again after
+2, 5, 10, 20, 30 s (12 tries), a failed draw (mount, map, warm-up) 3 times, each on a new canvas element (the view's
+`dispose` loses the old canvas's context on purpose), and a slow one is waited for. A 3D that gets ready during a
+question comes in after it. A reconnect (a new welcome with the same map) keeps the scene. Why the 3D is not drawing
+is on the 3D canvas (`data-view3d` = `on`, `loading`, `retry`, `ready` or `off`; `data-why`) and in the console
+(`live: phone 3D …`). The hero picker shows the pictures (§6).
 
 ## 1. Use
 

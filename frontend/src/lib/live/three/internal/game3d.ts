@@ -166,6 +166,9 @@ export class KitImpl implements Kit {
   static async load(options: LoadOptions = {}): Promise<KitImpl> {
     const loader = new GLTFLoader();
     const skeleton = options.boss === 'skeleton' ? load(loader, SKELETON_FILE) : null;
+    // awaited below; when a body fails first, its own failure must not surface as an unhandled rejection (each
+    // failed try of the phone's arena would report one)
+    skeleton?.catch(() => undefined);
     const [bodies, anims] = await Promise.all([
       Promise.all(MODELS.map((m) => load(loader, BODY_FILES[m]))),
       load(loader, ANIMS_FILE),

@@ -270,7 +270,8 @@ flat HostScreen takes over (and `?flat=1` keeps it: a weak projector laptop); th
 1. The room's socket from the join on, for the whole game (`StandSession`); the battle's polling as in any battle. The
    lobby says «На вопросах 3 и 6 будет мини-игра. Там вы бегаете по арене».
 2. Button questions, leaderboard, podium: the battle's screens (`children`); a tap on a movement round is never sent.
-3. A movement round: the stand phone's screen (`StandPlay`: the arena in 3D, flat only without WebGL; the stick, the
+3. A movement round: the stand phone's screen (`StandPlay`: the arena in 3D, flat without WebGL 2 or until the 3D is
+   in, which comes in after a round, never during one; the stick, the
    small map, the question card; no answer buttons). Until the room speaks for the question its card and times come
    from `live_state`.
 4. Its result (`mixedOutcome`, from the room's `me` or else `live_state.result`): «Верно. −141 урона Дедлайну»,
