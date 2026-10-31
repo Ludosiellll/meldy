@@ -81,6 +81,10 @@ def share(picks: Iterable[int], keys: Iterable[int]) -> float:
     return float(max(0, len(ps & ks) - len(ps - ks))) / float(max(1, len(ks)))
 
 
+#: «Без спешки» (20261106090000_live_calm.sql): a right answer is this many points, whenever and however often in a row.
+CALM_DAMAGE = 100
+
+
 def partial(elapsed_ms: int, time_s: int, streak_after: int, speed: bool, part: float) -> int:
     """A partial hit (several right answers, some of them ticked): round(damage × share), as live_close."""
     return int(math.floor(float(damage(elapsed_ms, time_s, streak_after, speed)) * part + 0.5))
@@ -111,13 +115,15 @@ class Closed:
 
 def close_round(players: dict[str, dict[str, Any]], answers: Iterable[tuple[str, Any, int]], active: list[str], *,
                 key: int, n_options: int, time_s: int, speed: bool, hp: int, hp_max: int, q_phase: int, phase: int,
-                stand_round: bool = False, void: bool = False, keys: Iterable[int] | None = None) -> Closed:
+                stand_round: bool = False, void: bool = False, keys: Iterable[int] | None = None, calm: bool = False) -> Closed:
     """meldy_private.live_close for one question, changing ``players`` in place ({dmg, streak, best, right, frozen,
     thaws} per id; kicked players are left out by the caller). ``answers``: (player, choice, elapsed ms), the choice an
     option (a tap or the room's zone) or a list of options ticked (a button question of several right answers);
     ``active``: players not kicked who joined by the question's opening, in the order they joined. ``keys``: every right
     option of a question of several (a zone on any of them is right; ticks score their ``share``). A movement round
-    (``stand_round``) freezes «no zone» in any phase; a ``void`` one (the room never wrote it) changes nobody."""
+    (``stand_round``) freezes «no zone» in any phase; a ``void`` one (the room never wrote it) changes nobody.
+    ``calm`` («Без спешки», live_games.calm): a right answer is CALM_DAMAGE (its share for ticks), no speed, no streak
+    bonus, and nobody freezes — the points say only how much was right."""
     out = Closed(hp=hp, phase=phase, counts=[0] * n_options)
     right_keys = list(keys) if keys is not None else [key]
     answered = set()
@@ -133,7 +139,7 @@ def close_round(players: dict[str, dict[str, Any]], answers: Iterable[tuple[str,
             out.counts[choice] += 1
             part = 1.0 if choice in right_keys else 0.0
         if 0.0 < part < 1.0:
-            d = 0 if p["frozen"] else partial(elapsed, time_s, p["streak"] + 1, speed, part)
+            d = 0 if p["frozen"] else (int(math.floor(CALM_DAMAGE * part + 0.5)) if calm else partial(elapsed, time_s, p["streak"] + 1, speed, part))
             p.update(streak=0, dmg=p["dmg"] + d)
             if d > 0:
                 out.hp = max(0, out.hp - d)
@@ -147,19 +153,19 @@ def close_round(players: dict[str, dict[str, Any]], answers: Iterable[tuple[str,
                 out.thawed.append(pid)
                 out.outcome[pid] = (True, 0)
             else:
-                d = damage(elapsed, time_s, p["streak"] + 1, speed)
+                d = CALM_DAMAGE if calm else damage(elapsed, time_s, p["streak"] + 1, speed)
                 out.hp = max(0, out.hp - d)
                 p.update(streak=p["streak"] + 1, dmg=p["dmg"] + d, right=p["right"] + 1)
                 p["best"] = max(p["best"], p["streak"])
                 out.hits.append((pid, d, out.hp))
                 out.outcome[pid] = (True, d)
         else:
-            if not p["frozen"]:
+            if not p["frozen"] and not calm:
                 out.frozen_now.append(pid)
-            p.update(streak=0, frozen=True)
+            p.update(streak=0, frozen=p["frozen"] or not calm)
             out.outcome[pid] = (False, 0)
     if not void:
-        freeze = q_phase >= 1 or stand_round
+        freeze = not calm and (q_phase >= 1 or stand_round)
         for pid in active:
             if pid in answered:
                 continue
@@ -334,7 +340,8 @@ class MixedGame(stand.StandGame):
         by_pid = {pid: p.id for pid, p in room.by_pid.items()}
         boss = res.get("boss") if isinstance(res.get("boss"), dict) else {}
         self.res = {
-            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), "counts": res.get("counts") if isinstance(res.get("counts"), list) else [],
+            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), **stand.number_of(res),
+            "counts": res.get("counts") if isinstance(res.get("counts"), list) else [],
             "stood": int(res.get("right") or 0), "of": int(res.get("active") or 0),
             "fastest": None if fastest is None else {"id": fastest[3], "pts": -fastest[2], "ms": fastest[4]},
             "fell": fell, "back": list(fell), "at": int(now_ms), "back_at": int(self.back_at),

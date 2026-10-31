@@ -86,11 +86,20 @@ export const BATTLE_3D = {
   number: 'Введите число на телефоне',
   unit: (u: string) => `Ответ в\u00a0${u}`,
   line: 'Ответы класса',
+  /** «Без спешки» (20261106090000_live_calm.sql): said on the board of every question. */
+  calm: 'Без спешки: очки только за верные ответы',
   near: 'Ближе всех',
 };
 
 /** «два», «три»: how many right zones a movement round has (MODE_MIXED.md §5). */
 const ZONES_N = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть'] as const;
+/** A number question played as ranges (20261102090200_live_ranges.sql). */
+export const RANGES = {
+  hint: 'Встаньте на промежуток с ответом',
+  /** «Ответ: 343 ± 10 м/с» under the right range at the reveal (the board already says «Верный ответ»). */
+  value: (answer: string) => `Ответ: ${answer}`,
+};
+
 export const MULTI_ZONES = {
   /** «Верных ответов два — встаньте на любой». */
   hint: (n: number) => `Верных ответов ${ZONES_N[n] ?? n}${NBSP}— встаньте на любой`,

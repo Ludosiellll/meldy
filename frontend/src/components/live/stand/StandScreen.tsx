@@ -20,7 +20,8 @@ import { BigPicture, OptionPic, StemFigure } from './figure';
 import { fastestName, type TimerFace } from './plan';
 import { useStandRoom } from './room';
 import { StandScene, type StandCue, type StandHud } from './scene';
-import { STAND } from './copy';
+import { RANGES, STAND } from './copy';
+import { numberAnswer } from '../../../lib/live/numbers';
 import { Thumb } from './Thumb';
 import { FpsReadout, fpsWanted } from './FpsReadout';
 import { Stage, useStageFit } from '../host/Stage';
@@ -428,10 +429,15 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
                   <Letter i={res.key} big />
                   <span>{q.options[res.key]}</span>
                 </div>
+                {/* a number played as ranges: the true value inside the right range (20261102090200_live_ranges.sql) */}
+                {res.num && res.num.forms.length > 0 ? (
+                  <span className="lvbt-range-value">{RANGES.value(numberAnswer(res.num.forms, res.num.tolerance, res.num.unit))}</span>
+                ) : null}
               </div>
             ) : (
               <div className="lvst-q lvbt-q" key={`q${qi}`}>
                 <span className="lvst-hint">{rs?.chase ? STAND.chaseHint : STAND.hint}</span>
+                {rs?.q?.ranges ? <span className="lvbt-multi">{RANGES.hint}</span> : null}
                 <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                   {q.text}
                 </h1>

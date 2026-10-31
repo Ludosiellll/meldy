@@ -86,6 +86,19 @@ def stand_points(elapsed_ms: int, time_s: int, streak_after: int, speed: bool, g
     return 10 * int(math.floor(base * mult / 10.0 + 0.5))
 
 
+def number_of(res: dict[str, Any]) -> dict[str, Any]:
+    """A number question played as ranges: its accepted numbers, tolerance and unit (the reveal shows the true value
+    inside the right range), as live_stand_result / live_mixed_result give them; nothing for any other question."""
+    num = res.get("num")
+    if not isinstance(num, dict) or not isinstance(num.get("forms"), list):
+        return {}
+    tol = num.get("tolerance")
+    unit = num.get("unit")
+    return {"num": {"forms": [str(f) for f in num["forms"]][:10],
+                    "tolerance": tol if isinstance(tol, (int, float)) and not isinstance(tol, bool) else None,
+                    "unit": unit if isinstance(unit, str) else None}}
+
+
 def keys_of(res: dict[str, Any]) -> list[int]:
     """Every right zone of a closed round: ``keys`` of a question of several right answers (every one of them stays up
     and is a right answer), else the one ``key``."""
@@ -173,6 +186,10 @@ class StandGame(lm.RoomHooks):
         self.q = {"text": q.get("text", ""), "options": list(q.get("options") or [])}
         if isinstance(q.get("multi"), int) and not isinstance(q.get("multi"), bool) and q["multi"] > 1:
             self.q["multi"] = q["multi"]          # several right zones: the boards say how many (no key in it)
+        if q.get("kind") == "number" and q.get("ranges") is True:
+            self.q["ranges"] = True               # a number played as ranges (20261102090200): «Встаньте на промежуток с ответом»
+            if isinstance(q.get("unit"), str) and q["unit"]:
+                self.q["unit"] = q["unit"]
         self.n = min(len(self.q["options"]), len(LETTERS))
         self.opens_ms = opens_ms
         self.closes_ms = closes_ms
@@ -340,7 +357,7 @@ class StandGame(lm.RoomHooks):
         self.back_at = now_ms + FLOOR_MS
         counts = res.get("counts") if isinstance(res.get("counts"), list) else []
         self.res = {
-            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), "counts": counts, "stood": stood, "of": int(res.get("active") or 0),
+            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), **number_of(res), "counts": counts, "stood": stood, "of": int(res.get("active") or 0),
             "fastest": None if fastest is None else {"id": fastest[2], "pts": -fastest[1], "ms": fastest[3]},
             "fell": fell, "back": back, "at": int(now_ms), "back_at": int(self.back_at),
         }

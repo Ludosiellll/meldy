@@ -42,6 +42,7 @@ import { repairMathEscapes } from '../lib/mathEscapes';
 import type { RecognizedSource } from '../lib/lectureFormats';
 import ConversationPlayer, { warmConversationVoice } from './conversation/ConversationPlayer';
 import { ConversationError, NOT_OWNER_MESSAGE, patchSummaryJson } from './conversation/persistence';
+import LectureToTest from './port/LectureToTest';
 import './ResultsPanel.css';
 
 type Tab = ResultTab;
@@ -1170,14 +1171,18 @@ export default function ResultsPanel({
               isFailed('quiz') ? (
                 <SectionFailure {...failureProps('quiz')} />
               ) : (
-                <QuizView
-                  data={view.quiz}
-                  sources={view.grounding?.sources}
-                  {...quizJournal}
-                  presenting={presentingQuiz}
-                  onExitPresentation={() => setPresentingQuiz(false)}
-                  placeKey={keepPlace ? materialId : undefined}
-                />
+                <>
+                  {/* Release 49: «Сделать контрольную / Добавить в тест» with the lecture's sentence behind each key. */}
+                  {materialId && canEdit && quizCount > 0 ? <LectureToTest materialId={materialId} title={currentTitle} /> : null}
+                  <QuizView
+                    data={view.quiz}
+                    sources={view.grounding?.sources}
+                    {...quizJournal}
+                    presenting={presentingQuiz}
+                    onExitPresentation={() => setPresentingQuiz(false)}
+                    placeKey={keepPlace ? materialId : undefined}
+                  />
+                </>
               )
             )}
             {/* «Выжимка», as the lecture page names and shows it (QA 2026-10-11: it was made and not on this screen). */}

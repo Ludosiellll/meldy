@@ -36,8 +36,26 @@ update public.live_games set state = 'ended', ended_at = now() where state not i
 SQL
 # LIVE_LOCAL_SEED=kinds: a test of every kind (several right answers, a text answer, explanations;
 # 20261102090000_live_kinds_teams.sql must be applied); LIVE_LOCAL_SEED=numbers: two number questions among them
-# (20261101090000_question_kinds.sql and 20261102090100_live_numbers.sql too); else the six one-answer questions.
-if [ "${LIVE_LOCAL_SEED:-}" = numbers ]; then
+# (20261101090000_question_kinds.sql and 20261102090100_live_numbers.sql too); LIVE_LOCAL_SEED=ranges: six number
+# questions, the movement rounds play theirs as ranges (20261102090200_live_ranges.sql too); else the six one-answer
+# questions.
+if [ "${LIVE_LOCAL_SEED:-}" = ranges ]; then
+SEED=$("${PSQL[@]}" 2>&1 <<'SQL'
+select set_config('role', 'authenticated', false) is null \g /dev/null
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000003', false) is null \g /dev/null
+select set_config('meldy.local', public.container_create('Физика и информатика', null, '[{"title":"Числа"}]')::text, false) is null \g /dev/null
+select public.container_items_add((current_setting('meldy.local')::jsonb -> 'subjects' -> 0 ->> 'id')::uuid, jsonb_build_array(
+  jsonb_build_object('ref', 'r:1', 'kind', 'number', 'stem', 'Сколько байт в килобайте?', 'answers', jsonb_build_array('1024')),
+  jsonb_build_object('ref', 'r:2', 'kind', 'number', 'stem', 'Сколько бит в байте?', 'answers', jsonb_build_array('8')),
+  jsonb_build_object('ref', 'r:3', 'kind', 'number', 'stem', 'Скорость звука в воздухе при 20 °C?', 'answers', jsonb_build_array('343'), 'tolerance', 10, 'unit', 'м/с',
+                     'explanation', 'Около 343 м/с; засчитывается всё от 333 до 353.'),
+  jsonb_build_object('ref', 'r:4', 'kind', 'number', 'stem', 'При какой температуре кипит вода, °C?', 'answers', jsonb_build_array('100'), 'unit', '°C'),
+  jsonb_build_object('ref', 'r:5', 'kind', 'number', 'stem', 'Сколько секунд в часе?', 'answers', jsonb_build_array('3600')),
+  jsonb_build_object('ref', 'r:6', 'kind', 'number', 'stem', 'Сколько дней в високосном году?', 'answers', jsonb_build_array('366')))) is null \g /dev/null
+select (current_setting('meldy.local')::jsonb ->> 'container_id') || ' ' || (current_setting('meldy.local')::jsonb -> 'subjects' -> 0 ->> 'id');
+SQL
+)
+elif [ "${LIVE_LOCAL_SEED:-}" = numbers ]; then
 SEED=$("${PSQL[@]}" 2>&1 <<'SQL'
 select set_config('role', 'authenticated', false) is null \g /dev/null
 select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000003', false) is null \g /dev/null

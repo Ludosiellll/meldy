@@ -49,6 +49,7 @@ vi.mock('../../api/social', () => ({ getProfile: vi.fn(async () => ({ onboarding
 import StudioPage from './StudioPage';
 import { item, subject, summary } from '../../components/containers/testkit/fixtures';
 import { STUDIO } from '../../components/studio/copyStudio';
+import { PORT } from '../../components/port/copyPort';
 import { tourKey } from '../../components/studio/Tour';
 import { readableAccent } from '../../lib/studio/contrast';
 import { DRAFT_WORDS } from '../../lib/studio/checker';
@@ -722,5 +723,56 @@ describe('StudioPage: the views and the participant', () => {
     renderStudio();
     expect(await screen.findByText(/автор/i)).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: STUDIO.palette })).toBeNull();
+  });
+});
+
+describe('StudioPage: release 49 — the file out and questions in', () => {
+  const answer = (body: unknown, status = 200) => Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
+
+  it('«Скачать» sends the page’s questions in its order and numbers and shows what the file gets', async () => {
+    const fetchMock = vi.fn(() => answer({ name: 'Химия (Moodle XML).xml', mime: 'application/xml', data: btoa('<quiz/>'), count: 3, total: 3, skipped: [], pictures_lost: 0 }));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await openStored();
+      fireEvent.click(screen.getByRole('button', { name: PORT.exportOpenLong }));
+      const sheet = await screen.findByRole('dialog', { name: PORT.exportTitle });
+      expect(await within(sheet).findByText(PORT.willGo(3, 3).replace(/\s+/g, ' '))).toBeTruthy();
+      const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body));
+      expect(body.format).toBe('moodle');
+      expect(body.items.map((entry: { number: string; stem: string }) => [entry.number, entry.stem])).toEqual([['1', Q1.stem], ['2', Q2.stem], ['3', Q3.stem]]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('the palette’s «Сгенерировать…» opens the sheet; the ticked questions are added at the end of the page', async () => {
+    const generated = { title: '', dropped: 0, items: [
+      { stem: 'Что такое кислота?', options: ['Донор протонов', 'Акцептор протонов'], correct: [0], explanation: 'Из текста: «Кислота — донор протонов.»', quote: 'Кислота — донор протонов.', source_id: 'S01', checked: true },
+    ] };
+    const fetchMock = vi.fn(() => answer(generated));
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await openStored();
+      fireEvent.click(within(screen.getByRole('complementary', { name: STUDIO.palette })).getByRole('button', { name: PORT.generateOpen }));
+      const sheet = await screen.findByRole('dialog', { name: PORT.generateTitle });
+      fireEvent.change(within(sheet).getByLabelText(PORT.text), { target: { value: 'Кислота — донор протонов. '.repeat(20) } });
+      fireEvent.click(within(sheet).getByRole('button', { name: PORT.run }));
+      fireEvent.click(await within(sheet).findByRole('button', { name: (name: string) => name.replace(/\s+/g, ' ') === PORT.pick(1).replace(/\s+/g, ' ') }));
+      await waitFor(() => expect(api.addItems).toHaveBeenCalledTimes(1));
+      expect(api.addItems.mock.calls[0][1][0]).toMatchObject({ stem: 'Что такое кислота?', kind: 'single', correct: [0], explanation: 'Из текста: «Кислота — донор протонов.»' });
+      await waitFor(() => expect(order()).toHaveLength(7));
+      expect(frame(order()[6] as string)).toHaveAttribute('data-type', 'question');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('an empty test offers «Сгенерировать из лекции, текста или файла» among its starters', async () => {
+    api.state.items = new Map();
+    api.fetchTestDoc.mockResolvedValue(null);
+    renderStudio();
+    // the starters' pill and the palette's entry
+    expect(await screen.findAllByRole('button', { name: PORT.generateOpen })).toHaveLength(2);
+    expect(document.querySelector('.st-start')?.textContent).toContain(PORT.generateOpen);
   });
 });

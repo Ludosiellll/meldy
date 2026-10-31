@@ -65,6 +65,11 @@ export const SETUP = {
   speed: 'Очки за скорость',
   speedOn: 'Да',
   speedOff: 'Нет',
+  /** «Без спешки» (20261106090000_live_calm.sql): a battle's setting. */
+  calm: 'Без спешки',
+  calmHint: 'Очки только за верные ответы: без бонуса за скорость и серию, никто не замерзает. Подходит для серьёзной проверки.',
+  calmOn: 'Да',
+  calmOff: 'Нет',
   who: 'Кто играет',
   whoPin: 'Все по PIN',
   whoMembers: 'Только участники экзамена',
@@ -143,10 +148,10 @@ export const LOBBY = {
   more: (n: number) => `и ещё ${nb(n)}`,
   start: 'Начать',
   /** `rounds`: a battle's movement rounds (qi), told at the end («мини-игра на вопросах 3 и 6»). */
-  settings: (time: number, speed: boolean, members: boolean, rounds?: readonly number[]) =>
+  settings: (time: number, speed: boolean, members: boolean, rounds?: readonly number[], calm = false) =>
     [
       `${time}${NBSP}с на вопрос`,
-      speed ? 'очки за скорость' : 'только верность',
+      calm ? 'без спешки: очки только за верные ответы' : speed ? 'очки за скорость' : 'только верность',
       members ? 'только участники экзамена' : 'все по PIN',
       ...(rounds && rounds.length ? [MIXED.rounds(rounds)] : []),
     ].join(' · '),

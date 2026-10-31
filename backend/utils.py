@@ -465,6 +465,39 @@ def annotate_podcast(lines: Any, chunks: list[dict[str, str]]) -> int:
     return cited
 
 
+def _quiz_answer(item: dict) -> str:
+    """The text of a quiz question's right option («B» → the body of «B) …»), or ''."""
+    letter = str(item.get("correct") or "").strip()[:1].upper()
+    for option in item.get("options") or []:
+        text = str(option)
+        if letter and text[:1].upper() == letter and text[1:2] in (")", ".", ":"):
+            return text[2:].strip()
+    return ""
+
+
+def annotate_quiz(items: Any, chunks: list[dict[str, str]]) -> int:
+    """Source ids of the lecture's test questions (release 49: the model's are kept, not thrown away).
+
+    The model's own ids come first when the fragment exists and shares words with the question, its right answer and
+    its explanation; the lexical match (find_source_ids) fills the rest, up to two, as before.
+    """
+    if not isinstance(items, list):
+        return 0
+    by_id = {chunk["id"]: chunk for chunk in chunks}
+    cited = 0
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        query = f"{item.get('question', '')} {_quiz_answer(item)} {item.get('explanation', '')}"
+        words = _source_tokens(query)
+        own = [source_id for source_id in _clean_source_ids(item.get("source_ids"))
+               if source_id in by_id and words & _source_tokens(by_id[source_id].get("text", ""))]
+        found = find_source_ids(query, chunks)
+        item["source_ids"] = (own + [source_id for source_id in found if source_id not in own])[:2]
+        cited += bool(item["source_ids"])
+    return cited
+
+
 def enrich_agent_result(name: str, payload: Any, chunks: list[dict[str, str]]) -> Any:
     """Attach deterministic source ids to citable generated items."""
     if not isinstance(payload, dict) or payload.get("error"):
@@ -490,7 +523,7 @@ def enrich_agent_result(name: str, payload: Any, chunks: list[dict[str, str]]) -
     elif name == "flashcards":
         cited += annotate(payload.get("flashcards"), lambda item: f"{item.get('question', '')} {item.get('answer', '')}")
     elif name == "quiz":
-        cited += annotate(payload.get("quiz"), lambda item: f"{item.get('question', '')} {item.get('explanation', '')}")
+        cited += annotate_quiz(payload.get("quiz"), chunks)
     elif name == "missions":
         cited += annotate(payload.get("missions"), lambda item: f"{item.get('title', '')} {item.get('explanation', '')} {item.get('question', '')}")
     elif name == "podcast":

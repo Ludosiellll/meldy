@@ -289,6 +289,8 @@
 .lvbt-foot { pointer-events: auto; right: 96px; }
 
 /* ───────── several right answers, text answers (CONTRACT §3, §4) ───────── */
+.lvbt-calm { display: inline-block; margin: 6px 0 0 8px; padding: 4px 14px; border-radius: 999px; background: #bfe9d2; color: #123524; font: 800 17px/1.25 var(--ph-sans, system-ui); }
+.lvbt-range-value { display: block; margin-top: 4px; font: 700 26px/1.2 var(--ph-sans, system-ui); color: #7fe0a8; }
 .lvbt-multi { display: inline-block; margin-top: 6px; padding: 4px 14px; border-radius: 999px; background: #ffc531; color: #1d1b2e; font: 800 19px/1.25 var(--ph-sans, system-ui); }
 .lvst-answer[data-many] { flex-wrap: wrap; justify-content: center; gap: 12px 26px; font-size: 30px; }
 .lvbt-key { display: inline-flex; align-items: center; gap: 12px; }

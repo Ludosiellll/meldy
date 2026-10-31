@@ -168,7 +168,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
       </div>
     );
   else if (st.state === 'lobby')
-    screen = <Lobby ctl={ctl} look={st.me.look} name={st.me.name} players={st.players} pin={s.pin} crowd={st.crowd ?? []} canEdit={!s.busy} rounds={mixedOf(st)?.rounds ?? null} team={st.me.team ?? null} />;
+    screen = <Lobby ctl={ctl} look={st.me.look} name={st.me.name} players={st.players} pin={s.pin} crowd={st.crowd ?? []} canEdit={!s.busy} rounds={mixedOf(st)?.rounds ?? null} team={st.me.team ?? null} calm={!!st.calm} />;
   else if ((st.state === 'podium' || st.state === 'ended') && st.final)
     screen = (
       <Final

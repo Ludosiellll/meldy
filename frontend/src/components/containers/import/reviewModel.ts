@@ -76,7 +76,7 @@ function checked(item: ReviewItem): ReviewItem {
 }
 
 function kindFor(options: number, correct: number[], kind: BankItemKind): BankItemKind {
-  if (options === 0) return kind === 'match' || kind === 'order' ? kind : 'open';
+  if (options === 0) return kind === 'match' || kind === 'order' || kind === 'cloze' ? kind : 'open';
   if (correct.length > 1) return 'multiple';
   if (kind === 'open' || kind === 'unknown') return 'single';
   return kind;
@@ -144,7 +144,7 @@ const PART_DOUBT = BANK_DOUBT_AT / 2;
 
 /** The kind of a part by its own options and keys: a block read as «several answers» for its glued keys is not one. */
 function ownKind(options: number, correct: number[], kind: BankItemKind): BankItemKind {
-  if (kind === 'match' || kind === 'order') return kind;
+  if (kind === 'match' || kind === 'order' || kind === 'cloze') return kind;
   if (options === 0) return 'open';
   if (correct.length > 1) return 'multiple';
   return kind === 'truefalse' && options === 2 ? 'truefalse' : 'single';

@@ -1,5 +1,6 @@
 import { ACCENTS } from '../../lib/studio/contrast';
 import { TEMPLATES, type TemplateId } from '../../lib/studio/templates';
+import { PORT } from '../port/copyPort';
 import { STUDIO, type QuestionType } from './copyStudio';
 import { QuestionIcon } from './icons';
 import { FIRST_KINDS as QUESTION_KINDS } from './Palette';
@@ -23,11 +24,14 @@ export default function EmptyStart({
   onTemplate,
   onPaste,
   onQuestion,
+  onGenerate,
 }: {
   busy: boolean;
   onTemplate: (id: TemplateId) => void;
   onPaste: () => void;
   onQuestion: (type: QuestionType) => void;
+  /** Release 49: questions from a lecture, a text or a file. */
+  onGenerate?: () => void;
 }) {
   return (
     <div className="st-start" aria-busy={busy || undefined}>
@@ -62,6 +66,14 @@ export default function EmptyStart({
         </button>
         <span>{STUDIO.pasteLead}</span>
       </div>
+      {onGenerate ? (
+        <div className="st-start-paste">
+          <button type="button" className="st-pill" disabled={busy} onClick={onGenerate}>
+            {PORT.generateOpen}
+          </button>
+          <span>{PORT.generateLead}</span>
+        </div>
+      ) : null}
       <p className="st-start-or">{STUDIO.orFirst}</p>
       <div className="st-start-types">
         {QUESTION_KINDS.map((type) => (

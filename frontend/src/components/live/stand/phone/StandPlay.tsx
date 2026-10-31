@@ -33,7 +33,8 @@ import { FloatingStick } from './stick';
 import { Thumb } from './Thumb';
 import { LETTERS, lastFor, outcomeOf, placeLine, playersLine, points, secondsLeft, streakLine, zoneLine, ZONE_COLOURS, type Outcome } from './words';
 import { pinText } from '../../player/copy';
-import { MULTI_ZONES } from '../copy';
+import { MULTI_ZONES, RANGES } from '../copy';
+import { numberAnswer } from '../../../../lib/live/numbers';
 import type { MixedOutcome } from '../mixed';
 
 export interface StandPlayProps {
@@ -82,6 +83,7 @@ const Options = memo(function Options({
   choice,
   rows,
   pics,
+  value = null,
 }: {
   options: readonly string[];
   /** Every right zone once the round is closed (several for a question of several right answers), else null. */
@@ -89,6 +91,8 @@ const Options = memo(function Options({
   choice: number | null;
   rows: React.MutableRefObject<Array<HTMLLIElement | null>>;
   pics: ReadonlyArray<ShownPicture | undefined>;
+  /** A number played as ranges: the true value, said under the right range once closed. */
+  value?: string | null;
 }) {
   return (
     <ol className="sp-opts" aria-label="Ответы">
@@ -115,6 +119,7 @@ const Options = memo(function Options({
               {mark === 'key' && <span className="lp-sr">. Верный ответ</span>}
               {mark === 'wrong' && <span className="lp-sr">. Ваш ответ</span>}
             </span>
+            {mark === 'key' && value ? <span className="sp-opt__value">{value}</span> : null}
             {mark === 'key' && (
               <span className="sp-opt__ok" aria-hidden="true">
                 <Check />
@@ -453,7 +458,9 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   } else if (phase === 'reveal' && back) {
     head = <OutcomeCard outcome={{ tone: 'ok', title: 'Вы снова в игре', big: null, lines: ['Бегите к следующему ответу.'] }} look={look} fell={false} />;
   } else if (phase === 'reveal' && outcome) {
-    head = <OutcomeCard outcome={outcome} look={look} fell={!mixed && (fell || ghost)} ice={!!mixed?.frozen} />;
+    // a number played as ranges: the true value under the outcome (20261102090200_live_ranges.sql)
+    const num = res?.num && res.num.forms.length > 0 ? RANGES.value(numberAnswer(res.num.forms, res.num.tolerance, res.num.unit)) : null;
+    head = <OutcomeCard outcome={num ? { ...outcome, lines: [...outcome.lines, num] } : outcome} look={look} fell={!mixed && (fell || ghost)} ice={!!mixed?.frozen} />;
   } else if (phase === 'leaderboard' && me) {
     head = (
       <section className="sp-card sp-place">
@@ -472,7 +479,11 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
           <span className="sp-q__n">
             Вопрос {st.qi + 1} из {st.q_count}
             {st.chase && phase !== 'reveal' ? <b className="sp-q__chase">Дедлайн гонится!</b> : null}
-            {q.multi && q.multi > 1 && phase !== 'reveal' ? <b className="sp-q__multi">{MULTI_ZONES.hint(q.multi)}</b> : null}
+            {q.ranges && phase !== 'reveal' ? (
+              <b className="sp-q__multi">{RANGES.hint}</b>
+            ) : q.multi && q.multi > 1 && phase !== 'reveal' ? (
+              <b className="sp-q__multi">{MULTI_ZONES.hint(q.multi)}</b>
+            ) : null}
           </span>
           <div className="sp-clock" ref={clockRef} role="timer" aria-label="Секунд осталось">
             <span ref={timerRef}>{view.hello?.time_s ?? 15}</span>
@@ -510,7 +521,17 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
   return (
     <div className="sp sp-play" ref={playRef} data-phase={phase} data-ghost={ghost ? 'true' : undefined} data-ice={mixed?.frozen ? 'true' : undefined} data-view={use3d ? '3d' : '2d'}>
       {head}
-      {q && options.length > 0 && <Options key={st?.qi} options={options} keyIndex={res ? resKeys(res) : null} choice={last?.choice ?? null} rows={rows} pics={optionPics} />}
+      {q && options.length > 0 && (
+        <Options
+          key={st?.qi}
+          options={options}
+          keyIndex={res ? resKeys(res) : null}
+          choice={last?.choice ?? null}
+          rows={rows}
+          pics={optionPics}
+          value={res?.num && res.num.forms.length > 0 ? numberAnswer(res.num.forms, res.num.tolerance, res.num.unit) : null}
+        />
+      )}
       {zoom && typeof stem === 'string' && (
         <button type="button" className="sp-zoom" onClick={() => setZoom(false)} aria-label="Закрыть рисунок">
           <img src={stem} alt="Рисунок к вопросу" />

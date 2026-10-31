@@ -201,6 +201,34 @@ describe('deriveSubjects: decisions 5, 6 and 7', () => {
     expect(inputs[1]).toMatchObject({ kind: 'number', options: [], answers: ['9.8'], tolerance: '0.1', key_source: 'gift' });
   });
 
+  it('carries the file explanation, a Moodle cloze with its gaps and a match with its distractors (release 49)', () => {
+    const items = [
+      item(1, { kind: 'single', evidence: 'gift', marks: {}, correct: [0], explanation: '  Париж — столица Франции.  ' }),
+      item(2, { kind: 'cloze', options: [], correct: [], evidence: 'gift', marks: {}, text: 'Столица — ___, река — ___.', gaps: [['Берлин', 'Berlin'], ['Шпрее']], explanation: 'Из учебника.' }),
+      item(3, { kind: 'match', options: [], correct: [], evidence: 'gift', marks: {}, text: 'Страны', pairs: [['Франция', 'Париж'], ['Италия', 'Рим']], extras: ['Мадрид', 'париж', ''] }),
+      item(4, { kind: 'open', options: [], correct: [], evidence: 'gift', marks: {}, text: 'Автор?', answer: 'Пушкин', explanation: 'Роман в стихах.' }),
+      item(5, { kind: 'open', options: [], correct: [], evidence: 'gift', marks: {}, text: 'g?', answer: '9.8', number: { answers: ['9.8'], tolerance: null }, explanation: 'Около.' }),
+      item(6, { kind: 'order', options: ['а', 'б'], correct: [], evidence: 'gift', marks: {}, order: [0, 1], explanation: 'x'.repeat(2500) }),
+      // a cloze whose gaps do not match its «___» runs is not saved (skipped, as an unreadable order or match)
+      item(7, { kind: 'cloze', options: [], correct: [], evidence: 'gift', marks: {}, text: 'Один ___ и ещё ___', gaps: [['а']] }),
+      item(8, { kind: 'single', correct: [1] }),
+    ];
+    const [subject] = deriveSubjects([file(bank(items))]);
+    expect(subject.test.map((entry) => [entry.position, entry.kind])).toEqual([
+      [1, 'single'], [2, 'cloze'], [3, 'match'], [4, 'short'], [5, 'number'], [6, 'order'], [8, 'single'],
+    ]);
+    expect(subject.skippedKinds).toBe(1);
+    const inputs = itemInputs(subject, 'imp');
+    expect(inputs[0]).toMatchObject({ kind: 'single', explanation: 'Париж — столица Франции.' });
+    expect(inputs[1]).toEqual(expect.objectContaining({ kind: 'cloze', stem: 'Столица — ___, река — ___.', options: [], correct: [], answers: ['Берлин\nBerlin', 'Шпрее'], explanation: 'Из учебника.', key_source: 'gift' }));
+    expect(inputs[2]).toMatchObject({ kind: 'match', options: ['Франция', 'Италия'], answers: ['Париж', 'Рим', 'Мадрид'] });
+    expect(inputs[3]).toMatchObject({ kind: 'short', answers: ['Пушкин'], explanation: 'Роман в стихах.' });
+    expect(inputs[4]).toMatchObject({ kind: 'number', answers: ['9.8'], explanation: 'Около.' });
+    expect(inputs[5].explanation).toHaveLength(2000);
+    // a question of a Word file has no explanation key at all (strictly additive)
+    expect(inputs[6]).not.toHaveProperty('explanation');
+  });
+
   it('saves an image question without its key until the author says it reads without the image (decision 7)', () => {
     const items = [item(1, { flags: ['has_image'] }), item(2)];
     const [subject] = deriveSubjects([file(bank(items))]);

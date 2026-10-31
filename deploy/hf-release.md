@@ -4,6 +4,41 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 48.5: «Без спешки» — a battle where points come only from being right (from the commit of this entry)
+
+- **Why**: release 50 of the test builder program (Test_Builder_Spec_2026-10-18, «Режимы»): a serious check in the class
+  game without the race.
+- **Now**: a battle setting «Без спешки: Нет / Да», off by default. On: a right answer is 100, a partial one its share,
+  however fast; nobody freezes for a mistake, in any phase or movement round; «Очки за скорость» is hidden. The
+  projector shows «без спешки: очки только за верные ответы» and names nobody as fastest; the phone says «Отвечайте
+  спокойно…», «ошибка ничего не отнимает». The boss, reveal, review and «Тренировать ошибки» as before. Every other
+  game's messages unchanged, key for key.
+- **Also**: the `live_numbers.sql` check holds both before and after the ranges migration (it failed on live after
+  20261102090200 by design).
+- **Order**: this site, then migration 20261106090000. The Space has nothing new.
+
+## 2026-10-31 — Release 48.4: questions of the new kinds open as themselves in «Ключи», sessions and results (from the commit of this entry)
+
+- **Why**: found while building release 49: `normalizeItem` (`frontend/src/api/containers.ts`) kept only single, multiple
+  and short and dropped tolerance, unit, partial and the essay's lectures, so «Ключи» would open a number, order, match,
+  gaps or essay question in the one-answer editor, and a session or the results would read it as one answer. No such
+  question exists on the live database yet (checked 31.10), so nothing was damaged.
+- **Now**: the five kinds and their fields are read as they are; the stored bank cache goes to version 2, so every exam's
+  questions are fetched again once. Cherry-picked from the release 49 branch (4d613b2).
+
+## 2026-10-31 — Release 48.3: a number in the mini-game — four ranges on the floor (from the commit of this entry)
+
+- **Why**: the program of 31.10 — the mini-games to the end, with numbers. 48.2 brought a number as a typed button
+  question; a movement round could not play it.
+- **Now**: a number drawn on a movement round's place (a battle's mini-game, every question of «Встань на ответ") is four
+  ranges on the corners А Б / В Г, in value order like a number line («меньше 400», «400–500», «500–600», «больше
+  600»; round widths, the spread band wholly inside one range, a random right place, a decimal comma and «−»). «Встаньте
+  на промежуток с ответом»; at the reveal the right range and «Ответ: 343 ± 10 м/с» on the board and the phone; the
+  review says «Вы стояли на 400–500 · верный ответ 343 ± 10 м/с». A missed range goes to practice as «не знаю» (no
+  number was typed). On button places a number is still typed.
+- **The room** (this Space) passes the ranges, the unit and the value on; it grades nothing new (a range is a zone).
+- **Order**: this site and Space, then migration 20261102090200.
+
 ## 2026-10-31 — Release 48.2: a number question in the class game — keypad, number line, «Ближе всех» (from the commit of this entry)
 
 - **Why**: the owner, 31.10: «добавь вопросы недостающие (несколько верных, вводы чисел …)» — release 48 brought the
