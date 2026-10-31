@@ -29,9 +29,10 @@
 --         noted with their score;
 --         the close summary computed and kept once when it has closed (within 3 days of the close);
 --      b. the claimed quiz deliveries not handed in the last minute (a share the site queued, a 429 put back, a tick
---         that died) come again under the same rules as new ones: an active, unblocked link; a share only while the
---         group is still bound; a message to the author never while the link is paused or between 22:00 and 08:00 in
---         its zone; made more than 3 days ago — skipped; out of tries — failed (never left claimed for good);
+--         that died) come again under the same rules as new ones; what can never go is closed first (the author's
+--         link off or blocked, made more than 3 days ago — skipped; out of tries, a share to a group no longer bound —
+--         failed: never left claimed for good), and only rows that may go now are taken (not a message to the author
+--         while the link is paused or between 22:00 and 08:00 in its zone), so waiting rows hold back none behind them;
 --      c. new ones under the author's rules: the close summary first (it takes the finishes that wait), each finish or
 --         a digest as chosen, the same hours and pause. Waiting notices older than 3 days are dropped.
 --      Each row carries what the message says, read from what was kept (no grading on a hand-out): one — the name and
@@ -464,36 +465,38 @@ begin
    where n.id in (select x.id from bot.quiz_notices x where x.handled_at < v_now - interval '90 days' limit 5000);
 
   -- b. Claimed quiz deliveries not handed in the last minute (a share the site queued, a 429 put back, a dead tick),
-  --    under the rules of new ones; out of tries or too old they are closed, never left claimed.
+  --    under the rules of new ones. First what can never go is closed, never left claimed: the author's link is off
+  --    or blocked (skipped), out of tries (failed), made more than 3 days ago (skipped), a share to a group no longer
+  --    bound (failed). Then only rows that may go now are taken, oldest first: one waiting out the night or a pause is
+  --    not taken at all, so it never holds back the rows behind it.
+  update bot.deliveries d set status = 'skipped', error = 'link off'
+    from bot.quiz_sends s
+   where s.delivery_id = d.id and d.status = 'claimed'
+     and not exists (select 1 from bot.links l where l.id = d.link_id and l.unlinked_at is null and l.blocked_at is null);
+  update bot.deliveries d set status = 'failed', error = 'out of tries'
+    from bot.quiz_sends s
+   where s.delivery_id = d.id and d.status = 'claimed' and d.attempts >= 3;
+  update bot.deliveries d set status = 'skipped', error = 'too old'
+    from bot.quiz_sends s
+   where s.delivery_id = d.id and d.status = 'claimed' and s.made_at < v_now - interval '3 days';
+  update bot.deliveries d set status = 'failed', error = 'group gone'
+    from bot.quiz_sends s
+   where s.delivery_id = d.id and d.status = 'claimed' and s.kind = 'share'
+     and not exists (select 1 from bot.groups g join public.quizzes q on q.container_id = g.container_id
+                      where g.chat_id = d.chat_id and g.left_at is null and q.id = s.quiz_id);
   for v_s in
-    select s.delivery_id, s.quiz_id, s.kind, s.made_at, s.handed_at, d.chat_id, d.attempts, l.tz, l.paused_until
+    select s.delivery_id, s.handed_at
       from bot.quiz_sends s
       join bot.deliveries d on d.id = s.delivery_id
       join bot.links l on l.id = d.link_id and l.unlinked_at is null and l.blocked_at is null
      where d.status = 'claimed' and (s.handed_at is null or s.handed_at < v_now - interval '1 minute')
+       and (s.kind = 'share'
+            or (extract(hour from v_now at time zone l.tz) between 8 and 21
+                and (l.paused_until is null or l.paused_until <= (v_now at time zone l.tz)::date)))
      order by d.claimed_at, d.id
-     limit 100
+     limit p_limit
   loop
     exit when pg_catalog.cardinality(v_out) >= p_limit or pg_catalog.clock_timestamp() - v_start > c_time;
-    if v_s.attempts >= 3 then
-      update bot.deliveries d set status = 'failed', error = 'out of tries' where d.id = v_s.delivery_id and d.status = 'claimed';
-      continue;
-    end if;
-    if v_s.made_at < v_now - interval '3 days' then
-      update bot.deliveries d set status = 'skipped', error = 'too old' where d.id = v_s.delivery_id and d.status = 'claimed';
-      continue;
-    end if;
-    if v_s.kind = 'share' then
-      if not exists (select 1 from bot.groups g join public.quizzes q on q.container_id = g.container_id
-                      where g.chat_id = v_s.chat_id and g.left_at is null and q.id = v_s.quiz_id) then
-        update bot.deliveries d set status = 'failed', error = 'group gone' where d.id = v_s.delivery_id and d.status = 'claimed';
-        continue;
-      end if;
-    else
-      v_local := v_now at time zone v_s.tz;
-      continue when extract(hour from v_local) < 8 or extract(hour from v_local) >= 22;
-      continue when v_s.paused_until is not null and v_s.paused_until > v_local::date;
-    end if;
     begin
       v_row := meldy_private.quiz_tg_row(v_s.delivery_id);
       if v_s.handed_at is not null then

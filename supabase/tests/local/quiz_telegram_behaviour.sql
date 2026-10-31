@@ -406,6 +406,30 @@ select pg_temp.ok((select d.status from bot.deliveries d join bot.quiz_sends s o
                     where s.quiz_id = pg_temp.c('q5')::uuid) = 'failed', 'the share failed, not left claimed');
 update bot.groups set left_at = null where chat_id = -100500;
 
+-- 8c. Rows waiting out the night are not taken at all, so they never hold back the rows behind them (review
+--     2026-11-05: 100 of them at the front starved the rest); an author whose link went: their rows are skipped.
+insert into bot.links (user_id, tg_user_id, chat_id, tz) values ('bbbbbbbb-0000-0000-0000-000000000002', 8001, 8001, 'Pacific/Honolulu');
+insert into bot.deliveries (kind, chat_id, link_id, local_day, ref, claimed_at)
+select 'notice', 8001, l.id, current_date, 'qz:wait-' || g, pg_temp.at(305) - interval '1 hour' from bot.links l, generate_series(1, 120) g
+ where l.tg_user_id = 8001;
+insert into bot.deliveries (kind, chat_id, link_id, local_day, ref, claimed_at)
+select 'notice', 7001, l.id, current_date, 'qz:go', pg_temp.at(305) from bot.links l where l.tg_user_id = 7001;
+insert into bot.quiz_sends (delivery_id, quiz_id, kind, made_at)
+select d.id, pg_temp.c('q')::uuid, 'one', pg_temp.at(305) from bot.deliveries d where d.ref like 'qz:wait-%' or d.ref = 'qz:go';
+do $do$
+declare r jsonb := pg_temp.tick(305);  -- 17:05 in Minsk, 04:05 in Honolulu
+begin
+  perform pg_temp.ok(jsonb_array_length(r) = 1 and (r -> 0 ->> 'chat_id')::bigint = 7001, format('the day''s row goes: %s', r));
+  perform pg_temp.ok((select count(*) from bot.deliveries d join bot.quiz_sends s on s.delivery_id = d.id
+                       where d.ref like 'qz:wait-%' and d.status = 'claimed' and s.handed_at is null) = 120, 'the night''s wait');
+  perform pg_temp.sent(r -> 0);
+end;
+$do$;
+update bot.links set unlinked_at = now() where tg_user_id = 8001;
+select pg_temp.ok(pg_temp.tick(306) = '[]'::jsonb, 'nothing for a link that went');
+select pg_temp.ok((select count(*) from bot.deliveries where ref like 'qz:wait-%' and status = 'skipped' and error = 'link off') = 120,
+                  'its rows skipped, not left claimed');
+
 -- 9. A blocked link: nothing, not even looked at (review 2026-11-05: the tick's work only for linked authors); after the
 --    unblock the finish is told; off drops what waits; a blocked link cannot share.
 select pg_temp.as_role('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
