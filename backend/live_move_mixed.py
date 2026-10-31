@@ -334,7 +334,8 @@ class MixedGame(stand.StandGame):
         by_pid = {pid: p.id for pid, p in room.by_pid.items()}
         boss = res.get("boss") if isinstance(res.get("boss"), dict) else {}
         self.res = {
-            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), "counts": res.get("counts") if isinstance(res.get("counts"), list) else [],
+            "qi": qi, "key": key, **({"keys": keys} if len(keys) > 1 else {}), **stand.number_of(res),
+            "counts": res.get("counts") if isinstance(res.get("counts"), list) else [],
             "stood": int(res.get("right") or 0), "of": int(res.get("active") or 0),
             "fastest": None if fastest is None else {"id": fastest[3], "pts": -fastest[2], "ms": fastest[4]},
             "fell": fell, "back": list(fell), "at": int(now_ms), "back_at": int(self.back_at),

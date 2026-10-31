@@ -103,6 +103,9 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
   the projector's number line. A typed number is read by `meldy_private.live_number_value` (the rule's own reading:
   the rehearsal checks it on contracts/kinds/number_vectors.json); what is no number counts as wrong and is never
   shown, so no word reaches the projector from a number question.
+- A number **played as ranges** (since `20261102090200_live_ranges.sql`, on a movement round's place) is a zone
+  question: the zone stood on is right when it is a right range (`key`, or `keys` when another accepted number falls
+  in another range), as any zone; no tops, no spread.
 - Worked example (rehearsed in `live_kinds_teams_behaviour.sql` and `test_live_kinds.py`): keys `[0, 2]`, T = 20 s;
   Дима ticks 0 and 2 at 1000 ms (streak 0) → 98 (right); Лена ticks 2 at 2000 ms → share 0.5, `round(95 × 0.5) = 48`
   (streak 0, not frozen); Боря ticks 0 and 1 → share 0, wrong, frozen.
@@ -119,7 +122,16 @@ Reference cases (also in `rules.test.ts`): `T = 20 s`, `elapsed 900 ms`, streak 
 - Since `20261102090100_live_numbers.sql` a **number** item (release 48, docs/kinds/CONTRACT.md: 1–10 accepted
   numbers, a tolerance, a unit) plays wherever a text answer may (`kind = 'number'`: no options, `key = -1`, `forms` =
   the accepted numbers, `tolerance` and `unit` copied, the unit trimmed): only ever a button question, never on a
-  movement round's place, never in «Встань на ответ». Order, match, cloze and essay items never play (the setup names
+  movement round's place, never in «Встань на ответ» — until `20261102090200_live_ranges.sql`: a number on a movement
+  round's place (a battle's round, every question of «Встань на ответ») is played as **ranges**. `meldy_private.live_ranges`
+  makes four (the floor's corners А, Б above, В, Г below read like a line, left to right; a fifth would sit in the
+  middle zones Д or Е and break that order, so none is drawn): the width is the first round one (1, 2, 2.5, 5 × 10^k)
+  of at least the tolerance band, a quarter of the value and one step of its last digit whose grid (or the grid moved
+  by half a width) holds the band strictly inside one range; that range is put at a random place; the ends are open;
+  the labels say «меньше 300», «300–400», «от −15 до −10», «больше 500» (a decimal comma, «−», a no-break space between
+  thousands from five digits on). The row: options = the labels, `shown` 0–3, `key` (and `keys`), `bounds` (the three
+  limits), and the accepted numbers, tolerance and unit kept. `live_arrange` keeps only text answers off the rounds.
+  Order, match, cloze and essay items never play (the setup names
   each: «Нужно расставить по порядку.», «Нужно сопоставить пары.», «Пропуски в тексте.», «Развёрнутый ответ.»).
 - Before it: plays items with exactly one correct option of 2–6, pictures allowed, in every game: a battle, a battle with movement
   rounds and «Встань на ответ» (20261030090000_live_pictures.sql for the battle, 30.10; 20261031090000_live_wide_rounds.sql
@@ -316,8 +328,12 @@ wrong). `ML004 kind`, `22023 answer` as above.
 "result":   {…, "forms": ["42"], "tolerance": 0.5, "unit": "м", "tops": [{"text": "41.6", "n": 1, "ok": true}]}
             // + HostState: "spread": [["41.6", 1], ["42", 3], ["43", 1]]   + PlayerState: "typed": "41,6 м"
 "me":       {…, "typed": "41,6 м"}
+// A number played as ranges (20261102090200_live_ranges.sql), a movement round's question:
+"question": {…, "kind": "number", "unit": "м/с", "ranges": true, "options": ["меньше 300", "300–400", "400–500", "больше 500"]}
+"result":   {…, "key": 1, "counts": [3, 17, 2, 1], "ranges": true, "forms": ["343"], "tolerance": 10, "unit": "м/с"}  // + "keys"
+// the room: q {…, "ranges": true, "unit": "м/с"}; res {…, "num": {"forms": ["343"], "tolerance": 10, "unit": "м/с"}}
 // Review items: + "kind", "keys", "picks", "share" | "kind", "forms", "typed" | "kind", "forms", "tolerance", "unit",
-// "typed"; + "explanation" when the item has one
+// "typed" (+ "ranges", "keys" for ranges; "choice" is the range stood on); + "explanation" when the item has one
 // (correct: the close's verdict — the exact set, a right zone, a right text)
 ```
 
@@ -437,7 +453,9 @@ no room.
   through the study core (`meldy_private.record_test_answers_for`, source `web`): the same row and rule step as a
   wrong answer on the site, so «Повторить ошибки» brings them back. `client_event_id` = `live:<game>:<qi>`: a second
   press records nothing twice (`saved` counts both). The answer goes as the player gave it: the options (file
-  indexes), the text of a text or a number question, or none (`dont_know`).
+  indexes), the text of a text or a number question, or none (`dont_know`). A number played as ranges and missed goes
+  as «не знаю» (`text: null`): the player stood on a range and typed no number, and the study core grades a number item
+  by a typed text only — inventing one (the range's middle) would record an answer the player never gave.
 - The phone: «Готово: 3 вопроса в тренировке экзамена.» and «Открыть экзамен»; a guest (no session) is asked to sign
   in («Войти и тренировать») and comes back to `/play?r=<game>&practice=1` — the token stays in the tab — where it runs
   by itself; in Telegram there is no site session: the line says to play from the site with an account.
@@ -472,5 +490,11 @@ no room.
   (`host/Panel.tsx`) shows the key and the same line; the teacher's «Разбор» says «Верный ответ: 42 ± 0,5 м».
 - **Review on the phone**: «Вы ввели: …» and «Верный ответ: …» with the tolerance and unit; «Тренировать ошибки» sends a
   number mistake with the own text (the study core grades it by the same rule).
+- **Ranges** (`20261102090200_live_ranges.sql`): the round's board and the phone's card say «Встаньте на промежуток с
+  ответом» over the four ranges; at the reveal the right range is named with the true value under it («Ответ: 343 ±
+  10 м/с»: the room's `num`, else the database's result), and on the phone beside the right range. The flat
+  projector shows the ranges as tiles and the value under them. The phone's review: «Вы стояли на 400–500 · верный
+  ответ 343 ± 10 м/с» and «Верный промежуток: 300–400» when missed.
 - Release order: the site and the Space first (they read the new keys and run without them), then the migration.
-  For the numbers: 20261101090000 (live) and 20261102090000 first, then the site, then 20261102090100.
+  For the ranges: 20261102090100, then the site and the Space (the room forwards `ranges`, `unit`, `num`), then
+  20261102090200. For the numbers: 20261101090000 (live) and 20261102090000 first, then the site, then 20261102090100.

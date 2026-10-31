@@ -33,7 +33,8 @@ import { arenaOn, revealPlan, strongest } from './mixed';
 import type { TimerFace } from './plan';
 import { useStandRoom } from './room';
 import { StandScene, type StandCue, type StandHud } from './scene';
-import { BATTLE_3D, MULTI_ZONES, STAND } from './copy';
+import { BATTLE_3D, MULTI_ZONES, RANGES, STAND } from './copy';
+import { numberAnswer } from '../../../lib/live/numbers';
 import '../host/host.css';
 import './stand.css';
 
@@ -182,6 +183,10 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
   const key = keys && keys.length > 0 ? keys[0] : null;
   // several right zones: the database's question says how many (the room's q too)
   const multi = own?.q?.multi ?? (s.question && s.question.qi === qi ? s.question.multi : undefined);
+  // a number played as ranges (20261102090200_live_ranges.sql): the hint, and the true value at the reveal
+  const ranges = !!(own?.q?.ranges ?? (s.question && s.question.qi === qi ? s.question.ranges : false));
+  const dbNum = phase === 'reveal' && s.result && s.result.qi === qi && s.result.ranges ? { forms: s.result.forms ?? [], tolerance: s.result.tolerance ?? null, unit: s.result.unit ?? null } : null;
+  const num = res?.num ?? dbNum;
   const shown = reveal.qi === qi && reveal.hp !== null;
   const hp = shown ? reveal.hp! : s.boss.hp;
   const max = shown && reveal.max ? reveal.max : s.boss.hp_max;
@@ -214,11 +219,12 @@ export function MixedBoard({ s, rs, pics, reveal, nameOf, timerRef, countRefs, f
                   </span>
                 ))}
               </div>
+              {num && num.forms.length > 0 ? <span className="lvbt-range-value">{RANGES.value(numberAnswer(num.forms, num.tolerance, num.unit))}</span> : null}
             </div>
           ) : q ? (
             <div className="lvst-q lvbt-q" key={`q${qi}`}>
               <span className="lvst-hint">{chase ? MIXED.chaseHint : MIXED.hint}</span>
-              {multi && multi > 1 ? <span className="lvbt-multi">{MULTI_ZONES.hint(multi)}</span> : null}
+              {ranges ? <span className="lvbt-multi">{RANGES.hint}</span> : multi && multi > 1 ? <span className="lvbt-multi">{MULTI_ZONES.hint(multi)}</span> : null}
               <h1 className="lvst-q-text" data-long={q.text.length > 70 ? '' : undefined}>
                 {q.text}
               </h1>

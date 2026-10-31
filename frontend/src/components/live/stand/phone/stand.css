@@ -118,6 +118,7 @@
 .sp-opt[data-mark='key'] { box-shadow: inset 0 0 0 3px var(--sp-green); background: #e2f6e9; color: #0b121c; }
 .dark .sp-opt[data-mark='key'] { background: #1f3f2c; color: var(--lp-ink); }
 .sp-opt[data-mark='wrong'] { outline: 2px dashed var(--lp-ink-2); outline-offset: -2px; box-shadow: none; }
+.sp-opt__value { flex: none; padding: 5px 9px; border-radius: 999px; background: #36c47c; color: #0b121c; font: 700 12.5px/1 var(--ph-sans, sans-serif); white-space: nowrap; }
 .sp-opt__you { flex: none; padding: 5px 9px; border-radius: 999px; background: var(--lp-soft); color: var(--lp-ink-2); font: 600 12.5px/1 var(--ph-sans, sans-serif); white-space: nowrap; }
 .sp-opt[data-mark='dim'] { opacity: 0.5; }
 .sp-opt__ok { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--sp-green); color: #0b121c; }

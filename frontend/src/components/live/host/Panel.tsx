@@ -244,7 +244,15 @@ export function QuestionPanel({ question, result, closing = null, late = false, 
           </div>
         ) : null}
       </div>
-      {questionKind(question) === 'number' ? (
+      {questionKind(question) === 'number' && question.ranges ? (
+        revealed && result && (result.forms ?? []).length > 0 ? (
+          <div className="lvh-number" aria-live="polite">
+            <p className="lvh-number-key">
+              {BATTLE.numberKey} <b>{numberAnswer(result.forms, result.tolerance, result.unit ?? question.unit)}</b>
+            </p>
+          </div>
+        ) : null
+      ) : questionKind(question) === 'number' ? (
         <div className="lvh-number" aria-live="polite">
           {revealed && result ? (
             <>
