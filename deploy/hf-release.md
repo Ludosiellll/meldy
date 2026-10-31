@@ -4,6 +4,27 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 49.1: question stats for the author, «Повторить» into each person's training, honest signals, Telegram notices (from the commit of this entry)
+
+- **Why**: Test_Builder_Spec_2026-10-18, «Выпуск 49»: stats «как у психометриста, но по-человечески», honest signals, the
+  author told in Telegram.
+- **Stats** (a контрольная's results, «Вопросы»): the share right per question; how well it separates strong and weak
+  (correlation with the rest of the attempt, top and bottom 27 %), «этот вопрос стоит переписать» when it hardly does
+  (no verdict under 15 finished attempts); the trap option; the median time; first vs last attempt; another контрольная
+  of the same test on demand. «верно N %» on each question of the studio canvas.
+- **«Повторить»**: who should repeat what; one button sends each member their own mistakes into training, in batches of
+  50 with a progress line, never twice, never over what the person has learned since; guests and outsiders are named,
+  not sent. The rows carry their own source, so the bot's reminders don't count them as studying today.
+- **Signals**: «быстро» (20 answers in 40 s) beside the existing page leaves, with «Это не доказательство».
+- **Telegram** (opt-in per контрольная, off by default; only with a linked bot): «<имя> сдал: 17 из 20», a digest after 3
+  in 10 minutes, a summary at the close (computed once), quiet 22:00–08:00, names that never become links; share the
+  link into a group chat bound to the exam.
+- **«Ключи»**: the question editor does 1.1–1.3 layouts per key instead of 3.
+- **Review before release** (independent, twice): a stale mistake no longer wipes learned progress; the send no longer
+  times out on a big class; the close summary no longer blocks the bot's queue; reopen keeps notices; costs capped by
+  answers; the check stays NOT VALID (no table scan under lock).
+- **Order**: migrations 20261105090000/090100 applied (8 checks green), bot deployed, then this site.
+
 ## 2026-10-31 — Release 49: tests move in and out (GIFT, Aiken, Moodle XML, Kahoot) and a test made from a lecture with its sentence (from the commit of this entry)
 
 - **Why**: Test_Builder_Spec_2026-10-18, «Выпуск 49»: a teacher is not locked in; a test from a lecture carries where its
