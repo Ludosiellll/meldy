@@ -12,7 +12,9 @@ import { useWide } from './useWide';
 import { glue, TO_EXAMS } from './copy';
 import { nb } from './copyImport';
 import { TEST_HOME } from '../test/copyTest';
-import { LIVE_ENTRY, keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../test/gameEntry';
+import { LIVE_ENTRY, challengePath, keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../test/gameEntry';
+import ChallengeList from '../challenge/ChallengeList';
+import { CHALLENGE_ENTRY } from '../challenge/copyAuthor';
 import TipCard from '../tips/TipCard';
 import { TIPS } from '../tips/tips';
 import { useFirstUseTip } from '../tips/useFirstUseTip';
@@ -86,11 +88,23 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
       {gameTip.show ? <TipCard tip={TIPS.game} anchor={gameRef} to={gamePath} onAction={gameTip.done} onDismiss={gameTip.dismiss} /> : null}
     </>
   );
+  // «Соревнование по ссылке» (docs/live/CHALLENGE.md): the same questions, each person alone before a deadline; shut
+  // for the same reason as the game
+  const challenge = !liveGameOpen() ? null : why ? (
+    <button type="button" className="th-send" disabled aria-describedby={whyId}>
+      {CHALLENGE_ENTRY.action}
+    </button>
+  ) : (
+    <Link className="th-send" to={challengePath(containerId)}>
+      {CHALLENGE_ENTRY.action}
+    </Link>
+  );
   const lead = (
     <>
       {wide ? studio : null}
       {send}
       {game}
+      {challenge}
     </>
   );
 
@@ -161,6 +175,8 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
         </h2>
         {list}
       </section>
+      {/* This test's challenges by a link, when it has any: their state and leader, each to its results. */}
+      {liveGameOpen() ? <ChallengeList container={containerId} className="th-challenges" /> : null}
       {!wide ? <div className="ct-cta">{studio}</div> : null}
       {dialogs}
     </div>

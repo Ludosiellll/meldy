@@ -1,0 +1,99 @@
+/* «Соревнование в своё время» (/s/<code>): the live player's surface (player.css, .lp) in one column — the phone's width
+   on a phone, a centred column on a computer — and the few pieces a run alone has: the intro's stage, the rules, the
+   result sheet with the explanation and «Дальше», the table. Light and dark from the site's tokens, as the player's.
+   Motion: transform and opacity only. */
+
+.lp.lc { align-items: stretch; }
+.lc-col { position: relative; flex: 1; min-height: 0; width: 100%; max-width: 620px; margin: 0 auto; display: flex; flex-direction: column; }
+.lc-center { align-items: center; justify-content: center; gap: 12px; }
+.lc-kicker { margin: 0 0 6px; font: 600 14px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); letter-spacing: 0.01em; }
+.lc-until { margin: 4px 0 10px; font: 600 15.5px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink); }
+.lc-played { margin: 12px 2px 0; font: 500 15px/1.4 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.lc-p { margin: 0; }
+.lc-p + .lc-p { margin-top: 8px; }
+
+/* The stage: the boss and the player's character, still pictures (the boss breathes by its own CSS). */
+.lc-stage { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 22px; min-height: 172px; padding: 26px 0 10px; flex: none; }
+.lc-stage::after { content: ''; position: absolute; left: 50%; bottom: 8px; width: 240px; height: 22px; margin-left: -120px; border-radius: 50%; background: var(--lp-floor); z-index: -1; }
+.lc-stage-me { margin-bottom: 2px; }
+.lc-stage--duel { gap: 16px; }
+.lc-stage--final { min-height: 190px; }
+.lc-vs { align-self: center; font: 800 26px/1 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.dark .lc-stage { background: radial-gradient(closest-side, rgba(243, 243, 240, 0.08), rgba(243, 243, 240, 0)); }
+
+.lc-rules { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.lc-rules li { position: relative; padding-left: 20px; }
+.lc-rules li::before { content: ''; position: absolute; left: 2px; top: 0.55em; width: 8px; height: 8px; border-radius: 50%; background: var(--lp-blue); }
+.lc-over { display: flex; flex-direction: column; gap: 4px; }
+.lc-over b { font-size: 17px; }
+
+/* ─── a question ─── */
+.lc-battle .lp-boss { gap: 10px; }
+.lc-points { flex: none; min-width: 54px; padding: 8px 10px; border-radius: 12px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); text-align: center; font: 800 17px/1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
+.lc-qerror { margin: 0 4px 8px; }
+
+/* The boss once it is down: on its back, faded; the HP line says «повержен». */
+.lc-boss-down { transform: rotate(-80deg) translateX(-8%); opacity: 0.55; filter: grayscale(0.6); }
+.lp-boss[data-down] .lp-hp-row > span:last-child { color: var(--lp-ink-2); font-weight: 600; }
+
+/* The sheet: the verdict, the points, the key, the explanation; «Дальше» stays at its bottom. */
+.lc-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.lc-sheet-head > div:first-child { min-width: 0; }
+.lc-sheet .lc-sheet-head h2 { padding-right: 0; }
+.lc-sheet-me { flex: none; margin-top: -6px; }
+.lc-sheet p { padding-right: 0; }
+.lc-sheet { display: flex; flex-direction: column; max-height: 82%; padding-bottom: calc(var(--lp-bottom) + 16px); }
+.lc-sheet-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 6px; }
+.lc-sheet-points { display: flex; align-items: baseline; gap: 10px; }
+.lc-sheet-points > span:last-child { font: 600 18px/1 var(--ph-sans, sans-serif); }
+.lc-explain { margin-top: 14px; padding: 12px 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.62); }
+.lc-explain b { display: block; font: 700 14px/1.2 var(--ph-sans, sans-serif); text-transform: none; }
+.lc-explain p { margin: 6px 0 0; padding-right: 0; font: 500 16px/1.42 var(--ph-sans, sans-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+.lc-next { flex: none; margin-top: 12px; background: #0b121c; color: #fff; }
+.lc-next:disabled { opacity: 0.55; }
+
+/* ─── the final ─── */
+.lc-final-top { margin-top: 18px; }
+.lc-final-top h2 { margin: 0 0 8px; font: 700 17px/1.2 var(--ph-sans, sans-serif); }
+.lc-result { margin-top: 2px; border-radius: 22px; }
+.lc-result .lp-result__place span { font-size: 16px; }
+
+/* ─── the table ─── */
+.lc-head { display: flex; justify-content: flex-end; gap: 14px; margin: 16px 12px 6px 0; font: 600 12.5px/1 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.lc-head span:first-child { width: 64px; text-align: right; }
+.lc-head span:last-child { width: 96px; text-align: right; }
+.lc-board { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.lc-row { display: grid; grid-template-columns: 30px 38px minmax(0, 1fr) 64px 96px; align-items: center; gap: 0 8px; min-height: 52px; padding: 6px 12px 6px 8px; border-radius: 16px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); font: 600 16px/1.2 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; animation: lp-rise 0.32s var(--lp-ease) both; }
+.lc-row[data-place='1'] .lc-place { background: var(--lp-yellow); color: #0b121c; }
+.lc-row[data-place='2'] .lc-place { background: #dce6f7; color: #0b121c; }
+.lc-row[data-place='3'] .lc-place { background: #f7d7c4; color: #0b121c; }
+.lc-row[data-me='true'] { background: var(--lp-ink); color: var(--lp-canvas); box-shadow: none; }
+.lc-row[data-me='true'] .lc-sub-num, .lc-row[data-me='true'] small { color: inherit; opacity: 0.8; }
+.lc-place { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; font: 800 15px/1 var(--ph-sans, sans-serif); }
+.lc-who { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-who small { font: 500 13px/1 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.lc-num { text-align: right; font-weight: 800; }
+.lc-sub-num { text-align: right; font: 500 13.5px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); white-space: nowrap; }
+.lc-row > .lv-char { contain: layout style; }
+.lc-empty, .lc-mine { margin-top: 14px; }
+@media (max-width: 380px) {
+  .lc-row { grid-template-columns: 26px 34px minmax(0, 1fr) 52px 78px; padding-right: 8px; font-size: 15px; }
+  .lc-head span:first-child { width: 52px; }
+  .lc-head span:last-child { width: 78px; }
+}
+
+/* ─── a computer: the column breathes; four or six answers two by two ─── */
+@media (min-width: 900px) {
+  .lc-col { max-width: 720px; }
+  .lc .lp-page { padding-top: calc(var(--lp-top) + 36px); }
+  .lc .lp-bar { padding-bottom: 28px; }
+  .lc .lp-bar:not(.lp-bar--row) { flex-direction: row-reverse; justify-content: flex-start; }
+  .lc .lp-bar:not(.lp-bar--row) > .lp-btn { width: auto; min-width: 220px; padding: 0 28px; }
+  .lc .lp-answers[data-n='4'], .lc .lp-answers[data-n='6'] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .lc .lp-answers[data-n='4'] > .lp-multi, .lc .lp-answers[data-n='6'] > .lp-multi,
+  .lc .lp-answers[data-n='4'] > .lp-send, .lc .lp-answers[data-n='6'] > .lp-send { grid-column: 1 / -1; }
+  .lc-battle { padding-top: calc(var(--lp-top) + 22px); }
+  .lc .lp-q { font-size: 24px; }
+  .lc .lp-q[data-size='m'] { font-size: 21px; }
+  .lc-sheet { left: 0; right: 0; border-radius: 30px 30px 0 0; }
+}

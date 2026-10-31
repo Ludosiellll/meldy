@@ -55,7 +55,7 @@ const Cross = () => (
   </svg>
 );
 
-type AnsLook = 'idle' | 'chosen' | 'dim';
+export type AnsLook = 'idle' | 'chosen' | 'dim';
 interface AnswerProps {
   index: number;
   text: string;
@@ -69,7 +69,7 @@ interface AnswerProps {
   onPick: (index: number) => void;
 }
 
-const Answer = memo(function Answer({ index, text, disabled, look, mark, tick, picture, onPick }: AnswerProps) {
+export const Answer = memo(function Answer({ index, text, disabled, look, mark, tick, picture, onPick }: AnswerProps) {
   const o = OPTION_STYLES[index];
   const status = mark === 'key' ? ', верный ответ' : mark === 'wrong' ? ', ваш ответ, неверный' : look === 'chosen' ? ', ваш ответ' : tick ? ', отмечен' : '';
   // aria-disabled, not disabled: disabling the button the finger is on makes the browser move focus (a forced style
@@ -141,7 +141,7 @@ function PictureZoom({ url, onClose }: { url: string; onClose: () => void }) {
 }
 
 /** The boss's health: scaleX of two bars (the light one follows a beat later). */
-const HpBar = memo(function HpBar({ k }: { k: number }) {
+export const HpBar = memo(function HpBar({ k }: { k: number }) {
   const scale = `scaleX(${Math.max(0, Math.min(1, k))})`;
   return (
     <div className="lp-hp-bar" role="progressbar" aria-label="Здоровье Дедлайна" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(k * 100)}>
@@ -152,7 +152,7 @@ const HpBar = memo(function HpBar({ k }: { k: number }) {
 });
 
 /** 3 · 2 · 1 before the buttons open: each digit a delayed CSS animation, the delays fixed at mount. */
-const Countdown = memo(function Countdown({ untilMs }: { untilMs: number }) {
+export const Countdown = memo(function Countdown({ untilMs }: { untilMs: number }) {
   const [start] = useState(() => untilMs);
   const [still] = useState(reducedMotion);
   const [at] = useState(() => Date.now());

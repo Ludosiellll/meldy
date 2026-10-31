@@ -17,7 +17,8 @@ import { plural } from './copy';
 import { OPTION_STYLES } from './options';
 
 export interface ReviewScreenProps {
-  ctl: PlayerController;
+  /** The live player's controller, or the challenge's (components/challenge): the two calls the screen makes. */
+  ctl: Pick<PlayerController, 'practiceMistakes' | 'closeReview'>;
   review: Review | null;
   error: string | null;
   /** Opened from a link (Telegram `r_<game>`): no screen behind it, no way back. */
@@ -28,6 +29,10 @@ export interface ReviewScreenProps {
   practice?: PracticeView;
   /** The sign-in page with the way back to this review (web), or null where there is none (Telegram). */
   signInHref?: string | null;
+  /** The line under the heading (the live game's says the keys are only of this game's questions). */
+  lead?: (right: number, total: number) => string;
+  /** The words of «Назад» (the live game's: to the final or back). */
+  backText?: string;
 }
 
 const PRACTICE = {
@@ -135,7 +140,7 @@ function NumberAnswer({ item }: { item: ReviewItem }) {
   );
 }
 
-export function ReviewScreen({ ctl, review, error, standalone, back, practice, signInHref }: ReviewScreenProps) {
+export function ReviewScreen({ ctl, review, error, standalone, back, practice, signInHref, lead, backText }: ReviewScreenProps) {
   const right = review ? review.items.filter((i) => i.correct).length : 0;
   const mistakes = review ? review.items.length - right : 0;
   return (
@@ -144,7 +149,7 @@ export function ReviewScreen({ ctl, review, error, standalone, back, practice, s
         <h1 className="lp-h1">Разбор</h1>
         {review && (
           <p className="lp-sub">
-            Верно {right} из {review.items.length}. Ключи&nbsp;— только вопросов этой игры.
+            {lead ? lead(right, review.items.length) : <>Верно {right} из {review.items.length}. Ключи&nbsp;— только вопросов этой игры.</>}
           </p>
         )}
         {!review && !error && (
@@ -225,7 +230,7 @@ export function ReviewScreen({ ctl, review, error, standalone, back, practice, s
       {!standalone && (
         <div className="lp-bar">
           <button type="button" className="lp-btn lp-btn--second" onClick={() => ctl.closeReview()}>
-            {back === 'final' ? 'Назад к итогу' : 'Назад'}
+            {backText ?? (back === 'final' ? 'Назад к итогу' : 'Назад')}
           </button>
         </div>
       )}

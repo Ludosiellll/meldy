@@ -7,6 +7,9 @@ same results — `rules.test.ts` holds the reference cases). Where this file and
 
 Names: game = `live_games` row; host = the exam's author running it; player = anyone who joined; key = the correct option.
 
+«Соревнование в своё время» (each person alone by a link, before a deadline; the battle's numbers for one player) has its
+own contract: `docs/live/CHALLENGE.md` (migration `20261106090100_live_challenge.sql`). Nothing in this file changes for it.
+
 ## 1. States
 
 ```

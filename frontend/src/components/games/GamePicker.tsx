@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useContainersOverview } from '../../lib/containers/hooks';
 import type { OverviewContainer } from '../../types/container';
 import { Chevron, Sheet } from '../containers/ui';
-import { keyCounts, liveGamePath } from '../test/gameEntry';
+import { challengePath, keyCounts, liveGamePath } from '../test/gameEntry';
 import { QUICK_PATH } from '../quick/paths';
 import { GAMES, pickMeta } from './copyGames';
 import '../containers/containers.css';
@@ -25,8 +25,12 @@ export function playableOf(containers: readonly OverviewContainer[]): Array<{ co
     .sort((a, b) => (a.kind === b.kind ? b.container.created_at.localeCompare(a.container.created_at) : a.kind === 'test' ? -1 : 1));
 }
 
-/** «Начать игру»: the sheet with the list. */
-export default function GamePicker({ onClose }: { onClose: () => void }) {
+/**
+ * «Начать игру»: the sheet with the list; `challenge`: the same list for «Соревнование по ссылке» (its setup,
+ * /live/challenge?c=…, docs/live/CHALLENGE.md).
+ */
+export default function GamePicker({ onClose, mode = 'game' }: { onClose: () => void; mode?: 'game' | 'challenge' }) {
+  const pathOf = mode === 'challenge' ? challengePath : liveGamePath;
   const overview = useContainersOverview();
   const rows = overview.data ? playableOf(overview.data.containers) : null;
   let body;
@@ -58,13 +62,13 @@ export default function GamePicker({ onClose }: { onClose: () => void }) {
     body = (
       <>
         <p className="gm-pick-note" data-muted="">
-          {GAMES.pick.lede}
+          {mode === 'challenge' ? GAMES.pick.challengeLede : GAMES.pick.lede}
         </p>
         <ul className="ct-rows gm-pick-rows">
           {rows.map(({ container, kind, questions, playable }, index) => (
             <li key={container.id}>
               {playable ? (
-                <Link className="ct-row" to={liveGamePath(container.id)} data-autofocus={index === 0 ? '' : undefined}>
+                <Link className="ct-row" to={pathOf(container.id)} data-autofocus={index === 0 ? '' : undefined}>
                   <span>
                     <span className="ct-row-t">{container.title}</span>
                     <span className="ct-row-m">{pickMeta(kind, questions)}</span>
@@ -86,7 +90,7 @@ export default function GamePicker({ onClose }: { onClose: () => void }) {
     );
   }
   return (
-    <Sheet title={GAMES.pick.title} onClose={onClose} className="gm-pick">
+    <Sheet title={mode === 'challenge' ? GAMES.pick.challengeTitle : GAMES.pick.title} onClose={onClose} className="gm-pick">
       {body}
     </Sheet>
   );

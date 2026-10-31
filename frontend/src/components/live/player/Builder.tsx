@@ -70,8 +70,11 @@ const Tile = memo(function Tile({ part, id, look, selected, locked, onPick }: Ti
   );
 });
 
+/** What the builder asks of its controller (the live player's, or the challenge's: components/challenge). */
+export type BuilderControls = Pick<PlayerController, 'choose' | 'setName' | 'confirm' | 'cancelEdit' | 'backToPin'>;
+
 export interface BuilderProps {
-  ctl: PlayerController;
+  ctl: BuilderControls;
   name: string;
   /** Telegram: the name field starts with Telegram's first name. */
   fromTelegram: boolean;
@@ -82,9 +85,11 @@ export interface BuilderProps {
   busy: boolean;
   error: string | null;
   guest: boolean;
+  /** The quiet button under «Готово» before the join (the live player's «Другой PIN»); null: none. */
+  backText?: string | null;
 }
 
-export function Builder({ ctl, name, fromTelegram, look, unlocked, lockedTap, from, busy, error, guest }: BuilderProps) {
+export function Builder({ ctl, name, fromTelegram, look, unlocked, lockedTap, from, busy, error, guest, backText = 'Другой PIN' }: BuilderProps) {
   const [tab, setTab] = useState<Part>('body');
   const pop = useRef<HTMLDivElement>(null);
   const first = useRef(true);
@@ -172,9 +177,9 @@ export function Builder({ ctl, name, fromTelegram, look, unlocked, lockedTap, fr
           <button type="button" className="lp-btn lp-btn--quiet" onClick={() => ctl.cancelEdit()}>
             Оставить как было
           </button>
-        ) : !fromTelegram ? (
+        ) : !fromTelegram && backText ? (
           <button type="button" className="lp-btn lp-btn--quiet" onClick={() => ctl.backToPin()}>
-            Другой PIN
+            {backText}
           </button>
         ) : null}
       </div>
