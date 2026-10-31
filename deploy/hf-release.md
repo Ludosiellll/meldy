@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-10-31 — Release 48.3: a number in the mini-game — four ranges on the floor (from the commit of this entry)
+
+- **Why**: the program of 31.10 — the mini-games to the end, with numbers. 48.2 brought a number as a typed button
+  question; a movement round could not play it.
+- **Now**: a number drawn on a movement round's place (a battle's mini-game, every question of «Встань на ответ") is four
+  ranges on the corners А Б / В Г, in value order like a number line («меньше 400», «400–500», «500–600», «больше
+  600»; round widths, the spread band wholly inside one range, a random right place, a decimal comma and «−»). «Встаньте
+  на промежуток с ответом»; at the reveal the right range and «Ответ: 343 ± 10 м/с» on the board and the phone; the
+  review says «Вы стояли на 400–500 · верный ответ 343 ± 10 м/с». A missed range goes to practice as «не знаю» (no
+  number was typed). On button places a number is still typed.
+- **The room** (this Space) passes the ranges, the unit and the value on; it grades nothing new (a range is a zone).
+- **Order**: this site and Space, then migration 20261102090200.
+
 ## 2026-10-31 — Release 48.2: a number question in the class game — keypad, number line, «Ближе всех» (from the commit of this entry)
 
 - **Why**: the owner, 31.10: «добавь вопросы недостающие (несколько верных, вводы чисел …)» — release 48 brought the
