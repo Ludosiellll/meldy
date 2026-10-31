@@ -42,6 +42,7 @@
 | Мини-приложение (сайт внутри Telegram) | сайт: `/tg` — `frontend/src/pages/TelegramMiniApp.tsx`, `frontend/src/lib/telegram/miniApp.ts`, CSP в `nginx.conf`; функция: `supabase/functions/_shared/bot/webapp.ts` | выпуск сайта и функции |
 | Использованные `initData` | `bot.webapp_uses` (только `sha256(hash)`, 2 часа) и `bot_webapp_session` — миграция `20261010150000_telegram_webapp.sql` | агент, `deploy/supabase-migrate.md` |
 | Монитор сайта | шаг тика «monitor» — `supabase/functions/_shared/bot/monitor.ts`; `bot.monitor`, `bot_monitor_*` и переключатель `bot.config.monitor_chat_id` — миграция `20261012100000_telegram_bot_monitor.sql` | агент; включает владелец (раздел «Монитор сайта») |
+| Картинки удалённых тестов и экзаменов | шаг тика «sweep» — `supabase/functions/_shared/bot/sweep.ts`: папки `<id>/` в `quiz-covers` и `test-item-images` удаляет через Storage API ключом сервиса; очередь `meldy_private.picture_sweep` (её заполняет триггер на удаление строки `containers`), `bot_picture_sweep` и `bot_picture_swept` — миграция `20261103090200_picture_sweep.sql` | агент; сначала миграция, потом функция, потом сайт |
 | Копия плана контейнера | `supabase/functions/_shared/plan/*` и `SOURCE_HASH` из `frontend/src/lib/containers/*` | `scripts/sync_bot_plan.mjs` |
 
 Адрес функции — `https://daunnytubqbzafjnpfnw.supabase.co/functions/v1/telegram`. Маршруты (§6.1):

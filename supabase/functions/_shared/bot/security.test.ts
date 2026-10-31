@@ -58,6 +58,8 @@ const RPC_ALLOWED = new Set([
   'bot_live_join', 'bot_live_post', 'bot_live_posted', 'bot_live_sync', 'bot_live_setup',
   // «Осталось выучить» (card.ts, session.ts; migration 20261021140000_learn_left.sql).
   'bot_learn_left',
+  // The pictures of deleted exams and tests (sweep.ts; migration 20261103090200_picture_sweep.sql).
+  'bot_picture_sweep', 'bot_picture_swept',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {
@@ -99,6 +101,25 @@ test('Supabase Auth only from webapp.ts, and only its one call: the admin magic 
     assert.ok(!/admin\/users|admin\/sessions|\/logout|\/token\b/.test(text), 'no other Auth call');
   }
   assert.equal(seen, 1, 'one call to Auth in webapp.ts');
+});
+
+test('Supabase Storage only from sweep.ts: a listing and a removal in the two picture buckets, nothing else', () => {
+  const sweep = join('_shared', 'bot', 'sweep.ts');
+  let seen = 0;
+  for (const path of sources) {
+    const text = code(path);
+    if (name(path) !== sweep) {
+      assert.ok(!/\/storage\/v1\b/.test(text), `${name(path)} reaches Supabase Storage`);
+      continue;
+    }
+    seen += 1;
+    assert.ok(/\/storage\/v1\/object`/.test(text), 'sweep.ts builds the object base');
+    assert.ok(text.includes("SWEEP_BUCKETS = ['quiz-covers', 'test-item-images'] as const"), 'the two picture buckets only');
+    const methods = [...text.matchAll(/\bstorage\('([A-Z]+)'/g)].map((m) => m[1]);
+    assert.deepEqual([...new Set(methods)].sort(), ['DELETE', 'POST'], 'a listing (POST list/<bucket>) and a removal (DELETE <bucket>)');
+    assert.ok(/storage\('POST', `list\/\$\{bucket\}`/.test(text) && /storage\('DELETE', bucket,/.test(text), 'no other Storage path');
+  }
+  assert.equal(seen, 1);
 });
 
 test('no database connection string anywhere in the function (code and tests)', () => {

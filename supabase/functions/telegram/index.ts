@@ -15,6 +15,7 @@ import { session } from '../_shared/bot/session.ts';
 import { createVoice } from '../_shared/bot/voice.ts';
 import { createAuthAdmin, createWebApp } from '../_shared/bot/webapp.ts';
 import { createMonitor } from '../_shared/bot/monitor.ts';
+import { createSweep } from '../_shared/bot/sweep.ts';
 import { createGame } from '../_shared/bot/game.ts';
 import { liveTexts } from '../_shared/bot/live.ts';
 import { readEnv } from '../_shared/bot/env.ts';
@@ -43,6 +44,8 @@ const ports: Ports = {
   }),
   // The site's outage monitor (the tick's step «monitor»): off until bot.config.monitor_chat_id is set.
   monitor: createMonitor({ fetch: http }),
+  // The pictures of deleted exams and tests (the tick's step «sweep»): the Storage API with the service key.
+  sweep: env.supabaseUrl && env.serviceKey ? createSweep({ url: env.supabaseUrl, key: env.serviceKey, fetch: http }) : undefined,
   // The live game: the Mini App's join, the database's post and sync, with the bot's texts of live.ts.
   game: createGame({ token: () => env.token, texts: liveTexts, waitUntil }),
 };

@@ -14,7 +14,6 @@
  * `status` is the HTTP status (0 when nothing came back); `detail` the server's detail (`item 7: options`).
  */
 import { supabase } from '../lib/supabase';
-import { removeContainerPictures } from './itemPictures';
 import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
 import { notifyAIUsageChanged } from './limits';
@@ -530,16 +529,15 @@ export async function deleteSubject(subjectId: Uuid): Promise<void> {
   await deleteRow('container_subjects', subjectId);
 }
 
-/** The owner deletes the exam; with members still in it the database refuses (MC009). */
+/**
+ * The owner deletes the exam; with members still in it the database refuses (MC009). Its pictures (quiz covers, the
+ * studio's page pictures, question pictures) leave storage after it, on the server: the delete queues the container's
+ * folders in its own transaction and the Telegram bot's minute tick removes them through the Storage API (migration
+ * 20261103090200_picture_sweep.sql, supabase/functions/_shared/bot/sweep.ts). The page used to remove them itself right
+ * before the delete (live check of 47.4): that could be skipped, and when the database then refused the delete, or the
+ * network failed, the exam stayed without its pictures.
+ */
 export async function deleteContainer(containerId: Uuid): Promise<void> {
-  // Its pictures first (quiz covers, the studio's page pictures, question pictures): the storage policies know the
-  // owner from this row, and a deleted test's public pictures kept opening (live check of 47.4). A failure leaves them
-  // and does not stop the delete.
-  try {
-    await removeContainerPictures(containerId);
-  } catch {
-    // The pictures stay in the folder; the exam still goes.
-  }
   await deleteRow('containers', containerId);
 }
 

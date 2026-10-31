@@ -506,6 +506,22 @@ describe('writes under RLS', () => {
     expect((await caught(deleteItem('item-1'))).code).toBe('P0002');
   });
 
+  it('deleting an exam is one delete of its row: no picture leaves storage before the database agreed (the server sweeps them)', async () => {
+    const storage = vi.fn();
+    const { supabase } = await import('../lib/supabase');
+    (supabase as unknown as { storage: unknown }).storage = { from: storage };
+    db.table = () => ({ data: [{ id: C1 }], error: null, status: 200 });
+    await deleteContainer(C1);
+    expect(db.tableCalls.map((entry) => entry.table)).toEqual(['containers']);
+    expect(op(db.tableCalls[0], 'delete')).toEqual([]);
+    expect(storage).not.toHaveBeenCalled();
+    // Refused (someone joined meanwhile): every picture is still there.
+    db.tableCalls = [];
+    db.table = () => ({ data: null, error: { code: 'MC009', message: 'the container has members' }, status: 400 });
+    await caught(deleteContainer(C1));
+    expect(storage).not.toHaveBeenCalled();
+  });
+
   it('deleting an exam with members is refused with MC009', async () => {
     db.table = () => ({ data: null, error: { code: 'MC009', message: 'the container has members' }, status: 400 });
     const error = await caught(deleteContainer(C1));

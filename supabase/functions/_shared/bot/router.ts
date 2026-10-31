@@ -13,7 +13,8 @@
  * - `group` (T8): `/start@bot G<code>` in a group, `/start g<id>` in private, `g|…` presses, `my_chat_member` and
  *   `migrate_to_chat_id` of groups, and the tick's steps 1, 2 and 4;
  * - `files` (T9): a document in a private chat and the `/telegram/file` route; `voice` (T10): a voice message;
- * - `monitor` (monitor.ts): the tick's step «monitor», the site's outage monitor, after the other steps.
+ * - `monitor` (monitor.ts): the tick's step «monitor», the site's outage monitor, after the other steps;
+ * - `sweep` (sweep.ts, optional): the tick's step «sweep», the pictures of deleted exams and tests, before «monitor».
  */
 import { decode, type Callback, type GoMode } from './codec.ts';
 import { dayCard, examList } from './card.ts';
@@ -166,6 +167,14 @@ export interface MonitorPort {
   tick(ctx: Ctx, tools: TickTools): Promise<StepStats>;
 }
 
+/**
+ * The pictures of deleted exams and tests (sweep.ts): the tick's step «sweep», before «monitor». Optional: without it
+ * the step does nothing.
+ */
+export interface SweepPort {
+  tick(ctx: Ctx, tools: TickTools): Promise<StepStats>;
+}
+
 export interface Ports {
   session: SessionPort;
   group: GroupPort;
@@ -173,6 +182,7 @@ export interface Ports {
   voice: VoicePort;
   webapp: WebAppPort;
   monitor: MonitorPort;
+  sweep?: SweepPort;
   /** The live game (game.ts): /telegram/game/join, /game/post, /game/sync. */
   game: GamePort;
 }
