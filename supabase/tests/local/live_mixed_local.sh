@@ -35,8 +35,26 @@ update public.live_games set state = 'ended', ended_at = now() where state not i
    and owner_id = 'bbbbbbbb-0000-0000-0000-000000000003';
 SQL
 # LIVE_LOCAL_SEED=kinds: a test of every kind (several right answers, a text answer, explanations;
-# 20261102090000_live_kinds_teams.sql must be applied), else the six one-answer questions.
-if [ "${LIVE_LOCAL_SEED:-}" = kinds ]; then
+# 20261102090000_live_kinds_teams.sql must be applied); LIVE_LOCAL_SEED=numbers: two number questions among them
+# (20261101090000_question_kinds.sql and 20261102090100_live_numbers.sql too); else the six one-answer questions.
+if [ "${LIVE_LOCAL_SEED:-}" = numbers ]; then
+SEED=$("${PSQL[@]}" 2>&1 <<'SQL'
+select set_config('role', 'authenticated', false) is null \g /dev/null
+select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000003', false) is null \g /dev/null
+select set_config('meldy.local', public.container_create('Базы данных', null, '[{"title":"SQL"}]')::text, false) is null \g /dev/null
+select public.container_items_add((current_setting('meldy.local')::jsonb -> 'subjects' -> 0 ->> 'id')::uuid, jsonb_build_array(
+  jsonb_build_object('ref', 'n:1', 'kind', 'number', 'stem', 'Сколько байт в килобайте?', 'answers', jsonb_build_array('1024'),
+                     'explanation', 'В информатике килобайт — 2¹⁰ = 1024 байта.'),
+  jsonb_build_object('ref', 'n:2', 'stem', 'Какая команда отменяет транзакцию?', 'options', jsonb_build_array('COMMIT', 'ROLLBACK', 'GRANT', 'SAVEPOINT'), 'correct', jsonb_build_array(1), 'keep_order', true),
+  jsonb_build_object('ref', 'n:3', 'kind', 'multiple', 'stem', 'Какие ключи бывают у таблицы?', 'options', jsonb_build_array('Первичный', 'Боковой', 'Внешний', 'Верхний'), 'correct', jsonb_build_array(0, 2), 'keep_order', true),
+  jsonb_build_object('ref', 'n:4', 'kind', 'number', 'stem', 'Скорость звука в воздухе при 20 °C?', 'answers', jsonb_build_array('343'), 'tolerance', 10, 'unit', 'м/с',
+                     'explanation', 'Около 343 м/с; засчитывается всё от 333 до 353.'),
+  jsonb_build_object('ref', 'n:5', 'stem', 'Что делает JOIN?', 'options', jsonb_build_array('Удаляет строки', 'Соединяет таблицы', 'Создаёт индекс', 'Блокирует таблицу'), 'correct', jsonb_build_array(1), 'keep_order', true),
+  jsonb_build_object('ref', 'n:6', 'stem', 'Какой оператор группирует строки?', 'options', jsonb_build_array('ORDER BY', 'WHERE', 'HAVING', 'GROUP BY'), 'correct', jsonb_build_array(3), 'keep_order', true))) is null \g /dev/null
+select (current_setting('meldy.local')::jsonb ->> 'container_id') || ' ' || (current_setting('meldy.local')::jsonb -> 'subjects' -> 0 ->> 'id');
+SQL
+)
+elif [ "${LIVE_LOCAL_SEED:-}" = kinds ]; then
 SEED=$("${PSQL[@]}" 2>&1 <<'SQL'
 select set_config('role', 'authenticated', false) is null \g /dev/null
 select set_config('request.jwt.claim.sub', 'bbbbbbbb-0000-0000-0000-000000000003', false) is null \g /dev/null

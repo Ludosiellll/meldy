@@ -14,7 +14,9 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { sharedPlaces, shownPlace } from '../../../lib/live/rules';
 import { TeamsMini } from './TeamLine';
-import { questionKind, rightKeys, teamsOf, type BossPhase, type Look, type Me, type PlayerResult, type PlayerState, type Question, type TopRow } from '../../../lib/live/types';
+import { questionKind, rightKeys, teamsOf, type BossPhase, type Look, type Me, type PlayerResult, type PlayerState, type Question, type QuestionKind, type TopRow } from '../../../lib/live/types';
+import { numberAnswer, padReady, typedText } from '../../../lib/live/numbers';
+import { NumberPad } from './NumberPad';
 import { Shard, Star } from '../art/Fx';
 import { LiveBoss, LiveChar, reducedMotion } from './art';
 import type { Pick, PlayerController } from './controller';
@@ -241,8 +243,10 @@ type Pick2<T, K extends keyof T> = { [P in K]: T[P] };
 interface SheetProps {
   result: PlayerResult;
   options: string[];
-  /** What the question asked for (questionKind): one right option, several, a text. */
-  kind: 'single' | 'multiple' | 'short';
+  /** What the question asked for (questionKind): one right option, several, a text, a number. */
+  kind: QuestionKind;
+  /** A number question: the unit (null: none). */
+  unit: string | null;
   look: Look;
   frozenBefore: boolean;
   /** This player joined during the question: the server counted nothing for them (no answer, no freeze). */
@@ -342,11 +346,17 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const numberQ = p.kind === 'number';
+  const unit = r.unit ?? p.unit;
   const keyText =
-    p.kind === 'short' ? (r.forms?.[0] ?? '') : keys.map((k) => `${OPTION_STYLES[k]?.letter ?? ''}${NBSP}·${NBSP}${p.options[k] ?? ''}`).join(', ');
-  const keyLabel = p.kind === 'short' ? KINDS.rightText : keys.length > 1 ? KINDS.rightMany : 'Верный ответ';
-  const typed = p.kind === 'short' && typeof r.typed === 'string' && r.typed ? r.typed : null;
-  const tops = p.kind === 'short' && Array.isArray(r.tops) && r.tops.length > 0 ? r.tops : null;
+    p.kind === 'short'
+      ? (r.forms?.[0] ?? '')
+      : numberQ
+        ? numberAnswer(r.forms, r.tolerance, unit)
+        : keys.map((k) => `${OPTION_STYLES[k]?.letter ?? ''}${NBSP}·${NBSP}${p.options[k] ?? ''}`).join(', ');
+  const keyLabel = p.kind === 'short' || numberQ ? KINDS.rightText : keys.length > 1 ? KINDS.rightMany : 'Верный ответ';
+  const typed = (p.kind === 'short' || numberQ) && typeof r.typed === 'string' && r.typed ? r.typed : null;
+  const tops = (p.kind === 'short' || numberQ) && Array.isArray(r.tops) && r.tops.length > 0 ? r.tops : null;
   let title: string;
   let body: ReactNode;
   if (voided) {
@@ -417,7 +427,15 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
       <>
         {typed !== null ? (
           <p>
-            {KINDS.mine}: «{typed}»
+            {numberQ ? (
+              <>
+                {KINDS.mineNumber}: {typedText(typed, unit)}
+              </>
+            ) : (
+              <>
+                {KINDS.mine}: «{typed}»
+              </>
+            )}
           </p>
         ) : null}
         <p>
@@ -436,7 +454,9 @@ const ResultSheet = memo(function ResultSheet(p: SheetProps) {
       {body}
       {tops ? (
         <p className="lp-wide lp-tops">
-          {KINDS.tops}: {tops.map((t) => `«${t.text}» ${KINDS.topN(t.n)}`).join(', ')}
+          {numberQ
+            ? `${KINDS.near}: ${tops.map((t) => `${typedText(t.text, unit)}${NBSP}— ${KINDS.topN(t.n)}`).join(', ')}`
+            : `${KINDS.tops}: ${tops.map((t) => `«${t.text}» ${KINDS.topN(t.n)}`).join(', ')}`}
         </p>
       ) : null}
       {healed && <p className="lp-wide">Мало верных ответов: Дедлайн восстановил силы.</p>}
@@ -727,6 +747,9 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
     } else if (kind === 'short' && draft.trim()) {
       autoSent.current = true;
       ctl.answerText(draft);
+    } else if (kind === 'number' && padReady(draft)) {
+      autoSent.current = true;
+      ctl.answerText(draft);
     }
   }, [upNow, picked, sitOut, kind, marked, draft, ctl]);
   const canSend = isOpen && !picked && !closed && !sitOut && !upNow;
@@ -812,7 +835,21 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           {line}
         </div>
       </div>
-      {kind === 'short' ? (
+      {kind === 'number' ? (
+        <div className="lp-textans lp-numans" data-wait={!isOpen && !closed ? 'true' : 'false'}>
+          {picked || closed ? (
+            <p className="lp-textans__sent" data-mark={result ? (result.correct ? 'key' : 'wrong') : undefined}>
+              {picked?.text
+                ? KINDS.sentNumber(typedText(picked.text, q.unit ?? null))
+                : result && result.forms?.[0]
+                  ? `${KINDS.rightText}: ${numberAnswer(result.forms, result.tolerance, result.unit ?? q.unit ?? null)}`
+                  : ''}
+            </p>
+          ) : (
+            <NumberPad value={draft} unit={q.unit ?? null} enabled={canSend} onChange={setDraft} onSend={() => ctl.answerText(draft)} onKey={() => haptic('tap')} />
+          )}
+        </div>
+      ) : kind === 'short' ? (
         <form
           className="lp-textans"
           data-wait={!isOpen && !closed ? 'true' : 'false'}
@@ -882,6 +919,7 @@ export function Battle({ ctl, st, question: q, pick, answered, hpFrom, frozenBef
           result={result}
           options={q.options}
           kind={kind}
+          unit={q.unit ?? null}
           look={look}
           frozenBefore={frozenBefore}
           sitOut={late}

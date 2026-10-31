@@ -3,6 +3,7 @@
  * (remove a player) and the confirmations. Plain dialogs: the first button takes the focus, Esc closes.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { numberAnswer } from '../../../lib/live/numbers';
 import { sharedPlaces } from '../../../lib/live/rules';
 import type { RosterRow } from '../../../lib/live/types';
 import { Character } from '../art/Character';
@@ -160,7 +161,9 @@ export function ReviewSheet({ log, roster, asked, onClose }: { log: LoggedQuesti
                           </li>
                         ))}
                       </ul>
-                      {q.forms && q.forms.length > 0 ? <p className="lvh-review-right">{REVIEW.forms(q.forms)}</p> : null}
+                      {q.forms && q.forms.length > 0 ? (
+                        <p className="lvh-review-right">{q.kind === 'number' ? REVIEW.number(numberAnswer(q.forms, q.tolerance, q.unit)) : REVIEW.forms(q.forms)}</p>
+                      ) : null}
                       {q.right !== null ? <p className="lvh-review-right">{REVIEW.right(q.right, q.players)}</p> : null}
                     </>
                   ) : null}

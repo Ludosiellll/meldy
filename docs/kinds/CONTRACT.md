@@ -206,7 +206,7 @@ covers `short` and `number`, and a new `credit` (the sum of credits) beside `cor
 | Review | your answer, the key | your order, the right order | your pairs, the right pairs | each gap | the mark and quote |
 | Author stats | wrong numbers | right share only | right share only | right share | marks to set |
 | Bot (plan, «ошибки», extra) | typed | «Открыть в приложении» | «Открыть в приложении» | typed when one gap, else app | not offered |
-| Live game | — (the game agent) | — | — | — | — |
+| Live game | typed on a keypad, in a battle (docs/live/CONTRACT.md §3, §15) | not played | not played | not played | not played |
 
 - **Partial credit:** a switch «Частичный балл» in the editor and the studio for multiple, order, match, cloze; the
   participant sees «Засчитывается частично» under the question.

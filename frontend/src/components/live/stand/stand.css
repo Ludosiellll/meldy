@@ -306,6 +306,19 @@
 .lvbt-top-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lvbt-tops li b { flex: none; min-width: 34px; height: 34px; padding: 0 8px; box-sizing: border-box; border-radius: 10px; display: grid; place-items: center; background: #1d1b2e; color: #fff; font-size: 19px; }
 .lvbt-tops-none { margin: 0; font: 600 19px/1.2 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.8); }
+/* a number question's reveal: the line and the answers nearest the right one (NumberLine.tsx) */
+.lvbt-line { gap: 4px; }
+.lvbt-line .lvnl { display: block; }
+.lvnl-dot { transform-box: fill-box; transform-origin: 50% 100%; animation: lvnl-up 0.5s var(--lvh-out, ease-out) both 0.45s; }
+@keyframes lvnl-up { from { transform: scaleY(0); opacity: 0; } to { transform: none; opacity: 1; } }
+.lvbt-near { display: flex; align-items: center; gap: 12px; color: rgba(255, 255, 255, 0.85); font: 700 18px/1.2 var(--ph-sans, system-ui); }
+.lvbt-near ol { display: flex; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.lvbt-near li {
+  display: flex; align-items: center; gap: 10px; padding: 5px 6px 5px 12px; border-radius: 12px; background: #fff; color: #1d1b2e;
+  font: 700 19px/1.15 var(--ph-sans, system-ui); max-width: 240px;
+}
+.lvbt-near li[data-ok] { box-shadow: 0 0 0 3px #36c47c; }
+.lvbt-near li b { flex: none; min-width: 28px; height: 28px; padding: 0 6px; box-sizing: border-box; border-radius: 8px; display: grid; place-items: center; background: #1d1b2e; color: #fff; font-size: 16px; }
 
 /* ───────── teams (CONTRACT §13) ───────── */
 .lvtm-board { display: flex; gap: 16px; margin: 0; padding: 0; list-style: none; }

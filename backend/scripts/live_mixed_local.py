@@ -57,6 +57,9 @@ ANSWERS = {
     "Как называется язык запросов к базам данных? Три буквы.": {"right": ["SQL", "sql", "Sql", "SQL."], "wrong": ["SEQUEL", "sequel", "PHP", "СКЛ"]},
     "Что делает JOIN?": {"keys": [1]},
     "Какой оператор группирует строки?": {"keys": [3]},
+    # LIVE_LOCAL_SEED=numbers (20261102090100_live_numbers.sql): typed numbers, graded by the database's number rule
+    "Сколько байт в килобайте?": {"right": ["1024", "1 024", "1024,0"], "wrong": ["1000", "1023", "512", "2048"]},
+    "Скорость звука в воздухе при 20 °C?": {"right": ["343", "340 м/с", "350", "335"], "wrong": ["300", "1235", "3000", "100 м/с"]},
 }
 
 
@@ -207,7 +210,7 @@ class Bot:
             n = len(q["options"])
             right = self.rng.random() < self.skill
             known = ANSWERS.get(q.get("text") or "", {})
-            if q.get("kind") == "short":
+            if q.get("kind") in ("short", "number"):
                 pool = known.get("right" if right else "wrong") or ["?"]
                 body = {"p_game": self.game, "p_token": token(self.i), "p_qi": qi, "p_answer": {"text": self.rng.choice(pool)}}
                 fn = "live_submit"

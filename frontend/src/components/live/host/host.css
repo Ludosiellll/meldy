@@ -231,6 +231,11 @@ a.lvh-btn { text-decoration: none; }
 .lvh-ring[data-mode='done'] .lvh-ring-num { color: var(--lvh-red-ink); }
 
 .lvh-tiles { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; margin-top: 14px; }
+/* a number question on the flat projector: the key and the class's answers on a line (stand/NumberLine.tsx) */
+.lvh-number { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 10px; }
+.lvh-number-key { margin: 0; font: 600 24px/1.25 var(--ph-sans, system-ui); }
+.lvh-number-key b { font-weight: 800; }
+.lvh-number .lvnl { max-width: 100%; height: auto; }
 .lvh-tile {
   position: relative; overflow: hidden; height: 88px; border-radius: 24px;
   display: flex; align-items: center; gap: 18px; padding: 0 24px 0 13px;

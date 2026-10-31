@@ -78,6 +78,10 @@ export interface LoggedQuestion {
   /** Several right answers: every right option; a text answer: its accepted forms (absent in an older log). */
   keys?: number[] | null;
   forms?: string[] | null;
+  /** A number question (20261102090100_live_numbers.sql): its kind, tolerance and unit (absent in an older log). */
+  kind?: 'number';
+  tolerance?: number | null;
+  unit?: string | null;
   counts: number[] | null;
   right: number | null;
   players: number;
@@ -108,6 +112,9 @@ export function logState(gameId: string, log: LoggedQuestion[], s: HostState): L
     key: result ? result.key : (was?.key ?? null),
     keys: result ? (result.keys ?? null) : (was?.keys ?? null),
     forms: result ? (result.forms ?? null) : (was?.forms ?? null),
+    ...(q.kind === 'number'
+      ? { kind: 'number' as const, tolerance: result ? (result.tolerance ?? null) : (was?.tolerance ?? null), unit: result ? (result.unit ?? q.unit ?? null) : (was?.unit ?? q.unit ?? null) }
+      : {}),
     counts: result ? result.counts : (was?.counts ?? null),
     right: result ? result.right : (was?.right ?? null),
     players: result ? s.players : (was?.players ?? s.players),

@@ -58,6 +58,16 @@ export const KINDS = {
   mine: 'Вы написали',
   tops: 'Чаще писали',
   topN: (n: number) => `${n}${NBSP}${plural(n, 'раз', 'раза', 'раз')}`,
+  /** A number question (20261102090100_live_numbers.sql): the keypad and the sheet. */
+  padLabel: 'Цифры',
+  padValue: 'Ваш ответ',
+  padMinus: 'Минус',
+  padComma: 'Запятая',
+  padBack: 'Стереть',
+  unit: (u: string) => `Ответ в${NBSP}${u}`,
+  mineNumber: 'Вы ввели',
+  sentNumber: (t: string) => `Ваш ответ: ${t}`,
+  near: 'Ближе всех',
 } as const;
 
 /** «4-й» (a place). */
