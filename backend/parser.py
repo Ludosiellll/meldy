@@ -62,8 +62,8 @@ def _check_office_archive(contents: bytes) -> None:
         check_archive(contents, max_part=EXTRACT_XML_PART_BYTES)
     except ArchiveTooLarge:
         raise FileTooLarge(FILE_TOO_LARGE_DETAIL) from None
-    except (zipfile.BadZipFile, ValueError, OSError) as exc:
-        raise ValueError(f"not an archive: {type(exc).__name__}") from None
+    except (zipfile.BadZipFile, ValueError, OSError):
+        return  # not a zip: the reader says so in its own words («Ошибка чтения DOCX: …»), as before
 
 
 def unsupported_format_detail(filename: str, content_type: Optional[str] = None, *, media: bool = False) -> str:

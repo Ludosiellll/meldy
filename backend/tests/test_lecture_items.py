@@ -368,7 +368,7 @@ def test_extract_text_checks_office_archives_and_caps_pdf_pages(monkeypatch):
             text_parser.extract_text(bomb, name)
     assert time.monotonic() - started < 1
     assert resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before < 50 * 1024  # KB: nothing unpacked
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Ошибка чтения DOCX"):  # not a zip: the old words
         text_parser.extract_text(b"not a zip", "x.docx")
     pdf = (Path(__file__).resolve().parent / "fixtures" / "lecture_qa" / "cell_lecture_chromium.pdf").read_bytes()  # 2 pages
     whole = text_parser.extract_text(pdf, "x.pdf")
