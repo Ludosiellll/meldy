@@ -31,6 +31,7 @@
 .du-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px/1.25 var(--ph-sans, sans-serif); }
 .du-name small { font-weight: 500; color: var(--lp-ink-2); }
 .du-away { color: var(--lp-coral) !important; }
+.du-empty { font: 500 15px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
 .du-score { font: 800 26px/1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
 .du-track { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; }
 .du-side[data-side='other'] .du-track { justify-content: flex-end; }
@@ -101,7 +102,8 @@
 .du-reveal-note { flex: 1; min-width: 0; font: 500 14px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
 
 /* ─── the wait for a seat away ─── */
-.du-wait { margin-top: 16px; padding: 16px 18px; border-radius: 22px; background: var(--lp-ink); color: var(--lp-canvas); animation: lp-rise 0.35s var(--lp-ease) both; }
+.du-wait { margin-top: 16px; padding: 16px 18px; border-radius: 22px; background: var(--lp-card); box-shadow: inset 0 0 0 2px var(--lp-coral); animation: lp-rise 0.35s var(--lp-ease) both; }
+.du-wait p:not(.du-wait-clock) { color: var(--lp-ink-2); }
 .du-wait h2 { margin: 0; font: 700 18px/1.25 var(--ph-sans, sans-serif); }
 .du-wait p { margin: 6px 0 0; font: 400 15px/1.4 var(--ph-sans, sans-serif); }
 .du-wait .du-wait-clock { margin-top: 10px; font: 800 22px/1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
@@ -132,8 +134,8 @@
 .du-next-link { margin: 10px 2px 0; font: 500 15px/1.4 var(--ph-sans, sans-serif); }
 .du-next-link a { color: var(--lp-blue-ink); font-weight: 600; }
 @media (min-width: 900px) {
-  .du-final-bar { flex-direction: row; }
-  .du-final-bar > * { flex: 1; }
+  .lp-bar.du-final-bar { flex-direction: row; }
+  .lp-bar.du-final-bar > * { flex: 1; }
 }
 
 /* ─── the review ─── */

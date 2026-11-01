@@ -1,6 +1,6 @@
 /**
  * «Дуэль» on its screens (/d/<code>) with a scripted server: no key and no answer of the other seat before the close
- * (only «ответил»), the reveal under the question with both verdicts and the marks of who picked what, the other seat's
+ * (only «есть ответ»), the reveal under the question with both verdicts and the marks of who picked what, the other seat's
  * rude text masked, the final («Победа», the cards, the plain link to the next round once both pressed «Ещё раз»), the
  * lobby's invite with the link and the QR, the wait for a seat away, «Места заняты».
  */
@@ -80,7 +80,7 @@ afterEach(() => {
 });
 
 describe('a question before its close', () => {
-  it('shows the own answer, the other seat only as «ответил», no key and no reveal', async () => {
+  it('shows the own answer, the other seat only as «есть ответ», no key and no reveal', async () => {
     const { view, ctl } = await mount(base());
     const text = plain(view.container.textContent);
     expect(screen.getByRole('heading', { name: 'Какая команда отменяет транзакцию?' })).toBeInTheDocument();

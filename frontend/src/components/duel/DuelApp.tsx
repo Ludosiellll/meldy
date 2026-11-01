@@ -241,7 +241,11 @@ function Board({ st, otherPresent, compact = false }: { st: DuelState; otherPres
               ) : null}
             </div>
           </>
-        ) : null}
+        ) : (
+          <div className="du-side-text">
+            <span className="du-empty">{DU.lobby.waitingOther}</span>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -311,7 +315,7 @@ function Lobby({ ctl, s, st }: { ctl: DuelController; s: DuelSnapshot; st: DuelS
             </span>
           </div>
         )}
-        <p className="du-note">{o ? DU.lobby.both : DU.lobby.waitingOther}</p>
+        {o ? <p className="du-note">{DU.lobby.both}</p> : null}
         {s.error ? (
           <p className="lp-error" role="alert">
             {s.error}
@@ -525,8 +529,8 @@ function Play({ ctl, s, st }: { ctl: DuelController; s: DuelSnapshot; st: DuelSt
               {s.error}
             </p>
           ) : null}
-          {result ? <Reveal ctl={ctl} st={st} busy={s.busy} now={now} offsetMs={off} /> : null}
-          {waiting ? <Wait st={st} now={now} offsetMs={off} /> : null}
+          {/* the wait for a seat away takes the reveal's place: «Дальше» means nothing while one seat is gone */}
+          {waiting ? <Wait st={st} now={now} offsetMs={off} /> : result ? <Reveal ctl={ctl} st={st} busy={s.busy} now={now} offsetMs={off} /> : null}
         </div>
       </div>
     </div>
@@ -697,7 +701,7 @@ function Card({ name, look, dmg, right, of, won, me }: { name: string; look: Loo
       </span>
       <span className="du-card-points">{nb(dmg)}</span>
       <span className="du-card-sub">
-        {DU.final.points} · {right} {NBSP}из{NBSP}{of} {DU.final.right}
+        {DU.final.points} · {`${right}${NBSP}из${NBSP}${of}`} {DU.final.right}
       </span>
     </div>
   );
@@ -825,7 +829,7 @@ function ReviewScreen({ ctl, s, st, signInHref }: { ctl: DuelController; s: Duel
               <header>
                 <span className="du-rv-n">{item.qi + 1}</span>
                 <span className="du-rv-badge" data-tone={item.correct ? 'ok' : item.none ? 'none' : (item.share ?? 0) > 0 ? 'part' : 'bad'}>
-                  {DU.review.yours}: {badge(item.correct, item.none, item.share ?? 0).toLowerCase()}
+                  {DU.q.me}: {badge(item.correct, item.none, item.share ?? 0).toLowerCase()}
                 </span>
                 {item.other ? (
                   <span className="du-rv-badge" data-tone={item.other.correct ? 'ok' : item.other.none ? 'none' : item.other.share > 0 ? 'part' : 'bad'}>
