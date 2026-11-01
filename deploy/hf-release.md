@@ -4,6 +4,28 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-01 — Release 50.1: «Дуэль» — two play the same questions at once by an invite link (from the commit of this entry)
+
+- **Why**: Test_Builder_Spec_2026-10-18, «Режимы» item 3, the third mode after the live game and the challenge: a
+  student and a friend (or the author and a student) on the same questions at the same moment, each on their own device.
+- **Create**: «Дуэль» on «Игры» and on a test's page (`/live/duel?c=`), «Дуэль на этих вопросах» after a challenge is
+  over and under a finished live game's review (`?ch=`, `?g=`): the time on a question, «Без спешки», how many → a name
+  and a character → `/d/<code>` with the link and a QR. The invited needs no account.
+- **Play** (`/d/<code>`): both press «Готов»; the same question for both by the server's clock; each sees whether the
+  other answered, never the answer; after both (or the time) both verdicts, the key and the explanation; the battle's
+  points (speed, series, the freeze), or 100 a right answer «Без спешки». Choice, several right, typed and number
+  answers; a game's number played as ranges on the floor comes as a typed number. Final: «Победа» / «Поражение» /
+  «Ничья», «Разбор и ошибки» with the other's answers, «Тренировать ошибки», «Ещё раз» (a match, new questions first).
+- **Disconnects**: a seat silent for 20 s is «не на связи»; between questions the other waits up to a minute, then
+  wins; each seat has 120 s of such waits a duel, then the duel goes on without it.
+- **Fair and safe** (independent review twice, then fixes): tokens as sha256 only; the key and the other's answer only
+  after the question closed; each seat its own option order; the time is the server's; a third device gets «Места
+  заняты»; practice writes a membership only with a standing of one's own; limits per account, per address for guests,
+  and per source run or player; joins of signed-in people counted by account; the other's typed answer masked when rude.
+- **The /sb proxy**: `rpc/duel_*` and `rpc/live_*` count in buckets of their own, so a class's games and duels behind
+  one address don't use up the rest of the site's 600 a minute (and the other way round).
+- **Order**: migration 20261106090200 first (applied), then this site. No Edge Function.
+
 ## 2026-10-31 — Release 50: «Соревнование в своё время» — a link with a deadline, each plays alone, a leaderboard (from the commit of this entry)
 
 - **Why**: Test_Builder_Spec_2026-10-18, «Режимы» item 3: the same game, but each plays when it suits them, until a
