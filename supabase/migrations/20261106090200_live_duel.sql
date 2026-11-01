@@ -45,8 +45,8 @@ $do$;
 --     'container' / 'quiz' (the author's own), 'challenge' (the questions a person was shown in a finished run;
 --     source_id the challenge, source_ref the run whose token made it), 'game' (the closed questions of a game a person
 --     played; source_id the game, source_ref that player). stage: lobby → play (a current question, qi) ⇄ wait (between
---     questions, a seat away since wait_from) → final (ended_at, end_reason: done | left | gone | expired; winner the seat
---     or null). rev grows with every change a seat would see (the polls' «unchanged»). A rematch is a new duel: round
+--     questions, a seat away since wait_from; wait_seat the one awaited when the other is here) → final (ended_at,
+--     end_reason: done | left | gone | expired; winner the seat or null). rev grows with every change a seat would see (the polls' «unchanged»). A rematch is a new duel: round
 --     + 1, parent_id the one before (its next_id this one), draws the draws of the match before it.
 create table if not exists public.live_duels (
   id uuid primary key default gen_random_uuid(),
@@ -69,6 +69,7 @@ create table if not exists public.live_duels (
   rev bigint not null default 1,
   started_at timestamptz,
   wait_from timestamptz,
+  wait_seat smallint,
   ended_at timestamptz,
   end_reason text,
   winner smallint,
@@ -91,7 +92,7 @@ create table if not exists public.live_duels (
   constraint live_duels_end_check check ((stage = 'final') = (ended_at is not null) and (ended_at is null) = (end_reason is null)
                                          and (end_reason is null or end_reason in ('done', 'left', 'gone', 'expired'))
                                          and (winner is null or (winner in (1, 2) and end_reason in ('done', 'left')))),
-  constraint live_duels_wait_check check ((stage = 'wait') = (wait_from is not null)),
+  constraint live_duels_wait_check check ((stage = 'wait') = (wait_from is not null) and (wait_seat is null or (wait_seat in (1, 2) and stage = 'wait'))),
   constraint live_duels_round_check check (round between 1 and 20 and draws between 0 and round - 1),
   constraint live_duels_rev_check check (rev >= 1)
 );
@@ -102,6 +103,7 @@ create index if not exists live_duels_quiz_idx on public.live_duels (quiz_id) wh
 create index if not exists live_duels_parent_idx on public.live_duels (parent_id) where parent_id is not null;
 create index if not exists live_duels_next_idx on public.live_duels (next_id) where next_id is not null;
 create index if not exists live_duels_created_idx on public.live_duels (created_at);
+create index if not exists live_duels_ref_idx on public.live_duels (source_ref, created_at) where source_ref is not null;
 alter table public.live_duels enable row level security;
 comment on table public.live_duels is 'Duels («Дуэль»): only through the public.duel_* functions.';
 
@@ -109,8 +111,9 @@ comment on table public.live_duels is 'Duels («Дуэль»): only through the 
 --     (meldy_private.live_run_perm). token_hash: sha256 hex of the device's token (the token is never stored or sent
 --     back). user_id: a signed-in player (one seat an account in a duel; the same account on another device takes the
 --     same seat over). seen_at: the seat's last call (presence). ready_at: «Готов» in the lobby; next_qi / next_at:
---     «Дальше» pressed in the reveal of that question; rematch_at: «Ещё раз». The battle's numbers for one seat; wins:
---     the match's wins before this round.
+--     «Дальше» pressed in the reveal of that question; rematch_at: «Ещё раз». The battle's numbers for one seat;
+--     waited_ms: how long the duel has waited for this seat between questions (its budget is 120 s a duel); wins: the
+--     match's wins before this round.
 create table if not exists public.live_duel_seats (
   id uuid primary key default gen_random_uuid(),
   duel_id uuid not null references public.live_duels(id) on delete cascade,
@@ -132,6 +135,7 @@ create table if not exists public.live_duel_seats (
   frozen boolean not null default false,
   thaws smallint not null default 0,
   time_ms integer not null default 0,
+  waited_ms integer not null default 0,
   wins smallint not null default 0,
   constraint live_duel_seats_seat_check check (seat in (1, 2)),
   constraint live_duel_seats_token_check check (token_hash ~ '^[0-9a-f]{64}$'),
@@ -139,7 +143,7 @@ create table if not exists public.live_duel_seats (
   constraint live_duel_seats_look_check check (jsonb_typeof(look) = 'object'),
   constraint live_duel_seats_next_check check ((next_qi is null) = (next_at is null)),
   constraint live_duel_seats_numbers_check check (dmg >= 0 and right_n >= 0 and streak >= 0 and best >= streak and thaws >= 0
-                                                  and time_ms >= 0 and wins between 0 and 19)
+                                                  and time_ms >= 0 and waited_ms between 0 and 120000 and wins between 0 and 19)
 );
 create unique index if not exists live_duel_seats_seat_uidx on public.live_duel_seats (duel_id, seat);
 create unique index if not exists live_duel_seats_token_uidx on public.live_duel_seats (duel_id, token_hash);
@@ -205,6 +209,7 @@ create table if not exists public.live_duel_answers (
   choice smallint,
   picks smallint[],
   typed text,
+  rude boolean,
   elapsed_ms integer,
   settled_at timestamptz,
   correct boolean,
@@ -217,7 +222,7 @@ create table if not exists public.live_duel_answers (
   constraint live_duel_answers_one_check check (num_nonnulls(choice, picks, typed) <= 1 and (at is null) = (num_nonnulls(choice, picks, typed) = 0)),
   constraint live_duel_answers_choice_check check (choice is null or choice between 0 and 5),
   constraint live_duel_answers_picks_check check (picks is null or cardinality(picks) between 1 and 6),
-  constraint live_duel_answers_typed_check check (typed is null or char_length(typed) between 1 and 200),
+  constraint live_duel_answers_typed_check check ((typed is null or char_length(typed) between 1 and 200) and (rude is null) = (typed is null)),
   constraint live_duel_answers_elapsed_check check ((elapsed_ms is null) = (at is null) and (elapsed_ms is null or elapsed_ms between 0 and 30000)),
   constraint live_duel_answers_settled_check check ((settled_at is null) = (correct is null) and (correct is null) = (dmg is null)),
   constraint live_duel_answers_dmg_check check (dmg is null or dmg between 0 and 200)
@@ -226,15 +231,18 @@ create index if not exists live_duel_answers_duel_idx on public.live_duel_answer
 alter table public.live_duel_answers enable row level security;
 comment on table public.live_duel_answers is 'Answers of duels, one a seat and question: only through the public.duel_* functions.';
 
--- 1e. The address throttle (HMAC of the address, meldy_private.quiz_ip_hash): a guest's create, a join of the invited
---     seat. A day kept.
+-- 1e. The throttle: a guest's create and a guest's join of the invited seat by the address (HMAC, meldy_private.quiz_ip_hash),
+--     a signed-in join by the account (a person is never refused because of other people on their address). A day kept.
 create table if not exists meldy_private.live_duel_hits (
-  ip_hash text not null,
+  ip_hash text,
+  user_id uuid,
   kind text not null,
   at timestamptz not null default now(),
-  constraint live_duel_hits_kind_check check (kind in ('create', 'join'))
+  constraint live_duel_hits_kind_check check (kind in ('create', 'join')),
+  constraint live_duel_hits_who_check check (num_nonnulls(ip_hash, user_id) = 1)
 );
-create index if not exists live_duel_hits_idx on meldy_private.live_duel_hits (ip_hash, kind, at);
+create index if not exists live_duel_hits_idx on meldy_private.live_duel_hits (ip_hash, kind, at) where ip_hash is not null;
+create index if not exists live_duel_hits_user_idx on meldy_private.live_duel_hits (user_id, kind, at) where user_id is not null;
 create index if not exists live_duel_hits_at_idx on meldy_private.live_duel_hits (at);
 alter table meldy_private.live_duel_hits enable row level security;
 
@@ -306,15 +314,108 @@ as $fn$
            p_choice, p_picks, p_typed)
 $fn$;
 
--- 2d. A typed answer the other seat must not read as typed: the live game's filter of names (live_name_rude), word by
---     word over the answer as a name is normalised. The writer's own view keeps it as typed.
-create or replace function meldy_private.live_duel_rude(p_text text)
+-- 2d. A typed answer the other seat must not read as typed (its writer's own view keeps it; judged once, when the answer
+--     is written: live_duel_answers.rude). The duel's own filter,
+--     stricter than the names' (meldy_private.live_name_rude) and harder to get round: the text lower-cased by an explicit
+--     table and ё → е; punctuation between words splits them, anything else but letters and «*» inside a word goes
+--     («Су-ка»); each word is checked as it is, with its repeated letters collapsed («сукааа») and with Latin look-alikes
+--     read as Cyrillic; a run of single letters is checked as one word («с у к а», «х у й»), and a run of words of one or
+--     two letters with a single letter in it from its start and to its end («пи з д а», «ну с у к а»). A word is rude when it is a
+--     whole rude word, or a rude root stands at its start after at most one prefix («нахуй», «похуй») — never a short
+--     root inside an ordinary word («застрахуйте», «корабля»); «*» stands for one hidden letter («х*й»).
+create or replace function meldy_private.live_duel_rude_word(p_word text)
 returns boolean
 language sql
 immutable
 set search_path = ''
 as $fn$
-  select p_text is not null and meldy_private.live_name_rude(meldy_private.live_name_norm(p_text))
+  select p_word is not null and p_word ~ '[a-zа-я]' and (
+    exists (select 1
+              from pg_catalog.unnest(array['сука', 'суки', 'суку', 'суке', 'сукой', 'сучка', 'сучки', 'сучара', 'бля', 'блядь',
+                                           'блять', 'хер', 'нахер', 'похер', 'херня', 'жопа', 'жопу', 'жопе', 'говно', 'говна',
+                                           'дерьмо', 'шлюха', 'мразь', 'хуй', 'fuck', 'fucking', 'shit', 'shitty', 'bullshit',
+                                           'ass', 'asshole', 'еб']) w
+             where pg_catalog.char_length(w) = pg_catalog.char_length(p_word) and w like pg_catalog.replace(p_word, '*', '_'))
+    or exists (select 1
+                 from pg_catalog.unnest(array['', 'за', 'вы', 'на', 'не', 'ни', 'от', 'по', 'при', 'раз', 'рас', 'до', 'у', 'о',
+                                              'об', 'съ', 'объ', 'отъ', 'подъ', 'въ', 'изъ', 'разъ', 'пере', 'недо']) p
+                cross join pg_catalog.unnest(array['хуй', 'хуе', 'хуя', 'хуи', 'хую', 'пизд', 'бляд', 'блят', 'ебат', 'ебан', 'ебал',
+                                                   'ебу', 'ебл', 'ебн', 'ебет', 'ебич', 'пидор', 'пидар', 'пидр', 'мудак', 'мудил',
+                                                   'залуп', 'гандон', 'гондон', 'шлюх', 'fuck', 'bitch', 'cunt']) r
+                where pg_catalog.char_length(p_word) >= pg_catalog.char_length(p || r)
+                  and (p || r) like pg_catalog.replace(pg_catalog.left(p_word, pg_catalog.char_length(p || r)), '*', '_')))
+$fn$;
+
+-- One word as typed, with its repeated letters collapsed, and both with Latin look-alikes read as Cyrillic.
+create or replace function meldy_private.live_duel_rude_token(p_word text)
+returns boolean
+language sql
+immutable
+set search_path = ''
+as $fn$
+  select meldy_private.live_duel_rude_word(p_word)
+      or meldy_private.live_duel_rude_word(pg_catalog.regexp_replace(p_word, '([a-zа-я])\1+', '\1', 'g'))
+      or meldy_private.live_duel_rude_word(pg_catalog.translate(p_word, 'acehkmoptxy', 'асенкмортху'))
+      or meldy_private.live_duel_rude_word(pg_catalog.regexp_replace(pg_catalog.translate(p_word, 'acehkmoptxy', 'асенкмортху'),
+                                                                      '([a-zа-я])\1+', '\1', 'g'))
+$fn$;
+
+create or replace function meldy_private.live_duel_rude(p_text text)
+returns boolean
+language plpgsql
+immutable
+set search_path = ''
+as $fn$
+declare
+  v_t text;
+  v_tok text;
+  v_run text := '';
+  v_n integer := 0;
+  v_short text[] := '{}';
+  v_one boolean := false;
+  v_k integer;
+begin
+  if p_text is null then
+    return false;
+  end if;
+  v_t := pg_catalog.translate(p_text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯё',
+                                      'abcdefghijklmnopqrstuvwxyzабвгдеежзийклмнопрстуфхцчшщъыьэюяе');
+  v_t := pg_catalog.regexp_replace(v_t, '[[:space:],.;:!?"«»()\[\]{}/\\|]+', ' ', 'g');
+  v_t := pg_catalog.regexp_replace(pg_catalog.regexp_replace(v_t, '[^a-zа-я* ]', '', 'g'), ' +', ' ', 'g');
+  -- the words, then '' to end the last runs
+  for v_tok in select x from pg_catalog.unnest(pg_catalog.string_to_array(pg_catalog.btrim(v_t), ' ') || array['']) x loop
+    if v_tok <> '' and meldy_private.live_duel_rude_token(v_tok) then
+      return true;
+    end if;
+    if pg_catalog.char_length(v_tok) = 1 then
+      v_run := v_run || v_tok;
+      v_n := v_n + 1;
+    else
+      if v_n >= 2 and meldy_private.live_duel_rude_token(v_run) then
+        return true;
+      end if;
+      v_run := '';
+      v_n := 0;
+    end if;
+    if pg_catalog.char_length(v_tok) between 1 and 2 then
+      v_short := v_short || v_tok;
+      v_one := v_one or pg_catalog.char_length(v_tok) = 1;
+    else
+      v_k := pg_catalog.cardinality(v_short);
+      if v_one and v_k >= 2 then
+        for v_i in 1 .. v_k loop
+          if meldy_private.live_duel_rude_token(pg_catalog.array_to_string(v_short[v_i:v_k], ''))
+             or (v_i between 2 and v_k - 1 and meldy_private.live_duel_rude_token(pg_catalog.array_to_string(v_short[1:v_i], ''))) then
+            return true;
+          end if;
+        end loop;
+      end if;
+      v_short := '{}';
+      v_one := false;
+    end if;
+  end loop;
+  return false;
+end;
 $fn$;
 
 -- 2e. Presence (DUEL.md §5): a seat is here at a moment when its last call was at most 20 s before it. The slowest poll
@@ -376,7 +477,7 @@ begin
      set shown_at = p_at, opens_at = p_at + interval '3 seconds',
          closes_at = p_at + interval '3 seconds' + pg_catalog.make_interval(secs => v_d.time_s)
    where q.duel_id = p_duel and q.qi = p_qi;
-  update public.live_duels d set stage = 'play', qi = p_qi, wait_from = null where d.id = p_duel;
+  update public.live_duels d set stage = 'play', qi = p_qi, wait_from = null, wait_seat = null where d.id = p_duel;
   perform meldy_private.live_duel_bump(p_duel);
 end;
 $fn$;
@@ -436,10 +537,35 @@ set search_path = ''
 as $fn$
 begin
   update public.live_duels d
-     set stage = 'final', ended_at = p_at, end_reason = p_reason, winner = p_winner, wait_from = null
+     set stage = 'final', ended_at = p_at, end_reason = p_reason, winner = p_winner, wait_from = null, wait_seat = null
    where d.id = p_duel;
   perform meldy_private.live_duel_bump(p_duel);
 end;
+$fn$;
+
+-- 3b'. When a wait between questions ends: a minute after the next question was due, or sooner when the one seat awaited
+--      (wait_seat; null when both are away) has less of its budget left — 120 s of waiting a seat and duel, so a seat
+--      cannot stretch a duel by going away before every question. Its budget is charged when the wait ends.
+create or replace function meldy_private.live_duel_wait_cut(p_d public.live_duels)
+returns timestamptz
+language sql
+stable
+set search_path = ''
+as $fn$
+  select p_d.wait_from + least(interval '60 seconds',
+           coalesce((select pg_catalog.make_interval(secs => greatest(0, 120000 - s.waited_ms) / 1000.0)
+                       from public.live_duel_seats s where s.duel_id = p_d.id and s.seat = p_d.wait_seat), interval '60 seconds'))
+$fn$;
+
+create or replace function meldy_private.live_duel_charge(p_d public.live_duels, p_until timestamptz)
+returns void
+language sql
+volatile
+set search_path = ''
+as $fn$
+  update public.live_duel_seats s
+     set waited_ms = least(120000, s.waited_ms + greatest(0, pg_catalog.floor(extract(epoch from (p_until - p_d.wait_from)) * 1000))::integer)
+   where s.duel_id = p_d.id and s.seat = p_d.wait_seat
 $fn$;
 
 -- 3c. The duel brought up to the server's time (DUEL.md §4): a bounded loop of what is due, at most one question shown a
@@ -450,9 +576,12 @@ $fn$;
 --     - play, open: both answered (normally closed by the second answer) or closes_at + 1.5 s → closed.
 --     - play, closed: the reveal ends at closed_at + 7 s (14 s with an explanation), or when both pressed «Дальше»; then
 --       the last question ends the duel (done: points, then right answers), or the next question shows when both are
---       here, else the wait starts (from the moment it was due).
---     - wait: both here → the next question shows now; 60 s after it started → the one who stayed wins whatever the
---       score (left), nobody when both are gone (gone).
+--       here, or at once without the seat away when its wait budget (120 s a duel) is spent, else the wait starts (from
+--       the moment it was due).
+--     - wait: its end is judged first, by the seats' calls before it, so the outcome does not depend on who calls first
+--       after it: the awaited seat's budget spent → the next question shows without it; a minute → the one who stayed
+--       wins whatever the score (left), nobody when both are gone (gone). Before its end: both here → the next question
+--       shows now (the awaited seat's budget charged).
 create or replace function meldy_private.live_duel_settle(p_duel uuid, p_caller uuid)
 returns public.live_duels
 language plpgsql
@@ -469,6 +598,8 @@ declare
   v_h2 boolean;
   v_due timestamptz;
   v_end timestamptz;
+  v_cut timestamptz;
+  v_away smallint;
   v_n integer;
   v_last timestamptz;
   v_shown boolean := false;
@@ -529,29 +660,52 @@ begin
         v_shown := true;
         exit;
       end if;
-      update public.live_duels d set stage = 'wait', wait_from = v_due where d.id = p_duel;
+      v_away := case when v_h1 and not v_h2 then 2::smallint when v_h2 and not v_h1 then 1::smallint end;
+      -- the one away has spent its wait budget: the question opens without waiting for it (it gets none if it stays away)
+      if v_away is not null and (case v_away when 1 then v_s1.waited_ms else v_s2.waited_ms end) >= 120000 then
+        exit when v_shown;
+        perform meldy_private.live_duel_open(p_duel, v_d.qi + 1, v_now);
+        v_shown := true;
+        exit;
+      end if;
+      update public.live_duels d set stage = 'wait', wait_from = v_due, wait_seat = v_away where d.id = p_duel;
       perform meldy_private.live_duel_bump(p_duel);
       continue;
     end if;
-    -- the wait between questions
-    if v_h1 and v_h2 then
-      exit when v_shown;
-      perform meldy_private.live_duel_open(p_duel, v_d.qi + 1, v_now);
-      v_shown := true;
-      exit;
-    end if;
+    -- the wait between questions: its end first, judged by the calls before it (whoever calls first after it)
     v_end := v_d.wait_from + interval '60 seconds';
-    exit when v_now < v_end;
-    v_h1 := meldy_private.live_duel_here(v_s1.seen_at, v_end);
-    v_h2 := v_s2.id is not null and meldy_private.live_duel_here(v_s2.seen_at, v_end);
+    v_cut := meldy_private.live_duel_wait_cut(v_d);
+    if v_now >= v_cut then
+      if v_cut < v_end then
+        -- the awaited seat's budget is spent: the next question opens without it
+        perform meldy_private.live_duel_charge(v_d, v_cut);
+        exit when v_shown;
+        perform meldy_private.live_duel_open(p_duel, v_d.qi + 1, v_now);
+        v_shown := true;
+        exit;
+      end if;
+      v_h1 := meldy_private.live_duel_here(v_s1.seen_at, v_end);
+      v_h2 := v_s2.id is not null and meldy_private.live_duel_here(v_s2.seen_at, v_end);
+      if v_h1 and v_h2 then
+        perform meldy_private.live_duel_charge(v_d, v_end);
+        exit when v_shown;
+        perform meldy_private.live_duel_open(p_duel, v_d.qi + 1, v_now);
+        v_shown := true;
+        exit;
+      end if;
+      perform meldy_private.live_duel_end(p_duel, case when v_h1 or v_h2 then 'left' else 'gone' end, v_end,
+                                          case when v_h1 then 1::smallint when v_h2 then 2::smallint end);
+      continue;
+    end if;
+    -- back before its end: the next question shows now
     if v_h1 and v_h2 then
+      perform meldy_private.live_duel_charge(v_d, v_now);
       exit when v_shown;
       perform meldy_private.live_duel_open(p_duel, v_d.qi + 1, v_now);
       v_shown := true;
       exit;
     end if;
-    perform meldy_private.live_duel_end(p_duel, case when v_h1 or v_h2 then 'left' else 'gone' end, v_end,
-                                        case when v_h1 then 1::smallint when v_h2 then 2::smallint end);
+    exit;
   end loop;
   if p_caller is not null then
     update public.live_duel_seats s set seen_at = greatest(s.seen_at, v_now) where s.id = p_caller;
@@ -611,11 +765,30 @@ begin
 end;
 $fn$;
 
--- 3f. The create limits (DUEL.md §8). An account: 20 creates an hour (a rematch counts) and 20 unfinished duels (a
---     lobby, or one a seat called in the last 2 minutes; a rematch is not asked: it replaces the one just finished). A
---     guest: 120 creates an hour per address — a class behind one NAT creates with room to spare, and a signed-in person
---     is never refused because of other people on their address.
-create or replace function meldy_private.live_duel_limits(p_user uuid, p_ip text, p_rematch boolean)
+-- 3f. A duel that holds a place in the unfinished limits: a lobby whose first seat called in the last 30 minutes (a lobby
+--     nobody came back to holds nothing), or a started duel a seat called in the last 2 minutes; never one older than a
+--     day.
+create or replace function meldy_private.live_duel_alive(p_d public.live_duels)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $fn$
+  select p_d.stage <> 'final' and p_d.created_at > pg_catalog.now() - interval '1 day'
+     and case when p_d.stage = 'lobby'
+              then exists (select 1 from public.live_duel_seats s
+                            where s.duel_id = p_d.id and s.seat = 1 and s.seen_at > pg_catalog.now() - interval '30 minutes')
+              else exists (select 1 from public.live_duel_seats s
+                            where s.duel_id = p_d.id and s.seen_at > pg_catalog.now() - interval '2 minutes') end
+$fn$;
+
+-- 3f'. The create limits (DUEL.md §8). An account: 20 creates an hour (a rematch counts) and 20 unfinished duels
+--     (live_duel_alive; a rematch is not asked: it replaces the one just finished). A guest: 120 creates an hour per
+--     address — a class behind one NAT creates with room to spare, and a signed-in person is never refused because of
+--     other people on their address. The address is the first X-Forwarded-For entry (quiz_ip_hash), which a client can
+--     choose; so a duel made from a challenge run or a game's player (p_ref, the token proven at the create) has a cap of
+--     its own nobody can spoof: 20 creates an hour (rematches count) and 5 unfinished.
+create or replace function meldy_private.live_duel_limits(p_user uuid, p_ip text, p_ref uuid, p_rematch boolean)
 returns void
 language plpgsql
 stable
@@ -632,8 +805,7 @@ begin
     if not p_rematch
        and (select pg_catalog.count(*) from public.live_duels d
              where d.owner_id = p_user and d.stage <> 'final' and d.created_at > pg_catalog.now() - interval '1 day'
-               and (d.stage = 'lobby' or exists (select 1 from public.live_duel_seats s
-                                                  where s.duel_id = d.id and s.seen_at > pg_catalog.now() - interval '2 minutes'))) >= 20 then
+               and meldy_private.live_duel_alive(d)) >= 20 then
       perform meldy_private.live_fail('ML009', null);
     end if;
   elsif p_ip is not null then
@@ -642,6 +814,20 @@ begin
       perform meldy_private.live_fail('ML005', 'create', 429, meldy_private.live_retry_after(
         (select pg_catalog.min(h.at) from meldy_private.live_duel_hits h
           where h.ip_hash = p_ip and h.kind = 'create' and h.at > pg_catalog.now() - interval '1 hour'), interval '1 hour'));
+    end if;
+  end if;
+  if p_ref is not null then
+    if (select pg_catalog.count(*) from public.live_duels d
+         where d.source_ref = p_ref and d.created_at > pg_catalog.now() - interval '1 hour') >= 20 then
+      perform meldy_private.live_fail('ML005', 'create', 429, meldy_private.live_retry_after(
+        (select pg_catalog.min(d.created_at) from public.live_duels d
+          where d.source_ref = p_ref and d.created_at > pg_catalog.now() - interval '1 hour'), interval '1 hour'));
+    end if;
+    if not p_rematch
+       and (select pg_catalog.count(*) from public.live_duels d
+             where d.source_ref = p_ref and d.stage <> 'final' and d.created_at > pg_catalog.now() - interval '1 day'
+               and meldy_private.live_duel_alive(d)) >= 5 then
+      perform meldy_private.live_fail('ML009', 'source');
     end if;
   end if;
 end;
@@ -755,7 +941,7 @@ begin
   if v_o.round >= 20 then
     perform meldy_private.live_fail('ML004', 'rounds');
   end if;
-  perform meldy_private.live_duel_limits(v_o.owner_id, case when v_o.owner_id is null then v_ip end, true);
+  perform meldy_private.live_duel_limits(v_o.owner_id, case when v_o.owner_id is null then v_ip end, v_o.source_ref, true);
   v_n := v_o;
   v_n.round := v_o.round + 1;
   v_n.parent_id := v_o.id;
@@ -827,7 +1013,7 @@ as $fn$
                                                                   order by pg_catalog.array_position(p_perm, x)))
                                                            from pg_catalog.unnest(p_a.picks) x))
             when p_a.choice is not null then pg_catalog.jsonb_build_object('choice', pg_catalog.array_position(p_perm, p_a.choice) - 1)
-            when p_a.typed is not null and not p_own and meldy_private.live_duel_rude(p_a.typed) then '{"masked": true}'::jsonb
+            when p_a.typed is not null and not p_own and p_a.rude then '{"masked": true}'::jsonb
             when p_a.typed is not null then pg_catalog.jsonb_build_object('typed', p_a.typed)
             else '{}'::jsonb end end
 $fn$;
@@ -950,7 +1136,8 @@ begin
       'stage', p_d.stage, 'qi', p_d.qi, 'round', p_d.round, 'path', '/d/' || p_d.code,
       'url', 'https://ludosiel-studyforge.hf.space/d/' || p_d.code,
       'expires_at', case when p_d.stage = 'lobby' then meldy_private.live_iso(p_d.created_at + interval '1 day') end,
-      'wait_until', case when p_d.stage = 'wait' then meldy_private.live_iso(p_d.wait_from + interval '60 seconds') end)
+      'wait_until', case when p_d.stage = 'wait' then meldy_private.live_iso(meldy_private.live_duel_wait_cut(p_d)) end,
+      'wait_open', p_d.stage = 'wait' and meldy_private.live_duel_wait_cut(p_d) < p_d.wait_from + interval '60 seconds')
       || case when p_d.calm then '{"calm": true}'::jsonb else '{}'::jsonb end,
     'me', pg_catalog.jsonb_build_object(
       'seat', p_me.seat, 'name', p_me.name, 'look', p_me.look, 'dmg', p_me.dmg, 'right', p_me.right_n,
@@ -1173,12 +1360,14 @@ begin
     if coalesce(v_g.ended_at, v_g.state_at) < pg_catalog.now() - interval '7 days' then
       perform meldy_private.live_fail('ML002', 'expired');
     end if;
-    -- the closed questions a duel plays (as the challenge's: no picture, two to six options, text and number answers)
+    -- the closed questions a duel plays (as the challenge's: no picture, two to six options, text and number answers; a
+    -- number played as ranges on the floor keeps its accepted numbers and tolerance: it plays as a typed number)
     select pg_catalog.array_agg(q.qi::integer order by q.qi) into v_qis
       from public.live_questions q
      where q.game_id = v_g.id and q.closed_at is not null and q.pictures is null
        and q.kind in ('single', 'multiple', 'short', 'number')
-       and case when q.kind in ('short', 'number') then pg_catalog.cardinality(q.forms) between 1 and 10
+       and case when q.kind = 'number' then pg_catalog.cardinality(q.forms) between 1 and 10 and coalesce(q.tolerance, 0) >= 0
+                when q.kind = 'short' then pg_catalog.cardinality(q.forms) between 1 and 10
                 when q.kind = 'multiple' then pg_catalog.cardinality(q.keys) >= 2 and pg_catalog.jsonb_array_length(q.options) between 2 and 6
                 else pg_catalog.jsonb_array_length(q.options) between 2 and 6 end;
     v_new.skipped := (select pg_catalog.count(*)::integer from public.live_questions q where q.game_id = v_g.id and q.closed_at is not null)
@@ -1254,11 +1443,18 @@ begin
   -- the limits: one creator at a time (the account, else the address)
   v_ip := meldy_private.quiz_ip_hash();
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('live.duel:' || coalesce(v_user::text, 'ip:' || v_ip, 'guest'), 0));
-  perform meldy_private.live_duel_limits(v_user, case when v_user is null then v_ip end, false);
-  -- only now old rows go: duels 90 days after their create, the throttle's rows after a day
+  perform meldy_private.live_duel_limits(v_user, case when v_user is null then v_ip end, v_new.source_ref, false);
+  -- only now old rows go: duels 90 days after their create, lobbies nobody joined a day after they expired, the
+  -- throttle's rows after a day
   delete from public.live_duels d
    where d.id in (select x.id from public.live_duels x where x.created_at < pg_catalog.now() - interval '90 days'
                    order by x.created_at limit 50);
+  delete from public.live_duels d
+   where d.id in (select x.id from public.live_duels x
+                   where x.created_at < pg_catalog.now() - interval '2 days' and x.round = 1
+                     and (x.stage = 'lobby' or x.end_reason = 'expired')
+                     and not exists (select 1 from public.live_duel_seats s where s.duel_id = x.id and s.seat = 2)
+                   order by x.created_at limit 200);
   delete from meldy_private.live_duel_hits h where h.at <= pg_catalog.now() - interval '1 day';
   -- the duel, its questions, its first seat
   v_new.owner_id := v_user;
@@ -1281,12 +1477,24 @@ begin
       from pg_catalog.unnest(v_qis) with ordinality as x(qi, n)
       join public.live_challenge_questions q on q.challenge_id = v_new.source_id and q.qi = x.qi;
   else
-    -- the game's frozen rows; an item edited after the game was made is stale for practice (item_rev 0)
+    -- the game's frozen rows (never the item as it is now): a text or a number as typed — a number played as ranges
+    -- («Встань на ответ», a movement round: four range options, a range key) as the typed number it is, its accepted
+    -- numbers, tolerance and unit; the options kept in the game's order only when the game kept them (its shown order the
+    -- item's own) and the item still asks for it; an item edited after the game was made is stale for practice (item_rev 0)
     insert into public.live_duel_questions (duel_id, qi, item_id, kind, text, options, shown, key, keys, forms, tolerance,
                                             unit, explanation, keep_order, item_rev)
-    select v_d.id, (x.n - 1)::smallint, q.item_id, q.kind, q.text, q.options, q.shown,
-           case when q.kind in ('short', 'number') then -1 else q.key end, q.keys, q.forms, q.tolerance, q.unit, q.explanation,
-           coalesce(i.keep_order, false), case when i.id is null then null when i.updated_at <= v_g.created_at then i.rev else 0 end
+    select v_d.id, (x.n - 1)::smallint, q.item_id, q.kind, q.text,
+           case when q.kind in ('short', 'number') then '[]'::jsonb else q.options end,
+           case when q.kind in ('short', 'number') then '{}'::smallint[] else q.shown end,
+           case when q.kind in ('short', 'number') then -1 else q.key end,
+           case when q.kind = 'multiple' then q.keys end,
+           case when q.kind in ('short', 'number') then q.forms end,
+           case when q.kind = 'number' then q.tolerance end,
+           case when q.kind = 'number' then nullif(pg_catalog.btrim(q.unit), '') end,
+           nullif(pg_catalog.btrim(q.explanation), ''),
+           q.kind in ('single', 'multiple') and coalesce(i.keep_order, false)
+             and q.shown = (select pg_catalog.array_agg(z::smallint order by z) from pg_catalog.generate_series(0, pg_catalog.cardinality(q.shown) - 1) z),
+           case when i.id is null then null when i.updated_at <= v_g.created_at then i.rev else 0 end
       from pg_catalog.unnest(v_qis) with ordinality as x(qi, n)
       join public.live_questions q on q.game_id = v_new.source_id and q.qi = x.qi
       left join public.test_items i on i.id = q.item_id;
@@ -1326,7 +1534,8 @@ $fn$;
 --     account on another device takes the same seat over: its new token replaces the old hash, the old device's token
 --     stops working). A new seat: only the invited one — refused before any lock or write when the duel is over
 --     (ML002 over) or the seat is taken (ML001 full; a seat away 2 minutes in the lobby counts as free); the name (ML006),
---     the look (ML007); 120 joins a minute per address (the live game's join throttle) and 300 a day (ML005 join 429).
+--     the look (ML007); the joins' limits (ML005 join 429): a signed-in person 120 a minute and 300 a day by the account,
+--     a guest 120 a minute (the live game's join throttle) and 3000 a day by the address.
 create or replace function public.duel_join(p_code text, p_name text, p_token text, p_look jsonb default null)
 returns jsonb
 language plpgsql
@@ -1397,7 +1606,25 @@ begin
   else
     v_look := meldy_private.live_look_check(p_look, coalesce(v_w.unlocked, '{}'::text[]));
   end if;
-  v_ip := meldy_private.quiz_ip_hash();
+  -- the joins' limits: a signed-in person by the account (never refused because of other people on the address), 120 a
+  -- minute and 300 a day; a guest by the address, 120 a minute (the live game's join throttle) and 3000 a day (a school
+  -- behind one NAT does not reach it in a day of lessons)
+  if v_user is not null then
+    if (select pg_catalog.count(*) from meldy_private.live_duel_hits h
+         where h.user_id = v_user and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 minute') >= 120 then
+      perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
+        (select pg_catalog.min(h.at) from meldy_private.live_duel_hits h
+          where h.user_id = v_user and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 minute'), interval '1 minute'));
+    end if;
+    if (select pg_catalog.count(*) from meldy_private.live_duel_hits h
+         where h.user_id = v_user and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 day') >= 300 then
+      perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
+        (select pg_catalog.min(h.at) from meldy_private.live_duel_hits h
+          where h.user_id = v_user and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 day'), interval '1 day'));
+    end if;
+  else
+    v_ip := meldy_private.quiz_ip_hash();
+  end if;
   if v_ip is not null then
     if (select pg_catalog.count(*) from meldy_private.live_duel_hits h
          where h.ip_hash = v_ip and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 minute') >= 120 then
@@ -1406,7 +1633,7 @@ begin
           where h.ip_hash = v_ip and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 minute'), interval '1 minute'));
     end if;
     if (select pg_catalog.count(*) from meldy_private.live_duel_hits h
-         where h.ip_hash = v_ip and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 day') >= 300 then
+         where h.ip_hash = v_ip and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 day') >= 3000 then
       perform meldy_private.live_fail('ML005', 'join', 429, meldy_private.live_retry_after(
         (select pg_catalog.min(h.at) from meldy_private.live_duel_hits h
           where h.ip_hash = v_ip and h.kind = 'join' and h.at > pg_catalog.now() - interval '1 day'), interval '1 day'));
@@ -1423,7 +1650,9 @@ begin
   insert into public.live_duel_seats (duel_id, seat, token_hash, user_id, name, look)
   values (v_d.id, 2, v_hash, v_user, v_name, v_look)
   returning * into v_s;
-  if v_ip is not null then
+  if v_user is not null then
+    insert into meldy_private.live_duel_hits (user_id, kind) values (v_user, 'join');
+  elsif v_ip is not null then
     insert into meldy_private.live_duel_hits (ip_hash, kind) values (v_ip, 'join');
   end if;
   perform meldy_private.live_duel_bump(v_d.id);
@@ -1586,8 +1815,10 @@ begin
     perform meldy_private.live_fail('22023', 'answer');
   end if;
   begin
-    insert into public.live_duel_answers (seat_id, qi, duel_id, at, choice, picks, typed, elapsed_ms)
+    -- a typed text is judged by the mask once, as it is written (live_duel_side reads the flag)
+    insert into public.live_duel_answers (seat_id, qi, duel_id, at, choice, picks, typed, rude, elapsed_ms)
     values (v_s.id, v_q.qi, v_d.id, v_now, v_choice, v_picks, v_typed,
+            case when v_typed is not null then meldy_private.live_duel_rude(v_typed) end,
             least(greatest(pg_catalog.floor(extract(epoch from (v_now - v_q.opens_at)) * 1000), 0), v_d.time_s * 1000)::integer);
   exception
     when unique_violation then
@@ -1853,13 +2084,15 @@ revoke all on function
   meldy_private.live_duel_points(integer, boolean, double precision, integer, integer, boolean, boolean),
   meldy_private.live_duel_winner(integer, integer, integer, integer),
   meldy_private.live_duel_share(public.live_duel_questions, smallint, smallint[], text),
-  meldy_private.live_duel_rude(text), meldy_private.live_duel_here(timestamptz, timestamptz),
+  meldy_private.live_duel_rude(text), meldy_private.live_duel_rude_word(text), meldy_private.live_duel_rude_token(text),
+  meldy_private.live_duel_here(timestamptz, timestamptz), meldy_private.live_duel_wait_cut(public.live_duels),
+  meldy_private.live_duel_charge(public.live_duels, timestamptz), meldy_private.live_duel_alive(public.live_duels),
   meldy_private.live_duel_reveal_end(public.live_duel_questions), meldy_private.live_duel_rev(public.live_duels),
   meldy_private.live_duel_bump(uuid),
   meldy_private.live_duel_open(uuid, integer, timestamptz), meldy_private.live_duel_close(uuid, timestamptz),
   meldy_private.live_duel_end(uuid, text, timestamptz, smallint), meldy_private.live_duel_settle(uuid, uuid),
   meldy_private.live_duel_of(text), meldy_private.live_duel_enter(text, text),
-  meldy_private.live_duel_limits(uuid, text, boolean), meldy_private.live_duel_fill(uuid, uuid[]),
+  meldy_private.live_duel_limits(uuid, text, uuid, boolean), meldy_private.live_duel_fill(uuid, uuid[]),
   meldy_private.live_duel_insert(public.live_duels), meldy_private.live_duel_rematch_make(uuid),
   meldy_private.live_duel_side(public.live_duel_answers, smallint[], boolean),
   meldy_private.live_duel_key(public.live_duel_questions, smallint[]),

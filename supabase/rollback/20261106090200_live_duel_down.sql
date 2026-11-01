@@ -1,6 +1,6 @@
 -- Rollback of supabase/migrations/20261106090200_live_duel.sql (LOCAL rehearsal: supabase/tests/local/live_game_run.sh).
 -- The migration only added: its functions and its four tables go (with every duel, seat, question and answer), and the
--- address throttle. Nothing it did not make is touched. Re-runnable.
+-- throttle of creates and joins. Nothing it did not make is touched. Re-runnable.
 
 -- one request, one transaction: a lock held by a busy game must not queue everything behind it
 set local lock_timeout = '2s';
@@ -26,6 +26,9 @@ begin
     drop function if exists meldy_private.live_duel_side(public.live_duel_answers, smallint[], boolean);
     drop function if exists meldy_private.live_duel_insert(public.live_duels);
     drop function if exists meldy_private.live_duel_rev(public.live_duels);
+    drop function if exists meldy_private.live_duel_wait_cut(public.live_duels);
+    drop function if exists meldy_private.live_duel_charge(public.live_duels, timestamptz);
+    drop function if exists meldy_private.live_duel_alive(public.live_duels);
     drop function if exists meldy_private.live_duel_reveal_end(public.live_duel_questions);
     drop function if exists meldy_private.live_duel_share(public.live_duel_questions, smallint, smallint[], text);
   end if;
@@ -33,7 +36,7 @@ end;
 $do$;
 drop function if exists meldy_private.live_duel_rematch_make(uuid);
 drop function if exists meldy_private.live_duel_fill(uuid, uuid[]);
-drop function if exists meldy_private.live_duel_limits(uuid, text, boolean);
+drop function if exists meldy_private.live_duel_limits(uuid, text, uuid, boolean);
 drop function if exists meldy_private.live_duel_enter(text, text);
 drop function if exists meldy_private.live_duel_of(text);
 drop function if exists meldy_private.live_duel_settle(uuid, uuid);
@@ -43,6 +46,8 @@ drop function if exists meldy_private.live_duel_open(uuid, integer, timestamptz)
 drop function if exists meldy_private.live_duel_bump(uuid);
 drop function if exists meldy_private.live_duel_here(timestamptz, timestamptz);
 drop function if exists meldy_private.live_duel_rude(text);
+drop function if exists meldy_private.live_duel_rude_token(text);
+drop function if exists meldy_private.live_duel_rude_word(text);
 drop function if exists meldy_private.live_duel_winner(integer, integer, integer, integer);
 drop function if exists meldy_private.live_duel_points(integer, boolean, double precision, integer, integer, boolean, boolean);
 

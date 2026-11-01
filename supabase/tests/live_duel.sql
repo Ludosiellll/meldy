@@ -10,9 +10,13 @@
 -- forms and the other seat's answer leave a question only once it closed, the review only a finished duel; every index
 -- of the options is in the seat's own order (live_run_perm of the seat's id); the grading is the challenge's
 -- (live_challenge_share) and the points the battle's phase 0 (live_damage, 100 without speed, the freeze, the thaw); the
--- winner; presence; the limits (20 an hour and 20 unfinished an account, 120 an hour per address for guests only, joins
--- 120 a minute and 300 a day per address); duel_create checks everything before it cleans up; «Тренировать ошибки» joins
--- the exam only with a standing of the caller's own and never after an expired duel.
+-- winner; presence; the wait judged at its deadline and a seat's 120 s wait budget; the typed answer's mask (its
+-- disguises, ordinary words kept) judged once as written; the limits (20 an hour and 20 unfinished an account, a lobby
+-- only while its creator is around, 120 an hour per address for guests only, a run's or a player's own 20 an hour and 5
+-- unfinished, joins 120 a minute and 300 a day by the account, 120 a minute and 3000 a day per address for guests);
+-- duel_create checks everything before it cleans up (expired lobbies nobody joined a day after their expiry), and copies
+-- a game's range questions as typed numbers; «Тренировать ошибки» joins the exam only with a standing of the caller's own
+-- and never after an expired duel.
 -- The behaviour is rehearsed locally: supabase/tests/local/live_game_run.sh (live_duel_behaviour.sql).
 DO $check$
 DECLARE
@@ -164,7 +168,7 @@ BEGIN
   END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_duel_side(public.live_duel_answers,smallint[],boolean)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'p_a.settled_at is null then null') = 0
-     OR pg_catalog.strpos(v_src, 'not p_own and meldy_private.live_duel_rude(p_a.typed) then ''{"masked": true}''::jsonb') = 0 THEN
+     OR pg_catalog.strpos(v_src, 'not p_own and p_a.rude then ''{"masked": true}''::jsonb') = 0 THEN
     RAISE EXCEPTION 'the_other_answer_graded_only_and_masked';
   END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'public.duel_review(text,text)'::regprocedure;
@@ -181,6 +185,7 @@ BEGIN
      OR pg_catalog.strpos(v_src, 'v_now > v_q.closes_at + interval ''1.5 seconds''') = 0
      OR pg_catalog.strpos(v_src, 'when unique_violation then
       perform meldy_private.live_fail(''ML004'', ''twice'');') = 0
+     OR pg_catalog.strpos(v_src, 'case when v_typed is not null then meldy_private.live_duel_rude(v_typed) end,') = 0
      OR v_src ~ 'live_duel_points|live_duel_share' THEN
     RAISE EXCEPTION 'answers_by_the_server_clock_once_ungraded_in_the_question_order';
   END IF;
@@ -245,26 +250,59 @@ BEGIN
   IF NOT meldy_private.live_duel_rude('ну  су-ка ') OR meldy_private.live_duel_rude('Москва') THEN
     RAISE EXCEPTION 'rude_filter_of_names';
   END IF;
+  -- the typed answer's mask: case, ё, punctuation and *, repeated letters, spaced-out letters, Latin look-alikes; an
+  -- ordinary word with a short root inside it stays readable
+  IF EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['сукааа', 'с у к а', 'х у й', 'пошёл на х*й', 'СУКА!', 'cyka', 'бл*ть',
+                                                    'Пи.з.д.е.ц', 'ёб твою', 'нахуй', 'fuuuck']) w
+              WHERE NOT meldy_private.live_duel_rude(w))
+     OR EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['Москва', 'застрахуйте', 'корабля', 'Херсон', 'употреблять', 'сукно',
+                                                       'психуй', 'оскорблять', 'потребитель', 'рубля', '1945', 'H2O',
+                                                       'Константинополь', 'скипидар', 'тебя', 'а и б']) w
+                 WHERE meldy_private.live_duel_rude(w)) THEN
+    RAISE EXCEPTION 'rude_filter_words_and_disguises';
+  END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_duel_settle(uuid,uuid)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'interval ''1 day''') = 0 OR pg_catalog.strpos(v_src, 'interval ''2 minutes''') = 0
      OR pg_catalog.strpos(v_src, 'interval ''60 seconds''') = 0 OR pg_catalog.strpos(v_src, 'interval ''2 seconds''') = 0
      OR pg_catalog.strpos(v_src, 'interval ''1.5 seconds''') = 0
      OR pg_catalog.strpos(v_src, '(p_caller is null or v_s2.id <> p_caller)') = 0
-     OR pg_catalog.strpos(v_src, 'for v_i in 1 .. 8 loop') = 0 THEN
+     OR pg_catalog.strpos(v_src, 'for v_i in 1 .. 8 loop') = 0
+     -- the wait: its deadline (or the seat's budget) first, each seat judged at that moment, never at the call's
+     OR pg_catalog.strpos(v_src, 'v_cut := meldy_private.live_duel_wait_cut(v_d);') = 0
+     OR pg_catalog.strpos(v_src, 'meldy_private.live_duel_here(v_s1.seen_at, v_end)') = 0
+     OR pg_catalog.strpos(v_src, 'meldy_private.live_duel_here(v_s2.seen_at, v_end)') = 0
+     OR pg_catalog.strpos(v_src, 'v_cut := meldy_private.live_duel_wait_cut(v_d);') > pg_catalog.strpos(v_src, 'meldy_private.live_duel_here(v_s1.seen_at, v_end)') THEN
     RAISE EXCEPTION 'settle_timeline_and_disconnects';
+  END IF;
+  -- a seat's wait budget: 120 s in a duel, at most 60 s a wait
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_duel_wait_cut(public.live_duels)'::regprocedure;
+  IF pg_catalog.strpos(v_src, 'least(interval ''60 seconds''') = 0 OR pg_catalog.strpos(v_src, '120000 - s.waited_ms') = 0 THEN
+    RAISE EXCEPTION 'wait_budget_per_seat';
   END IF;
 
   -- 6. The limits; the create's checks before any cleanup; practice.
-  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_duel_limits(uuid,text,boolean)'::regprocedure;
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_duel_limits(uuid,text,uuid,boolean)'::regprocedure;
   IF pg_catalog.strpos(v_src, 'd.owner_id = p_user and d.created_at > pg_catalog.now() - interval ''1 hour'') >= 20') = 0
      OR pg_catalog.strpos(v_src, 'perform meldy_private.live_fail(''ML009'', null);') = 0
      OR pg_catalog.strpos(v_src, 'elsif p_ip is not null then') = 0
-     OR pg_catalog.strpos(v_src, 'h.kind = ''create'' and h.at > pg_catalog.now() - interval ''1 hour'') >= 120') = 0 THEN
-    RAISE EXCEPTION 'create_limits_account_and_guest_address';
+     OR pg_catalog.strpos(v_src, 'h.kind = ''create'' and h.at > pg_catalog.now() - interval ''1 hour'') >= 120') = 0
+     -- the source's own cap (the run or the player whose token made it): nothing a client can spoof
+     OR pg_catalog.strpos(v_src, 'd.source_ref = p_ref and d.created_at > pg_catalog.now() - interval ''1 hour'') >= 20') = 0
+     OR pg_catalog.strpos(v_src, 'meldy_private.live_duel_alive(d)) >= 5') = 0
+     OR pg_catalog.strpos(v_src, 'perform meldy_private.live_fail(''ML009'', ''source'');') = 0 THEN
+    RAISE EXCEPTION 'create_limits_account_guest_address_and_source';
+  END IF;
+  -- unfinished: a lobby only while its creator was seen in the last 30 minutes
+  SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_duel_alive(public.live_duels)'::regprocedure;
+  IF pg_catalog.strpos(v_src, 's.seat = 1 and s.seen_at > pg_catalog.now() - interval ''30 minutes''') = 0 THEN
+    RAISE EXCEPTION 'unfinished_lobby_counts_while_its_creator_is_around';
   END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'public.duel_join(text,text,text,jsonb)'::regprocedure;
-  IF pg_catalog.strpos(v_src, 'h.kind = ''join'' and h.at > pg_catalog.now() - interval ''1 minute'') >= 120') = 0
-     OR pg_catalog.strpos(v_src, 'h.kind = ''join'' and h.at > pg_catalog.now() - interval ''1 day'') >= 300') = 0
+  IF pg_catalog.strpos(v_src, 'h.ip_hash = v_ip and h.kind = ''join'' and h.at > pg_catalog.now() - interval ''1 minute'') >= 120') = 0
+     OR pg_catalog.strpos(v_src, 'h.ip_hash = v_ip and h.kind = ''join'' and h.at > pg_catalog.now() - interval ''1 day'') >= 3000') = 0
+     OR pg_catalog.strpos(v_src, 'h.user_id = v_user and h.kind = ''join'' and h.at > pg_catalog.now() - interval ''1 minute'') >= 120') = 0
+     OR pg_catalog.strpos(v_src, 'h.user_id = v_user and h.kind = ''join'' and h.at > pg_catalog.now() - interval ''1 day'') >= 300') = 0
+     OR pg_catalog.strpos(v_src, 'insert into meldy_private.live_duel_hits (user_id, kind) values (v_user, ''join'');') = 0
      OR pg_catalog.strpos(v_src, 'v_name := meldy_private.live_name_check(p_name);') = 0
      OR pg_catalog.strpos(v_src, 'meldy_private.live_look_check(p_look') = 0 THEN
     RAISE EXCEPTION 'join_limits_name_look';
@@ -273,17 +311,23 @@ BEGIN
   IF pg_catalog.strpos(v_src, 'delete from public.live_duels d') = 0
      OR pg_catalog.strpos(v_src, 'v_name := meldy_private.live_name_check(p_name);') > pg_catalog.strpos(v_src, 'delete from public.live_duels d')
      OR pg_catalog.strpos(v_src, 'meldy_private.live_look_check(p_look') > pg_catalog.strpos(v_src, 'delete from public.live_duels d')
-     OR pg_catalog.strpos(v_src, 'perform meldy_private.live_duel_limits(v_user, case when v_user is null then v_ip end, false);') > pg_catalog.strpos(v_src, 'delete from public.live_duels d')
+     OR pg_catalog.strpos(v_src, 'perform meldy_private.live_duel_limits(v_user, case when v_user is null then v_ip end, v_new.source_ref, false);') > pg_catalog.strpos(v_src, 'delete from public.live_duels d')
      OR pg_catalog.strpos(v_src, 'perform meldy_private.live_fail(''ML008''') > pg_catalog.strpos(v_src, 'delete from public.live_duels d')
      OR pg_catalog.strpos(v_src, 'live_fail(''ML002'', ''expired'')') = 0
      OR pg_catalog.strpos(v_src, 'if not meldy_private.live_challenge_over(v_ch) then') = 0
      OR pg_catalog.strpos(v_src, 'join public.live_challenge_questions q on q.challenge_id = v_new.source_id and q.qi = x.qi') = 0
      OR pg_catalog.strpos(v_src, 'join public.live_questions q on q.game_id = v_new.source_id and q.qi = x.qi') = 0
-     OR pg_catalog.strpos(v_src, 'q.closed_at is not null and q.pictures is null') = 0 THEN
+     OR pg_catalog.strpos(v_src, 'q.closed_at is not null and q.pictures is null') = 0
+     -- a game's number played as ranges plays as the typed number: no options, no shown order, no range key
+     OR pg_catalog.strpos(v_src, 'case when q.kind in (''short'', ''number'') then ''[]''::jsonb else q.options end') = 0
+     OR pg_catalog.strpos(v_src, 'case when q.kind in (''short'', ''number'') then ''{}''::smallint[] else q.shown end') = 0
+     OR pg_catalog.strpos(v_src, 'case when q.kind = ''multiple'' then q.keys end') = 0
+     -- expired lobbies nobody joined go a day after they expire
+     OR pg_catalog.strpos(v_src, 'x.created_at < pg_catalog.now() - interval ''2 days'' and x.round = 1') = 0 THEN
     RAISE EXCEPTION 'create_checks_first_frozen_sources_and_windows';
   END IF;
   SELECT p.prosrc INTO v_src FROM pg_catalog.pg_proc p WHERE p.oid = 'meldy_private.live_duel_rematch_make(uuid)'::regprocedure;
-  IF pg_catalog.strpos(v_src, 'perform meldy_private.live_duel_limits(v_o.owner_id, case when v_o.owner_id is null then v_ip end, true);') = 0
+  IF pg_catalog.strpos(v_src, 'perform meldy_private.live_duel_limits(v_o.owner_id, case when v_o.owner_id is null then v_ip end, v_o.source_ref, true);') = 0
      OR pg_catalog.strpos(v_src, 'if v_o.round >= 20 then') = 0 THEN
     RAISE EXCEPTION 'rematch_counts_against_the_hourly_limits';
   END IF;

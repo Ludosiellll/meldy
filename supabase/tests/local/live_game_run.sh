@@ -1143,8 +1143,8 @@ fi
 # ─── «Дуэль» (20261106090200_live_duel.sql) on top of the challenge step ───
 # Its contract (tests/live_duel.sql) and behaviour (live_duel_behaviour.sql: the create and its refusals, the seats, a
 # whole duel by the server's clock, the key's secrecy, each seat's own order, double answers, time-outs, the disconnect
-# rules, «unchanged», the review, the rematch, the sources and their windows, practice and the standing rule, the
-# limits) fail before it; it sets lock_timeout to 2 s, as its rollback; applied twice (one catalog); every live and
+# rules, the wait budget, «unchanged», the review and its mask, the rematch, the sources and their windows, a stand game's
+# range questions as typed numbers, practice and the standing rule, the limits, the lobby cleanup) fail before it; it sets lock_timeout to 2 s, as its rollback; applied twice (one catalog); every live and
 # challenge contract and behaviour still holds (the migration only adds: four tables, the throttle, public duel_*
 # functions and private live_duel_* helpers); lib/duel/rules.ts, the duel's close and the challenge's live_run_score in
 # phase 0 agree on a grid of 576 answers, and on the winner of 144 (live_duel_mirror.mjs / .sql); two seats answer the

@@ -4,12 +4,15 @@
 -- account, the takeover by account, a third device refused before any write), a whole duel by the server's clock (the
 -- timeline, «Готов», the reveal, «Дальше»), the key and the other seat's answer never before the close, each seat's own
 -- order of the options both ways, double answers, time-outs, the disconnect rules (the clock never stops in a question,
--- the wait between questions, the stayer wins, both gone, the lobby's freed seat, the expiry), «unchanged», the winner,
--- the review with the masked typed answer, the rematch (both press, new seat ids, unplayed questions first, a fixed set
--- reshuffled, 20 rounds, the match score, the hourly limits), the limits (an account's, the guest-only address limit, the
--- joins), the sources (a challenge run and a game: frozen copies, windows), «Тренировать ошибки» (members, the standing
--- rule, the expired-lobby attack), and that no token or hash ever leaves. One transaction, rolled back: now() stays put
--- and the time machine moves the rows. A failure raises; success prints LIVE DUEL BEHAVIOUR PASSED.
+-- the wait between questions, the stayer wins, both gone, the wait judged at its deadline whoever calls first, a seat's
+-- 120 s wait budget, the lobby's freed seat, the expiry), «unchanged», the winner, the review with the masked typed
+-- answer (the mask's disguises, an ordinary word kept), the rematch (both press, new seat ids, unplayed questions first, a
+-- fixed set reshuffled, 20 rounds, the match score, the hourly limits), the limits (an account's, a lobby counted only
+-- while its creator is around, the guest-only address limit, a run's own cap, the joins by account and by address), the
+-- sources (a challenge run and a game: frozen copies, windows; a «Встань на ответ» game's range questions as typed
+-- numbers), «Тренировать ошибки» (members, the standing rule, the expired-lobby attack), the cleanup of lobbies nobody
+-- joined, and that no token or hash ever leaves. One transaction, rolled back: now() stays put and the time machine
+-- moves the rows. A failure raises; success prints LIVE DUEL BEHAVIOUR PASSED.
 \set ON_ERROR_STOP 1
 begin;
 create temp table ctx (k text primary key, v text);
@@ -265,6 +268,7 @@ begin
   select x::uuid from unnest(array['51515151-0000-0000-0000-000000000051', '52525252-0000-0000-0000-000000000052', '53535353-0000-0000-0000-000000000053',
                                    '54545454-0000-0000-0000-000000000054', '55555555-0000-0000-0000-000000000055', '61616161-0000-0000-0000-000000000061',
                                    '62626262-0000-0000-0000-000000000062', '63636363-0000-0000-0000-000000000063',
+                                   '64646464-0000-0000-0000-000000000064', '65656565-0000-0000-0000-000000000065',
                                    'aaaaaaaa-0000-0000-0000-000000000001', 'bbbbbbbb-0000-0000-0000-000000000002',
                                    'cccccccc-0000-0000-0000-000000000003']) x
   on conflict do nothing;
@@ -339,7 +343,7 @@ begin
   perform pg_temp.eq('nothing made by the refusals', pg_temp.n('select 1 from public.live_duels')::text, '0');
   r := public.duel_create(v_src::jsonb, '{"time_s": 20}'::jsonb, '  Аня  ', pg_temp.tok(1), '{"body": "cloud", "colour": "teal", "eyes": "dots", "hat": "cap"}');
   perform pg_temp.eq('the state of the first seat', pg_temp.keys(r) || '/' || pg_temp.keys(r -> 'duel') || '/' || pg_temp.keys(r -> 'me'),
-                     'answer,duel,final,match,me,now,other,question,rematch,result,rev,track/code,expires_at,path,q_count,qi,round,speed,stage,time_s,title,url,wait_until/best,dmg,frozen,look,name,next,ready,rematch,right,seat,streak');
+                     'answer,duel,final,match,me,now,other,question,rematch,result,rev,track/code,expires_at,path,q_count,qi,round,speed,stage,time_s,title,url,wait_open,wait_until/best,dmg,frozen,look,name,next,ready,rematch,right,seat,streak');
   perform pg_temp.eq('a lobby of four questions, alone', (r -> 'duel' ->> 'stage') || '/' || (r -> 'duel' ->> 'q_count') || '/' || (r -> 'me' ->> 'seat') || '/' ||
                      (r -> 'me' ->> 'name') || '/' || coalesce(r ->> 'other', 'null') || '/' || coalesce(r ->> 'question', 'null') || '/' ||
                      ((r -> 'duel' ->> 'path') = '/d/' || (r -> 'duel' ->> 'code'))::text, 'lobby/4/1/Аня/null/null/true');
@@ -603,16 +607,26 @@ begin
   o := pg_temp.ds(v_code, a);
   perform pg_temp.eq('the writer sees it as typed, the other''s plain text as typed', (o -> 'result' -> 'me' ->> 'typed') || '/' || (o -> 'result' -> 'other' ->> 'typed'),
                      'Ну Су-ка!/что-то');
-  -- the rest runs out
-  for v_qi in 0 .. 2 loop
+  -- the mask's disguises (a hidden letter, spaced-out letters), and an ordinary word with a short root inside it
+  perform public.duel_next(v_code, a, 0);
+  perform public.duel_next(v_code, b, 0);
+  for v_qi in 1 .. 2 loop
+    perform pg_temp.dtick(v_d, 3.2);
+    perform pg_temp.poll(v_code, a, b);
+    perform public.duel_answer(v_code, a, v_qi, jsonb_build_object('text', (array['пошёл на х*й', 'с у к а'])[v_qi]));
+    s := public.duel_answer(v_code, b, v_qi, jsonb_build_object('text', (array['Застрахуйте', 'х у й'])[v_qi]));
+    o := pg_temp.ds(v_code, a);
+    perform pg_temp.eq(format('question %s: what each seat reads of the other''s text', v_qi),
+                       coalesce(s -> 'result' -> 'other' ->> 'typed', 'masked:' || (s -> 'result' -> 'other' ->> 'masked')) || '/' ||
+                       coalesce(o -> 'result' -> 'other' ->> 'typed', 'masked:' || (o -> 'result' -> 'other' ->> 'masked')),
+                       (array['masked:true/Застрахуйте', 'masked:true/masked:true'])[v_qi]);
     perform public.duel_next(v_code, a, v_qi);
     perform public.duel_next(v_code, b, v_qi);
-    if v_qi < 2 then
-      perform pg_temp.dtick(v_d, 14.6);
-      perform pg_temp.poll(v_code, a, b);
-    end if;
   end loop;
   perform pg_temp.eq('over', pg_temp.ds(v_code, b) -> 'duel' ->> 'stage', 'final');
+  perform pg_temp.eq('judged once, as written', pg_temp.sudo(format('select to_jsonb(string_agg(s.seat || '':'' || a.rude, '','' order by a.qi, s.seat))
+                       from public.live_duel_answers a join public.live_duel_seats s on s.id = a.seat_id where a.duel_id = %L', v_d)) #>> '{}',
+                     '1:true,2:false,1:true,2:false,1:true,2:true');
   r := public.duel_review(v_code, b);
   perform pg_temp.eq('the review masks it too', (r -> 'items' -> 0 -> 'other' ->> 'masked') || '/' || (r::text ~* 'су-ка')::text || '/' || (r -> 'items' -> 0 ->> 'typed'),
                      'true/false/что-то');
@@ -793,6 +807,107 @@ begin
                      coalesce(s ->> 'rematch', 'null'), 'final/expired/null/null');
   perform pg_temp.eq('no rematch of a duel never played', pg_temp.e(format('select public.duel_rematch(%L, %L)', v_code, pg_temp.tok(27))), 'ML004/not_done@400');
   perform pg_temp.put('expired', v_code);
+end
+$t$;
+
+-- ─── 8b. The wait's end is judged at its deadline, whoever calls first after it: the one away calls first and still
+--     loses; a seat's wait budget (120 s a duel): spent, the next question opens without it ───
+do $t$
+declare r jsonb; s jsonb; v_code text; v_d uuid; a text := pg_temp.tok(30); b text := pg_temp.tok(31); v_q jsonb; v_qi integer;
+        v_src jsonb := format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('p'), pg_temp.c('ps'))::jsonb;
+begin
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  v_code := public.duel_create(v_src, '{"time_s": 10}'::jsonb, 'Аня', a, null) -> 'duel' ->> 'code';
+  v_d := pg_temp.duel(v_code);
+  perform pg_temp.who('anon');
+  perform public.duel_join(v_code, 'Боря', b, null);
+  perform public.duel_ready(v_code, a);
+  perform public.duel_ready(v_code, b);
+  perform pg_temp.dtick(v_d, 5);
+  perform pg_temp.poll(v_code, a, b);
+  v_q := pg_temp.dq(v_d, 0);
+  perform pg_temp.ans(v_code, a, 0, pg_temp.wrong_of(v_q));
+  perform pg_temp.ans(v_code, b, 0, pg_temp.right_of(v_q));
+  perform pg_temp.away(v_d, b, 25);
+  perform pg_temp.dtick(v_d, 7.2);
+  perform pg_temp.eq('B away: the wait', pg_temp.ds(v_code, a) -> 'duel' ->> 'stage', 'wait');
+  perform pg_temp.dtick(v_d, 29);
+  perform pg_temp.ds(v_code, a);
+  perform pg_temp.dtick(v_d, 29);
+  perform pg_temp.ds(v_code, a);
+  -- A was last here 2.2 s before the deadline; 3 s after it B calls first: at the deadline only A was here
+  perform pg_temp.dtick(v_d, 5);
+  s := pg_temp.ds(v_code, b);
+  perform pg_temp.eq('the one away calls first after the deadline: it lost, the one who stayed wins (B led)',
+                     (s -> 'duel' ->> 'stage') || '/' || (s -> 'final' ->> 'reason') || '/' || (s -> 'final' ->> 'winner') || '/' ||
+                     ((s -> 'me' ->> 'dmg')::integer > (s -> 'other' ->> 'dmg')::integer)::text, 'final/left/other/true');
+  perform pg_temp.eq('ended at the deadline', round(extract(epoch from (now() - (pg_temp.drow(v_d) ->> 'ended_at')::timestamptz)))::text, '3');
+  s := pg_temp.ds(v_code, a);
+  perform pg_temp.eq('the stayer reads its win', (s -> 'final' ->> 'winner') || '/' || (s -> 'final' ->> 'reason'), 'me/left');
+
+  -- the budget: B goes away before every question
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  v_code := public.duel_create(jsonb_set(v_src, '{count}', '5'), '{"time_s": 10}'::jsonb, 'Аня', pg_temp.tok(32), null) -> 'duel' ->> 'code';
+  a := pg_temp.tok(32);
+  b := pg_temp.tok(33);
+  v_d := pg_temp.duel(v_code);
+  perform pg_temp.who('anon');
+  perform public.duel_join(v_code, 'Боря', b, null);
+  perform public.duel_ready(v_code, a);
+  perform public.duel_ready(v_code, b);
+  perform pg_temp.dtick(v_d, 5);
+  perform pg_temp.poll(v_code, a, b);
+  for v_qi in 0 .. 1 loop
+    v_q := pg_temp.dq(v_d, v_qi);
+    perform pg_temp.ans(v_code, a, v_qi, pg_temp.right_of(v_q));
+    perform pg_temp.ans(v_code, b, v_qi, pg_temp.right_of(v_q));
+    perform pg_temp.away(v_d, b, 25);
+    perform pg_temp.dtick(v_d, 7.2);
+    s := pg_temp.ds(v_code, a);
+    perform pg_temp.eq(format('wait %s: a minute, the budget is enough', v_qi + 1),
+                       (s -> 'duel' ->> 'stage') || '/' || round(extract(epoch from ((s -> 'duel' ->> 'wait_until')::timestamptz - now())))::text || '/' ||
+                       (s -> 'duel' ->> 'wait_open'), 'wait/60/false');
+    perform pg_temp.dtick(v_d, 25);
+    perform pg_temp.ds(v_code, a);
+    perform pg_temp.dtick(v_d, 25);
+    perform pg_temp.ds(v_code, a);
+    s := pg_temp.ds(v_code, b);
+    perform pg_temp.eq(format('back after 50 s of wait %s', v_qi + 1), (s -> 'duel' ->> 'stage') || '/' || (s -> 'question' ->> 'qi'), 'play/' || (v_qi + 1));
+    perform pg_temp.eq('its budget charged', (pg_temp.srow(v_d, b) ->> 'waited_ms') || '/' || (pg_temp.srow(v_d, a) ->> 'waited_ms'),
+                       ((v_qi + 1) * 50200)::text || '/0');
+    perform pg_temp.dtick(v_d, 3.2);
+    perform pg_temp.poll(v_code, a, b);
+  end loop;
+  v_q := pg_temp.dq(v_d, 2);
+  perform pg_temp.ans(v_code, a, 2, pg_temp.right_of(v_q));
+  perform pg_temp.ans(v_code, b, 2, pg_temp.right_of(v_q));
+  perform pg_temp.away(v_d, b, 25);
+  perform pg_temp.dtick(v_d, 7.2);
+  s := pg_temp.ds(v_code, a);
+  perform pg_temp.eq('wait 3: what is left of the budget (19.6 s), and the question opens without B then',
+                     (s -> 'duel' ->> 'stage') || '/' || round(extract(epoch from ((s -> 'duel' ->> 'wait_until')::timestamptz - now())), 1)::text || '/' ||
+                     (s -> 'duel' ->> 'wait_open'), 'wait/19.4/true');
+  perform pg_temp.dtick(v_d, 19);
+  perform pg_temp.eq('19.2 s: still the wait', pg_temp.ds(v_code, a) -> 'duel' ->> 'stage', 'wait');
+  perform pg_temp.dtick(v_d, 0.6);
+  s := pg_temp.ds(v_code, a);
+  perform pg_temp.eq('the budget spent: the next question without B', (s -> 'duel' ->> 'stage') || '/' || (s -> 'question' ->> 'qi') || '/' ||
+                     (s -> 'other' ->> 'present'), 'play/3/false');
+  perform pg_temp.eq('B''s budget is spent', pg_temp.srow(v_d, b) ->> 'waited_ms', '120000');
+  -- B stays away: its answer is none; at the next reveal's end no wait at all
+  perform pg_temp.dtick(v_d, 3.2);
+  perform pg_temp.ds(v_code, a);
+  perform pg_temp.ans(v_code, a, 3, pg_temp.right_of(pg_temp.dq(v_d, 3)));
+  perform pg_temp.dtick(v_d, 11.6);
+  s := pg_temp.ds(v_code, a);
+  perform pg_temp.eq('closed with none for B', s -> 'result' -> 'other' ->> 'none', 'true');
+  perform pg_temp.dtick(v_d, 7.2);
+  s := pg_temp.ds(v_code, a);
+  perform pg_temp.eq('no wait once the budget is spent', (s -> 'duel' ->> 'stage') || '/' || (s -> 'question' ->> 'qi'), 'play/4');
+  -- back, B plays on; nothing is charged twice
+  s := pg_temp.ds(v_code, b);
+  perform pg_temp.eq('B back plays the last question', (s -> 'duel' ->> 'stage') || '/' || (s -> 'question' ->> 'qi') || '/' ||
+                     (pg_temp.srow(v_d, b) ->> 'waited_ms'), 'play/4/120000');
 end
 $t$;
 
@@ -1010,6 +1125,97 @@ begin
 end
 $t$;
 
+-- ─── 11b. «Дуэль на этих вопросах» after a game of «Встань на ответ» (every number as four ranges on the floor): its
+--     numbers come as the typed numbers they are (the accepted numbers, tolerance and unit; no options, no range key),
+--     and are graded as typed ───
+do $t$
+declare r jsonb; s jsonb; o jsonb; v_g uuid; v_host text; v_pin text; v_code text; v_d uuid; v_i integer; v_qi integer; v_q jsonb;
+        a text := pg_temp.tok(141); b text := pg_temp.tok(142);
+begin
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  r := public.container_create('Встань', null, '[{"title":"Числа"}]');
+  perform public.container_items_add((r -> 'subjects' -> 0 ->> 'id')::uuid, jsonb_build_array(
+    jsonb_build_object('ref', 's:1', 'stem', 'Скорость звука', 'kind', 'number', 'answers', jsonb_build_array('343'), 'tolerance', 10, 'unit', 'м/с'),
+    jsonb_build_object('ref', 's:2', 'stem', 'Два ответа', 'kind', 'number', 'answers', jsonb_build_array('10', '49'), 'tolerance', 1),
+    jsonb_build_object('ref', 's:3', 'stem', 'Мороз', 'kind', 'number', 'answers', jsonb_build_array('-12'))));
+  perform pg_temp.who('postgres');
+  update public.live_games set state = 'ended', state_at = now(), ended_at = now(), end_reason = 'host', rev = rev + 1
+   where owner_id = 'aaaaaaaa-0000-0000-0000-000000000001' and state not in ('podium', 'ended');
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  r := public.live_create(format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', r ->> 'container_id', r -> 'subjects' -> 0 ->> 'id')::jsonb,
+                          '{"mode": "stand"}');
+  v_g := (r ->> 'game_id')::uuid;
+  v_host := r ->> 'host_token';
+  v_pin := r ->> 'pin';
+  perform pg_temp.who('postgres');
+  perform pg_temp.eq('the game plays every number as four ranges, a range key', (select string_agg(kind || ':' || jsonb_array_length(options) || ':' ||
+                     cardinality(shown) || ':' || (key between 0 and 3)::text, ',') from public.live_questions where game_id = v_g),
+                     'number:4:4:true,number:4:4:true,number:4:4:true');
+  perform pg_temp.who('anon');
+  perform public.live_join(v_pin, 'Стоящий', pg_temp.tok(140), null);
+  perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
+  perform public.live_next(v_g, v_host, 'lobby');
+  for v_i in 1 .. 3 loop
+    v_qi := (public.live_host_state(v_g, v_host) ->> 'qi')::integer;
+    perform pg_temp.tick(v_g, 4);
+    perform pg_temp.tick(v_g, 14.5);
+    perform public.live_stand_close(v_g, v_host, v_qi, '[]'::jsonb);
+    if v_i < 3 then
+      perform public.live_next(v_g, v_host, 'reveal');
+      if public.live_host_state(v_g, v_host) ->> 'state' = 'leaderboard' then
+        perform public.live_next(v_g, v_host, 'leaderboard');
+      end if;
+    end if;
+  end loop;
+  perform public.live_end(v_g, v_host);
+  perform pg_temp.who('postgres');
+  perform pg_temp.eq('all three closed', (select count(*) from public.live_questions where game_id = v_g and closed_at is not null)::text, '3');
+  -- the player's duel on these questions
+  perform pg_temp.who('anon');
+  s := public.duel_create(jsonb_build_object('game', v_g, 'token', pg_temp.tok(140)), '{"time_s": 20}'::jsonb, 'Стоящий', a, null);
+  v_code := s -> 'duel' ->> 'code';
+  v_d := pg_temp.duel(v_code);
+  perform pg_temp.who('postgres');
+  perform pg_temp.eq('every range question as a typed number: no options, no shown order, no range key; the numbers, tolerance and unit',
+                     (select string_agg(text || ':' || kind || ':' || options::text || ':' || shown::text || ':' || key || ':' || coalesce(keys::text, 'null') || ':' ||
+                                        array_to_string(forms, '|') || ':' || coalesce(tolerance::text, 'null') || ':' || coalesce(unit, 'null') || ':' || keep_order,
+                                        ',' order by text)
+                        from public.live_duel_questions where duel_id = v_d),
+                     (select string_agg(q.text || ':number:[]:{}:-1:null:' || array_to_string(q.forms, '|') || ':' || coalesce(q.tolerance::text, 'null') || ':' ||
+                                        coalesce(q.unit, 'null') || ':false', ',' order by q.text)
+                        from public.live_questions q where q.game_id = v_g));
+  perform pg_temp.eq('the numbers as the exam has them', (select string_agg(text || '=' || array_to_string(forms, '|') || '±' || coalesce(tolerance::text, '0'), ',' order by text)
+                                                          from public.live_duel_questions where duel_id = v_d),
+                     'Два ответа=10|49±1,Мороз=-12±0,Скорость звука=343±10');
+  -- played: typed, graded as typed (within the tolerance; either accepted number)
+  perform pg_temp.who('anon');
+  perform public.duel_join(v_code, 'Гость', b, null);
+  perform public.duel_ready(v_code, a);
+  perform public.duel_ready(v_code, b);
+  perform pg_temp.dtick(v_d, 5);
+  perform pg_temp.poll(v_code, a, b);
+  for v_qi in 0 .. 2 loop
+    v_q := pg_temp.dq(v_d, v_qi);
+    o := pg_temp.ds(v_code, a) -> 'question';
+    perform pg_temp.eq(format('question %s reads as a typed number', v_qi), (o ->> 'kind') || '/' || (o -> 'options')::text || '/' || (o ? 'ranges')::text,
+                       'number/[]/false');
+    perform public.duel_answer(v_code, a, v_qi, jsonb_build_object('text', case v_q ->> 'text' when 'Скорость звука' then '350' when 'Два ответа' then '49'
+                                                                                              else '-12' end));
+    s := public.duel_answer(v_code, b, v_qi, '{"text": "100000"}');
+    perform pg_temp.eq(format('question %s: right as typed, the other wrong', v_qi),
+                       (s -> 'result' -> 'other' ->> 'correct') || '/' || (s -> 'result' -> 'me' ->> 'correct'), 'true/false');
+    perform public.duel_next(v_code, a, v_qi);
+    perform public.duel_next(v_code, b, v_qi);
+    if v_qi < 2 then
+      perform pg_temp.dtick(v_d, 3.2);
+      perform pg_temp.poll(v_code, a, b);
+    end if;
+  end loop;
+  s := pg_temp.ds(v_code, a);
+  perform pg_temp.eq('the player wins on these questions', (s -> 'duel' ->> 'stage') || '/' || (s -> 'final' ->> 'winner') || '/' || (s -> 'me' ->> 'right'), 'final/me/3');
+end
+$t$;
+
 -- A duel played to its end by time-outs (both seats here, nobody answers), from wherever it is.
 create or replace function pg_temp.run_out(p_code text, p_t1 text, p_t2 text) returns jsonb language plpgsql as $fn$
 declare s jsonb; v_d uuid := pg_temp.duel(p_code); v_i integer := 0;
@@ -1131,10 +1337,12 @@ begin
 end
 $t$;
 
--- ─── 13. The limits: an account's 20 an hour and 20 unfinished, a rematch counted; a guest's 120 an hour per address,
---     never for a signed-in person on that address; joins 120 a minute and 300 a day per address ───
+-- ─── 13. The limits: an account's 20 an hour and 20 unfinished (a lobby only while its creator is around), a rematch
+--     counted; a guest's 120 an hour per address, never for a signed-in person on that address; a challenge run's or a
+--     game player's own 20 an hour and 5 unfinished, whatever the address; joins: an account's 120 a minute and 300 a
+--     day, a guest's 120 a minute and 3000 a day per address ───
 do $t$
-declare r jsonb; s jsonb; v_c text; v_cs text; v_ip text; v_code text; v_code2 text;
+declare r jsonb; s jsonb; v_c text; v_cs text; v_ip text; v_code text; v_code2 text; v_run uuid; v_rc text; v_i integer; v_n integer; v_l text[];
 begin
   -- 20 creates an hour per account
   perform pg_temp.who('authenticated', '61616161-0000-0000-0000-000000000061');
@@ -1162,17 +1370,27 @@ begin
   perform public.duel_rematch(v_code, pg_temp.tok(82));
   perform pg_temp.eq('a rematch over the hour''s limit', pg_temp.e(format('select public.duel_rematch(%L, %L)', v_code, pg_temp.tok(80))), 'ML005/create@429');
   perform pg_temp.eq('the press stays undone with it', pg_temp.ds(v_code, pg_temp.tok(80)) -> 'rematch' ->> 'me', 'false');
-  -- 20 unfinished per account
+  -- 20 unfinished per account: lobbies whose creator was here 10 minutes ago
   perform pg_temp.who('postgres');
   insert into public.live_duels (code, owner_id, container_id, source, title, q_count, created_at)
   select meldy_private.random_code(), '62626262-0000-0000-0000-000000000062', v_c::uuid, 'container', 'Открытая', 1, now() - interval '2 hours'
     from generate_series(1, 20);
+  insert into public.live_duel_seats (duel_id, seat, token_hash, name, look, joined_at, seen_at)
+  select d.id, 1, encode(sha256(convert_to(d.id::text, 'UTF8')), 'hex'), 'Я', '{}'::jsonb, now() - interval '2 hours', now() - interval '10 minutes'
+    from public.live_duels d where d.owner_id = '62626262-0000-0000-0000-000000000062';
   perform pg_temp.who('authenticated', '62626262-0000-0000-0000-000000000062');
   r := public.container_create('Лимит 2', null, '[{"title":"Всё"}]');
   perform public.container_items_add((r -> 'subjects' -> 0 ->> 'id')::uuid, (select jsonb_agg(jsonb_build_object('ref', 'm:' || i, 'stem', 'М ' || i,
                                      'options', jsonb_build_array('да', 'нет'), 'correct', jsonb_build_array(0))) from generate_series(1, 3) i));
   perform pg_temp.eq('20 unfinished', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
     format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', r ->> 'container_id', r -> 'subjects' -> 0 ->> 'id'), '{}', 'Открыто', pg_temp.tok(83))), 'ML009/@400');
+  -- their creator has been gone 31 minutes: those lobbies no longer count
+  perform pg_temp.who('postgres');
+  update public.live_duel_seats s set seen_at = now() - interval '31 minutes'
+    from public.live_duels d where d.id = s.duel_id and d.owner_id = '62626262-0000-0000-0000-000000000062';
+  perform pg_temp.who('authenticated', '62626262-0000-0000-0000-000000000062');
+  perform pg_temp.eq('a lobby whose creator left 30 minutes ago is not unfinished', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
+    format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', r ->> 'container_id', r -> 'subjects' -> 0 ->> 'id'), '{}', 'Открыто', pg_temp.tok(83))), 'ok');
 
   -- a guest: 120 creates an hour per address
   perform pg_temp.who('postgres', null, '203.0.113.7');
@@ -1201,7 +1419,60 @@ begin
   perform pg_temp.who('postgres');
   perform pg_temp.eq('an account''s creates leave the address''s count alone', (select count(*) from meldy_private.live_duel_hits where ip_hash = v_ip and kind = 'create')::text, '120');
 
-  -- joins: 120 a minute and 300 a day per address
+  -- the run's own cap, whatever the address it comes from: 5 unfinished
+  v_run := (select id from public.live_runs where challenge_id = pg_temp.g('ch') and token_hash = meldy_private.live_hash(pg_temp.tok(50)));
+  v_n := (select count(*) from public.live_duels d where d.source_ref = v_run and meldy_private.live_duel_alive(d));
+  perform pg_temp.yes('the run has some unfinished duels so far', v_n between 1 and 4);
+  perform pg_temp.who('anon', null, '192.0.2.1');
+  v_rc := public.duel_create(jsonb_build_object('challenge', pg_temp.c('chc'), 'token', pg_temp.tok(50)), '{}'::jsonb, 'Гость', pg_temp.tok(101), null) -> 'duel' ->> 'code';
+  for v_i in 2 .. 5 - v_n loop
+    perform pg_temp.who('anon', null, '192.0.2.' || v_i);
+    perform pg_temp.eq('a create from the run, a new address each time', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
+      jsonb_build_object('challenge', pg_temp.c('chc'), 'token', pg_temp.tok(50)), '{}', 'Гость', pg_temp.tok(100 + v_i))), 'ok');
+  end loop;
+  perform pg_temp.who('anon', null, '192.0.2.9');
+  perform pg_temp.eq('the run''s 6th unfinished duel', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
+    jsonb_build_object('challenge', pg_temp.c('chc'), 'token', pg_temp.tok(50)), '{}', 'Гость', pg_temp.tok(104))), 'ML009/source@400');
+  -- 20 an hour: finished ones count too, and a rematch
+  perform pg_temp.who('anon', null, '192.0.2.10');
+  perform public.duel_join(v_rc, 'Соперник', pg_temp.tok(105), null);
+  perform pg_temp.who('postgres');
+  update public.live_duels set stage = 'final', ended_at = now(), end_reason = 'done', qi = 0 where source_ref = v_run and stage <> 'final';
+  v_i := pg_temp.n(format('select 1 from public.live_duels where source_ref = %L and created_at > now() - interval ''1 hour''', v_run));
+  perform pg_temp.who('postgres');
+  insert into public.live_duels (code, container_id, source, source_id, source_ref, title, q_count, stage, ended_at, end_reason, created_at)
+  select meldy_private.random_code(), pg_temp.g('k'), 'challenge', pg_temp.g('ch'), v_run, 'Ранее', 1, 'final', now(), 'done', now() - interval '50 minutes'
+    from generate_series(1, 19 - v_i);
+  perform pg_temp.who('anon', null, '192.0.2.11');
+  perform pg_temp.eq('the run''s 20th create of an hour', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
+    jsonb_build_object('challenge', pg_temp.c('chc'), 'token', pg_temp.tok(50)), '{}', 'Гость', pg_temp.tok(106))), 'ok');
+  perform pg_temp.who('anon', null, '192.0.2.12');
+  perform pg_temp.eq('the 21st, from yet another address', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
+    jsonb_build_object('challenge', pg_temp.c('chc'), 'token', pg_temp.tok(50)), '{}', 'Гость', pg_temp.tok(107))), 'ML005/create@429');
+  perform pg_temp.yes('with Retry-After (about 10 minutes: the oldest of the hour leaves then)',
+                      (current_setting('live_test.headers')::jsonb ->> 'Retry-After')::integer between 590 and 610);
+  perform public.duel_rematch(v_rc, pg_temp.tok(105));
+  perform pg_temp.eq('a rematch of the run''s duel counts', pg_temp.e(format('select public.duel_rematch(%L, %L)', v_rc, pg_temp.tok(101))), 'ML005/create@429');
+
+  -- joins of a signed-in person: by the account, never refused for the address (four more open lobbies of the teacher)
+  perform pg_temp.who('authenticated', '63636363-0000-0000-0000-000000000063', '198.51.100.10');
+  select array_agg(public.duel_create(format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', v_c, v_cs)::jsonb, '{}'::jsonb, 'Учитель',
+                                      pg_temp.tok(120 + i), null) -> 'duel' ->> 'code' order by i) into v_l from generate_series(1, 4) i;
+  perform pg_temp.who('postgres', null, '198.51.100.9');
+  v_ip := meldy_private.quiz_ip_hash();
+  insert into meldy_private.live_duel_hits (ip_hash, kind, at) select v_ip, 'join', now() - interval '20 seconds' from generate_series(1, 200);
+  insert into meldy_private.live_duel_hits (user_id, kind, at) select '64646464-0000-0000-0000-000000000064', 'join', now() - interval '3 hours' from generate_series(1, 299);
+  perform pg_temp.who('authenticated', '65656565-0000-0000-0000-000000000065', '198.51.100.9');
+  perform pg_temp.eq('an account behind an address over the limit joins', pg_temp.e(format('select public.duel_join(%L, %L, %L, null)', v_l[4], 'Ученица', pg_temp.tok(108))), 'ok');
+  perform pg_temp.who('postgres');
+  perform pg_temp.eq('counted by the account, not the address', (select count(*) from meldy_private.live_duel_hits where user_id = '65656565-0000-0000-0000-000000000065')::text || '/' ||
+                     (select count(*) from meldy_private.live_duel_hits where ip_hash = v_ip)::text, '1/200');
+  perform pg_temp.who('authenticated', '64646464-0000-0000-0000-000000000064', '198.51.100.11');
+  perform pg_temp.eq('the account''s 300th join of a day', pg_temp.e(format('select public.duel_join(%L, %L, %L, null)', v_l[1], 'Много', pg_temp.tok(110))), 'ok');
+  perform pg_temp.eq('the 301st', pg_temp.e(format('select public.duel_join(%L, %L, %L, null)', v_l[2], 'Много', pg_temp.tok(111))), 'ML005/join@429');
+  perform pg_temp.yes('with Retry-After (a day at most)', (current_setting('live_test.headers')::jsonb ->> 'Retry-After')::integer between 1 and 86400);
+
+  -- joins of guests: 120 a minute and 3000 a day per address
   perform pg_temp.who('postgres', null, '198.51.100.7');
   v_ip := meldy_private.quiz_ip_hash();
   insert into meldy_private.live_duel_hits (ip_hash, kind, at) select v_ip, 'join', now() - interval '20 seconds' from generate_series(1, 119);
@@ -1212,33 +1483,49 @@ begin
   perform pg_temp.eq('the same token comes back past the limit', pg_temp.e(format('select public.duel_join(%L, %L, %L, null)', v_code, 'Ученик', pg_temp.tok(89))), 'ok');
   perform pg_temp.who('postgres', null, '198.51.100.8');
   v_ip := meldy_private.quiz_ip_hash();
-  insert into meldy_private.live_duel_hits (ip_hash, kind, at) select v_ip, 'join', now() - interval '3 hours' from generate_series(1, 300);
+  insert into meldy_private.live_duel_hits (ip_hash, kind, at) select v_ip, 'join', now() - interval '3 hours' from generate_series(1, 2999);
   perform pg_temp.who('anon', null, '198.51.100.8');
-  perform pg_temp.eq('the 301st join of a day', pg_temp.e(format('select public.duel_join(%L, %L, %L, null)', v_code2, 'Ученик', pg_temp.tok(92))), 'ML005/join@429');
+  perform pg_temp.eq('a school''s 3000th join of a day on one address', pg_temp.e(format('select public.duel_join(%L, %L, %L, null)', v_l[2], 'Ученик', pg_temp.tok(92))), 'ok');
+  perform pg_temp.eq('the 3001st', pg_temp.e(format('select public.duel_join(%L, %L, %L, null)', v_l[3], 'Ученик', pg_temp.tok(112))), 'ML005/join@429');
   perform pg_temp.yes('with Retry-After (a day at most)', (current_setting('live_test.headers')::jsonb ->> 'Retry-After')::integer between 1 and 86400);
 end
 $t$;
 
--- ─── 14. The create checks everything before it cleans up old duels ───
+-- ─── 14. The create checks everything before it cleans up old duels: 90 days after their create, and a lobby nobody
+--     joined a day after it expired ───
 do $t$
-declare v_old uuid;
+declare v_old uuid; v_l uuid[];
 begin
   perform pg_temp.who('postgres');
   insert into public.live_duels (code, owner_id, container_id, source, title, q_count, stage, ended_at, end_reason, created_at)
   values (meldy_private.random_code(), 'aaaaaaaa-0000-0000-0000-000000000001', pg_temp.g('p'), 'container', 'Давняя', 1, 'final', now() - interval '99 days', 'done',
           now() - interval '100 days')
   returning id into v_old;
+  -- lobbies: expired 25 hours ago and nobody joined; never settled since (still a lobby) 2.5 days on; expired but someone
+  -- joined; expired 12 hours ago; a rematch that expired
+  with ins as (
+    insert into public.live_duels (code, owner_id, container_id, source, title, q_count, stage, ended_at, end_reason, created_at, round)
+    select meldy_private.random_code(), 'aaaaaaaa-0000-0000-0000-000000000001', pg_temp.g('p'), 'container', 'Лобби ' || x.n, 1, x.stage,
+           case when x.stage = 'final' then now() - x.made + interval '1 day' end, x.reason, now() - x.made, x.round
+      from (values (1, 'final', 'expired', interval '49 hours', 1), (2, 'lobby', null, interval '60 hours', 1), (3, 'final', 'expired', interval '49 hours', 1),
+                   (4, 'final', 'expired', interval '36 hours', 1), (5, 'final', 'expired', interval '49 hours', 2)) x(n, stage, reason, made, round)
+    returning id, title)
+  select array_agg(id order by title) into v_l from ins;
+  insert into public.live_duel_seats (duel_id, seat, token_hash, name, look)
+  select v_l[3], z, encode(sha256(convert_to(v_l[3]::text || z, 'UTF8')), 'hex'), 'Был', '{}'::jsonb from generate_series(1, 2) z;
   perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
   perform pg_temp.eq('a create refused for its name', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
     format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('p'), pg_temp.c('ps')), '{}', 'хуйло', pg_temp.tok(93))), 'ML006/rude@400');
   perform pg_temp.eq('a create refused for its source', pg_temp.e(format('select public.duel_create(%L, %L, %L, %L)',
     format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('e'), pg_temp.c('es')), '{}', 'Аня', pg_temp.tok(93))), 'ML008/2@400');
   perform pg_temp.who('postgres');
-  perform pg_temp.eq('the refusals cleaned nothing up', (select count(*) from public.live_duels where id = v_old)::text, '1');
+  perform pg_temp.eq('the refusals cleaned nothing up', (select count(*) from public.live_duels where id = v_old or id = any (v_l))::text, '6');
   perform pg_temp.who('authenticated', 'aaaaaaaa-0000-0000-0000-000000000001');
   perform public.duel_create(format('{"container_id": "%s", "subject_ids": ["%s"], "count": 3}', pg_temp.c('p'), pg_temp.c('ps'))::jsonb, '{}'::jsonb, 'Аня', pg_temp.tok(93), null);
   perform pg_temp.who('postgres');
   perform pg_temp.eq('a create that goes through cleans up after its checks', (select count(*) from public.live_duels where id = v_old)::text, '0');
+  perform pg_temp.eq('lobbies nobody joined go a day after they expired; the joined, the recent and the rematch stay',
+                     (select string_agg(title, ',' order by title) from public.live_duels where id = any (v_l)), 'Лобби 3,Лобби 4,Лобби 5');
 end
 $t$;
 
