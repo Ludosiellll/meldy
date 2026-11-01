@@ -40,11 +40,14 @@
 # (tests/live_calm.sql, live_calm_behaviour.sql, every live contract and behaviour above still green, the calm close
 # against backend/live_move_mixed.py, its rollback, applied again) → the challenge stage: 20261106090100_live_challenge.sql
 # («Соревнование в своё время») the same way (tests/live_challenge.sql, live_challenge_behaviour.sql, every live contract
-# and behaviour above still green, lib/challenge/rules.ts against the SQL on a grid, its rollback, applied again).
+# and behaviour above still green, lib/challenge/rules.ts against the SQL on a grid, its rollback, applied again) → the
+# duel stage: 20261106090200_live_duel.sql («Дуэль») the same way (tests/live_duel.sql, live_duel_behaviour.sql, every
+# live and challenge contract and behaviour above still green, lib/duel/rules.ts against the duel's close and the
+# challenge's phase 0 on a grid, two seats answering at the same moment, its rollback twice, applied again).
 # The last line is LIVE GAME CHECKS PASSED and the exit code 0 only when every step is green.
 # Env (optional): LIVE_PG_PORT (54460), LIVE_DB (live: the scratch database it drops and makes), LIVE_WORK (${TMPDIR:-/tmp}/meldy-live-game), PG_BIN (/usr/lib/postgresql/16/bin),
 # LIVE_PGRST (a PostgREST 12 binary), LIVE_PGRST_PORT (54461), LIVE_E2E=0 skips the end-to-end stages, LIVE_STAND=0 the
-# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_RANGES=0 the ranges stage, LIVE_CALM=0 the calm stage, LIVE_CHALLENGE=0 the challenge stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
+# stand stage, LIVE_MIXED=0 the mixed stage, LIVE_PIN=0 the PIN stage, LIVE_PICTURES=0 the pictures stage, LIVE_WIDE=0 the wide rounds stage, LIVE_KINDS=0 the kinds and teams stage, LIVE_NUMBERS=0 the numbers stage, LIVE_RANGES=0 the ranges stage, LIVE_CALM=0 the calm stage, LIVE_CHALLENGE=0 the challenge stage, LIVE_DUEL=0 the duel stage, LIVE_PHONE_MIG (20261023090000_live_stand_phone.sql by default, applied
 # before the mixed stage; none skips it), LIVE_PY (python3: a Python with the backend's packages for the room's end to end).
 set -u -o pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -1135,6 +1138,124 @@ else
   [ "$(fingerprint)" = "$FCHAL" ] && ok "the same catalog as the first challenge apply" || bad "another catalog than the first challenge apply"
   step "contract: live_challenge.sql again" "$HCONTRACT"
   behave "challenge behaviour again" "$HBEHAVIOUR" 'LIVE CHALLENGE BEHAVIOUR PASSED'
+fi
+
+# ─── «Дуэль» (20261106090200_live_duel.sql) on top of the challenge step ───
+# Its contract (tests/live_duel.sql) and behaviour (live_duel_behaviour.sql: the create and its refusals, the seats, a
+# whole duel by the server's clock, the key's secrecy, each seat's own order, double answers, time-outs, the disconnect
+# rules, the wait budget, «unchanged», the review and its mask, the rematch, the sources and their windows, a stand game's
+# range questions as typed numbers, practice and the standing rule, the limits, the lobby cleanup) fail before it; it sets lock_timeout to 2 s, as its rollback; applied twice (one catalog); every live and
+# challenge contract and behaviour still holds (the migration only adds: four tables, the throttle, public duel_*
+# functions and private live_duel_* helpers); lib/duel/rules.ts, the duel's close and the challenge's live_run_score in
+# phase 0 agree on a grid of 576 answers, and on the winner of 144 (live_duel_mirror.mjs / .sql); two seats answer the
+# same question at the same moment, one of them twice (three sessions behind one gate): both answers counted, one
+# refused as twice, the question closed once; the rollback twice (the challenge step's catalog); applied again.
+# LIVE_DUEL=0 skips it.
+if [ "${LIVE_DUEL:-1}" = 0 ] || [ "${LIVE_CHALLENGE:-1}" = 0 ] || [ "${LIVE_CALM:-1}" = 0 ] || [ "${LIVE_RANGES:-1}" = 0 ] || [ "${LIVE_NUMBERS:-1}" = 0 ] || [ "${LIVE_KINDS:-1}" = 0 ] || [ "${LIVE_WIDE:-1}" = 0 ] || [ "${LIVE_PICTURES:-1}" = 0 ]; then
+  echo "  skip  the duel stage (LIVE_DUEL=0, or a stage it needs skipped)"
+else
+  DMIG=$SB/migrations/20261106090200_live_duel.sql
+  DDOWN=$SB/rollback/20261106090200_live_duel_down.sql
+  DCONTRACT=$SB/tests/live_duel.sql
+  DBEHAVIOUR=$HERE/live_duel_behaviour.sql
+  duel_contracts() {
+    challenge_contracts "$1"
+    step "contract: live_challenge.sql $1" "$HCONTRACT"
+  }
+  duel_behaviours() {
+    challenge_behaviours "$1"
+    behave "challenge behaviour $1" "$HBEHAVIOUR" 'LIVE CHALLENGE BEHAVIOUR PASSED'
+  }
+  FNODUEL=$(fingerprint)
+  if run "$DCONTRACT"; then bad "live_duel.sql passes before its migration (it tests nothing)"; else ok "live_duel.sql fails before its migration"; fi
+  if passes "$DBEHAVIOUR" 'LIVE DUEL BEHAVIOUR PASSED' >/dev/null; then
+    bad "live_duel_behaviour passes before its migration (it tests nothing)"
+  else
+    ok "live_duel_behaviour fails before its migration"
+  fi
+  if grep -q "^set local lock_timeout = '2s';$" "$DMIG" && grep -q "^set local lock_timeout = '2s';$" "$DDOWN"; then
+    ok "the duel migration and its rollback give up a lock after 2 s"
+  else
+    bad "the duel migration or its rollback: lock_timeout is not 2 s"
+  fi
+  step "duel migration, first apply" "$DMIG"
+  FDUEL=$(fingerprint)
+  [ "$FDUEL" != "$FNODUEL" ] && ok "the duel migration changed the catalog" || bad "the duel migration changed nothing"
+  step "duel migration, second apply (re-runnable)" "$DMIG"
+  [ "$(fingerprint)" = "$FDUEL" ] && ok "a second duel apply changes nothing in the catalog" || bad "a second duel apply changed the catalog"
+  step "contract: live_duel.sql (the tables, the grants, the key's secrecy, the grading, the limits, practice)" "$DCONTRACT"
+  duel_contracts "still holds after the duel migration"
+  for i in 1 2; do
+    behave "duel behaviour (run $i: each seat's order of the options is drawn from its new id)" "$DBEHAVIOUR" 'LIVE DUEL BEHAVIOUR PASSED'
+  done
+  duel_behaviours "unchanged after the duel migration"
+  DU_JS=$(cd "$ROOT" && node --experimental-strip-types --no-warnings "$HERE/live_duel_mirror.mjs" 2>&1)
+  DU_SQL=$("${PSQL[@]}" -d $DB -f "$HERE/live_duel_mirror.sql" 2>&1 | grep -E '^(points|phase0|winner) ')
+  DU_POINTS=$(echo "$DU_SQL" | grep '^points ' | cut -d' ' -f2)
+  DU_PHASE0=$(echo "$DU_SQL" | grep '^phase0 ' | cut -d' ' -f2)
+  if [ -n "$DU_JS" ] && [ "$DU_JS" = "$(echo "$DU_SQL" | grep -v '^phase0 ')" ] && [ -n "$DU_POINTS" ] && [ "$DU_POINTS" = "$DU_PHASE0" ]; then
+    ok "the mirror: lib/duel/rules.ts, the duel's close and the challenge's phase 0 agree ($(echo "$DU_SQL" | tr '\n' ' ' | sed 's/ $//'))"
+  else
+    bad "the duel mirror: TS «$DU_JS», SQL «$DU_SQL»"
+  fi
+  # Two seats answer at the same moment, the first seat twice (three sessions wait on one gate and go together).
+  DCONC=$WORK/duel_conc; rm -rf "$DCONC"; mkdir -p "$DCONC"
+  T1=$(printf 'dconc%038d' 1); T2=$(printf 'dconc%038d' 2)
+  DSETUP=$("${PSQL[@]}" -d $DB 2>"$DCONC/setup.err" <<SQL
+set role authenticated;
+select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', false) is null \g /dev/null
+select set_config('meldy.c', (public.container_create('Дуэль сразу', null, '[{"title":"Д"}]') -> 'subjects' -> 0 ->> 'id'), false) is null \g /dev/null
+select public.container_items_add(current_setting('meldy.c')::uuid, jsonb_build_array(
+  jsonb_build_object('ref', 'd:1', 'stem', 'Два плюс два', 'options', jsonb_build_array('3', '4', '5'), 'correct', jsonb_build_array(1)),
+  jsonb_build_object('ref', 'd:2', 'stem', 'Три плюс три', 'options', jsonb_build_array('6', '7'), 'correct', jsonb_build_array(0)),
+  jsonb_build_object('ref', 'd:3', 'stem', 'Пять минус два', 'options', jsonb_build_array('3', '2'), 'correct', jsonb_build_array(0)))) is null \g /dev/null
+select public.duel_create(jsonb_build_object('container_id', (select container_id from public.container_subjects where id = current_setting('meldy.c')::uuid),
+                                             'subject_ids', jsonb_build_array(current_setting('meldy.c')), 'count', 3), '{"time_s": 30}', 'Первый', '$T1', null) -> 'duel' ->> 'code';
+SQL
+)
+  DCODE=$(echo "$DSETUP" | tail -1)
+  if [[ "$DCODE" =~ ^[0-9a-hjkmnp-tv-z]{12}$ ]]; then
+    q "set role anon; select public.duel_join('$DCODE', 'Второй', '$T2', null) is null" >/dev/null 2>>"$DCONC/join.err"
+    q "set role anon; select public.duel_ready('$DCODE', '$T1') is null; select public.duel_ready('$DCODE', '$T2') is null" >/dev/null 2>>"$DCONC/ready.err"
+    # The time machine: the 2 s and the 3 · 2 · 1 are over.
+    q "update public.live_duel_questions q set shown_at = shown_at - interval '6 s', opens_at = opens_at - interval '6 s', closes_at = closes_at - interval '6 s'
+         from public.live_duels d where d.id = q.duel_id and d.code = '$DCODE'" >/dev/null
+    ( "${PSQL[@]}" -d $DB -c "select pg_advisory_lock(424243), pg_sleep(2), pg_advisory_unlock(424243)" > /dev/null 2>&1 ) &
+    sleep 0.5
+    for i in 1 2 3; do
+      T=$([ $i = 2 ] && echo "$T2" || echo "$T1")
+      ( printf '%s\n' "select pg_advisory_lock_shared(424243) is null \g /dev/null" "select pg_advisory_unlock_shared(424243) is null \g /dev/null" \
+          "set role anon;" "do \$\$ begin perform public.duel_answer('$DCODE', '$T', 0, '{\"choice\": 0}'); raise notice 'ACCEPTED'; exception when sqlstate 'PGRST' then raise notice 'REFUSED %', (sqlerrm::jsonb ->> 'details'); end \$\$;" \
+          | "${PSQL[@]}" -d $DB > "$DCONC/a$i.out" 2>&1 ) &
+    done
+    wait
+    DACC=$(cat "$DCONC"/a*.out | grep -c 'ACCEPTED'); DTWICE=$(cat "$DCONC"/a*.out | grep -c 'REFUSED twice')
+    DN=$(q "select (select count(*) from public.live_duel_answers a where a.duel_id = d.id and a.qi = 0 and a.at is not null) || ':' ||
+               (select count(*) from public.live_duel_answers a where a.duel_id = d.id and a.qi = 0 and a.settled_at is not null) || ':' ||
+               (select (closed_at is not null)::text from public.live_duel_questions q where q.duel_id = d.id and q.qi = 0)
+          from public.live_duels d where d.code = '$DCODE'")
+    if [ "$DACC" = 2 ] && [ "$DTWICE" = 1 ] && [ "$DN" = "2:2:true" ]; then
+      ok "two seats at the same moment, one of them twice: both answers counted, one refused as twice, the question closed once ($DN)"
+    else
+      bad "duel answers at once: accepted $DACC, twice $DTWICE, answers:graded:closed = $DN"; cat "$DCONC"/a*.out | grep -v '^$' | head -6 | sed 's/^/    /'
+    fi
+  else
+    bad "duel answers at once: fixture"; head -5 "$DCONC/setup.err" | sed 's/^/    /'
+  fi
+  q "delete from public.containers where title = 'Дуэль сразу'" >/dev/null || bad "duel answers at once: cleanup"
+  [ "$(fingerprint)" = "$FDUEL" ] && ok "the catalog unchanged by the duel runs" || bad "the duel runs changed the catalog"
+  step "duel rollback" "$DDOWN"
+  [ "$(fingerprint)" = "$FNODUEL" ] && ok "after the duel rollback: the challenge step's catalog (fingerprint)" \
+    || bad "after the duel rollback: another catalog than the challenge step's"
+  step "duel rollback again (re-runnable)" "$DDOWN"
+  [ "$(fingerprint)" = "$FNODUEL" ] && ok "after the second duel rollback: still the challenge step's catalog" || bad "after the second duel rollback: another catalog"
+  if run "$DCONTRACT"; then bad "live_duel.sql passes after its rollback"; else ok "live_duel.sql fails after its rollback"; fi
+  duel_contracts "after the duel rollback"
+  duel_behaviours "after the duel rollback"
+  step "duel migration after its rollback" "$DMIG"
+  [ "$(fingerprint)" = "$FDUEL" ] && ok "the same catalog as the first duel apply" || bad "another catalog than the first duel apply"
+  step "contract: live_duel.sql again" "$DCONTRACT"
+  behave "duel behaviour again" "$DBEHAVIOUR" 'LIVE DUEL BEHAVIOUR PASSED'
 fi
 
 echo "ok: $OKS, failures: $FAILS"

@@ -217,6 +217,54 @@ def test_the_way_needs_no_meldy_session_and_keys_its_limit_by_the_users_session(
     assert key({"apikey": "anon", "Authorization": "Bearer user-token", "X-Forwarded-For": "198.51.100.4, 10.0.0.7"}) == signed_in
 
 
+def test_the_duels_and_the_live_games_rpcs_count_in_buckets_of_their_own(proxy):
+    """A duel polls about once a second (docs/live/DUEL.md §9): its calls and a live game's must not use up the 600 a
+    minute every other call of the same session or address shares, nor the other way round."""
+    from starlette.requests import Request
+
+    def key(path: str, headers: dict | None = None, raw: bool = True) -> str:
+        scope = {"type": "http", "client": ("10.0.0.7", 1234), "path": path,
+                 "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()]}
+        if raw:
+            scope["raw_path"] = path.encode("latin-1")
+        return supabase_proxy._caller_key(Request(scope))
+
+    user = {"apikey": "anon", "Authorization": "Bearer user-token"}
+    plain = key("/sb/rest/v1/materials", user)
+    assert plain.startswith("sb:") and ":" not in plain[3:]
+    assert key("/sb/rest/v1/rpc/duel_state", user) == plain + ":duel"
+    assert key("/sb/rest/v1/rpc/duel_answer", user) == plain + ":duel"
+    assert key("/sb/rest/v1/rpc/live_state", user) == plain + ":live"
+    assert key("/sb/rest/v1/rpc/challenge_state", user) == plain
+    assert key("/sb/rest/v1/rpc/quiz_guest_start", user) == plain
+    # a guest: the address's own three buckets
+    assert key("/sb/rest/v1/rpc/duel_state") == "sb-ip:visitor:10.0.0.7:duel"
+    assert key("/sb/rest/v1/rpc/live_join") == "sb-ip:visitor:10.0.0.7:live"
+    assert key("/sb/rest/v1/materials") == "sb-ip:visitor:10.0.0.7"
+    # read as _raw_target reads the path: decoded, whatever the case
+    assert key("/sb/rest/v1/rpc/duel%5Fstate") == "sb-ip:visitor:10.0.0.7:duel"
+    assert key("/sb/rest/v1/rpc/Duel_State") == "sb-ip:visitor:10.0.0.7:duel"
+    assert key("/sb/rest/v1/rpc/duel_state", raw=False) == "sb-ip:visitor:10.0.0.7:duel"
+    # only these RPCs: not a table, not another function whose name starts the same way
+    assert key("/sb/rest/v1/duel_state") == "sb-ip:visitor:10.0.0.7"
+    assert key("/sb/rest/v1/rpc/duelist") == "sb-ip:visitor:10.0.0.7"
+    assert key("/sb/rest/v1/rpc/live") == "sb-ip:visitor:10.0.0.7"
+    assert key("/api/rest/v1/rpc/duel_state") == "sb-ip:visitor:10.0.0.7"
+
+
+def test_the_buckets_are_counted_apart_by_the_real_limiter(proxy, monkeypatch):
+    """With the limiter on, the 600 a minute of a guest's other calls are spent and a duel's poll still passes."""
+    monkeypatch.setattr(proxy.main.limiter, "enabled", True)
+    proxy.main.limiter.reset()
+    guest = {"apikey": "anon", "Authorization": "Bearer anon", "X-Forwarded-For": "203.0.113.77, 10.0.0.2"}
+    for _ in range(600):
+        assert proxy.get("/sb/rest/v1/materials?select=id", headers=guest).status_code == 200
+    assert proxy.get("/sb/rest/v1/materials?select=id", headers=guest).status_code == 429
+    assert proxy.post("/sb/rest/v1/rpc/duel_state", json={}, headers=guest).status_code == 200
+    assert proxy.post("/sb/rest/v1/rpc/live_state", json={}, headers=guest).status_code == 200
+    proxy.main.limiter.reset()
+
+
 def test_anonymous_visitors_behind_the_hf_proxy_each_get_their_own_limit(proxy):
     """The connection's address is the HF proxy (the same for everyone); the visitor is the address the HF proxy
     put before it in X-Forwarded-For (ratelimit.visitor_ip). An IPv6 visitor counts by their /64."""

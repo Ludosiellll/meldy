@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom';
 import { useContainersOverview } from '../../lib/containers/hooks';
 import type { OverviewContainer } from '../../types/container';
 import { Chevron, Sheet } from '../containers/ui';
-import { challengePath, keyCounts, liveGamePath } from '../test/gameEntry';
+import { challengePath, duelPath, keyCounts, liveGamePath } from '../test/gameEntry';
+import { DUEL_ENTRY } from '../duel/copy';
 import { QUICK_PATH } from '../quick/paths';
 import { GAMES, pickMeta } from './copyGames';
 import '../containers/containers.css';
@@ -27,10 +28,10 @@ export function playableOf(containers: readonly OverviewContainer[]): Array<{ co
 
 /**
  * «Начать игру»: the sheet with the list; `challenge`: the same list for «Соревнование по ссылке» (its setup,
- * /live/challenge?c=…, docs/live/CHALLENGE.md).
+ * /live/challenge?c=…, docs/live/CHALLENGE.md); `duel`: for «Дуэль» (/live/duel?c=…, docs/live/DUEL.md).
  */
-export default function GamePicker({ onClose, mode = 'game' }: { onClose: () => void; mode?: 'game' | 'challenge' }) {
-  const pathOf = mode === 'challenge' ? challengePath : liveGamePath;
+export default function GamePicker({ onClose, mode = 'game' }: { onClose: () => void; mode?: 'game' | 'challenge' | 'duel' }) {
+  const pathOf = mode === 'challenge' ? challengePath : mode === 'duel' ? duelPath : liveGamePath;
   const overview = useContainersOverview();
   const rows = overview.data ? playableOf(overview.data.containers) : null;
   let body;
@@ -62,7 +63,7 @@ export default function GamePicker({ onClose, mode = 'game' }: { onClose: () => 
     body = (
       <>
         <p className="gm-pick-note" data-muted="">
-          {mode === 'challenge' ? GAMES.pick.challengeLede : GAMES.pick.lede}
+          {mode === 'challenge' ? GAMES.pick.challengeLede : mode === 'duel' ? DUEL_ENTRY.pickLede : GAMES.pick.lede}
         </p>
         <ul className="ct-rows gm-pick-rows">
           {rows.map(({ container, kind, questions, playable }, index) => (
@@ -90,7 +91,7 @@ export default function GamePicker({ onClose, mode = 'game' }: { onClose: () => 
     );
   }
   return (
-    <Sheet title={mode === 'challenge' ? GAMES.pick.challengeTitle : GAMES.pick.title} onClose={onClose} className="gm-pick">
+    <Sheet title={mode === 'challenge' ? GAMES.pick.challengeTitle : mode === 'duel' ? DUEL_ENTRY.pickTitle : GAMES.pick.title} onClose={onClose} className="gm-pick">
       {body}
     </Sheet>
   );

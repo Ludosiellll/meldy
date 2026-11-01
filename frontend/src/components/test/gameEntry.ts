@@ -20,6 +20,11 @@ export function challengePath(containerId: string): string {
   return `/live/challenge?c=${containerId}`;
 }
 
+/** «Дуэль»'s setup for a test (docs/live/DUEL.md). */
+export function duelPath(containerId: string): string {
+  return `/live/duel?c=${containerId}`;
+}
+
 /** How many questions a test has, and how many of them have their key. */
 export function keyCounts(subjects: readonly Pick<SubjectFacts, 'keyed' | 'no_key'>[]): { total: number; keyed: number } {
   let total = 0;

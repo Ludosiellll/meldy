@@ -1,0 +1,178 @@
+/* «Дуэль» (/d/<code>): the live player's surface (player.css, .lp) and its tokens for light and dark; the pieces a duel
+   has — the two sides facing each other with their scores and tracks, the invite with its QR code, the reveal under
+   the question (both verdicts, the marks of who picked what), the wait, the final's cards, the review. A phone's column
+   on a phone; on a computer the board across the top and the question under it. Motion: transform and opacity only. */
+
+.lp.du { align-items: stretch; }
+.du-col { position: relative; flex: 1; min-height: 0; width: 100%; max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; }
+.lp.du:is([data-stage='play'], [data-stage='wait'])[data-step='duel'] .du-col { max-width: 1180px; }
+.du-kicker { margin: 0 0 6px; font: 600 14px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); letter-spacing: 0.01em; }
+.du-msg { justify-content: center; }
+.du-note { margin: 12px 2px 0; font: 500 14.5px/1.4 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-face-left { display: inline-block; transform: scaleX(-1); }
+
+/* ─── the invite ─── */
+.du-stage { position: relative; display: flex; align-items: flex-end; justify-content: center; gap: 18px; min-height: 156px; padding: 22px 0 8px; flex: none; }
+.du-stage::after { content: ''; position: absolute; left: 50%; bottom: 6px; width: 260px; height: 20px; margin-left: -130px; border-radius: 50%; background: var(--lp-floor); z-index: -1; }
+.du-stage-vs { align-self: center; font: 600 15px/1 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-rules { margin: 8px 0 0; padding: 16px 18px; list-style: none; display: flex; flex-direction: column; gap: 10px; border-radius: 22px; background: var(--lp-card);
+  box-shadow: inset 0 0 0 1.5px var(--lp-line); font: 400 15.5px/1.45 var(--ph-sans, sans-serif); }
+.du-rules li { position: relative; padding-left: 20px; }
+.du-rules li::before { content: ''; position: absolute; left: 2px; top: 0.55em; width: 8px; height: 8px; border-radius: 50%; background: var(--lp-blue); }
+
+/* ─── the board: me on the left, the other seat on the right, facing each other ─── */
+.du-board { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 16px; }
+.du-side { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 18px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); min-width: 0; }
+.du-side > :first-child { flex: none; }
+.du-side[data-side='other'] { flex-direction: row-reverse; text-align: right; }
+.du-side[data-away] > :first-child { opacity: 0.45; }
+.du-side-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.du-side[data-side='other'] .du-side-text { align-items: flex-end; }
+.du-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px/1.25 var(--ph-sans, sans-serif); }
+.du-name small { font-weight: 500; color: var(--lp-ink-2); }
+.du-away { color: var(--lp-coral) !important; }
+.du-empty { font: 500 15px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-score { font: 800 26px/1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
+.du-track { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 0; padding: 0; list-style: none; }
+.du-side[data-side='other'] .du-track { justify-content: flex-end; }
+.du-track li { width: 12px; height: 12px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px var(--lp-line); }
+.du-track li[data-mark='right'] { background: var(--lp-ok); box-shadow: none; }
+.du-track li[data-mark='part'] { background: var(--lp-yellow); box-shadow: none; }
+.du-track li[data-mark='wrong'] { background: var(--lp-coral); box-shadow: none; }
+.du-track li[data-mark='none'] { background: var(--lp-line); box-shadow: none; }
+.du-track li[data-mark='now'] { box-shadow: inset 0 0 0 2.5px var(--lp-blue); }
+.du-state { font: 500 13px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-state[data-done] { color: var(--lp-blue-ink); font-weight: 700; }
+.du-board[data-compact] { margin-top: 12px; }
+.du-board[data-compact] .du-side { padding: 8px 10px; gap: 8px; }
+.du-board[data-compact] .du-score { font-size: 22px; }
+
+/* ─── the lobby ─── */
+.du-invite { display: flex; gap: 16px; align-items: center; margin-top: 14px; padding: 16px; border-radius: 22px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
+.du-invite-text { flex: 1; min-width: 0; }
+.du-invite h2 { margin: 0; font: 700 18px/1.2 var(--ph-sans, sans-serif); }
+.du-invite p { margin: 6px 0 0; font: 400 15px/1.4 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-invite .du-link { margin-top: 10px; }
+.du-link a { color: var(--lp-blue-ink); font-weight: 600; word-break: break-all; }
+.du-copy { margin-top: 12px; min-height: 48px; }
+.du-qr { flex: none; width: 148px; height: 148px; border-radius: 12px; box-shadow: 0 0 0 1.5px var(--lp-line); }
+.du-ready-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 16px; margin-top: 12px; font: 500 15px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+@media (max-width: 520px) {
+  .du-invite { flex-direction: column; align-items: stretch; }
+  .du-qr { align-self: center; width: 140px; height: 140px; }
+}
+
+/* ─── a question ─── */
+.du-play { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; padding: calc(var(--lp-top) + 12px) calc(var(--lp-right) + 16px) 0 calc(var(--lp-left) + 16px); }
+.du-top { padding-bottom: 2px; }
+.du-play[data-up='true'] .lp-time { opacity: 0.45; }
+.du-grid { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; padding-bottom: calc(var(--lp-bottom) + 16px); }
+.du-aside { flex: none; }
+.du-main { display: flex; flex-direction: column; min-width: 0; }
+.du-q { margin-top: 14px; }
+.du-answers { margin-top: 14px; padding-bottom: 4px; animation: none; }
+.du-opt { position: relative; }
+.du-opt > .lp-ans { width: 100%; }
+.du-tags { position: absolute; right: 10px; top: -9px; display: flex; gap: 4px; pointer-events: none; z-index: 1; }
+.du-tag { padding: 2px 9px; border-radius: 999px; font: 700 12px/1.45 var(--ph-sans, sans-serif); background: var(--lp-ink); color: var(--lp-canvas); white-space: nowrap; }
+.du-tag[data-who='other'] { background: var(--lp-card); color: var(--lp-ink); box-shadow: inset 0 0 0 1.5px var(--lp-ink); }
+.du-line { margin: 12px 4px 0; font: 500 15px/1.4 var(--ph-sans, sans-serif); color: var(--lp-ink-2); min-height: 21px; }
+.du-soon { display: grid; place-items: center; min-height: 180px; }
+.du-soon p { margin: 0; font: 600 20px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); animation: lp-fade 0.3s ease-out both; }
+.du-typed { margin-top: 14px; }
+.du-main .lp-cd { flex: none; min-height: 96px; }
+
+/* ─── the reveal: under the question, never over it ─── */
+.du-reveal { margin-top: 16px; padding: 14px 16px 16px; border-radius: 22px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); animation: lp-rise 0.35s var(--lp-ease) both; }
+.du-verdicts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.du-verdict { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--lp-soft); min-width: 0; }
+.du-verdict[data-tone='ok'] { box-shadow: inset 0 0 0 2px var(--lp-ok); }
+.du-verdict[data-tone='bad'] { box-shadow: inset 0 0 0 2px var(--lp-coral); }
+.du-verdict[data-tone='part'] { box-shadow: inset 0 0 0 2px var(--lp-yellow); }
+.du-verdict-who { font: 500 13px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.du-verdict b { font: 700 17px/1.25 var(--ph-sans, sans-serif); }
+.du-plus { font: 800 18px/1.2 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
+.du-typed-line { font: 500 14px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink-2); overflow-wrap: anywhere; }
+.du-key { margin: 12px 2px 0; font: 600 15.5px/1.4 var(--ph-sans, sans-serif); }
+.du-explain { margin-top: 12px; padding: 10px 12px; border-radius: 14px; background: var(--lp-soft); }
+.du-explain b { display: block; font: 700 13px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-explain p { margin: 4px 0 0; font: 500 15.5px/1.42 var(--ph-sans, sans-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+.du-reveal-bar { display: flex; align-items: center; gap: 14px; margin-top: 14px; }
+.du-reveal-bar .du-next { flex: none; width: auto; min-width: 168px; min-height: 52px; }
+.du-reveal-note { flex: 1; min-width: 0; font: 500 14px/1.35 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+
+/* ─── the wait for a seat away ─── */
+.du-wait { margin-top: 16px; padding: 16px 18px; border-radius: 22px; background: var(--lp-card); box-shadow: inset 0 0 0 2px var(--lp-coral); animation: lp-rise 0.35s var(--lp-ease) both; }
+.du-wait p:not(.du-wait-clock) { color: var(--lp-ink-2); }
+.du-wait h2 { margin: 0; font: 700 18px/1.25 var(--ph-sans, sans-serif); }
+.du-wait p { margin: 6px 0 0; font: 400 15px/1.4 var(--ph-sans, sans-serif); }
+.du-wait .du-wait-clock { margin-top: 10px; font: 800 22px/1 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
+
+/* ─── a computer: the board across the top, the question and its answers under it in a centred column ─── */
+@media (min-width: 900px) {
+  .du-grid { align-items: center; }
+  .du-aside, .du-main { width: 100%; max-width: 960px; }
+  .du-board[data-compact] .du-side { padding: 10px 16px; }
+  .du-q { font-size: 24px; }
+}
+/* a laptop's short screen (1532×734): the question, its four answers and the reveal's «Дальше» in one view */
+@media (min-width: 900px) and (max-height: 800px) {
+  .du-q { margin-top: 8px; }
+  .du-answers { gap: 8px; }
+  .du-answers .lp-ans { min-height: 52px; padding-top: 4px; padding-bottom: 4px; }
+  .du-answers .lp-ans__l { width: 40px; height: 40px; border-radius: 12px; font-size: 20px; }
+  .du-reveal { margin-top: 12px; padding-top: 12px; padding-bottom: 12px; }
+  .du-verdict { padding: 8px 12px; }
+  .du-explain { margin-top: 8px; padding: 8px 12px; }
+  .du-reveal-bar { margin-top: 10px; }
+}
+
+/* ─── the final ─── */
+.du-final-h { font-size: 34px; }
+.du-cards { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: 18px; }
+.du-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 16px 10px; border-radius: 22px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); text-align: center; min-width: 0; }
+.du-card[data-won] { box-shadow: inset 0 0 0 2.5px var(--lp-ok); }
+.du-card-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px/1.25 var(--ph-sans, sans-serif); }
+.du-card-name small { color: var(--lp-ink-2); font-weight: 500; }
+.du-card-points { font: 800 30px/1.05 var(--ph-sans, sans-serif); font-variant-numeric: tabular-nums; }
+.du-card-sub { font: 500 13.5px/1.3 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-match { margin: 14px 2px 0; font: 700 16px/1.3 var(--ph-sans, sans-serif); }
+.du-next-link { margin: 10px 2px 0; font: 500 15px/1.4 var(--ph-sans, sans-serif); }
+.du-next-link a { color: var(--lp-blue-ink); font-weight: 600; }
+@media (min-width: 900px) {
+  .lp-bar.du-final-bar { flex-direction: row; }
+  .lp-bar.du-final-bar > * { flex: 1; }
+}
+
+/* ─── the review ─── */
+.du-rv { margin-top: 14px; padding: 14px 16px; border-radius: 22px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
+.du-rv header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.du-rv-n { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--lp-soft); font: 700 13px/1 var(--ph-sans, sans-serif); }
+.du-rv-badge { padding: 3px 10px; border-radius: 999px; font: 600 12.5px/1.4 var(--ph-sans, sans-serif); background: var(--lp-soft); color: var(--lp-ink-2); }
+.du-rv-badge[data-tone='ok'] { box-shadow: inset 0 0 0 1.5px var(--lp-ok); color: var(--lp-ink); }
+.du-rv-badge[data-tone='bad'] { box-shadow: inset 0 0 0 1.5px var(--lp-coral); color: var(--lp-ink); }
+.du-rv-badge[data-tone='part'] { box-shadow: inset 0 0 0 1.5px var(--lp-yellow); color: var(--lp-ink); }
+.du-rv-q { margin: 10px 0 0; font: 600 17px/1.32 var(--ph-sans, sans-serif); white-space: pre-wrap; overflow-wrap: anywhere; }
+.du-rv-opts { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.du-rv-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 14px; box-shadow: inset 0 0 0 1.5px var(--lp-line); }
+.du-rv-opt[data-key='true'] { box-shadow: inset 0 0 0 2px var(--lp-ok); }
+.du-rv-opt[data-mine='true'][data-key='false'] { box-shadow: inset 0 0 0 2px var(--lp-coral); }
+.du-rv-opt .lp-ans__l { width: 32px; height: 32px; border-radius: 10px; font-size: 17px; background: var(--lp-soft); color: var(--lp-ink); }
+.du-rv-text { flex: 1; min-width: 0; font: 500 15px/1.35 var(--ph-sans, sans-serif); overflow-wrap: anywhere; }
+.du-rv-tags { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.du-rv-tags small { padding: 2px 8px; border-radius: 999px; font: 700 11.5px/1.45 var(--ph-sans, sans-serif); white-space: nowrap; background: var(--lp-soft); }
+.du-rv-tags small[data-who='key'] { background: var(--lp-ok); color: #0b121c; }
+.du-rv-tags small[data-who='me'] { background: var(--lp-ink); color: var(--lp-canvas); }
+.du-rv-tags small[data-who='other'] { box-shadow: inset 0 0 0 1.5px var(--lp-ink); }
+.du-rv-typed { margin: 10px 0 0; display: grid; gap: 6px; }
+.du-rv-typed div { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.du-rv-typed dt { min-width: 150px; color: var(--lp-ink-2); font: 500 14.5px/1.4 var(--ph-sans, sans-serif); }
+.du-rv-typed dd { margin: 0; font: 600 15px/1.4 var(--ph-sans, sans-serif); overflow-wrap: anywhere; }
+.du-practice { margin-top: 18px; padding: 16px 18px; border-radius: 22px; background: var(--lp-card); box-shadow: inset 0 0 0 1.5px var(--lp-line); }
+.du-practice h2 { margin: 0; font: 700 17px/1.25 var(--ph-sans, sans-serif); }
+.du-practice p { margin: 6px 0 12px; font: 400 15px/1.45 var(--ph-sans, sans-serif); color: var(--lp-ink-2); }
+.du-practice a:not(.lp-btn) { color: var(--lp-blue-ink); font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  .du-reveal, .du-wait, .du-soon p { animation: none; }
+}

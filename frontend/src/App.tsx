@@ -72,6 +72,8 @@ const PlayPage = lazy(() => import('./pages/play/PlayPage'));
 const TgPlayPage = lazy(() => import('./pages/play/TgPlayPage'));
 // «Соревнование в своё время» by its link (docs/live/CHALLENGE.md): /s/<code>, anyone, alone, before the deadline.
 const ChallengePage = lazy(() => import('./pages/challenge/ChallengePage'));
+// «Дуэль» by its invite link (docs/live/DUEL.md): /d/<code>, two seats, one server clock.
+const DuelPage = lazy(() => import('./pages/duel/DuelPage'));
 const NewTestPage = lazy(() => import('./pages/test/NewTestPage'));
 // «Быстрая контрольная» (UX audit of 21.10): pasted questions to a link on one screen, and that link with its QR code.
 const QuickTestPage = lazy(() => import('./pages/test/QuickTestPage'));
@@ -211,6 +213,7 @@ export default function App() {
         <Route path="/play" element={<PlayPage />} />
         <Route path="/tg/play" element={<TgPlayPage />} />
         <Route path="/s/:code" element={<ChallengePage />} />
+        <Route path="/d/:code" element={<DuelPage />} />
         <Route path="/" element={
           <PrivateRoute><SignedInShell /></PrivateRoute>
         }>

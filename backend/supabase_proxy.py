@@ -125,14 +125,33 @@ def _raw_target(request: Request) -> Optional[str]:
     return f"{rest}?{query}" if query else rest
 
 
+# The polls of a duel and of a live game have buckets of their own (600 a minute each, next to the 600 of
+# everything else): a class behind one address polling duels (docs/live/DUEL.md §9) or a battle must not use up
+# what the rest of the site's calls of that address need, nor the other way round.
+OWN_BUCKETS = (("rest/v1/rpc/duel_", ":duel"), ("rest/v1/rpc/live_", ":live"))
+
+
+def _bucket(request: Request) -> str:
+    """The suffix of the limit's key for the path after /sb/ (decoded, as _raw_target reads it), or ""."""
+    raw_path = request.scope.get("raw_path")
+    raw = raw_path.decode("latin-1") if isinstance(raw_path, (bytes, bytearray)) else str(request.scope.get("path", ""))
+    if not raw.startswith("/sb/"):
+        return ""
+    decoded = unquote(raw[len("/sb/"):]).lower()
+    for prefix, suffix in OWN_BUCKETS:
+        if decoded.startswith(prefix):
+            return suffix
+    return ""
+
+
 def _caller_key(request: Request) -> str:
     """A signed-in browser by its session token; anonymous ones (the anon key as the bearer) by the
     visitor's own address (visitor_ip_key) — the connection's address is the HF proxy, the same for
-    every visitor."""
+    every visitor. The duel's and the live game's RPCs count in buckets of their own (OWN_BUCKETS)."""
     token = request.headers.get("authorization", "")
     if token[:7].lower() == "bearer " and token[7:].strip() and token[7:].strip() != request.headers.get("apikey", ""):
-        return "sb:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:24]
-    return "sb-ip:" + visitor_ip_key(request)
+        return "sb:" + hashlib.sha256(token.encode("utf-8")).hexdigest()[:24] + _bucket(request)
+    return "sb-ip:" + visitor_ip_key(request) + _bucket(request)
 
 
 @router.api_route("/sb/{path:path}", methods=METHODS, include_in_schema=False)

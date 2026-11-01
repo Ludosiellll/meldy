@@ -140,6 +140,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
         back={st?.final ? 'final' : 'ended'}
         practice={reviewGame ? s.practice : undefined}
         signInHref={signInHref}
+        duelHref={platform.kind === 'web' && reviewGame ? `/live/duel?g=${reviewGame}` : null}
       />
     );
   } else if (s.step === 'gone')

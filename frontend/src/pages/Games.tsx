@@ -5,6 +5,7 @@ import { Boss } from '../components/live/art/Boss';
 import { Character } from '../components/live/art/Character';
 import GamePicker from '../components/games/GamePicker';
 import ChallengeList from '../components/challenge/ChallengeList';
+import { DUEL_ENTRY } from '../components/duel/copy';
 import { GAMES, PLAY_PATH } from '../components/games/copyGames';
 import { liveGameOpen } from '../components/test/gameEntry';
 import { STAND_RUN, STAND_RUN_PHONE } from '../lib/footage';
@@ -31,7 +32,7 @@ import '../components/games/games.css';
 export default function Games() {
   useDocumentTitle(GAMES.title);
   // «Начать игру» or «Соревнование по ссылке» (docs/live/CHALLENGE.md): the same list of the user's tests and exams
-  const [picking, setPicking] = useState<'game' | 'challenge' | null>(null);
+  const [picking, setPicking] = useState<'game' | 'challenge' | 'duel' | null>(null);
   const [lead, setLead] = useState<HTMLVideoElement | null>(null);
   const [follower, setFollower] = useState<HTMLVideoElement | null>(null);
   useEffect(() => (lead && follower ? follow(lead, follower, STAND_RUN.duration) : undefined), [lead, follower]);
@@ -69,6 +70,10 @@ export default function Games() {
               </button>
               <button type="button" className="sf-secondary gm-start gm-start--challenge" onClick={() => setPicking('challenge')} aria-haspopup="dialog">
                 {GAMES.hero.challenge}
+              </button>
+              {/* «Дуэль» (docs/live/DUEL.md): two people, the same questions at the same time, by an invite link */}
+              <button type="button" className="sf-secondary gm-start gm-start--duel" onClick={() => setPicking('duel')} aria-haspopup="dialog">
+                {DUEL_ENTRY.action}
               </button>
             </div>
           ) : null}
