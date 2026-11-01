@@ -105,6 +105,10 @@ create index if not exists live_duels_parent_idx on public.live_duels (parent_id
 create index if not exists live_duels_next_idx on public.live_duels (next_id) where next_id is not null;
 create index if not exists live_duels_created_idx on public.live_duels (created_at);
 create index if not exists live_duels_ref_idx on public.live_duels (source_ref, created_at) where source_ref is not null;
+-- the create's cleanup of lobbies nobody joined (5a, the same predicate): round-1 lobbies and expired duels by age, never
+-- every duel between 2 and 90 days old
+create index if not exists live_duels_lobby_gone_idx on public.live_duels (created_at)
+  where round = 1 and (stage = 'lobby' or end_reason = 'expired');
 alter table public.live_duels enable row level security;
 comment on table public.live_duels is 'Duels («Дуэль»): only through the public.duel_* functions.';
 
@@ -318,47 +322,78 @@ $fn$;
 -- 2d. A typed answer the other seat must not read as typed (its writer's own view keeps it; judged once, when the answer
 --     is written: live_duel_answers.rude). The duel's own filter, stricter than the names' (meldy_private.live_name_rude)
 --     and harder to get round: the text lower-cased by an explicit table and ё → е; punctuation between words splits
---     them, anything else but letters and «*» inside a word goes («Су-ка»); each word is checked as it is, with its
---     repeated letters collapsed («сукааа») and with Latin look-alikes read as Cyrillic; a run of single letters is
---     checked as one word («с у к а», «х у й»), and a run of words of one or two letters with a single letter in it from
---     its start and to its end («пи з д а», «ну с у к а»). A word is rude when it is a whole rude word, or a rude root
---     stands at its start after at most one prefix («нахуй», «похуй») — never a short root inside an ordinary word
---     («застрахуйте», «корабля»); «*» stands for one hidden letter («х*й»).
+--     them, anything else but letters and «*» inside a word goes («Су-ка»); a word without a Cyrillic letter is a formula
+--     or a Latin word: its «*» is a multiplication sign that splits it («x*e», «a*s»), and its letters stay Latin. Each
+--     word is checked as it is and with its repeated letters collapsed («сукааа»); a word of both scripts also with its
+--     Latin look-alikes read as Cyrillic («сyка»). A run of single letters is checked as one word («с у к а», «х у й»),
+--     and a run of words of one or two letters with a single letter in it from each of its words on (its first 12
+--     letters) and up to each of its first 12 words («пи з д а», «ну с у к а»); a joined run counts from 3 letters («е б»
+--     stays readable). A word is rude when it is a whole rude word, or a rude root stands at its start after at most one
+--     prefix («нахуй», «похуй») — never a short root inside an ordinary word («застрахуйте», «корабля»); in a Cyrillic
+--     word «*» stands for one hidden letter («х*й»). Two anchored regular expressions (the lists below, each letter
+--     also matching «*»): a word costs two matches, 200 characters of one-letter words a few milliseconds.
+--     Lists: whole words сука, суки, суку, суке, сукой, сучка, сучки, сучара, бля, блядь, блять, хер, нахер, похер,
+--     херня, жопа, жопу, жопе, говно, говна, дерьмо, шлюха, мразь, хуй, еб, fuck, fucking, shit, shitty, bullshit, ass,
+--     asshole, cyka, suka, blyat, blyad, pizda; prefixes за, вы, на, не, ни, от, по, при, раз, рас, до, у, о, об, съ,
+--     объ, отъ, подъ, въ, изъ, разъ, пере, недо; roots хуй, хуе, хуя, хуи, хую, пизд, бляд, блят, ебат, ебан, ебал,
+--     ебу, ебл, ебн, ебет, ебич, пидор, пидар, пидр, мудак, мудил, залуп, гандон, гондон, шлюх, fuck, bitch, cunt.
 create or replace function meldy_private.live_duel_rude_word(p_word text)
 returns boolean
-language sql
+language plpgsql
 immutable
 set search_path = ''
 as $fn$
-  select p_word is not null and p_word ~ '[a-zа-я]' and (
-    exists (select 1
-              from pg_catalog.unnest(array['сука', 'суки', 'суку', 'суке', 'сукой', 'сучка', 'сучки', 'сучара', 'бля', 'блядь',
-                                           'блять', 'хер', 'нахер', 'похер', 'херня', 'жопа', 'жопу', 'жопе', 'говно', 'говна',
-                                           'дерьмо', 'шлюха', 'мразь', 'хуй', 'fuck', 'fucking', 'shit', 'shitty', 'bullshit',
-                                           'ass', 'asshole', 'еб']) w
-             where pg_catalog.char_length(w) = pg_catalog.char_length(p_word) and w like pg_catalog.replace(p_word, '*', '_'))
-    or exists (select 1
-                 from pg_catalog.unnest(array['', 'за', 'вы', 'на', 'не', 'ни', 'от', 'по', 'при', 'раз', 'рас', 'до', 'у', 'о',
-                                              'об', 'съ', 'объ', 'отъ', 'подъ', 'въ', 'изъ', 'разъ', 'пере', 'недо']) p
-                cross join pg_catalog.unnest(array['хуй', 'хуе', 'хуя', 'хуи', 'хую', 'пизд', 'бляд', 'блят', 'ебат', 'ебан', 'ебал',
-                                                   'ебу', 'ебл', 'ебн', 'ебет', 'ебич', 'пидор', 'пидар', 'пидр', 'мудак', 'мудил',
-                                                   'залуп', 'гандон', 'гондон', 'шлюх', 'fuck', 'bitch', 'cunt']) r
-                where pg_catalog.char_length(p_word) >= pg_catalog.char_length(p || r)
-                  and (p || r) like pg_catalog.replace(pg_catalog.left(p_word, pg_catalog.char_length(p || r)), '*', '_')))
+begin
+  -- a letter at least («***» is no word): the words are made of letters and «*» only
+  return p_word is not null and pg_catalog.translate(p_word, '*', '') <> ''
+     and (p_word ~ ('^(?:[с*][у*][к*][а*]|[с*][у*][к*][и*]|[с*][у*][к*][у*]|[с*][у*][к*][е*]|[с*][у*][к*][о*][й*]|[с*][у*' ||
+                '][ч*][к*][а*]|[с*][у*][ч*][к*][и*]|[с*][у*][ч*][а*][р*][а*]|[б*][л*][я*]|[б*][л*][я*][д*][ь*]|[б*][л' ||
+                '*][я*][т*][ь*]|[х*][е*][р*]|[н*][а*][х*][е*][р*]|[п*][о*][х*][е*][р*]|[х*][е*][р*][н*][я*]|[ж*][о*][' ||
+                'п*][а*]|[ж*][о*][п*][у*]|[ж*][о*][п*][е*]|[г*][о*][в*][н*][о*]|[г*][о*][в*][н*][а*]|[д*][е*][р*][ь*]' ||
+                '[м*][о*]|[ш*][л*][ю*][х*][а*]|[м*][р*][а*][з*][ь*]|[х*][у*][й*]|[е*][б*]|[f*][u*][c*][k*]|[f*][u*][c' ||
+                '*][k*][i*][n*][g*]|[s*][h*][i*][t*]|[s*][h*][i*][t*][t*][y*]|[b*][u*][l*][l*][s*][h*][i*][t*]|[a*][s' ||
+                '*][s*]|[a*][s*][s*][h*][o*][l*][e*]|[c*][y*][k*][a*]|[s*][u*][k*][a*]|[b*][l*][y*][a*][t*]|[b*][l*][' ||
+                'y*][a*][d*]|[p*][i*][z*][d*][a*])$')
+          or p_word ~ ('^(?:[з*][а*]|[в*][ы*]|[н*][а*]|[н*][е*]|[н*][и*]|[о*][т*]|[п*][о*]|[п*][р*][и*]|[р*][а*][з*]|[р*][а*' ||
+                '][с*]|[д*][о*]|[у*]|[о*]|[о*][б*]|[с*][ъ*]|[о*][б*][ъ*]|[о*][т*][ъ*]|[п*][о*][д*][ъ*]|[в*][ъ*]|[и*][' ||
+                'з*][ъ*]|[р*][а*][з*][ъ*]|[п*][е*][р*][е*]|[н*][е*][д*][о*])?(?:[х*][у*][й*]|[х*][у*][е*]|[х*][у*][я*' ||
+                ']|[х*][у*][и*]|[х*][у*][ю*]|[п*][и*][з*][д*]|[б*][л*][я*][д*]|[б*][л*][я*][т*]|[е*][б*][а*][т*]|[е*]' ||
+                '[б*][а*][н*]|[е*][б*][а*][л*]|[е*][б*][у*]|[е*][б*][л*]|[е*][б*][н*]|[е*][б*][е*][т*]|[е*][б*][и*][ч' ||
+                '*]|[п*][и*][д*][о*][р*]|[п*][и*][д*][а*][р*]|[п*][и*][д*][р*]|[м*][у*][д*][а*][к*]|[м*][у*][д*][и*][' ||
+                'л*]|[з*][а*][л*][у*][п*]|[г*][а*][н*][д*][о*][н*]|[г*][о*][н*][д*][о*][н*]|[ш*][л*][ю*][х*]|[f*][u*]' ||
+                '[c*][k*]|[b*][i*][t*][c*][h*]|[c*][u*][n*][t*])'));
+end;
 $fn$;
 
--- One word as typed, with its repeated letters collapsed, and both with Latin look-alikes read as Cyrillic.
+-- One word: as typed and with its repeated letters collapsed; a word of both scripts also with its Latin look-alikes read
+-- as Cyrillic (a word all Latin stays Latin: «x», «y», «e» are a formula's letters).
 create or replace function meldy_private.live_duel_rude_token(p_word text)
 returns boolean
-language sql
+language plpgsql
 immutable
 set search_path = ''
 as $fn$
-  select meldy_private.live_duel_rude_word(p_word)
-      or meldy_private.live_duel_rude_word(pg_catalog.regexp_replace(p_word, '([a-zа-я])\1+', '\1', 'g'))
-      or meldy_private.live_duel_rude_word(pg_catalog.translate(p_word, 'acehkmoptxy', 'асенкмортху'))
-      or meldy_private.live_duel_rude_word(pg_catalog.regexp_replace(pg_catalog.translate(p_word, 'acehkmoptxy', 'асенкмортху'),
-                                                                      '([a-zа-я])\1+', '\1', 'g'))
+declare
+  v_one text;
+  v_cyr text;
+begin
+  if meldy_private.live_duel_rude_word(p_word) then
+    return true;
+  end if;
+  v_one := pg_catalog.regexp_replace(p_word, '([a-zа-я])\1+', '\1', 'g');
+  if v_one <> p_word and meldy_private.live_duel_rude_word(v_one) then
+    return true;
+  end if;
+  if not (p_word ~ '[а-я]' and p_word ~ '[a-z]') then
+    return false;
+  end if;
+  v_cyr := pg_catalog.translate(p_word, 'acehkmoptxy', 'асенкмортху');
+  if meldy_private.live_duel_rude_word(v_cyr) then
+    return true;
+  end if;
+  v_one := pg_catalog.regexp_replace(v_cyr, '([a-zа-я])\1+', '\1', 'g');
+  return v_one <> v_cyr and meldy_private.live_duel_rude_word(v_one);
+end;
 $fn$;
 
 create or replace function meldy_private.live_duel_rude(p_text text)
@@ -371,7 +406,6 @@ declare
   v_t text;
   v_tok text;
   v_run text := '';
-  v_n integer := 0;
   v_short text[] := '{}';
   v_one boolean := false;
   v_k integer;
@@ -382,21 +416,24 @@ begin
   v_t := pg_catalog.translate(p_text, 'ABCDEFGHIJKLMNOPQRSTUVWXYZАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯё',
                                       'abcdefghijklmnopqrstuvwxyzабвгдеежзийклмнопрстуфхцчшщъыьэюяе');
   v_t := pg_catalog.regexp_replace(v_t, '[[:space:],.;:!?"«»()\[\]{}/\\|]+', ' ', 'g');
-  v_t := pg_catalog.regexp_replace(pg_catalog.regexp_replace(v_t, '[^a-zа-я* ]', '', 'g'), ' +', ' ', 'g');
+  v_t := pg_catalog.regexp_replace(v_t, '[^a-zа-я* ]', '', 'g');
+  -- a word without a Cyrillic letter: its «*» multiplies, it does not hide a letter
+  select pg_catalog.string_agg(case when x ~ '[а-я]' then x else pg_catalog.replace(x, '*', ' ') end, ' ') into v_t
+    from pg_catalog.unnest(pg_catalog.string_to_array(v_t, ' ')) x;
+  v_t := pg_catalog.btrim(pg_catalog.regexp_replace(coalesce(v_t, ''), ' +', ' ', 'g'));
   -- the words, then '' to end the last runs
-  for v_tok in select x from pg_catalog.unnest(pg_catalog.string_to_array(pg_catalog.btrim(v_t), ' ') || array['']) x loop
-    if v_tok <> '' and meldy_private.live_duel_rude_token(v_tok) then
+  for v_tok in select x from pg_catalog.unnest(pg_catalog.string_to_array(v_t, ' ') || array['']) x loop
+    -- a word of one letter is none of the lists' (they start at two)
+    if pg_catalog.char_length(v_tok) >= 2 and meldy_private.live_duel_rude_token(v_tok) then
       return true;
     end if;
     if pg_catalog.char_length(v_tok) = 1 then
       v_run := v_run || v_tok;
-      v_n := v_n + 1;
     else
-      if v_n >= 2 and meldy_private.live_duel_rude_token(v_run) then
+      if pg_catalog.char_length(v_run) >= 3 and meldy_private.live_duel_rude_token(v_run) then
         return true;
       end if;
       v_run := '';
-      v_n := 0;
     end if;
     if pg_catalog.char_length(v_tok) between 1 and 2 then
       v_short := v_short || v_tok;
@@ -405,9 +442,16 @@ begin
       v_k := pg_catalog.cardinality(v_short);
       if v_one and v_k >= 2 then
         for v_i in 1 .. v_k loop
-          if meldy_private.live_duel_rude_token(pg_catalog.array_to_string(v_short[v_i:v_k], ''))
-             or (v_i between 2 and v_k - 1 and meldy_private.live_duel_rude_token(pg_catalog.array_to_string(v_short[1:v_i], ''))) then
+          -- from this word on (12 letters hold every word and root of the lists), and up to it (its first 12 words)
+          v_tok := pg_catalog.left(pg_catalog.array_to_string(v_short[v_i:least(v_k, v_i + 11)], ''), 12);
+          if pg_catalog.char_length(v_tok) >= 3 and meldy_private.live_duel_rude_token(v_tok) then
             return true;
+          end if;
+          if v_i between 2 and least(v_k - 1, 12) then
+            v_tok := pg_catalog.array_to_string(v_short[1:v_i], '');
+            if pg_catalog.char_length(v_tok) >= 3 and meldy_private.live_duel_rude_token(v_tok) then
+              return true;
+            end if;
           end if;
         end loop;
       end if;

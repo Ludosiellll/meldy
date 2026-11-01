@@ -60,7 +60,10 @@ BEGIN
      OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k WHERE k.conrelid = 'public.live_duel_seats'::regclass
                        AND k.conname = 'live_duel_seats_seat_check' AND pg_catalog.pg_get_constraintdef(k.oid) LIKE '%seat = ANY (ARRAY[1, 2])%')
      OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes i WHERE i.schemaname = 'public' AND i.indexname = 'live_duels_code_uidx'
-                       AND i.indexdef LIKE 'CREATE UNIQUE INDEX%(code)') THEN
+                       AND i.indexdef LIKE 'CREATE UNIQUE INDEX%(code)')
+     -- the create's cleanup of lobbies nobody joined reads a partial index of its own predicate
+     OR NOT EXISTS (SELECT 1 FROM pg_catalog.pg_indexes i WHERE i.schemaname = 'public' AND i.indexname = 'live_duels_lobby_gone_idx'
+                       AND i.indexdef LIKE '%(created_at) WHERE ((round = 1) AND ((stage = ''lobby''::text) OR (end_reason = ''expired''::text)))') THEN
     RAISE EXCEPTION 'two_seats_one_a_token_and_an_account_one_answer_a_question';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k WHERE k.conrelid = 'public.live_duels'::regclass
@@ -250,14 +253,16 @@ BEGIN
   IF NOT meldy_private.live_duel_rude('ну  су-ка ') OR meldy_private.live_duel_rude('Москва') THEN
     RAISE EXCEPTION 'rude_filter_of_names';
   END IF;
-  -- the typed answer's mask: case, ё, punctuation and *, repeated letters, spaced-out letters, Latin look-alikes; an
-  -- ordinary word with a short root inside it stays readable
-  IF EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['сукааа', 'с у к а', 'х у й', 'пошёл на х*й', 'СУКА!', 'cyka', 'бл*ть',
-                                                    'Пи.з.д.е.ц', 'ёб твою', 'нахуй', 'fuuuck']) w
+  -- the typed answer's mask: case, ё, punctuation and *, repeated letters, spaced-out letters, Latin look-alikes in a
+  -- word of both scripts; an ordinary word with a short root inside it, a formula (a word without a Cyrillic letter: its
+  -- «*» multiplies, its letters stay Latin) and two spaced-out letters stay readable
+  IF EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['сукааа', 'с у к а', 'х у й', 'пошёл на х*й', 'СУКА!', 'cyka', 'сyка',
+                                                    'бл*ть', 'x*й', 'Пи.з.д.е.ц', 'ёб твою', 'нахуй', 'fuuuck']) w
               WHERE NOT meldy_private.live_duel_rude(w))
      OR EXISTS (SELECT 1 FROM pg_catalog.unnest(ARRAY['Москва', 'застрахуйте', 'корабля', 'Херсон', 'употреблять', 'сукно',
                                                        'психуй', 'оскорблять', 'потребитель', 'рубля', '1945', 'H2O',
-                                                       'Константинополь', 'скипидар', 'тебя', 'а и б']) w
+                                                       'Константинополь', 'скипидар', 'тебя', 'а и б', 'x*e', 'a*s', 'x y e',
+                                                       'е б', 'Ответ: x*e', 'y = x*e^2', 'Huygens', '***']) w
                  WHERE meldy_private.live_duel_rude(w)) THEN
     RAISE EXCEPTION 'rude_filter_words_and_disguises';
   END IF;
