@@ -46,8 +46,9 @@ $do$;
 --     source_id the challenge, source_ref the run whose token made it), 'game' (the closed questions of a game a person
 --     played; source_id the game, source_ref that player). stage: lobby → play (a current question, qi) ⇄ wait (between
 --     questions, a seat away since wait_from; wait_seat the one awaited when the other is here) → final (ended_at,
---     end_reason: done | left | gone | expired; winner the seat or null). rev grows with every change a seat would see (the polls' «unchanged»). A rematch is a new duel: round
---     + 1, parent_id the one before (its next_id this one), draws the draws of the match before it.
+--     end_reason: done | left | gone | expired; winner the seat or null). rev grows with every change a seat would see
+--     (the polls' «unchanged»). A rematch is a new duel: round + 1, parent_id the one before (its next_id this one),
+--     draws the draws of the match before it.
 create table if not exists public.live_duels (
   id uuid primary key default gen_random_uuid(),
   code text not null,
@@ -315,14 +316,14 @@ as $fn$
 $fn$;
 
 -- 2d. A typed answer the other seat must not read as typed (its writer's own view keeps it; judged once, when the answer
---     is written: live_duel_answers.rude). The duel's own filter,
---     stricter than the names' (meldy_private.live_name_rude) and harder to get round: the text lower-cased by an explicit
---     table and ё → е; punctuation between words splits them, anything else but letters and «*» inside a word goes
---     («Су-ка»); each word is checked as it is, with its repeated letters collapsed («сукааа») and with Latin look-alikes
---     read as Cyrillic; a run of single letters is checked as one word («с у к а», «х у й»), and a run of words of one or
---     two letters with a single letter in it from its start and to its end («пи з д а», «ну с у к а»). A word is rude when it is a
---     whole rude word, or a rude root stands at its start after at most one prefix («нахуй», «похуй») — never a short
---     root inside an ordinary word («застрахуйте», «корабля»); «*» stands for one hidden letter («х*й»).
+--     is written: live_duel_answers.rude). The duel's own filter, stricter than the names' (meldy_private.live_name_rude)
+--     and harder to get round: the text lower-cased by an explicit table and ё → е; punctuation between words splits
+--     them, anything else but letters and «*» inside a word goes («Су-ка»); each word is checked as it is, with its
+--     repeated letters collapsed («сукааа») and with Latin look-alikes read as Cyrillic; a run of single letters is
+--     checked as one word («с у к а», «х у й»), and a run of words of one or two letters with a single letter in it from
+--     its start and to its end («пи з д а», «ну с у к а»). A word is rude when it is a whole rude word, or a rude root
+--     stands at its start after at most one prefix («нахуй», «похуй») — never a short root inside an ordinary word
+--     («застрахуйте», «корабля»); «*» stands for one hidden letter («х*й»).
 create or replace function meldy_private.live_duel_rude_word(p_word text)
 returns boolean
 language sql
