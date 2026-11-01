@@ -22,11 +22,11 @@ both answers; at the end «Победа», «Поражение» or «Ничь�
 
 | table | one row is | key columns |
 |---|---|---|
-| `live_duels` | a duel (a round of a match) | `code` (12 chars of `meldy_private.random_code`, unique), `owner_id` (the signed-in creator, null for a guest), container (+ quiz), `source` `container`/`quiz`/`challenge`/`game` with `source_id` (the challenge or the game) and `source_ref` (the run or the player whose token made it), `subject_ids` (a container source: a rematch draws again), title, `time_s` 10/20/30, `speed`, `calm` (calm ⇒ not speed), `q_count` 1–30, `stage` `lobby`/`play`/`wait`/`final`, `qi`, `rev`, `started_at`, `wait_from`, `ended_at`, `end_reason` `done`/`left`/`gone`/`expired`, `winner` (the seat or null), `round` 1–20, `parent_id`/`next_id` (the match), `draws` |
-| `live_duel_seats` | a seat (1 the creator, 2 the invited) | `id` (never sent: each seat's order of the options is drawn from it), `token_hash` (sha256 hex; unique per duel), `user_id` (one seat an account in a duel), name 1–24, look, `seen_at` (the last call: presence), `ready_at`, `next_qi`/`next_at` («Дальше»), `rematch_at`, the battle's numbers (dmg, right_n, streak, best, frozen, thaws, time_ms), `wins` (the match's before this round) |
+| `live_duels` | a duel (a round of a match) | `code` (12 chars of `meldy_private.random_code`, unique), `owner_id` (the signed-in creator, null for a guest), container (+ quiz), `source` `container`/`quiz`/`challenge`/`game` with `source_id` (the challenge or the game) and `source_ref` (the run or the player whose token made it), `subject_ids` (a container source: a rematch draws again), title, `time_s` 10/20/30, `speed`, `calm` (calm ⇒ not speed), `q_count` 1–30, `stage` `lobby`/`play`/`wait`/`final`, `qi`, `rev`, `started_at`, `wait_from`, `wait_seat` (the seat awaited when the other is here), `ended_at`, `end_reason` `done`/`left`/`gone`/`expired`, `winner` (the seat or null), `round` 1–20, `parent_id`/`next_id` (the match), `draws` |
+| `live_duel_seats` | a seat (1 the creator, 2 the invited) | `id` (never sent: each seat's order of the options is drawn from it), `token_hash` (sha256 hex; unique per duel), `user_id` (one seat an account in a duel), name 1–24, look, `seen_at` (the last call: presence), `ready_at`, `next_qi`/`next_at` («Дальше»), `rematch_at`, the battle's numbers (dmg, right_n, streak, best, frozen, thaws, time_ms), `waited_ms` (the wait budget spent, §4), `wins` (the match's before this round) |
 | `live_duel_questions` | a question, frozen at create | `live_challenge_questions`' columns in its order (kind `single`/`multiple`/`short`/`number`, text, options, shown, key, keys, forms, tolerance, unit, explanation, keep_order, item_rev), then `shown_at`, `opens_at` = shown + 3 s, `closes_at` = opens + time_s, `closed_at` |
-| `live_duel_answers` | a seat's answer of a question | primary key (seat, qi); `at`, the answer in the question's order (choice / picks / typed), `elapsed_ms` by the server's clock; at the close `settled_at` and the result (correct, share, dmg, thawed, frozen). A seat without an answer gets its row at the close (none) |
-| `meldy_private.live_duel_hits` | a guest's create or a join from an address | HMAC of the address (`quiz_ip_hash`), kind, a day kept |
+| `live_duel_answers` | a seat's answer of a question | primary key (seat, qi); `at`, the answer in the question's order (choice / picks / typed), `rude` (a typed text the other seat sees masked, judged once as it is written: §5), `elapsed_ms` by the server's clock; at the close `settled_at` and the result (correct, share, dmg, thawed, frozen). A seat without an answer gets its row at the close (none) |
+| `meldy_private.live_duel_hits` | a guest's create, a guest's join from an address, a signed-in person's join | HMAC of the address (`quiz_ip_hash`) or the account (one of the two), kind, a day kept |
 
 Where the questions come from (the server builds the list; the client never sends an item id):
 
@@ -38,6 +38,12 @@ Where the questions come from (the server builds the list; the client never send
 - `{game: <id>, token: <the player's token>}` — the game's closed questions, copied from its frozen `live_questions` rows,
   at its podium or after its end (`ML004 not_over`), until 7 days after (`ML002 expired`), the player not kicked
   (`42501 kicked`). An item edited after the game was made gets `item_rev` 0: «Тренировать ошибки» calls it stale.
+  A number the game played as ranges («Встань на ответ», a movement round: four range options, a range key) comes as
+  the typed number it is — `options` `[]`, `shown` `{}`, `keys` null, `key` −1, its accepted numbers, tolerance and unit
+  (a number without accepted numbers, or with a negative tolerance, is left out). A text question keeps only its forms;
+  a choice its options in the game's shown order. `keep_order` is the item's (as it is now: `live_questions` has no copy
+  of it) and only when the game's shown order is the item's own order — a game that shuffled the options keeps its
+  order in neither case, and each seat sees its own order.
 
 Not played (as the challenge): a question with a picture, order, match, cloze, essay.
 
@@ -69,7 +75,16 @@ calls before this one. **Presence**: a seat is here when its last call is at mos
    question ends the duel (`done`); the next shows when both are here.
 4. **The wait.** A seat away when the next question is due: the duel waits up to **60 s** (from that moment). Back in
    time: the next question shows. Still away: the one who stayed wins whatever the score (`left`); both gone: no winner
-   (`gone`).
+   (`gone`). The end of a wait is decided first, before anything else of the call, and by where the seats were at the
+   deadline (their calls before it, `seen_at`), never by who happens to call first after it: the one away that comes
+   back a second late and calls before the stayer has still lost, the stayer wins.
+5. **The wait budget.** A seat may keep the duel waiting **120 s** in all (`waited_ms`, charged when a wait ends: from
+   the moment the question was due to the seat's return, or the whole wait). A wait for a seat that has less left lasts
+   only what is left (`wait_until` is then sooner and `wait_open` true); when it ends the next question shows without
+   that seat, and once the budget is spent no question waits for it at all — it answers none while it is away and plays
+   on when it is back. Without the budget a seat could stretch a 30-question duel by going away for 59 s before every
+   question; with it a duel waits at most 4 minutes in all (both seats), and only a seat away a whole minute at once
+   decides the duel (`left`). A wait while both are away is no seat's: it charges nobody and ends `gone`.
 
 ## 5. Who sees what
 
@@ -79,9 +94,19 @@ calls before this one. **Presence**: a seat is here when its last call is at mos
 | a question's text and options | from its `shown_at`, in the seat's own order | never |
 | the own answer | yes (no verdict before the close) | never |
 | the other seat's answer to an open question | only «answered» | never |
-| a question's key, forms, explanation, both answers and points | only once that question closed; the other seat's typed text masked when the live game's filter of names (`live_name_rude`) would not show it — the writer's own view keeps it | never |
+| a question's key, forms, explanation, both answers and points | only once that question closed; the other seat's typed text masked when the duel's mask finds it rude (below) — the writer's own view keeps it | never |
 | the review (both answers of every closed question) | once the duel is over | never |
 | tokens, hashes, seat ids | never | never |
+
+**The mask** (`meldy_private.live_duel_rude`, judged once when the answer is written and kept in `live_duel_answers.rude`):
+the text lower-cased (an explicit table, ё → е); punctuation between words splits them, anything else but letters and
+`*` inside a word goes («Су-ка»); each word is checked as it is, with its repeated letters collapsed («сукааа») and with
+Latin look-alikes read as Cyrillic («cyka»); a run of single letters is checked as one word («с у к а», «х у й»), and a
+run of words of one or two letters with a single letter in it from its start and to its end («пи з д а»). A word is
+rude when it is a whole word of the list or a root of the list stands at its start after at most one prefix («нахуй»,
+«пошёл на х*й»: `*` stands for one hidden letter); a short root inside an ordinary word is never enough
+(«застрахуйте», «корабля», «употреблять», «психуй», «Херсон», «сукно» stay readable). It is a mask for the other seat's
+eyes, not a moderation: a determined writer gets past any list, and the writer's own view and review keep the text.
 
 Each seat sees the options in its own order (`meldy_private.live_run_perm` of the seat's id, which is never sent): the
 question's options, the own answer, the other seat's picks, the key and the review are all mapped into it; answers come
@@ -97,8 +122,8 @@ before it locks the duel (a wrong token never holds the lock), then settles.
 
 - `duel_create(p_source, p_settings, p_name, p_token, p_look) → DuelState` — the sources of §2; settings `time_s`, `speed`,
   `calm` (a challenge's or a game's own by default). The name (`ML006`), the look (`ML007`), no playable question
-  (`ML008`, details the skipped), the limits (§8) — all checked before old duels are cleaned up (90 days after create)
-  and before anything is written.
+  (`ML008`, details the skipped), the limits (§8) — all checked before old duels are cleaned up (90 days after create;
+  a lobby nobody joined a day after it expired, 2 days after its create) and before anything is written.
 - `duel_info(p_code) → {code, title, q_count, time_s, speed, stage, round, players: [{seat, name, look}], full, now}` (+ `calm`).
 - `duel_join(p_code, p_name, p_token, p_look) → DuelState` — the own seat back by this token, or by the signed-in account
   (the same account on another device takes the same seat over: its new token replaces the hash, the old device gets
@@ -118,7 +143,7 @@ before it locks the duel (a wrong token never holds the lock), then settles.
 ```jsonc
 // DuelState
 { "now": "…", "rev": 17,
-  "duel": { "code", "title", "q_count", "time_s", "speed", "stage", "qi", "round", "path", "url", "expires_at", "wait_until" }, // + calm
+  "duel": { "code", "title", "q_count", "time_s", "speed", "stage", "qi", "round", "path", "url", "expires_at", "wait_until", "wait_open" }, // + calm
   "me": { "seat", "name", "look", "dmg", "right", "streak", "best", "frozen", "ready", "next", "rematch" },
   "other": null | { "seat", "name", "look", "dmg", "right", "streak", "frozen", "ready", "present", "answered", "next", "rematch" },
   "question": null | { "qi", "soon": true, "shown_at", "opens_at", "closes_at" }
@@ -137,14 +162,26 @@ before it locks the duel (a wrong token never holds the lock), then settles.
 - Every **1 s** while something is timed (a question, its reveal, a wait), **1.5 s** in the lobby, **3 s** after the end;
   plus a call exactly when the server's clock says something is due (the text, the end of the time and its grace, the
   reveal's end, the wait's end).
-- On the `/sb` route (`lib/supabaseRoute.ts`: the browser reaches Supabase through the site) the proxy lets **600
-  anonymous calls a minute per address** through (`backend/supabase_proxy.py`, unchanged), shared by everyone behind one
-  NAT: there a device polls about every **3 s** while timed and in the lobby and **5 s** after the end, the due calls
-  still on top, and backs off on a 429 by 3 s more each time, at most 9 s.
-- Honest numbers: a guest's duel on the `/sb` route costs about 20–25 calls a minute (the polls, the due calls, the
-  presses). One classroom address therefore carries about **24 guests in duels at once** (12 duels) within the 600; more
-  get 429s, slow down, and still count as here (20 s). Signed-in players are counted by their session, not the address.
-  On the direct route the polls are about 60 calls a minute a device and Supabase's own limits apply.
+- On the `/sb` route (`lib/supabaseRoute.ts`: the browser reaches Supabase through the site) the proxy
+  (`backend/supabase_proxy.py`, slowapi) lets **600 calls a minute** through per key: a signed-in browser's session, a
+  guest's address (`visitor_ip_key`). The `rest/v1/rpc/duel_*` calls count in a bucket of their own (the key with
+  `:duel`), and the live game's `rest/v1/rpc/live_*` in another (`:live`), so a duel neither spends nor is starved by
+  the 600 the rest of the site's calls of that address share. There a device polls about every **3 s** while timed and
+  in the lobby and **5 s** after the end, the due calls still on top, and backs off on a 429 by 3 s more each time, at
+  most 9 s. A page that does not know its route (`preferredRoute()` null: a private window, storage blocked) polls at
+  the `/sb` pace too; what is due is still asked for exactly when it is due.
+- Refused for the rate (a 429 of the proxy: the database never saw the call): the start stays on its loading screen
+  («Сервер сейчас занят. Пробуем ещё раз…») and tries again after the same back-off, never the failed screen (an
+  `ML005` of the database whose Retry-After is over a minute is said as it is); an answer is sent again after 0.5, 1, 2,
+  2 s… (a longer Retry-After taken) while the server still takes it — the last try 300 ms before `closes_at` + 1.5 s —
+  and stops when a poll brings the close; its elapsed time is the server's at the try that reaches it.
+- Honest numbers (the `/sb` route, a guest): the polls are 20 calls a minute while timed; the due calls (the text, the
+  time's end, the reveal's end: 2–3 a question) and the presses (the answer, «Дальше») add 8–18 more with questions of
+  10–20 s — about **30 calls a minute** a device, up to about 38 with short questions answered at once; 12 after the
+  end. One classroom address therefore carries about **20 guests in duels at once** (10 duels) within the duel
+  bucket's 600; more get 429s, slow down by the back-off, still count as here (20 s) and lose a moment on an answer, not
+  the answer. Signed-in players have their session's own buckets. On the direct route the polls are about 60 calls a
+  minute a device (plus the due calls and presses) and Supabase's own limits apply.
 - Both pressed «Ещё раз»: the device moves to the next duel — after every state and on the start, so a reload after both
   pressed lands there; the final shows a plain link to it.
 
@@ -153,9 +190,20 @@ before it locks the duel (a wrong token never holds the lock), then settles.
 - Creates: **20 an hour** and **20 unfinished** duels an account (`ML005 create` 429 + Retry-After; `ML009`). A guest:
   **120 an hour per address** (a class behind one NAT creates with room to spare); a signed-in person is never refused
   because of other people on their address. A rematch counts against the hourly limits (the account that made the
-  match, else the address of the press). Unfinished: a lobby, or a duel a seat called in the last 2 minutes.
-- Joins of the invited seat: **120 a minute** per address (the live game's join throttle) and **300 a day**
-  (`ML005 join` 429 + Retry-After). Taking a seat back counts nothing.
+  match, else the address of the press). Unfinished: a lobby whose creator was here in the last **30 minutes**, or a
+  started duel a seat called in the last 2 minutes — a lobby the creator walked away from stops counting long before it
+  expires (a day).
+- The source's own cap: a duel made from a challenge run or a game's player (`source_ref`, the run or the player whose
+  token was proven at the create) counts against that run or player: **20 an hour** (rematches count; `ML005 create`
+  429 + Retry-After) and **5 unfinished** (`ML009 source`). The address is the first X-Forwarded-For entry, which a
+  caller on the direct route can choose; the run's token is not, so a guest cannot mint duels from one run by changing
+  addresses.
+- Joins of the invited seat (`ML005 join` 429 + Retry-After): a signed-in person **120 a minute** and **300 a day** by
+  the account, never refused because of other people on the address; a guest **120 a minute** per address (the live
+  game's join throttle) and **3000 a day** (a school behind one NAT does not reach it in a day of lessons). Taking a
+  seat back counts nothing.
+- The throttle's rows go after a day; duels 90 days after their create; a lobby nobody joined a day after it expired
+  (round 1, no second seat ever; a match's rematches stay with the match).
 
 ## 9. «Ещё раз»
 
@@ -205,6 +253,25 @@ never graded by the new key.
 ## 12. Release order
 
 The migration first: it only adds (four tables, the throttle, `duel_*` and `live_duel_*`), and nothing calls it yet.
-Then the site. The Space has nothing to change (the `/sb` proxy passes every `rest/v1` call). No Edge Function. The
+The Space's `/sb` proxy change (the `duel_*` and `live_*` buckets, §7) any time: it only splits the counts, and the
+live game's polls gain room too. Then the site. No Edge Function. The
 migration and the rollback set `lock_timeout` to **2 s** for their transaction: a lock held by a busy game makes the
 apply fail and be tried again, never queue the site's queries behind it.
+
+## 13. Known risks (left as they are)
+
+- **A write per poll.** Every seat's call updates its `seen_at` (presence is the last call), so a duel writes a row
+  about once a second a device on the direct route (every 3 s on `/sb`), each under the duel's row lock. Two seats per
+  duel keep the contention low and the rows are small; the cost is WAL and dead tuples on `live_duel_seats`. Not
+  changed: skipping writes for calls within a second or two of the last would blur the 20 s presence and the wait's
+  deadline (§4) for little gain at the expected scale.
+- **The trusted X-Forwarded-For.** The address limits (a guest's creates, a guest's joins) read the first
+  X-Forwarded-For entry (`meldy_private.quiz_ip_hash`, as the quiz and the live game do): through `/sb` it is the
+  visitor's address set by the site; on the direct route a caller can put any address there. The account limits, the
+  source's own cap (§8) and the token-bound seats are not affected; a guest's container duel is impossible (a container
+  source needs its author). Inherited from the quiz and the live game, not changed here.
+- **The proxy's fixed window.** slowapi counts 600 a minute in fixed one-minute windows: a burst across a window's edge
+  can pass up to twice the rate for a moment, and a 429 lasts until the window turns (up to a minute), whatever the
+  back-off. The duel absorbs it (the presence threshold is 20 s, the polls back off, answers are sent again until the
+  server's last moment), but an answer can still miss a question when an address is far over its rate for the whole
+  question. Not changed here: the proxy's window is the site's, not the duel's.
