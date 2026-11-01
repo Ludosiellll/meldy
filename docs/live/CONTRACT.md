@@ -10,6 +10,11 @@ Names: game = `live_games` row; host = the exam's author running it; player = an
 «Соревнование в своё время» (each person alone by a link, before a deadline; the battle's numbers for one player) has its
 own contract: `docs/live/CHALLENGE.md` (migration `20261106090100_live_challenge.sql`). Nothing in this file changes for it.
 
+«Дуэль» (two people, the same questions at the same time, by an invite link; the battle's phase 0 for each seat) has its
+own contract: `docs/live/DUEL.md` (migration `20261106090200_live_duel.sql`). Nothing in this file changes for it either:
+under a finished game's own review a player is offered «Дуэль на этих вопросах» (the game's closed questions, from their
+frozen rows).
+
 ## 1. States
 
 ```
