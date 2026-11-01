@@ -10,14 +10,16 @@
  *   `opens_at` and its end, the reveal's end and the end of a wait are asked from the server exactly when its clock says
  *   they are due (the server settles them), never decided here.
  * - The poll (`duel_state` with the rev held): every 1 s while something is timed, 1.5 s in the lobby, 3 s after the end;
- *   on the /sb route (lib/supabaseRoute: the proxy lets 600 anonymous calls a minute through per address) every 3 s and
- *   5 s after the end, the due calls on top; a 429 backs off 3 s more each time, at most 9 s (lib/duel/rules).
+ *   on the /sb route (lib/supabaseRoute: the proxy lets 600 duel calls a minute through per address), and whenever the
+ *   route is unknown, every 3 s and 5 s after the end, the due calls on top; a 429 backs off 3 s more each time, at most
+ *   9 s (lib/duel/rules). The start refused for the rate stays on its loading screen and tries again by the same
+ *   back-off; an answer refused for the rate is sent again while the server still takes it (closes_at + 1.5 s).
  * - A rematch both pressed moves this device to the next duel — after every state and on the start (a reload after
  *   both pressed «Ещё раз» lands on the new duel).
  */
 import { LiveError, type AnswerInput, type BodyId, type ColourId, type EyesId, type HatId, type Look, type UnlockId } from '../../lib/live/types';
 import { LOCKED, checkName, defaultLook } from '../../lib/live/rules';
-import { CODE_RE, GRACE_MS, backoffMs, pollMs, type Route } from '../../lib/duel/rules';
+import { CODE_RE, GRACE_MS, answerRetryMs, backoffMs, pollMs, type Route } from '../../lib/duel/rules';
 import { dropDuelToken, duelToken, keepDuelToken, newDuelToken } from '../../lib/duel/token';
 import { isUnchanged, type DuelApi, type DuelInfo, type DuelReview, type DuelState, type DuelUnchanged } from '../../lib/duel/types';
 import { practiceRefusal, type Part, type PracticeView } from '../live/player/controller';
@@ -210,11 +212,31 @@ export class DuelController {
   // ─────────────────────────────────────────── entry ───────────────────────────────────────────
 
   /** The way in: the link's code; `practice`: back from the sign-in «Тренировать ошибки» asked for. */
-  async start(code: string, entry: { practice?: boolean } = {}): Promise<void> {
+  start(code: string, entry: { practice?: boolean } = {}): Promise<void> {
+    return this.enter(code, entry, 0);
+  }
+
+  /**
+   * A start refused for the rate (the /sb proxy's 429, or the server's ML005 for at most a minute): the loading screen
+   * stays (saying the server is busy) and the start is tried again after the polls' back-off. False: not that refusal.
+   */
+  private retryStart(e: LiveError, gen: number, attempt: number, again: () => void): boolean {
+    if (!rateRefused(e) || (e.retryAfterS ?? 0) > 60) return false;
+    const n = attempt + 1;
+    this.set({ backoff: n });
+    this.later(backoffMs(n, e.retryAfterS), () => {
+      if (gen === this.gen) again();
+    });
+    return true;
+  }
+
+  private async enter(code: string, entry: { practice?: boolean }, attempt: number): Promise<void> {
     this.disposed = false;
     this.stopPolling();
     const gen = ++this.gen;
-    this.set({ code, step: 'loading', state: null, info: null, review: null, reviewError: null, practice: { status: 'idle' }, moving: null, error: null, gone: null });
+    const again = () => void this.enter(code, entry, attempt + 1);
+    this.set({ code, step: 'loading', state: null, info: null, review: null, reviewError: null, practice: { status: 'idle' }, moving: null, error: null, gone: null,
+               backoff: attempt === 0 ? 0 : this.s.backoff });
     if (!CODE_RE.test(code)) {
       this.set({ step: 'gone', gone: DU.gone.noLink });
       return;
@@ -233,6 +255,7 @@ export class DuelController {
       } catch (error) {
         if (gen !== this.gen) return;
         const e = err(error);
+        if (this.retryStart(e, gen, attempt, again)) return;
         if (e.code === 'P0002' && e.detail === 'token') {
           dropDuelToken(code);
           this.token = null;
@@ -251,6 +274,7 @@ export class DuelController {
     } catch (error) {
       if (gen !== this.gen) return;
       const e = err(error);
+      if (this.retryStart(e, gen, attempt, again)) return;
       this.set({ step: 'gone', gone: e.code === 'P0002' ? DU.gone.noLink : { title: DU.gone.failedTitle, text: errorWords(e) } });
       return;
     }
@@ -277,6 +301,7 @@ export class DuelController {
       } catch (error) {
         if (gen !== this.gen) return;
         const e = err(error);
+        if (this.retryStart(e, gen, attempt, again)) return;
         if (e.code === 'ML002') {
           this.set({ step: 'gone', gone: DU.gone.over });
           return;
@@ -310,7 +335,8 @@ export class DuelController {
 
   /** The token's seat as the server has it (the start, the join, a takeover). */
   private seated(st: DuelState): void {
-    this.set({ state: st, step: 'duel', name: st.me.name, look: st.me.look, otherPresent: st.other?.present ?? null, busy: false, error: null });
+    this.retryAfterS = null;
+    this.set({ state: st, step: 'duel', name: st.me.name, look: st.me.look, otherPresent: st.other?.present ?? null, busy: false, error: null, backoff: 0 });
     if (this.shouldMove(st)) {
       this.moveTo(st.rematch!.code!);
       return;
@@ -522,9 +548,13 @@ export class DuelController {
     const q = st?.question;
     if (!st || !q || q.closed_at || st.answer || this.s.sending || !this.token) return;
     const qi = q.qi;
+    const closesAt = Date.parse(q.closes_at);
     this.set({ sending: true, error: null });
     this.haptic('tap');
-    for (let attempt = 0; ; attempt += 1) {
+    // network failures and an early answer: 3 tries more; a refusal for the rate: while the server still takes it
+    let tries = 0;
+    let rated = 0;
+    for (;;) {
       try {
         const got = await this.call(() => this.api.answer(this.s.code, this.token!, qi, input));
         this.set({ sending: false });
@@ -533,12 +563,30 @@ export class DuelController {
         return;
       } catch (error) {
         const e = err(error);
-        if (e.code === 'network' && attempt < 3) {
+        if (e.code === 'network' && tries < 3) {
+          tries += 1;
           await new Promise((r) => this.later(800, () => r(null)));
           continue;
         }
-        if (e.code === 'ML004' && e.detail === 'early' && attempt < 3) {
+        if (rateRefused(e)) {
+          // refused for the rate before the database saw it: again while the server still takes it
+          rated += 1;
+          const pause = answerRetryMs(rated, e.retryAfterS, closesAt + GRACE_MS - this.serverNow());
+          if (pause !== null) {
+            await new Promise((r) => this.later(pause, () => r(null)));
+            const now = this.s.state;
+            if (!now?.question || now.question.qi !== qi || now.question.closed_at || now.answer) {
+              // a poll brought the close (or the answer) meanwhile
+              this.set({ sending: false });
+              this.schedule();
+              return;
+            }
+            continue;
+          }
+        }
+        if (e.code === 'ML004' && e.detail === 'early' && tries < 3) {
           // the device's clock ran ahead: the answers open a moment later
+          tries += 1;
           await new Promise((r) => this.later(400, () => r(null)));
           continue;
         }

@@ -21,6 +21,8 @@ export function clockText(ms: number): string {
 export const DU = {
   name: 'Дуэль',
   loading: 'Открываем дуэль…',
+  /** The start refused for the rate (429): the page tries again by itself. */
+  loadingBusy: 'Сервер сейчас занят. Пробуем ещё раз…',
   gone: {
     noLink: { title: 'Дуэль не найдена', text: 'Проверьте адрес или попросите ссылку у того, кто её прислал.' },
     over: { title: 'Эта дуэль уже закончилась', text: 'Попросите новую ссылку, если хотите сыграть.' },
@@ -110,6 +112,8 @@ export const DU = {
   wait: {
     title: 'Соперник пропал со связи',
     text: 'Ждём его до минуты. Если не вернётся, победа ваша, какой бы ни был счёт.',
+    /** Its wait budget runs out before the minute: the duel goes on without it. */
+    openText: 'Он уже пропадал в этой дуэли, поэтому ждём меньше. Если не вернётся, следующий вопрос начнётся без него.',
     left: (clock: string) => `Осталось ${clock}`,
   },
   final: {
@@ -171,7 +175,9 @@ export function errorWords(e: LiveError): string {
     case 'ML008':
       return 'В этом тесте нет вопросов, которые можно сыграть в дуэли.';
     case 'ML009':
-      return 'У вас 20 незаконченных дуэлей. Доиграйте одну из них.';
+      return d === 'source'
+        ? 'На этих вопросах уже открыто 5 незаконченных дуэлей. Доиграйте одну из них.'
+        : 'У вас 20 незаконченных дуэлей. Доиграйте одну из них.';
     case 'ML004':
       if (d === 'late') return 'Время вышло: ответ не успел.';
       if (d === 'twice') return 'Ответ на этот вопрос уже принят.';
@@ -187,7 +193,8 @@ export function errorWords(e: LiveError): string {
     case 'network':
       return 'Нет связи. Проверьте интернет и попробуйте снова.';
     default:
-      return 'Не получилось. Попробуйте ещё раз.';
+      // a 429 of the site's /sb proxy: no code of the database
+      return e.status === 429 ? 'Сервер сейчас занят. Подождите немного и попробуйте снова.' : 'Не получилось. Попробуйте ещё раз.';
   }
 }
 

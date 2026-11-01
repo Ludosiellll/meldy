@@ -1,8 +1,9 @@
 /**
  * «Дуэль»: the seat's controller (components/duel/controller.ts) against a scripted server — the move to the next round
  * after a reload and after a poll (both pressed «Ещё раз»), the polls by the stage and the route (1 s timed, 3 s on the
- * /sb proxy, the call exactly when something is due), the back-off on a 429, a full link with and without a session,
- * the seat taken over elsewhere, «unchanged».
+ * /sb proxy and when the route is unknown, the call exactly when something is due), the back-off on a 429 (of a poll,
+ * of the start, of an answer sent again until the server's last moment), a full link with and without a session, the
+ * seat taken over elsewhere, «unchanged».
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LiveError } from '../../lib/live/types';
@@ -10,7 +11,7 @@ import type { DuelApi, DuelState, DuelUnchanged } from '../../lib/duel/types';
 import type { Route } from '../../lib/duel/rules';
 import { dropDuelToken } from '../../lib/duel/token';
 import { DuelController } from './controller';
-import { DU } from './copy';
+import { DU, errorWords } from './copy';
 
 const CODE = 'abcdefghjkmn';
 const NEXT = 'npqrstvwxyz2';
@@ -161,6 +162,15 @@ describe('the polls', () => {
     ctl.dispose();
   });
 
+  it('a route the page does not know (no storage): the /sb pace, not the direct one', async () => {
+    const { a, ctl } = await seatedOn(null);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(a.state).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(a.state).toHaveBeenCalledTimes(2);
+    ctl.dispose();
+  });
+
   it('on the /sb route still a call exactly when the server says the time is up', async () => {
     const { a, ctl } = await seatedOn('proxy', { qi: 0, text: 'Вопрос', options: ['a', 'b'], shown_at: iso(-4000), opens_at: iso(-1000), closes_at: iso(500) });
     // the end of the time and its 1.5 s of grace, by the server's clock, and 150 ms more
@@ -255,6 +265,155 @@ describe('the polls', () => {
     expect(ctl.getSnapshot().gone).toEqual(DU.gone.other);
     expect(window.localStorage.getItem(`meldy.duel.${CODE}`)).toBeNull();
     ctl.dispose();
+  });
+});
+
+describe('refused for the rate (429)', () => {
+  const busy = () => new LiveError('unknown', null, 429);
+
+  it('the start backs off and tries again on its loading screen, never the failed one', async () => {
+    window.localStorage.setItem(`meldy.duel.${CODE}`, TOKEN);
+    let call = 0;
+    const a = api({
+      state: vi.fn(async () => {
+        call += 1;
+        if (call <= 2) throw busy();
+        return makeState();
+      }),
+    });
+    const ctl = new DuelController({ api: a, route: () => 'proxy' });
+    await ctl.start(CODE);
+    expect(ctl.getSnapshot().step).toBe('loading');
+    expect(ctl.getSnapshot().backoff).toBe(1);
+    await vi.advanceTimersByTimeAsync(2999);
+    expect(a.state).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(a.state).toHaveBeenCalledTimes(2);
+    expect(ctl.getSnapshot().step).toBe('loading');
+    expect(ctl.getSnapshot().backoff).toBe(2);
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(a.state).toHaveBeenCalledTimes(3);
+    expect(ctl.getSnapshot().step).toBe('duel');
+    expect(ctl.getSnapshot().backoff).toBe(0);
+    expect(window.localStorage.getItem(`meldy.duel.${CODE}`)).toBe(TOKEN);
+    // the polls go on at their own pace
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(a.state).toHaveBeenCalledTimes(4);
+    ctl.dispose();
+  });
+
+  it('the link\'s info refused for the rate: the same; a long ML005 is said as it is', async () => {
+    const info = { code: CODE, title: 'Т', q_count: 3, time_s: 20, speed: true, stage: 'lobby' as const, round: 1, players: [], full: false };
+    let call = 0;
+    const a = api({
+      info: vi.fn(async () => {
+        call += 1;
+        if (call === 1) throw busy();
+        return info;
+      }),
+    });
+    const ctl = new DuelController({ api: a });
+    await ctl.start(CODE);
+    expect(ctl.getSnapshot().step).toBe('loading');
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(ctl.getSnapshot().step).toBe('intro');
+    ctl.dispose();
+    const b = api({ info: vi.fn(async () => ({ ...info, full: true })), join: vi.fn(async () => Promise.reject(new LiveError('ML005', 'join', 429, 3600))) });
+    const ctl2 = new DuelController({ api: b, signedIn: () => true });
+    await ctl2.start(CODE);
+    expect(ctl2.getSnapshot().step).toBe('gone');
+    ctl2.dispose();
+  });
+
+  it('an answer is sent again until it is taken, and its pending state stays meanwhile', async () => {
+    window.localStorage.setItem(`meldy.duel.${CODE}`, TOKEN);
+    const st = makeState();
+    let tries = 0;
+    const a = api({
+      state: vi.fn(async () => ({ unchanged: true, rev: 5, now: iso(0), stage: 'play', other: { present: true } }) as DuelUnchanged),
+      answer: vi.fn(async () => {
+        tries += 1;
+        if (tries <= 2) throw busy();
+        return { ...st, rev: 6, answer: { at: iso(0) } } as unknown as DuelState;
+      }),
+    });
+    a.state.mockImplementationOnce(async () => st);
+    const ctl = new DuelController({ api: a, route: () => 'proxy' });
+    await ctl.start(CODE);
+    const sent = ctl.answer({ choice: 1 });
+    await settle();
+    expect(a.answer).toHaveBeenCalledTimes(1);
+    expect(ctl.getSnapshot().sending).toBe(true);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(a.answer).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    await sent;
+    expect(a.answer).toHaveBeenCalledTimes(3);
+    expect(vi.mocked(a.answer).mock.calls.every((c: unknown[]) => c[2] === 0 && JSON.stringify(c[3]) === '{"choice":1}')).toBe(true);
+    expect(ctl.getSnapshot().sending).toBe(false);
+    expect(ctl.getSnapshot().error).toBeNull();
+    expect(ctl.getSnapshot().state?.rev).toBe(6);
+    ctl.dispose();
+  });
+
+  it('an answer refused for the rate is given up at the server\'s last moment (closes_at + 1.5 s), not before', async () => {
+    window.localStorage.setItem(`meldy.duel.${CODE}`, TOKEN);
+    // 4 s of the time left: the server takes the answer for 5.5 s more
+    const st = makeState({ question: { qi: 0, text: 'Вопрос', options: ['a', 'b'], shown_at: iso(-20_000), opens_at: iso(-16_000), closes_at: iso(4000) } });
+    const at: number[] = [];
+    const t0 = Date.now();
+    const a = api({
+      state: vi.fn(async () => st),
+      answer: vi.fn(async () => {
+        at.push(Date.now() - t0);
+        throw busy();
+      }),
+    });
+    const ctl = new DuelController({ api: a, route: () => 'proxy' });
+    await ctl.start(CODE);
+    const sent = ctl.answer({ choice: 0 });
+    await vi.advanceTimersByTimeAsync(8000);
+    await sent;
+    // 0, 0.5, 1.5, 3.5, then the last 300 ms before 5.5 s
+    expect(at).toEqual([0, 500, 1500, 3500, 5200]);
+    expect(ctl.getSnapshot().sending).toBe(false);
+    expect(ctl.getSnapshot().error).not.toBeNull();
+    ctl.dispose();
+  });
+
+  it('a poll that brings the close while the answer waits ends the tries', async () => {
+    window.localStorage.setItem(`meldy.duel.${CODE}`, TOKEN);
+    const st = makeState({ question: { qi: 0, text: 'Вопрос', options: ['a', 'b'], shown_at: iso(-20_000), opens_at: iso(-16_000), closes_at: iso(4000) } });
+    const closed = makeState({ rev: 7, question: { ...st.question!, closed_at: iso(0), reveal_until: iso(7000) } });
+    let polls = 0;
+    const a = api({
+      state: vi.fn(async () => {
+        polls += 1;
+        return polls === 1 ? st : closed;
+      }),
+      answer: vi.fn(async () => Promise.reject(busy())),
+    });
+    const ctl = new DuelController({ api: a, route: () => 'direct' });
+    await ctl.start(CODE);
+    const sent = ctl.answer({ choice: 0 });
+    await vi.advanceTimersByTimeAsync(1600);
+    await sent;
+    expect(vi.mocked(a.answer).mock.calls.length).toBeLessThanOrEqual(3);
+    expect(ctl.getSnapshot().sending).toBe(false);
+    expect(ctl.getSnapshot().state?.question?.closed_at).toBeTruthy();
+    const n = vi.mocked(a.answer).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(a.answer).toHaveBeenCalledTimes(n);
+    ctl.dispose();
+  });
+});
+
+describe('the words of a refusal', () => {
+  it('the source\'s own cap and a busy proxy say what they are', () => {
+    expect(errorWords(new LiveError('ML009', 'source'))).toContain('На этих вопросах уже открыто 5');
+    expect(errorWords(new LiveError('ML009'))).toContain('20 незаконченных');
+    expect(errorWords(new LiveError('unknown', null, 429))).toContain('Сервер сейчас занят');
+    expect(errorWords(new LiveError('unknown', null, 500))).toBe('Не получилось. Попробуйте ещё раз.');
   });
 });
 

@@ -40,8 +40,12 @@ export interface DuelHead {
   url: string;
   /** The lobby: when an unstarted duel expires. */
   expires_at: string | null;
-  /** The wait between questions: when the one who stayed wins. */
+  /**
+   * The wait between questions: when it ends — the one who stayed wins then, or, when `wait_open`, the next question
+   * starts without the seat away (its 120 s of waiting a duel are spent by then).
+   */
   wait_until: string | null;
+  wait_open?: boolean;
 }
 
 export interface DuelMe {

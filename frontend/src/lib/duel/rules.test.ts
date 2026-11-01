@@ -10,6 +10,7 @@ import {
   BACKOFF_MAX_MS,
   POLL_PROXY_MS,
   SLOWEST_CALL_MS,
+  answerRetryMs,
   backoffMs,
   duelPoints,
   freshSeat,
@@ -59,12 +60,25 @@ describe('the winner', () => {
 describe('the polls', () => {
   it('1 s while timed, 1.5 s in the lobby, 3 s after the end; about 3 s on the /sb route', () => {
     expect(pollMs('play', 'direct')).toBe(1000);
-    expect(pollMs('wait', null)).toBe(1000);
     expect(pollMs('lobby', 'direct')).toBe(1500);
     expect(pollMs('final', 'direct')).toBe(3000);
     expect(pollMs('play', 'proxy')).toBe(POLL_PROXY_MS);
     expect(pollMs('lobby', 'proxy')).toBe(3000);
     expect(pollMs('final', 'proxy')).toBe(5000);
+  });
+  it('a route the page does not know (a private window keeps none) polls at the /sb pace', () => {
+    expect(pollMs('wait', null)).toBe(POLL_PROXY_MS);
+    expect(pollMs('lobby', null)).toBe(3000);
+    expect(pollMs('final', null)).toBe(5000);
+  });
+  it('an answer refused for the rate: 0.5, 1, 2, 2 s… (a longer Retry-After taken), never past the server\'s last moment', () => {
+    expect([1, 2, 3, 4].map((n) => answerRetryMs(n, null, 20_000))).toEqual([500, 1000, 2000, 2000]);
+    expect(answerRetryMs(1, 3, 20_000)).toBe(3000);
+    // Retry-After beyond the deadline: one last try 300 ms before it
+    expect(answerRetryMs(2, 30, 5000)).toBe(4700);
+    expect(answerRetryMs(1, null, 600)).toBe(300);
+    expect(answerRetryMs(1, null, 300)).toBeNull();
+    expect(answerRetryMs(1, null, -50)).toBeNull();
   });
   it('a 429 backs off 3 s more each time, at most 9 s, Retry-After when shorter', () => {
     expect([1, 2, 3, 4].map((n) => backoffMs(n, null))).toEqual([3000, 6000, 9000, 9000]);

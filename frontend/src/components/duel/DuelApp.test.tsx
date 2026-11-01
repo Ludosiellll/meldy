@@ -166,6 +166,21 @@ describe('the wait and the final', () => {
     expect(plain(wait.textContent)).toContain(DU.wait.title);
     expect(plain(wait.textContent)).toMatch(/Осталось 0:4[45]/);
     expect(plain(view.container.querySelector('.du-side[data-side="other"]')?.textContent)).toContain(DU.lobby.away);
+    expect(plain(wait.textContent)).toContain(DU.wait.text);
+    ctl.dispose();
+  });
+
+  it('a seat whose wait budget is nearly spent: a shorter wait, then the duel goes on without it', async () => {
+    const st = base();
+    st.duel = { ...st.duel, stage: 'wait', wait_until: iso(19_000), wait_open: true };
+    st.question = { ...st.question!, closed_at: iso(-8_000), reveal_until: iso(-1_000) };
+    st.other!.present = false;
+    st.result = { qi: 0, key: 1, me: null, other: null };
+    const { view, ctl } = await mount(st);
+    const wait = view.container.querySelector('.du-wait')!;
+    expect(plain(wait.textContent)).toContain(DU.wait.openText);
+    expect(plain(wait.textContent)).not.toContain(DU.wait.text);
+    expect(plain(wait.textContent)).toMatch(/Осталось 0:1[89]/);
     ctl.dispose();
   });
 

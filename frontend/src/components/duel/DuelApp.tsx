@@ -55,7 +55,7 @@ export function DuelApp({ ctl, signInHref, exitHref }: DuelAppProps) {
 
   let screen: ReactNode;
   const st = s.state;
-  if (s.step === 'loading') screen = <Message text={DU.loading} status />;
+  if (s.step === 'loading') screen = <Message text={s.backoff > 0 ? DU.loadingBusy : DU.loading} status />;
   else if (s.step === 'gone') screen = <Message title={s.gone?.title} text={s.gone?.text} exitHref={exitHref} alert />;
   else if (s.step === 'full')
     screen = (
@@ -681,7 +681,7 @@ function Wait({ st, now, offsetMs }: { st: DuelState; now: number; offsetMs: num
   return (
     <section className="du-wait" role="status" aria-live="polite">
       <h2>{DU.wait.title}</h2>
-      <p>{DU.wait.text}</p>
+      <p>{st.duel.wait_open ? DU.wait.openText : DU.wait.text}</p>
       <p className="du-wait-clock">{DU.wait.left(clockText(until - now))}</p>
     </section>
   );

@@ -112,7 +112,11 @@ export function winnerOf(a: { dmg: number; right: number }, b: { dmg: number; ri
 
 // ─────────────────────────────────────────── the polls (DUEL.md §7) ───────────────────────────────────────────
 
-/** How the device reaches the database (lib/supabaseRoute): directly, or through the site's /sb proxy. */
+/**
+ * How the device reaches the database (lib/supabaseRoute preferredRoute): directly, or through the site's /sb proxy;
+ * null when the page does not know (no route kept: a private window, storage blocked). Unknown counts as the /sb route:
+ * its slower pace is safe on both ways, and what is due is still asked for exactly when it is due.
+ */
 export type Route = 'direct' | 'proxy' | null;
 
 /** While something is timed (a question, its reveal, a wait) on the direct route. */
@@ -122,8 +126,9 @@ export const POLL_LOBBY_MS = 1500;
 /** After the end. */
 export const POLL_FINAL_MS = 3000;
 /**
- * On the /sb route: the proxy lets 600 anonymous calls a minute through per address, shared by everyone behind one NAT.
- * About 3 s while timed and in the lobby (a call exactly when something is due comes on top), 5 s after the end.
+ * On the /sb route: the proxy lets 600 calls a minute of duel_* RPCs through per address (a bucket of their own,
+ * backend/supabase_proxy.py), shared by everyone behind one NAT: 30 devices polling every 3 s. About 3 s while timed
+ * and in the lobby (a call exactly when something is due comes on top), 5 s after the end.
  */
 export const POLL_PROXY_MS = 3000;
 export const POLL_PROXY_FINAL_MS = 5000;
@@ -134,7 +139,7 @@ export const BACKOFF_MAX_MS = 9000;
 export type PollStage = 'lobby' | 'play' | 'wait' | 'final';
 
 export function pollMs(stage: PollStage, route: Route): number {
-  if (route === 'proxy') return stage === 'final' ? POLL_PROXY_FINAL_MS : POLL_PROXY_MS;
+  if (route !== 'direct') return stage === 'final' ? POLL_PROXY_FINAL_MS : POLL_PROXY_MS;
   if (stage === 'final') return POLL_FINAL_MS;
   return stage === 'lobby' ? POLL_LOBBY_MS : POLL_TIMED_MS;
 }
@@ -143,6 +148,23 @@ export function pollMs(stage: PollStage, route: Route): number {
 export function backoffMs(n: number, retryAfterS: number | null): number {
   const step = Math.min(BACKOFF_MAX_MS, BACKOFF_STEP_MS * Math.max(1, n));
   return retryAfterS !== null && retryAfterS > 0 ? Math.min(step, retryAfterS * 1000) : step;
+}
+
+/**
+ * An answer refused for the rate (a 429 of the /sb proxy: it never reached the database) is sent again after these
+ * pauses (the last one repeated, a longer Retry-After taken) while the server still takes it: until the question's
+ * closes_at + GRACE_MS, the last try ANSWER_LAST_MS before that.
+ */
+export const ANSWER_RETRY_MS: readonly number[] = [500, 1000, 2000];
+export const ANSWER_LAST_MS = 300;
+
+/** The pause before the n-th try again (n ≥ 1) of an answer refused for the rate, or null: no time is left for one. */
+export function answerRetryMs(n: number, retryAfterS: number | null, msLeft: number): number | null {
+  const last = msLeft - ANSWER_LAST_MS;
+  if (last <= 0) return null;
+  const step = ANSWER_RETRY_MS[Math.min(Math.max(1, n), ANSWER_RETRY_MS.length) - 1];
+  const wanted = retryAfterS !== null && retryAfterS > 0 ? Math.max(step, retryAfterS * 1000) : step;
+  return Math.min(wanted, last);
 }
 
 /** The slowest the device can be between two calls while it is on the page: the away threshold stays well above it. */
