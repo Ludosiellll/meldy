@@ -19,6 +19,7 @@ import { numberAnswer, padReady, typedText } from '../../lib/live/numbers';
 import type { AnswerInput } from '../../lib/live/types';
 import type { BoardRow, RunState } from '../../lib/challenge/types';
 import type { ChallengeController, ChallengeSnapshot } from './controller';
+import { DUEL_ENTRY } from '../duel/copy';
 import { CH, NBSP, dateText, pointsText, timeText } from './copy';
 import '../live/player/player.css';
 import './challenge.css';
@@ -610,6 +611,12 @@ function Final({ ctl, st, top }: { ctl: ChallengeController; st: RunState; top: 
           </section>
         ) : null}
         <p className="lc-played">{st.challenge.state === 'open' ? CH.final.note : CH.board.over}</p>
+        {/* «Дуэль на этих вопросах» (docs/live/DUEL.md): only once the challenge is over — the server refuses it before */}
+        {st.challenge.state === 'over' ? (
+          <a className="lp-btn lp-btn--second lc-duel" href={`/live/duel?ch=${st.challenge.code}`}>
+            {DUEL_ENTRY.sameQuestions}
+          </a>
+        ) : null}
       </div>
       <div className="lp-bar lp-bar--row">
         <button type="button" className="lp-btn lp-btn--main" onClick={() => void ctl.openReview()}>

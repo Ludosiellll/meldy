@@ -12,7 +12,8 @@ import { useWide } from './useWide';
 import { glue, TO_EXAMS } from './copy';
 import { nb } from './copyImport';
 import { TEST_HOME } from '../test/copyTest';
-import { LIVE_ENTRY, challengePath, keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../test/gameEntry';
+import { LIVE_ENTRY, challengePath, duelPath, keyCounts, liveGameOpen, liveGamePath, liveGameWhy } from '../test/gameEntry';
+import { DUEL_ENTRY } from '../duel/copy';
 import ChallengeList from '../challenge/ChallengeList';
 import { CHALLENGE_ENTRY } from '../challenge/copyAuthor';
 import TipCard from '../tips/TipCard';
@@ -99,12 +100,23 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
       {CHALLENGE_ENTRY.action}
     </Link>
   );
+  // «Дуэль» (docs/live/DUEL.md): two people, the same questions at the same time; shut for the same reason
+  const duel = !liveGameOpen() ? null : why ? (
+    <button type="button" className="th-send" disabled aria-describedby={whyId}>
+      {DUEL_ENTRY.action}
+    </button>
+  ) : (
+    <Link className="th-send" to={duelPath(containerId)}>
+      {DUEL_ENTRY.action}
+    </Link>
+  );
   const lead = (
     <>
       {wide ? studio : null}
       {send}
       {game}
       {challenge}
+      {duel}
     </>
   );
 

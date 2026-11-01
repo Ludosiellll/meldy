@@ -120,6 +120,8 @@ describe('a guest plays a challenge through', () => {
     expect(plain(screen.getByRole('heading', { level: 1 }).textContent)).toMatch(/Дедлайн (повержен|устоял)/);
     expect(plain(view.container.querySelector('.lp-result__place')?.textContent)).toMatch(/^\d-е местоиз 4$/);
     expect(plain(view.container.querySelector('.lp-stats3')?.textContent)).toContain('4 из 5');
+    // «Дуэль на этих вопросах» is not offered while the challenge is still open (the server would refuse it)
+    expect(screen.queryByRole('link', { name: 'Дуэль на этих вопросах' })).toBeNull();
 
     // the table: the own row among the others
     await click(CH.final.board);
@@ -180,6 +182,22 @@ describe('the challenge’s own cases', () => {
     expect(plain(view.container.querySelector('.lp-me-text')?.textContent)).toBe(CH.q.calm);
     await click(/COMMIT/);
     expect(plain(view.container.querySelector('.lc-sheet')?.textContent)).toContain(CH.sheet.calmMiss);
+  });
+
+  it('a finished run of a challenge that is over offers «Дуэль на этих вопросах» (docs/live/DUEL.md)', async () => {
+    const api = createFakeChallengeApi({ readyMs: 0, now });
+    const token = 'D'.repeat(43);
+    window.localStorage.setItem('meldy.challenge.demxchamp123', token);
+    let st = await api.join('demxchamp123', 'Дуэлянт', token, null);
+    for (let qi = 0; qi < st.challenge.q_count; qi += 1) {
+      st = await api.next('demxchamp123', token, qi);
+      const kind = st.question?.kind;
+      st = await api.answer('demxchamp123', token, qi, kind === 'multiple' ? { picks: [0] } : kind === 'short' || kind === 'number' ? { text: '1' } : { choice: 0 });
+    }
+    expect(st.run.finished).toBe(true);
+    await api.close((await api.mine())[0].challenge_id);
+    await mount('demxchamp123', api);
+    expect(screen.getByRole('link', { name: 'Дуэль на этих вопросах' })).toHaveAttribute('href', '/live/duel?ch=demxchamp123');
   });
 
   it('a closed challenge shows its table, not «Начать»', async () => {

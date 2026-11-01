@@ -33,7 +33,16 @@ export interface ReviewScreenProps {
   lead?: (right: number, total: number) => string;
   /** The words of «Назад» (the live game's: to the final or back). */
   backText?: string;
+  /** «Дуэль на этих вопросах» (docs/live/DUEL.md): the duel's setup for this finished game's questions; null: not offered. */
+  duelHref?: string | null;
 }
+
+/** «Дуэль на этих вопросах» (docs/live/DUEL.md) under the review of a finished game. */
+const DUEL_SAME = {
+  title: 'Дуэль на этих вопросах',
+  note: 'Сыграйте эти вопросы один на один с другом: каждый со своего телефона, в одно время.',
+  go: 'Дуэль на этих вопросах',
+};
 
 const PRACTICE = {
   title: 'Тренировать ошибки',
@@ -140,7 +149,7 @@ function NumberAnswer({ item }: { item: ReviewItem }) {
   );
 }
 
-export function ReviewScreen({ ctl, review, error, standalone, back, practice, signInHref, lead, backText }: ReviewScreenProps) {
+export function ReviewScreen({ ctl, review, error, standalone, back, practice, signInHref, lead, backText, duelHref = null }: ReviewScreenProps) {
   const right = review ? review.items.filter((i) => i.correct).length : 0;
   const mistakes = review ? review.items.length - right : 0;
   return (
@@ -224,6 +233,15 @@ export function ReviewScreen({ ctl, review, error, standalone, back, practice, s
                 </button>
               </>
             )}
+          </section>
+        ) : null}
+        {review && duelHref ? (
+          <section className="lp-card lp-rv-practice" aria-label={DUEL_SAME.title}>
+            <h2>{DUEL_SAME.title}</h2>
+            <p>{DUEL_SAME.note}</p>
+            <a className="lp-btn lp-btn--second" href={duelHref}>
+              {DUEL_SAME.go}
+            </a>
           </section>
         ) : null}
       </div>

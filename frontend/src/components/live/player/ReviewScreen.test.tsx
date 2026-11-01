@@ -23,3 +23,16 @@ describe('the review of a mixed game', () => {
     expect(view.container.querySelector('.lp-sub')?.textContent).toBe('Верно 0 из 3. Ключи\u00a0— только вопросов этой игры.');
   });
 });
+
+describe('the review of a finished game offers a duel on its questions (docs/live/DUEL.md)', () => {
+  const items = [{ qi: 0, text: 'Кнопки', options: ['A', 'B'], key: 0, choice: 1, correct: false }];
+  it('«Дуэль на этих вопросах» goes to the setup of a duel on this game', () => {
+    const view = render(<ReviewScreen ctl={{} as PlayerController} review={{ items }} error={null} standalone back="final" duelHref="/live/duel?g=g1" />);
+    const link = Array.from(view.container.querySelectorAll('a')).find((a) => a.textContent === 'Дуэль на этих вопросах');
+    expect(link?.getAttribute('href')).toBe('/live/duel?g=g1');
+  });
+  it('not offered without it (Telegram, the challenge)', () => {
+    const view = render(<ReviewScreen ctl={{} as PlayerController} review={{ items }} error={null} standalone back="final" />);
+    expect(view.container.textContent).not.toContain('Дуэль на этих вопросах');
+  });
+});
