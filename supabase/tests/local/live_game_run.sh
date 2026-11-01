@@ -1184,6 +1184,33 @@ else
   step "duel migration, second apply (re-runnable)" "$DMIG"
   [ "$(fingerprint)" = "$FDUEL" ] && ok "a second duel apply changes nothing in the catalog" || bad "a second duel apply changed the catalog"
   step "contract: live_duel.sql (the tables, the grants, the key's secrecy, the grading, the limits, practice)" "$DCONTRACT"
+  # The mask runs under the duel's row lock (duel_answer): its slowest case on 200 characters (one-letter words, words of
+  # one or two letters, both scripts, a formula), the mean of 20 calls each, stays under 20 ms.
+  DU_MASK=$("${PSQL[@]}" -d $DB 2>&1 <<'SQL'
+do $t$
+declare v_t text; t0 timestamptz; v boolean; v_ms numeric; v_worst numeric := 0;
+begin
+  foreach v_t in array array[repeat('а б ', 50), repeat('аб в ', 40), repeat('в аб ', 40), repeat('а b ', 50), repeat('x*', 100),
+                             repeat('с*', 100), repeat('а', 200), repeat('абвгдежз ', 22)] loop
+    perform meldy_private.live_duel_rude(v_t);
+    t0 := clock_timestamp();
+    for i in 1 .. 20 loop
+      v := meldy_private.live_duel_rude(v_t);
+    end loop;
+    v_ms := extract(epoch from (clock_timestamp() - t0)) * 1000 / 20;
+    v_worst := greatest(v_worst, v_ms);
+  end loop;
+  raise notice 'MASK_WORST_MS %', round(v_worst, 1);
+end
+$t$;
+SQL
+)
+  DU_MASK=$(echo "$DU_MASK" | grep -o 'MASK_WORST_MS [0-9.]*' | cut -d' ' -f2)
+  if [ -n "$DU_MASK" ] && awk -v m="$DU_MASK" 'BEGIN { exit !(m < 20) }'; then
+    ok "the mask's slowest case on 200 characters: $DU_MASK ms (under 20)"
+  else
+    bad "the mask's slowest case on 200 characters: ${DU_MASK:-?} ms (20 at most)"
+  fi
   duel_contracts "still holds after the duel migration"
   for i in 1 2; do
     behave "duel behaviour (run $i: each seat's order of the options is drawn from its new id)" "$DBEHAVIOUR" 'LIVE DUEL BEHAVIOUR PASSED'

@@ -100,13 +100,18 @@ calls before this one. **Presence**: a seat is here when its last call is at mos
 
 **The mask** (`meldy_private.live_duel_rude`, judged once when the answer is written and kept in `live_duel_answers.rude`):
 the text lower-cased (an explicit table, ё → е); punctuation between words splits them, anything else but letters and
-`*` inside a word goes («Су-ка»); each word is checked as it is, with its repeated letters collapsed («сукааа») and with
-Latin look-alikes read as Cyrillic («cyka»); a run of single letters is checked as one word («с у к а», «х у й»), and a
-run of words of one or two letters with a single letter in it from its start and to its end («пи з д а»). A word is
-rude when it is a whole word of the list or a root of the list stands at its start after at most one prefix («нахуй»,
-«пошёл на х*й»: `*` stands for one hidden letter); a short root inside an ordinary word is never enough
-(«застрахуйте», «корабля», «употреблять», «психуй», «Херсон», «сукно» stay readable). It is a mask for the other seat's
-eyes, not a moderation: a determined writer gets past any list, and the writer's own view and review keep the text.
+`*` inside a word goes («Су-ка»). A word without a Cyrillic letter is a formula or a Latin word: its `*` multiplies
+and splits it, its letters stay Latin («x*e», «a*s», «x y e» stay readable). Each word is checked as it is and with its
+repeated letters collapsed («сукааа»); a word of both scripts also with its Latin look-alikes read as Cyrillic
+(«сyка»); a few transliterations are words of the list («cyka»). A run of single letters is checked as one word («с у
+к а», «х у й»), and a run of words of one or two letters with a single letter in it from each of its words on and up to
+each of its first 12 words («пи з д а»); a joined run counts from 3 letters («е б» stays readable). A word is rude when
+it is a whole word of the list or a root of the list stands at its start after at most one prefix («нахуй», «пошёл на
+х*й»: in a Cyrillic word `*` stands for one hidden letter); a short root inside an ordinary word is never enough
+(«застрахуйте», «корабля», «употреблять», «психуй», «Херсон», «сукно» stay readable). The lists are two anchored
+regular expressions: the slowest 200 characters (one-letter words) take a few milliseconds under the duel's lock, and
+the rehearsal fails above 20 ms. It is a mask for the other seat's eyes, not a moderation: a determined writer gets
+past any list, and the writer's own view and review keep the text.
 
 Each seat sees the options in its own order (`meldy_private.live_run_perm` of the seat's id, which is never sent): the
 question's options, the own answer, the other seat's picks, the key and the review are all mapped into it; answers come
@@ -203,7 +208,8 @@ before it locks the duel (a wrong token never holds the lock), then settles.
   game's join throttle) and **3000 a day** (a school behind one NAT does not reach it in a day of lessons). Taking a
   seat back counts nothing.
 - The throttle's rows go after a day; duels 90 days after their create; a lobby nobody joined a day after it expired
-  (round 1, no second seat ever; a match's rematches stay with the match).
+  (round 1, no second seat ever; a match's rematches stay with the match), found through a partial index of that
+  predicate (`live_duels_lobby_gone_idx`).
 
 ## 9. «Ещё раз»
 
