@@ -332,9 +332,23 @@ function sortProblems(list: Problem[]): Problem[] {
   return PROBLEM_ORDER.filter((problem) => list.includes(problem));
 }
 
+/**
+ * A key the AI suggested stands in only for a key the file does not give: when the file's mark, as it is read now (the
+ * signal chosen: «Ответ выделен жирным» after the run, say), gives one, the file's key wins and the AI's is dropped.
+ */
+export function withFileKey(item: BankItem, fix: ItemFix, signal: KeySignal): ItemFix {
+  if (!fix.aiKey || !fix.correct || fileKey(item, signal).key.length === 0) return fix;
+  return { ...fix, correct: undefined, aiKey: undefined, aiOk: undefined };
+}
+
 /** The key a question has now, in the file's option indices, and where it came from. */
 function rawKey(item: BankItem, fix: ItemFix, signal: KeySignal): { key: number[]; source: KeySource; auto: boolean } {
   if (fix.correct) return { key: [...fix.correct], source: 'manual', auto: false };
+  return fileKey(item, signal);
+}
+
+/** The key the file gives as it is read now (the signal chosen), without the student's. */
+function fileKey(item: BankItem, signal: KeySignal): { key: number[]; source: KeySource; auto: boolean } {
   if (signal === 'none') return { key: [], source: 'none', auto: false };
   if (signal === 'first_option') return { key: item.options.length ? [0] : [], source: 'first_option', auto: false };
   if (signal !== 'auto') {
@@ -472,7 +486,8 @@ export function clozeAnswers(stem: string, gaps: readonly (readonly string[])[])
 }
 
 export function draftItem(item: BankItem, context: ItemContext): DraftItem {
-  const { fix, signal } = context;
+  const { signal } = context;
+  const fix = withFileKey(item, context.fix, signal);
   const uid = `${context.fileId}:${item.position}`;
   const pictures = item.images ?? null;
   const stemPictures = (pictures?.stem ?? []).slice(0, PICTURE_LIMITS.stem);
@@ -1083,9 +1098,11 @@ function variantGroupKey(nameKey: string): string {
  * student picks one. Twins inside one file stay as they are. A question the student removed takes its repeats along.
  */
 function groupSpec(members: Unit[], key: string, edits: ImportEdits): SubjectSpec {
-  const fixOf = (uid: string) => edits.items[uid] ?? {};
-  // A key the AI suggested is only a stand-in for a key the file did not give: another variant's own key of the same
-  // question (from its file, or set by the student) always wins over it, and two different own keys stay a conflict.
+  // A key the AI suggested is only a stand-in for a key the file did not give: its own file's key (withFileKey) or
+  // another variant's own key of the same question (from its file, or set by the student) always wins over it, and two
+  // different own keys stay a conflict.
+  const fixes = new Map<string, ItemFix>();
+  const fixOf = (uid: string) => fixes.get(uid) ?? edits.items[uid] ?? {};
   const ownFix = (uid: string): ItemFix => {
     const fix = fixOf(uid);
     return fix.aiKey && fix.correct ? { ...fix, correct: undefined } : fix;
@@ -1095,6 +1112,7 @@ function groupSpec(members: Unit[], key: string, edits: ImportEdits): SubjectSpe
   members.forEach((unit, index) => {
     for (const item of [...unit.items].sort((a, b) => a.position - b.position)) {
       const uid = `${unit.file.id}:${item.position}`;
+      fixes.set(uid, withFileKey(item, edits.items[uid] ?? {}, unit.signal));
       const fix = fixOf(uid);
       const identity = unit.file.format === 'open' || (item.kind === 'open' && !shortForms(item) && !item.number?.answers.length) ? `oral|${sameKey(item.text)}` : identityOf(item);
       const list = occurrences.get(identity) ?? [];

@@ -176,6 +176,22 @@ describe('«Подобрать ключи с ИИ»: what comes back', () => {
     expect(input.flags).toContain('ai_key');
   });
 
+  it('a key the file gives after the run (the student picks «Ответ выделен жирным») wins over the AI’s', () => {
+    // the file marks «три» in bold, but auto read no key; the AI suggested «один»
+    const bare = q(2, { marks: { bold: [0, 0, 1, 0] } });
+    const ai: ImportEdits['items'] = { 'f1:2': { correct: [0], kind: 'single', aiKey: true, aiOk: false } };
+    const [before] = deriveSubjects([file('f1', [bare])], { ...NO_EDITS, items: ai });
+    expect([before.test[0].correct, before.test[0].aiKey]).toEqual([[0], true]);
+    const [bold] = deriveSubjects([file('f1', [bare])], { ...NO_EDITS, items: ai, files: { f1: { signal: 'bold' } } });
+    const item = bold.test[0];
+    expect([item.correct, item.aiKey, item.keySource, item.problems, item.flags.includes('ai_key')]).toEqual([[2], undefined, 'bold', [], false]);
+    expect(aiKeyQueue([bold])).toEqual([]);
+    expect(itemInputs(bold, 'imp-x')[0]).toMatchObject({ correct: [2], key_source: 'bold' });
+    // a mark that gives no key leaves the AI's key as it was
+    const [none] = deriveSubjects([file('f1', [q(2)])], { ...NO_EDITS, items: ai, files: { f1: { signal: 'bold' } } });
+    expect([none.test[0].correct, none.test[0].aiKey]).toEqual([[0], true]);
+  });
+
   it('the label survives a question with many flags: ai_key goes first, before the cut to 16', () => {
     const many = Array.from({ length: 20 }, (_, k) => `mark_${String.fromCharCode(97 + k)}`);
     const edits: ImportEdits = { ...NO_EDITS, items: { 'f1:2': { correct: [1], kind: 'single', aiKey: true, aiOk: false } } };
