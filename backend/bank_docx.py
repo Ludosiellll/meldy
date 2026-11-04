@@ -270,11 +270,12 @@ _COMPLEX_LETTER_RE = re.compile(r"[\u0590-\u08ff\u0900-\u0dff\u0e00-\u0eff\ufb1d
 _ANY_LETTER_RE = re.compile(r"[^\W\d_]")
 
 
-def _complex_letters(text: str) -> bool:
-    """Все буквы куска — сложной письменности (арабские, еврейские…): такой кусок Word оформляет по w:bCs."""
+def _complex_letters(text: str) -> Optional[str]:
+    """Буквы сложной письменности (арабские, еврейские…) в куске: «all» — все буквы такие (кусок Word оформляет по
+    w:bCs), «some» — вперемешку с латиницей или кириллицей («A) نص»: каждая часть — по своему признаку), None — нет."""
     if not _COMPLEX_LETTER_RE.search(text):
-        return False
-    return all(_COMPLEX_LETTER_RE.match(char) for char in _ANY_LETTER_RE.findall(text))
+        return None
+    return "all" if all(_COMPLEX_LETTER_RE.match(char) for char in _ANY_LETTER_RE.findall(text)) else "some"
 
 
 class _Styles:
@@ -542,10 +543,14 @@ class RichDocxReader(docx_text._DocxReader):
         text = "".join(parts)
         if not text:
             return
-        complex_script = bool(marks.get("rtl") or marks.get("cs")) or _complex_letters(text)
+        script = "all" if marks.get("rtl") or marks.get("cs") else _complex_letters(text)
         bold, italic = marks.get("bold"), marks.get("italic")
-        if complex_script:  # такой текст Word показывает по w:bCs / w:iCs, а без них — по w:b / w:i
-            bold, italic = marks.get("bold_cs", bold), marks.get("italic_cs", italic)
+        if script:  # такой текст Word показывает по w:bCs / w:iCs, а без них — по w:b / w:i
+            bold_cs, italic_cs = marks.get("bold_cs", bold), marks.get("italic_cs", italic)
+            if script == "all":
+                bold, italic = bold_cs, italic_cs
+            else:  # вперемешку: жирная хоть одна часть — кусок жирный
+                bold, italic = bold or bold_cs, italic or italic_cs
         para.runs.append(Run(
             text=text,
             bold=bool(bold),

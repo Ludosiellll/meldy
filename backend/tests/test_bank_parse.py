@@ -439,7 +439,13 @@ def test_complex_script_bold_does_not_mark_cyrillic_options():
     ("<w:bCs/>", "שלום", True, False),
     ("<w:bCs/>", "مرحبا 12", True, False),
     ("<w:b/>", "مرحبا", True, False),
-    ("<w:bCs/>", "Hello שלום", False, False),
+    # вперемешку с латиницей: арабская или еврейская часть — по w:bCs, латинская — по w:b
+    ("<w:bCs/>", "Hello שלום", True, False),
+    ("<w:bCs/>", "A) نص", True, False),
+    ("<w:bCs/><w:iCs/>", "1) نص", True, True),
+    ('<w:b/><w:bCs w:val="0"/>', "A) نص", True, False),
+    ('<w:b w:val="0"/><w:bCs w:val="0"/>', "A) نص", False, False),
+    ("<w:i/>", "A) نص", False, True),
 ])
 def test_complex_script_marks_count_only_for_complex_script_runs(props, text, bold, italic):
     blocks = bank_docx.read_docx(docx_with_body(run_paragraph(text, props)))
