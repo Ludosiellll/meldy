@@ -376,6 +376,19 @@ MOODLE_CHROME_RE = re.compile(
     r"|partially correct|mark\s+[\d.]+\s+out\s+of\s+[\d.]+)$",
     re.I,
 )
+# Шапка бланка над вопросами (файлы колледжа, владелец, 2026-11-04): «Задание на выполнение контрольной работы…»,
+# «Учреждение образования «…колледж»», «Специальность …», «Министерство образования…», «УТВЕРЖДАЮ». Строка с начала.
+TITLE_FORM_RE = re.compile(
+    r"^(?:учреждени[ея]\s+образования|министерств[оа]\s+(?:образования|просвещения)|специальност[ьи](?![а-яё])"
+    r"|задани[ея]\s+(?:на|для)\s+выполнени|(?:итогов\w*\s+|комплексн\w*\s+|домашн\w*\s+)?(?:контрольн|экзаменационн|"
+    r"проверочн|самостоятельн)\w*\s+работ|утверждаю(?![а-яё])|рассмотрен\w*\s+(?:и\s+одобрен\w*\s+)?на\s+заседании)",
+    re.I)
+TITLE_BLOCK_CHARS = 1000
+TITLE_BLOCK_LINES = 12
+# Строка подписи под тестом: «Преподаватель ____ Иванов И.И. (подпись) (фамилия, инициалы) (дата)». Абзацем она уже
+# пропускается; таблицей «Преподаватель | ____ | Иванов» давала вопрос без номера с вариантами «____», «(подпись)».
+SIGNATURE_RE = re.compile(r"^(?:преподавател|составител|разработчик|председател|заведующ|зав\.|подпись|\(подпись\))", re.I)
+SIGNATURE_MARK_RE = re.compile(r"_{3,}|\(\s*(?:подпись|фамилия|ф\.?\s?и\.?\s?о|дата|расшифровка)", re.I)
 # «1.2. Что такое алгоритм?» — номер внутри темы: метка «1.2», место в нумерации 2. Только строка-вопрос (знак в конце):
 # «3.5 кг», «10.0.0.1  255.0.0.0» — не вопрос.
 SUBNUMBER_RE = re.compile(r"^(\d{1,2})\.(\d{1,3})\.?\s+(?=[^\W\d_])(.*[?:.…])\s*$", re.S)
@@ -1535,6 +1548,9 @@ class Reader:
             text = line.text
             mono = _mono(line.para.runs)
             if text and not mono and i > first_question and self.furniture(lines, i, titles, moodle):
+                continue
+            if text and not mono and i > first_question and SIGNATURE_RE.match(text) and SIGNATURE_MARK_RE.search(text):
+                self.skip(text)  # подпись под тестом сразу под последним вариантом — не продолжение варианта
                 continue
             keyed = self._key_variant_line(lines, i, in_key) if text and not mono and "ариант" in text else None
             if keyed is not None:
@@ -3347,6 +3363,74 @@ def pick_key_section(sections: list[dict], variant: Optional[int], chosen: Optio
     return None, {"code": "key_file_variant", "message": KEY_FILE_CHOOSE_WARNING.format(variants=listed)}
 
 
+def _title_lines(item: Item) -> Optional[list[str]]:
+    """Строки шапки бланка, если вопрос без номера — шапка: без вариантов, ответа и ключа, не вопрос («…?»), и в нём
+    название предмета («Учебный предмет: «…»») или слова бланка (TITLE_FORM_RE). Иначе None."""
+    if item.label or item.options or item.answer or item.explicit or item.correct or item.pairs or item.gaps:
+        return None
+    text = item.text.strip()
+    if not text or len(text) > TITLE_BLOCK_CHARS or text.endswith("?"):
+        return None
+    lines = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
+    if len(lines) > TITLE_BLOCK_LINES:
+        return None
+    if any(TITLE_FORM_RE.match(line) or subject_title(line) is not None for line in lines):
+        return lines
+    return None
+
+
+def _signature(item: Item) -> bool:
+    """Подпись под тестом (SIGNATURE_RE), прочитанная вопросом без номера: в ней черта «____» или «(подпись)», ключа нет."""
+    if item.label or item.answer or item.explicit or item.correct or item.pairs or item.gaps:
+        return False
+    text = item.text.strip()
+    if not SIGNATURE_RE.match(text) or len(text) > TITLE_BLOCK_CHARS:
+        return False
+    return any(SIGNATURE_MARK_RE.search(part) for part in [text, *(option.text for option in item.options)])
+
+
+def _drop_title_block(reader: Reader) -> None:
+    """Шапка бланка до первого вопроса с номером — не вопрос: таблица «Задание на выполнение контрольной работы… |
+    Учреждение образования… | Специальность… | Учебный предмет: «…»» давала открытый вопрос без номера и второй предмет
+    без названия. Её строки уходят в пропущенные (skipped) и в заголовки на своём месте: название предмета из шапки
+    по-прежнему называет предмет. Заголовки-строки бланка там же (строка таблицы на всю ширину «Специальность …») —
+    не темы. Подпись под последним вопросом с номером (_signature) — тоже в пропущенные. Файл без вопросов с номерами
+    не трогается: там вопрос без номера — обычный вопрос."""
+    first = next((k for k, item in enumerate(reader.items) if item.label), None)
+    if first is None:
+        return
+    last = max(k for k, item in enumerate(reader.items) if item.label)
+    tail = [item for item in reader.items[last + 1:] if _signature(item)]
+    if tail:  # подпись под последним вопросом — не вопрос
+        reader.items = [item for item in reader.items if all(item is not junk for junk in tail)]
+        reader.skipped.extend(" ".join([item.text.strip(), *(o.text for o in item.options)])[:SKIPPED_CHARS] for item in tail)
+        del reader.skipped[MAX_SKIPPED:]
+    limit = reader.items[first].seq
+    for heading in reader.headings:
+        if heading.seq <= limit and heading.kind == "section" and TITLE_FORM_RE.match(heading.text):
+            heading.kind = "line"
+    if not first:
+        return
+    kept: list[Item] = []
+    skipped: list[str] = []
+    for item in reader.items[:first]:
+        lines = _title_lines(item)
+        if lines is None:
+            kept.append(item)
+            continue
+        skipped.append(item.text.strip())
+        at = next((k for k, heading in enumerate(reader.headings) if heading.seq > item.seq), len(reader.headings))
+        for offset, line in enumerate(lines):
+            kind = heading_kind(line, "line")
+            if kind == "variant" and reader.variant is None:
+                reader.variant = variant_number(line)
+            reader.headings.insert(at + offset, Heading(seq=item.seq, text=line[:MAX_TITLE_CHARS], kind=kind))
+    if skipped:
+        reader.items[:first] = kept
+        reader.skipped[:0] = [text[:SKIPPED_CHARS] for text in skipped]
+        del reader.skipped[MAX_SKIPPED:]
+
+
 def _heading_above_table(item: Item) -> bool:
     """Строка без вариантов прямо над таблицей — её заголовок, если не похожа на вопрос («?») и не длинная."""
     return not item.options and not item.answer and not item.text.rstrip().endswith("?") and len(item.text) <= 150
@@ -3392,6 +3476,7 @@ def read_bank(blocks: list[Block], *, line_word: str = "абзац", format_mode
             run.append(block)
     if run:
         reader.paragraphs(run, start)
+    _drop_title_block(reader)
     return reader
 
 

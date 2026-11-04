@@ -709,6 +709,120 @@ def test_more_than_300_topics_are_merged_into_the_last_one_with_a_warning():
     assert "310 тем" in result["warnings"][0]["message"]
 
 
+# ── Шапка бланка и подпись (файлы колледжа, владелец, 2026-11-04) ──────────────────
+
+# Синтетическая шапка как у файлов колледжа: таблица в два столбца, первая строка — «Задание на выполнение…» в левой
+# ячейке, ниже строки на всю ширину. Колледж, специальность и предмет — выдуманные.
+COLLEGE_QUESTIONS = [
+    ("Как называется принцип, скрывающий реализацию объекта?", ["Наследование", "Полиморфизм", "Инкапсуляция",
+                                                                 "Абстракция", "Композиция"], 2),
+    ("Какой оператор приводит double к int?", ["as int", "is int", "convert(int)", "(int)x", "cast<int>"], 3),
+    ("Какой элемент извлечётся первым из очереди?", ["10", "30", "20", "40", "Ни один"], 0),
+]
+
+
+def college_head(subject: str | None = "Учебный предмет: «Основы алгоритмизации»", first_cell: list[str] | None = None) -> str:
+    def wide(text: str) -> str:
+        return "<w:tr>" + xml_cell(xml_paragraph(text), '<w:gridSpan w:val="2"/>') + "</w:tr>"
+
+    first = first_cell or ["Задание на выполнение контрольной работы (комплексной контрольной работы) в форме "
+                           "тестирования в письменном виде на бумажных носителях"]
+    rows = ["<w:tr>" + xml_cell("".join(xml_paragraph(text) for text in first)) + xml_cell("") + "</w:tr>",
+            wide("Учреждение образования «Энский государственный колледж»"),
+            wide("Специальность 1-23-4567 «Программное обеспечение информационных систем»")]
+    if subject:
+        rows.append(wide(subject))
+    return "<w:tbl><w:tblPr/><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>" + "".join(rows) + "</w:tbl>"
+
+
+def college_questions(variant: int = 2) -> str:
+    body = xml_paragraph(f"Вариант {variant}")
+    for n, (question, options, right) in enumerate(COLLEGE_QUESTIONS, start=1):
+        body += xml_paragraph(f"{n}. {question}")
+        body += "".join(xml_paragraph(f"{k}) {option}", bold=k - 1 == right) for k, option in enumerate(options, start=1))
+    body += xml_paragraph("Преподаватель ____________    Иванов И.И.         01.01.2026")
+    body += xml_paragraph("(подпись)            (фамилия, инициалы)            (дата)")
+    return body
+
+
+def test_the_form_header_table_is_not_a_question_and_the_discipline_names_the_one_subject():
+    result = parse_bank_file(docx_with_body(college_head() + college_questions()), "КПиЯП_Вариант_2.docx")
+    assert result["subjects"] == [{"index": 1, "title": "Основы алгоритмизации", "evidence": "heading", "items": 3}]
+    assert result["topics"] == [] and result["variant"] == 2 and result["warnings"] == []
+    assert [(i["label"], i["kind"], i["correct"]) for i in result["items"]] == [("1", "single", [2]), ("2", "single", [3]),
+                                                                                ("3", "single", [0])]
+    assert all(i["flags"] == [] for i in result["items"])
+    # подпись под последним вопросом не уходит в его варианты
+    assert result["items"][-1]["options"] == COLLEGE_QUESTIONS[-1][1]
+    assert result["skipped"][0].startswith("Задание на выполнение контрольной работы")
+    assert any(line.startswith("Преподаватель") for line in result["skipped"])
+    assert any(line.startswith("(подпись)") for line in result["skipped"])
+
+
+def test_a_form_header_without_a_discipline_gives_one_untitled_subject_without_form_topics():
+    result = parse_bank_file(docx_with_body(college_head(subject=None) + college_questions()), "bank.docx")
+    assert [(s["title"], s["evidence"], s["items"]) for s in result["subjects"]] == [(None, "none", 3)]
+    assert result["topics"] == []  # «Специальность …» — строка бланка, а не тема
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+
+
+def test_form_rows_across_the_table_are_not_topics():
+    """Шапка только из строк на всю ширину (без вопроса без номера): «Учреждение образования…», «Специальность…» — не темы."""
+    head = college_head(subject=None)
+    head = head.replace(head[head.index("<w:tr>"):head.index("</w:tr>") + len("</w:tr>")], "", 1)
+    result = parse_bank_file(docx_with_body(head + college_questions()), "bank.docx")
+    assert result["topics"] == [] and [i["topic"] for i in result["items"]] == [None, None, None]
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+
+
+def test_a_discipline_inside_the_form_cell_still_names_the_subject():
+    head = college_head(subject=None, first_cell=["Учреждение образования «Энский колледж»", "Дисциплина: Компьютерные сети"])
+    result = parse_bank_file(docx_with_body(head + college_questions()), "bank.docx")
+    assert [(s["title"], s["evidence"]) for s in result["subjects"]] == [("Компьютерные сети", "heading")]
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+
+
+def test_an_unnumbered_question_above_numbered_ones_stays_a_question():
+    """Строка без номера над вопросами без слов бланка и без названия предмета — вопрос, как раньше."""
+    head = college_head(subject=None, first_cell=["Объясните своими словами, зачем нужен тест"]).replace(
+        "Учреждение образования «Энский государственный колледж»", "Ответьте письменно").replace(
+        "Специальность 1-23-4567 «Программное обеспечение информационных систем»", "Затем выполните тест")
+    result = parse_bank_file(docx_with_body(head + college_questions()), "bank.docx")
+    assert [(i["label"], i["kind"]) for i in result["items"]][0] == ("", "open")
+    assert len(result["items"]) == 4
+
+
+def test_a_file_without_numbered_questions_keeps_its_first_line():
+    """Нет вопросов с номерами — нет и «шапки до первого вопроса»: список без номеров читается как раньше."""
+    body = college_head(subject=None) + "".join(xml_paragraph(f"Вопрос без номера {n}?") for n in range(1, 4))
+    result = parse_bank_file(docx_with_body(body), "bank.docx")
+    assert result["items"][0]["text"].startswith("Задание на выполнение")
+
+
+def test_a_signature_table_under_the_last_question_is_not_a_question():
+    body = college_questions()
+    body = body[:body.index(xml_paragraph("Преподаватель ____________    Иванов И.И.         01.01.2026"))]
+    body += plain_table([["Преподаватель", "____________", "Иванов И.И.", "01.01.2026"],
+                         ["", "(подпись)", "(фамилия, инициалы)", "(дата)"]])
+    result = parse_bank_file(docx_with_body(body), "bank.docx")
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+    assert result["items"][-1]["options"] == COLLEGE_QUESTIONS[-1][1]
+    assert any(line.startswith("Преподаватель") for line in result["skipped"])
+
+
+def test_the_form_header_as_pasted_text_reads_the_same_way():
+    text = ("Задание на выполнение контрольной работы в форме тестирования\nУчреждение образования «Энский колледж»\n"
+            "Специальность 1-23-4567\nУчебный предмет: «Основы алгоритмизации»\nВариант 2\n\n")
+    for n, (question, options, right) in enumerate(COLLEGE_QUESTIONS, start=1):
+        text += f"{n}. {question}\n" + "".join(f"**{k}) {o}**\n" if k - 1 == right else f"{k}) {o}\n"
+                                              for k, o in enumerate(options, start=1)) + "\n"
+    text += "Преподаватель ____________ Иванов И.И. 01.01.2026\n(подпись) (фамилия, инициалы) (дата)\n"
+    result = parse_bank_text(text, markdown=True)
+    assert [(s["title"], s["items"]) for s in result["subjects"]] == [("Основы алгоритмизации", 3)]
+    assert [i["correct"] for i in result["items"]] == [[2], [3], [0]] and result["variant"] == 2
+    assert result["items"][-1]["options"] == COLLEGE_QUESTIONS[-1][1]
+
+
 # ── Открытые вопросы и format ───────────────────────────────────────────────────
 
 
