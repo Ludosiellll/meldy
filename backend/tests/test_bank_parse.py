@@ -1758,6 +1758,27 @@ def test_a_question_that_is_only_a_picture_and_an_option_that_is_a_picture():
     assert len(result["pictures"]) == 3
 
 
+def test_a_picture_inside_the_numbered_question_line_belongs_to_the_question():
+    """Файлы колледжа (2026-11-04): «19. Какой текст соответствует выражению ^\\d{3}$?» и схема в том же абзаце. Картинка
+    терялась без флага has_image: вопрос сохранялся без неё, как будто она не нужна."""
+    def build(doc):
+        for n in (1, 2):
+            p = doc.add_paragraph(f"{n}. Какой текст соответствует выражению на схеме?")
+            if n == 1:
+                p.add_run().add_picture(io.BytesIO(png((0, 128, 0))))
+            for k, option in enumerate(("123", "12", "abc"), start=1):
+                doc.add_paragraph(f"{k}) ").add_run(option).bold = k == n
+
+    contents = docx_bytes(build)
+    result = parse_bank_file(contents, "bank.docx", with_pictures=True)
+    first, second = result["items"]
+    assert first["images"] and len(first["images"]["stem"]) == 1 and first["images"]["options"] == [[], [], []]
+    assert second["images"] is None and [i["correct"] for i in result["items"]] == [[0], [1]]
+    assert list(result["pictures"]) == first["images"]["stem"]
+    flagged = parse_bank_file(contents, "bank.docx")
+    assert "has_image" in flagged["items"][0]["flags"] and "has_image" not in flagged["items"][1]["flags"]
+
+
 def test_without_the_request_pictures_stay_a_flag_as_before():
     """Страница, закэшированная до переноса картинок, не просит их: вопрос с картинкой — has_image, как раньше."""
     result = parse_bank_file(picture_bank({1: (255, 0, 0)}), "bank.docx")

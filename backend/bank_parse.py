@@ -1912,6 +1912,9 @@ class Reader:
                         self.heading(current.text, "line")
                     current = self.new_item(label, body_text, self.where(line), line.ref)
                     current.mono = _mono_inside(para.runs)
+                    # картинка в самой строке вопроса («19. Какой текст соответствует выражению?» и схема за ним, файлы
+                    # колледжа, 2026-11-04) — картинка вопроса; раньше она терялась без флага has_image
+                    current.images += para.images
                     expected_next = number + 1
                     self.layouts["numbered_paragraphs"] += 1
                     chain = inline_chain(text) if not self.open_mode else None
