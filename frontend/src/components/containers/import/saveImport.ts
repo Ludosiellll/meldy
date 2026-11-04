@@ -39,6 +39,21 @@ export interface SaveInput {
   importIds: Record<string, string>;
   /** The files' pictures by id (sha256: the same picture in two files is one). */
   pictures?: Record<string, BankPicture>;
+  /**
+   * Adding to an exam: subjects of variants that land in the exam's subject of the same name (by subject key,
+   * updateModel.ts joinPlans) — their new questions only, and the subject's topics when the variants bring new ones.
+   */
+  joins?: Record<string, SubjectJoin>;
+}
+
+export interface SubjectJoin {
+  subjectId: string;
+  /** The subject's topic titles after the join; null — unchanged. */
+  topics: string[] | null;
+  /** The new questions (refs: each one's file), given where their pictures were put. */
+  items: (place: PicturePlace) => ItemInput[];
+  pictureIds: string[];
+  count: number;
 }
 
 export interface SaveState {
@@ -53,6 +68,8 @@ export interface SaveState {
   itemsStarted: boolean;
   /** Pictures put into storage: id → path, null when storage refused it. */
   pictures: Record<string, string | null>;
+  /** Subjects of variants joining a subject of the exam: its topics are written (by subject key). */
+  joinTopics: Record<string, boolean>;
 }
 
 export const freshSaveState = (): SaveState => ({
@@ -64,6 +81,7 @@ export const freshSaveState = (): SaveState => ({
   topicsDone: false,
   itemsStarted: false,
   pictures: {},
+  joinTopics: {},
 });
 
 /** Something is in the database already: a retry goes on from there, so the preview stays as it was saved. */
@@ -158,8 +176,9 @@ export async function saveImport(input: SaveInput, state: SaveState, onProgress?
     return `/exams/${examId}/edit#lectures`;
   }
 
+  const joins = target.kind === 'container' ? input.joins ?? {} : {};
   for (const subject of subjects) {
-    if (subject.oral.length === 0 || state.oralExamIds[subject.key]) continue;
+    if (subject.oral.length === 0 || state.oralExamIds[subject.key] || joins[subject.key]) continue;
     const { examId } = await createExam(userId, oralDraft(subject, subject.title, subjectDate(input, subject)));
     state.oralExamIds[subject.key] = examId;
   }
@@ -171,6 +190,11 @@ export async function saveImport(input: SaveInput, state: SaveState, onProgress?
     title = target.title;
     for (const subject of subjects) {
       if (state.subjectIds[subject.key]) continue;
+      const join = joins[subject.key];
+      if (join) {
+        state.subjectIds[subject.key] = join.subjectId;
+        continue;
+      }
       const added = await addSubject(containerId, subjectInput(input, state, subject));
       state.subjectIds[subject.key] = added.id;
     }
@@ -193,20 +217,27 @@ export async function saveImport(input: SaveInput, state: SaveState, onProgress?
     containerId = state.containerId;
   }
 
-  const total = subjects.reduce((sum, subject) => sum + subject.test.length, 0);
-  let done = subjects.reduce((sum, subject) => sum + (state.itemsDone[subject.key] ? subject.test.length : 0), 0);
+  const size = (subject: DraftSubject) => joins[subject.key]?.count ?? subject.test.length;
+  const total = subjects.reduce((sum, subject) => sum + size(subject), 0);
+  let done = subjects.reduce((sum, subject) => sum + (state.itemsDone[subject.key] ? size(subject) : 0), 0);
   onProgress?.({ done, total });
   for (const subject of subjects) {
-    if (subject.test.length === 0 || state.itemsDone[subject.key]) continue;
+    const join = joins[subject.key];
+    if (state.itemsDone[subject.key]) continue;
+    if (join && join.topics && !state.joinTopics[subject.key]) {
+      await writeTopics(join.subjectId, join.topics);
+      state.joinTopics[subject.key] = true;
+    }
+    if (size(subject) === 0) continue;
     const subjectId = state.subjectIds[subject.key];
     if (!subjectId) throw new Error('subject not created');
-    const place = await putPictures(containerId, pictureIds(subject), input.pictures ?? {}, state);
+    const place = await putPictures(containerId, join ? join.pictureIds : pictureIds(subject), input.pictures ?? {}, state);
     state.itemsStarted = true;
     const before = done;
-    await addItems(subjectId, itemInputs(subject, input.importIds[subject.fileId] ?? 'imp', place), (batchDone) =>
-      onProgress?.({ done: before + batchDone, total }),
-    );
-    done = before + subject.test.length;
+    // Each question's ref carries its own file's import id (a subject of variants has several files).
+    const items = join ? join.items(place) : itemInputs(subject, (fileId) => input.importIds[fileId] ?? 'imp', place);
+    await addItems(subjectId, items, (batchDone) => onProgress?.({ done: before + batchDone, total }));
+    done = before + size(subject);
     state.itemsDone[subject.key] = true;
     onProgress?.({ done, total });
   }

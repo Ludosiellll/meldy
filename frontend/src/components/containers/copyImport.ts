@@ -135,6 +135,28 @@ export function dayText(day: string | null | undefined): string {
 const questions = (n: number) => count(n, 'вопрос', 'вопроса', 'вопросов');
 const subjects = (n: number) => count(n, 'предмет', 'предмета', 'предметов');
 
+/** «вариант 7», «варианты 1–6, 8–12»: the variants that share a key (null — a file without a number). */
+export function variantsText(variants: ReadonlyArray<number | null>): string {
+  const list = Array.from(new Set(variants.filter((variant): variant is number => variant !== null))).sort((a, b) => a - b);
+  if (list.length === 0) return 'другой файл';
+  const runs: string[] = [];
+  for (let at = 0; at < list.length; ) {
+    let end = at;
+    while (end + 1 < list.length && list[end + 1] === list[end] + 1) end += 1;
+    runs.push(end > at ? `${list[at]}\u2060–\u2060${list[end]}` : String(list[at])); // «1–6» never breaks at its dash
+    at = end + 1;
+  }
+  return `${list.length === 1 ? 'вариант' : 'варианты'} ${runs.join(', ')}`;
+}
+
+/** «Вариант 1 – Вариант 12» for numbers in a row, «Варианты 1, 3, 5» otherwise. */
+export function variantRange(numbers: readonly number[]): string {
+  const list = Array.from(new Set(numbers)).sort((a, b) => a - b);
+  if (list.length === 1) return `Вариант ${list[0]}`;
+  if (list[list.length - 1] - list[0] + 1 === list.length) return `Вариант ${list[0]} – Вариант ${list[list.length - 1]}`;
+  return `Варианты ${list.join(', ')}`;
+}
+
 /** «А», «Б», «В» … the option letters of a question, in file order. */
 export const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф'];
 export const letter = (index: number) => LETTERS[index] ?? String(index + 1);
@@ -146,6 +168,11 @@ export function lettersText(indices: readonly number[]): string {
 }
 
 // ─────────────────────────────────────────────── /exams/import ───────────────────────────────────────────────
+
+/** The database's guard on exam dates (exam_date_in_range: 2000–2100): 22023 with the detail «date». */
+export const EXAM_DATE_RANGE = 'Дата экзамена — не дальше чем через два года.';
+export const isExamDateError = (error: unknown) =>
+  (error as { code?: unknown } | null)?.code === '22023' && (error as { detail?: unknown } | null)?.detail === 'date';
 
 export const IMPORT = {
   title: 'Новый экзамен',
@@ -177,6 +204,8 @@ export const IMPORT = {
   reading: (n: number) => `Читаем ${count(n, 'файл', 'файла', 'файлов')}`,
   readingWait: 'читаем…',
   readFailed: 'не открылся',
+  /** The server asked to wait (429): the file is read again by itself (readQueue.ts). */
+  serverWait: (seconds: number) => `Сервер просит подождать. Продолжим сами через ${seconds} с.`,
   removeFile: 'Убрать файл',
   fileAgain: 'После обновления страницы файл нужно выбрать снова.',
   retryFile: 'Попробовать ещё раз',
@@ -264,6 +293,10 @@ export const IMPORT = {
   savingItems: (done: number, total: number) => `Сохраняем вопросы: ${done} из ${total}`,
   saveRetry: 'Не всё сохранилось. Нажмите ещё раз: сохранённое не повторится.',
   saveFailed: 'Не сохранилось. Проверьте связь и нажмите ещё раз.',
+  /** An exam date past two years ahead (the date fields' max, as «Настройки» and «Перенести экзамен»): checked before saving. */
+  dateTooFar: EXAM_DATE_RANGE,
+  /** A year typed wrong (0206, 20206): the database keeps dates of 2000–2100 only. */
+  dateWrong: 'Проверьте год в дате экзамена.',
   tooManySubjects: (n: number) => `В экзамене помещается 20 предметов, а здесь ${n}. Уберите лишние.`,
   tooManyItems: (n: number) =>
     `В экзамене помещается 2000 вопросов с вариантами, а здесь ${n}. Уберите предмет или загрузите часть файлов в другой экзамен.`,
@@ -287,10 +320,41 @@ export const IMPORT = {
   topicsTitle: 'Темы',
   noTopic: 'Без темы',
   otherWay: 'Отмечен по-другому?',
-  detailProblems: (parts: string[], n: number) => `Проверьте ${n}: ${parts.join(', ')}.`,
+  /**
+   * «Проверьте 7 вопросов: в 4 нет ответа, 1 повторяется.» for several kinds of problems; one kind is said whole:
+   * «В 1 вопросе варианты дают разные ответы.» (not «Проверьте 1: в 1 …»).
+   */
+  detailProblems: (parts: ReadonlyArray<{ problem: string; n: number }>) => {
+    if (parts.length === 1) return PROBLEM_ONE[parts[0].problem]?.(parts[0].n) ?? `Проверьте ${questions(parts[0].n)}.`;
+    const n = parts.reduce((sum, part) => sum + part.n, 0);
+    return `Проверьте ${questions(n)}: ${parts.map((part) => PROBLEM_PARTS[part.problem]?.(part.n) ?? String(part.n)).join(', ')}.`;
+  },
   restart: 'Похоже, в файле несколько предметов: нумерация вопросов начинается заново.',
   merge: 'Оставить одним',
   unmerge: 'Разделить на предметы',
+
+  // variants of one subject in several files (owner, 2026-11-04): «КПиЯП_Вариант_1» … «_12» are one subject
+  rowVariants: (n: number) => count(n, 'вариант', 'варианта', 'вариантов'),
+  fromFiles: 'из названий файлов',
+  variantsLine: (files: number, numbers: readonly number[]) =>
+    `Варианты одного предмета: ${count(files, 'файл', 'файла', 'файлов')}${numbers.length ? ` (${variantRange(numbers)})` : ''}.`,
+  variantRepeats: (n: number) =>
+    `${count(n, 'повтор', 'повтора', 'повторов')} из других вариантов не ${n % 10 === 1 && n % 100 !== 11 ? 'добавлен' : 'добавлены'}.`,
+  variantsSplit: 'Разделить по файлам',
+  variantsJoin: 'Объединить варианты',
+  variantsSplitLine: (variant: number | null, files: number) =>
+    `${variant !== null ? `Вариант ${variant}: ` : ''}один из ${files} ${plural(files, 'файла', 'файлов', 'файлов')} с вариантами одного предмета.`,
+  spotVariant: (n: number) => `вариант ${n}`,
+  /** Adding to an exam that has a subject of this name: the variants go into it (updateModel.ts joinTargets). */
+  joinLine: (title: string, add: number, same: number) =>
+    add > 0
+      ? `«${title}» уже есть в этом экзамене. В него ${add % 10 === 1 && add % 100 !== 11 ? 'добавится' : 'добавятся'} ${questions(add)}${same > 0 ? `, ещё ${same} там уже есть` : ''}.`
+      : `«${title}» уже есть в этом экзамене, и все вопросы этих вариантов в нём уже есть.`,
+  joinLoading: 'Загружаем вопросы экзамена…',
+  joinLoadFailed: 'Вопросы экзамена не загрузились. Проверьте связь и обновите страницу.',
+  saveQuestions: (n: number) => `Добавить ${questions(n)}`,
+  keyVariants: (n: number) => `Отметка ответа меняется для всех ${n} ${plural(n, 'варианта', 'вариантов', 'вариантов')}, файл ключа — тоже. Ключ списком — для одного варианта.`,
+  keyVariantPick: 'Вариант',
 
   // the key: «Как в файле отмечен ответ?»
   keyTitle: 'Как в файле отмечен ответ?',
@@ -355,12 +419,35 @@ export const PROBLEM_PARTS: Record<string, (n: number) => string> = {
   same_options: (n) => `в ${n} одинаковые варианты`,
   several: (n) => `в ${n} выделено два`,
   key_conflict: (n) => `в ${n} ключ и выделение расходятся`,
+  variant_keys: (n) => `в ${n} варианты дают разные ответы`,
   key_invalid: (n) => `в ${n} ключ не подходит`,
   key_letter: (n) => `в ${n} буква ключа читается двояко`,
   partial: (n) => `в ${n} выделение неполное`,
   no_key: (n) => `в ${n} нет ответа`,
   duplicate: (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'повторяется' : 'повторяются'}`,
   too_long: (n) => `${n} длиннее предела`,
+};
+
+const inQuestions = (n: number) => `В ${n} ${plural(n, 'вопросе', 'вопросах', 'вопросах')}`;
+const sing = (n: number, one: string, many: string) => (n % 10 === 1 && n % 100 !== 11 ? one : many);
+
+/** One kind of problem in a subject, said whole: «В 1 вопросе варианты дают разные ответы.», «3 вопроса повторяются.» */
+export const PROBLEM_ONE: Record<string, (n: number) => string> = {
+  image: (n) => `${inQuestions(n)} не ${sing(n, 'перенеслась картинка', 'перенеслись картинки')}.`,
+  no_options: (n) => `${inQuestions(n)} нет вариантов.`,
+  few_options: (n) => `${inQuestions(n)} только один вариант.`,
+  many_options: (n) => `${inQuestions(n)} больше 8 вариантов.`,
+  empty_option: (n) => `${inQuestions(n)} есть пустой вариант.`,
+  same_options: (n) => `${inQuestions(n)} одинаковые варианты.`,
+  several: (n) => `${inQuestions(n)} выделено два ответа.`,
+  key_conflict: (n) => `${inQuestions(n)} ключ и выделение расходятся.`,
+  variant_keys: (n) => `${inQuestions(n)} варианты дают разные ответы.`,
+  key_invalid: (n) => `${inQuestions(n)} ключ не подходит.`,
+  key_letter: (n) => `${inQuestions(n)} буква ключа читается двояко.`,
+  partial: (n) => `${inQuestions(n)} выделение неполное.`,
+  no_key: (n) => `${inQuestions(n)} нет ответа.`,
+  duplicate: (n) => `${questions(n)} ${sing(n, 'повторяется', 'повторяются')}.`,
+  too_long: (n) => `${questions(n)} длиннее предела.`,
 };
 
 /** Signal words in «Как в файле отмечен ответ?»: «Жирным — 229». */
@@ -431,14 +518,75 @@ export const PARSE_ERRORS: Record<string, string> = {
   unknown: 'Файл не прочитался. Попробуйте ещё раз.',
 };
 
+// ─────────────────────────────────────────── «Подобрать ключи с ИИ» ───────────────────────────────────────────
+
+/** The label of a key the AI suggested, wherever the key shows (owner, 2026-11-04). */
+export const AI_KEY_LABEL = 'Ключ подобран ИИ, не из файла';
+
+/**
+ * «Подобрать ключи с ИИ» (owner, 2026-11-04; docs/import/KEYS_AI.md): the button with its count and price, the run,
+ * its result and the errors. No model's or vendor's name: «ИИ».
+ */
+export const KEYS_AI_WORDS = {
+  go: 'Подобрать ключи с ИИ',
+  /** Beside the button: how many questions go and what it costs. */
+  offer: (n: number, cost: number) => `${count(n, 'вопрос', 'вопроса', 'вопросов')} без ключа · ${units(cost)}`,
+  rule: 'Ключ ставим, только если ИИ дважды ответил одинаково и уверенно. Такой ключ подписан и ждёт вашей проверки.',
+  /** One request can take up to two and a half minutes (docs/import/KEYS_AI.md): said, so the wait is not a frozen page. */
+  running: (done: number, total: number) =>
+    done === 0
+      ? `ИИ подбирает ключи к ${count(total, 'вопросу', 'вопросам', 'вопросам')}. Это может занять пару минут, а пока можно проверять остальные вопросы.`
+      : `ИИ подбирает ключи: готово ${done} из ${total}. Можно проверять остальные вопросы.`,
+  keyed: (keyed: number, sent: number) =>
+    keyed === 0 ? `ИИ не подобрал ни одного ключа из ${sent}.` : `Ключи подобраны для ${keyed} из ${count(sent, 'вопроса', 'вопросов', 'вопросов')}.`,
+  left: (n: number, notes: ReadonlyArray<[string, number]>) =>
+    `Без ключа ${n % 10 === 1 && n % 100 !== 11 ? 'остался' : 'остались'} ${n}${notes.length ? `: ${notes.map(([note, k]) => `${note}${NBSP}— ${k}`).join(', ')}` : ''}.`,
+  spent: (n: number) => `Списано ${units(n)}.`,
+  /** A run that stopped before any answer came: the server charged nothing (or gave it back). */
+  notSpent: 'Единицы не списаны.',
+  /** Results for questions changed while the AI answered (a file read again, a key set by hand): not put in. */
+  stale: (n: number) =>
+    `${count(n, 'ответ', 'ответа', 'ответов')} ИИ не ${n % 10 === 1 && n % 100 !== 11 ? 'поставлен' : 'поставлены'}: пока он отвечал, эти вопросы изменились.`,
+  /** Why the file buttons and the save wait while the AI answers. */
+  wait: 'Подождите, пока ИИ подбирает ключи: до конца файлы не перечитываются и импорт не сохраняется.',
+  check: (n: number) => `Проверьте ключи от ИИ (${n}).`,
+  /** The subject row: keys only from the AI, or some besides the file's. */
+  rowAi: 'ключи от ИИ',
+  rowAiMore: (n: number) => `${n} от ИИ`,
+  /** The subject's preview, under «Ответ выделен жирным в N из M». */
+  detailAi: (n: number) => `Ещё ${count(n, 'ключ', 'ключа', 'ключей')} подобрал ИИ, ${n % 10 === 1 && n % 100 !== 11 ? 'он подписан' : 'они подписаны'}.`,
+  unsure: 'ИИ не уверен',
+  noAnswer: 'ИИ не дал ответа',
+  limit: 'Дневной лимит ИИ на сегодня исчерпан. Ключи можно отметить вручную или подобрать завтра.',
+  busy: 'ИИ сейчас занят. Попробуйте подобрать ключи через минуту.',
+  tooMany: 'Слишком много запросов. Подождите минуту и повторите.',
+  tooBig: 'Вопросов слишком много для одного раза. Уберите лишний предмет и попробуйте ещё раз.',
+  badRequest: 'Не удалось отправить вопросы. Обновите страницу и попробуйте ещё раз.',
+  network:
+    'Ответ сервера не дошёл: пропала связь. Сервер мог успеть подобрать ключи и списать единицы — это видно в лимите вверху. Попробуйте ещё раз.',
+  elsewhere: 'Ключи уже подбираются в другой вкладке или окне. Дождитесь конца и попробуйте снова.',
+  /** «Вопросы и ключи»: the author keyed the question while the AI answered; the AI's key is not written over it. */
+  keyedMeanwhile: 'уже есть ключ',
+  notWritten: 'не удалось сохранить',
+  unwritten: (n: number, why: ReadonlyArray<[string, number]>) =>
+    `Не ${n % 10 === 1 && n % 100 !== 11 ? 'записан' : 'записаны'} ${count(n, 'ключ', 'ключа', 'ключей')} от ИИ: ${why.map(([reason, k]) => `${reason}${NBSP}— ${k}`).join(', ')}.`,
+  /** The database does not keep the AI's mark yet (the site came before its migration): nothing more is written. */
+  notStored: 'Ключи от ИИ пока не сохраняются с подписью «Ключ подобран ИИ», поэтому подбор остановлен. Попробуйте позже.',
+  failed: 'Не удалось подобрать ключи. Попробуйте ещё раз.',
+  /** A run stopped by an error after some requests: what came back stays. */
+  partial: (keyed: number) => `Ключи, подобранные до ошибки (${keyed}), остались.`,
+} as const;
+
 // ─────────────────────────────────────────────── the problem queue ───────────────────────────────────────────────
 
 export const QUEUE = {
   title: 'Проверить',
   position: (at: number, of: number) => `${at} из ${of}`,
   done: 'Готово',
-  context: (subject: string, label: string, topic: string | null) =>
-    [subject, label ? `№ ${label}` : null, topic].filter(Boolean).join(' · '),
+  context: (subject: string, label: string, topic: string | null, variant: number | null = null) =>
+    [subject, label ? `№ ${label}` : null, topic, variant !== null && topic !== `Вариант ${variant}` ? `вариант ${variant}` : null]
+      .filter(Boolean)
+      .join(' · '),
   pickKey: 'Какой вариант верный? Нажмите его.',
   pickKeys: 'Отметьте все верные варианты.',
   saveKeys: 'Сохранить ключ',
@@ -447,6 +595,14 @@ export const QUEUE = {
   several: (marked: number[]) => (marked.length >= 2 ? `В файле выделены ${marked.length === 2 ? 'два ответа' : 'несколько ответов'}: ${lettersText(marked)}.` : 'В файле выделено несколько ответов.'),
   bothRight: (n: number) => (n === 2 ? 'Верны оба' : 'Верны все'),
   keyConflict: 'Ключ списком и выделение в файле не совпадают.',
+  /** A key from «Подобрать ключи с ИИ» waits for the student: accepted as it is, or changed by a tap. */
+  aiKey: `${AI_KEY_LABEL}. Если он верный, нажмите «Ключ верный». Если нет — нажмите верный вариант.`,
+  aiKeyOk: 'Ключ верный',
+  /** The same question in several variants with different keys (importModel.ts markConflict). */
+  variantKeys: (entries: ReadonlyArray<{ variants: ReadonlyArray<number | null>; key: readonly number[] }>) =>
+    `Этот вопрос есть в нескольких вариантах, а ответы в них отмечены разные: ${entries
+      .map((entry) => `${variantsText(entry.variants)}${NBSP}— ${lettersText(entry.key) || 'без ответа'}`)
+      .join(', ')}.`,
   keyInvalid: 'Ключ к этому вопросу не подходит к его вариантам.',
   keyLetter: 'Буква в ключе читается двояко: русская или латинская.',
   partial: 'Ответ в файле выделен не целиком.',
@@ -566,6 +722,8 @@ export const KEYS = {
   doubtsRow: 'Сомневаются в ключе',
   doubtsOwnRow: 'Отложены вами',
   manualRow: 'Ключ поставили вы',
+  /** Keys from «Подобрать ключи с ИИ» (flag ai_key): the author looks them over. */
+  aiRow: 'Ключи подобрал ИИ',
   rowCount: (n: number) => questions(n),
   allGood: 'У всех вопросов есть ключ, сомнений нет.',
   check: (n: number) => `Проверить ${questions(n)}`,
@@ -586,6 +744,8 @@ export const KEYS = {
     group ? 'Сохранено. Счёт по этому вопросу начнётся заново, у вас и у группы.' : 'Сохранено. Счёт по этому вопросу начнётся заново.',
   twice: (n: number) => `Такой номер в предмете встречается ${n} раза: показан первый.`,
   current: (letters: string) => `Ключ сейчас: ${letters}.`,
+  /** A key from «Подобрать ключи с ИИ» the author has not changed since (the flag ai_key). */
+  aiKey: `${AI_KEY_LABEL}.`,
   currentShort: (forms: string) => `Ключ сейчас: ${forms}.`,
   noKeyNow: 'Ключа пока нет.',
   doubters: (n: number) =>
@@ -895,6 +1055,7 @@ export const RPC_ERRORS: Record<string, string> = {
 /** The Russian line for an error of the container API: ours by code, else the API's own message. */
 export function errorText(error: unknown, table: Record<string, string> = RPC_ERRORS, fallback = 'Не получилось. Попробуйте ещё раз.'): string {
   const code = typeof (error as { code?: unknown } | null)?.code === 'string' ? (error as { code: string }).code : '';
+  if (isExamDateError(error)) return EXAM_DATE_RANGE;
   if (code && table[code]) return table[code];
   if (code && RPC_ERRORS[code]) return RPC_ERRORS[code];
   const message = error instanceof Error ? error.message.trim() : '';

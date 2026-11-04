@@ -79,6 +79,7 @@ from bank_docx import (
     Para,
     Run,
     Table,
+    TooComplex,
     check_archive,
     read_docx,
 )
@@ -148,6 +149,8 @@ NO_ITEMS_DETAIL = "Не нашли вопросов. Проверьте, что 
 NO_TEST_ITEMS_DETAIL = "Не нашли вопросов с вариантами ответов. Проверьте, что это тест: вопрос и под ним варианты."
 UNREADABLE_DETAIL = "Не удалось прочитать файл. Сохраните его заново в Word как DOCX и попробуйте ещё раз."
 TOO_MUCH_TEXT_DETAIL = "В файле больше 2 000 000 знаков текста. Разделите его на части и загрузите по очереди."
+TOO_COMPLEX_DETAIL = ("Файл устроен слишком сложно: в нём сотни тысяч кусков оформления на немного текста. Скопируйте "
+                      "вопросы в новый документ Word или вставьте их текстом.")
 EMPTY_FILE_DETAIL = "Файл пустой. Выберите другой файл."
 TOPICS_MERGED_WARNING = "В файле {count} тем — больше 300. Вопросы тем после 300-й добавлены в 300-ю."
 SUBJECTS_RESTART_WARNING = "Похоже, в файле несколько предметов. Разделить?"
@@ -376,6 +379,28 @@ MOODLE_CHROME_RE = re.compile(
     r"|partially correct|mark\s+[\d.]+\s+out\s+of\s+[\d.]+)$",
     re.I,
 )
+# Шапка бланка над вопросами (файлы колледжа, владелец, 2026-11-04): «Задание на выполнение контрольной работы…»,
+# «Учреждение образования «…колледж»», «Специальность …», «Министерство образования…», «УТВЕРЖДАЮ». Строка с начала.
+TITLE_FORM_RE = re.compile(
+    r"^(?:учреждени[ея]\s+образования|министерств[оа]\s+(?:образования|просвещения)|специальност[ьи](?![а-яё])"
+    r"|задани[ея]\s+(?:на|для)\s+выполнени|(?:итогов\w*\s+|комплексн\w*\s+|домашн\w*\s+)?(?:контрольн|экзаменационн|"
+    r"проверочн|самостоятельн)\w*\s+работ|утверждаю(?![а-яё])|рассмотрен\w*\s+(?:и\s+одобрен\w*\s+)?на\s+заседании)",
+    re.I)
+TITLE_BLOCK_CHARS = 1000
+TITLE_BLOCK_LINES = 12
+TITLE_HEAD_ITEMS = 20  # шапка — не больше стольких вопросов без номера до первого с номером
+TITLE_TAIL_ITEMS = 20  # подпись — среди последних стольких
+# Строка подписи под тестом: «Преподаватель ____ Иванов И.И. (подпись) (фамилия, инициалы) (дата)». Абзацем она уже
+# пропускается; таблицей «Преподаватель | ____ | Иванов» давала вопрос без номера с вариантами «____», «(подпись)».
+SIGNATURE_RE = re.compile(r"^(?:преподавател|составител|разработчик|председател|заведующ|зав\.|подпись|\(подпись\))", re.I)
+SIGNATURE_MARK_RE = re.compile(r"_{3,}|\(\s*(?:подпись|фамилия|ф\.?\s?и\.?\s?о|дата|расшифровка)", re.I)
+# Подпись — только явная: строка с должности (SIGNATURE_ROLE_RE), а в ней или в следующей — инициалы («Иванов И.И.»,
+# «И. И. Иванов»), дата («01.01.2026», «20__ г.», «« __ »») или «(подпись)». «Преподаватель ______ знания студентов…» и
+# «Разработчик ____ отвечает за…» — пропуск в вопросе, «(подпись)» вариантом — вариант. Строка «(подпись) (дата)» —
+# подпись только под такой строкой.
+SIGNATURE_ROLE_RE = re.compile(r"^(?:преподавател|составител|разработчик|председател|заведующ|зав\.)", re.I)
+SIGNATURE_SURE_RE = re.compile(r"(?<![А-ЯЁA-Zа-яёa-z])[А-ЯЁ]\.\s?[А-ЯЁ]\.|\b\d{1,2}[./]\d{1,2}[./](?:\d{4}|\d{2})\b"
+                               r"|\b(?:19|20)(?:\d\d|_+)\s*г\b|«\s*_+\s*»|\(\s*[Пп]одпись\s*\)")
 # «1.2. Что такое алгоритм?» — номер внутри темы: метка «1.2», место в нумерации 2. Только строка-вопрос (знак в конце):
 # «3.5 кг», «10.0.0.1  255.0.0.0» — не вопрос.
 SUBNUMBER_RE = re.compile(r"^(\d{1,2})\.(\d{1,3})\.?\s+(?=[^\W\d_])(.*[?:.…])\s*$", re.S)
@@ -1531,11 +1556,20 @@ class Reader:
         body: list[Line] = []
         in_key = ""  # «heading» — после строки «Ключ» / «Ответы»; «line» — после строки «Ключ: 1 – б, 2 – а, …»
         key_variant: Optional[int] = None  # ключ какого варианта идёт («Вариант 2» в ключе)
+        last_part: Optional[int] = None  # последняя строка с номером вопроса или подписью варианта (при первой подписи)
+        signed = False  # подпись уже пропущена: «(подпись) (фамилия, инициалы) (дата)» под ней — тоже подпись
         for i, line in enumerate(lines):
             text = line.text
             mono = _mono(line.para.runs)
             if text and not mono and i > first_question and self.furniture(lines, i, titles, moodle):
                 continue
+            if text and not mono and i > first_question and SIGNATURE_RE.match(text) and SIGNATURE_MARK_RE.search(text):
+                if last_part is None:
+                    last_part = self._last_question_part(lines)
+                if signed or (i > last_part and SIGNATURE_ROLE_RE.match(text) and _sure_signature(lines, i)):
+                    self.skip(text)  # подпись под тестом после последнего варианта — не продолжение варианта
+                    signed = True
+                    continue
             keyed = self._key_variant_line(lines, i, in_key) if text and not mono and "ариант" in text else None
             if keyed is not None:
                 key_variant, pairs = keyed
@@ -1569,6 +1603,16 @@ class Reader:
             self.read_blocks(body)
         else:
             self.read_numbered(body)
+
+    @staticmethod
+    def _last_question_part(lines: list[Line]) -> int:
+        """Номер последней строки с номером вопроса («2. …») или подписью варианта («б) …»); -1 — нет такой."""
+        for k in range(len(lines) - 1, -1, -1):
+            text = lines[k].text
+            if text and (OPTION_LABEL_RE.match(text) or lines[k].para.level in (None, 0)
+                         and (question_number(text) or QUESTION_NUMBER_RE.match(text))):
+                return k
+        return -1
 
     @staticmethod
     def marked_lines(body: list[Line]) -> bool:
@@ -1896,6 +1940,9 @@ class Reader:
                         self.heading(current.text, "line")
                     current = self.new_item(label, body_text, self.where(line), line.ref)
                     current.mono = _mono_inside(para.runs)
+                    # картинка в самой строке вопроса («19. Какой текст соответствует выражению?» и схема за ним, файлы
+                    # колледжа, 2026-11-04) — картинка вопроса; раньше она терялась без флага has_image
+                    current.images += para.images
                     expected_next = number + 1
                     self.layouts["numbered_paragraphs"] += 1
                     chain = inline_chain(text) if not self.open_mode else None
@@ -3347,6 +3394,114 @@ def pick_key_section(sections: list[dict], variant: Optional[int], chosen: Optio
     return None, {"code": "key_file_variant", "message": KEY_FILE_CHOOSE_WARNING.format(variants=listed)}
 
 
+def _title_lines(item: Item) -> Optional[list[str]]:
+    """Строки шапки бланка, если вопрос без номера — шапка: без вариантов, ответа и ключа, не вопрос («…?»), и в нём
+    название предмета («Учебный предмет: «…»») или слова бланка (TITLE_FORM_RE). Иначе None."""
+    if item.label or item.options or item.answer or item.explicit or item.correct or item.pairs or item.gaps:
+        return None
+    text = item.text.strip()
+    if not text or len(text) > TITLE_BLOCK_CHARS or text.endswith("?"):
+        return None
+    lines = [" ".join(line.split()) for line in text.splitlines() if line.strip()]
+    if len(lines) > TITLE_BLOCK_LINES:
+        return None
+    if any(TITLE_FORM_RE.match(line) or subject_title(line) is not None for line in lines):
+        return lines
+    return None
+
+
+def _sure_signature(lines: list[Line], i: int) -> bool:
+    """В строке i или в следующей непустой — инициалы, дата или «(подпись)» (SIGNATURE_SURE_RE)."""
+    if SIGNATURE_SURE_RE.search(lines[i].text):
+        return True
+    following = next((line.text for line in lines[i + 1:] if line.text), "")
+    return bool(SIGNATURE_SURE_RE.search(following))
+
+
+def _signature_parts(item: Item) -> Optional[list[str]]:
+    """Тексты вопроса без номера, похожего на подпись (SIGNATURE_RE и черта «____» или «(подпись)»), ключа нет. Иначе None."""
+    if item.label or item.answer or item.explicit or item.correct or item.pairs or item.gaps:
+        return None
+    text = item.text.strip()
+    if not SIGNATURE_RE.match(text) or len(text) > TITLE_BLOCK_CHARS:
+        return None
+    parts = [text, *(option.text for option in item.options)]
+    return parts if any(SIGNATURE_MARK_RE.search(part) for part in parts) else None
+
+
+def _signature_tail(items: list[Item]) -> list[Item]:
+    """Подпись под тестом, прочитанная вопросами без номера (таблицей «Преподаватель | ____ | Иванов И.И.»): строка с
+    должности (SIGNATURE_ROLE_RE) с инициалами, датой или «(подпись)» в ней или в следующей; под ней — и строки
+    «(подпись) (фамилия) (дата)». Остальное — вопросы, как раньше."""
+    tail: list[Item] = []
+    parts = [_signature_parts(item) for item in items]
+    for k, item in enumerate(items):
+        if parts[k] is None:
+            continue
+        sure = any(SIGNATURE_SURE_RE.search(part) for part in parts[k]) \
+            or k + 1 < len(items) and parts[k + 1] is not None and any(SIGNATURE_SURE_RE.search(part) for part in parts[k + 1])
+        if tail or SIGNATURE_ROLE_RE.match(parts[k][0]) and sure:
+            tail.append(item)
+    return tail
+
+
+def _drop_title_block(reader: Reader) -> None:
+    """Шапка бланка до первого вопроса с номером — не вопрос: таблица «Задание на выполнение контрольной работы… |
+    Учреждение образования… | Специальность… | Учебный предмет: «…»» давала открытый вопрос без номера и второй предмет
+    без названия. Её строки уходят в пропущенные (skipped) и в заголовки на своём месте: название предмета из шапки
+    по-прежнему называет предмет. Заголовки-строки бланка там же (строка таблицы на всю ширину «Специальность …») —
+    не темы. Подпись под последним вопросом с номером (_signature_tail) — тоже в пропущенные. Файл без вопросов с номерами
+    не трогается: там вопрос без номера — обычный вопрос.
+
+    Шапка — только короткая: не больше TITLE_HEAD_ITEMS вопросов без номера до первого с номером (иначе это список
+    вопросов без номера, как раньше), подпись — среди последних TITLE_TAIL_ITEMS. Работа линейна: 60 000 строк бланка
+    в таблице разбирались 86 с. Файл, где вопросов больше MAX_ITEMS и после снятия шапки и подписи, — отказ сразу."""
+    if sum(1 for item in reader.items if item.text or item.options) > MAX_ITEMS + TITLE_HEAD_ITEMS + TITLE_TAIL_ITEMS:
+        raise BankError(413, "too_many", TOO_MANY_DETAIL)  # шапка и подпись не вернут число в предел
+    first = next((k for k, item in enumerate(reader.items) if item.label), None)
+    if first is None:
+        return
+    last = max(k for k, item in enumerate(reader.items) if item.label)
+    tail = _signature_tail(reader.items[max(last + 1, len(reader.items) - TITLE_TAIL_ITEMS):])
+    if tail:  # подпись под последним вопросом — не вопрос
+        junk = {id(item) for item in tail}
+        reader.items = [item for item in reader.items if id(item) not in junk]
+        reader.skipped.extend(" ".join([item.text.strip(), *(o.text for o in item.options)])[:SKIPPED_CHARS] for item in tail)
+        del reader.skipped[MAX_SKIPPED:]
+    limit = reader.items[first].seq
+    for heading in reader.headings:
+        if heading.seq <= limit and heading.kind == "section" and TITLE_FORM_RE.match(heading.text):
+            heading.kind = "line"
+    if not first or first > TITLE_HEAD_ITEMS:
+        return
+    kept: list[Item] = []
+    skipped: list[str] = []
+    inserts: dict[int, list[Heading]] = {}  # место в заголовках (до какого из прежних) → строки шапки
+    for item in reader.items[:first]:
+        lines = _title_lines(item)
+        if lines is None:
+            kept.append(item)
+            continue
+        skipped.append(item.text.strip())
+        at = next((k for k, heading in enumerate(reader.headings) if heading.seq > item.seq), len(reader.headings))
+        for line in lines:
+            kind = heading_kind(line, "line")
+            if kind == "variant" and reader.variant is None:
+                reader.variant = variant_number(line)
+            inserts.setdefault(at, []).append(Heading(seq=item.seq, text=line[:MAX_TITLE_CHARS], kind=kind))
+    if inserts:  # заголовки собираются заново один раз
+        headings: list[Heading] = []
+        for k, heading in enumerate(reader.headings):
+            headings += inserts.get(k, [])
+            headings.append(heading)
+        headings += inserts.get(len(reader.headings), [])
+        reader.headings = headings
+    if skipped:
+        reader.items[:first] = kept
+        reader.skipped[:0] = [text[:SKIPPED_CHARS] for text in skipped]
+        del reader.skipped[MAX_SKIPPED:]
+
+
 def _heading_above_table(item: Item) -> bool:
     """Строка без вариантов прямо над таблицей — её заголовок, если не похожа на вопрос («?») и не длинная."""
     return not item.options and not item.answer and not item.text.rstrip().endswith("?") and len(item.text) <= 150
@@ -3392,6 +3547,7 @@ def read_bank(blocks: list[Block], *, line_word: str = "абзац", format_mode
             run.append(block)
     if run:
         reader.paragraphs(run, start)
+    _drop_title_block(reader)
     return reader
 
 
@@ -3699,6 +3855,9 @@ def _file_input(contents: bytes, name: str, pictures: Optional[dict[str, tuple[s
             blocks = bank_formats.read_html(contents)
         else:
             blocks = list(bank_formats.read_pdf(contents))
+    except TooComplex as exc:
+        print(f"Bank file refused before parsing: {exc}")
+        raise BankError(413, "too_complex", TOO_COMPLEX_DETAIL) from None
     except ArchiveTooLarge:
         raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL) from None
     except bank_formats.PdfScan:
@@ -3846,7 +4005,7 @@ def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_t
                     format_mode: str = "auto", key_file: Optional[list[dict]] = None, key_section: Optional[int] = None,
                     with_pictures: bool = False) -> dict:
     """Файл банка (DOCX, XLSX, TXT, MD, CSV, HTML, PDF, Moodle XML) → предпросмотр. Ошибки — BankError с кодом для
-    клиента: 415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items / scan_pdf.
+    клиента: 415 old_doc / unsupported, 413 too_many / too_much_text / too_complex, 422 empty_file / unreadable / no_items / scan_pdf.
     key_file — разделы файла ключа (read_key_file), key_section — раздел, выбранный пользователем.
     with_pictures — картинки DOCX переносятся (их просит клиент, который умеет их сохранить: страница, закэшированная до
     этого, сохранила бы вопрос без картинки и без флага has_image); без него картинки — только флаг, как раньше."""

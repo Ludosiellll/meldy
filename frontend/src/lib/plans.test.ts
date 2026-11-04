@@ -8,6 +8,9 @@ import {
   examMappingCost,
   IMPORT_AI_QUESTIONS_PER_CHARGE,
   importAiCost,
+  KEYS_AI_QUESTIONS_PER_CHARGE,
+  keysAiCost,
+  KEYS_AI_BATCHES_PER_CHARGE,
   OCR_PAGES_PER_CHARGE,
   RECORDING_DAILY_SECONDS,
   RECORDING_MAX_SECONDS,
@@ -22,7 +25,7 @@ describe('plans', () => {
     expect([FREE_DAILY_UNITS, PRO_DAILY_UNITS]).toEqual([100, 1000]);
     expect(AI_COSTS).toEqual({
       lecture: 20, examMapping: 10, answer: 4, answerPoints: 1, conversation: 5, visuals: 2, cheatsheet: 5,
-      mistakesPractice: 2, gradebookScan: 1, scanPages: 5, analysisSection: 7, tutorTurn: 1, importAI: 5,
+      mistakesPractice: 2, gradebookScan: 1, scanPages: 5, analysisSection: 7, tutorTurn: 1, importAI: 5, keysAI: 5,
     });
     expect(dailyUnits(false)).toBe(100);
     expect(dailyUnits(true)).toBe(1000);
@@ -31,6 +34,13 @@ describe('plans', () => {
   it('charges the check of a list by every started 40 questions that go to the model', () => {
     expect(EXAM_MAPPING_QUESTIONS_PER_CHARGE).toBe(40);
     expect([0, 1, 40, 41, 80, 81, -3].map(examMappingCost)).toEqual([0, 10, 10, 20, 20, 30, 0]);
+  });
+
+  it('charges «Подобрать ключи с ИИ» by every started 100 questions or 4 model batches of a request, the more (bank_keys_ai.py)', () => {
+    expect([KEYS_AI_QUESTIONS_PER_CHARGE, KEYS_AI_BATCHES_PER_CHARGE]).toEqual([100, 4]);
+    expect([0, 1, 100, 101, 200, 201, 300].map((questions) => keysAiCost(questions))).toEqual([5, 5, 5, 10, 10, 15, 15]);
+    // 100 ordinary questions are 4 batches; 12 long ones, a batch each, cost as 12 batches
+    expect([keysAiCost(100, 4), keysAiCost(100, 5), keysAiCost(12, 12), keysAiCost(300, 12), keysAiCost(1, 1)]).toEqual([5, 10, 15, 15, 5]);
   });
 
   it('charges the AI pass over a bank of questions by every started 100 questions sent to the model', () => {

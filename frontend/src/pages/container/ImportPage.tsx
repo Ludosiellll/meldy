@@ -12,7 +12,9 @@ import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import type { BankParseResult, BankPicture, PlanItem, Tempo, TestItem, Uuid } from '../../types/container';
-import { dayText, errorText, IMPORT, nb, REVIEW, SETTINGS } from '../../components/containers/copyImport';
+import { dayText, errorText, IMPORT, isExamDateError, KEYS_AI_WORDS, nb, REVIEW, SETTINGS } from '../../components/containers/copyImport';
+import { MOVE_MAX_DAYS } from '../../components/containers/MoveExamDialog';
+import { addDay } from '../../components/containers/model';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
@@ -25,6 +27,7 @@ import UpdatePreview from '../../components/containers/import/UpdatePreview';
 import { fetchOldExams, ownContainers, plainExams, targetOptions as targetOptionsOf, type OldExam } from '../../components/containers/import/targets';
 import {
   activeSubjects,
+  aiKeyQueue,
   deriveSubjects,
   draftPlanInput,
   isSingleOralList,
@@ -39,13 +42,17 @@ import {
   type FileFormat,
   type FileSource,
   type ImportEdits,
+  type DraftSubject,
   type ImportFile,
   type ItemFix,
   type KeySignal,
 } from '../../components/containers/import/importModel';
 import { minutesLines } from '../../components/containers/import/minutesLines';
-import { readBank, readBankAi, ReadError } from '../../components/containers/import/readFiles';
+import { readBankAi, readBankQueued, ReadError } from '../../components/containers/import/readFiles';
+import { createReadQueue, Throttled } from '../../components/containers/import/readQueue';
 import BankReview from '../../components/containers/import/BankReview';
+import { AiKeysCheck, AiKeysOffer, AiKeysStatus, NO_KEYS_RUN, type KeysRun } from '../../components/containers/import/AiKeys';
+import { keysAiCandidates, keysAiErrorLine, keysAiForJoins, keysAiPrice, runKeysAi } from '../../components/containers/import/keysAi';
 import { reviewCounts } from '../../components/containers/import/reviewModel';
 import { useTelegramFile } from '../../lib/telegram/fileTicket';
 import {
@@ -56,8 +63,9 @@ import {
   type SaveProgress,
   type SaveState,
   type SaveTarget,
+  type SubjectJoin,
 } from '../../components/containers/import/saveImport';
-import { bestSource, planUpdate, updateItemInputs, updateSources } from '../../components/containers/import/updateModel';
+import { bestSource, joinPlans, joinTargets, planUpdate, updateItemInputs, updateSources } from '../../components/containers/import/updateModel';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './ImportPage.css';
@@ -107,6 +115,8 @@ interface Entry {
   pdf: boolean;
   error: string | null;
   errorCode: string | null;
+  /** The server asked to wait (429): the file is read again by itself at this moment (ms); null — not waiting. */
+  waitUntil?: number | null;
 }
 
 interface FormState {
@@ -235,6 +245,19 @@ function filePictures(files: readonly ImportFile[]): Record<string, BankPicture>
   return Object.assign({}, ...files.map((file) => file.result.pictures ?? {}));
 }
 
+/**
+ * What is wrong with the exam dates about to be saved, or null: a date past `maxDay` (two years ahead: a year typed
+ * as 2206), or one the database would refuse otherwise (before 2000, not a date: 0206, 20206). Empty dates are fine.
+ */
+export function examDateProblem(dates: ReadonlyArray<string | null | undefined>, maxDay: string): string | null {
+  for (const value of dates) {
+    if (!value) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < '2000-01-01') return IMPORT.dateWrong;
+    if (value > maxDay || value > '2100-12-31') return IMPORT.dateTooFar;
+  }
+  return null;
+}
+
 function localDay(now: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -314,20 +337,11 @@ export default function ImportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ───────────────────────────── reading files, at most two at once (the importer allows 10 a minute) ─────────────────────────────
+  // ───────────────── reading files, at most two at once (the importer allows 30 a minute, readQueue.ts) ─────────────────
+  // A file the server refuses for now (429) waits as long as it asks and is read again by itself, in its place.
 
-  const running = useRef(0);
-  const waiting = useRef<Array<() => Promise<void>>>([]);
-  const pump = useCallback(() => {
-    while (running.current < READ_AT_ONCE && waiting.current.length > 0) {
-      const job = waiting.current.shift()!;
-      running.current += 1;
-      void job().finally(() => {
-        running.current -= 1;
-        pump();
-      });
-    }
-  }, []);
+  const reading = useRef<ReturnType<typeof createReadQueue> | null>(null);
+  reading.current ??= createReadQueue({ concurrency: READ_AT_ONCE });
 
   const update = useCallback((id: string, patch: Partial<Entry>) => {
     setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
@@ -336,26 +350,50 @@ export default function ImportPage() {
   const forgetEdits = useCallback((fileId: string) => {
     const prefix = `${fileId}:`;
     setEdits((current) => ({
+      ...current,
       items: Object.fromEntries(Object.entries(current.items).filter(([uid]) => !uid.startsWith(prefix))),
       subjects: Object.fromEntries(Object.entries(current.subjects).filter(([key]) => !key.startsWith(prefix))),
       files: Object.fromEntries(Object.entries(current.files).filter(([id]) => id !== fileId)),
     }));
   }, []);
 
+  // How many times each file was read: «Подобрать ключи с ИИ» drops answers for a file read again meanwhile.
+  const readSeq = useRef(new Map<string, number>());
   const read = useCallback(
     (entry: Entry) => {
-      waiting.current.push(async () => {
-        try {
-          const { result, pdf } = await readBank({
-            file: entry.file ?? undefined,
-            text: entry.text ?? undefined,
-            format: entry.format,
-            keyText: entry.keyText,
-            keyFile: entry.keyFile,
-            keySection: entry.keySection,
-          });
+      // Refused for about three minutes: the usual line and its retry; a spent hour or day says so in the server's words.
+      const give = (refusal: Throttled) => {
+        const failure = new ReadError('rate_limited', refusal.long && refusal.detail ? refusal.detail : undefined);
+        track('container.import_failed', { code: failure.code });
+        update(entry.id, { status: entry.result ? 'done' : 'failed', error: failure.message, errorCode: failure.code, waitUntil: null });
+      };
+      reading.current!.push({
+        onWait: (until) => update(entry.id, { waitUntil: until }),
+        onGiveUp: give,
+        attempt: async () => {
+          let read: Awaited<ReturnType<typeof readBankQueued>>;
+          try {
+            read = await readBankQueued({
+              file: entry.file ?? undefined,
+              text: entry.text ?? undefined,
+              format: entry.format,
+              keyText: entry.keyText,
+              keyFile: entry.keyFile,
+              keySection: entry.keySection,
+            });
+          } catch (error) {
+            if (error instanceof Throttled) throw error; // the server asks to wait: the queue reads it again by itself
+            const failure = error instanceof ReadError ? error : new ReadError('unknown');
+            track('container.import_failed', { code: failure.code });
+            // A file read again (a key list, another format) keeps what it had: the line says what went wrong.
+            update(entry.id, { status: entry.result ? 'done' : 'failed', error: failure.message, errorCode: failure.code, waitUntil: null });
+            return;
+          }
+          const { result, pdf } = read;
+          // a file read again: the AI's answers asked for its old questions no longer apply (runAiKeys isFresh)
+          readSeq.current.set(entry.id, (readSeq.current.get(entry.id) ?? 0) + 1);
           forgetEdits(entry.id);
-          update(entry.id, { status: 'done', result, pdf, error: null, errorCode: null });
+          update(entry.id, { status: 'done', result, pdf, error: null, errorCode: null, waitUntil: null });
           track('container.import_parsed', {
             items: result.stats.items,
             subjects: result.subjects.length,
@@ -363,16 +401,10 @@ export default function ImportPage() {
             layout: result.layout,
             kinds: Object.keys(result.stats.kinds ?? {}).sort().join(','),
           });
-        } catch (error) {
-          const failure = error instanceof ReadError ? error : new ReadError('unknown');
-          track('container.import_failed', { code: failure.code });
-          // A file read again (a key list, another format) keeps what it had: the line says what went wrong.
-          update(entry.id, { status: entry.result ? 'done' : 'failed', error: failure.message, errorCode: failure.code });
-        }
+        },
       });
-      pump();
     },
-    [forgetEdits, pump, update],
+    [forgetEdits, update],
   );
 
   const addFiles = useCallback(
@@ -522,6 +554,12 @@ export default function ImportPage() {
   const active = useMemo(() => activeSubjects(subjects), [subjects]);
   const totals = useMemo(() => totalsOf(subjects), [subjects]);
   const problems = useMemo(() => queueOf(subjects), [subjects]);
+  // «Подобрать ключи с ИИ» (owner, 2026-11-04): the AI keys waiting for the student; what it would send is below (aiCandidates)
+  const aiChecks = useMemo(() => aiKeyQueue(subjects), [subjects]);
+  const [keysRun, setKeysRun] = useState<KeysRun>(NO_KEYS_RUN);
+  const aiRunning = keysRun.status === 'running';
+  const editsRef = useRef(edits);
+  editsRef.current = edits;
   const [sourceKey, setSourceKey] = useState<string | null>(null);
   const sources = useMemo(() => (updateId ? updateSources(subjects) : []), [updateId, subjects]);
   const source = useMemo(
@@ -542,6 +580,19 @@ export default function ImportPage() {
   }, [updateId, updatePlan, problems]);
   const singleOral = isSingleOralList(subjects);
   const removedCount = subjects.length - active.length;
+
+  // A file waiting for the server (429) counts down its seconds; the clock ticks only while one waits.
+  const [clock, setClock] = useState(() => Date.now());
+  const waitingUntil = entries.reduce(
+    (latest, entry) => Math.max(latest, entry.status === 'reading' ? entry.waitUntil ?? 0 : 0),
+    keysRun.status === 'running' ? keysRun.waitUntil ?? 0 : 0,
+  );
+  useEffect(() => {
+    if (waitingUntil <= Date.now()) return undefined;
+    setClock(Date.now());
+    const tick = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, [waitingUntil]);
 
   const firstRead = entries.some((entry) => entry.status === 'reading' && !entry.result);
   const stage: 'pick' | 'reading' | 'preview' = entries.length === 0 ? 'pick' : firstRead || files.length === 0 ? 'reading' : 'preview';
@@ -573,6 +624,35 @@ export default function ImportPage() {
   const oldExam = targetKind === 'old' ? oldExams.find((exam) => `old:${exam.id}` === targetValue) ?? null : null;
   const container = targetKind === 'container' ? containers.find((item) => `c:${item.id}` === targetValue) ?? null : null;
 
+  // Adding to an exam that has a subject of the same name as a subject of variants: its new variants land in that
+  // subject (owner, 2026-11-04), its new questions only, compared with the ones saved (updateModel.ts joinPlans).
+  const joinIds = useMemo(
+    () => (!updateId && targetKind === 'container' && container ? joinTargets(subjects, container.subjectList) : {}),
+    [updateId, targetKind, container, subjects],
+  );
+  const joinNeeded = Object.keys(joinIds).length > 0;
+  const joinData = useContainerData((joinNeeded && container ? container.id : '') as Uuid);
+  const joins = useMemo(
+    () =>
+      joinNeeded && joinData.data
+        ? joinPlans(subjects, joinIds, { subjects: joinData.data.summary.subjects, items: [...joinData.data.items.values()] })
+        : {},
+    [joinNeeded, joinData.data, subjects, joinIds],
+  );
+  const joined = active.filter((subject) => joins[subject.key]);
+  // The queue of a joining subject: only the questions it adds (the ones already in the exam stay as they are).
+  const previewProblems = useMemo(() => {
+    const keys = Object.keys(joins);
+    if (keys.length === 0) return problems;
+    const adding = new Set(keys.flatMap((key) => [...joins[key].plan.add, ...joins[key].plan.blocked].map((item) => item.uid)));
+    return problems.filter((entry) => !(entry.subjectKey in joins) || adding.has(entry.uid));
+  }, [problems, joins]);
+  // What «Подобрать ключи с ИИ» would send: of a subject joining the exam's own, only the questions it adds (the ones
+  // already in the exam are not saved again, so the AI is not asked about them).
+  const aiCandidates = useMemo(() => (updateId ? [] : keysAiForJoins(keysAiCandidates(subjects, edits), joins)), [updateId, subjects, edits, joins]);
+  const joinedTest = joined.reduce((sum, subject) => sum + subject.test.length, 0);
+  const joinedAdd = joined.reduce((sum, subject) => sum + joins[subject.key].plan.add.length, 0);
+
   // An oral exam joining as subject 1 names the new exam (with the file's one subject: both names).
   const suggestion =
     targetKind === 'old'
@@ -596,6 +676,11 @@ export default function ImportPage() {
   const asOralExam = targetKind === 'new' && singleOral;
   const showMinutes = targetKind !== 'container' && !asOralExam;
   const showDate = targetKind !== 'container';
+  // The latest exam date, as «Настройки» and «Перенести экзамен» take it (two years ahead); the database keeps
+  // 2000–2100 only. A date out of that is said before saving: an oral exam saved first must not stay behind.
+  const maxDay = addDay(today, MOVE_MAX_DAYS);
+  const datesSent = !showDate ? [] : perSubject ? subjectDates : targetKind === 'old' && !form.dateTouched ? [] : [date];
+  const dateProblem = examDateProblem(datesSent, maxDay);
 
   // The oral exam joining as subject 1, as the exam's page will plan it: its questions in the plan, from its sheet
   // (lib/containers/oralPlan.ts, read once it is chosen). Undefined while read, null when it could not be.
@@ -653,6 +738,41 @@ export default function ImportPage() {
     if ((location.state as { importView?: boolean } | null)?.importView) navigate(-1);
     else navigate({ search: location.search, hash: '' }, { replace: true });
   };
+  /**
+   * «Подобрать ключи с ИИ» for every subject (scope null) or one: only on the press; one request per subject (split as
+   * the server takes them), one after another, waiting when the server asks to; after each, the keys and the notes go
+   * into the import's fixes, so the page and the queue use them at once and they outlive a re-render. While it runs the
+   * files are not read again and the import is not saved (aiRunning); an answer for a question that changed anyway (its
+   * file read again by a shared key file, a key set by hand in the queue) is dropped.
+   */
+  const runAiKeys = async (scope: string | null) => {
+    if (keysRun.status === 'running') return;
+    const candidates = aiCandidates.filter((candidate) => scope === null || candidate.subjectKey === scope);
+    if (candidates.length === 0) return;
+    const sentSeq = new Map(candidates.map((candidate) => [candidate.fileId, readSeq.current.get(candidate.fileId) ?? 0]));
+    const fresh = (uid: string, fileId: string, items: ImportEdits['items']) =>
+      (readSeq.current.get(fileId) ?? 0) === sentSeq.get(fileId) && !items[uid]?.correct;
+    setKeysRun({ status: 'running', scope, done: 0, total: candidates.length, outcome: null, error: null, waitUntil: null });
+    const fileOf = new Map(candidates.map((candidate) => [candidate.uid, candidate.fileId]));
+    const outcome = await runKeysAi(
+      candidates,
+      (fixes, progress) => {
+        setEdits((current) => {
+          const kept = Object.entries(fixes).filter(([uid]) => fresh(uid, fileOf.get(uid) ?? '', current.items));
+          return { ...current, items: { ...current.items, ...Object.fromEntries(kept.map(([uid, fix]) => [uid, { ...current.items[uid], ...fix }])) } };
+        });
+        setKeysRun((current) => ({ ...current, done: progress.done }));
+      },
+      undefined,
+      {
+        isFresh: (candidate) => fresh(candidate.uid, candidate.fileId, editsRef.current.items),
+        onWait: (until) => setKeysRun((current) => ({ ...current, waitUntil: until })),
+      },
+    );
+    track('container.import_keys_ai', { sent: outcome.sent, keyed: outcome.keyed, units: outcome.units, failed: outcome.error ? 1 : 0 });
+    setKeysRun({ status: outcome.error ? 'failed' : 'done', scope, done: outcome.sent, total: candidates.length, outcome, error: outcome.error ? keysAiErrorLine(outcome.error) : null, waitUntil: null });
+  };
+
   const openQueue = (uids: string[]) => {
     setQueue({ uids, index: 0 });
     openView('#check');
@@ -665,24 +785,40 @@ export default function ImportPage() {
     setEdits((current) => ({ ...current, subjects: { ...current.subjects, [key]: { ...current.subjects[key], ...patch } } }));
   const setFileEdit = (fileId: string, patch: Record<string, unknown>) =>
     setEdits((current) => ({ ...current, files: { ...current.files, [fileId]: { ...current.files[fileId], ...patch } } }));
+  // A subject made of variants (owner, 2026-11-04): what the student does to «the file» goes to each of its files.
+  const variantSubjectOf = (fileId: string): DraftSubject | null =>
+    subjects.find((subject) => subject.files.length > 1 && subject.files.some((entry) => entry.id === fileId)) ?? null;
+  const filesOf = (fileId: string): string[] => variantSubjectOf(fileId)?.files.map((entry) => entry.id) ?? [fileId];
+  const setSplit = (key: string, split: boolean) => setEdits((current) => ({ ...current, split: { ...current.split, [key]: split } }));
 
   // ───────────────────────────── saving ─────────────────────────────
 
   const started = saveStarted(saveState.current);
   const locked = saving.status === 'saving' || started;
-  const subjectsAfter = active.length + (targetKind === 'old' ? 1 : 0) + (container ? container.subjects : 0);
-  const itemsAfter = totals.test + (container ? container.items : 0);
+  const subjectsAfter = active.length - joined.length + (targetKind === 'old' ? 1 : 0) + (container ? container.subjects : 0);
+  const itemsAfter = totals.test - joinedTest + joinedAdd + (container ? container.items : 0);
+  // While the AI answers, saving waits (the keys it brings would miss the save) and says why.
   const missing = !user
     ? IMPORT.signedOut
-    : active.length === 0
-      ? IMPORT.nothingLeft
-      : showName && !title.trim()
-        ? IMPORT.nameMissing
-        : !asOralExam && subjectsAfter > SUBJECTS_CAP
-          ? IMPORT.tooManySubjects(subjectsAfter)
-          : itemsAfter > ITEMS_CAP
-            ? IMPORT.tooManyItems(itemsAfter)
-            : null;
+    : aiRunning
+      ? KEYS_AI_WORDS.wait
+      : dateProblem
+        ? dateProblem
+        : active.length === 0
+          ? IMPORT.nothingLeft
+          : showName && !title.trim()
+            ? IMPORT.nameMissing
+            : !asOralExam && subjectsAfter > SUBJECTS_CAP
+              ? IMPORT.tooManySubjects(subjectsAfter)
+              : itemsAfter > ITEMS_CAP
+                ? IMPORT.tooManyItems(itemsAfter)
+                : joinNeeded && !joinData.data
+                  ? joinData.error
+                    ? IMPORT.joinLoadFailed
+                    : IMPORT.joinLoading
+                  : null;
+  // Reading a file again while the AI answers would change the questions it was asked about: those buttons wait too.
+  const rereadLocked = locked || aiRunning;
 
   useEffect(() => {
     if (stage === 'pick' || saving.status === 'done') return undefined;
@@ -722,7 +858,9 @@ export default function ImportPage() {
       navigate(firstDiffer ? keysHref : subjectHref, { replace: true });
       return;
     }
-    const importId = files.find((file) => file.id === source?.fileId)?.importId ?? 'imp';
+    // Each question's ref carries its own file's import id (a subject of variants has several files).
+    const importIds = new Map(files.map((file) => [file.id, file.importId]));
+    const importId = (fileId: string) => importIds.get(fileId) ?? 'imp';
     setSaving({ status: 'saving', error: null, progress: null });
     try {
       await saveUpdate(
@@ -750,6 +888,22 @@ export default function ImportPage() {
     }
   };
 
+  /** The joining subjects as saveImport takes them: their new questions, refs by each question's own file. */
+  const joinInputs = (importIdsOf: Map<string, string>): Record<string, SubjectJoin> =>
+    Object.fromEntries(
+      joined.map((subject) => {
+        const { subjectId, plan } = joins[subject.key];
+        const join: SubjectJoin = {
+          subjectId,
+          topics: plan.topics,
+          items: (place) => updateItemInputs(plan, (fileId) => importIdsOf.get(fileId) ?? 'imp', place),
+          pictureIds: pictureIds({ test: plan.add }),
+          count: plan.add.length,
+        };
+        return [subject.key, join];
+      }),
+    );
+
   const runSave = async () => {
     if (updateId) {
       await runUpdate();
@@ -764,6 +918,7 @@ export default function ImportPage() {
       }
       return;
     }
+    const importIdsOf = new Map(files.map((file) => [file.id, file.importId]));
     const target: SaveTarget =
       targetKind === 'container'
         ? { kind: 'container', containerId: targetValue.slice(2), title: container?.title ?? fromTitle ?? '' }
@@ -784,6 +939,7 @@ export default function ImportPage() {
           subjects: active,
           importIds: Object.fromEntries(files.map((file) => [file.id, file.importId])),
           pictures: filePictures(files),
+          joins: target.kind === 'container' ? joinInputs(importIdsOf) : undefined,
         },
         saveState.current,
         (progress) => setSaving((current) => ({ ...current, progress })),
@@ -800,7 +956,9 @@ export default function ImportPage() {
       navigate(path, { replace: true });
     } catch (error) {
       const partial = saveStarted(saveState.current);
-      setSaving({ status: 'failed', error: partial ? IMPORT.saveRetry : errorText(error, {}, IMPORT.saveFailed), progress: null });
+      // the database's date guard: pressing again would not help, the date must change
+      const line = isExamDateError(error) ? IMPORT.dateTooFar : partial ? IMPORT.saveRetry : errorText(error, {}, IMPORT.saveFailed);
+      setSaving({ status: 'failed', error: line, progress: null });
     }
   };
 
@@ -830,6 +988,7 @@ export default function ImportPage() {
     found: entry.result?.stats.items ?? null,
     error: entry.status === 'failed' ? entry.error : null,
     retry: entry.status === 'failed' && (entry.errorCode === 'network' || entry.errorCode === 'unknown' || entry.errorCode === 'rate_limited'),
+    wait: entry.status === 'reading' && entry.waitUntil && entry.waitUntil > clock ? Math.ceil((entry.waitUntil - clock) / 1000) : null,
   }));
   const removeEntry = (id: string) => {
     setEntries((list) => list.filter((entry) => entry.id !== id));
@@ -1001,18 +1160,25 @@ export default function ImportPage() {
   }
 
   if (view.kind === 'key' && keyFile && keyEntry) {
+    // Variants of one subject: the mark and the key file go to every variant, the key list to the one chosen.
+    const keyGroup = variantSubjectOf(keyFile.id);
+    const keyIds = filesOf(keyFile.id);
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
         <KeySource
           file={keyFile}
           signal={edits.files[keyFile.id]?.signal ?? 'auto'}
-          busy={keyEntry.status === 'reading'}
+          busy={keyEntry.status === 'reading' || aiRunning}
           focusKeyText={view.paste}
-          onSignal={(signal: KeySignal) => setFileEdit(keyFile.id, { signal })}
+          onSignal={(signal: KeySignal) => keyIds.forEach((id) => setFileEdit(id, { signal }))}
           onKeyText={(text) => reread(keyFile.id, { keyText: text })}
-          onKeyFile={(chosen) => reread(keyFile.id, { keyFile: chosen, keySection: null })}
+          onKeyFile={(chosen) => keyIds.forEach((id) => reread(id, { keyFile: chosen, keySection: null }))}
           onKeySection={(index) => reread(keyFile.id, { keySection: index })}
           onClose={closeView}
+          variants={keyGroup?.files.map((entry) => ({ id: entry.id, label: entry.variant !== null ? `Вариант ${entry.variant}` : entry.name }))}
+          onVariant={(id) =>
+            navigate({ search: location.search, hash: `#key=${encodeURIComponent(id)}${view.paste ? '&paste' : ''}` }, { replace: true, state: location.state })
+          }
         />
         {keyEntry.error ? (
           <p className="ex-note" role="alert">
@@ -1024,7 +1190,9 @@ export default function ImportPage() {
   }
 
   if (view.kind === 'subject' && detailSubject) {
-    const entry = entries.find((item) => item.id === detailSubject.fileId);
+    const detailIds = detailSubject.files.map((file) => file.id);
+    const detailEntries = entries.filter((item) => detailIds.includes(item.id));
+    const variants = detailSubject.variants;
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
         <SubjectDetail
@@ -1038,14 +1206,38 @@ export default function ImportPage() {
           }}
           onRestore={() => setSubjectEdit(detailSubject.key, { removed: false })}
           onCheck={() => {
-            const uids = problems.filter((entryItem) => entryItem.subjectKey === detailSubject.key).map((entryItem) => entryItem.uid);
+            const uids = previewProblems.filter((entryItem) => entryItem.subjectKey === detailSubject.key).map((entryItem) => entryItem.uid);
             openQueue(uids);
           }}
+          aiKeys={(() => {
+            const mine = aiCandidates.filter((candidate) => candidate.subjectKey === detailSubject.key);
+            const checks = aiChecks.filter((entryItem) => entryItem.subjectKey === detailSubject.key);
+            return (
+              <>
+                <AiKeysOffer
+                  count={mine.length}
+                  cost={keysAiPrice(mine)}
+                  busy={locked || keysRun.status === 'running'}
+                  onRun={() => void runAiKeys(detailSubject.key)}
+                />
+                {keysRun.scope === null || keysRun.scope === detailSubject.key ? <AiKeysStatus run={keysRun} now={clock} /> : null}
+                <AiKeysCheck count={checks.length} busy={locked} label={IMPORT.problemsGo} onOpen={() => openQueue(checks.map((entryItem) => entryItem.uid))} />
+              </>
+            );
+          })()}
           onKeySource={() => openView(`#key=${encodeURIComponent(detailSubject.fileId)}`)}
           onMerge={(merged) => setFileEdit(detailSubject.fileId, { merged })}
-          onFormat={entry ? (format) => reread(detailSubject.fileId, { format }) : null}
+          onFormat={detailEntries.length > 0 && !aiRunning ? (format) => detailIds.forEach((id) => reread(id, { format })) : null}
+          onSplit={
+            variants && !locked
+              ? (split) => {
+                  setSplit(variants.key, split);
+                  closeView();
+                }
+              : undefined
+          }
         />
-        {entry?.status === 'reading' ? (
+        {detailEntries.some((item) => item.status === 'reading') ? (
           <p className="im-line" role="status">
             {IMPORT.rereading}
           </p>
@@ -1088,32 +1280,52 @@ export default function ImportPage() {
               : IMPORT.updateDone
             : IMPORT.updateSave(updatePlan.add.length)
         : targetKind === 'container'
-          ? IMPORT.saveAdd(active.length)
+          ? joined.length > 0 && joined.length === active.length
+            ? IMPORT.saveQuestions(joinedAdd)
+            : IMPORT.saveAdd(active.length - joined.length)
           : IMPORT.save;
 
-  /** A file without keys asks one question (decision 34): paste the key, mark as you go, or read it as oral. */
-  const noKeyBlock = (list: ReadonlyArray<{ key: string; title: string; fileId: string }>, named: boolean) =>
+  /**
+   * A file without keys asks one question (decision 34): paste the key, mark as you go, or read it as oral. A subject
+   * made of variants asks it once for all its files (`fileIds`): each file takes its own section of a key file.
+   */
+  const noKeyBlock = (list: ReadonlyArray<{ key: string; title: string; fileId: string; fileIds: string[] }>, named: boolean) =>
     list.map((subject) => (
       <div key={`nokey-${subject.key}`} className="im-nokey">
         <p className="im-nokey-t">{named ? IMPORT.noKeyIn(subject.title) : IMPORT.noKeyTitle}</p>
         <p className="im-nokey-acts">
-          <button type="button" className="sf-link" disabled={locked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
+          <button type="button" className="sf-link" disabled={rereadLocked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
             {IMPORT.noKeyPaste}
           </button>
-          <KeyFileButton label={IMPORT.noKeyFile} busy={locked} onFile={(chosen) => reread(subject.fileId, { keyFile: chosen, keySection: null })} />
-          <button type="button" className="sf-link" disabled={locked} onClick={() => setFileEdit(subject.fileId, { noKeyLater: true })}>
+          <KeyFileButton
+            label={IMPORT.noKeyFile}
+            busy={rereadLocked}
+            onFile={(chosen) => subject.fileIds.forEach((id) => reread(id, { keyFile: chosen, keySection: null }))}
+          />
+          <button type="button" className="sf-link" disabled={locked} onClick={() => subject.fileIds.forEach((id) => setFileEdit(id, { noKeyLater: true }))}>
             {IMPORT.noKeyLater}
           </button>
-          <button type="button" className="sf-link" disabled={locked} onClick={() => reread(subject.fileId, { format: 'open' })}>
+          <button type="button" className="sf-link" disabled={rereadLocked} onClick={() => subject.fileIds.forEach((id) => reread(id, { format: 'open' }))}>
             {IMPORT.noKeyOral}
           </button>
         </p>
+        {/* «Подобрать ключи с ИИ» beside the other ways to a key: this subject's questions (owner, 2026-11-04) */}
         {(() => {
-          const withKeyFile = files.find((entry) => entry.id === subject.fileId);
-          return withKeyFile ? (
-            <KeyFileSections file={withKeyFile} busy={locked} onSection={(index) => reread(subject.fileId, { keySection: index })} />
-          ) : null;
+          const mine = aiCandidates.filter((candidate) => candidate.subjectKey === subject.key);
+          return <AiKeysOffer count={mine.length} cost={keysAiPrice(mine)} busy={locked || keysRun.status === 'running'} onRun={() => void runAiKeys(subject.key)} />;
         })()}
+        {files
+          .filter((entry) => subject.fileIds.includes(entry.id))
+          .map((withKeyFile) => (
+            <div key={`sections-${withKeyFile.id}`}>
+              {subject.fileIds.length > 1 && withKeyFile.result.key_file?.used === null ? (
+                <p className="im-hint" data-muted="">
+                  {withKeyFile.name}
+                </p>
+              ) : null}
+              <KeyFileSections file={withKeyFile} busy={rereadLocked} onSection={(index) => reread(withKeyFile.id, { keySection: index })} />
+            </div>
+          ))}
       </div>
     ));
   const problemsLine = (list: ReadonlyArray<{ uid: string }>) =>
@@ -1159,7 +1371,7 @@ export default function ImportPage() {
         {failedFiles}
         {rereadingLine}
         <UpdatePreview subject={updateSubject} sources={sources} source={source} onSource={setSourceKey} plan={updatePlan} locked={locked} />
-        {source && source.allNoKey && updateNew.length > 0 ? noKeyBlock([source], false) : null}
+        {source && source.allNoKey && updateNew.length > 0 ? noKeyBlock([{ ...source, fileIds: source.fileIds }], false) : null}
         {problemsLine(shownProblems)}
         {updateImages.length > 0 ? (
           <p className="im-line" data-muted="">
@@ -1198,9 +1410,26 @@ export default function ImportPage() {
         </p>
       ) : null}
 
-      {noKeyBlock(noKeySubjects, active.length > 1)}
+      {joined.map((subject) => (
+        <p key={`join-${subject.key}`} className="im-line">
+          {nb(IMPORT.joinLine(subject.title, joins[subject.key].plan.add.length, joins[subject.key].plan.same))}
+        </p>
+      ))}
+      {noKeyBlock(
+        noKeySubjects.map((subject) => ({ ...subject, fileIds: subject.files.map((file) => file.id) })),
+        active.length > 1,
+      )}
+      {/* «Подобрать ключи с ИИ» for the keyless questions of the subjects that have keys otherwise (a subject without any
+          key offers it in its own block above) */}
+      {(() => {
+        const asked = new Set(noKeySubjects.map((subject) => subject.key));
+        const rest = aiCandidates.filter((candidate) => !asked.has(candidate.subjectKey));
+        return <AiKeysOffer count={rest.length} cost={keysAiPrice(rest)} busy={locked || keysRun.status === 'running'} onRun={() => void runAiKeys(null)} />;
+      })()}
+      <AiKeysStatus run={keysRun} now={clock} />
+      <AiKeysCheck count={aiChecks.length} busy={locked} label={IMPORT.problemsGo} onOpen={() => openQueue(aiChecks.map((entryItem) => entryItem.uid))} />
       {reviewLines}
-      {problemsLine(problems)}
+      {problemsLine(previewProblems)}
       {splitGroups.map((subject) => (
         <p key={`split-${subject.key}`} className="im-line" data-muted="">
           {nb(IMPORT.split(subject.title.replace(/, часть 1$/, ''), subject.oralTotal, subject.parts))}
@@ -1239,7 +1468,13 @@ export default function ImportPage() {
               <ul>
                 {spot.map(({ subject, item }) => (
                   <li key={item.uid}>
-                    <p className="im-spot-ctx">{nb([subject, item.label ? `№ ${item.label}` : null].filter(Boolean).join(' · '))}</p>
+                    <p className="im-spot-ctx">
+                      {nb(
+                        [subject, item.label ? `№ ${item.label}` : null, typeof item.variant === 'number' ? IMPORT.spotVariant(item.variant) : null]
+                          .filter(Boolean)
+                          .join(' · '),
+                      )}
+                    </p>
                     <p className="im-spot-q">{item.text}</p>
                     <p className="im-spot-a">
                       {`${IMPORT.spotCheckFile}: `}
@@ -1260,7 +1495,7 @@ export default function ImportPage() {
           ) : null}
         </div>
       ) : null}
-      {singleFile && singleFile.source !== 'pdf' && !locked ? (
+      {singleFile && singleFile.source !== 'pdf' && !rereadLocked ? (
         <div>
           <button
             type="button"
@@ -1312,6 +1547,7 @@ export default function ImportPage() {
                 className="im-input im-date"
                 value={subject.date ?? ''}
                 min={today}
+                max={maxDay}
                 disabled={locked}
                 aria-label={IMPORT.subjectDate(subject.title)}
                 onChange={(event) => setSubjectEdit(subject.key, { date: event.target.value || null })}
@@ -1330,6 +1566,7 @@ export default function ImportPage() {
             className="im-input im-date"
             value={date}
             min={today}
+            max={maxDay}
             disabled={locked}
             onChange={(event) => setForm((current) => ({ ...current, date: event.target.value, dateTouched: true }))}
           />

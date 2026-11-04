@@ -6,7 +6,8 @@
  *   code in `<pre>` (never inside `<b>`; no language label: the code may be C#, SQL or a shell), options on buttons or by letter (question.ts).
  *   No blue button: the answer is the action — except «Ответить» of several correct answers.
  * - After a wrong answer or «Не знаю» (Z7, Z8): the question loses its bold, the answer from the file takes it; only
- *   «В файле» and «Ваш ответ» stay, then the verdict, the notes about the key and «№ 57 · Тема 3. …». «Нажали не
+ *   «В файле» («Верный ответ» for a key that is not the file's: the author's, the AI's) and «Ваш ответ» stay, then the
+ *   verdict, the notes about the key and «№ 57 · Тема 3. …». «Нажали не
  *   туда?» (Z9), «Сомневаюсь в ключе» (Z11) and the author's «Ключ неверный?» (Z12) are edits of the same message.
  * - The words (container decisions 41, 42, 50 where they override the bot spec's older lines): «повтор — не в счёт»,
  *   «Верных ответов несколько — отметьте все.» The figure in «Верно. Теперь 144 из 960 — …» is the copied words.ts.
@@ -45,6 +46,9 @@ export const S = {
   shortHint: 'Напишите ответ сообщением.',
   inFile: 'В файле',
   inFileMany: 'В файле верны',
+  /** A key that is not the file's (the author's, a typed key list, the AI's), as the site says it (release 47, M10). */
+  rightKey: 'Верный ответ',
+  rightKeys: 'Верные ответы',
   yours: 'Ваш ответ',
   right: 'Верно.',
   wrong: 'Неверно.',
@@ -52,6 +56,8 @@ export const S = {
   doubtDone: 'Вопрос отложен. Когда автор ответит, он снова будет в занятиях.',
   manualByAuthor: 'В файле ответ не был выделен. Ключ поставил автор.',
   manualByYou: 'В файле ответ не был выделен. Ключ поставили вы.',
+  /** A key from «Подобрать ключи с ИИ» (owner, 2026-11-04), as the site says it. */
+  aiKey: 'Ключ подобран ИИ, не из файла.',
   moved: 'Занятие продолжено ниже.',
 } as const;
 
@@ -179,11 +185,16 @@ function numberLine(item: QuestionItem): string {
   return t(topic ? `№ ${fileNumber(item)} · ${topic}` : `№ ${fileNumber(item)}`);
 }
 
-/** Notes above the number: a key the author set by hand; a key the author fixed (members). */
+/**
+ * Notes above the number: a key the AI suggested, or one the author set by hand; a key the author fixed (members) —
+ * but not the AI's key: writing it moves rev like a fix, and «Автор исправил ключ» under «Ключ подобран ИИ» says what
+ * did not happen.
+ */
 function notes(v: QuestionView): string[] {
   const out: string[] = [];
-  if (v.item.keySource === 'manual') out.push(t(v.role === 'owner' ? S.manualByYou : S.manualByAuthor));
-  if (v.role !== 'owner' && v.item.keyChangedAt && /^\d{4}-\d{2}-\d{2}/.test(v.item.keyChangedAt)) {
+  if (v.item.aiKey) out.push(t(S.aiKey));
+  else if (v.item.keySource === 'manual') out.push(t(v.role === 'owner' ? S.manualByYou : S.manualByAuthor));
+  if (v.role !== 'owner' && !v.item.aiKey && v.item.keyChangedAt && /^\d{4}-\d{2}-\d{2}/.test(v.item.keyChangedAt)) {
     out.push(t(keyFixedOn(v.item.keyChangedAt.slice(0, 10))));
   }
   return out;
@@ -234,22 +245,30 @@ export function questionOut(v: QuestionView, mask = 0): Out {
 
 // ─────────────────────────────────────────── Z5, Z7–Z11: after the answer ───────────────────────────────────────────
 
-/** «В файле — …» and «Ваш ответ — …» as the layout shows options (buttons, letters, code; several; short). */
+/** Key sources that are not the file's own marks (the site's copy.ts NOT_FROM_FILE). */
+const NOT_FROM_FILE = new Set(['manual', 'key_text', 'none']);
+
+/**
+ * «В файле — …» (or «Верный ответ — …» for a key that is not the file's: the author's, the AI's) and «Ваш ответ — …»
+ * as the layout shows options (buttons, letters, code; several; short).
+ */
 function answerBlock(v: QuestionView, shown: Shown, withYours: boolean): string {
   const item = v.item;
   const layout = layoutOf(item);
   const yours = withYours && !shown.dontKnow;
+  const fromFile = !item.aiKey && !NOT_FROM_FILE.has(item.keySource ?? '');
+  const one = fromFile ? S.inFile : S.rightKey;
   if (item.kind === 'short') {
     const form = shown.forms[0] ?? '';
     return lines(
-      `${t(`${S.inFile} — `)}<b>${own(oneLine(form))}</b>`,
+      `${t(`${one} — `)}<b>${own(oneLine(form))}</b>`,
       yours && shown.text !== null ? `${t(`${S.yours} — `)}${own(typedShown(oneLine(shown.text)))}` : null,
     );
   }
   const key = shown.key.filter((i) => i >= 0 && i < item.options.length);
   const chosen = shown.chosen.filter((i) => i >= 0 && i < item.options.length);
   const multiple = item.kind === 'multiple';
-  const keyHead = multiple && key.length > 1 ? `${S.inFileMany}: ` : `${S.inFile} — `;
+  const keyHead = multiple && key.length > 1 ? `${fromFile ? S.inFileMany : S.rightKeys}: ` : `${one} — `;
   const yoursHead = multiple ? `${S.yours}: ` : `${S.yours} — `;
   if (layout.mode === 'buttons') {
     const labels = (indices: number[]) => indices.map((i) => optionLabel(item.options[i])).join(', ');

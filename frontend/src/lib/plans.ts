@@ -43,6 +43,8 @@ export const AI_COSTS = {
   tutorTurn: 1,
   /** Разбор сложных мест банка вопросов — за каждые начатые 100 вопросов, отправленных модели. */
   importAI: 5,
+  /** Подбор ключей с ИИ (2026-11-04) — за каждые начатые 100 вопросов одного запроса. */
+  keysAI: 5,
 } as const;
 // Убраны вместе со скрытыми разделами (2026-10-05): чат, курсы, миссии, экзамен у «профессора», карьера.
 
@@ -64,6 +66,21 @@ export const IMPORT_AI_QUESTIONS_PER_CHARGE = 100;
 export function importAiCost(questions: number): number {
   const count = Math.max(1, Math.trunc(Number(questions) || 0));
   return AI_COSTS.importAI * Math.ceil(count / IMPORT_AI_QUESTIONS_PER_CHARGE);
+}
+
+/** Подбор ключей с ИИ: AI_COSTS.keysAI за каждые начатые столько вопросов одного запроса (backend/bank_keys_ai.py)… */
+export const KEYS_AI_QUESTIONS_PER_CHARGE = 100;
+/** …или за каждые начатые столько кусков (вызовов модели на два ответа), что больше. */
+export const KEYS_AI_BATCHES_PER_CHARGE = 4;
+
+/**
+ * Единицы одного запроса подбора ключей: 5 за каждые начатые 100 вопросов или 4 куска, что больше (не меньше 5);
+ * сервер считает так же (plans.py). Куски — import/keysAi.ts keysAiBatchCount, как bank_keys_ai.make_batches.
+ */
+export function keysAiCost(questions: number, batches = 0): number {
+  const count = Math.max(1, Math.trunc(Number(questions) || 0));
+  const parts = Math.max(0, Math.trunc(Number(batches) || 0));
+  return AI_COSTS.keysAI * Math.max(Math.ceil(count / KEYS_AI_QUESTIONS_PER_CHARGE), Math.ceil(parts / KEYS_AI_BATCHES_PER_CHARGE));
 }
 
 /** Распознавание скана: AI_COSTS.scanPages за каждые начатые столько страниц. */

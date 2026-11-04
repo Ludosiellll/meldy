@@ -103,6 +103,7 @@
 .sf-page .im-file[data-status='failed'] .im-file-status { color: var(--sf-ink); font-weight: 500; }
 .sf-page .im-file-why { margin-top: 6px; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .im-file-why p { margin: 0; }
+.sf-page .im-file-why[data-muted] { color: var(--sf-muted); }
 .sf-page .im-file-acts { display: flex; flex-wrap: wrap; gap: 0 20px; }
 
 /* The subjects: rows of one card; the whole row opens the subject. */
@@ -282,6 +283,14 @@
 .sf-page .im-keyfile-choose { display: grid; gap: 6px; margin-top: 8px; }
 .sf-page .im-keyfile-choose .im-nokey-acts { gap: 8px 10px; }
 .sf-page .im-keytext-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 4px; }
+/* «Подобрать ключи с ИИ»: the button, its count and price, the rule under it. */
+.sf-page .im-aikeys .im-hint { margin-top: 2px; }
+.sf-page .im-aikeys-meta { color: var(--sf-muted); font-size: 15px; }
+.sf-page .im-nokey .im-aikeys .im-line { margin-top: 8px; }
+/* A subject made of variants: which variant's file the key list goes to. */
+.sf-page .im-keysrc-variant { display: grid; gap: 6px; margin-top: 10px; }
+.sf-page .im-keysrc-variant .im-hint,
+.sf-page .im-keysrc-variant .im-subject-from { margin: 0; }
 
 /* «Обновить из файла»: the counts as rows of one card, then the questions whose key differs, by number. */
 .sf-page .im-update-which { margin-top: 18px; }

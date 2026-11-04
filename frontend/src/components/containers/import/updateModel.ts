@@ -15,12 +15,14 @@
  * - Open questions are not added: the oral part of a subject is its own exam, changed on its own page.
  */
 import type { ItemInput, SummarySubject, TestItem } from '../../../types/container';
-import { activeSubjects, itemInputs, shortNorm, TOPIC_CAP, type DraftItem, type DraftSubject, type PicturePlace } from './importModel';
+import { activeSubjects, itemInputs, shortNorm, subjectOrder, TOPIC_CAP, type DraftItem, type DraftSubject, type PicturePlace } from './importModel';
 
 /** One subject of the file, its oral parts joined: what can update the exam's subject. */
 export interface UpdateSource {
   key: string;
   fileId: string;
+  /** Its files in order (a subject of variants has several): the questions go in their order. */
+  fileIds: string[];
   title: string;
   test: DraftItem[];
   blocked: DraftItem[];
@@ -104,6 +106,7 @@ export function updateSources(subjects: readonly DraftSubject[]): UpdateSource[]
       source = {
         key,
         fileId: subject.fileId,
+        fileIds: subject.files.map((entry) => entry.id),
         title: subject.part ? subject.title.replace(/, часть \d+$/, '') : subject.title,
         test: [],
         blocked: [],
@@ -154,7 +157,7 @@ export function planUpdate(source: UpdateSource | null, saved: readonly TestItem
     if (!savedBy.has(key)) savedBy.set(key, item);
   }
   const inFile = new Set<string>();
-  for (const item of source ? [...source.test, ...source.blocked].sort((a, b) => a.position - b.position) : []) {
+  for (const item of source ? subjectOrder([...source.test, ...source.blocked], source.fileIds) : []) {
     const key = draftIdentity(item);
     inFile.add(key);
     const match = savedBy.get(key);
@@ -204,7 +207,56 @@ export function planUpdate(source: UpdateSource | null, saved: readonly TestItem
   return plan;
 }
 
-/** The new questions as container_items_add takes them, with the subject's topic numbers. */
-export function updateItemInputs(plan: UpdatePlan, importId: string, place?: PicturePlace): ItemInput[] {
+/** The new questions as container_items_add takes them, with the subject's topic numbers (refs: each one's file). */
+export function updateItemInputs(plan: UpdatePlan, importId: string | ((fileId: string) => string), place?: PicturePlace): ItemInput[] {
   return itemInputs({ test: plan.add.map((item) => ({ ...item, topic: plan.topicOf[item.uid] ?? null })) }, importId, place);
+}
+
+// ─────────────────────────────── variants into a subject the exam already has ───────────────────────────────
+
+/** What a subject of variants brings to the exam's subject of the same name: the update plan, as «Обновить из файла». */
+export interface JoinPlan {
+  subjectId: string;
+  plan: UpdatePlan;
+}
+
+/**
+ * «Куда добавить: к …» with a subject of variants whose name the exam already has (owner, 2026-11-04: variants 1–6 one
+ * day, 7–12 the next): its new variants land in that subject rather than in a second subject of the same name. Only a
+ * subject made of variants (two files or more) without an oral part joins; any other is added as a new subject, as
+ * before. The subject's key → the id of the exam's subject (its first of that name).
+ */
+export function joinTargets(subjects: readonly DraftSubject[], existing: ReadonlyArray<{ id: string; title: string }>): Record<string, string> {
+  const byName = new Map<string, string>();
+  for (const subject of existing) {
+    const name = sameText(subject.title);
+    if (!byName.has(name)) byName.set(name, subject.id);
+  }
+  const out: Record<string, string> = {};
+  for (const subject of activeSubjects(subjects)) {
+    if (subject.files.length < 2 || subject.part !== null || subject.oral.length > 0) continue;
+    const id = byName.get(sameText(subject.title));
+    if (id) out[subject.key] = id;
+  }
+  return out;
+}
+
+/**
+ * The plan of each joining subject against the exam's saved questions: the same question is not added again, a key in
+ * the file that differs is only listed, new topics («Вариант 7» …) go after the subject's own.
+ */
+export function joinPlans(
+  subjects: readonly DraftSubject[],
+  targets: Readonly<Record<string, string>>,
+  saved: { subjects: ReadonlyArray<Pick<SummarySubject, 'id' | 'topic_titles'>>; items: readonly TestItem[] },
+): Record<string, JoinPlan> {
+  const out: Record<string, JoinPlan> = {};
+  for (const source of updateSources(subjects)) {
+    const subjectId = targets[source.key];
+    const target = subjectId ? saved.subjects.find((subject) => subject.id === subjectId) : undefined;
+    if (!subjectId || !target) continue;
+    const items = saved.items.filter((item) => item.subject_id === subjectId);
+    out[source.key] = { subjectId, plan: planUpdate(source, items, target) };
+  }
+  return out;
 }

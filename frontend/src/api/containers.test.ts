@@ -84,6 +84,7 @@ import {
   oralSync,
   parseBank,
   parseBankAi,
+  keysAi,
   previewLink,
   recordAnswers,
   removeMember,
@@ -696,6 +697,49 @@ describe('backend calls', () => {
     controller.abort();
     fetchMock.mockRejectedValue(new DOMException('aborted', 'AbortError'));
     expect((await caught(parseBank({ text: 'x', signal: controller.signal }))).code).toBe('aborted');
+  });
+
+  it('keys/ai: JSON with the subject and the questions; a key only with agree and sure high; the limit re-read', async () => {
+    const heard = vi.fn();
+    window.addEventListener(AI_USAGE_EVENT, heard);
+    try {
+      fetchMock.mockResolvedValue(
+        json({
+          results: [
+            { id: 'f1:2', correct: [1], agree: true, sure: 'high' },
+            { id: 'f1:3', correct: null, agree: false, sure: 'low', note: 'ответы ИИ разошлись' },
+            { id: 'f1:4', correct: [0], agree: false, sure: 'low' },
+          ],
+          units: 5,
+          spent_questions: 3,
+        }),
+      );
+      const questions = [
+        { id: 'f1:2', text: 'Вопрос?', options: ['а', 'б'], kind: 'single' as const },
+        { id: 'f1:3', text: 'Вопрос 3?', options: ['а', 'б', 'в'], kind: 'multiple' as const },
+      ];
+      const answer = await keysAi({ subject: '  Сети  ', questions });
+      const [path, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(path).toBe('/api/exams/keys/ai');
+      expect(init.method).toBe('POST');
+      expect(new Headers(init.headers).get('content-type')).toBe('application/json');
+      expect(JSON.parse(String(init.body))).toEqual({ subject: 'Сети', questions });
+      expect(answer.results).toEqual([
+        { id: 'f1:2', correct: [1], agree: true, sure: 'high' },
+        { id: 'f1:3', correct: null, agree: false, sure: 'low', note: 'ответы ИИ разошлись' },
+        // never a key the server did not stand behind
+        { id: 'f1:4', correct: null, agree: false, sure: 'low' },
+      ]);
+      expect([answer.units, answer.spent_questions, heard.mock.calls.length]).toEqual([5, 3, 1]);
+      fetchMock.mockResolvedValue(json({ detail: 'ИИ сейчас занят. Попробуйте подобрать ключи через минуту.', code: 'ai_busy' }, 429));
+      expect(await caught(keysAi({ subject: null, questions }))).toMatchObject({ code: 'ai_busy', status: 429 });
+      expect(heard).toHaveBeenCalledTimes(2);
+      fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+      expect(await caught(keysAi({ subject: null, questions }))).toMatchObject({ code: 'network' });
+      expect(heard).toHaveBeenCalledTimes(2);
+    } finally {
+      window.removeEventListener(AI_USAGE_EVENT, heard);
+    }
   });
 
   it('parse-bank/ai: the top bar re-reads the AI limit after the pass, and after a failure the server answered', async () => {

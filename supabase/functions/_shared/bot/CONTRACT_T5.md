@@ -74,14 +74,15 @@ VIEW (the current question; null when there is none — finished, ended):
   order: [file indices in the shown order],        // invert it to get the options in file order (pinnedLast, optionOrder)
   file_no, number (position in the file, when file_no is ""), topic, topic_title, retry: 0|1|2,
   review: null | { correct, dont_know, choice: [shown indices], text, key: [shown indices], answers: [accepted forms],
-                   recorded, misclick, doubt, status, step, key_source, key_changed_at } }
+                   recorded, misclick, doubt, status, step, key_source, ai_key, key_changed_at } }
 ```
 - `review.recorded` false = the answer still waits: «Нажали не туда?» is possible (not for a typed short answer).
 - A view always shows the question's current version: showing an unanswered question again (move, view) takes its
   current rev, and a press is checked against the rev last shown (`stale` when the author changed the key in between).
 - `review.misclick` → Z9; `review.doubt` → «Отложено. Когда автор ответит, вопрос вернётся в занятия.»;
   `key_changed_at` → «Ключ исправлен автором <date>.»; `key_source` (`manual`, `first_option`, …) for «В файле ответ не
-  был выделен — ключ поставил автор.».
+  был выделен — ключ поставил автор.»; `ai_key` true (migration 20261107090300_ai_key_flag: the key came from «Подобрать
+  ключи с ИИ», the flag ai_key) → «Ключ подобран ИИ, не из файла.» instead.
 - Repeats: `retry > 0` → «… · повтор — не в счёт». «Вернётся через пару вопросов» while `retry < 2`.
 
 ANSWER (`answer` of `bot_session_answer`; others carry the recorded outcome when they recorded one, else null):

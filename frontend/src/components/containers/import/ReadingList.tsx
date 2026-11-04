@@ -4,7 +4,8 @@ import { AddFileLink } from './FilePick';
 /**
  * «Читаем 4 файла» (Concept 1 §3.2): one row per file, its status on the right; a file that did not open says why
  * under its row, with «Убрать файл», and never holds the others back. Long names are cut in the middle, so the end of
- * «Программирование_на_C#_2026.docx» stays readable (design critique N8).
+ * «Программирование_на_C#_2026.docx» stays readable (design critique N8). A file the server asked to wait for (429)
+ * says how long until it is read again by itself (readQueue.ts).
  */
 
 export interface ReadingRow {
@@ -14,6 +15,8 @@ export interface ReadingRow {
   found: number | null;
   error: string | null;
   retry: boolean;
+  /** Seconds until a file the server asked to wait for is read again by itself; null — not waiting. */
+  wait?: number | null;
 }
 
 /** «Программирова…C#.docx»: the head shrinks, the last 12 characters stay. */
@@ -48,6 +51,11 @@ export default function ReadingList({ rows, onRemove, onRetry, onFiles, heading 
                 {row.status === 'reading' ? IMPORT.readingWait : row.status === 'failed' ? IMPORT.readFailed : nb(IMPORT.fileFound(row.found ?? 0))}
               </span>
             </div>
+            {row.status === 'reading' && row.wait ? (
+              <div className="im-file-why" data-muted="" role="status">
+                <p>{nb(IMPORT.serverWait(row.wait))}</p>
+              </div>
+            ) : null}
             {row.status === 'failed' && row.error ? (
               <div className="im-file-why">
                 <p>{nb(row.error)}</p>

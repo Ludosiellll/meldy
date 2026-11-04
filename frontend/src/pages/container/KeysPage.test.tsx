@@ -8,6 +8,7 @@ import type { ContainerSummary, DoubtRow, TestItem } from '../../types/container
 
 const api = vi.hoisted(() => ({
   updateItem: vi.fn(),
+  keysAi: vi.fn(),
   addItems: vi.fn(),
   keepKey: vi.fn(),
   deleteItem: vi.fn(),
@@ -18,6 +19,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('../../api/containers', () => ({
   updateItem: api.updateItem,
+  keysAi: api.keysAi,
   addItems: api.addItems,
   keepKey: api.keepKey,
   deleteItem: api.deleteItem,
@@ -84,7 +86,13 @@ beforeEach(() => {
   api.state.loading = false;
   api.state.error = null;
   api.state.gone = false;
-  api.updateItem.mockReset().mockImplementation(async (id: string) => ({ id, rev: 2, rev_changed: true, doubts_resolved: 0 }));
+  // the database's answer carries the mark as stored (migration 20261107090300): set by ai_key true, kept by a change
+  // that is not the key, dropped by a key change
+  api.updateItem.mockReset().mockImplementation(async (id: string, patch: { ai_key?: boolean; correct?: number[]; answers?: string[] } = {}) => {
+    const flags = ((api.state.items as Map<string, TestItem> | null)?.get(id)?.flags ?? []) as string[];
+    const kept = patch.correct === undefined && patch.answers === undefined && patch.ai_key === undefined && flags.includes('ai_key');
+    return { id, rev: 2, rev_changed: true, doubts_resolved: 0, ai_key: patch.ai_key === true || kept };
+  });
   api.keepKey.mockReset().mockResolvedValue(2);
   api.deleteItem.mockReset().mockResolvedValue(undefined);
   api.fetchDoubts.mockReset().mockResolvedValue(doubtsJson as unknown as DoubtRow[]);
@@ -122,6 +130,111 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(screen.getByText('Ключ сейчас: Г.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Готово' }));
     expect(api.reload).toHaveBeenCalled();
+  });
+
+  it('a key «Подобрать ключи с ИИ» suggested is labelled where it shows; a key without the mark is not', async () => {
+    const items = itemsFor();
+    const five = BASE_ITEMS[4];
+    items.set(five.id, { ...items.get(five.id)!, flags: ['ai_key'], rev: 2 });
+    api.state.items = items;
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: /Ключи подобрал ИИ\s*1\sвопрос/ }));
+    expect(await screen.findByText(/Ключ подобран ИИ, не из файла\./)).toBeInTheDocument();
+    // the author changes it: the patch takes the mark off (migration 20261107090300), and so does the card
+    fireEvent.click(screen.getByRole('button', { name: /^Б\.\s?/ }));
+    await waitFor(() => expect(api.updateItem).toHaveBeenCalledWith(five.id, { correct: [1] }));
+    await waitFor(() => expect(screen.queryByText(/Ключ подобран ИИ/)).toBeNull());
+    cleanup();
+    items.set(five.id, { ...items.get(five.id)!, flags: [] });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: /Ключ поставили вы/ }));
+    expect(await screen.findByText(/Ключ сейчас:/)).toBeInTheDocument();
+    expect(screen.queryByText(/Ключ подобран ИИ/)).toBeNull();
+  });
+
+  it('«Подобрать ключи с ИИ»: keyless choice questions without pictures go; an agreed key is written with ai_key true', async () => {
+    const items = itemsFor();
+    const two = BASE_ITEMS[1];
+    // a keyless question with a picture: it does not go (the model would answer blind)
+    items.set('pic-item', { ...items.get(two.id)!, id: 'pic-item', position: 40, file_no: '40', images: { stem: ['c/a.png'], options: [] } });
+    api.state.items = items;
+    api.keysAi.mockImplementation(async (input: { questions: Array<{ id: string }> }) => ({
+      results: input.questions.map((question) => ({ id: question.id, correct: [1], agree: true, sure: 'high' })),
+      units: 5,
+      spent_questions: input.questions.length,
+    }));
+    renderAt();
+    const go = await screen.findByRole('button', { name: 'Подобрать ключи с ИИ' });
+    expect(screen.getByText((text) => text.replace(/\u00a0/g, ' ') === '1 вопрос без ключа · 5 единиц')).toBeInTheDocument();
+    fireEvent.click(go);
+    await waitFor(() => expect(api.updateItem).toHaveBeenCalledWith(two.id, { correct: [1], ai_key: true }));
+    const [request] = api.keysAi.mock.calls[0];
+    expect(request.questions.map((question: { id: string; options: string[]; kind: string }) => [question.id, question.kind])).toEqual([[two.id, 'single']]);
+    expect(request.subject).toBe(SUMMARY.subjects[0].title);
+    expect(await screen.findByText(/Ключи подобраны для 1 из 1 вопроса\./)).toBeInTheDocument();
+    // the key is there, with its mark, in «Ключи подобрал ИИ»
+    fireEvent.click(screen.getByRole('button', { name: /Ключи подобрал ИИ/ }));
+    expect(await screen.findByText(/Ключ подобран ИИ, не из файла\./)).toBeInTheDocument();
+  });
+
+  it('«Подобрать ключи с ИИ»: a key the author set meanwhile stays, a failed write is counted, the run goes on', async () => {
+    const items = itemsFor();
+    const two = BASE_ITEMS[1];
+    // two more keyless questions: the author keys one by hand during the run, the write of the other fails
+    items.set('k-hand', { ...items.get(two.id)!, id: 'k-hand', position: 41, file_no: '41', stem: 'Вопрос, который автор отметил сам' });
+    items.set('k-fail', { ...items.get(two.id)!, id: 'k-fail', position: 42, file_no: '42', stem: 'Вопрос, запись которого не прошла' });
+    api.state.items = items;
+    api.keysAi.mockImplementation(async (input: { questions: Array<{ id: string }> }) => ({
+      results: input.questions.map((question) => ({ id: question.id, correct: [1], agree: true, sure: 'high' })),
+      units: 5,
+      spent_questions: input.questions.length,
+    }));
+    api.updateItem.mockImplementation(async (id: string) => {
+      // the database's refusals as api/containers.ts gives them: SQLSTATE and detail
+      if (id === 'k-hand') throw Object.assign(new Error('invalid patch'), { code: '22023', status: 400, detail: 'keyed' });
+      if (id === 'k-fail') throw Object.assign(new Error('Нет сети'), { code: 'network', status: 0, detail: null });
+      return { id, rev: 2, rev_changed: true, doubts_resolved: 0, ai_key: true };
+    });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Подобрать ключи с ИИ' }));
+    const line = await screen.findByText(/Ключи подобраны для 1 из 3 вопросов\./);
+    const text = line.textContent!.replace(/\u00a0/g, ' ');
+    expect(text).toContain('Не записаны 2 ключа от ИИ: уже есть ключ — 1, не удалось сохранить — 1.');
+    expect(text).toContain('Списано 5 единиц.');
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(api.updateItem).toHaveBeenCalledTimes(3);
+  });
+
+  it('«Подобрать ключи с ИИ»: a database that does not keep the mark stops the run and takes the key back', async () => {
+    const items = itemsFor();
+    const two = BASE_ITEMS[1];
+    items.set('k-next', { ...items.get(two.id)!, id: 'k-next', position: 41, file_no: '41', stem: 'Ещё один вопрос без ключа' });
+    api.state.items = items;
+    api.keysAi.mockImplementation(async (input: { questions: Array<{ id: string }> }) => ({
+      results: input.questions.map((question) => ({ id: question.id, correct: [1], agree: true, sure: 'high' })),
+      units: 5,
+      spent_questions: input.questions.length,
+    }));
+    // an old database: no ai_key in its answer
+    api.updateItem.mockImplementation(async (id: string) => ({ id, rev: 2, rev_changed: true, doubts_resolved: 0 }));
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Подобрать ключи с ИИ' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ключи от ИИ пока не сохраняются с подписью');
+    expect(api.updateItem.mock.calls).toEqual([
+      [two.id, { correct: [1], ai_key: true }],
+      [two.id, { correct: [] }], // keyless again, as before the run
+    ]);
+  });
+
+  it('«Подобрать ключи с ИИ»: no key where the AI was not sure; a refusal in plain words', async () => {
+    api.keysAi.mockResolvedValueOnce({ results: [{ id: BASE_ITEMS[1].id, correct: null, agree: false, sure: 'low', note: 'ИИ не уверен' }], units: 5, spent_questions: 1 });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Подобрать ключи с ИИ' }));
+    expect(await screen.findByText(/Без ключа остался 1: ИИ не уверен/)).toBeInTheDocument();
+    expect(api.updateItem).not.toHaveBeenCalled();
+    api.keysAi.mockRejectedValueOnce(Object.assign(new Error('ИИ сейчас занят.'), { code: 'ai_busy', status: 429 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Подобрать ключи с ИИ' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('ИИ сейчас занят. Попробуйте подобрать ключи через минуту.');
   });
 
   it('a doubted question shows the count, the proposal, the notes and the majority; «Ключ верный» keeps it', async () => {

@@ -53,6 +53,8 @@ export interface QuestionItem {
   topicTitle: string | null;
   /** 'manual': the file did not mark the answer, the author set the key. */
   keySource: string;
+  /** The key came from «Подобрать ключи с ИИ» (test_items.flags has ai_key; migration 20261107090300_ai_key_flag). */
+  aiKey?: boolean;
   rev: number;
   /** When the author changed the key of the version shown (ISO), else null: «Ключ исправлен автором 16 октября.» */
   keyChangedAt: string | null;

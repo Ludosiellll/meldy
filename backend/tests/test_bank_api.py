@@ -1,5 +1,5 @@
-"""POST /api/exams/parse-bank (bank_api.py): подключение к приложению, 401 без сессии, лимит 10 запросов
-в минуту на пользователя, ошибки {"detail", "code"} по-русски, key_mode, key_text, format, форма ответа
+"""POST /api/exams/parse-bank (bank_api.py): подключение к приложению, 401 без сессии, лимит 30 запросов
+в минуту и 400 в день на пользователя (429 с Retry-After), ошибки {"detail", "code"} по-русски, key_mode, key_text, format, форма ответа
 предпросмотра (предметы, темы, вопросы с вариантами и открытые) — и ничего не пишется в базу, единицы
 не списываются, модель не зовётся.
 
@@ -9,6 +9,8 @@ Supabase — подменённый транспорт httpx, который з�
 import asyncio
 import re
 import sys
+import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -133,25 +135,225 @@ def test_the_route_itself_refuses_a_request_without_a_signed_in_user(monkeypatch
     assert_error(TestClient(bare).post(PATH, data={"text": BANK_TEXT}), 401, "auth", "Требуется войти в аккаунт")
 
 
-def test_the_limit_is_10_a_minute_per_user(api, monkeypatch):
+def test_the_limit_is_30_a_minute_and_400_a_day_per_user(api, monkeypatch):
+    """Пакет из 24 вариантов (владелец, 2026-11-04) читается за один раз: по 10 в минуту половина файлов получала 429."""
     limits = {
         name: [(str(limit.limit), limit.key_func) for limit in values]
         for name, values in api.main.limiter._route_limits.items()
         if name.startswith("bank_api.")
     }
-    assert limits == {"bank_api.parse_test_bank": [("10 per 1 minute", user_or_ip_key)]}
+    assert limits == {"bank_api.parse_test_bank": [("30 per 1 minute", user_or_ip_key), ("400 per 1 day", user_or_ip_key)]}
 
     monkeypatch.setattr(api.main.limiter, "enabled", True)
     api.main.limiter.reset()
     try:
-        for _ in range(10):
+        for _ in range(30):
             assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200
         limited = api.post(PATH, data={"text": BANK_TEXT})
         assert limited.status_code == 429 and limited.json()["detail"] == RATE_LIMIT_DETAIL
+        assert 1 <= int(limited.headers["Retry-After"]) <= 61  # клиент ждёт столько и повторяет сам
         other_user = api.post(PATH, data={"text": BANK_TEXT}, headers={"Authorization": "Bearer token-b"})
         assert other_user.status_code == 200
     finally:
         api.main.limiter.reset()
+
+
+class Blocking:
+    """Подменный разбор: держит поток, пока тест не отпустит; считает, сколько разборов идёт сразу."""
+
+    def __init__(self):
+        self.release = threading.Event()
+        self.lock = threading.Lock()
+        self.running = 0
+        self.most = 0
+
+    def __call__(self, text, **options):
+        with self.lock:
+            self.running += 1
+            self.most = max(self.most, self.running)
+        try:
+            self.release.wait(10)
+            return bank_parse.parse_bank_text(text, **options)
+        finally:
+            with self.lock:
+                self.running -= 1
+
+    def wait_running(self, count: int) -> None:
+        deadline = time.monotonic() + 5
+        while self.running < count and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert self.running == count
+
+
+def post_in_thread(api, token: str, results: list) -> threading.Thread:
+    thread = threading.Thread(target=lambda: results.append(
+        api.post(PATH, data={"text": BANK_TEXT}, headers={"Authorization": f"Bearer {token}"})))
+    thread.start()
+    return thread
+
+
+def test_at_most_two_parses_per_user_and_three_in_all_run_at_once(api, monkeypatch):
+    """Разбор — работа процессора и памяти: третий файл того же пользователя и четвёртый разбор на сервере ждут места
+    (здесь — 0,3 с), потом 429 parse_busy с Retry-After; очередь чтения клиента ждёт и повторяет сама."""
+    blocking = Blocking()
+    monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
+    monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 0.3)
+    monkeypatch.setitem(TOKENS, "token-c", "user-c")
+    results: list = []
+    threads = [post_in_thread(api, "token-a", results) for _ in range(2)]
+    blocking.wait_running(2)
+    third = api.post(PATH, data={"text": BANK_TEXT})
+    assert_error(third, 429, "parse_busy", bank_api.PARSE_BUSY_DETAIL)
+    assert third.headers["Retry-After"] == str(bank_api.PARSE_RETRY_AFTER_SECONDS)
+    threads.append(post_in_thread(api, "token-b", results))  # другой пользователь — третье место на сервере
+    blocking.wait_running(3)
+    assert_error(api.post(PATH, data={"text": BANK_TEXT}, headers={"Authorization": "Bearer token-c"}), 429, "parse_busy")
+    blocking.release.set()
+    for thread in threads:
+        thread.join(10)
+    assert [r.status_code for r in results] == [200, 200, 200] and blocking.most == 3
+    assert bank_api.parse_slots.busy == 0 and not bank_api.parse_slots.users
+    assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200
+
+
+def test_a_parse_waits_for_a_free_place_before_refusing(api, monkeypatch):
+    blocking = Blocking()
+    monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
+    monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 5)
+    results: list = []
+    threads = [post_in_thread(api, "token-a", results) for _ in range(2)]
+    blocking.wait_running(2)
+    threading.Timer(0.3, blocking.release.set).start()
+    started = time.monotonic()
+    assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200 and time.monotonic() - started >= 0.25
+    for thread in threads:
+        thread.join(10)
+    assert [r.status_code for r in results] == [200, 200] and blocking.most == 2
+
+
+def test_places_go_in_the_order_people_came_and_a_waiter_at_its_own_limit_does_not_hold_the_line():
+    """Места — по очереди прихода (было — кто первым спросит после освобождения); ждущий, у которого уже свои
+    PARSE_PER_USER разборов, не держит тех, кто за ним."""
+    async def scenario():
+        slots = bank_api.ParseSlots(per_user=1, total=1)
+        started: list[str] = []
+        release = {name: threading.Event() for name in ("a", "b", "c", "d")}
+
+        async def parse(user: str, name: str):
+            async with slots.hold(user, 5) as run:
+                started.append(name)
+                await run(lambda: release[name].wait(5))
+
+        first = asyncio.ensure_future(parse("user-a", "a"))
+        while not started:
+            await asyncio.sleep(0.01)
+        later = []
+        for user, name in (("user-b", "b"), ("user-c", "c"), ("user-d", "d")):
+            later.append(asyncio.ensure_future(parse(user, name)))
+            await asyncio.sleep(0.05)  # b, c, d come in this order
+        for name in ("a", "b", "c"):
+            release[name].set()
+            while len(started) < "abcd".index(name) + 2:
+                await asyncio.sleep(0.01)
+        release["d"].set()
+        await asyncio.gather(first, *later)
+        assert started == ["a", "b", "c", "d"]
+
+        # per_user 1, total 2: A's second request waits for A's own place; B, who came after it, starts at once
+        slots = bank_api.ParseSlots(per_user=1, total=2)
+        gate = threading.Event()
+        order: list[str] = []
+
+        async def go(user: str, name: str):
+            async with slots.hold(user, 5) as run:
+                order.append(name)
+                await run(lambda: gate.wait(5))
+
+        tasks = [asyncio.ensure_future(go("user-a", "a1"))]
+        await asyncio.sleep(0.05)
+        tasks.append(asyncio.ensure_future(go("user-a", "a2")))
+        await asyncio.sleep(0.05)
+        tasks.append(asyncio.ensure_future(go("user-b", "b1")))
+        await asyncio.sleep(0.3)
+        assert order == ["a1", "b1"]
+        gate.set()
+        await asyncio.gather(*tasks)
+        assert order == ["a1", "b1", "a2"] and not slots.waiting and slots.busy == 0
+
+    asyncio.run(scenario())
+
+
+def test_a_busy_answer_does_not_count_against_the_limit(api, monkeypatch):
+    """«Сервер занят» — не вина пользователя: 30 разборов в минуту остаются его, сколько бы раз сервер ни просил ждать."""
+    blocking = Blocking()
+    monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
+    monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 0.2)
+    monkeypatch.setitem(TOKENS, "token-c", "user-c")
+    monkeypatch.setattr(api.main.limiter, "enabled", True)
+    api.main.limiter.reset()
+    try:
+        blocking.release.set()
+        for _ in range(29):
+            assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200
+        blocking.release.clear()
+        results: list = []
+        threads = [post_in_thread(api, token, results) for token in ("token-b", "token-b", "token-c")]
+        blocking.wait_running(3)
+        for _ in range(3):
+            assert_error(api.post(PATH, data={"text": BANK_TEXT}), 429, "parse_busy")
+        blocking.release.set()
+        for thread in threads:
+            thread.join(10)
+        assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200  # the 30th
+        limited = api.post(PATH, data={"text": BANK_TEXT})
+        assert limited.status_code == 429 and limited.json()["detail"] == RATE_LIMIT_DETAIL
+    finally:
+        api.main.limiter.reset()
+
+
+def test_a_key_file_is_read_in_the_same_place(api, monkeypatch):
+    """Файл ключа — тоже разбор файла: в том же месте, что и файл с вопросами (не сбоку от мест)."""
+    seen = []
+    real = bank_api.read_key_file
+
+    def read(contents, name):
+        seen.append((bank_api.parse_slots.busy, dict(bank_api.parse_slots.users)))
+        return real(contents, name)
+
+    monkeypatch.setattr(bank_api, "read_key_file", read)
+    response = api.post(PATH, data={"text": BANK_TEXT}, files={"key_file": ("key.txt", "1 – б\n2 – а\n".encode(), "text/plain")})
+    assert response.status_code == 200, response.text
+    assert seen == [(1, {"user-a": 1})]
+
+
+def test_a_cancelled_request_keeps_its_place_until_its_parse_ends():
+    """Отменённый посреди разбора запрос (клиент ушёл) не освобождает место раньше потока: иначе пять отмен — пять
+    потоков разбора сразу."""
+    slots = bank_api.ParseSlots(per_user=1, total=1)
+    release = threading.Event()
+
+    async def scenario():
+        async def parse():
+            async with slots.hold("user-a", 0) as run:
+                return await run(lambda: release.wait(5))
+
+        task = asyncio.ensure_future(parse())
+        while not slots.busy:
+            await asyncio.sleep(0.01)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert slots.busy == 1  # поток ещё работает
+        with pytest.raises(bank_parse.BankError) as refused:
+            async with slots.hold("user-a", 0):
+                pass
+        assert refused.value.code == "parse_busy"
+        release.set()
+        while slots.busy:
+            await asyncio.sleep(0.01)
+        assert not slots.users
+
+    asyncio.run(scenario())
 
 
 # ── Ответ ───────────────────────────────────────────────────────────────────────

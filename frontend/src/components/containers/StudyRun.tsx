@@ -7,6 +7,7 @@ import { gapForms } from '../../lib/kinds/cloze';
 import { shortNorm } from '../../lib/kinds/norm';
 import { neverInOrder, rightOrderOf } from '../../lib/kinds/shuffle';
 import { NEW_KINDS } from '../../types/container';
+import { aiKeyShown } from './aiKey';
 import { KINDS } from '../kinds/copyKinds';
 import { NumberKeyLine } from '../kinds/KindBody';
 import type { KindReview } from '../kinds/KindBody';
@@ -137,7 +138,7 @@ export default function StudyRun(props: StudyRunProps) {
   const [hint, setHint] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [doubtOpen, setDoubtOpen] = useState(false);
-  const [patches, setPatches] = useState<Record<string, Pick<TestItem, 'correct' | 'answers' | 'rev'>>>({});
+  const [patches, setPatches] = useState<Record<string, Pick<TestItem, 'correct' | 'answers' | 'rev' | 'flags'>>>({});
   const [aside, setAside] = useState<ReadonlySet<string>>(() => new Set());
   const [ended, setEnded] = useState<{ at: number } | null>(null);
   const firstEver = useRef(!firstSessionDone());
@@ -649,8 +650,11 @@ export default function StudyRun(props: StudyRunProps) {
 
   const notes: string[] = [];
   if (pending) {
-    if (item.key_source === 'manual') notes.push(author ? copy.NOTE_MANUAL_OWN : copy.NOTE_MANUAL_AUTHOR);
-    if (!author && item.rev > 1 && item.updated_at) notes.push(copy.noteKeyFixed(dayText(item.updated_at.slice(0, 10))));
+    // a key the AI suggested says so beside «Сомневаюсь в ключе» / «Ключ неверный?» (owner, 2026-11-04)
+    if (aiKeyShown(item)) notes.push(copy.NOTE_AI_KEY);
+    else if (item.key_source === 'manual') notes.push(author ? copy.NOTE_MANUAL_OWN : copy.NOTE_MANUAL_AUTHOR);
+    // writing the AI's key moves rev like a fix: «Автор исправил ключ» under the AI's label would say what did not happen
+    if (!author && !aiKeyShown(item) && item.rev > 1 && item.updated_at) notes.push(copy.noteKeyFixed(dayText(item.updated_at.slice(0, 10))));
   }
 
   const under: ReactNode[] = [];

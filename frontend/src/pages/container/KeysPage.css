@@ -94,3 +94,7 @@
 .sf-page.ky-page[data-frame='s'] { display: flex; flex-direction: column; min-height: calc(100dvh - var(--sf-bar-h, 52px)); }
 .sf-page.ky-page[data-frame='s'] > .ex-cta { margin-top: auto; }
 .sf-page.ky-page[data-frame='s'] > :nth-last-child(2) { margin-bottom: 24px; }
+
+/* «Подобрать ключи с ИИ» under the rows (AiKeys.tsx, the import's words and lines). */
+.sf-page.ky-page .ky-aikeys { margin-top: 14px; }
+.sf-page.ky-page .ky-aikeys .im-line:first-child { margin-top: 0; }

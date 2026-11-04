@@ -15,6 +15,7 @@ import { examErrorMessage, parseQuestionList, type ParseResult } from '../../../
 import type { BankItem, BankParseResult } from '../../../types/container';
 import { PARSE_ERRORS } from '../copyImport';
 import type { FileFormat } from './importModel';
+import { retryAfterMs, Throttled } from './readQueue';
 
 export const ACCEPT = '.docx,.xlsx,.pdf,.txt,.md,.csv,.html,.htm,.xml,.gift,.doc';
 export const MAX_FILE_BYTES = 15 * 1024 * 1024;
@@ -22,10 +23,16 @@ const READABLE = new Set(['docx', 'xlsx', 'pdf', 'txt', 'md', 'csv', 'html', 'ht
 
 export class ReadError extends Error {
   readonly code: string;
-  constructor(code: string, message?: string) {
+  /** rate_limited: how long the server asked to wait (Retry-After), in ms; null — it did not say. */
+  readonly retryAfterMs: number | null;
+  /** rate_limited: the server's own line, when it gave one in Russian. */
+  readonly detail: string | null;
+  constructor(code: string, message?: string, retryAfterMs: number | null = null, detail: string | null = null) {
     super(message ?? PARSE_ERRORS[code] ?? PARSE_ERRORS.unknown);
     this.name = 'ReadError';
     this.code = code;
+    this.retryAfterMs = retryAfterMs;
+    this.detail = detail;
   }
 }
 
@@ -106,7 +113,12 @@ function asReadError(error: unknown): ReadError {
   if (error instanceof ReadError) return error;
   const code = typeof (error as { code?: unknown } | null)?.code === 'string' ? String((error as { code: string }).code) : 'unknown';
   const status = (error as { status?: unknown } | null)?.status;
-  if (status === 429 || code === '429' || code === 'rate_limit') return new ReadError('rate_limited');
+  if (status === 429 || code === '429' || code === 'rate_limit') {
+    const header = (error as { retryAfter?: unknown } | null)?.retryAfter;
+    const detail = (error as { detail?: unknown } | null)?.detail;
+    return new ReadError('rate_limited', undefined, retryAfterMs(typeof header === 'string' ? header : null),
+      typeof detail === 'string' && /[а-яё]/i.test(detail) ? detail : null);
+  }
   if (PARSE_ERRORS[code]) return new ReadError(code);
   const message = error instanceof Error ? error.message.trim() : '';
   return new ReadError(code, message && /[а-яё]/i.test(message) ? message : PARSE_ERRORS.unknown);
@@ -141,6 +153,19 @@ export async function readBank(input: ReadInput): Promise<{ result: BankParseRes
     const failure = asReadError(error);
     if (failure.code === 'scan_pdf' && input.file) return readScan(input.file);
     throw failure;
+  }
+}
+
+/**
+ * readBank for the import page's queue (readQueue.ts): a file the server refuses for now (429) is not a failure — it
+ * throws Throttled with the server's wait, and the queue reads it again by itself.
+ */
+export async function readBankQueued(input: ReadInput): Promise<{ result: BankParseResult; pdf: boolean }> {
+  try {
+    return await readBank(input);
+  } catch (error) {
+    if (error instanceof ReadError && error.code === 'rate_limited') throw new Throttled(error.retryAfterMs, error.detail);
+    throw error;
   }
 }
 

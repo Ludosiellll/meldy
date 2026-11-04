@@ -21,13 +21,19 @@
  *   8 KB together; stem 1..4000; short answers 1..10 forms of 1..200; flags ≤ 16 of [a-z_]. An item that breaks one
  *   of them is «blocked»: it is listed in the problem queue and is not saved until fixed (or kept as oral).
  * - ItemInput: file_no = the file's number, topic per subject, key_source from the evidence (a checkbox → 'marker'),
- *   keep_order for «Все перечисленные» / «Ни один…», ref = `<import id>:<position>`.
+ *   keep_order for «Все перечисленные» / «Ни один…», ref = `<import id>:<position>` (the import id of the question's
+ *   own file).
+ * - variants of one subject (owner, 2026-11-04: «КПиЯП_Вариант_1» … «_12»): two files or more with a variant number (the
+ *   parse's «Вариант N», else the file name's) and the same name (the discipline heading, else the file name without the
+ *   variant) are one subject: variants in order, a topic «Вариант N» each (or the files' topics merged by name), a
+ *   question several variants share kept once (different keys: key_conflict, saved without a key until the student
+ *   picks one). «Разделить по файлам» (edits.split) gives one subject per file again. A single file is as before.
  */
 import {
   EXPLANATION_MAX, PICTURE_LIMITS, PICTURE_STEM, pictureOption,
   type BankItem, type BankParseResult, type ItemInput, type ItemKind, type KeySource, type PlanInput, type PlanItem,
 } from '../../../types/container';
-import { subjectFromFileName } from './subjectName';
+import { subjectFromFileName, subjectNameKey, variantFromFileName } from './subjectName';
 
 export const ORAL_CAP = 150;
 export const TOPIC_CAP = 99;
@@ -78,6 +84,17 @@ export interface ItemFix {
   imageOk?: boolean;
   keepBoth?: boolean;
   accept?: boolean;
+  /**
+   * «Подобрать ключи с ИИ» (owner, 2026-11-04): `correct` came from the AI, not the file. Saved as a key the student set
+   * (key_source 'manual') with the flag ai_key, and waits in the queue «Проверьте ключи от ИИ» until accepted (aiOk) or
+   * changed (a key the student taps drops aiKey).
+   */
+  aiKey?: boolean;
+  aiOk?: boolean;
+  /** The AI gave no key: 'low' (not sure, the answers differed — asking again gives the same), 'none' (no answer). */
+  aiTried?: 'low' | 'none';
+  /** The server's note for a question it gave no key («ИИ не уверен»). */
+  aiNote?: string;
 }
 export interface SubjectEdit {
   title?: string;
@@ -94,6 +111,8 @@ export interface ImportEdits {
   items: Record<string, ItemFix>;
   subjects: Record<string, SubjectEdit>;
   files: Record<string, FileEdit>;
+  /** «Разделить по файлам»: variants of one subject the student keeps as one subject per file (by the group's key). */
+  split?: Record<string, boolean>;
 }
 export const NO_EDITS: ImportEdits = { items: {}, subjects: {}, files: {} };
 
@@ -111,7 +130,9 @@ export type Problem =
   | 'partial'
   | 'no_key'
   | 'duplicate'
-  | 'too_long';
+  | 'too_long'
+  /** A key the AI suggested («Подобрать ключи с ИИ»): not a problem of the file, the student confirms it apart. */
+  | 'ai_key';
 
 export interface DraftItem {
   uid: string;
@@ -148,6 +169,33 @@ export interface DraftItem {
   tolerance?: string | null;
   /** Release 49: the file's explanation (GIFT «####…», Moodle feedback); absent — none. */
   explanation?: string;
+  /** In a subject made of variants: the variant of the file the question came from. */
+  variant?: number | null;
+  /** The same question in several variants with different keys (in this question's option indices): it waits for the student. */
+  variantKeys?: VariantKey[];
+  /** The key came from «Подобрать ключи с ИИ», not the file: labelled «Ключ подобран ИИ, не из файла» (flag ai_key). */
+  aiKey?: boolean;
+}
+
+/** One key a question has in some of the variants (variant numbers; null — a file without one). */
+export interface VariantKey {
+  variants: Array<number | null>;
+  key: number[];
+}
+
+/** A file of a subject: one, or each variant of a subject made of variants (in their order). */
+export interface SubjectFile {
+  id: string;
+  name: string;
+  variant: number | null;
+}
+
+/** A subject that is variants of one subject in several files: the group (its key) and whether it was split back. */
+export interface VariantInfo {
+  key: string;
+  files: number;
+  /** «Разделить по файлам»: this subject is one file of the group; «Объединить варианты» joins them again. */
+  split: boolean;
 }
 
 export interface DraftImages {
@@ -169,8 +217,10 @@ export interface DraftOral {
 
 export interface DraftSubject {
   key: string;
+  /** The (first) file of the subject; `files` — all of them. */
   fileId: string;
   fileName: string;
+  files: SubjectFile[];
   source: FileSource;
   format: FileFormat;
   title: string;
@@ -202,6 +252,12 @@ export interface DraftSubject {
   allNoKey: boolean;
   numbers: { first: string; last: string; missing: number[]; more: number } | null;
   topicCounts: Array<{ title: string; items: number }>;
+  /** Variants of one subject from several files (or one of them, split back); null — an ordinary subject. */
+  variants: VariantInfo | null;
+  /** Questions of other variants left out as repeats of one already in the subject. */
+  variantRepeats: number;
+  /** Keys from «Подобрать ключи с ИИ» (not counted in `keyed`, which says what the file marked). */
+  aiKeyed: number;
 }
 
 // ─────────────────────────────────────────────── helpers ───────────────────────────────────────────────
@@ -264,8 +320,10 @@ function utf8Length(text: string): number {
 
 const PROBLEM_ORDER: readonly Problem[] = [
   'image', 'no_options', 'few_options', 'many_options', 'empty_option', 'same_options', 'several', 'key_conflict',
-  'key_invalid', 'key_letter', 'partial', 'no_key', 'duplicate', 'too_long',
+  'key_invalid', 'key_letter', 'partial', 'no_key', 'duplicate', 'too_long', 'ai_key',
 ];
+/** The flag of a key the AI suggested (test_items.flags; owner, 2026-11-04). */
+export const AI_KEY_FLAG = 'ai_key';
 const KEY_FLAGS = new Set(['no_key', 'several_marked', 'key_conflict', 'key_invalid', 'key_letter_ambiguous', 'partial_mark']);
 const SHAPE_FLAGS = new Set(['has_image', 'duplicate', 'empty_option', 'same_options', 'many_options', 'few_options', 'no_options', 'too_long']);
 const FLAG_RE = /^[a-z_]{1,32}$/;
@@ -274,9 +332,23 @@ function sortProblems(list: Problem[]): Problem[] {
   return PROBLEM_ORDER.filter((problem) => list.includes(problem));
 }
 
+/**
+ * A key the AI suggested stands in only for a key the file does not give: when the file's mark, as it is read now (the
+ * signal chosen: «Ответ выделен жирным» after the run, say), gives one, the file's key wins and the AI's is dropped.
+ */
+export function withFileKey(item: BankItem, fix: ItemFix, signal: KeySignal): ItemFix {
+  if (!fix.aiKey || !fix.correct || fileKey(item, signal).key.length === 0) return fix;
+  return { ...fix, correct: undefined, aiKey: undefined, aiOk: undefined };
+}
+
 /** The key a question has now, in the file's option indices, and where it came from. */
 function rawKey(item: BankItem, fix: ItemFix, signal: KeySignal): { key: number[]; source: KeySource; auto: boolean } {
   if (fix.correct) return { key: [...fix.correct], source: 'manual', auto: false };
+  return fileKey(item, signal);
+}
+
+/** The key the file gives as it is read now (the signal chosen), without the student's. */
+function fileKey(item: BankItem, signal: KeySignal): { key: number[]; source: KeySource; auto: boolean } {
   if (signal === 'none') return { key: [], source: 'none', auto: false };
   if (signal === 'first_option') return { key: item.options.length ? [0] : [], source: 'first_option', auto: false };
   if (signal !== 'auto') {
@@ -414,7 +486,8 @@ export function clozeAnswers(stem: string, gaps: readonly (readonly string[])[])
 }
 
 export function draftItem(item: BankItem, context: ItemContext): DraftItem {
-  const { fix, signal } = context;
+  const { signal } = context;
+  const fix = withFileKey(item, context.fix, signal);
   const uid = `${context.fileId}:${item.position}`;
   const pictures = item.images ?? null;
   const stemPictures = (pictures?.stem ?? []).slice(0, PICTURE_LIMITS.stem);
@@ -552,9 +625,13 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
   }
   if (unresolvedDuplicate) problems.push('duplicate');
   if (unresolvedLong) problems.push('too_long');
+  // «Подобрать ключи с ИИ»: a key the AI suggested is a key the student set, with its flag, until they change it
+  const aiKey = Boolean(fix.aiKey && fix.correct && correct.length > 0);
+  if (aiKey && !fix.aiOk) problems.push('ai_key');
 
   const saveKey = !imageLost && !several && correct.length > 0;
   const keyFlags: string[] = [];
+  if (aiKey && saveKey) keyFlags.push(AI_KEY_FLAG);
   if (!imageLost && correct.length === 0 && !noOptions) keyFlags.push('no_key');
   if (several) keyFlags.push('several_marked');
   if (auto && !fix.correct) {
@@ -590,6 +667,7 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
     blocked,
     images,
     ...(explanationOf(item) ? { explanation: explanationOf(item) } : {}),
+    ...(aiKey ? { aiKey: true } : {}),
   };
 }
 
@@ -602,7 +680,10 @@ function cleanFlags(
   if (extra.duplicate) out.push('duplicate');
   if (extra.same) out.push('same_options');
   if (extra.tooLong) out.push('too_long');
-  return Array.from(new Set(out.filter((flag) => FLAG_RE.test(flag)))).slice(0, FLAGS_MAX);
+  // ai_key first: the cut to FLAGS_MAX never takes the label «Ключ подобран ИИ» off a key the AI suggested
+  const valid = out.filter((flag) => FLAG_RE.test(flag));
+  const ordered = valid.includes(AI_KEY_FLAG) ? [AI_KEY_FLAG, ...valid.filter((flag) => flag !== AI_KEY_FLAG)] : valid;
+  return Array.from(new Set(ordered)).slice(0, FLAGS_MAX);
 }
 
 function numbersOf(items: BankItem[]): DraftSubject['numbers'] {
@@ -647,9 +728,31 @@ function groupsOf(file: ImportFile, merged: boolean): Group[] {
   return listed.map((subject) => ({ key: `${file.id}:${subject.index}`, indices: [subject.index], title: subject.title, evidence: subject.evidence }));
 }
 
-/** The subjects to save, from every file and the student's edits, in the files' order. */
-export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits = NO_EDITS): DraftSubject[] {
-  const out: DraftSubject[] = [];
+/** One subject of one file, as read: its name, its questions and what a group of variants needs to know of it. */
+interface Unit {
+  file: ImportFile;
+  key: string;
+  title: string;
+  titleFrom: DraftSubject['titleFrom'];
+  restart: boolean;
+  merged: boolean;
+  signal: KeySignal;
+  noKeyLater: boolean;
+  items: BankItem[];
+  twinOf: Map<number, string>;
+  topicTitle: Map<number, string>;
+  /** «Вариант N» of the file (the parse's, else the file name's); null — none. */
+  variant: number | null;
+  /** The name variants of one subject share: the discipline heading, else the file name without the variant. */
+  name: string | null;
+  nameFrom: 'heading' | 'file';
+  /** The file has this one subject: only then can it be a variant of a subject. */
+  whole: boolean;
+}
+
+/** The subjects of every file as read (the order of the files), with today's names. */
+function unitsOf(files: readonly ImportFile[], edits: ImportEdits): Unit[] {
+  const out: Unit[] = [];
   let untitled = 0;
   for (const file of files) {
     const fileEdit = edits.files[file.id] ?? {};
@@ -666,12 +769,13 @@ export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits 
     const firstOf = new Map<string, string>();
     const twinOf = new Map<number, string>();
     for (const item of result.items) {
-      const pictures = item.images ? `|${item.images.stem.join(',')}|${item.images.options.map((list) => list.join(',')).sort().join(';')}` : '';
-      const key = `${sameKey(item.text)}|${[...item.options].map(sameKey).sort().join('|')}${pictures}`;
+      const key = identityOf(item);
       const first = firstOf.get(key);
       if (first !== undefined) twinOf.set(item.position, first);
       else firstOf.set(key, item.label || String(item.position));
     }
+    const fromFile = file.source !== 'paste' ? variantFromFileName(file.name) : { variant: null, base: null };
+    const variant = typeof result.variant === 'number' ? result.variant : fromFile.variant;
 
     groups.forEach((group, groupIndex) => {
       const items = result.items.filter(
@@ -689,13 +793,13 @@ export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits 
       } else {
         const fromName = groups.length === 1 && file.source !== 'paste' ? subjectFromFileName(file.name) : null;
         // «ТЕСТОВЫЙ ВАРИАНТ 4» above the questions names a one-subject file whose name does not («Тест.docx»).
-        const variant = groups.length === 1 && typeof result.variant === 'number' ? `Вариант ${result.variant}` : null;
+        const variantName = groups.length === 1 && typeof result.variant === 'number' ? `Вариант ${result.variant}` : null;
         const named = (text: string) => new RegExp(`(^|\\D)${result.variant}(\\D|$)`).test(text);
-        if (fromName && !(variant && !named(fromName))) {
+        if (fromName && !(variantName && !named(fromName))) {
           title = fromName;
           titleFrom = 'file';
-        } else if (variant) {
-          title = fromName && /^вариант$/iu.test(fromName) ? variant : fromName ? `${fromName}, ${variant.toLocaleLowerCase('ru-RU')}` : variant;
+        } else if (variantName) {
+          title = fromName && /^вариант$/iu.test(fromName) ? variantName : fromName ? `${fromName}, ${variantName.toLocaleLowerCase('ru-RU')}` : variantName;
           titleFrom = 'file';
         } else {
           untitled += 1;
@@ -703,149 +807,470 @@ export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits 
           titleFrom = 'number';
         }
       }
-
-      const test: DraftItem[] = [];
-      const blocked: DraftItem[] = [];
-      const oral: DraftOral[] = [];
-      let skippedKinds = 0;
-      let removedItems = 0;
-      let shortOral = 0;
-      let answerDropped = 0;
-      for (const item of items) {
-        const uid = `${file.id}:${item.position}`;
-        const fix = edits.items[uid] ?? {};
-        if (fix.removed) {
-          removedItems += 1;
-          continue;
-        }
-        const asOral = (hadAnswer: boolean) => {
-          const text = item.text.trim().slice(0, ORAL_MAX_CHARS);
-          if (text.length < ORAL_MIN_CHARS) {
-            shortOral += 1;
-            return;
-          }
-          if (hadAnswer) answerDropped += 1;
-          oral.push({ uid, position: item.position, label: (item.label ?? '').trim(), text, section: item.topic, hadAnswer });
-        };
-        if (file.format === 'open') {
-          asOral(Boolean(item.answer));
-          continue;
-        }
-        if (item.kind === 'order' || item.kind === 'match' || item.kind === 'cloze') {
-          // Release 48: order and match are questions of their own kinds now (none is thrown away when it has its key);
-          // release 49: so is a Moodle cloze.
-          const kept = kindDraft(item, { fileId: file.id, twin: twinOf.get(item.position) ?? null });
-          if (!kept) {
-            skippedKinds += 1;
-            continue;
-          }
-          kept.topic = item.topic;
-          test.push(kept);
-          continue;
-        }
-        if (item.kind === 'open' && !shortForms(item)) {
-          asOral(Boolean(item.answer));
-          continue;
-        }
-        if (fix.oral) {
-          asOral(false);
-          continue;
-        }
-        const draft = draftItem(item, { fileId: file.id, signal, fix, twin: twinOf.get(item.position) ?? null });
-        draft.topic = item.topic;
-        (draft.blocked ? blocked : test).push(draft);
-      }
-
-      // Topics of the test part: numbered 1.. in the order they appear, the tail merged into the 99th.
-      const topicIds: number[] = [];
-      for (const item of [...test, ...blocked]) {
-        if (item.topic !== null && !topicIds.includes(item.topic)) topicIds.push(item.topic);
-      }
-      const localTopic = new Map<number, number>();
-      topicIds.forEach((id, index) => localTopic.set(id, Math.min(index + 1, TOPIC_CAP)));
-      const topics = topicIds.slice(0, TOPIC_CAP).map((id, index) => (topicTitle.get(id) ?? `Тема ${index + 1}`).slice(0, 200));
-      for (const item of [...test, ...blocked]) {
-        const global = item.topic;
-        item.topic = global !== null ? localTopic.get(global) ?? null : null;
-        item.topicTitle = item.topic !== null ? topics[item.topic - 1] ?? null : null;
-      }
-      const topicCounts = topics.map((topicName, index) => ({
-        title: topicName,
-        items: [...test, ...blocked].filter((item) => item.topic === index + 1).length,
-      }));
-
-      const keyedTest = test.filter((item) => item.kind === 'short' || item.correct.length > 0);
-      const choice = test.filter((item) => item.kind !== 'short');
-      const sources = new Map<KeySource, number>();
-      for (const item of keyedTest) sources.set(item.keySource, (sources.get(item.keySource) ?? 0) + 1);
-      let keySource: KeySource | null = null;
-      let best = 0;
-      sources.forEach((value, source) => {
-        if (value > best) {
-          best = value;
-          keySource = source;
-        }
+      const heading = group.title?.trim() || null;
+      out.push({
+        file,
+        key: group.key,
+        title,
+        titleFrom,
+        restart,
+        merged,
+        signal,
+        noKeyLater: Boolean(fileEdit.noKeyLater),
+        items,
+        twinOf,
+        topicTitle,
+        variant,
+        name: heading ?? fromFile.base,
+        nameFrom: heading ? 'heading' : 'file',
+        whole: groups.length === 1,
       });
-      const allNoKey = !fileEdit.noKeyLater && choice.length > 0 && choice.every((item) => item.rawCorrect.length === 0);
-
-      // More than 150 oral questions: parts of 150, the test part stays with the first.
-      const parts = Math.max(1, Math.ceil(oral.length / ORAL_CAP));
-      for (let part = 1; part <= parts; part += 1) {
-        const split = parts > 1;
-        const key = split ? `${group.key}#${part}` : group.key;
-        const edit = edits.subjects[key] ?? {};
-        const slice = oral.slice((part - 1) * ORAL_CAP, part * ORAL_CAP);
-        const sectionIds: number[] = [];
-        for (const question of slice) {
-          if (question.section !== null && !sectionIds.includes(question.section)) sectionIds.push(question.section);
-        }
-        const sections = sectionIds.slice(0, ORAL_SECTION_CAP);
-        const partOral = slice.map((question) => {
-          const at = question.section !== null ? sections.indexOf(question.section) : -1;
-          return { ...question, section: at >= 0 ? at + 1 : null };
-        });
-        const first = part === 1;
-        const partTitle = split
-          ? edit.title?.trim() || `${title}, часть ${part}`
-          : title;
-        out.push({
-          key,
-          fileId: file.id,
-          fileName: file.name,
-          source: file.source,
-          format: file.format,
-          title: partTitle,
-          titleFrom: split && edit.title?.trim() ? 'user' : titleFrom,
-          restart,
-          merged,
-          part: split ? part : null,
-          parts,
-          oralRange: split ? [(part - 1) * ORAL_CAP + 1, (part - 1) * ORAL_CAP + slice.length] : null,
-          removed: Boolean(edit.removed ?? (split ? false : baseEdit.removed)),
-          date: (split ? edit.date : baseEdit.date) ?? null,
-          test: first ? test : [],
-          blocked: first ? blocked : [],
-          oral: partOral,
-          oralTotal: oral.length,
-          topics: first ? topics : [],
-          topicsTotal: first ? topicIds.length : 0,
-          oralSections: sections.map((id, index) => (topicTitle.get(id) ?? `Раздел ${index + 1}`).slice(0, 200)),
-          skippedKinds: first ? skippedKinds : 0,
-          removedItems: first ? removedItems : 0,
-          shortOral: first ? shortOral : 0,
-          keySource: first ? keySource : null,
-          keyed: first ? keyedTest.length : 0,
-          noKey: first ? choice.filter((item) => item.correct.length === 0 && !item.imageLost).length : 0,
-          imageLost: first ? test.filter((item) => item.imageLost).length : 0,
-          answerDropped: first ? answerDropped : 0,
-          allNoKey: first ? allNoKey : false,
-          numbers: first ? numbersOf(items) : null,
-          topicCounts: first ? topicCounts : [],
-        });
-      }
     });
   }
   return out;
+}
+
+/** A question as twins and variants compare it: its text, its set of options and its pictures. */
+function identityOf(item: BankItem): string {
+  const pictures = item.images ? `|${item.images.stem.join(',')}|${item.images.options.map((list) => list.join(',')).sort().join(';')}` : '';
+  return `${sameKey(item.text)}|${[...item.options].map(sameKey).sort().join('|')}${pictures}`;
+}
+
+/** The key of a question as the variants compare it (option texts, not letters: a variant may shuffle them); '' — none. */
+function keyTextOf(item: BankItem, unit: Unit, fix: ItemFix): string {
+  if (unit.file.format === 'open') return '';
+  if (item.kind === 'open') {
+    if (item.number && item.number.answers.length > 0) return `n:${item.number.answers.map(shortNorm).sort().join('|')}`;
+    const forms = shortForms(item);
+    return forms ? `s:${forms.map(shortNorm).sort().join('|')}` : '';
+  }
+  if (item.kind === 'order') return item.order.length ? `o:${item.order.map((index) => sameKey(item.options[index] ?? '')).join('|')}` : '';
+  if (item.kind === 'match') return item.pairs.length ? `m:${item.pairs.map(([left, right]) => `${sameKey(left)}=${sameKey(right)}`).sort().join('|')}` : '';
+  if (item.kind === 'cloze') return item.gaps?.length ? `c:${item.gaps.map((forms) => forms.map(shortNorm).sort().join(',')).join('|')}` : '';
+  const { key } = rawKey(item, fix, unit.signal);
+  return key.length ? `k:${key.map((index) => sameKey(item.options[index] ?? '')).sort().join('|')}` : '';
+}
+
+const CHOICE_KINDS: ReadonlySet<string> = new Set(['single', 'multiple', 'truefalse']);
+
+/** What the questions of a unit came to: drafts with variants, oral questions, and what was left out. */
+interface UnitBody {
+  test: DraftItem[];
+  blocked: DraftItem[];
+  oral: DraftOral[];
+  skippedKinds: number;
+  removedItems: number;
+  shortOral: number;
+  answerDropped: number;
+}
+
+/** The questions of one unit as they would be saved; `skip` — repeats of other variants, `conflicts` — their keys. */
+function draftUnit(
+  unit: Unit,
+  edits: ImportEdits,
+  skip: ReadonlySet<string> = new Set(),
+  conflicts: ReadonlyMap<string, VariantKey[]> = new Map(),
+): UnitBody {
+  const { file } = unit;
+  const body: UnitBody = { test: [], blocked: [], oral: [], skippedKinds: 0, removedItems: 0, shortOral: 0, answerDropped: 0 };
+  for (const item of unit.items) {
+    const uid = `${file.id}:${item.position}`;
+    if (skip.has(uid)) continue;
+    const fix = edits.items[uid] ?? {};
+    if (fix.removed) {
+      body.removedItems += 1;
+      continue;
+    }
+    const asOral = (hadAnswer: boolean) => {
+      const text = item.text.trim().slice(0, ORAL_MAX_CHARS);
+      if (text.length < ORAL_MIN_CHARS) {
+        body.shortOral += 1;
+        return;
+      }
+      if (hadAnswer) body.answerDropped += 1;
+      body.oral.push({ uid, position: item.position, label: (item.label ?? '').trim(), text, section: item.topic, hadAnswer });
+    };
+    if (file.format === 'open') {
+      asOral(Boolean(item.answer));
+      continue;
+    }
+    if (item.kind === 'order' || item.kind === 'match' || item.kind === 'cloze') {
+      // Release 48: order and match are questions of their own kinds now (none is thrown away when it has its key);
+      // release 49: so is a Moodle cloze.
+      const kept = kindDraft(item, { fileId: file.id, twin: unit.twinOf.get(item.position) ?? null });
+      if (!kept) {
+        body.skippedKinds += 1;
+        continue;
+      }
+      kept.topic = item.topic;
+      body.test.push(kept);
+      continue;
+    }
+    if (item.kind === 'open' && !shortForms(item)) {
+      asOral(Boolean(item.answer));
+      continue;
+    }
+    if (fix.oral) {
+      asOral(false);
+      continue;
+    }
+    const draft = draftItem(item, { fileId: file.id, signal: unit.signal, fix, twin: unit.twinOf.get(item.position) ?? null });
+    draft.topic = item.topic;
+    const keys = conflicts.get(uid);
+    if (keys && draft.kind !== 'short' && !fix.correct) markConflict(draft, keys);
+    (draft.blocked ? body.blocked : body.test).push(draft);
+  }
+  return body;
+}
+
+/** The same question in two variants with different keys: saved without a key until the student picks the right one. */
+function markConflict(draft: DraftItem, keys: VariantKey[]): void {
+  draft.variantKeys = keys;
+  draft.marked = Array.from(new Set(keys.flatMap((entry) => entry.key))).sort((a, b) => a - b);
+  draft.rawCorrect = [];
+  draft.correct = [];
+  draft.keySource = 'none';
+  draft.problems = sortProblems([...draft.problems.filter((problem) => problem !== 'no_key' && problem !== 'several'), 'key_conflict']);
+  draft.flags = cleanFlags([...draft.flags.filter((flag) => flag !== 'several_marked'), 'no_key', 'key_conflict'], {});
+}
+
+/** Everything a subject row needs, before its oral part is cut into parts of 150. */
+interface SubjectSpec {
+  key: string;
+  file: ImportFile;
+  files: SubjectFile[];
+  title: string;
+  titleFrom: DraftSubject['titleFrom'];
+  restart: boolean;
+  merged: boolean;
+  body: UnitBody;
+  /** The topic ids of the test part in their order, and their titles. */
+  topicIds: number[];
+  topicTitle: Map<number, string>;
+  /** Oral sections take their titles here (the file's topics, or the variants'). */
+  sectionTitle: Map<number, string>;
+  noKeyLater: boolean;
+  items: BankItem[];
+  variants: VariantInfo | null;
+  variantRepeats: number;
+}
+
+function emitSubject(out: DraftSubject[], spec: SubjectSpec, edits: ImportEdits): void {
+  const { test, blocked, oral, skippedKinds, removedItems, shortOral, answerDropped } = spec.body;
+  const baseEdit = edits.subjects[spec.key] ?? {};
+  const { topicIds, topicTitle } = spec;
+
+  // Topics of the test part: numbered 1.. in the order they appear, the tail merged into the 99th.
+  const localTopic = new Map<number, number>();
+  topicIds.forEach((id, index) => localTopic.set(id, Math.min(index + 1, TOPIC_CAP)));
+  const topics = topicIds.slice(0, TOPIC_CAP).map((id, index) => (topicTitle.get(id) ?? `Тема ${index + 1}`).slice(0, 200));
+  for (const item of [...test, ...blocked]) {
+    const global = item.topic;
+    item.topic = global !== null ? localTopic.get(global) ?? null : null;
+    item.topicTitle = item.topic !== null ? topics[item.topic - 1] ?? null : null;
+  }
+  const topicCounts = topics.map((topicName, index) => ({
+    title: topicName,
+    items: [...test, ...blocked].filter((item) => item.topic === index + 1).length,
+  }));
+
+  // a key the AI suggested is not the file's: «Ответ выделен жирным в N из M» counts the file's own (aiKeyed apart)
+  const keyedTest = test.filter((item) => (item.kind === 'short' || item.correct.length > 0) && !item.aiKey);
+  const aiKeyed = test.filter((item) => item.aiKey && item.correct.length > 0).length;
+  const choice = test.filter((item) => item.kind !== 'short');
+  const sources = new Map<KeySource, number>();
+  for (const item of keyedTest) sources.set(item.keySource, (sources.get(item.keySource) ?? 0) + 1);
+  let keySource: KeySource | null = null;
+  let best = 0;
+  sources.forEach((value, source) => {
+    if (value > best) {
+      best = value;
+      keySource = source;
+    }
+  });
+  const allNoKey = !spec.noKeyLater && choice.length > 0 && choice.every((item) => item.rawCorrect.length === 0 && !item.variantKeys);
+
+  // More than 150 oral questions: parts of 150, the test part stays with the first.
+  const parts = Math.max(1, Math.ceil(oral.length / ORAL_CAP));
+  for (let part = 1; part <= parts; part += 1) {
+    const split = parts > 1;
+    const key = split ? `${spec.key}#${part}` : spec.key;
+    const edit = edits.subjects[key] ?? {};
+    const slice = oral.slice((part - 1) * ORAL_CAP, part * ORAL_CAP);
+    const sectionIds: number[] = [];
+    for (const question of slice) {
+      if (question.section !== null && !sectionIds.includes(question.section)) sectionIds.push(question.section);
+    }
+    const sections = sectionIds.slice(0, ORAL_SECTION_CAP);
+    const partOral = slice.map((question) => {
+      const at = question.section !== null ? sections.indexOf(question.section) : -1;
+      return { ...question, section: at >= 0 ? at + 1 : null };
+    });
+    const first = part === 1;
+    const partTitle = split ? edit.title?.trim() || `${spec.title}, часть ${part}` : spec.title;
+    out.push({
+      key,
+      fileId: spec.file.id,
+      fileName: spec.file.name,
+      files: spec.files,
+      source: spec.file.source,
+      format: spec.file.format,
+      title: partTitle,
+      titleFrom: split && edit.title?.trim() ? 'user' : spec.titleFrom,
+      restart: spec.restart,
+      merged: spec.merged,
+      part: split ? part : null,
+      parts,
+      oralRange: split ? [(part - 1) * ORAL_CAP + 1, (part - 1) * ORAL_CAP + slice.length] : null,
+      removed: Boolean(edit.removed ?? (split ? false : baseEdit.removed)),
+      date: (split ? edit.date : baseEdit.date) ?? null,
+      test: first ? test : [],
+      blocked: first ? blocked : [],
+      oral: partOral,
+      oralTotal: oral.length,
+      topics: first ? topics : [],
+      topicsTotal: first ? topicIds.length : 0,
+      oralSections: sections.map((id, index) => (spec.sectionTitle.get(id) ?? `Раздел ${index + 1}`).slice(0, 200)),
+      skippedKinds: first ? skippedKinds : 0,
+      removedItems: first ? removedItems : 0,
+      shortOral: first ? shortOral : 0,
+      keySource: first ? keySource : null,
+      keyed: first ? keyedTest.length : 0,
+      noKey: first ? choice.filter((item) => item.correct.length === 0 && !item.imageLost).length : 0,
+      imageLost: first ? test.filter((item) => item.imageLost).length : 0,
+      answerDropped: first ? answerDropped : 0,
+      allNoKey: first ? allNoKey : false,
+      numbers: first ? numbersOf(spec.items) : null,
+      topicCounts: first ? topicCounts : [],
+      variants: spec.variants,
+      variantRepeats: first ? spec.variantRepeats : 0,
+      aiKeyed: first ? aiKeyed : 0,
+    });
+  }
+}
+
+/** The topic ids of a test part in the order they first appear. */
+function topicOrder(items: readonly DraftItem[]): number[] {
+  const ids: number[] = [];
+  for (const item of items) {
+    if (item.topic !== null && !ids.includes(item.topic)) ids.push(item.topic);
+  }
+  return ids;
+}
+
+/** One file's subject, as before variants were grouped. */
+function singleSpec(unit: Unit, edits: ImportEdits, variants: VariantInfo | null): SubjectSpec {
+  const body = draftUnit(unit, edits);
+  return {
+    key: unit.key,
+    file: unit.file,
+    files: [{ id: unit.file.id, name: unit.file.name, variant: unit.variant }],
+    title: unit.title,
+    titleFrom: unit.titleFrom,
+    restart: unit.restart,
+    merged: unit.merged,
+    body,
+    topicIds: topicOrder([...body.test, ...body.blocked]),
+    topicTitle: unit.topicTitle,
+    sectionTitle: unit.topicTitle,
+    noKeyLater: unit.noKeyLater,
+    items: unit.items,
+    variants,
+    variantRepeats: 0,
+  };
+}
+
+/** A short stable key of a group of variants (the name it shares): the edits and the save follow it. */
+function variantGroupKey(nameKey: string): string {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < nameKey.length; index += 1) {
+    hash ^= nameKey.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `v:${hash.toString(36)}`;
+}
+
+/**
+ * Variants of one subject as one subject (owner, 2026-11-04: «КПиЯП_Вариант_1» … «_12» are one subject, not twelve).
+ * The variants go in their order, each a topic «Вариант N» (or, when the files have topics, the topics merged by name).
+ * A question several variants share (text, options, pictures) is kept once: with the same key silently (counted in
+ * variantRepeats), with different keys as one question with the problem key_conflict, saved without a key until the
+ * student picks one. Twins inside one file stay as they are. A question the student removed takes its repeats along.
+ */
+function groupSpec(members: Unit[], key: string, edits: ImportEdits): SubjectSpec {
+  // A key the AI suggested is only a stand-in for a key the file did not give: its own file's key (withFileKey) or
+  // another variant's own key of the same question (from its file, or set by the student) always wins over it, and two
+  // different own keys stay a conflict.
+  const fixes = new Map<string, ItemFix>();
+  const fixOf = (uid: string) => fixes.get(uid) ?? edits.items[uid] ?? {};
+  const ownFix = (uid: string): ItemFix => {
+    const fix = fixOf(uid);
+    return fix.aiKey && fix.correct ? { ...fix, correct: undefined } : fix;
+  };
+  type Occurrence = { unit: number; item: BankItem; uid: string; key: string; own: string; ai: boolean; removed: boolean };
+  const occurrences = new Map<string, Occurrence[]>();
+  members.forEach((unit, index) => {
+    for (const item of [...unit.items].sort((a, b) => a.position - b.position)) {
+      const uid = `${unit.file.id}:${item.position}`;
+      fixes.set(uid, withFileKey(item, edits.items[uid] ?? {}, unit.signal));
+      const fix = fixOf(uid);
+      const identity = unit.file.format === 'open' || (item.kind === 'open' && !shortForms(item) && !item.number?.answers.length) ? `oral|${sameKey(item.text)}` : identityOf(item);
+      const list = occurrences.get(identity) ?? [];
+      const ai = Boolean(fix.aiKey && fix.correct);
+      list.push({ unit: index, item, uid, key: keyTextOf(item, unit, fix), own: ai ? keyTextOf(item, unit, ownFix(uid)) : keyTextOf(item, unit, fix), ai, removed: Boolean(fix.removed) });
+      occurrences.set(identity, list);
+    }
+  });
+  const skip = new Set<string>();
+  const conflicts = new Map<string, VariantKey[]>();
+  let repeats = 0;
+  for (const list of occurrences.values()) {
+    if (new Set(list.map((entry) => entry.unit)).size < 2) continue;
+    // with an own key anywhere in the group, the AI's keys do not count (the variant with its own key is shown)
+    const owned = list.some((entry) => entry.ai) && list.some((entry) => entry.own);
+    const keyOf = (entry: Occurrence) => (owned ? entry.own : entry.key);
+    const fixFor = (entry: Occurrence) => (owned ? ownFix(entry.uid) : fixOf(entry.uid));
+    const keys = new Set(list.map(keyOf).filter(Boolean));
+    const removed = list.find((entry) => entry.removed);
+    const choice = CHOICE_KINDS.has(list[0].item.kind) && members[list[0].unit].file.format !== 'open';
+    // Two different keys of a question that is not a choice: both stay, each with its own key (never a wrong one).
+    if (!removed && keys.size > 1 && !choice) continue;
+    const rep = removed ?? (keys.size <= 1 || owned ? list.find((entry) => keyOf(entry)) ?? list[0] : list[0]);
+    for (const entry of list) {
+      if (entry.unit === rep.unit) continue;
+      skip.add(entry.uid);
+      repeats += 1;
+    }
+    const repFix = fixOf(rep.uid);
+    if (!removed && keys.size > 1 && !(repFix.correct && !repFix.aiKey)) {
+      // each key once, with the variants that have it: «варианты 1–6, 8–12 — Б, вариант 7 — Г»
+      const seen = new Set<number>();
+      const byKey = new Map<string, VariantKey>();
+      for (const entry of list) {
+        if (seen.has(entry.unit) || !keyOf(entry)) continue;
+        seen.add(entry.unit);
+        const texts = new Set(rawKey(entry.item, fixFor(entry), members[entry.unit].signal).key.map((at) => sameKey(entry.item.options[at] ?? '')));
+        const mapped = rep.item.options.map((option, at) => (texts.has(sameKey(option)) ? at : -1)).filter((at) => at >= 0);
+        const known = byKey.get(keyOf(entry));
+        if (known) known.variants.push(members[entry.unit].variant);
+        else byKey.set(keyOf(entry), { variants: [members[entry.unit].variant], key: mapped });
+      }
+      conflicts.set(rep.uid, [...byKey.values()]);
+    }
+  }
+
+  // Topics: the files' own merged by name, or one per variant.
+  const ownTopics = members.some((unit) => unit.items.some((item) => item.topic !== null));
+  const variantNumbers = Array.from(new Set(members.map((unit) => unit.variant ?? 0))).sort((a, b) => a - b);
+  const topicTitle = new Map<number, string>();
+  const byName = new Map<string, number>();
+  const mergedTopic = (unit: Unit, id: number | null): number | null => {
+    if (!ownTopics) {
+      const rank = variantNumbers.indexOf(unit.variant ?? 0) + 1;
+      topicTitle.set(rank, `Вариант ${unit.variant ?? rank}`);
+      return rank;
+    }
+    if (id === null) return null;
+    const title = unit.topicTitle.get(id) ?? `Тема ${id}`;
+    const name = subjectNameKey(title);
+    let merged = byName.get(name);
+    if (merged === undefined) {
+      merged = byName.size + 1;
+      byName.set(name, merged);
+      topicTitle.set(merged, title);
+    }
+    return merged;
+  };
+
+  const body: UnitBody = { test: [], blocked: [], oral: [], skippedKinds: 0, removedItems: 0, shortOral: 0, answerDropped: 0 };
+  const topicIds: number[] = [];
+  for (const unit of members) {
+    const part = draftUnit(unit, edits, skip, conflicts);
+    for (const item of [...part.test, ...part.blocked]) {
+      item.variant = unit.variant;
+      item.topic = mergedTopic(unit, item.topic);
+    }
+    for (const question of part.oral) question.section = mergedTopic(unit, question.section);
+    for (const id of topicOrder([...part.test, ...part.blocked])) if (!topicIds.includes(id)) topicIds.push(id);
+    body.test.push(...part.test);
+    body.blocked.push(...part.blocked);
+    body.oral.push(...part.oral);
+    body.skippedKinds += part.skippedKinds;
+    body.removedItems += part.removedItems;
+    body.shortOral += part.shortOral;
+    body.answerDropped += part.answerDropped;
+  }
+  const first = members[0];
+  const edit = edits.subjects[key] ?? {};
+  const named = edit.title?.trim();
+  return {
+    key,
+    file: first.file,
+    files: members.map((unit) => ({ id: unit.file.id, name: unit.file.name, variant: unit.variant })),
+    title: named || (first.name ?? first.title),
+    titleFrom: named ? 'user' : first.nameFrom,
+    restart: false,
+    merged: false,
+    body,
+    topicIds,
+    topicTitle,
+    sectionTitle: topicTitle,
+    noKeyLater: members.every((unit) => unit.noKeyLater),
+    items: members.flatMap((unit) => unit.items),
+    variants: { key, files: members.length, split: false },
+    variantRepeats: repeats,
+  };
+}
+
+/**
+ * The subjects to save, from every file and the student's edits, in the files' order. Variants of one subject (a
+ * variant number from the parse or the file name, the same name from the heading or the file name, two files or more)
+ * are one subject unless the student split them back (edits.split); a single file and files without variants are as
+ * before.
+ */
+export function deriveSubjects(files: readonly ImportFile[], edits: ImportEdits = NO_EDITS): DraftSubject[] {
+  const units = unitsOf(files, edits);
+  const groups = new Map<string, Unit[]>();
+  for (const unit of units) {
+    if (!unit.whole || unit.variant === null || !unit.name) continue;
+    const key = variantGroupKey(subjectNameKey(unit.name));
+    groups.set(key, [...(groups.get(key) ?? []), unit]);
+  }
+  const groupOf = new Map<Unit, string>();
+  groups.forEach((members, key) => {
+    if (new Set(members.map((unit) => unit.file.id)).size < 2) return;
+    for (const unit of members) groupOf.set(unit, key);
+  });
+
+  const out: DraftSubject[] = [];
+  const done = new Set<string>();
+  for (const unit of units) {
+    const key = groupOf.get(unit);
+    if (!key) {
+      emitSubject(out, singleSpec(unit, edits, null), edits);
+      continue;
+    }
+    const members = groups.get(key)!;
+    if (edits.split?.[key]) {
+      emitSubject(out, singleSpec(unit, edits, { key, files: members.length, split: true }), edits);
+      continue;
+    }
+    if (done.has(key)) continue;
+    done.add(key);
+    const index = (member: Unit) => files.indexOf(member.file);
+    const ordered = [...members].sort((a, b) => (a.variant ?? 0) - (b.variant ?? 0) || index(a) - index(b));
+    emitSubject(out, groupSpec(ordered, key, edits), edits);
+  }
+  return out;
+}
+
+/** The questions of a subject in its order: its files' (the variants') order, then the file's. */
+export function subjectOrder<T extends { fileId: string; position: number }>(items: readonly T[], fileIds: readonly string[]): T[] {
+  const rank = (item: T) => {
+    const at = fileIds.indexOf(item.fileId);
+    return at < 0 ? fileIds.length : at;
+  };
+  return [...items].sort((a, b) => rank(a) - rank(b) || a.position - b.position);
 }
 
 export const activeSubjects = (subjects: readonly DraftSubject[]) => subjects.filter((subject) => !subject.removed);
@@ -864,9 +1289,12 @@ export interface QueueEntry {
 export function queueOf(subjects: readonly DraftSubject[]): QueueEntry[] {
   const out: QueueEntry[] = [];
   for (const subject of activeSubjects(subjects)) {
-    const items = [...subject.test, ...subject.blocked].sort((a, b) => a.position - b.position);
+    const items = subjectOrder([...subject.test, ...subject.blocked], subject.files.map((entry) => entry.id));
     for (const item of items) {
-      const problems = subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems;
+      // a key from the AI is confirmed in its own queue (aiKeyQueue), not counted with the file's problems
+      const problems = (subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems).filter(
+        (problem) => problem !== 'ai_key',
+      );
       if (problems.length === 0) continue;
       out.push({ uid: item.uid, subjectKey: subject.key, subjectTitle: subject.title, item, problem: problems[0] });
     }
@@ -874,14 +1302,31 @@ export function queueOf(subjects: readonly DraftSubject[]): QueueEntry[] {
   return out;
 }
 
-/** «в 4 нет ответа, в 2 выделено два, 1 повторяется» for one subject's preview. */
-export function problemParts(subject: DraftSubject): Array<{ problem: Problem; n: number }> {
-  const counts = new Map<Problem, number>();
-  for (const item of [...subject.test, ...subject.blocked]) {
-    const problems = subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems;
-    if (problems.length) counts.set(problems[0], (counts.get(problems[0]) ?? 0) + 1);
+/** «Проверьте ключи от ИИ (N)»: the keys the AI suggested that the student has not accepted or changed yet. */
+export function aiKeyQueue(subjects: readonly DraftSubject[]): QueueEntry[] {
+  const out: QueueEntry[] = [];
+  for (const subject of activeSubjects(subjects)) {
+    for (const item of subjectOrder(subject.test, subject.files.map((entry) => entry.id))) {
+      if (item.problems.includes('ai_key')) out.push({ uid: item.uid, subjectKey: subject.key, subjectTitle: subject.title, item, problem: 'ai_key' });
+    }
   }
-  return PROBLEM_ORDER.filter((problem) => counts.has(problem)).map((problem) => ({ problem, n: counts.get(problem)! }));
+  return out;
+}
+
+/** «в 4 нет ответа, в 2 выделено два, 1 повторяется» for one subject's preview. */
+export function problemParts(subject: DraftSubject): Array<{ problem: Problem | 'variant_keys'; n: number }> {
+  const counts = new Map<Problem | 'variant_keys', number>();
+  for (const item of [...subject.test, ...subject.blocked]) {
+    const problems = (subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems).filter(
+      (problem) => problem !== 'ai_key',
+    );
+    if (!problems.length) continue;
+    // the same question in two variants with different keys is told apart from a key list against the file's marks
+    const part = problems[0] === 'key_conflict' && item.variantKeys ? 'variant_keys' : problems[0];
+    counts.set(part, (counts.get(part) ?? 0) + 1);
+  }
+  const order = PROBLEM_ORDER.flatMap((problem): Array<Problem | 'variant_keys'> => (problem === 'key_conflict' ? [problem, 'variant_keys'] : [problem]));
+  return order.filter((problem) => counts.has(problem)).map((problem) => ({ problem, n: counts.get(problem)! }));
 }
 
 // ─────────────────────────────────────────────── counts and checks ───────────────────────────────────────────────
@@ -927,8 +1372,9 @@ export function isSingleOralList(subjects: readonly DraftSubject[]): boolean {
 
 /** Three questions with a key, spread across the subjects, to compare with the file («Сверить ключ на трёх вопросах»). */
 export function spotCheck(subjects: readonly DraftSubject[]): Array<{ subject: string; item: DraftItem }> {
+  // a key the AI suggested is not compared with the file: the file has none
   const keyed = activeSubjects(subjects).flatMap((subject) =>
-    subject.test.filter((item) => item.kind !== 'short' && item.correct.length > 0).map((item) => ({ subject: subject.title, item })),
+    subject.test.filter((item) => item.kind !== 'short' && item.correct.length > 0 && !item.aiKey).map((item) => ({ subject: subject.title, item })),
   );
   if (keyed.length <= 3) return keyed;
   const picks = [Math.floor(keyed.length / 6), Math.floor(keyed.length / 2), Math.floor((keyed.length * 5) / 6)];
@@ -954,12 +1400,18 @@ export function pictureIds(subject: Pick<DraftSubject, 'test'>): string[] {
  * The items of one subject as container_items_add takes them (types/container.ts ItemInput). A picture that has no
  * place is lost: the question is saved without a key and with has_image (decision 7), so no session asks it unseen.
  */
-export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string, place: PicturePlace = () => null): ItemInput[] {
+export function itemInputs(
+  subject: Pick<DraftSubject, 'test'>,
+  importId: string | ((fileId: string) => string),
+  place: PicturePlace = () => null,
+): ItemInput[] {
+  // Each question's ref carries its own file's import id: a subject of variants takes questions from several files.
+  const refOf = (item: DraftItem) => `${typeof importId === 'string' ? importId : importId(item.fileId)}:${item.position}`;
   return subject.test.map((item) => {
     if (item.kind === 'number' || item.kind === 'order' || item.kind === 'match' || item.kind === 'cloze') {
       // release 48 (docs/kinds/CONTRACT.md §1): their key is in options / answers
       const input: ItemInput = {
-        ref: `${importId}:${item.position}`,
+        ref: refOf(item),
         stem: item.text,
         options: item.kind === 'number' || item.kind === 'cloze' ? [] : item.options,
         correct: item.kind === 'order' ? item.options.map((_, index) => index) : [],
@@ -977,7 +1429,7 @@ export function itemInputs(subject: Pick<DraftSubject, 'test'>, importId: string
       return input;
     }
     const input: ItemInput = {
-      ref: `${importId}:${item.position}`,
+      ref: refOf(item),
       stem: item.text,
       options: item.kind === 'short' ? [] : item.options,
       correct: item.kind === 'short' ? [] : item.correct,
@@ -1052,13 +1504,15 @@ export function draftPlanInput(
       ...(extra ? extra.items.map((item) => ({ ...item, s: extra.id })) : []),
       ...active.flatMap((subject) =>
         subject.test
-          .filter((item) => item.kind === 'short' || item.correct.length > 0)
-          .map((item) => ({
+          .map((item, index) => ({ item, index }))
+          .filter(({ item }) => item.kind === 'short' || item.correct.length > 0)
+          .map(({ item, index }) => ({
             id: item.uid,
             s: subject.key,
             f: 't' as const,
             tp: item.topic,
-            o: item.position,
+            // a subject of variants: positions repeat in every file, so its order is the subject's own
+            o: subject.files.length > 1 ? index + 1 : item.position,
             ...(item.code || item.kind === 'multiple' ? { slow: 1 as const } : {}),
           })),
       ),

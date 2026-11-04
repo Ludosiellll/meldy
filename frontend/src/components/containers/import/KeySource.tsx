@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
+import PaperSelect from '../../ui/PaperSelect';
 import { IMPORT, KEY_WORDS, nb, SIGNAL_WORDS } from '../copyImport';
 import { signalCounts, type ImportFile, type KeySignal } from './importModel';
 import KeyFile from './KeyFile';
@@ -10,6 +11,9 @@ import KeyFile from './KeyFile';
  * marks), «Первый вариант всегда верный», «Ответы в файле не отмечены». Below, «Ключ отдельным списком» (spec
  * decision 34, student critique В4): the key sent apart («1 – б, 2 – а…») goes back to the importer as key_text; or
  * «Ключ отдельным файлом» (KeyFile.tsx): the key file goes with the questions, its section of this test's variant.
+ *
+ * A subject made of variants (owner, 2026-11-04): the mark and the key file go to every variant (each takes its own
+ * section of the key file); the key list goes to the variant chosen above it.
  */
 
 interface Props {
@@ -22,9 +26,12 @@ interface Props {
   onKeyFile: (file: File | null) => void;
   onKeySection: (index: number) => void;
   onClose: () => void;
+  /** The files of a subject made of variants (this one among them), and a pick of another one. */
+  variants?: ReadonlyArray<{ id: string; label: string }>;
+  onVariant?: (fileId: string) => void;
 }
 
-export default function KeySource({ file, signal, busy, focusKeyText, onSignal, onKeyText, onKeyFile, onKeySection, onClose }: Props) {
+export default function KeySource({ file, signal, busy, focusKeyText, onSignal, onKeyText, onKeyFile, onKeySection, onClose, variants, onVariant }: Props) {
   const groupId = useId();
   const keyId = useId();
   const keyRef = useRef<HTMLTextAreaElement>(null);
@@ -58,7 +65,24 @@ export default function KeySource({ file, signal, busy, focusKeyText, onSignal, 
       <h2 id={`${groupId}-h`} className="im-subject-h">
         {IMPORT.keyTitle}
       </h2>
-      <p className="im-subject-from">{file.name}</p>
+      {variants && variants.length > 1 && onVariant ? (
+        <div className="im-keysrc-variant">
+          <p className="im-hint" data-muted="">
+            {nb(IMPORT.keyVariants(variants.length))}
+          </p>
+          <span className="im-label">{IMPORT.keyVariantPick}</span>
+          <PaperSelect
+            ariaLabel={IMPORT.keyVariantPick}
+            value={file.id}
+            options={variants.map((variant) => ({ value: variant.id, label: variant.label }))}
+            onChange={onVariant}
+            disabled={busy}
+          />
+          <p className="im-subject-from">{file.name}</p>
+        </div>
+      ) : (
+        <p className="im-subject-from">{file.name}</p>
+      )}
       <div className="im-radios" role="radiogroup" aria-labelledby={`${groupId}-h`}>
         {choices.map((choice) => (
           <label key={choice.value} className="im-radio">

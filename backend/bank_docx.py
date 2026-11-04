@@ -42,7 +42,9 @@ __all__ = [
     "RichDocxReader",
     "Run",
     "Table",
+    "TooComplex",
     "check_archive",
+    "check_markup",
     "is_code",
     "read_docx",
 ]
@@ -51,6 +53,15 @@ __all__ = [
 MAX_XML_PART_BYTES = 40 * 1024 * 1024  # одна часть XML (document.xml, styles.xml…)
 MAX_ARCHIVE_BYTES = 96 * 1024 * 1024  # весь архив распакованным (картинки почти не сжимаются: ≈ размер файла)
 MAX_ARCHIVE_ENTRIES = 5000
+# Разметка, несоразмерная тексту (обзор 2026-11-04: DOCX в 198 КБ с document.xml в 40 МБ из пустых кусков оформления
+# разбирался 10 с и брал 626 МБ памяти): считается потоком до разбора, такой файл не разбирается. Банк на 2000 вопросов —
+# десятки тысяч кусков (корпус: до 2311, по 24–70 знаков на кусок); 2 000 000 знаков по 7 на кусок — меньше 300 000.
+MAX_DOC_RUNS = 300_000
+MAX_DOC_PARAGRAPHS = 300_000
+# С этого числа элементов текста должен быть хотя бы байт на 4 элемента (в корпусе — больше байта на элемент).
+MARKUP_ELEMENTS = 1_000_000
+_SCAN_CHUNK = 1 << 20
+_SCAN_TEXT_RE = re.compile(rb"<w:t(?:\s[^>]*)?>([^<]*)<")
 
 _M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 _MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -156,6 +167,47 @@ class Table:
 Block = Union[Para, Table]
 
 
+class TooComplex(Exception):
+    """В document.xml разметки несоразмерно больше, чем текста (check_markup): файл не разбирается."""
+
+
+def check_markup(contents: bytes) -> None:
+    """TooComplex, если в word/document.xml больше MAX_DOC_RUNS кусков текста (w:r), больше MAX_DOC_PARAGRAPHS абзацев
+    или больше MARKUP_ELEMENTS элементов при тексте меньше байта на 4 элемента. Часть читается потоком по 1 МБ и
+    считается по байтам (без разбора XML): несколько десятых секунды на 40 МБ, отказ — как только предел пройден."""
+    with zipfile.ZipFile(io.BytesIO(contents)) as archive:
+        try:
+            part = archive.open("word/document.xml")
+        except KeyError:
+            return
+        runs = paragraphs = elements = text = 0
+        tail = b""
+        with part:
+            while True:
+                chunk = part.read(_SCAN_CHUNK)
+                data = tail + chunk
+                if chunk:
+                    cut = data.rfind(b"<")
+                    if cut < 0 or len(data) - cut > 2 * _SCAN_CHUNK:  # долго без «<»: это текст
+                        text += len(data)
+                        tail = b""
+                        continue
+                    # окно — до последнего «<» включительно (им кончается текст w:t); с него начнётся следующее
+                    window, tail = data[:cut + 1], data[cut:]
+                else:
+                    window, tail = data, b""
+                runs += window.count(b"<w:r>") + window.count(b"<w:r ")
+                paragraphs += window.count(b"<w:p>") + window.count(b"<w:p ") + window.count(b"<w:p/>")
+                elements += window.count(b"<w:")
+                text += sum(len(found) for found in _SCAN_TEXT_RE.findall(window))
+                if runs > MAX_DOC_RUNS or paragraphs > MAX_DOC_PARAGRAPHS:
+                    raise TooComplex(f"runs {runs}, paragraphs {paragraphs}")
+                if not chunk:
+                    break
+    if elements > MARKUP_ELEMENTS and text * 4 < elements:
+        raise TooComplex(f"elements {elements}, text {text}")
+
+
 def check_archive(contents: bytes, *, max_part: Optional[int] = None, max_total: Optional[int] = None) -> list[str]:
     """Имена частей архива или ArchiveTooLarge / zipfile.BadZipFile — до того, как что-то распаковано.
 
@@ -208,6 +260,7 @@ def _fill(element) -> Optional[str]:
 
 
 _TAG_B, _TAG_B_CS, _TAG_I, _TAG_STRIKE, _TAG_DSTRIKE = _w("b"), _w("bCs"), _w("i"), _w("strike"), _w("dstrike")
+_TAG_I_CS, _TAG_RTL, _TAG_CS = _w("iCs"), _w("rtl"), _w("cs")
 _TAG_U, _TAG_HIGHLIGHT, _TAG_COLOR, _TAG_SHD, _TAG_FONTS, _TAG_RSTYLE = (
     _w("u"), _w("highlight"), _w("color"), _w("shd"), _w("rFonts"), _w("rStyle")
 )
@@ -217,7 +270,11 @@ _ATTR_VAL, _ATTR_THEME_COLOR, _ATTR_ASCII, _ATTR_HANSI = _w("val"), _w("themeCol
 def _marks_of(rpr) -> dict:
     """Оформление из w:rPr: только заданные в нём признаки (наследование — у вызывающего).
 
-    Как find() по каждому тегу (берётся первый такой элемент), но за один проход по детям.
+    Как find() по каждому тегу (берётся первый такой элемент), но за один проход по детям. Жирный и курсив для письма
+    справа налево и сложных письменностей (w:bCs, w:iCs) — отдельные признаки bold_cs и italic_cs: Word применяет их
+    только к такому тексту (кусок с w:rtl или w:cs, арабские и еврейские буквы), а кириллицу и латиницу показывает по
+    w:b и w:i. Файлы колледжа (владелец, 2026-11-04) ставят w:bCs на неверные варианты: в Word они обычные, а читались
+    жирными — ключ «1, 2, 3» вместо «1» и вопрос без ключа, когда w:bCs у всех пяти.
     """
     if rpr is None:
         return {}
@@ -225,12 +282,8 @@ def _marks_of(rpr) -> dict:
     for child in rpr:
         first.setdefault(child.tag, child)
     marks: dict = {}
-    bold = first.get(_TAG_B)
-    if bold is None:
-        bold = first.get(_TAG_B_CS)
-    if bold is not None:
-        marks["bold"] = _on(bold)
-    for tag, key in ((_TAG_I, "italic"), (_TAG_STRIKE, "strike"), (_TAG_DSTRIKE, "strike")):
+    for tag, key in ((_TAG_B, "bold"), (_TAG_B_CS, "bold_cs"), (_TAG_I, "italic"), (_TAG_I_CS, "italic_cs"),
+                     (_TAG_STRIKE, "strike"), (_TAG_DSTRIKE, "strike"), (_TAG_RTL, "rtl"), (_TAG_CS, "cs")):
         element = first.get(tag)
         if element is not None:
             marks[key] = _on(element)
@@ -261,6 +314,20 @@ def _marks_of(rpr) -> dict:
     if rstyle is not None:
         marks["rstyle"] = rstyle.get(_ATTR_VAL)
     return marks
+
+
+# Буквы письменностей, которые Word оформляет признаками сложных письменностей (w:bCs, w:iCs): иврит, арабское,
+# сирийское, тана, деванагари и другие индийские, тайское, лаосское; формы представления арабских и еврейских букв.
+_COMPLEX_LETTER_RE = re.compile(r"[\u0590-\u08ff\u0900-\u0dff\u0e00-\u0eff\ufb1d-\ufdff\ufe70-\ufeff]")
+_ANY_LETTER_RE = re.compile(r"[^\W\d_]")
+
+
+def _complex_letters(text: str) -> Optional[str]:
+    """Буквы сложной письменности (арабские, еврейские…) в куске: «all» — все буквы такие (кусок Word оформляет по
+    w:bCs), «some» — вперемешку с латиницей или кириллицей («A) نص»: каждая часть — по своему признаку), None — нет."""
+    if not _COMPLEX_LETTER_RE.search(text):
+        return None
+    return "all" if all(_COMPLEX_LETTER_RE.match(char) for char in _ANY_LETTER_RE.findall(text)) else "some"
 
 
 class _Styles:
@@ -338,6 +405,7 @@ class RichDocxReader(docx_text._DocxReader):
         self._styles = _Styles(doc)
         # картинки абзацев: sha256 содержимого → (тип, байты); одинаковая картинка в разных вопросах — одна
         self.pictures: dict[str, tuple[str, bytes]] = {}
+        self._picture_ids: dict[str, str] = {}  # rId → id картинки ("" — не переносится)
         self._lifted: set = set()  # надписи с вопросами, чей текст читается абзацами после абзаца-якоря
 
     @staticmethod
@@ -370,6 +438,12 @@ class RichDocxReader(docx_text._DocxReader):
             rid = data.get(f"{{{_R_NS}}}id") if data is not None else None
         if not rid:
             return ""
+        if rid in self._picture_ids:  # одна картинка тысячу раз — хэш один раз
+            return self._picture_ids[rid]
+        self._picture_ids[rid] = key = self._picture_key(rid)
+        return key
+
+    def _picture_key(self, rid: str) -> str:
         try:
             part = self._doc.part.related_parts[rid]
             kind, blob = part.content_type, part.blob
@@ -528,11 +602,19 @@ class RichDocxReader(docx_text._DocxReader):
         text = "".join(parts)
         if not text:
             return
+        script = "all" if marks.get("rtl") or marks.get("cs") else _complex_letters(text)
+        bold, italic = marks.get("bold"), marks.get("italic")
+        if script:  # такой текст Word показывает по w:bCs / w:iCs, а без них — по w:b / w:i
+            bold_cs, italic_cs = marks.get("bold_cs", bold), marks.get("italic_cs", italic)
+            if script == "all":
+                bold, italic = bold_cs, italic_cs
+            else:  # вперемешку: жирная хоть одна часть — кусок жирный
+                bold, italic = bold or bold_cs, italic or italic_cs
         para.runs.append(Run(
             text=text,
-            bold=bool(marks.get("bold")),
+            bold=bool(bold),
             underline=bool(marks.get("underline")) and not hyperlink,
-            italic=bool(marks.get("italic")),
+            italic=bool(italic),
             strike=bool(marks.get("strike")),
             highlight=marks.get("highlight"),
             color=marks.get("color"),
@@ -543,9 +625,11 @@ class RichDocxReader(docx_text._DocxReader):
 
 
 def read_docx(contents: bytes, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> list[Block]:
-    """Блоки DOCX. Ошибки: ArchiveTooLarge (пределы распаковки), прочие — повреждённый или не тот файл.
-    pictures — словарь, куда сложить картинки абзацев (id → (тип, байты)); без него они не возвращаются."""
+    """Блоки DOCX. Ошибки: ArchiveTooLarge (пределы распаковки), TooComplex (разметка несоразмерна тексту), прочие —
+    повреждённый или не тот файл. pictures — словарь, куда сложить картинки абзацев (id → (тип, байты)); без него они
+    не возвращаются."""
     check_archive(contents)
+    check_markup(contents)
     from docx import Document
 
     reader = RichDocxReader(Document(io.BytesIO(contents)))

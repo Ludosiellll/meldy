@@ -18,6 +18,7 @@ const api = vi.hoisted(() => {
   return {
     ContainerApiError,
     parseBank: vi.fn(),
+    keysAi: vi.fn(),
     createContainer: vi.fn(),
     addSubject: vi.fn(),
     addItems: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('../../api/containers', () => ({
   ContainerApiError: api.ContainerApiError,
   containerError: (error: unknown) => error,
   parseBank: api.parseBank,
+  keysAi: api.keysAi,
   createContainer: api.createContainer,
   addSubject: api.addSubject,
   addItems: api.addItems,
@@ -90,9 +92,9 @@ vi.mock('../../components/containers/import/targets', async () => {
 });
 vi.mock('../../lib/containers/oralPlan', () => ({ loadOralPlanItems: api.loadOralPlanItems }));
 
-import ImportPage from './ImportPage';
+import ImportPage, { examDateProblem } from './ImportPage';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
-import { IMPORT, PARSE_ERRORS, QUEUE, REVIEW } from '../../components/containers/copyImport';
+import { errorText, IMPORT, KEYS_AI_WORDS, PARSE_ERRORS, QUEUE, REVIEW } from '../../components/containers/copyImport';
 
 const TWO = twoSubjects as unknown as BankParseResult;
 const OPEN = openList as unknown as BankParseResult;
@@ -290,6 +292,60 @@ describe('ImportPage: one door for every file', () => {
     ]);
     expect(api.addItems).toHaveBeenCalledTimes(1);
     expect(api.addItems.mock.calls[0][1]).toHaveLength(10);
+  });
+
+  it('a mistyped exam year is said before saving: no oral exam is created with it (the database keeps 2000–2100)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-04T09:00:00Z'));
+    try {
+      const items = [...Array.from({ length: 5 }, (_, at) => item(at + 1)), ...Array.from({ length: 12 }, (_, at) => item(at + 6, { kind: 'open', options: [], correct: [], evidence: '', marks: {} }))];
+      api.parseBank.mockResolvedValue(bank(items));
+      renderAt();
+      upload(['Право.docx']);
+      await screen.findByRole('heading', { name: /Нашли 17\sвопросов/ });
+      const field = screen.getByLabelText('Дата экзамена');
+      // the field takes two years ahead at most, as «Настройки» and «Перенести экзамен»
+      expect(field).toHaveAttribute('max', '2028-11-03');
+      fireEvent.change(field, { target: { value: '2206-01-10' } });
+      fireEvent.click(saveButton());
+      expect(await screen.findByText(nm(IMPORT.dateTooFar))).toBeInTheDocument();
+      fireEvent.change(field, { target: { value: '0206-01-10' } });
+      fireEvent.click(saveButton());
+      expect(await screen.findByText(nm(IMPORT.dateWrong))).toBeInTheDocument();
+      expect(api.createExam).not.toHaveBeenCalled();
+      expect(api.createContainer).not.toHaveBeenCalled();
+      // a date within two years saves as before
+      fireEvent.change(field, { target: { value: '2027-01-10' } });
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+      expect(api.createExam).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('checks every date about to be saved: each subject’s too', () => {
+    expect(examDateProblem(['2027-01-10', null, ''], '2028-11-03')).toBeNull();
+    expect(examDateProblem(['2027-01-10', '2028-11-04'], '2028-11-03')).toBe(IMPORT.dateTooFar);
+    expect(examDateProblem(['2206-01-10'], '2228-11-03')).toBe(IMPORT.dateTooFar); // past 2100: the database's limit
+    expect(examDateProblem(['1999-12-31'], '2028-11-03')).toBe(IMPORT.dateWrong);
+    expect(examDateProblem(['20206-01-10'], '2028-11-03')).toBe(IMPORT.dateWrong);
+    // the database's own refusal reads the same anywhere
+    expect(errorText(Object.assign(new Error('x'), { code: '22023', detail: 'date' }))).toBe(IMPORT.dateTooFar);
+    expect(errorText(Object.assign(new Error('x'), { code: '22023', detail: 'ai_key' }))).toBe('Сервер не принял данные. Обновите страницу и попробуйте ещё раз.');
+  });
+
+  it('the database refusing a date says so plainly, even after an oral exam was saved, instead of «нажмите ещё раз»', async () => {
+    const items = [...Array.from({ length: 5 }, (_, at) => item(at + 1)), ...Array.from({ length: 12 }, (_, at) => item(at + 6, { kind: 'open', options: [], correct: [], evidence: '', marks: {} }))];
+    api.parseBank.mockResolvedValue(bank(items));
+    api.createContainer.mockRejectedValueOnce(Object.assign(new Error('invalid exam date'), { code: '22023', detail: 'date', status: 400 }));
+    renderAt();
+    upload(['Право.docx']);
+    await screen.findByRole('heading', { name: /Нашли 17\sвопросов/ });
+    fireEvent.click(saveButton());
+    expect(await screen.findByText(nm(IMPORT.dateTooFar))).toBeInTheDocument();
+    expect(api.createExam).toHaveBeenCalledTimes(1); // the oral list was saved before the exam was refused
+    expect(screen.queryByText(nm(IMPORT.saveRetry))).toBeNull();
   });
 
   it('says in Russian why a file did not open, and never blocks the others', async () => {
@@ -960,5 +1016,180 @@ describe('ImportPage: an oral exam the student has joins an exam (usability chec
     cleanup();
     renderAt();
     expect(screen.queryByRole('region', { name: 'Или устный экзамен, который уже есть' })).toBeNull();
+  });
+});
+
+describe('ImportPage: a batch of variants (owner, 2026-11-04)', () => {
+  const variant = (n: number, heading: string) =>
+    bank([item(1, { text: `${heading}: вопрос варианта ${n}?` }), item(2, { text: `${heading}: общий вопрос?` })], heading);
+
+  it('variants of one subject are one subject: «3 варианта», the files and the repeats in its detail, one subject saved', async () => {
+    const results: Record<string, BankParseResult> = {
+      'КПиЯП_Вариант_1.docx': { ...variant(1, 'Конструирование программ'), variant: 1 },
+      'КПиЯП_Вариант_2.docx': { ...variant(2, 'Конструирование программ'), variant: 2 },
+      'КПиЯП_Вариант_3.docx': { ...variant(3, 'Конструирование программ'), variant: 3 },
+      'ТПО_Вариант_1.docx': { ...variant(1, 'Тестирование программ'), variant: 1 },
+      'ТПО_Вариант_2.docx': { ...variant(2, 'Тестирование программ'), variant: 2 },
+    };
+    api.parseBank.mockImplementation(async (input: { file: File }) => results[input.file.name]);
+    renderAt();
+    upload(Object.keys(results));
+    expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 7\sвопросов/ })).toBeInTheDocument();
+    expect(screen.getByText(nm('3 варианта · 4 вопроса · ключ жирным'))).toBeInTheDocument();
+    expect(screen.getByText(nm('2 варианта · 3 вопроса · ключ жирным'))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Конструирование программ/ }));
+    expect(await screen.findByText(/Варианты одного предмета: 3\sфайла \(Вариант 1 – Вариант 3\)\./)).toBeInTheDocument();
+    expect(screen.getByText(nm('2 повтора из других вариантов не добавлены.'))).toBeInTheDocument();
+    expect(screen.getByText('из заголовка в файле')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Все предметы' }));
+
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Сессия' } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    expect(api.createContainer.mock.calls[0][2]).toEqual([
+      // the files' own topic, merged by its name (without topics of their own, a topic «Вариант N» each)
+      expect.objectContaining({ title: 'Конструирование программ', topics: ['Раздел 1'] }),
+      expect.objectContaining({ title: 'Тестирование программ', topics: ['Раздел 1'] }),
+    ]);
+    const refs = api.addItems.mock.calls[0][1].map((input: { ref: string }) => input.ref);
+    expect(refs).toHaveLength(4);
+    expect(new Set(refs.map((ref: string) => ref.split(':')[0])).size).toBe(3); // each question's own file's import id
+  });
+
+  it('«Разделить по файлам» gives one subject per file; «Объединить варианты» joins them again', async () => {
+    api.parseBank.mockImplementation(async (input: { file: File }) => ({ ...variant(Number(/(\d)\./.exec(input.file.name)![1]), 'Сети'), variant: Number(/(\d)\./.exec(input.file.name)![1]) }));
+    renderAt();
+    upload(['Сети_Вариант_1.docx', 'Сети_Вариант_2.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: /^Сети/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Разделить по файлам' }));
+    expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Сети/ })[1]);
+    expect(await screen.findByText(/Вариант 2: один из 2 файлов с вариантами одного предмета\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Объединить варианты' }));
+    expect(await screen.findByText(nm('2 варианта · 3 вопроса · ключ жирным'))).toBeInTheDocument();
+  });
+});
+
+describe('ImportPage: a file the server asks to wait for (429) is read again by itself', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('says how long it waits, goes on by itself and fails nothing', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    let refused = 0;
+    api.parseBank.mockImplementation(async (input: { file: File }) => {
+      if (input.file.name === 'Б.docx' && refused === 0) {
+        refused += 1;
+        throw Object.assign(new Error('Много файлов за минуту.'), { code: 'http_429', status: 429, retryAfter: '5' });
+      }
+      return bank([item(1, { text: `Вопрос из ${input.file.name}?` })], input.file.name.replace('.docx', ''));
+    });
+    renderAt();
+    upload(['А.docx', 'Б.docx', 'В.docx']);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(plain(screen.getByRole('region', { name: /Читаем/ }).textContent)).toContain('Сервер просит подождать. Продолжим сами через 5 с.');
+    expect(screen.queryByText(IMPORT.readFailed)).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(plain(document.body.textContent)).toContain('Продолжим сами через 3 с.');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(screen.getByRole('heading', { name: /Нашли 3\sпредмета и 3\sвопроса/ })).toBeInTheDocument();
+    // Б keeps its place: it is read again before В, which waited behind it
+    expect(api.parseBank.mock.calls.map(([input]) => input.file.name)).toEqual(['А.docx', 'Б.docx', 'Б.docx', 'В.docx']);
+    expect(screen.queryByText(PARSE_ERRORS.rate_limited)).toBeNull();
+  });
+});
+
+describe('ImportPage: «Подобрать ключи с ИИ» (owner, 2026-11-04)', () => {
+  const keyless = (position: number, patch: Partial<BankItem> = {}) =>
+    item(position, { correct: [], evidence: '', flags: ['no_key'], marks: {}, ...patch });
+  const ITEMS = [
+    item(1),
+    keyless(2, { text: 'Какой порт у HTTP?', options: ['21', '80', '443'] }),
+    keyless(3, { text: 'Какой порт у SSH?', options: ['22', '25', '110'] }),
+    keyless(4, { images: { stem: ['a'.repeat(64)], options: [[], [], []] } }),
+  ];
+
+  it('sends only keyless questions without pictures; an agreed key is saved with the flag ai_key and waits for a check', async () => {
+    api.parseBank.mockResolvedValue(bank(ITEMS, 'Сети'));
+    api.keysAi.mockImplementation(async (input: { questions: Array<{ id: string }> }) => ({
+      results: [
+        { id: input.questions[0].id, correct: [1], agree: true, sure: 'high' },
+        { id: input.questions[1].id, correct: null, agree: false, sure: 'low', note: 'ИИ не уверен' },
+      ],
+      units: 5,
+      spent_questions: 2,
+    }));
+    renderAt();
+    upload(['Сети.docx']);
+    expect(await screen.findByRole('heading', { name: /Нашли 4\sвопроса/ })).toBeInTheDocument();
+    expect(screen.getByText(nm('2 вопроса без ключа · 5 единиц'))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: KEYS_AI_WORDS.go }));
+    await waitFor(() => expect(screen.getByText(/Ключи подобраны для 1 из 2/)).toBeInTheDocument());
+    const [request] = api.keysAi.mock.calls[0];
+    expect(request.subject).toBe('Сети');
+    expect(request.questions.map((question: { text: string; options: string[]; kind: string }) => [question.text, question.options, question.kind])).toEqual([
+      ['Какой порт у HTTP?', ['21', '80', '443'], 'single'],
+      ['Какой порт у SSH?', ['22', '25', '110'], 'single'],
+    ]);
+    expect(request.questions.every((question: { id: string }) => /^f\d+:\d$/.test(question.id))).toBe(true);
+    expect(plain(screen.getByText(/Ключи подобраны для 1 из 2/).textContent)).toBe(
+      'Ключи подобраны для 1 из 2 вопросов. Без ключа остался 1: ИИ не уверен — 1. Списано 5 единиц.',
+    );
+    expect(screen.getByText(nm('Проверьте ключи от ИИ (1).'), { exact: false })).toBeInTheDocument();
+    // nothing left to send: the unsure one is not sent again
+    expect(screen.queryByRole('button', { name: KEYS_AI_WORDS.go })).toBeNull();
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    const saved = api.addItems.mock.calls[0][1] as Array<{ stem: string; correct: number[]; key_source: string; flags: string[] }>;
+    const http = saved.find((input) => input.stem === 'Какой порт у HTTP?')!;
+    expect([http.correct, http.key_source, http.flags.includes('ai_key')]).toEqual([[1], 'manual', true]);
+    const ssh = saved.find((input) => input.stem === 'Какой порт у SSH?')!;
+    expect([ssh.correct, ssh.flags.includes('ai_key')]).toEqual([[], false]);
+  });
+
+  it('while the AI answers the import is not saved and the files are not read again, and the page says why', async () => {
+    api.parseBank.mockResolvedValue(bank(ITEMS, 'Сети'));
+    let answer!: (value: unknown) => void;
+    api.keysAi.mockImplementation(
+      (input: { questions: Array<{ id: string }> }) =>
+        new Promise((resolve) => {
+          answer = () =>
+            resolve({ results: input.questions.map((question) => ({ id: question.id, correct: [1], agree: true, sure: 'high' })), units: 5, spent_questions: 2 });
+        }),
+    );
+    renderAt();
+    upload(['Сети.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: KEYS_AI_WORDS.go }));
+    await waitFor(() => expect(api.keysAi).toHaveBeenCalledTimes(1));
+    // reading the file again would change the questions the AI was asked about
+    expect(screen.queryByRole('button', { name: IMPORT.readAsOral })).toBeNull();
+    fireEvent.click(saveButton());
+    expect(await screen.findByText(nm(KEYS_AI_WORDS.wait))).toBeInTheDocument();
+    expect(api.addItems).not.toHaveBeenCalled();
+    expect(api.parseBank).toHaveBeenCalledTimes(1);
+    answer(null);
+    await waitFor(() => expect(screen.getByText(/Ключи подобраны для 2 из 2/)).toBeInTheDocument());
+    expect(screen.queryByText(nm(KEYS_AI_WORDS.wait))).toBeNull();
+    expect(screen.getByRole('button', { name: IMPORT.readAsOral })).toBeInTheDocument();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(api.addItems).toHaveBeenCalled());
+  });
+
+  it('a refusal says so in plain words; nothing is changed', async () => {
+    api.parseBank.mockResolvedValue(bank(ITEMS, 'Сети'));
+    api.keysAi.mockRejectedValue(Object.assign(new Error('Дневной лимит ИИ на сегодня исчерпан.'), { code: 'ai_limit', status: 429 }));
+    renderAt();
+    upload(['Сети.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: KEYS_AI_WORDS.go }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(KEYS_AI_WORDS.limit);
+    expect(screen.getByRole('button', { name: KEYS_AI_WORDS.go })).toBeEnabled();
+    expect(screen.queryByText(/Проверьте ключи от ИИ/)).toBeNull();
   });
 });

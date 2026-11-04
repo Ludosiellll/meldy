@@ -19,6 +19,7 @@ from xml.sax.saxutils import escape
 
 import pytest
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_COLOR_INDEX
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -405,6 +406,78 @@ def test_checkbox_symbols_mark_the_key():
     assert [item["correct"] for item in result["items"]] == [[1], [2]]
 
 
+def run_paragraph(text: str, props: str = "") -> str:
+    return f'<w:p><w:r><w:rPr>{props}</w:rPr><w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>'
+
+
+def test_complex_script_bold_does_not_mark_cyrillic_options():
+    """Файлы колледжа (владелец, 2026-11-04): w:bCs — жирный только для арабского и иврита — стоит на неверных вариантах.
+    Word показывает их обычными, и ключ — вариант с w:b: «1)», а не «1), 2), 3)»; и не «ключа нет», когда w:bCs у всех."""
+    body = run_paragraph("1. Какой текст соответствует выражению ^\\d{3}$?")
+    body += run_paragraph("1) 123", "<w:b/>") + run_paragraph("2) 12", "<w:bCs/>") + run_paragraph("3) 1234", "<w:bCs/>")
+    body += run_paragraph("4) abc") + run_paragraph("5) 1a3")
+    body += run_paragraph("2. Что не входит в стратегию тестирования?")
+    body += run_paragraph("1) Текст для магазина", "<w:b/><w:bCs/>")
+    body += "".join(run_paragraph(f"{k}) Шаг плана {k}", "<w:bCs/>") for k in range(2, 6))
+    body += run_paragraph("3. Какой протокол передаёт веб-страницы?")
+    body += run_paragraph("1) FTP", '<w:b w:val="0"/><w:bCs/>') + run_paragraph("2) HTTP", "<w:b/>") + run_paragraph("3) SMTP")
+    result = parse_bank_file(docx_with_body(body), "bank.docx")
+    assert [item["correct"] for item in result["items"]] == [[0], [0], [1]]
+    assert result["key_source"] == {"bold": 3} and not any(item["flags"] for item in result["items"])
+    assert result["items"][0]["marks"]["bold"] == [1, 0, 0, 0, 0]
+
+
+@pytest.mark.parametrize("props, text, bold, italic", [
+    ("<w:b/>", "вариант", True, False),
+    ("<w:bCs/>", "вариант", False, False),
+    ("<w:iCs/>", "variant", False, False),
+    ("<w:bCs/><w:i/>", "вариант", False, True),
+    ("<w:cs/><w:bCs/>", "вариант", True, False),
+    ("<w:rtl/><w:bCs/><w:iCs/>", "вариант", True, True),
+    ("<w:rtl/><w:b/><w:bCs w:val=\"0\"/>", "вариант", False, False),
+    ("<w:cs w:val=\"0\"/><w:bCs/>", "вариант", False, False),
+    ("<w:bCs/>", "שלום", True, False),
+    ("<w:bCs/>", "مرحبا 12", True, False),
+    ("<w:b/>", "مرحبا", True, False),
+    # вперемешку с латиницей: арабская или еврейская часть — по w:bCs, латинская — по w:b
+    ("<w:bCs/>", "Hello שלום", True, False),
+    ("<w:bCs/>", "A) نص", True, False),
+    ("<w:bCs/><w:iCs/>", "1) نص", True, True),
+    ('<w:b/><w:bCs w:val="0"/>', "A) نص", True, False),
+    ('<w:b w:val="0"/><w:bCs w:val="0"/>', "A) نص", False, False),
+    ("<w:i/>", "A) نص", False, True),
+])
+def test_complex_script_marks_count_only_for_complex_script_runs(props, text, bold, italic):
+    blocks = bank_docx.read_docx(docx_with_body(run_paragraph(text, props)))
+    run = blocks[0].runs[0]
+    assert (run.bold, run.italic) == (bold, italic)
+
+
+def test_complex_script_bold_from_styles_follows_the_same_rule():
+    """Наследование через стили: w:bCs стиля абзаца или знака — не жирный для кириллицы; w:rtl в стиле делает его жирным."""
+    def build(doc):
+        para_style = doc.styles.add_style("Вопросы теста", WD_STYLE_TYPE.PARAGRAPH)
+        para_style.element.get_or_add_rPr().append(OxmlElement("w:bCs"))
+        char_style = doc.styles.add_style("Жирный сложный", WD_STYLE_TYPE.CHARACTER)
+        char_style.element.get_or_add_rPr().append(OxmlElement("w:bCs"))
+        rtl_style = doc.styles.add_style("Справа налево", WD_STYLE_TYPE.CHARACTER)
+        rtl_rpr = rtl_style.element.get_or_add_rPr()
+        rtl_rpr.append(OxmlElement("w:bCs"))
+        rtl_rpr.append(OxmlElement("w:rtl"))
+        doc.add_paragraph("стиль абзаца с w:bCs", style=para_style)
+        doc.add_paragraph().add_run("стиль знака с w:bCs", style=char_style)
+        doc.add_paragraph().add_run("стиль знака с w:bCs и w:rtl", style=rtl_style)
+        doc.add_paragraph().add_run("жирный поверх стиля", style=char_style).bold = True
+
+    blocks = bank_docx.read_docx(docx_bytes(build))
+    assert [(block.text, block.runs[0].bold) for block in blocks] == [
+        ("стиль абзаца с w:bCs", False),
+        ("стиль знака с w:bCs", False),
+        ("стиль знака с w:bCs и w:rtl", True),
+        ("жирный поверх стиля", True),
+    ]
+
+
 def test_key_mode_first_option_and_none_override_the_file_and_key_text_still_applies():
     contents = (FIXTURES / "01_table_rows_bold.docx").read_bytes()
     first = parse_bank_file(contents, "bank.docx", key_mode="first_option")
@@ -640,6 +713,241 @@ def test_more_than_300_topics_are_merged_into_the_last_one_with_a_warning():
     assert [item["topic"] for item in result["items"]][-12:] == [299] + [300] * 11
     assert [w["code"] for w in result["warnings"]] == ["topics_merged"]
     assert "310 тем" in result["warnings"][0]["message"]
+
+
+# ── Шапка бланка и подпись (файлы колледжа, владелец, 2026-11-04) ──────────────────
+
+# Синтетическая шапка как у файлов колледжа: таблица в два столбца, первая строка — «Задание на выполнение…» в левой
+# ячейке, ниже строки на всю ширину. Колледж, специальность и предмет — выдуманные.
+COLLEGE_QUESTIONS = [
+    ("Как называется принцип, скрывающий реализацию объекта?", ["Наследование", "Полиморфизм", "Инкапсуляция",
+                                                                 "Абстракция", "Композиция"], 2),
+    ("Какой оператор приводит double к int?", ["as int", "is int", "convert(int)", "(int)x", "cast<int>"], 3),
+    ("Какой элемент извлечётся первым из очереди?", ["10", "30", "20", "40", "Ни один"], 0),
+]
+
+
+def college_head(subject: str | None = "Учебный предмет: «Основы алгоритмизации»", first_cell: list[str] | None = None) -> str:
+    def wide(text: str) -> str:
+        return "<w:tr>" + xml_cell(xml_paragraph(text), '<w:gridSpan w:val="2"/>') + "</w:tr>"
+
+    first = first_cell or ["Задание на выполнение контрольной работы (комплексной контрольной работы) в форме "
+                           "тестирования в письменном виде на бумажных носителях"]
+    rows = ["<w:tr>" + xml_cell("".join(xml_paragraph(text) for text in first)) + xml_cell("") + "</w:tr>",
+            wide("Учреждение образования «Энский государственный колледж»"),
+            wide("Специальность 1-23-4567 «Программное обеспечение информационных систем»")]
+    if subject:
+        rows.append(wide(subject))
+    return "<w:tbl><w:tblPr/><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>" + "".join(rows) + "</w:tbl>"
+
+
+def college_questions(variant: int = 2) -> str:
+    body = xml_paragraph(f"Вариант {variant}")
+    for n, (question, options, right) in enumerate(COLLEGE_QUESTIONS, start=1):
+        body += xml_paragraph(f"{n}. {question}")
+        body += "".join(xml_paragraph(f"{k}) {option}", bold=k - 1 == right) for k, option in enumerate(options, start=1))
+    body += xml_paragraph("Преподаватель ____________    Иванов И.И.         01.01.2026")
+    body += xml_paragraph("(подпись)            (фамилия, инициалы)            (дата)")
+    return body
+
+
+def test_the_form_header_table_is_not_a_question_and_the_discipline_names_the_one_subject():
+    result = parse_bank_file(docx_with_body(college_head() + college_questions()), "КПиЯП_Вариант_2.docx")
+    assert result["subjects"] == [{"index": 1, "title": "Основы алгоритмизации", "evidence": "heading", "items": 3}]
+    assert result["topics"] == [] and result["variant"] == 2 and result["warnings"] == []
+    assert [(i["label"], i["kind"], i["correct"]) for i in result["items"]] == [("1", "single", [2]), ("2", "single", [3]),
+                                                                                ("3", "single", [0])]
+    assert all(i["flags"] == [] for i in result["items"])
+    # подпись под последним вопросом не уходит в его варианты
+    assert result["items"][-1]["options"] == COLLEGE_QUESTIONS[-1][1]
+    assert result["skipped"][0].startswith("Задание на выполнение контрольной работы")
+    assert any(line.startswith("Преподаватель") for line in result["skipped"])
+    assert any(line.startswith("(подпись)") for line in result["skipped"])
+
+
+def test_a_form_header_without_a_discipline_gives_one_untitled_subject_without_form_topics():
+    result = parse_bank_file(docx_with_body(college_head(subject=None) + college_questions()), "bank.docx")
+    assert [(s["title"], s["evidence"], s["items"]) for s in result["subjects"]] == [(None, "none", 3)]
+    assert result["topics"] == []  # «Специальность …» — строка бланка, а не тема
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+
+
+def test_form_rows_across_the_table_are_not_topics():
+    """Шапка только из строк на всю ширину (без вопроса без номера): «Учреждение образования…», «Специальность…» — не темы."""
+    head = college_head(subject=None)
+    head = head.replace(head[head.index("<w:tr>"):head.index("</w:tr>") + len("</w:tr>")], "", 1)
+    result = parse_bank_file(docx_with_body(head + college_questions()), "bank.docx")
+    assert result["topics"] == [] and [i["topic"] for i in result["items"]] == [None, None, None]
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+
+
+def test_a_discipline_inside_the_form_cell_still_names_the_subject():
+    head = college_head(subject=None, first_cell=["Учреждение образования «Энский колледж»", "Дисциплина: Компьютерные сети"])
+    result = parse_bank_file(docx_with_body(head + college_questions()), "bank.docx")
+    assert [(s["title"], s["evidence"]) for s in result["subjects"]] == [("Компьютерные сети", "heading")]
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+
+
+def test_an_unnumbered_question_above_numbered_ones_stays_a_question():
+    """Строка без номера над вопросами без слов бланка и без названия предмета — вопрос, как раньше."""
+    head = college_head(subject=None, first_cell=["Объясните своими словами, зачем нужен тест"]).replace(
+        "Учреждение образования «Энский государственный колледж»", "Ответьте письменно").replace(
+        "Специальность 1-23-4567 «Программное обеспечение информационных систем»", "Затем выполните тест")
+    result = parse_bank_file(docx_with_body(head + college_questions()), "bank.docx")
+    assert [(i["label"], i["kind"]) for i in result["items"]][0] == ("", "open")
+    assert len(result["items"]) == 4
+
+
+def test_a_file_without_numbered_questions_keeps_its_first_line():
+    """Нет вопросов с номерами — нет и «шапки до первого вопроса»: список без номеров читается как раньше."""
+    body = college_head(subject=None) + "".join(xml_paragraph(f"Вопрос без номера {n}?") for n in range(1, 4))
+    result = parse_bank_file(docx_with_body(body), "bank.docx")
+    assert result["items"][0]["text"].startswith("Задание на выполнение")
+
+
+def test_a_signature_table_under_the_last_question_is_not_a_question():
+    body = college_questions()
+    body = body[:body.index(xml_paragraph("Преподаватель ____________    Иванов И.И.         01.01.2026"))]
+    body += plain_table([["Преподаватель", "____________", "Иванов И.И.", "01.01.2026"],
+                         ["", "(подпись)", "(фамилия, инициалы)", "(дата)"]])
+    result = parse_bank_file(docx_with_body(body), "bank.docx")
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3"]
+    assert result["items"][-1]["options"] == COLLEGE_QUESTIONS[-1][1]
+    assert any(line.startswith("Преподаватель") for line in result["skipped"])
+
+
+SIGNATURE_LOOKALIKES = {
+    # строка с пропуском под вопросом, варианты ниже
+    "gap": ("Вставьте пропущенное слово:\nПреподаватель ______ знания студентов на экзамене.\nа) оценивает\nб) забывает\n",
+            "single", "Вставьте пропущенное слово:\nПреподаватель ______ знания студентов на экзамене.", ["оценивает", "забывает"]),
+    # варианты без подписей
+    "unlabeled": ("Кто ставит подпись в ведомости?\nПреподаватель ____\nСтудент ____\nДекан ____\n",
+                  "open", "Кто ставит подпись в ведомости?\nПреподаватель ____\nСтудент ____\nДекан ____", []),
+    "podpis": ("Какая графа идёт первой в ведомости?\n(подпись)\n(дата)\n(фамилия)\n",
+               "open", "Какая графа идёт первой в ведомости?\n(подпись)\n(дата)\n(фамилия)", []),
+    "developer": ("Дополните определение:\nРазработчик ________ отвечает за архитектуру системы.\n",
+                  "open", "Дополните определение:\nРазработчик ________ отвечает за архитектуру системы.", []),
+}
+OS_QUESTION = "Что такое ОС?\nа) программа\nб) железо\n"
+
+
+@pytest.mark.parametrize("name", sorted(SIGNATURE_LOOKALIKES))
+@pytest.mark.parametrize("last", [False, True])
+def test_a_line_that_only_looks_like_a_signature_stays_in_its_question(name, last):
+    """Подпись — строка с должности после последнего варианта с инициалами, датой или «(подпись)»; строка вопроса
+    «Преподаватель ______ знания…» и варианты «(подпись)», «Преподаватель ____» остаются на месте, как до шапки."""
+    source, kind, text, options = SIGNATURE_LOOKALIKES[name]
+    pasted = f"1. {OS_QUESTION}\n2. {source}" if last else f"1. {source}\n2. {OS_QUESTION}"
+    result = parse_bank_text(pasted)
+    item = result["items"][1 if last else 0]
+    assert (item["kind"], item["text"], item["options"]) == (kind, text, options)
+    assert result["skipped"] == [] and len(result["items"]) == 2
+
+
+def test_an_unnumbered_line_without_initials_or_a_date_under_the_last_question_stays_a_question():
+    result = parse_bank_text(f"1. {OS_QUESTION}\nРазработчик ________ отвечает за архитектуру системы?\n")
+    assert [(i["label"], i["text"]) for i in result["items"]][-1] == ("", "Разработчик ________ отвечает за архитектуру системы?")
+    table = college_questions().replace(xml_paragraph("Преподаватель ____________    Иванов И.И.         01.01.2026"), "")
+    table = table.replace(xml_paragraph("(подпись)            (фамилия, инициалы)            (дата)"), "")
+    table += plain_table([["Разработчик ________", "отвечает за архитектуру системы"]])
+    result = parse_bank_file(docx_with_body(table), "bank.docx")
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3", ""] and result["skipped"] == []
+
+
+def test_a_signature_with_initials_a_date_or_podpis_under_the_last_option_is_skipped():
+    for signature in ("Преподаватель ____________ Иванов И.И.", "Составитель ________ 01.01.2026",
+                      "Преподаватель ____________\n(подпись) (фамилия, инициалы)"):
+        result = parse_bank_text(f"1. {OS_QUESTION}{signature}\n")
+        assert result["items"][0]["options"] == ["программа", "железо"], signature
+        assert result["skipped"] == signature.split("\n"), signature
+
+
+def form_rows_then_questions(rows: int, line: str = "Учреждение образования") -> bytes:
+    """Таблица в два столбца из rows строк «{line} N | (пусто)», под ней три вопроса с номерами."""
+    table = "".join("<w:tr>" + xml_cell(xml_paragraph(f"{line} {n}")) + xml_cell("") + "</w:tr>" for n in range(rows))
+    return docx_with_body("<w:tbl><w:tblPr/><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>" + table + "</w:tbl>"
+                          + college_questions())
+
+
+def refused_seconds(contents: bytes) -> float:
+    started = time.perf_counter()
+    with pytest.raises(BankError) as raised:
+        parse_bank_file(contents, "bank.docx")
+    assert (raised.value.status, raised.value.code) == (413, "too_many")
+    return time.perf_counter() - started
+
+
+def test_thirty_thousand_form_rows_above_the_questions_cost_no_more_than_plain_rows():
+    """Шапка бланка ищется только в начале файла, заголовки собираются один раз: 30 000 строк «Учреждение образования»
+    над вопросами разбирались 23 с (60 000 — 86 с: поиск и вставка заголовка на каждую строку), а столько же строк без
+    слов бланка — 2–3 с. Теперь отказ «больше 2000 вопросов» стоит как у обычных строк."""
+    plain = refused_seconds(form_rows_then_questions(30_000, line="Строка"))
+    form = refused_seconds(form_rows_then_questions(30_000))
+    assert form < 2 * plain + 1, (form, plain)
+
+
+def test_many_signature_rows_under_the_questions_cost_no_more_than_plain_rows():
+    """Подпись ищется среди последних строк: 15 000 строк «Преподаватель | ____ | (подпись)» под вопросами сравнивались
+    каждая с каждой."""
+    plain = refused_seconds(docx_with_body(college_questions() + plain_table([["Строка", "текст", "ещё"]] * 15_000)))
+    signed = refused_seconds(docx_with_body(college_questions() + plain_table([["Преподаватель", "____________", "(подпись)"]] * 15_000)))
+    assert signed < 2 * plain + 1, (signed, plain)
+
+
+MARKUP_SHAPES = {
+    # 198 КБ на вид, 40 МБ document.xml: пустые куски оформления (обзор 2026-11-04: 10 с и 626 МБ на разбор)
+    "empty runs": '<w:p><w:r><w:t>a</w:t></w:r>' + '<w:r><w:rPr><w:b/></w:rPr><w:t></w:t></w:r>' * 20 + '</w:p>',
+    "two-letter runs": '<w:p>' + '<w:r><w:t>ab</w:t></w:r>' * 20 + '</w:p>',
+    "empty paragraphs": '<w:p/>',
+    "marks without text": '<w:p><w:r><w:t>a</w:t></w:r>' + '<w:proofErr w:type="spellStart"/>' * 50 + '</w:p>',
+}
+
+
+@pytest.mark.parametrize("shape", sorted(MARKUP_SHAPES))
+def test_markup_out_of_all_proportion_to_its_text_is_refused_before_the_parse(shape):
+    unit = MARKUP_SHAPES[shape]
+    contents = docx_with_body(unit * (39 * 1024 * 1024 // len(unit)))
+    assert len(contents) < 300_000  # мало на вид: предел размера файла его не держит
+    started = time.perf_counter()
+    with pytest.raises(BankError) as raised:
+        parse_bank_file(contents, "bank.docx")
+    assert (raised.value.status, raised.value.code, raised.value.detail) == (413, "too_complex", bank_parse.TOO_COMPLEX_DETAIL)
+    assert time.perf_counter() - started < 2  # до разбора: доли секунды, а не 10 с
+    with pytest.raises(BankError) as key_file:  # файл ключа — так же
+        bank_parse.read_key_file(contents, "key.docx")
+    assert key_file.value.code == "too_complex"
+
+
+def test_no_file_of_the_corpus_is_too_complex():
+    """Банки корпуса и синтетические файлы (до 2311 кусков, 24–70 знаков на кусок) проходят проверку разметки."""
+    files = sorted(FIXTURES.parent.rglob("*.docx"))
+    assert len(files) > 100
+    for path in files:
+        bank_docx.check_markup(path.read_bytes())
+    # чуть ниже пределов — разбирается как обычно (290 000 кусков по 2 буквы: около 3 с и 240 МБ)
+    bank_docx.check_markup(docx_with_body(('<w:p>' + '<w:r><w:t>ab</w:t></w:r>' * 20 + '</w:p>') * 14_500))
+
+
+def test_a_long_list_of_unnumbered_lines_above_the_questions_stays_as_it_was():
+    """Больше TITLE_HEAD_ITEMS строк без номера до первого вопроса — это не шапка, а вопросы без номера: не трогаются."""
+    result = parse_bank_file(form_rows_then_questions(bank_parse.TITLE_HEAD_ITEMS + 1), "bank.docx")
+    assert [i["label"] for i in result["items"]][-3:] == ["1", "2", "3"]
+    assert len(result["items"]) == bank_parse.TITLE_HEAD_ITEMS + 4
+    few = parse_bank_file(form_rows_then_questions(3), "bank.docx")
+    assert [i["label"] for i in few["items"]] == ["1", "2", "3"]
+
+
+def test_the_form_header_as_pasted_text_reads_the_same_way():
+    text = ("Задание на выполнение контрольной работы в форме тестирования\nУчреждение образования «Энский колледж»\n"
+            "Специальность 1-23-4567\nУчебный предмет: «Основы алгоритмизации»\nВариант 2\n\n")
+    for n, (question, options, right) in enumerate(COLLEGE_QUESTIONS, start=1):
+        text += f"{n}. {question}\n" + "".join(f"**{k}) {o}**\n" if k - 1 == right else f"{k}) {o}\n"
+                                              for k, o in enumerate(options, start=1)) + "\n"
+    text += "Преподаватель ____________ Иванов И.И. 01.01.2026\n(подпись) (фамилия, инициалы) (дата)\n"
+    result = parse_bank_text(text, markdown=True)
+    assert [(s["title"], s["items"]) for s in result["subjects"]] == [("Основы алгоритмизации", 3)]
+    assert [i["correct"] for i in result["items"]] == [[2], [3], [0]] and result["variant"] == 2
+    assert result["items"][-1]["options"] == COLLEGE_QUESTIONS[-1][1]
 
 
 # ── Открытые вопросы и format ───────────────────────────────────────────────────
@@ -1575,6 +1883,55 @@ def test_a_question_that_is_only_a_picture_and_an_option_that_is_a_picture():
     assert second["options"][3] == "" and len(second["images"]["options"][3]) == 1
     assert not any({"has_image", "empty_option", "duplicate"} & set(i["flags"]) for i in result["items"])
     assert len(result["pictures"]) == 3
+
+
+def test_a_picture_inside_the_numbered_question_line_belongs_to_the_question():
+    """Файлы колледжа (2026-11-04): «19. Какой текст соответствует выражению ^\\d{3}$?» и схема в том же абзаце. Картинка
+    терялась без флага has_image: вопрос сохранялся без неё, как будто она не нужна."""
+    def build(doc):
+        for n in (1, 2):
+            p = doc.add_paragraph(f"{n}. Какой текст соответствует выражению на схеме?")
+            if n == 1:
+                p.add_run().add_picture(io.BytesIO(png((0, 128, 0))))
+            for k, option in enumerate(("123", "12", "abc"), start=1):
+                doc.add_paragraph(f"{k}) ").add_run(option).bold = k == n
+
+    contents = docx_bytes(build)
+    result = parse_bank_file(contents, "bank.docx", with_pictures=True)
+    first, second = result["items"]
+    assert first["images"] and len(first["images"]["stem"]) == 1 and first["images"]["options"] == [[], [], []]
+    assert second["images"] is None and [i["correct"] for i in result["items"]] == [[0], [1]]
+    assert list(result["pictures"]) == first["images"]["stem"]
+    flagged = parse_bank_file(contents, "bank.docx")
+    assert "has_image" in flagged["items"][0]["flags"] and "has_image" not in flagged["items"][1]["flags"]
+
+
+def test_one_picture_repeated_many_times_is_hashed_once(monkeypatch):
+    """Одна картинка, вставленная 300 раз (ссылки на одну часть архива): хэш содержимого считался на каждую ссылку —
+    300 × размер картинки. Теперь — один раз на ссылку rId."""
+    def build(doc):
+        p = doc.add_paragraph("1. Что на схеме?")
+        p.add_run().add_picture(io.BytesIO(png((0, 0, 255))))
+        doc.add_paragraph("1) ").add_run("да").bold = True
+        doc.add_paragraph("2) нет")
+
+    contents = docx_bytes(build)
+    with zipfile.ZipFile(io.BytesIO(contents)) as source:
+        xml = source.read("word/document.xml").decode()
+        start = xml.rfind("<w:r>", 0, xml.index("<w:drawing>"))
+        end = xml.index("</w:r>", xml.index("</w:drawing>")) + len("</w:r>")
+        xml = xml[:end] + xml[start:end] * 299 + xml[end:]
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+            for info in source.infolist():
+                target.writestr(info, xml.encode() if info.filename == "word/document.xml" else source.read(info.filename))
+    hashed = []
+    real = bank_docx.hashlib.sha256
+    monkeypatch.setattr(bank_docx.hashlib, "sha256", lambda data=b"": hashed.append(len(data)) or real(data))
+    result = parse_bank_file(out.getvalue(), "bank.docx", with_pictures=True)
+    assert len(hashed) == 1 and len(result["pictures"]) == 1
+    assert result["items"][0]["images"]["stem"] == list(result["pictures"]) * 300
+    assert result["items"][0]["correct"] == [0]
 
 
 def test_without_the_request_pictures_stay_a_flag_as_before():

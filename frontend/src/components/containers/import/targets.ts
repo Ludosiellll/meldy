@@ -32,6 +32,8 @@ export interface ContainerTarget {
   dates: string[];
   /** The oral exams of its subjects: their questions are part of its size. */
   oralExamIds: string[];
+  /** Its subjects by name: a subject of variants of the same name joins one of them (updateModel.ts joinTargets). */
+  subjectList: Array<{ id: string; title: string }>;
 }
 
 export interface TargetOption {
@@ -79,6 +81,7 @@ export function ownContainers(overview: ContainersOverview | null | undefined): 
       created_at: container.created_at,
       dates: Array.from(new Set([container.exam_date, ...container.subjects.map((subject) => subject.exam_date)].filter((day): day is string => Boolean(day)))).sort(),
       oralExamIds: container.subjects.map((subject) => subject.oral_exam_id).filter((id): id is string => Boolean(id)),
+      subjectList: [...container.subjects].sort((a, b) => a.position - b.position).map((subject) => ({ id: subject.id, title: subject.title })),
     }));
 }
 

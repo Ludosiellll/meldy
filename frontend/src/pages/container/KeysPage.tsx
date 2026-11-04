@@ -1,4 +1,9 @@
 import { NEW_KINDS } from '../../types/container';
+import { AI_KEY, aiKeyShown, withoutAiKey } from '../../components/containers/aiKey';
+import { AiKeysOffer, AiKeysStatus, NO_KEYS_RUN, type KeysRun } from '../../components/containers/import/AiKeys';
+import { keysAiErrorLine } from '../../components/containers/import/keysAi';
+import { runSavedKeysAi, savedKeysAiCandidates, savedKeysAiPrice } from '../../components/containers/keys/keysAiSaved';
+import { track } from '../../lib/telemetry';
 import { KIND_NAMES } from '../../components/kinds/copyKinds';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -16,8 +21,10 @@ import { newId } from '../../components/containers/sessionStore';
 import { storedPictures } from '../../components/containers/ItemPictures';
 import { errorText, GONE, KEYS, lettersText, nb, QUEUE } from '../../components/containers/copyImport';
 import { TO_EXAMS } from '../../components/containers/copy';
-import type { DoubtRow, ItemPatch, SummarySubject, TestItem, Uuid } from '../../types/container';
+import type { DoubtRow, SummarySubject, TestItem, Uuid } from '../../types/container';
+import type { ItemKeyPatch } from '../../api/containers';
 import '../../components/exams/exams.css';
+import '../../components/containers/import/import.css';
 import './KeysPage.css';
 
 /** The key line of a question of a new kind (release 48). */
@@ -41,8 +48,8 @@ const KIND_KEY = {
  * number from the file or words from the question.
  */
 
-type ListKind = 'check' | 'nokey' | 'doubts' | 'manual';
-const LISTS: readonly ListKind[] = ['check', 'nokey', 'doubts', 'manual'];
+type ListKind = 'check' | 'nokey' | 'doubts' | 'manual' | 'ai';
+const LISTS: readonly ListKind[] = ['check', 'nokey', 'doubts', 'manual', 'ai'];
 
 const isKeyed = (item: TestItem) => item.correct.length > 0 || item.answers.length > 0;
 
@@ -133,7 +140,9 @@ export default function KeysPage() {
   const doubted = sorted.filter((item) => doubtOf.has(item.id));
   const manual = sorted.filter((item) => item.key_source === 'manual' && isKeyed(item));
   const check = sorted.filter((item) => !isKeyed(item) || doubtOf.has(item.id));
-  const lists: Record<ListKind, TestItem[]> = { check, nokey: noKey, doubts: doubted, manual };
+  // keys «Подобрать ключи с ИИ» suggested (flag ai_key): the author looks them over, a tap changes one and takes the mark off
+  const fromAi = sorted.filter((item) => aiKeyShown(item) && isKeyed(item));
+  const lists: Record<ListKind, TestItem[]> = { check, nokey: noKey, doubts: doubted, manual, ai: fromAi };
 
   // ── the queue (#check, #nokey, #doubts, #manual): its list is kept as it opened ──
   const hash = location.hash.replace(/^#/, '') as ListKind;
@@ -205,10 +214,28 @@ export default function KeysPage() {
       setBusy(null);
     }
   };
-  const patchItem = (item: TestItem, patch: ItemPatch, local: Partial<TestItem>) =>
+  /**
+   * The row's flags after a change, as the database leaves them: the mark as its answer says (it drops it on any change
+   * that moves rev, an option added or single turned multiple too); without that answer, by the patch.
+   */
+  const flagsAfter = (item: TestItem, patch: ItemKeyPatch, stored?: boolean): string[] | undefined =>
+    stored === true
+      ? [...withoutAiKey(item.flags), AI_KEY]
+      : stored === false
+        ? item.flags.includes(AI_KEY) ? withoutAiKey(item.flags) : undefined
+        : patch.ai_key
+          ? [...withoutAiKey(item.flags), AI_KEY]
+          : patch.correct !== undefined || patch.answers !== undefined
+            ? withoutAiKey(item.flags)
+            : undefined;
+  const patchItem = (item: TestItem, patch: ItemKeyPatch, local: Partial<TestItem>) =>
     run(item, async () => {
       const result = await updateItem(item.id, patch);
-      setPatched((current) => ({ ...current, [item.id]: { ...current[item.id], ...local, rev: result.rev, key_source: 'manual' } }));
+      const flags = flagsAfter(item, patch, result.ai_key);
+      setPatched((current) => ({
+        ...current,
+        [item.id]: { ...current[item.id], ...local, rev: result.rev, key_source: 'manual', ...(flags ? { flags } : {}) },
+      }));
       if (result.doubts_resolved > 0) setDoubts((rows) => rows.filter((row) => row.item_id !== item.id));
       say(item.id, result.rev_changed ? KEYS.changed(group) : KEYS.savedKeep);
     });
@@ -225,6 +252,45 @@ export default function KeysPage() {
       setAskDelete(null);
       say(item.id, KEYS.removed);
     });
+
+  // ── «Подобрать ключи с ИИ» (owner, 2026-11-04): the keyless choice questions without pictures, on the press ──
+  const aiCandidates = useMemo(() => (owner ? savedKeysAiCandidates(noKey, subjectTitle) : []), [owner, noKey, subjectTitle]);
+  const [keysRun, setKeysRun] = useState<KeysRun>(NO_KEYS_RUN);
+  // the server's «wait» counts down while the run waits
+  const [clock, setClock] = useState(() => Date.now());
+  const waitUntil = keysRun.status === 'running' ? keysRun.waitUntil ?? 0 : 0;
+  useEffect(() => {
+    if (waitUntil <= Date.now()) return undefined;
+    setClock(Date.now());
+    const tick = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, [waitUntil]);
+  const runAiKeys = async () => {
+    if (keysRun.status === 'running' || aiCandidates.length === 0) return;
+    const candidates = aiCandidates;
+    setKeysRun({ status: 'running', scope: null, done: 0, total: candidates.length, outcome: null, error: null });
+    const outcome = await runSavedKeysAi(
+      candidates,
+      async (item, correct) => {
+        const result = await updateItem(item.id, { correct, ai_key: true });
+        if (result.ai_key !== true) {
+          // a database without the mark kept the key unlabelled: put the question back as it was (keyless)
+          await updateItem(item.id, { correct: item.correct }).catch(() => undefined);
+          return result;
+        }
+        setPatched((current) => ({
+          ...current,
+          [item.id]: { ...current[item.id], correct, rev: result.rev, key_source: 'manual', flags: [...withoutAiKey(item.flags), AI_KEY] },
+        }));
+        return result;
+      },
+      (done) => setKeysRun((current) => ({ ...current, done })),
+      undefined,
+      { onWait: (until) => setKeysRun((current) => ({ ...current, waitUntil: until })) },
+    );
+    track('container.keys_ai', { sent: outcome.sent, keyed: outcome.keyed, units: outcome.units, failed: outcome.error ? 1 : 0 });
+    setKeysRun({ status: outcome.error ? 'failed' : 'done', scope: null, done: outcome.sent, total: candidates.length, outcome, error: outcome.error ? keysAiErrorLine(outcome.error) : null });
+  };
 
   const openEditor = (id: string) => {
     setEditError(null);
@@ -252,6 +318,8 @@ export default function KeysPage() {
       if (patch.images !== undefined) local.images = patch.images;
       if (patch.explanation !== undefined) local.explanation = patch.explanation;
       if (patch.correct !== undefined || patch.answers !== undefined) local.key_source = 'manual';
+      const flags = flagsAfter(item, patch, result.ai_key);
+      if (flags) local.flags = flags;
       setPatched((current) => ({ ...current, [item.id]: { ...current[item.id], ...local } }));
       if (result.doubts_resolved > 0) setDoubts((rows) => rows.filter((row) => row.item_id !== item.id));
       setEditing(null);
@@ -374,6 +442,7 @@ export default function KeysPage() {
         {keyed ? (
           <p className="kq-note" data-muted="">
             {keyLine}
+            {aiKeyShown(item) ? ` ${KEYS.aiKey}` : null}
           </p>
         ) : null}
         {doubt?.notes && doubt.notes.length > 0 ? (
@@ -508,6 +577,7 @@ export default function KeysPage() {
     { kind: 'nokey', title: KEYS.noKeyRow, meta: KEYS.noKeyMeta(noKey.length), n: noKey.length },
     { kind: 'doubts', title: group ? KEYS.doubtsRow : KEYS.doubtsOwnRow, meta: KEYS.rowCount(doubted.length), n: doubted.length },
     { kind: 'manual', title: KEYS.manualRow, meta: KEYS.rowCount(manual.length), n: manual.length },
+    { kind: 'ai', title: KEYS.aiRow, meta: KEYS.rowCount(fromAi.length), n: fromAi.length },
   ].filter((row) => row.n > 0) as Array<{ kind: ListKind; title: string; meta: string; n: number }>;
 
   return (
@@ -532,6 +602,12 @@ export default function KeysPage() {
           ) : (
             <p className="ky-lede">{KEYS.allGood}</p>
           )}
+          {owner ? (
+            <div className="ky-aikeys">
+              <AiKeysOffer count={aiCandidates.length} cost={savedKeysAiPrice(aiCandidates)} busy={keysRun.status === 'running'} onRun={() => void runAiKeys()} />
+              <AiKeysStatus run={keysRun} now={clock} />
+            </div>
+          ) : null}
           {doubtsError ? (
             <p className="ky-lede" role="alert">
               {KEYS.loadFailed}

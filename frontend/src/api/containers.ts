@@ -60,12 +60,15 @@ export class ContainerApiError extends Error {
   readonly status: number | null;
   /** The server's detail, when it named one (container_items_add: «item 7: options»). */
   readonly detail: string | null;
-  constructor(code: string, message: string, options: { status?: number | null; detail?: string | null } = {}) {
+  /** A 429's Retry-After as it came (seconds or an HTTP date); null — none. */
+  readonly retryAfter: string | null;
+  constructor(code: string, message: string, options: { status?: number | null; detail?: string | null; retryAfter?: string | null } = {}) {
     super(message);
     this.name = 'ContainerApiError';
     this.code = code;
     this.status = options.status ?? null;
     this.detail = options.detail ?? null;
+    this.retryAfter = options.retryAfter ?? null;
   }
 }
 
@@ -455,7 +458,16 @@ export async function addItems(subjectId: Uuid, items: ItemInput[], onProgress?:
   return added;
 }
 
-export async function updateItem(itemId: Uuid, patch: ItemPatch): Promise<ItemUpdated> {
+/**
+ * ai_key (migration 20261107090300_ai_key_flag): true with `correct` marks the key as one «Подобрать ключи с ИИ»
+ * suggested (the flag ai_key); any other key change takes the mark off. (Here, not in types/container.ts: that file is
+ * copied into the bot's plan.)
+ */
+export type ItemKeyPatch = ItemPatch & { ai_key?: boolean };
+/** The update's answer with the AI's mark as stored (migration 20261107090300_ai_key_flag); absent from a database without it. */
+export type ItemKeyUpdated = ItemUpdated & { ai_key?: boolean };
+
+export async function updateItem(itemId: Uuid, patch: ItemKeyPatch): Promise<ItemKeyUpdated> {
   return record(await call('container_item_update', { p_item_id: itemId, p_patch: patch }), 'container_item_update', 'rev');
 }
 
@@ -688,10 +700,12 @@ async function backendError(response: Response): Promise<ContainerApiError> {
   const code = raw && RESERVED_CODES.has(raw) ? `server_${raw}` : raw;
   const detail = isRecord(body) && typeof body.detail === 'string' ? body.detail.trim() : '';
   if (status === 401) return new ContainerApiError('28000', CONTAINER_ERROR_TEXT['28000'], { status, detail: detail || null });
-  if (detail && status < 500) return new ContainerApiError(code ?? `http_${status}`, detail, { status, detail });
+  // a 429 says how long to wait (backend/ratelimit.py): the import page waits that long and reads the file again
+  const retryAfter = status === 429 ? response.headers.get('Retry-After') : null;
+  if (detail && status < 500) return new ContainerApiError(code ?? `http_${status}`, detail, { status, detail, retryAfter });
   // A server failure (5xx) is said in the app's own words (api/sseStream: never the text of a 5xx); its code stays.
   const fallback = await httpErrorFromResponse(response);
-  return new ContainerApiError(status >= 500 ? 'unknown' : code ?? `http_${status}`, fallback.message, { status, detail: code });
+  return new ContainerApiError(status >= 500 ? 'unknown' : code ?? `http_${status}`, fallback.message, { status, detail: code, retryAfter });
 }
 
 async function backend(path: string, init: RequestInit): Promise<unknown> {
@@ -774,6 +788,72 @@ export async function parseBankAi(input: ParseBankInput & { scope?: 'flagged' | 
   }
   notifyAIUsageChanged();
   return bankResult(raw, 'parse-bank/ai');
+}
+
+/** One question of «Подобрать ключи с ИИ» (docs/import/KEYS_AI.md): its options in the order the student sees them. */
+export interface KeysAiQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  kind: 'single' | 'multiple';
+}
+
+/** A suggestion: `correct` (indices into the options as sent) only when two independent answers agreed and were sure. */
+export interface KeysAiResult {
+  id: string;
+  correct: number[] | null;
+  agree: boolean;
+  sure: 'high' | 'low' | 'none';
+  note?: string;
+}
+
+export interface KeysAiResponse {
+  results: KeysAiResult[];
+  units: number;
+  spent_questions: number;
+}
+
+/**
+ * POST /api/exams/keys/ai (backend/bank_keys_ai.py): keys for questions the file gave none, only on the student's press.
+ * At most 300 questions a request, without pictures; charged before the model (keysAI, 5 units per started 100). The
+ * top bar's AI limit is read again after the answer, as after every AI action (a request that never reached the server
+ * spent nothing). Errors: ContainerApiError with the server's Russian detail and its code (ai_limit, ai_busy,
+ * bad_request, too_big; a 5xx keeps ai_failed in `detail`).
+ */
+export async function keysAi(input: { subject: string | null; questions: KeysAiQuestion[] }, signal?: AbortSignal): Promise<KeysAiResponse> {
+  let raw: unknown;
+  try {
+    raw = await backend('/api/exams/keys/ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ subject: input.subject?.trim() ? input.subject.trim().slice(0, 200) : null, questions: input.questions }),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof ContainerApiError && (error.status ?? 0) > 0) notifyAIUsageChanged();
+    throw error;
+  }
+  notifyAIUsageChanged();
+  if (!isRecord(raw) || !Array.isArray(raw.results)) throw badShape('keys/ai');
+  const results = raw.results.filter(isRecord).map((entry): KeysAiResult => {
+    const correct = Array.isArray(entry.correct) && entry.correct.every((index) => Number.isInteger(index) && (index as number) >= 0)
+      ? (entry.correct as number[])
+      : null;
+    const sure = entry.sure === 'high' || entry.sure === 'low' ? entry.sure : 'none';
+    return {
+      id: typeof entry.id === 'string' ? entry.id : '',
+      // a key only with the server's own word that both answers agreed and were sure (docs/import/KEYS_AI.md)
+      correct: correct && correct.length > 0 && entry.agree === true && sure === 'high' ? correct : null,
+      agree: entry.agree === true,
+      sure,
+      ...(typeof entry.note === 'string' && entry.note.trim() ? { note: entry.note.trim() } : {}),
+    };
+  });
+  return {
+    results,
+    units: typeof raw.units === 'number' ? raw.units : 0,
+    spent_questions: typeof raw.spent_questions === 'number' ? raw.spent_questions : 0,
+  };
 }
 
 function bankForm(input: ParseBankInput): FormData {

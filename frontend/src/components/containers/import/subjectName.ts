@@ -31,3 +31,36 @@ export function subjectFromFileName(fileName: string): string | null {
   if (!/\p{L}/u.test(name)) return null;
   return name.charAt(0).toLocaleUpperCase('ru-RU') + name.slice(1);
 }
+
+// «КПиЯП_Вариант_3», «вариант №3», «Вар 3», «вар.3», «variant 3»: the variant's number in a file's name.
+const VARIANT_IN_NAME = /(?:^|[\s(,.])(?:вариант|вар|variant|var)\.?\s*№?\s*(\d{1,3})(?!\d)/iu;
+
+/**
+ * The variant a file's name gives and the subject's name without it (owner, 2026-11-04: «КПиЯП_Вариант_1.docx» …
+ * «КПиЯП_Вариант_12.docx» are one subject): «КПиЯП_Вариант_1.docx» → { variant: 1, base: «КПиЯП» }. A name without a
+ * variant keeps all of it as the base («Тест.docx» → «Тест»); base is null when nothing is left («Вариант_1.docx»).
+ */
+export function variantFromFileName(fileName: string): { variant: number | null; base: string | null } {
+  const name = fileName
+    .trim()
+    .replace(/\.[A-Za-z0-9]{1,5}$/, '')
+    .replace(/[_\s]+/g, ' ')
+    .replace(/\s*-\s*/g, ' ')
+    .trim();
+  const match = VARIANT_IN_NAME.exec(name);
+  if (!match) return { variant: null, base: subjectFromFileName(name) };
+  const rest = `${name.slice(0, match.index)} ${name.slice(match.index + match[0].length)}`.replace(/\s+/g, ' ').trim();
+  return { variant: Number(match[1]), base: rest ? subjectFromFileName(rest) : null };
+}
+
+/** A subject's name as two files are compared by it: case, «ё», quotes, spaces and the closing punctuation aside. */
+export function subjectNameKey(name: string): string {
+  return name
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[«»„“”"'`]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[\s.,;:!?…]+$/u, '');
+}

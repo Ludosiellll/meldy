@@ -276,6 +276,7 @@ function toView(raw: unknown): ViewData | null {
       position: num(v.number) ?? 0,
       topicTitle: str(v.topic_title),
       keySource: (r && str(r.key_source)) ?? 'none',
+      aiKey: r ? r.ai_key === true : false,
       rev: num(v.rev) ?? 1,
       keyChangedAt: r ? str(r.key_changed_at) : null,
     },
