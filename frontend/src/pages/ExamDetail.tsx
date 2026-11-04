@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   EXAM_MESSAGES,
   applyCoverage,
+  deleteExam,
   examErrorMessage,
   isMappingLocked,
   loadExamBundle,
@@ -247,6 +248,8 @@ function ExamSheetPage({ examId }: { examId: string }) {
   const [openedFilter] = useState<SheetFilter>(() => sheetFilterOf(searchParams.get('filter')));
   const userId = user?.id ?? null;
   const { confirm } = useConfirm();
+  const navigate = useNavigate();
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const reduced = usePrefersReducedMotion();
   // Inside an exam container (decision 29б, 38): the crumb leads to it, and its own group link covers this exam.
   const attached = useAttachedContainer(examId);
@@ -824,6 +827,28 @@ function ExamSheetPage({ examId }: { examId: string }) {
     }
   }, [selectedId]);
 
+  // «Удалить экзамен» on the page itself (owner, 2026-11-04: «почему я не могу это удалить» — the only way was
+  // «Изменить список» and the bottom of the editor). Not for a group link's copy or an oral part inside an exam container
+  // (that goes with its container).
+  const onRemove = async () => {
+    if (!bundle) return;
+    const ok = await confirm({
+      title: 'Удалить экзамен?',
+      message: `«${bundle.exam.title}» и сверка его вопросов с лекциями будут удалены. Ответы останутся в истории и в «Прогрессе».`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      type: 'danger',
+    });
+    if (!ok) return;
+    setRemoveError(null);
+    try {
+      await deleteExam(bundle.exam.id);
+      navigate('/exams', { state: { notice: `Экзамен «${bundle.exam.title}» удалён.` } });
+    } catch (error) {
+      setRemoveError(examErrorMessage(error, EXAM_MESSAGES.delete));
+    }
+  };
+
   const onManualMark = async () => {
     if (!selectedRow) return;
     const question = selectedRow.question;
@@ -1226,6 +1251,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     { key: 'rate', label: rateMode ? 'Закончить самооценку' : 'Самооценка', onSelect: startRate },
     ...(copy || attached ? [] : [{ key: 'invite', label: 'Пригласить группу', onSelect: () => setInviteOpen(true) }]),
     { key: 'report', label: 'Отчёт для преподавателя', to: `/exams/${exam.id}/report` },
+    ...(copy || attached ? [] : [{ key: 'remove', label: 'Удалить экзамен', onSelect: () => void onRemove(), danger: true, separatorBefore: true }]),
   ];
   const moreMenu = (
     <div className="ex-more" ref={moreRef}>
@@ -1258,6 +1284,16 @@ function ExamSheetPage({ examId }: { examId: string }) {
       <Link className="sf-link" to={`/exams/${exam.id}/report`}>
         Отчёт для преподавателя
       </Link>
+      {copy || attached ? null : (
+        <button type="button" className="sf-link" data-muted="" onClick={() => void onRemove()}>
+          Удалить экзамен
+        </button>
+      )}
+      {removeError ? (
+        <p className="ex-meta" role="alert">
+          {removeError}
+        </p>
+      ) : null}
     </div>
   );
 
