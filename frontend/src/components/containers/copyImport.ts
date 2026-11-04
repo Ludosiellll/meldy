@@ -667,6 +667,8 @@ export const KEYS = {
   doubtsRow: 'Сомневаются в ключе',
   doubtsOwnRow: 'Отложены вами',
   manualRow: 'Ключ поставили вы',
+  /** Keys from «Подобрать ключи с ИИ» (flag ai_key): the author looks them over. */
+  aiRow: 'Ключи подобрал ИИ',
   rowCount: (n: number) => questions(n),
   allGood: 'У всех вопросов есть ключ, сомнений нет.',
   check: (n: number) => `Проверить ${questions(n)}`,

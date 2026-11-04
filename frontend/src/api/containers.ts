@@ -458,7 +458,14 @@ export async function addItems(subjectId: Uuid, items: ItemInput[], onProgress?:
   return added;
 }
 
-export async function updateItem(itemId: Uuid, patch: ItemPatch): Promise<ItemUpdated> {
+/**
+ * ai_key (migration 20261107090300_ai_key_flag): true with `correct` marks the key as one «Подобрать ключи с ИИ»
+ * suggested (the flag ai_key); any other key change takes the mark off. (Here, not in types/container.ts: that file is
+ * copied into the bot's plan.)
+ */
+export type ItemKeyPatch = ItemPatch & { ai_key?: boolean };
+
+export async function updateItem(itemId: Uuid, patch: ItemKeyPatch): Promise<ItemUpdated> {
   return record(await call('container_item_update', { p_item_id: itemId, p_patch: patch }), 'container_item_update', 'rev');
 }
 

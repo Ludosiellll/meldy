@@ -4,6 +4,7 @@ import { containerErrorText, doubtKey, updateItem } from '../../api/containers';
 import { Sheet } from './ui';
 import * as copy from './copy';
 import { shortNorm } from './model';
+import { withoutAiKey } from './aiKey';
 import './room.css';
 
 /**
@@ -45,7 +46,7 @@ export function KeyFix({
   /** The short answer the student typed, to add to the key. */
   typed: string | null;
   group: boolean;
-  onFixed: (patch: Pick<TestItem, 'correct' | 'answers' | 'rev'>) => void;
+  onFixed: (patch: Pick<TestItem, 'correct' | 'answers' | 'rev' | 'flags'>) => void;
   onCancel: () => void;
 }) {
   const [ticked, setTicked] = useState<number[]>(item.correct);
@@ -68,7 +69,8 @@ export function KeyFix({
     try {
       const result = await updateItem(item.id, patch);
       setDone(copy.keyChanged(group));
-      onFixed({ correct: patch.correct ?? item.correct, answers: patch.answers ?? item.answers, rev: result.rev });
+      // the key is the author's now: the database took the AI's mark off (migration 20261107090300_ai_key_flag)
+      onFixed({ correct: patch.correct ?? item.correct, answers: patch.answers ?? item.answers, rev: result.rev, flags: withoutAiKey(item.flags) });
     } catch (failure) {
       setError(containerErrorText(failure) || copy.SAVE_FAILED);
     } finally {

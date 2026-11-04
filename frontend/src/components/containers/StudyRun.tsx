@@ -138,7 +138,7 @@ export default function StudyRun(props: StudyRunProps) {
   const [hint, setHint] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [doubtOpen, setDoubtOpen] = useState(false);
-  const [patches, setPatches] = useState<Record<string, Pick<TestItem, 'correct' | 'answers' | 'rev'>>>({});
+  const [patches, setPatches] = useState<Record<string, Pick<TestItem, 'correct' | 'answers' | 'rev' | 'flags'>>>({});
   const [aside, setAside] = useState<ReadonlySet<string>>(() => new Set());
   const [ended, setEnded] = useState<{ at: number } | null>(null);
   const firstEver = useRef(!firstSessionDone());
