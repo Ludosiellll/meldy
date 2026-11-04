@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { createLink, extendLink, revokeLink } from '../../../api/containers';
+import { createLink, extendLink, fetchExamDays, revokeLink } from '../../../api/containers';
 import { copyText } from '../../../lib/clipboard';
 import { track } from '../../../lib/telemetry';
 import type { ContainerSummary, LinkCreated, Uuid } from '../../../types/container';
@@ -26,8 +26,9 @@ import './group.css';
  * members had joined by, and nothing said so). A new link closes nothing; every other open link is said in one line
  * («Ещё открыта ссылка от 14 октября: по ней вошли 19.») with «Продлить» when that moves its end and «Закрыть её»
  * (a confirm first); «Закрыть ссылку» closes only the link on screen. Closed and expired links are listed under
- * «Закрытые ссылки» with «Открыть снова»: their codes are in the group's chat, so they work again
- * (container_link_extend, 20261107090200).
+ * «Закрытые ссылки» with «Открыть снова» (a confirm first, saying who can come in again): their codes are in the
+ * group's chat, so they work again (container_link_extend, 20261107090200). «Продлить» shows when the server's rule
+ * would move the end; the exam's own dates for it are read once (fetchExamDays).
  *
  * The window changes its size only with the author's own press, never when the server answers (third live check: it
  * jumped once the link came, CLS 0.46 on a phone): «Создать ссылку» draws the link's place at once — the field says
@@ -101,6 +102,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const revokeRef = useRef<HTMLButtonElement>(null);
   const revokeNoRef = useRef<HTMLButtonElement>(null);
   const otherNoRef = useRef<HTMLButtonElement>(null);
+  const reopenNoRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const counts = useMemo(() => examCounts(summary), [summary]);
@@ -139,6 +141,22 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const [who, setWho] = useState(false);
   const [qr, setQr] = useState(false);
   const [allShut, setAllShut] = useState(false);
+  const [reopening, setReopening] = useState<string | null>(null);
+  // The exam's own dates as the server counts a link's end (link_date_end), read once: with the author's own date set
+  // the summary shows that one in place of every subject's (review of 04.11). Until read, the summary's.
+  const [days, setDays] = useState<string[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    fetchExamDays(containerId).then(
+      (read) => {
+        if (live) setDays(read);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [containerId]);
   const busy = creating || acting !== null;
   // The height of the part under the paragraph while a call is out, kept until the next press (no jump at the answer).
   const [hold, setHold] = useState<number | null>(null);
@@ -257,6 +275,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
     try {
       const result = await extendLink(link.id);
       done = true;
+      setReopening(null);
       setChanged((current) => ({ ...current, [link.id]: { ...current[link.id], revoked_at: null, expires_at: result.expires_at } }));
       const until = dayOf(result.expires_at);
       tell(result.reopened ? INVITE.reopened(dayOf(link.created_at), until) : INVITE.extended(until));
@@ -284,6 +303,14 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const keepOther = (id: string) => {
     setClosingOther(null);
     focusAfter(() => boxRef.current?.querySelector<HTMLElement>(`[data-close="${id}"]`));
+  };
+  const askReopen = (id: string) => {
+    setReopening(id);
+    focusAfter(() => reopenNoRef.current);
+  };
+  const keepShut = (id: string) => {
+    setReopening(null);
+    focusAfter(() => boxRef.current?.querySelector<HTMLElement>(`[data-reopen="${id}"]`));
   };
   const wantNewLink = () => {
     setWantNew(true);
@@ -320,7 +347,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const elsewhere = !shown && !creating && !wantNew && open.length > 0;
   const shutShown = allShut ? shut : shut.slice(0, SHUT_SHOWN);
   // The end under the field: the link's, or while it is made the one it will get (the line is there from the press).
-  const endsAt = creating ? new Date(extendedEnd(summary, now)).toISOString() : fieldLink?.expires_at ?? null;
+  const endsAt = creating ? new Date(extendedEnd(summary, now, days)).toISOString() : fieldLink?.expires_at ?? null;
 
   return (
     <div className="gr-layer">
@@ -406,7 +433,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
               {endsAt ? (
                 <p className="gr-line gr-ends" data-muted="">
                   {nb(INVITE.ends(dayOf(endsAt)))}
-                  {fieldLink && canExtend(fieldLink, summary, now) ? (
+                  {fieldLink && canExtend(fieldLink, summary, now, days) ? (
                     <>
                       {' '}
                       <button type="button" className="sf-link" disabled={busy} onClick={() => void extend(fieldLink)}>
@@ -465,7 +492,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
                     <p className="gr-line">
                       {nb(INVITE.otherOpen(day, link.members, linkPlace))}
                       {link.expires_at ? ` ${nb(INVITE.otherEnds(dayOf(link.expires_at)))}` : null}{' '}
-                      {canExtend(link, summary, now) ? (
+                      {canExtend(link, summary, now, days) ? (
                         <>
                           {/* The dot stays with the word before it: a line never starts with it. */}
                           <span className="gr-keep">
@@ -547,17 +574,29 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
               <ul className="gr-people">
                 {shutShown.map((link) => {
                   const state = linkState(link, now);
+                  const day = dayOf(link.created_at);
                   return (
                     <li key={link.id} className="gr-person">
-                      <span className="gr-person-name">{nb(INVITE.shutName(dayOf(link.created_at)))}</span>
+                      <span className="gr-person-name">{nb(INVITE.shutName(day))}</span>
                       <span className="gr-person-since">
                         {nb(state === 'revoked' ? INVITE.shutRevoked(dayOf(link.revoked_at), link.members) : INVITE.shutExpired(dayOf(link.expires_at), link.members))}
                       </span>
                       <span className="gr-person-act">
-                        <button type="button" className="sf-link" disabled={busy} onClick={() => void extend(link)}>
+                        <button type="button" className="sf-link" data-reopen={link.id} disabled={busy} onClick={() => askReopen(link.id)}>
                           {INVITE.reopen}
                         </button>
                       </span>
+                      {reopening === link.id ? (
+                        <p className="gr-line gr-ask" role="group" aria-labelledby={`${titleId}-reopen-${link.id}`}>
+                          <span id={`${titleId}-reopen-${link.id}`}>{nb(INVITE.reopenAsk(day))}</span>
+                          <button type="button" className="sf-link" disabled={busy} onClick={() => void extend(link)}>
+                            {INVITE.reopenYes}
+                          </button>
+                          <button ref={reopenNoRef} type="button" className="sf-link" data-muted="" onClick={() => keepShut(link.id)}>
+                            {INVITE.revokeNo}
+                          </button>
+                        </p>
+                      ) : null}
                     </li>
                   );
                 })}

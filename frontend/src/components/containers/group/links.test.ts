@@ -33,8 +33,14 @@ describe('the links of an exam (20261107090200)', () => {
     expect(extendedEnd(dated(null, [null, null]), NOW)).toBe(NOW + 120 * DAY);
     expect(extendedEnd(dated('2026-11-09', ['2027-06-01', null]), NOW)).toBe(Date.parse('2027-07-01T00:00:00Z'));
     expect(lastExamDay(dated('2027-01-12', ['2027-01-20', '2027-01-16']))).toBe('2027-01-20');
-    // With the author's own date the summary's dates are that one: only the exam's common date counts.
+    // With the author's own date the summary's dates are that one: only the exam's common date counts, unless the
+    // exam's real dates were read (InviteExam reads them: the subjects' and their oral exams').
     expect(lastExamDay({ ...dated('2027-05-01', ['2027-05-01']), own_exam_date: '2027-05-01', author_exam_date: '2027-01-12' })).toBe('2027-01-12');
+    expect(lastExamDay({ ...dated('2027-05-01', ['2027-05-01']), own_exam_date: '2027-05-01', author_exam_date: '2027-01-12' }, ['2027-03-01', '2027-02-01'])).toBe('2027-03-01');
+    // Dates outside 2000..2100 count for nothing (the server's link_date_end), and the end never passes 760 days.
+    expect(lastExamDay(dated('2026-11-09', ['2026-11-09']), ['2062-01-20'])).toBe('2062-01-20');
+    expect(lastExamDay(dated(null, [null]), ['infinity', '300000-01-01'])).toBeNull();
+    expect(extendedEnd(dated('2026-11-09', ['2026-11-09']), NOW, ['2062-01-20'])).toBe(NOW + 760 * DAY);
   });
 
   it('«Продлить» only for an open link it moves by a day or more', () => {

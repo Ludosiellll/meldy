@@ -26,6 +26,16 @@ export function resetOralCopiesForTests(): void {
   askedAt.clear();
 }
 
+/** /g/<code> asked for the copies of this exam just now (the join): the exam page does not ask again at once. */
+export function markOralAsked(containerId: string): void {
+  askedAt.set(containerId, Date.now());
+}
+
+export function askedRecently(containerId: string): boolean {
+  const last = askedAt.get(containerId);
+  return last !== undefined && Date.now() - last < ASK_GAP_MS;
+}
+
 /** A member's oral subjects without their copy: the summary gives the subject's oral part with no exam of theirs. */
 export function missingOral(summary: ContainerSummary): SummarySubject[] {
   if (summary.role !== 'member') return [];
@@ -46,9 +56,8 @@ export function useOralCopies(summary: ContainerSummary, reload: () => void): { 
       setClosed([]);
       return undefined;
     }
-    const last = askedAt.get(summary.id);
-    if (last !== undefined && Date.now() - last < ASK_GAP_MS) return undefined;
-    askedAt.set(summary.id, Date.now());
+    if (askedRecently(summary.id)) return undefined;
+    markOralAsked(summary.id);
     let live = true;
     oralSync(summary.id).then(
       (result) => {

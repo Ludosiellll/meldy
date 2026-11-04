@@ -245,6 +245,19 @@ export default function SettingsPage() {
       document.getElementById(`${formId}-own`)?.focus();
       return;
     }
+    // The exam's and the subjects' dates as «Перенести экзамен» takes them (today to two years ahead; review of 04.11: a
+    // typo year made the group's link last for decades). Only a date being changed: one already there stays.
+    if (owner) {
+      const commonProblem = !perSubject && date !== (summary.exam_date ?? '') ? ownDateProblem(date) : null;
+      const badSubject = perSubject ? changedSubjects.find((subject) => ownDateProblem(subjectDates[subject.id] ?? '')) : undefined;
+      const problem = commonProblem ?? (badSubject ? ownDateProblem(subjectDates[badSubject.id] ?? '') : null);
+      if (problem) {
+        setNote({ text: problem, error: true });
+        if (commonProblem) document.getElementById(`${formId}-date`)?.focus();
+        else if (badSubject) document.querySelector<HTMLElement>(`[data-subject-date="${badSubject.id}"]`)?.focus();
+        return;
+      }
+    }
     setSaving(true);
     setNote(null);
     try {
@@ -638,6 +651,9 @@ export default function SettingsPage() {
                       <input
                         type="date"
                         className="im-input im-date"
+                        data-subject-date={subject.id}
+                        min={today || undefined}
+                        max={today ? addDay(today, MOVE_MAX_DAYS) : undefined}
                         aria-label={IMPORT.subjectDate(titleOf(subject))}
                         value={subjectDates[subject.id] ?? ''}
                         onChange={(event) => setSubjectDates((current) => ({ ...current, [subject.id]: event.target.value }))}
@@ -651,7 +667,15 @@ export default function SettingsPage() {
                 <label className="im-label" htmlFor={`${formId}-date`}>
                   {SETTINGS.date}
                 </label>
-                <input id={`${formId}-date`} type="date" className="im-input im-date" value={date} onChange={(event) => setDate(event.target.value)} />
+                <input
+                  id={`${formId}-date`}
+                  type="date"
+                  className="im-input im-date"
+                  min={today || undefined}
+                  max={today ? addDay(today, MOVE_MAX_DAYS) : undefined}
+                  value={date}
+                  onChange={(event) => setDate(event.target.value)}
+                />
               </>
             )}
             {subjects.length > 1 && !ownOverrides ? (

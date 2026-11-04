@@ -606,6 +606,24 @@ export async function revokeLink(linkId: Uuid): Promise<void> {
   await call('container_link_revoke', { p_link_id: linkId });
 }
 
+/**
+ * The author's exam's own dates, as the database reads them for a link's end (link_date_end, 20261107090200): the
+ * exam's common date, every subject's and every subject's oral exam's. Read under RLS (the author's own rows), for
+ * «Продлить» when the author's own date hides the subjects' dates in the summary. Days only; an unreadable one is left out.
+ */
+export async function fetchExamDays(containerId: Uuid): Promise<DayKey[]> {
+  const days: DayKey[] = [];
+  const day = (value: unknown) => {
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) days.push(value as DayKey);
+  };
+  for (const row of list(await run(supabase.from('containers').select('exam_date').eq('id', containerId)))) if (isRecord(row)) day(row.exam_date);
+  const subjects = list(await run(supabase.from('container_subjects').select('exam_date, exam_id').eq('container_id', containerId))).filter(isRecord);
+  for (const subject of subjects) day(subject.exam_date);
+  const oral = subjects.map((subject) => subject.exam_id).filter((id): id is string => typeof id === 'string');
+  if (oral.length > 0) for (const row of list(await run(supabase.from('exams').select('exam_date').in('id', oral)))) if (isRecord(row)) day(row.exam_date);
+  return days;
+}
+
 /** The author extends an open link, or opens a closed or expired one again (container_link_extend; MC001, MC007). */
 export async function extendLink(linkId: Uuid): Promise<LinkExtended> {
   return record<LinkExtended>(await call('container_link_extend', { p_link_id: linkId }), 'container_link_extend', 'expires_at');

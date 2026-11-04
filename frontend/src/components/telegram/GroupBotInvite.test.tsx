@@ -20,7 +20,7 @@ vi.mock('../../api/telegramGroups', async (importOriginal) => {
   const real = await importOriginal<typeof import('../../api/telegramGroups')>();
   return { ...real, fetchTelegramGroups: api.fetchTelegramGroups, requestGroupCode: api.requestGroupCode, setTelegramGroup: api.setTelegramGroup };
 });
-vi.mock('../../api/containers', () => ({ createLink: api.createLink, revokeLink: api.revokeLink, fetchMembers: api.fetchMembers, removeMember: api.removeMember }));
+vi.mock('../../api/containers', () => ({ createLink: api.createLink, revokeLink: api.revokeLink, fetchMembers: api.fetchMembers, removeMember: api.removeMember, extendLink: vi.fn(), fetchExamDays: vi.fn(async () => []) }));
 
 import GroupBotInvite, { GROUP_BOT, POLL_MS } from './GroupBotInvite';
 import InviteExam from '../containers/group/InviteExam';

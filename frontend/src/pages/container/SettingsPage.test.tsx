@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   leaveContainer: vi.fn(),
   createLink: vi.fn(),
   revokeLink: vi.fn(),
+  fetchExamDays: vi.fn(async () => [] as string[]),
   fetchMembers: vi.fn(),
   removeMember: vi.fn(),
   forgetBank: vi.fn(),
@@ -35,6 +36,7 @@ vi.mock('../../api/containers', () => ({
   leaveContainer: api.leaveContainer,
   createLink: api.createLink,
   revokeLink: api.revokeLink,
+  fetchExamDays: api.fetchExamDays,
   fetchMembers: api.fetchMembers,
   removeMember: api.removeMember,
   // Release 47: «Моя дата экзамена» and «План в Telegram по этому экзамену».
@@ -149,6 +151,39 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     expect(api.saveSettings).toHaveBeenCalledWith(ID, { minutes_per_day: 90, study_weekdays: 127, tempo: 'date' });
     expect(await screen.findByText(SETTINGS.saved)).toBeInTheDocument();
     expect(api.reload).toHaveBeenCalled();
+  });
+
+  it('the exam’s date: today to two years ahead, said before sending; a date that stays is never in the way (review M4)', async () => {
+    renderAt();
+    const date = screen.getByLabelText('Дата экзамена');
+    expect(date).toHaveAttribute('min', SUMMARY.day);
+    expect(date.getAttribute('max')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    fireEvent.change(date, { target: { value: '2062-01-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(SETTINGS.ownDateRange);
+    expect(document.activeElement).toBe(date);
+    fireEvent.change(date, { target: { value: '2020-01-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(SETTINGS.ownDatePast));
+    expect(api.updateContainer).not.toHaveBeenCalled();
+    cleanup();
+    // A passed date already there: renaming the exam still saves.
+    api.state.summary = { ...solo(), exam_date: '2026-01-10', author_exam_date: '2026-01-10' };
+    renderAt();
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Летняя сессия' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await waitFor(() => expect(api.updateContainer).toHaveBeenCalledWith(ID, { title: 'Летняя сессия' }));
+  });
+
+  it('a subject’s own date is bounded the same way', async () => {
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: SETTINGS.dates }));
+    const date = screen.getByLabelText('Дата: История Беларуси');
+    expect(date).toHaveAttribute('min', SUMMARY.day);
+    fireEvent.change(date, { target: { value: '2206-01-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(SETTINGS.ownDateRange);
+    expect(api.updateSubject).not.toHaveBeenCalled();
   });
 
   it('a missing name stops saving and says so', async () => {

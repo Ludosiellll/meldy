@@ -6,7 +6,7 @@ import type { ContainerSummary } from '../../types/container';
 const api = vi.hoisted(() => ({ oralSync: vi.fn() }));
 vi.mock('../../api/containers', () => ({ oralSync: api.oralSync }));
 
-import { missingOral, ORAL_COPIES, resetOralCopiesForTests, useOralCopies } from './oralCopies';
+import { askedRecently, markOralAsked, missingOral, ORAL_COPIES, resetOralCopiesForTests, useOralCopies } from './oralCopies';
 
 const SUMMARY = summaryJson as unknown as ContainerSummary;
 // A member whose copy of the oral subject never came (the link had closed before the oral-sync of the join).
@@ -62,6 +62,15 @@ describe('a member’s oral subjects without a copy (audit of 04.11)', () => {
     const { result } = renderHook(() => useOralCopies(MEMBER, vi.fn()));
     await waitFor(() => expect(api.oralSync).toHaveBeenCalledTimes(1));
     expect(result.current.line).toBeNull();
+  });
+
+  it('a join that just asked (/g/<code>) counts: the exam page does not ask again at once (review of 04.11)', async () => {
+    expect(askedRecently(MEMBER.id)).toBe(false);
+    markOralAsked(MEMBER.id);
+    expect(askedRecently(MEMBER.id)).toBe(true);
+    renderHook(() => useOralCopies(MEMBER, vi.fn()));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(api.oralSync).not.toHaveBeenCalled();
   });
 
   it('the words: one subject by name, several by count', () => {

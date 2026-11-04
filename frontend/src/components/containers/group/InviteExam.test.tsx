@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   createLink: vi.fn(),
   revokeLink: vi.fn(),
   extendLink: vi.fn(),
+  fetchExamDays: vi.fn(),
   fetchMembers: vi.fn(),
   removeMember: vi.fn(),
   copyText: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock('../../../api/containers', () => ({
   createLink: api.createLink,
   revokeLink: api.revokeLink,
   extendLink: api.extendLink,
+  fetchExamDays: api.fetchExamDays,
   fetchMembers: api.fetchMembers,
   removeMember: api.removeMember,
 }));
@@ -42,6 +44,7 @@ beforeEach(() => {
   api.createLink.mockReset().mockResolvedValue({ link_id: 'link-new', code: 'abcd2fghjkmn', path: '/g/abcd2fghjkmn', oral_subjects: 0, expires_at: '2099-10-30T00:00:00Z' });
   api.revokeLink.mockReset().mockResolvedValue(undefined);
   api.extendLink.mockReset();
+  api.fetchExamDays.mockReset().mockResolvedValue([]);
   api.fetchMembers.mockReset().mockResolvedValue(MEMBERS);
   api.removeMember.mockReset().mockResolvedValue(1);
   api.copyText.mockReset().mockResolvedValue(true);
@@ -63,7 +66,7 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     expect(within(dialog).getByLabelText(INVITE.textLabel)).toHaveValue(
       `Готовимся вместе в Meldy: «Зимняя сессия», 2 предмета, 22 вопроса. Ссылка: ${url}`,
     );
-    expect(keptLinks(SUMMARY.id)).toEqual([{ link: 'link-new', code: 'abcd2fghjkmn' }]);
+    expect(keptLinks(SUMMARY.id)).toEqual([{ link: 'link-new', code: 'abcd2fghjkmn', at: expect.any(Number) }]);
     expect(onChanged).toHaveBeenCalled();
     fireEvent.click(within(dialog).getByRole('button', { name: INVITE.copy }));
     await waitFor(() => expect(api.copyText).toHaveBeenCalledWith(url, expect.anything()));
@@ -108,7 +111,7 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     fireEvent.click(screen.getByRole('button', { name: 'Да, закрыть' }));
     await waitFor(() => expect(api.revokeLink).toHaveBeenCalledWith('link-1'));
     // The code stays on this device: opened again, the link is on screen again.
-    expect(keptLinks(SUMMARY.id)).toEqual([{ link: 'link-1', code: 'qrst2vwxyz01' }]);
+    expect(keptLinks(SUMMARY.id)).toEqual([{ link: 'link-1', code: 'qrst2vwxyz01', at: expect.any(Number) }]);
     expect(onChanged).toHaveBeenCalled();
     // The window shows what is so now: the link is closed, said on screen (with the focus on it), and «Создать ссылку».
     const said = await screen.findByText(INVITE.revoked);
@@ -222,6 +225,14 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     // Nothing open: the way to a new link is there too.
     expect(screen.getByRole('button', { name: 'Создать ссылку' })).toBeInTheDocument();
     fireEvent.click(within(rows[0]).getByRole('button', { name: INVITE.reopen }));
+    // Asked first (review L3): who can come in again, and who cannot.
+    expect(within(rows[0]).getByText(/^Открыть ссылку от 14\sоктября снова\? По ней снова сможет войти каждый, у кого она есть, кроме тех, кого вы убрали из экзамена\.$/)).toBeInTheDocument();
+    await waitFor(() => expect(document.activeElement).toBe(within(rows[0]).getByRole('button', { name: 'Отмена' })));
+    fireEvent.click(within(rows[0]).getByRole('button', { name: 'Отмена' }));
+    await waitFor(() => expect(document.activeElement).toBe(within(rows[0]).getByRole('button', { name: INVITE.reopen })));
+    expect(api.extendLink).not.toHaveBeenCalled();
+    fireEvent.click(within(rows[0]).getByRole('button', { name: INVITE.reopen }));
+    fireEvent.click(within(rows[0]).getByRole('button', { name: INVITE.reopenYes }));
     await waitFor(() => expect(api.extendLink).toHaveBeenCalledWith('link-1'));
     const said = await screen.findByText(/^Ссылка от 14\sоктября снова работает до 1\sмарта\./);
     await waitFor(() => expect(document.activeElement).toBe(said));
@@ -247,10 +258,27 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     expect(screen.queryByRole('button', { name: INVITE.extend })).not.toBeInTheDocument();
   });
 
+  it('with the author’s own date set, «Продлить» counts the exam’s real dates, read for it (review: lastExamDay)', async () => {
+    keepLink(SUMMARY.id, 'link-1', 'qrst2vwxyz01');
+    const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    // The link lasts 130 days; the author's common date is near, their own date hides a subject's date 400 days ahead.
+    const link = { ...LINK, expires_at: new Date(Date.now() + 130 * 86_400_000).toISOString() };
+    const own = { ...TEST_ONLY, exam_date: day(20), own_exam_date: day(20), author_exam_date: day(10),
+      subjects: TEST_ONLY.subjects.map((subject) => ({ ...subject, exam_date: day(20) })), owner: { members: 3, doubts_open: 0, links: [link] } };
+    render(<InviteExam summary={own} onClose={() => undefined} />);
+    expect(screen.queryByRole('button', { name: INVITE.extend })).not.toBeInTheDocument();
+    cleanup();
+    api.fetchExamDays.mockResolvedValue([day(10), day(400)]);
+    render(<InviteExam summary={own} onClose={() => undefined} />);
+    expect(await screen.findByRole('button', { name: INVITE.extend })).toBeInTheDocument();
+    expect(api.fetchExamDays).toHaveBeenCalledWith(SUMMARY.id);
+  });
+
   it('opening again past ten open links: the refusal in Russian', async () => {
     api.extendLink.mockRejectedValue(Object.assign(new Error('at most 10 open links'), { code: 'MC007' }));
     render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 0, doubts_open: 0, links: [{ ...LINK, revoked_at: '2026-10-09T10:00:00Z' }] } }} onClose={() => undefined} />);
     fireEvent.click(screen.getByRole('button', { name: INVITE.reopen }));
+    fireEvent.click(screen.getByRole('button', { name: INVITE.reopenYes }));
     expect(await screen.findByText(INVITE.errors.MC007)).toBeInTheDocument();
   });
 

@@ -19,6 +19,7 @@ import JoinContainerPage from './JoinContainerPage';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
 import { JOIN_PENDING_KEY } from '../../lib/returnTo';
 import { JOIN } from '../../components/containers/copyImport';
+import { askedRecently, resetOralCopiesForTests } from '../../components/containers/oralCopies';
 
 const CODE = 'abcd2fghjkmn';
 const ACTIVE = previewJson as unknown as LinkPreview;
@@ -90,6 +91,15 @@ describe('JoinContainerPage: /g/<код> (spec decisions 24, 25, 52)', () => {
     expect(api.joinByCode).toHaveBeenCalledWith(CODE);
     expect(api.oralSync).toHaveBeenCalledWith(CONTAINER);
     expect(window.sessionStorage.getItem('meldy_container_titles')).toContain('Зимняя сессия');
+  });
+
+  it('the oral copies asked here count for the exam page, which does not ask again right after (review of 04.11)', async () => {
+    resetOralCopiesForTests();
+    api.auth.user = { id: 'member-1' };
+    renderAt();
+    await waitFor(() => expect(where).toBe(`/exams/c/${CONTAINER}`));
+    expect(api.oralSync).toHaveBeenCalledWith(CONTAINER);
+    expect(askedRecently(CONTAINER)).toBe(true);
   });
 
   it('a test-only exam opens without asking for oral copies', async () => {

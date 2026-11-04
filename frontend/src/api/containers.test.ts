@@ -69,6 +69,7 @@ import {
   deleteItem,
   extendLink,
   fetchAllItems,
+  fetchExamDays,
   fetchItemsPage,
   fetchOverview,
   fetchPlanInputs,
@@ -598,6 +599,19 @@ describe('the group link', () => {
     expect(db.rpcCalls).toHaveLength(1);
     expect((await caught(joinByCode('ilou'))).code).toBe('MC001');
     expect(db.rpcCalls).toHaveLength(1);
+  });
+
+  it('reads the exam’s own dates for a link’s end: the exam’s, the subjects’ and their oral exams’ (link_date_end)', async () => {
+    db.table = (entry) => {
+      if (entry.table === 'containers') return { data: [{ exam_date: '2027-01-12' }], error: null, status: 200 };
+      if (entry.table === 'container_subjects') {
+        return { data: [{ exam_date: '2027-01-20', exam_id: ORAL }, { exam_date: null, exam_id: null }, { exam_date: 'вчера', exam_id: null }], error: null, status: 200 };
+      }
+      return { data: [{ exam_date: '2027-02-01' }], error: null, status: 200 };
+    };
+    expect(await fetchExamDays(C1)).toEqual(['2027-01-12', '2027-01-20', '2027-02-01']);
+    expect(db.tableCalls.map((entry) => entry.table)).toEqual(['containers', 'container_subjects', 'exams']);
+    expect(db.tableCalls[2].ops).toContainEqual(['in', ['id', [ORAL]]]);
   });
 
   it('extends or reopens a link by its id; the refusals keep their codes', async () => {

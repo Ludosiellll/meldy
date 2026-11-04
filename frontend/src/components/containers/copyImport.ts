@@ -737,6 +737,9 @@ export const INVITE = {
   shutRevoked: (day: string, joined: number) => `закрыта ${day} · ${joinedShort(joined)}`,
   shutExpired: (day: string, joined: number) => `срок кончился ${day} · ${joinedShort(joined)}`,
   reopen: 'Открыть снова',
+  // Asked first (review of 04.11): the link's code is in the group's chat; a member the author removed stays out.
+  reopenAsk: (day: string) => `Открыть ссылку от ${day} снова? По ней снова сможет войти каждый, у кого она есть, кроме тех, кого вы убрали из экзамена.`,
+  reopenYes: 'Да, открыть',
   reopened: (created: string, until: string) => `Ссылка от ${created} снова работает до ${until}. Кто получал её раньше, может войти по ней.`,
   shutAll: (n: number) => `Показать все: ${n}`,
   /** The link as a QR over the whole screen (release 47.3; lib/quizzes/qr.ts draws it on the device). */

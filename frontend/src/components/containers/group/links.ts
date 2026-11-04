@@ -13,6 +13,10 @@ export type LinkState = 'open' | 'expired' | 'revoked';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const NEW_LINK_DAYS = 120;
 const AFTER_EXAM_DAYS = 30;
+/** A link's end from the dates never passes this (link_date_end's cap). */
+const MAX_DAYS = 760;
+/** The dates the database counts (and takes): 2000-01-01..2100-12-31. */
+const inRange = (day: string) => /^\d{4}-\d{2}-\d{2}$/.test(day) && day >= '2000-01-01' && day <= '2100-12-31';
 
 export function linkState(link: ExamLink, now: number): LinkState {
   if (link.revoked_at) return 'revoked';
@@ -26,33 +30,37 @@ export function byNewest(links: readonly ExamLink[]): ExamLink[] {
 }
 
 /**
- * The exam's last date as the database reads it for a link (link_date_end): the exam's own and every subject's. With
- * the author's own date set the summary's dates are that one, so only the exam's own common date is known.
+ * The exam's last date as the database reads it for a link (link_date_end): the exam's own, every subject's and every
+ * subject's oral exam's, 2000..2100 only. `days`: those dates as read from the exam's own rows (InviteExam reads them:
+ * api/containers.ts fetchExamDays); without them the summary's — where, with the author's own date set, every date is
+ * that one, so only the exam's common date is known.
  */
-export function lastExamDay(summary: ContainerSummary): DayKey | null {
-  const days: DayKey[] = [];
+export function lastExamDay(summary: ContainerSummary, days?: readonly string[] | null): DayKey | null {
+  const known: string[] = [];
   if (summary.own_exam_date) {
-    if (summary.author_exam_date) days.push(summary.author_exam_date);
+    if (summary.author_exam_date) known.push(summary.author_exam_date);
   } else {
-    if (summary.exam_date) days.push(summary.exam_date);
-    for (const subject of summary.subjects) if (subject.exam_date) days.push(subject.exam_date);
+    if (summary.exam_date) known.push(summary.exam_date);
+    for (const subject of summary.subjects) if (subject.exam_date) known.push(subject.exam_date);
   }
-  return days.length > 0 ? days.sort()[days.length - 1] : null;
+  if (days) known.push(...days);
+  const usable = known.filter(inRange).sort();
+  return usable.length > 0 ? (usable[usable.length - 1] as DayKey) : null;
 }
 
 /** The end «Продлить» / «Открыть снова» gives (container_link_extend), in ms. */
-export function extendedEnd(summary: ContainerSummary, now: number): number {
+export function extendedEnd(summary: ContainerSummary, now: number, days?: readonly string[] | null): number {
   const floor = now + NEW_LINK_DAYS * DAY_MS;
-  const last = lastExamDay(summary);
+  const last = lastExamDay(summary, days);
   if (!last) return floor;
-  const afterExam = Date.parse(`${last}T00:00:00Z`) + AFTER_EXAM_DAYS * DAY_MS;
+  const afterExam = Math.min(Date.parse(`${last}T00:00:00Z`) + AFTER_EXAM_DAYS * DAY_MS, now + MAX_DAYS * DAY_MS);
   return Number.isFinite(afterExam) ? Math.max(floor, afterExam) : floor;
 }
 
 /** «Продлить» means something: an open link with an end that the rule moves on by a day or more. */
-export function canExtend(link: ExamLink, summary: ContainerSummary, now: number): boolean {
+export function canExtend(link: ExamLink, summary: ContainerSummary, now: number, days?: readonly string[] | null): boolean {
   if (linkState(link, now) !== 'open' || !link.expires_at) return false;
-  return extendedEnd(summary, now) - Date.parse(link.expires_at) >= DAY_MS;
+  return extendedEnd(summary, now, days) - Date.parse(link.expires_at) >= DAY_MS;
 }
 
 /** The local day of a moment (the device's zone), «2026-10-14»; null for a missing or broken value. */

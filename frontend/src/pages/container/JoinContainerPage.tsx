@@ -11,6 +11,7 @@ import { normalizeJoinCode, oauthRedirectTo, withReturn } from '../../lib/return
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { dayText, errorText, JOIN, nb } from '../../components/containers/copyImport';
+import { markOralAsked } from '../../components/containers/oralCopies';
 import type { LinkPreview } from '../../types/container';
 import './JoinContainerPage.css';
 
@@ -103,7 +104,11 @@ export default function JoinContainerPage() {
     try {
       const result = await joinByCode(code);
       const oral = (result.oral_subjects ?? 0) > 0 || Boolean(value?.subjects?.some((subject) => subject.oral));
-      if (oral) await withTimeout(oralSync(result.container_id), ORAL_SYNC_WAIT_MS);
+      if (oral) {
+        // The exam page would ask again on arrival (components/containers/oralCopies.ts): this ask counts for it.
+        markOralAsked(result.container_id);
+        await withTimeout(oralSync(result.container_id), ORAL_SYNC_WAIT_MS);
+      }
       if (value?.title) rememberContainerTitle(result.container_id, value.title);
       deferGuideOnce();
       track('container.joined', { again: !result.joined, oral });
