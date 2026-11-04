@@ -54,6 +54,8 @@ import { Mark } from '../components/marks/PencilSvg';
 import { useFrame } from '../components/exams/useFrame';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import { usePhone } from '../lib/usePhone';
+import { localDateKey } from '../utils/streak';
+import { addDay } from '../components/containers/model';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 import './ExamEditor.css';
@@ -94,6 +96,9 @@ const TICK_HINTS_PHONE = {
 } as const;
 const TITLE_ID = 'exam-title';
 const DATE_ID = 'exam-date';
+/** The furthest exam date (exam_date_move and «Перенести экзамен» take up to two years ahead). */
+const DATE_MAX_DAYS = 730;
+const DATE_RANGE = 'Нужна дата не раньше сегодняшней и не дальше чем через два года.';
 const SAVE_WHY_ID = 'exam-save-why';
 
 const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
@@ -384,10 +389,19 @@ export default function ExamEditor() {
     (job.phase === 'running' || job.phase === 'waiting' || Boolean(bundle && bundle.exam.mapping_state === 'running' && isMappingLocked(bundle.exam)));
   const usableSelected = materials.filter((material) => material.textLength > 0 && selected.has(material.id)).map((material) => material.id);
   const titleMissing = title.trim() === '';
+  const dateMin = localDateKey();
+  const dateMax = addDay(dateMin, DATE_MAX_DAYS);
   const canSave = !saving && !lockedByMapping && total > 0 && !listIssue && !titleMissing && Boolean(user);
 
   const save = async () => {
     if (!user || !canSave) return;
+    // A date being set: today to two years ahead, as «Перенести экзамен» (review of 04.11: a typo year reached the
+    // server). A date the exam already has stays as it is.
+    if (examDate && examDate !== (bundle?.exam.exam_date ?? '') && (examDate < dateMin || examDate > dateMax)) {
+      setSaveError(DATE_RANGE);
+      document.getElementById(DATE_ID)?.focus();
+      return;
+    }
     setSaving(true);
     setSaveError(null);
     const draft = {
@@ -853,7 +867,16 @@ export default function ExamEditor() {
                     Дата экзамена
                   </label>
                   <span className="nx-sel">
-                    <input id={DATE_ID} type="date" aria-describedby="exam-date-hint" value={examDate} onChange={(event) => setExamDate(event.target.value)} disabled={saving} />
+                    <input
+                      id={DATE_ID}
+                      type="date"
+                      aria-describedby="exam-date-hint"
+                      min={dateMin}
+                      max={dateMax}
+                      value={examDate}
+                      onChange={(event) => setExamDate(event.target.value)}
+                      disabled={saving}
+                    />
                   </span>
                 </div>
               </div>

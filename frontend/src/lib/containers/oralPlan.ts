@@ -71,9 +71,16 @@ async function loadPart(part: { examId: Uuid; subjectId: Uuid }, examDate: strin
 /**
  * The oral questions of these oral parts, one part per exam, in the given order. `now` is the moment the sheet is
  * built for; `tz` is the plan's zone (the sheet itself counts local days in the browser's zone, as on the oral page).
+ * `ownDate`: the user's own date of the exam («Перенести экзамен» → «Только для меня», container_plans.own_exam_date);
+ * it stands for every oral exam's own date, as in the bot's bot_oral_inputs (the own date first).
  * Throws ContainerApiError ('network' without an answer) when a part cannot be read: the caller keeps the last ones.
  */
-export async function loadOralPlanItems(parts: Array<{ examId: Uuid; subjectId: Uuid }>, now: number, tz: string): Promise<OralPlanPart[]> {
+export async function loadOralPlanItems(
+  parts: Array<{ examId: Uuid; subjectId: Uuid }>,
+  now: number,
+  tz: string,
+  ownDate: string | null = null,
+): Promise<OralPlanPart[]> {
   void tz;
   const seen = new Set<string>();
   const unique = parts.filter((part) => {
@@ -82,7 +89,7 @@ export async function loadOralPlanItems(parts: Array<{ examId: Uuid; subjectId: 
     return true;
   });
   if (unique.length === 0) return [];
-  const dates = await examDates(unique.map((part) => part.examId));
+  const dates = ownDate ? new Map(unique.map((part) => [part.examId, ownDate] as const)) : await examDates(unique.map((part) => part.examId));
   const out: OralPlanPart[] = new Array(unique.length);
   let next = 0;
   let failure: unknown = null;

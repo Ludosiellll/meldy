@@ -384,6 +384,23 @@ describe('ExamEditor: a new exam', () => {
     expect(mocks.startMapping).not.toHaveBeenCalled();
   });
 
+  it('the exam’s date: today to two years ahead, as «Перенести экзамен» (review of 04.11: a typo year reached the server)', async () => {
+    mocks.listPickerMaterials.mockResolvedValue([]);
+    await pasteAndParse();
+    const date = screen.getByLabelText('Дата экзамена');
+    const today = new Date();
+    const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    expect(date).toHaveAttribute('min', key(today));
+    expect(date.getAttribute('max')).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    fireEvent.change(date, { target: { value: '2062-01-20' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить список' }));
+    expect(await screen.findByText('Нужна дата не раньше сегодняшней и не дальше чем через два года.')).toBeInTheDocument();
+    expect(mocks.createExam).not.toHaveBeenCalled();
+    fireEvent.change(date, { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить список' }));
+    await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
+  });
+
   it('says where to find the list under the empty field, and only before a list is pasted', async () => {
     renderEditor();
     const hint = 'Список вопросов часто есть в рабочей программе дисциплины на сайте кафедры или у старосты.';

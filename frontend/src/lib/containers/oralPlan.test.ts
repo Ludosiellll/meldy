@@ -173,6 +173,13 @@ describe('loadOralPlanItems', () => {
     expect(reads.datesAsked).toEqual([['exams', 'id, exam_date', 'id', [EXAM]]]);
   });
 
+  it('the user’s own date of the exam stands for the oral exam’s own (bot_oral_inputs: the own date first)', async () => {
+    const [part] = await loadOralPlanItems([{ examId: EXAM, subjectId: SUBJECT }], NOW, 'Europe/Minsk', '2027-03-01');
+    expect(part.examDate).toBe('2027-03-01');
+    const [plain] = await loadOralPlanItems([{ examId: EXAM, subjectId: SUBJECT }], NOW, 'Europe/Minsk', null);
+    expect(plain.examDate).not.toBe('2027-03-01');
+  });
+
   it('a question’s deciding lines: its essential points, else all of them, as UnitStates', async () => {
     const [part] = await loadOralPlanItems([{ examId: EXAM, subjectId: SUBJECT }], NOW, 'Europe/Minsk');
     // Q1: only the essential p1 decides; named on two days 23 h apart (erased), then checked after 5 days.

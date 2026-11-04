@@ -67,6 +67,7 @@
    the first line's margin too and nothing under it moves when the answer comes. */
 .gr-area { display: flow-root; }
 .gr-make { display: grid; gap: 14px; margin-top: 20px; }
+.gr-make > .gr-line { margin: 0; }
 .gr-consent {
   display: flex;
   align-items: flex-start;
@@ -192,6 +193,18 @@
 .gr-seats > .gr-line:first-child { margin-top: 0; }
 .gr-ask { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; color: var(--sf-muted); }
 .gr-ask > span { flex: 1 1 100%; color: var(--sf-ink); }
+
+/* The link's end under it («Ссылка работает до 3 марта. Продлить»), the other open links (one sentence each, with their
+   presses and the confirm of «Закрыть её») and the closed ones («Закрытые ссылки», rows with «Открыть снова»). */
+.gr-ends { margin-top: 2px; }
+.gr-said:focus { outline: none; }
+.gr-said:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 4px; border-radius: 4px; }
+.gr-others { margin: 0; padding: 0; list-style: none; }
+.gr-keep { white-space: nowrap; }
+.gr-other .gr-ask { margin-top: 6px; }
+.gr-shut { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
+.gr-shut > .gr-sub { margin-top: 0; }
+.gr-shut .gr-people { margin-top: 4px; }
 
 /* «Кто вошёл»: names, the day each came in, «Убрать». */
 .gr-members { margin-top: 8px; }
