@@ -47,7 +47,7 @@ describe('a subject made of variants on the import page', () => {
     expect(screen.getByRole('heading', { name: 'Сети' })).toBeTruthy();
     expect(plain(document.body.textContent)).toContain('Варианты одного предмета: 12 файлов (Вариант 1 – Вариант 12).');
     expect(plain(document.body.textContent)).toContain('11 повторов из других вариантов не добавлены.');
-    expect(plain(document.body.textContent)).toContain('в 1 ответы в вариантах расходятся');
+    expect(plain(document.body.textContent)).toContain('В 1 вопросе варианты дают разные ответы. Проверить');
     fireEvent.click(screen.getByRole('button', { name: 'Разделить по файлам' }));
     expect(props.onSplit).toHaveBeenCalledWith(true);
   });

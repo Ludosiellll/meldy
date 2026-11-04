@@ -1,7 +1,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import MoreMenu from '../../ui/MoreMenu';
-import { count, IMPORT, KEYS_AI_WORDS, keyShareLine, nb, PROBLEM_PARTS } from '../copyImport';
+import { count, IMPORT, KEYS_AI_WORDS, keyShareLine, nb } from '../copyImport';
 import { problemParts, type DraftSubject } from './importModel';
 
 /**
@@ -177,12 +177,7 @@ export default function SubjectDetail({ subject, phone, onBack, onRename, onRemo
 
       {totalProblems > 0 ? (
         <p className="im-line">
-          {nb(
-            IMPORT.detailProblems(
-              parts.map((part) => PROBLEM_PARTS[part.problem](part.n)),
-              totalProblems,
-            ),
-          )}{' '}
+          {nb(IMPORT.detailProblems(parts))}{' '}
           <button type="button" className="sf-link" onClick={onCheck}>
             {IMPORT.problemsGo}
           </button>

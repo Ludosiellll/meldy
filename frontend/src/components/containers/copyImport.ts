@@ -311,7 +311,15 @@ export const IMPORT = {
   topicsTitle: 'Темы',
   noTopic: 'Без темы',
   otherWay: 'Отмечен по-другому?',
-  detailProblems: (parts: string[], n: number) => `Проверьте ${n}: ${parts.join(', ')}.`,
+  /**
+   * «Проверьте 7 вопросов: в 4 нет ответа, 1 повторяется.» for several kinds of problems; one kind is said whole:
+   * «В 1 вопросе варианты дают разные ответы.» (not «Проверьте 1: в 1 …»).
+   */
+  detailProblems: (parts: ReadonlyArray<{ problem: string; n: number }>) => {
+    if (parts.length === 1) return PROBLEM_ONE[parts[0].problem]?.(parts[0].n) ?? `Проверьте ${questions(parts[0].n)}.`;
+    const n = parts.reduce((sum, part) => sum + part.n, 0);
+    return `Проверьте ${questions(n)}: ${parts.map((part) => PROBLEM_PARTS[part.problem]?.(part.n) ?? String(part.n)).join(', ')}.`;
+  },
   restart: 'Похоже, в файле несколько предметов: нумерация вопросов начинается заново.',
   merge: 'Оставить одним',
   unmerge: 'Разделить на предметы',
@@ -402,13 +410,35 @@ export const PROBLEM_PARTS: Record<string, (n: number) => string> = {
   same_options: (n) => `в ${n} одинаковые варианты`,
   several: (n) => `в ${n} выделено два`,
   key_conflict: (n) => `в ${n} ключ и выделение расходятся`,
-  variant_keys: (n) => `в ${n} ответы в вариантах расходятся`,
+  variant_keys: (n) => `в ${n} варианты дают разные ответы`,
   key_invalid: (n) => `в ${n} ключ не подходит`,
   key_letter: (n) => `в ${n} буква ключа читается двояко`,
   partial: (n) => `в ${n} выделение неполное`,
   no_key: (n) => `в ${n} нет ответа`,
   duplicate: (n) => `${n} ${n % 10 === 1 && n % 100 !== 11 ? 'повторяется' : 'повторяются'}`,
   too_long: (n) => `${n} длиннее предела`,
+};
+
+const inQuestions = (n: number) => `В ${n} ${plural(n, 'вопросе', 'вопросах', 'вопросах')}`;
+const sing = (n: number, one: string, many: string) => (n % 10 === 1 && n % 100 !== 11 ? one : many);
+
+/** One kind of problem in a subject, said whole: «В 1 вопросе варианты дают разные ответы.», «3 вопроса повторяются.» */
+export const PROBLEM_ONE: Record<string, (n: number) => string> = {
+  image: (n) => `${inQuestions(n)} не ${sing(n, 'перенеслась картинка', 'перенеслись картинки')}.`,
+  no_options: (n) => `${inQuestions(n)} нет вариантов.`,
+  few_options: (n) => `${inQuestions(n)} только один вариант.`,
+  many_options: (n) => `${inQuestions(n)} больше 8 вариантов.`,
+  empty_option: (n) => `${inQuestions(n)} есть пустой вариант.`,
+  same_options: (n) => `${inQuestions(n)} одинаковые варианты.`,
+  several: (n) => `${inQuestions(n)} выделено два ответа.`,
+  key_conflict: (n) => `${inQuestions(n)} ключ и выделение расходятся.`,
+  variant_keys: (n) => `${inQuestions(n)} варианты дают разные ответы.`,
+  key_invalid: (n) => `${inQuestions(n)} ключ не подходит.`,
+  key_letter: (n) => `${inQuestions(n)} буква ключа читается двояко.`,
+  partial: (n) => `${inQuestions(n)} выделение неполное.`,
+  no_key: (n) => `${inQuestions(n)} нет ответа.`,
+  duplicate: (n) => `${questions(n)} ${sing(n, 'повторяется', 'повторяются')}.`,
+  too_long: (n) => `${questions(n)} длиннее предела.`,
 };
 
 /** Signal words in «Как в файле отмечен ответ?»: «Жирным — 229». */

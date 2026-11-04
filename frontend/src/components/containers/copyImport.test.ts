@@ -161,3 +161,20 @@ describe('copyImport: the words of the import, keys, settings and group screens'
     expect(errorText('nothing')).toBe('Не получилось. Попробуйте ещё раз.');
   });
 });
+
+describe('the problems of one subject (owner, 2026-11-04: «Проверьте 1: в 1 …» read badly)', () => {
+  it('one kind is said whole, with the word «вопрос» in its form; several kinds after «Проверьте N вопросов»', () => {
+    const say = (parts: Array<{ problem: string; n: number }>) => IMPORT.detailProblems(parts).replace(/ /g, ' ');
+    expect(say([{ problem: 'variant_keys', n: 1 }])).toBe('В 1 вопросе варианты дают разные ответы.');
+    expect(say([{ problem: 'variant_keys', n: 3 }])).toBe('В 3 вопросах варианты дают разные ответы.');
+    expect(say([{ problem: 'variant_keys', n: 21 }])).toBe('В 21 вопросе варианты дают разные ответы.');
+    expect(say([{ problem: 'no_key', n: 5 }])).toBe('В 5 вопросах нет ответа.');
+    expect(say([{ problem: 'image', n: 1 }])).toBe('В 1 вопросе не перенеслась картинка.');
+    expect(say([{ problem: 'image', n: 2 }])).toBe('В 2 вопросах не перенеслись картинки.');
+    expect(say([{ problem: 'duplicate', n: 1 }])).toBe('1 вопрос повторяется.');
+    expect(say([{ problem: 'duplicate', n: 4 }])).toBe('4 вопроса повторяются.');
+    expect(say([{ problem: 'no_key', n: 4 }, { problem: 'several', n: 2 }, { problem: 'duplicate', n: 1 }])).toBe(
+      'Проверьте 7 вопросов: в 4 нет ответа, в 2 выделено два, 1 повторяется.',
+    );
+  });
+});
