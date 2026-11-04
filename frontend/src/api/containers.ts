@@ -758,6 +758,72 @@ export async function parseBankAi(input: ParseBankInput & { scope?: 'flagged' | 
   return bankResult(raw, 'parse-bank/ai');
 }
 
+/** One question of «Подобрать ключи с ИИ» (docs/import/KEYS_AI.md): its options in the order the student sees them. */
+export interface KeysAiQuestion {
+  id: string;
+  text: string;
+  options: string[];
+  kind: 'single' | 'multiple';
+}
+
+/** A suggestion: `correct` (indices into the options as sent) only when two independent answers agreed and were sure. */
+export interface KeysAiResult {
+  id: string;
+  correct: number[] | null;
+  agree: boolean;
+  sure: 'high' | 'low' | 'none';
+  note?: string;
+}
+
+export interface KeysAiResponse {
+  results: KeysAiResult[];
+  units: number;
+  spent_questions: number;
+}
+
+/**
+ * POST /api/exams/keys/ai (backend/bank_keys_ai.py): keys for questions the file gave none, only on the student's press.
+ * At most 300 questions a request, without pictures; charged before the model (keysAI, 5 units per started 100). The
+ * top bar's AI limit is read again after the answer, as after every AI action (a request that never reached the server
+ * spent nothing). Errors: ContainerApiError with the server's Russian detail and its code (ai_limit, ai_busy,
+ * bad_request, too_big; a 5xx keeps ai_failed in `detail`).
+ */
+export async function keysAi(input: { subject: string | null; questions: KeysAiQuestion[] }, signal?: AbortSignal): Promise<KeysAiResponse> {
+  let raw: unknown;
+  try {
+    raw = await backend('/api/exams/keys/ai', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ subject: input.subject?.trim() ? input.subject.trim().slice(0, 200) : null, questions: input.questions }),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof ContainerApiError && (error.status ?? 0) > 0) notifyAIUsageChanged();
+    throw error;
+  }
+  notifyAIUsageChanged();
+  if (!isRecord(raw) || !Array.isArray(raw.results)) throw badShape('keys/ai');
+  const results = raw.results.filter(isRecord).map((entry): KeysAiResult => {
+    const correct = Array.isArray(entry.correct) && entry.correct.every((index) => Number.isInteger(index) && (index as number) >= 0)
+      ? (entry.correct as number[])
+      : null;
+    const sure = entry.sure === 'high' || entry.sure === 'low' ? entry.sure : 'none';
+    return {
+      id: typeof entry.id === 'string' ? entry.id : '',
+      // a key only with the server's own word that both answers agreed and were sure (docs/import/KEYS_AI.md)
+      correct: correct && correct.length > 0 && entry.agree === true && sure === 'high' ? correct : null,
+      agree: entry.agree === true,
+      sure,
+      ...(typeof entry.note === 'string' && entry.note.trim() ? { note: entry.note.trim() } : {}),
+    };
+  });
+  return {
+    results,
+    units: typeof raw.units === 'number' ? raw.units : 0,
+    spent_questions: typeof raw.spent_questions === 'number' ? raw.spent_questions : 0,
+  };
+}
+
 function bankForm(input: ParseBankInput): FormData {
   const form = new FormData();
   if (input.file) form.append('file', input.file, input.file.name);

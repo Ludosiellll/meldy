@@ -91,10 +91,9 @@ from it. If this file and the code disagree, fix one of them in the same commit.
 - Kind `keysAI` in the daily AI limit: **5 units for each started 100 questions** (1–100 questions cost 5, 101–200
   cost 10, 201–300 cost 15). It is the same price as `importAI`. Server: `plans.AI_COSTS["keysAI"]`,
   `plans.KEYS_AI_QUESTIONS_PER_CHARGE`, `plans.keys_ai_cost()`.
-- The mirror in `frontend/src/lib/plans.ts` still has to be added: `keysAI: 5` in `AI_COSTS`,
-  `KEYS_AI_QUESTIONS_PER_CHARGE = 100` and a `keysAiCost(questions)` shaped like `importAiCost`. Until then
-  `backend/tests/test_quota.py::test_the_browser_shows_the_prices_the_server_charges` skips `keysAI` (`server_first`).
-  Once `plans.ts` lists it, the test checks that the price is the same. Empty `server_first` after the frontend lands.
+- The mirror in `frontend/src/lib/plans.ts`: `keysAI: 5` in `AI_COSTS`, `KEYS_AI_QUESTIONS_PER_CHARGE = 100` and
+  `keysAiCost(questions)`. `backend/tests/test_quota.py::test_the_browser_shows_the_prices_the_server_charges` checks
+  that both sides name the same price.
 - The server charges **before** calling the model. If no answer came back at all, the units are returned and the
   request fails. If some answers came back, the charge stays even if some questions end up without a key.
 - Read the top bar's AI limit again after the answer, success or error (`notifyAIUsageChanged()`, as `parseBankAi` does).

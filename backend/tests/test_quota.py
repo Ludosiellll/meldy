@@ -32,7 +32,7 @@ import receipts  # noqa: E402
 import supabase_rest  # noqa: E402
 from agents import base  # noqa: E402
 from agents.base import AIError, BaseAgent  # noqa: E402
-from plans import AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS, exam_mapping_cost, scan_cost  # noqa: E402
+from plans import AI_COSTS, FREE_DAILY_UNITS, KEYS_AI_QUESTIONS_PER_CHARGE, PRO_DAILY_UNITS, exam_mapping_cost, scan_cost  # noqa: E402
 from test_lecture_formats import FakeGemini, gemini_error, scan_pdf  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
@@ -283,12 +283,11 @@ def test_the_browser_shows_the_prices_the_server_charges():
     source = (REPO / "frontend" / "src" / "lib" / "plans.ts").read_text(encoding="utf-8")
     block = source.split("export const AI_COSTS = {", 1)[1].split("} as const;", 1)[0]
     browser = {name: int(units) for name, units in re.findall(r"^\s*(\w+): (\d+),$", block, re.M)}
-    # Подбор ключей с ИИ (bank_keys_ai.py, 2026-11-04): сервер списывает keysAI раньше, чем кнопка появится в браузере
-    # (её делает ветка фронтенда). Пока plans.ts его не знает — не сверяется; знает — цена та же. Когда кнопка выйдет,
-    # server_first пустеет.
-    server_first = ("keysAI",)
+    # Подбор ключей с ИИ (bank_keys_ai.py, 2026-11-04): кнопка в браузере вышла, plans.ts знает keysAI — цена та же.
+    server_first: tuple[str, ...] = ()
     assert browser == {name: units for name, units in AI_COSTS.items() if name in browser or name not in server_first}
     assert "OCR_PAGES_PER_CHARGE = 15;" in source and "EXAM_MAPPING_QUESTIONS_PER_CHARGE = 40;" in source
+    assert "KEYS_AI_QUESTIONS_PER_CHARGE = 100;" in source and KEYS_AI_QUESTIONS_PER_CHARGE == 100
 
 
 # ── Эндпоинты: списание до модели, возврат, 429 ────────────────────────────────
