@@ -1,5 +1,5 @@
-"""POST /api/exams/parse-bank (bank_api.py): подключение к приложению, 401 без сессии, лимит 10 запросов
-в минуту на пользователя, ошибки {"detail", "code"} по-русски, key_mode, key_text, format, форма ответа
+"""POST /api/exams/parse-bank (bank_api.py): подключение к приложению, 401 без сессии, лимит 30 запросов
+в минуту и 400 в день на пользователя (429 с Retry-After), ошибки {"detail", "code"} по-русски, key_mode, key_text, format, форма ответа
 предпросмотра (предметы, темы, вопросы с вариантами и открытые) — и ничего не пишется в базу, единицы
 не списываются, модель не зовётся.
 
@@ -133,21 +133,23 @@ def test_the_route_itself_refuses_a_request_without_a_signed_in_user(monkeypatch
     assert_error(TestClient(bare).post(PATH, data={"text": BANK_TEXT}), 401, "auth", "Требуется войти в аккаунт")
 
 
-def test_the_limit_is_10_a_minute_per_user(api, monkeypatch):
+def test_the_limit_is_30_a_minute_and_400_a_day_per_user(api, monkeypatch):
+    """Пакет из 24 вариантов (владелец, 2026-11-04) читается за один раз: по 10 в минуту половина файлов получала 429."""
     limits = {
         name: [(str(limit.limit), limit.key_func) for limit in values]
         for name, values in api.main.limiter._route_limits.items()
         if name.startswith("bank_api.")
     }
-    assert limits == {"bank_api.parse_test_bank": [("10 per 1 minute", user_or_ip_key)]}
+    assert limits == {"bank_api.parse_test_bank": [("30 per 1 minute", user_or_ip_key), ("400 per 1 day", user_or_ip_key)]}
 
     monkeypatch.setattr(api.main.limiter, "enabled", True)
     api.main.limiter.reset()
     try:
-        for _ in range(10):
+        for _ in range(30):
             assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200
         limited = api.post(PATH, data={"text": BANK_TEXT})
         assert limited.status_code == 429 and limited.json()["detail"] == RATE_LIMIT_DETAIL
+        assert 1 <= int(limited.headers["Retry-After"]) <= 61  # клиент ждёт столько и повторяет сам
         other_user = api.post(PATH, data={"text": BANK_TEXT}, headers={"Authorization": "Bearer token-b"})
         assert other_user.status_code == 200
     finally:

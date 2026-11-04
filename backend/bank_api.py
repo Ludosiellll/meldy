@@ -1,8 +1,8 @@
 """Банк вопросов сессии (тест с вариантами и открытые вопросы): разбор для предпросмотра — POST /api/exams/parse-bank.
 
 Путь объявлен полностью, main.py подключает router без префикса. Сессию проверяет общий middleware
-main.py, как у /api/exams/parse (без неё — 401); лимит — 10 запросов в минуту на пользователя
-(user_or_ip_key): клиент шлёт по запросу на файл. Разбор — правила bank_parse.py без ИИ: единиц дневного
+main.py, как у /api/exams/parse (без неё — 401); лимит — 30 запросов в минуту и 400 в день на пользователя
+(user_or_ip_key, BANK_LIMIT): клиент шлёт по запросу на файл, а 429 ждёт по Retry-After и повторяет сам. Разбор — правила bank_parse.py без ИИ: единиц дневного
 лимита не тратит, в базу ничего не пишет (ни SupabaseRest, ни quota здесь не вызываются). Сохраняет клиент.
 
 Форма (multipart): file (DOCX, XLSX, PDF с текстом, TXT, MD, CSV, HTML, Moodle XML до MAX_UPLOAD_BYTES, по умолчанию
@@ -178,8 +178,13 @@ async def _key_file(upload: Any) -> list[dict]:
         raise BankError(exc.status, code, f"Файл ключа: {exc.detail[:1].lower()}{exc.detail[1:]}") from None
 
 
+# 30 в минуту: пакет из 24 вариантов (владелец, 2026-11-04) читается за один раз — по 10 в минуту половина файлов получала
+# 429. Разбор — правила без ИИ, но это работа процессора: предел остаётся, и 400 в день на пользователя.
+BANK_LIMIT = "30/minute;400/day"
+
+
 @router.post(BANK_PATH)
-@limiter.limit("10/minute", key_func=user_or_ip_key)
+@limiter.limit(BANK_LIMIT, key_func=user_or_ip_key)
 async def parse_test_bank(request: Request):
     """Банк вопросов (файл или текст) → предпросмотр: предметы, темы, вопросы, ключи, флаги. Без ИИ, без единиц, в базу не пишет."""
     try:
