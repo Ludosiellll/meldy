@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-04 — Release 50.2: «Удалить экзамен» on the exam page; a deleted exam takes its oral subjects (from the commit of this entry)
+
+- **Why**: the owner deleted an exam made from 24 college test files; ten «Предмет N» of one question each turned up in
+  «Экзамены» («они в целом не должны появляться») and could not be found to delete («почему я не могу это удалить»).
+  The import had made each file's form header an oral subject (fixed in the import release that follows), and a
+  deleted exam left its oral subjects as exams of their own, as its dialog said.
+- **Delete**: «Удалить экзамен» stands with the exam page's links and in a phone's «⋯» (asks first; not for a group
+  link's copy or an oral part inside an exam); before, it was only at the bottom of the editor.
+- **A deleted exam takes its oral subjects** (migration 20261107090000, applied: a BEFORE DELETE trigger on containers,
+  the owner's oral exams only, nothing when the delete is refused for members); the dialog says «Устные предметы
+  удалятся вместе с ним». The ten leftovers of 04.11 were removed by the same migration.
+- **Order**: migration 20261107090000 first (applied), then this site.
+
 ## 2026-11-01 — Release 50.1: «Дуэль» — two play the same questions at once by an invite link (from the commit of this entry)
 
 - **Why**: Test_Builder_Spec_2026-10-18, «Режимы» item 3, the third mode after the live game and the challenge: a
