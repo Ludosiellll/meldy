@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   deleteContainer: vi.fn(),
   deleteSubject: vi.fn(),
   moveExamDate: vi.fn(),
+  oralSync: vi.fn(),
 }));
 
 vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
@@ -36,6 +37,7 @@ vi.mock('../../api/containers', async (importOriginal) => ({
   deleteContainer: mocks.deleteContainer,
   deleteSubject: mocks.deleteSubject,
   moveExamDate: mocks.moveExamDate,
+  oralSync: mocks.oralSync,
 }));
 
 import ContainerPage from './ContainerPage';
@@ -228,6 +230,19 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     expect(screen.getByRole('menuitem', { name: 'Выйти из экзамена' }).getAttribute('href')).toBeNull();
     expect(page()).toContain('Автор исправил ключ в 2 вопросах. Их нужно выучить заново.');
     expect(screen.queryByRole('link', { name: 'Отметить ответы' })).toBeNull();
+  });
+});
+
+describe('a member’s oral subject without their copy (audit of 04.11)', () => {
+  it('the page asks for it once and, with every link shut, says the link no longer works and whom to ask', async () => {
+    // The oral subject as container_summary gives it to a member without a copy: its oral part, no exam of theirs.
+    const oral = subject({ id: SUBJECT_ORAL, position: 5, title: 'Гражданское право', keyed: 0, seen: 0, two_days: 0, open_errors: 0, topics: [], topic_titles: [], oral: { exam_id: null, questions: 0 } });
+    const member = summary({ role: 'member', owner: null, subjects: [...summary().subjects, oral] });
+    mocks.oralSync.mockResolvedValue({ container_id: CONTAINER, oral: [{ subject_id: SUBJECT_ORAL, status: 'closed' }] });
+    renderPage(loaded(containerData({ summary: member })));
+    await waitFor(() => expect(page()).toContain('Устные вопросы по предмету «Гражданское право» не пришли: ссылка экзамена больше не работает. Попросите автора открыть её снова.'));
+    expect(mocks.oralSync).toHaveBeenCalledTimes(1);
+    expect(mocks.oralSync).toHaveBeenCalledWith(CONTAINER);
   });
 });
 

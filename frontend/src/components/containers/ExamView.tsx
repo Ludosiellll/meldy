@@ -15,6 +15,7 @@ import { NoteLine } from './ui';
 import { examLinks, startTarget, useExamActions } from './actions';
 import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
+import { useOralCopies } from './oralCopies';
 import { useLearnLeft } from '../../api/learnLeft';
 import { tally } from '../../lib/containers/topics';
 import { oralExamIds, subjectTopics } from './topicsOf';
@@ -205,6 +206,8 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
   // «Перенести экзамен» (release 47): on the exam's day and after it; the page reads its data again once it is moved.
   const facts = useMemo(() => moveFacts(summary), [summary]);
   const move = useExamMove({ containerId, role: summary.role, today, facts, reload });
+  // A member's oral subject without their copy: asked for once; a shut link is said with the way on (audit of 04.11).
+  const oralCopies = useOralCopies(summary, reload);
 
   // The oral part that waits for lectures (decision 35): its editor's lectures, back to this exam by ?from=c:.
   const lecturesSubject = summary.subjects.find((subject) => oralCount(subject) > 0 && subject.oral?.exam_id && !(planInput?.items ?? []).some((item) => item.f === 'o' && item.s === subject.id));
@@ -389,6 +392,7 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
     );
   }
   if (!author && summary.key_changes_unseen > 0) notes.push(<NoteLine key="fixed" text={copy.keyFixedLine(summary.key_changes_unseen)} />);
+  if (oralCopies.line) notes.push(<NoteLine key="oral-copies" text={oralCopies.line} />);
   if (oralWithoutPoints > 0 && !hasLine('lectures')) {
     // The plan does not make this line (package D2): the count is the oral questions without points (D1's oralPlan).
     const words = lineWords({ key: 'oral_no_lectures', n: [oralWithoutPoints] });
