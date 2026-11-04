@@ -19,6 +19,7 @@ from xml.sax.saxutils import escape
 
 import pytest
 from docx import Document
+from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_COLOR_INDEX
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -403,6 +404,72 @@ def test_checkbox_symbols_mark_the_key():
     result = parse_bank_file(docx_bytes(build), "bank.docx")
     assert result["key_source"] == {"checkbox": 2}
     assert [item["correct"] for item in result["items"]] == [[1], [2]]
+
+
+def run_paragraph(text: str, props: str = "") -> str:
+    return f'<w:p><w:r><w:rPr>{props}</w:rPr><w:t xml:space="preserve">{escape(text)}</w:t></w:r></w:p>'
+
+
+def test_complex_script_bold_does_not_mark_cyrillic_options():
+    """Файлы колледжа (владелец, 2026-11-04): w:bCs — жирный только для арабского и иврита — стоит на неверных вариантах.
+    Word показывает их обычными, и ключ — вариант с w:b: «1)», а не «1), 2), 3)»; и не «ключа нет», когда w:bCs у всех."""
+    body = run_paragraph("1. Какой текст соответствует выражению ^\\d{3}$?")
+    body += run_paragraph("1) 123", "<w:b/>") + run_paragraph("2) 12", "<w:bCs/>") + run_paragraph("3) 1234", "<w:bCs/>")
+    body += run_paragraph("4) abc") + run_paragraph("5) 1a3")
+    body += run_paragraph("2. Что не входит в стратегию тестирования?")
+    body += run_paragraph("1) Текст для магазина", "<w:b/><w:bCs/>")
+    body += "".join(run_paragraph(f"{k}) Шаг плана {k}", "<w:bCs/>") for k in range(2, 6))
+    body += run_paragraph("3. Какой протокол передаёт веб-страницы?")
+    body += run_paragraph("1) FTP", '<w:b w:val="0"/><w:bCs/>') + run_paragraph("2) HTTP", "<w:b/>") + run_paragraph("3) SMTP")
+    result = parse_bank_file(docx_with_body(body), "bank.docx")
+    assert [item["correct"] for item in result["items"]] == [[0], [0], [1]]
+    assert result["key_source"] == {"bold": 3} and not any(item["flags"] for item in result["items"])
+    assert result["items"][0]["marks"]["bold"] == [1, 0, 0, 0, 0]
+
+
+@pytest.mark.parametrize("props, text, bold, italic", [
+    ("<w:b/>", "вариант", True, False),
+    ("<w:bCs/>", "вариант", False, False),
+    ("<w:iCs/>", "variant", False, False),
+    ("<w:bCs/><w:i/>", "вариант", False, True),
+    ("<w:cs/><w:bCs/>", "вариант", True, False),
+    ("<w:rtl/><w:bCs/><w:iCs/>", "вариант", True, True),
+    ("<w:rtl/><w:b/><w:bCs w:val=\"0\"/>", "вариант", False, False),
+    ("<w:cs w:val=\"0\"/><w:bCs/>", "вариант", False, False),
+    ("<w:bCs/>", "שלום", True, False),
+    ("<w:bCs/>", "مرحبا 12", True, False),
+    ("<w:b/>", "مرحبا", True, False),
+    ("<w:bCs/>", "Hello שלום", False, False),
+])
+def test_complex_script_marks_count_only_for_complex_script_runs(props, text, bold, italic):
+    blocks = bank_docx.read_docx(docx_with_body(run_paragraph(text, props)))
+    run = blocks[0].runs[0]
+    assert (run.bold, run.italic) == (bold, italic)
+
+
+def test_complex_script_bold_from_styles_follows_the_same_rule():
+    """Наследование через стили: w:bCs стиля абзаца или знака — не жирный для кириллицы; w:rtl в стиле делает его жирным."""
+    def build(doc):
+        para_style = doc.styles.add_style("Вопросы теста", WD_STYLE_TYPE.PARAGRAPH)
+        para_style.element.get_or_add_rPr().append(OxmlElement("w:bCs"))
+        char_style = doc.styles.add_style("Жирный сложный", WD_STYLE_TYPE.CHARACTER)
+        char_style.element.get_or_add_rPr().append(OxmlElement("w:bCs"))
+        rtl_style = doc.styles.add_style("Справа налево", WD_STYLE_TYPE.CHARACTER)
+        rtl_rpr = rtl_style.element.get_or_add_rPr()
+        rtl_rpr.append(OxmlElement("w:bCs"))
+        rtl_rpr.append(OxmlElement("w:rtl"))
+        doc.add_paragraph("стиль абзаца с w:bCs", style=para_style)
+        doc.add_paragraph().add_run("стиль знака с w:bCs", style=char_style)
+        doc.add_paragraph().add_run("стиль знака с w:bCs и w:rtl", style=rtl_style)
+        doc.add_paragraph().add_run("жирный поверх стиля", style=char_style).bold = True
+
+    blocks = bank_docx.read_docx(docx_bytes(build))
+    assert [(block.text, block.runs[0].bold) for block in blocks] == [
+        ("стиль абзаца с w:bCs", False),
+        ("стиль знака с w:bCs", False),
+        ("стиль знака с w:bCs и w:rtl", True),
+        ("жирный поверх стиля", True),
+    ]
 
 
 def test_key_mode_first_option_and_none_override_the_file_and_key_text_still_applies():

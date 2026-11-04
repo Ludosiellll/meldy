@@ -208,6 +208,7 @@ def _fill(element) -> Optional[str]:
 
 
 _TAG_B, _TAG_B_CS, _TAG_I, _TAG_STRIKE, _TAG_DSTRIKE = _w("b"), _w("bCs"), _w("i"), _w("strike"), _w("dstrike")
+_TAG_I_CS, _TAG_RTL, _TAG_CS = _w("iCs"), _w("rtl"), _w("cs")
 _TAG_U, _TAG_HIGHLIGHT, _TAG_COLOR, _TAG_SHD, _TAG_FONTS, _TAG_RSTYLE = (
     _w("u"), _w("highlight"), _w("color"), _w("shd"), _w("rFonts"), _w("rStyle")
 )
@@ -217,7 +218,11 @@ _ATTR_VAL, _ATTR_THEME_COLOR, _ATTR_ASCII, _ATTR_HANSI = _w("val"), _w("themeCol
 def _marks_of(rpr) -> dict:
     """Оформление из w:rPr: только заданные в нём признаки (наследование — у вызывающего).
 
-    Как find() по каждому тегу (берётся первый такой элемент), но за один проход по детям.
+    Как find() по каждому тегу (берётся первый такой элемент), но за один проход по детям. Жирный и курсив для письма
+    справа налево и сложных письменностей (w:bCs, w:iCs) — отдельные признаки bold_cs и italic_cs: Word применяет их
+    только к такому тексту (кусок с w:rtl или w:cs, арабские и еврейские буквы), а кириллицу и латиницу показывает по
+    w:b и w:i. Файлы колледжа (владелец, 2026-11-04) ставят w:bCs на неверные варианты: в Word они обычные, а читались
+    жирными — ключ «1, 2, 3» вместо «1» и вопрос без ключа, когда w:bCs у всех пяти.
     """
     if rpr is None:
         return {}
@@ -225,12 +230,8 @@ def _marks_of(rpr) -> dict:
     for child in rpr:
         first.setdefault(child.tag, child)
     marks: dict = {}
-    bold = first.get(_TAG_B)
-    if bold is None:
-        bold = first.get(_TAG_B_CS)
-    if bold is not None:
-        marks["bold"] = _on(bold)
-    for tag, key in ((_TAG_I, "italic"), (_TAG_STRIKE, "strike"), (_TAG_DSTRIKE, "strike")):
+    for tag, key in ((_TAG_B, "bold"), (_TAG_B_CS, "bold_cs"), (_TAG_I, "italic"), (_TAG_I_CS, "italic_cs"),
+                     (_TAG_STRIKE, "strike"), (_TAG_DSTRIKE, "strike"), (_TAG_RTL, "rtl"), (_TAG_CS, "cs")):
         element = first.get(tag)
         if element is not None:
             marks[key] = _on(element)
@@ -261,6 +262,19 @@ def _marks_of(rpr) -> dict:
     if rstyle is not None:
         marks["rstyle"] = rstyle.get(_ATTR_VAL)
     return marks
+
+
+# Буквы письменностей, которые Word оформляет признаками сложных письменностей (w:bCs, w:iCs): иврит, арабское,
+# сирийское, тана, деванагари и другие индийские, тайское, лаосское; формы представления арабских и еврейских букв.
+_COMPLEX_LETTER_RE = re.compile(r"[\u0590-\u08ff\u0900-\u0dff\u0e00-\u0eff\ufb1d-\ufdff\ufe70-\ufeff]")
+_ANY_LETTER_RE = re.compile(r"[^\W\d_]")
+
+
+def _complex_letters(text: str) -> bool:
+    """Все буквы куска — сложной письменности (арабские, еврейские…): такой кусок Word оформляет по w:bCs."""
+    if not _COMPLEX_LETTER_RE.search(text):
+        return False
+    return all(_COMPLEX_LETTER_RE.match(char) for char in _ANY_LETTER_RE.findall(text))
 
 
 class _Styles:
@@ -528,11 +542,15 @@ class RichDocxReader(docx_text._DocxReader):
         text = "".join(parts)
         if not text:
             return
+        complex_script = bool(marks.get("rtl") or marks.get("cs")) or _complex_letters(text)
+        bold, italic = marks.get("bold"), marks.get("italic")
+        if complex_script:  # такой текст Word показывает по w:bCs / w:iCs, а без них — по w:b / w:i
+            bold, italic = marks.get("bold_cs", bold), marks.get("italic_cs", italic)
         para.runs.append(Run(
             text=text,
-            bold=bool(marks.get("bold")),
+            bold=bool(bold),
             underline=bool(marks.get("underline")) and not hyperlink,
-            italic=bool(marks.get("italic")),
+            italic=bool(italic),
             strike=bool(marks.get("strike")),
             highlight=marks.get("highlight"),
             color=marks.get("color"),
