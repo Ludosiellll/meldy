@@ -464,8 +464,10 @@ export async function addItems(subjectId: Uuid, items: ItemInput[], onProgress?:
  * copied into the bot's plan.)
  */
 export type ItemKeyPatch = ItemPatch & { ai_key?: boolean };
+/** The update's answer with the AI's mark as stored (migration 20261107090300_ai_key_flag); absent from a database without it. */
+export type ItemKeyUpdated = ItemUpdated & { ai_key?: boolean };
 
-export async function updateItem(itemId: Uuid, patch: ItemKeyPatch): Promise<ItemUpdated> {
+export async function updateItem(itemId: Uuid, patch: ItemKeyPatch): Promise<ItemKeyUpdated> {
   return record(await call('container_item_update', { p_item_id: itemId, p_patch: patch }), 'container_item_update', 'rev');
 }
 
