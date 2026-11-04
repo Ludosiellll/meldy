@@ -342,11 +342,13 @@ begin
 end
 $t$;
 
--- 7. The members' oral copies follow the author's oral date. M's copy has the author's date, N set another on theirs.
+-- 7. The members' oral copies follow the author's oral date. M's copy has the author's date, N set another on theirs;
+--    M has no own date of the exam any more (it would win in every read).
 select pg_temp.as_role('postgres');
 do $t$
 declare d date := current_date;
 begin
+  update public.container_plans set own_exam_date = null where user_id = pg_temp.c('m')::uuid;
   update public.exams set exam_date = d - 1 where id = '91170000-0000-4000-8000-0000000000e1';
   update public.containers set exam_date = d - 1 where id = pg_temp.c('c')::uuid;
   insert into public.exams (id, user_id, title, exam_date) values
@@ -383,6 +385,25 @@ begin
                         to_jsonb(pg_temp.exam_day('91170000-0000-4000-8000-0000000000f1')));
   perform pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000f2') = d + 5, 'N''s copy with a date of N''s own stays');
   perform pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000f3') = d - 1, 'an exam that is no copy stays');
+end
+$t$;
+-- The bot plans M's oral part by M's copy (bot_oral_inputs): the new date, so «Сети» is no longer «прошёл» for M.
+select pg_temp.as_role('postgres');
+insert into bot.links (user_id, tg_user_id, chat_id, tz, remind_at, linked_at, last_seen_at) values
+  (pg_temp.c('m')::uuid, 9171, 9171, 'Europe/Minsk', '20:00', now() - interval '3 days', now() - interval '3 days');
+select pg_temp.as_role('service_role');
+do $t$
+declare r jsonb := public.bot_oral_inputs(9171);
+begin
+  perform pg_temp.check((select (x ->> 'exam_date')::date from jsonb_array_elements(r -> 'parts') x
+                          where x ->> 'subject_id' = pg_temp.c('s_oral')) = current_date + 14,
+                        'the bot plans M''s oral part by the moved date', r - 'parts');
+end
+$t$;
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+do $t$
+declare d date := current_date;
+begin
   -- The subject for everyone.
   perform public.exam_date_move(pg_temp.c('c')::uuid, d + 21, 'all', pg_temp.c('s_oral')::uuid);
   perform pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000f1') = d + 21, 'a subject moved: M''s copy follows');
