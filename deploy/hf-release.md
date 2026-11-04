@@ -4,6 +4,29 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-04 — Release 51: variants of one subject are one subject, keys read right, «Подобрать ключи с ИИ» (from the commit of this entry)
+
+- **Why**: the owner (04.11): a batch of 24 college tests («КПиЯП_Вариант_1…12», «ТПО_Вариант_1…12») was not taken in —
+  every file was a subject, the form header a subject of its own, some keys wrong, half the files refused as «много
+  файлов за минуту»; then «делай подбор ключей с ии».
+- **Keys from the file**: `w:bCs` (bold only for right-to-left scripts) no longer reads as bold — it marked wrong options
+  in these files (three keys in one question, none in another); the form header before the first question and the
+  teacher's signature after the last are skipped, not questions or subjects; a picture inside the question's line is
+  kept. On the owner's 9 files: 20 questions each, every one keyed, every key the bold option.
+- **Variants**: files with a variant number («Вариант N» in the file or its name) and the same subject become one subject
+  with a topic per variant; a question repeated in several variants is kept once, with different keys it goes to the
+  review; «Разделить по файлам» undoes it; new variants join an exam's subject of that name.
+- **Many files**: 30 files a minute; a refused file waits and is read by itself («Сервер просит подождать…»); parsing
+  takes at most 2 places per person and 3 in all, first come first served; markup far out of proportion to its text and
+  deep style chains are refused before the parse.
+- **«Подобрать ключи с ИИ»** (on the import and in «Вопросы и ключи»): for choice questions the file gave no key; two
+  independent answers, a key only when they agree, else «ИИ не уверен»; 5 units per started 100 questions (or 4 parts
+  of long ones); such a key is labelled «Ключ подобран ИИ, не из файла» in the review, in study and in the bot, is
+  confirmed in the review queue, and a key from the file always wins. «Вопрос дня» leaves such questions out.
+- **Fair and safe** (independent reviews four times, then fixes): the AI sees each question as data; one request at a
+  time per person; a hand key is never overwritten; the date of an exam no further than two years ahead.
+- **Order**: migration 20261107090300 and the bot first (both live), then this site.
+
 ## 2026-11-04 — Release 50.3: group links live as long as the exam; «Продлить», «Открыть снова»; a new link closes nothing (from the commit of this entry)
 
 - **Why**: the owner (04.11): «ссылка истекает, хотя не должна + потом люди не могут продлить продолжение экзамена». On
