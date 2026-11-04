@@ -46,6 +46,8 @@ vi.mock('../../lib/containers/hooks', () => ({
     reload: vi.fn(),
   }),
 }));
+// No request leaves the test: the canvas's percents and the exam's links (the studio's «where» line) answer here.
+vi.mock('../../api/quizzes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/quizzes')>()), itemPercents: vi.fn(async () => []), listQuizzes: vi.fn(async () => []) }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: null, session: null, loading: false }) }));
 vi.mock('../../api/itemPictures', async (original) => ({
   ...(await original<typeof import('../../api/itemPictures')>()),
@@ -57,6 +59,7 @@ import StudioPage from './StudioPage';
 import { item, subject, summary } from '../../components/containers/testkit/fixtures';
 import { STUDIO } from '../../components/studio/copyStudio';
 import { rememberPreset } from '../../components/studio/pictures';
+import { firstColor } from '../../components/studio/DesignPanel';
 import { emptyDoc } from '../../lib/studio/doc';
 
 const EXAM = '11111111-2222-4333-8444-555555555555';
@@ -294,6 +297,61 @@ describe('the studio: own pictures in every way', () => {
     fireEvent.drop(field, files([png('Фон.png', [5, 6, 7])]));
     await waitFor(() => expect(document.querySelector('.st-doc')).toHaveAttribute('data-bg', 'image'));
     expect(document.querySelector('.st-doc .dv-bg img')?.getAttribute('src')).toMatch(/^https:\/\/covers\.test\//);
+    expect(within(side()).getByLabelText(STUDIO.dim)).toHaveValue('40');
+  });
+});
+
+describe('«Оформление» → «Фон»: the author\'s own colour and the own picture in one step (owner, 2026-11-04)', () => {
+  it('«Свой цвет»: the page takes a colour at once, the picker and its code change it, a bad code is said and not taken; it is saved', async () => {
+    await openStored();
+    fireEvent.click(screen.getByRole('tab', { name: STUDIO.panels.design }));
+    const choice = within(side()).getByRole('group', { name: STUDIO.background });
+    fireEvent.click(within(choice).getByRole('button', { name: STUDIO.backgrounds.color }));
+    expect(within(choice).getByRole('button', { name: STUDIO.backgrounds.color })).toHaveAttribute('aria-pressed', 'true');
+    const page = document.querySelector('.st-doc') as HTMLElement;
+    expect(page).toHaveAttribute('data-bg', 'color');
+    // The first colour: the accent (blue), light in the light theme.
+    expect(page.style.getPropertyValue('--doc-bg')).toBe(firstColor('#2869dd', false));
+    const code = within(side()).getByLabelText(STUDIO.bgColorCode);
+    expect(code).toHaveValue(firstColor('#2869dd', false));
+    fireEvent.change(code, { target: { value: '#2B3A55' } });
+    fireEvent.keyDown(code, { key: 'Enter' });
+    expect(page.style.getPropertyValue('--doc-bg')).toBe('#2b3a55');
+    expect(page.style.getPropertyValue('--doc-on-bg')).toBe('#ffffff');
+    expect(code).toHaveValue('#2b3a55');
+    fireEvent.change(code, { target: { value: 'тёмный' } });
+    fireEvent.blur(code);
+    expect(code).toHaveAttribute('aria-invalid', 'true');
+    expect(page.style.getPropertyValue('--doc-bg')).toBe('#2b3a55');
+    fireEvent.change(within(side()).getByLabelText(STUDIO.bgColor), { target: { value: '#F3E3C3' } });
+    expect(page.style.getPropertyValue('--doc-bg')).toBe('#f3e3c3');
+    expect(page.style.getPropertyValue('--doc-on-bg')).toBe('#0b121c');
+    await waitFor(() => expect(api.saveTestDoc).toHaveBeenCalled(), { timeout: 3000 });
+    const saved = api.saveTestDoc.mock.calls[api.saveTestDoc.mock.calls.length - 1][1] as TestDoc;
+    expect(saved.theme.background).toEqual({ kind: 'color', color: '#f3e3c3' });
+    // Another background and back: the colour last picked comes back.
+    fireEvent.click(within(choice).getByRole('button', { name: STUDIO.backgrounds.plain }));
+    expect(page).toHaveAttribute('data-bg', 'plain');
+    fireEvent.click(within(choice).getByRole('button', { name: STUDIO.backgrounds.color }));
+    expect(page.style.getPropertyValue('--doc-bg')).toBe('#f3e3c3');
+  });
+
+  it('«Загрузить свою картинку» stands under the choice: one press opens the files, the picture becomes the background', async () => {
+    const click = vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => undefined);
+    await openStored();
+    fireEvent.click(screen.getByRole('tab', { name: STUDIO.panels.design }));
+    const own = within(side()).getByRole('button', { name: STUDIO.pictureUpload });
+    fireEvent.click(own);
+    expect(click).toHaveBeenCalledTimes(1);
+    // The picture field shows while the file comes, «Картинка» chosen.
+    expect(within(side()).getByRole('button', { name: STUDIO.backgrounds.image })).toHaveAttribute('aria-pressed', 'true');
+    const input = document.querySelector('input[type="file"][data-studio-file]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [png('Фон.png', [7, 7, 7])] } });
+    await waitFor(() => expect(document.querySelector('.st-doc')).toHaveAttribute('data-bg', 'image'));
+    expect(api.upload).toHaveBeenCalled();
+    // Over a picture the link gives way to the picture's own field.
+    expect(within(side()).getByRole('group', { name: STUDIO.picture })).toBeInTheDocument();
+    expect(side().querySelector('.st-bg-upload')).toBeNull();
     expect(within(side()).getByLabelText(STUDIO.dim)).toHaveValue('40');
   });
 });

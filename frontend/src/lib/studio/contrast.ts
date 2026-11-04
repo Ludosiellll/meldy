@@ -238,13 +238,37 @@ export const DENSITY: Record<DocTheme['density'], { gap: string; pad: string }> 
 /** Over a picture, text sits on at least this much black: white text then reads 4.5:1 over any picture. */
 export const SCRIM_MIN = 55;
 
+/** The words laid straight on an author's own background colour (DocBackground «color»). */
+export interface OnColor {
+  /** White, the design language's ink, or black: whichever reads 4.5:1 on it (one always does). */
+  ink: string;
+  /** Quieter words (a caption, an address): the ink blended toward the colour as far as 4.5:1 still holds. */
+  muted: string;
+  /** A rule or a track on it (not text). */
+  line: string;
+}
+
+/**
+ * Text on an author's colour, in both themes alike (the colour itself is shown as it was picked): white on a dark one,
+ * ink on a light one, black where the ink falls short of 4.5:1 (a mid tone).
+ */
+export function onColor(bg: string): OnColor {
+  const color = rgbHex(hexRgb(bg));
+  const light = contrast('#ffffff', color) >= contrast('#000000', color);
+  const ink = light ? '#ffffff' : contrast(SURFACES.light.ink, color) >= 4.5 ? SURFACES.light.ink : '#000000';
+  let weight = 0.72;
+  while (weight < 1 && contrast(mix(ink, color, weight), color) < 4.5) weight = Math.min(1, weight + 0.04);
+  return { ink, muted: weight >= 1 ? ink : mix(ink, color, weight), line: mix(ink, color, 0.3) };
+}
+
 /**
  * The theme as CSS custom properties for DocView's root (`style={themeTokens(doc.theme, dark)}`):
  * `--qt-fill`, `--qt-fill-deep`, `--qt-fill-deeper`, `--qt-on-fill`, `--qt-link`, `--qt-bar` (the quiz page's names);
  * `--doc-canvas`, `--doc-surface`, `--doc-surface-soft`, `--doc-ink`, `--doc-muted`, `--doc-line`, `--doc-accent-soft`;
- * `--doc-bg` (the page's background: a colour or a gradient; a picture is DocView's, under `--doc-bg-dim`),
- * `--doc-bg-dim` (the author's darkening of the picture), `--doc-bg-scrim` (behind text laid straight on the picture),
- * `--doc-on-bg` (text straight on the background); `--doc-font`, `--doc-radius-card`, `--doc-radius-field`,
+ * `--doc-bg` (the page's background: a colour — the canvas or the author's own — or a gradient; a picture is
+ * DocView's, under `--doc-bg-dim`), `--doc-bg-dim` (the author's darkening of the picture), `--doc-bg-scrim` (behind
+ * text laid straight on the picture), `--doc-on-bg` (text straight on the background), `--doc-on-bg-muted` (quieter
+ * text there), `--doc-bg-line` (a rule there); `--doc-font`, `--doc-radius-card`, `--doc-radius-field`,
  * `--doc-radius-button`, `--doc-gap`, `--doc-pad`, `--doc-answer-columns`.
  */
 export function themeTokens(theme: DocTheme, dark: boolean): Record<string, string> {
@@ -254,6 +278,8 @@ export function themeTokens(theme: DocTheme, dark: boolean): Record<string, stri
   const palette = accentPalette(theme.accent, dark, [surfaces.canvas, surfaces.surface, surfaces.surfaceSoft, ...(top ? [top] : [])]);
   const image = background.kind === 'image';
   const dim = image ? Math.min(80, Math.max(0, background.dim)) : 0;
+  const color = background.kind === 'color' && HEX_RE.test(background.color) ? background.color : null;
+  const on = color ? onColor(color) : null;
   return {
     '--qt-fill': palette.fill,
     '--qt-fill-deep': palette.fillDeep,
@@ -268,10 +294,12 @@ export function themeTokens(theme: DocTheme, dark: boolean): Record<string, stri
     '--doc-muted': surfaces.muted,
     '--doc-line': surfaces.line,
     '--doc-accent-soft': palette.soft,
-    '--doc-bg': top ? `linear-gradient(180deg, ${top} 0%, ${surfaces.canvas} 70%)` : surfaces.canvas,
+    '--doc-bg': color ?? (top ? `linear-gradient(180deg, ${top} 0%, ${surfaces.canvas} 70%)` : surfaces.canvas),
     '--doc-bg-dim': image ? `rgba(0, 0, 0, ${dim / 100})` : 'transparent',
     '--doc-bg-scrim': image ? `rgba(0, 0, 0, ${Math.max(dim, SCRIM_MIN) / 100})` : 'transparent',
-    '--doc-on-bg': image ? '#ffffff' : surfaces.ink,
+    '--doc-on-bg': on ? on.ink : image ? '#ffffff' : surfaces.ink,
+    '--doc-on-bg-muted': on ? on.muted : image ? 'rgba(255, 255, 255, 0.82)' : surfaces.muted,
+    '--doc-bg-line': on ? on.line : image ? 'rgba(255, 255, 255, 0.5)' : surfaces.line,
     '--doc-font': FONT_STACKS[theme.font],
     '--doc-radius-card': RADIUS[theme.radius].card,
     '--doc-radius-field': RADIUS[theme.radius].field,

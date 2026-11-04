@@ -3,7 +3,7 @@ import { deleteItem } from '../../api/containers';
 import { newId } from '../../lib/studio/doc';
 import type { TestItem } from '../../types/container';
 import type { DocBlock } from '../../types/testDoc';
-import QuestionEditor from '../containers/keys/QuestionEditor';
+import QuestionEditor, { type EditorHandle } from '../containers/keys/QuestionEditor';
 import { inputOf, patchOf, type Draft } from '../containers/keys/editorModel';
 import { EDITOR, errorText, KEYS } from '../containers/copyImport';
 import type { CardAction } from '../test/BuildCard';
@@ -13,6 +13,7 @@ import TypeChoice from '../test/TypeChoice';
 import { BUILD, type BuildType } from '../test/copyTest';
 import { ALL_BUILD_TYPES, copyInput, templateItem, typeOf } from '../test/buildModel';
 import type { Build } from '../test/useBuild';
+import { useUnsaved } from './unsaved';
 import type { Studio } from './useStudio';
 import '../test/build.css';
 
@@ -20,7 +21,8 @@ import '../test/build.css';
  * «Список» (spec §47.6): the release-47 constructor's cards (QuestionList, BuildToolbar, TypeChoice, QuestionEditor) in
  * the page's order — the questions on the page first, then those that did not fit on it (400 blocks). «Выше / Ниже»
  * move the question past its neighbour question on the page; «Копия» and a new question stand on the page too;
- * «Удалить» asks first, as in the constructor, and the page takes the block off (its row is deleted with it).
+ * «Удалить» asks first, as in the constructor, and the page takes the block off (its row is deleted with it). The open
+ * editor holding changes is the page's to save too (its «Сохранить», Ctrl+S, the question before leaving: unsaved.ts).
  */
 
 const NEW = 'new:';
@@ -85,6 +87,17 @@ export default function ListView({
 
   const newType = editing?.startsWith(NEW) ? (editing.slice(NEW.length) as BuildType) : null;
   const template = useMemo(() => (newType ? templateItem(newType, build.subjectId, containerId) : null), [newType, build.subjectId, containerId]);
+  /** The open editor (one at a time: a card's or the new question's), for the page's «Сохранить». */
+  const handle = useRef<EditorHandle>(null);
+  const editingAt = editing && !newType ? list.findIndex((entry) => entry.id === editing) : -1;
+  useUnsaved(
+    'list',
+    editing !== null && dirty,
+    'question',
+    editingAt >= 0 ? editingAt + 1 : null,
+    busy !== null && (busy === editing || (busy === NEW && newType !== null)),
+    () => handle.current?.save() ?? Promise.resolve(true),
+  );
   const say = (id: string, text: string, error = false) => setNotes((current) => ({ ...current, [id]: { text, error } }));
 
   const run = (step: Step) => {
@@ -121,30 +134,33 @@ export default function ListView({
     return true;
   };
 
-  const saveEdit = async (item: TestItem, draft: Draft) => {
+  const saveEdit = async (item: TestItem, draft: Draft): Promise<boolean> => {
     const patch = patchOf(item, draft);
     if (!patch) {
       if (!goOn()) setEditing(null);
-      return;
+      return true;
     }
     setBusy(item.id);
     setEditError(null);
     try {
       const result = await studio.patchRow(item.id, patch);
       say(item.id, savedLine(item.id, result.rev_changed));
+      setDirty(false);
       if (!goOn()) {
         setEditing(null);
         refocus.current = `[data-act="edit:${item.id}"]`;
       }
+      return true;
     } catch (error) {
       setEditError(errorText(error));
+      return false;
     } finally {
       setBusy(null);
     }
   };
 
-  const saveNew = async (draft: Draft, next: boolean) => {
-    if (!newType) return;
+  const saveNew = async (draft: Draft, next: boolean): Promise<boolean> => {
+    if (!newType) return true;
     const type = newType;
     const number = list.length + 1;
     setBusy(NEW);
@@ -154,7 +170,8 @@ export default function ListView({
       const saved = blocks[0]?.type === 'question' ? blocks[0].item_id : null;
       if (saved) say(saved, BUILD.added(number));
       setStatus(BUILD.added(number));
-      if (goOn()) return;
+      setDirty(false);
+      if (goOn()) return true;
       if (next) {
         setEditing(`${NEW}${type}`);
         setRound((n) => n + 1);
@@ -163,8 +180,10 @@ export default function ListView({
         setEditing(null);
         refocus.current = '[data-place="end"] [data-act="add"]';
       }
+      return true;
     } catch (error) {
       setEditError(errorText(error));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -272,12 +291,13 @@ export default function ListView({
               setDirty(false);
               if (!goOn()) setEditing(null);
             }}
-            onSave={(draft) => void saveEdit(item, draft)}
+            onSave={(draft) => saveEdit(item, draft)}
             onCancel={() => {
               setEditing(null);
               setWaiting(null);
               refocus.current = `[data-act="edit:${item.id}"]`;
             }}
+            handle={handle}
           />
         )}
         onAction={(item, action) => void onAction(item, action)}
@@ -305,12 +325,13 @@ export default function ListView({
               setDirty(false);
               if (!goOn()) setEditing(null);
             }}
-            onSave={(draft) => void saveNew(draft, false)}
+            onSave={(draft) => saveNew(draft, false)}
             onSaveNext={(draft) => void saveNew(draft, true)}
             onCancel={() => {
               setEditing(null);
               setWaiting(null);
             }}
+            handle={handle}
           />
         </div>
       ) : list.length > 0 ? (

@@ -123,6 +123,12 @@ export type DocButtons = 'pill' | 'rounded' | 'square';
 export type DocBackground =
   | { kind: 'plain' }
   | { kind: 'soft'; tone: QuizAccent } // a soft gradient of the accent
+  /**
+   * The author's own colour (owner, 2026-11-04: «не могу поставить свой фон»): HEX_RE, lower case, shown as it is in
+   * both themes; the words laid straight on it take black or white, whichever reads (contrast.ts onColor).
+   * meldy_private.test_doc_ok knows it from 20261107090400_studio_color_bg.sql.
+   */
+  | { kind: 'color'; color: string }
   | { kind: 'image'; path: string; dim: number }; // dim 0..80 (%), the text stays readable
 
 export interface DocTheme {

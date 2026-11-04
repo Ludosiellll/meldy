@@ -46,6 +46,49 @@ export const STUDIO = {
   staleMore: 'Чтобы ничего не потерять, откройте последнюю версию.',
   reload: 'Обновить',
   invalid: 'Не сохранено',
+  /** The top bar's status when nothing waits (owner, 04.11: «нет кнопки сохранить»). */
+  allSaved: 'Все изменения сохранены',
+  /** The same where the bar is short (below 1500 px, a phone: «Сохранено» whole at 360 px). */
+  allSavedShort: 'Сохранено',
+  /** A question editor holds changes: the page itself may be saved, the question is not. */
+  questionUnsaved: (numbers: ReadonlyArray<number | null>) => {
+    const known = numbers.filter((n): n is number => n !== null);
+    if (known.length === 0) return 'Новый вопрос не сохранён';
+    if (known.length === 1 && numbers.length === 1) return `Вопрос ${known[0]} не сохранён`;
+    return 'Вопросы не сохранены';
+  },
+  /** The top bar's «Сохранить»: the page and the open question editor, both. */
+  saveAll: 'Сохранить',
+  saveAllKeys: 'Ctrl+S',
+  saveAllHint: 'Сохранить тест и открытый вопрос',
+  // the question before leaving with something not saved
+  leaveQuestion: (numbers: ReadonlyArray<number | null>) => {
+    const known = numbers.filter((n): n is number => n !== null);
+    if (numbers.length === 1 && known.length === 1) return `В вопросе ${known[0]} есть несохранённые правки`;
+    if (known.length === 0) return 'В новом вопросе есть несохранённые правки';
+    return `В вопросах ${known.join(', ')} есть несохранённые правки`;
+  },
+  leaveQuestionText: 'Если не сохранить, правки пропадут.',
+  leavePage: 'Тест не сохранён',
+  leavePageText: 'Если уйти сейчас, последние изменения пропадут.',
+  leaveStale: 'Тест изменён в другой вкладке: эти правки страницы уже не сохранятся.',
+  leaveSave: { go: 'Сохранить и выйти', view: 'Сохранить и перейти', send: 'Сохранить и отправить' },
+  /** «Текст» holds changes not applied: the status, the question before leaving, its answer. */
+  textUnapplied: 'Текст не применён',
+  leaveTextText: 'Если не применить, правки текста пропадут.',
+  leaveApply: { go: 'Применить и выйти', view: 'Применить и перейти', send: 'Применить и отправить' },
+  leaveFailedText: 'Текст не применился. Что мешает, написано рядом с ним.',
+  leaveDiscard: 'Не сохранять',
+  leaveStay: 'Остаться',
+  leaveFailedQuestion: 'Вопрос не сохранился. Что мешает, написано в нём самом.',
+  leaveFailedPage: (why: string) => `Тест не сохранился: ${why}`,
+  // where the changes show (one quiet line on the canvas)
+  where: {
+    design: 'Изменения сохраняются сами. По ссылке участники видят их сразу.',
+    plain: 'Изменения сохраняются сами. Ссылка, созданная раньше, показывает тест без оформления студии — новую даст «Отправить по ссылке».',
+    none: 'Изменения сохраняются сами. Участники увидят тест таким по ссылке из «Отправить по ссылке».',
+  },
+  whereOk: 'Понятно',
   loading: 'Открываю студию…',
   loadFailed: 'Студия не открылась.',
   rowFailed: 'Вопрос на сервере не изменился. Попробуйте ещё раз.',
@@ -240,7 +283,10 @@ export const STUDIO = {
   customColor: 'Свой цвет',
   nudged: 'Цвет чуть поправили, чтобы текст читался',
   background: 'Фон',
-  backgrounds: { plain: 'Ровный', soft: 'Мягкий', image: 'Картинка' },
+  backgrounds: { plain: 'Ровный', soft: 'Мягкий', color: 'Свой цвет', image: 'Картинка' },
+  bgColor: 'Цвет фона',
+  bgColorCode: 'Код цвета, например #f3e3c3',
+  bgColorHint: 'Текст на фоне станет тёмным или светлым — как лучше читается.',
   dim: 'Затемнение',
   dimValue: (n: number) => `${n} %`,
   font: 'Шрифт',

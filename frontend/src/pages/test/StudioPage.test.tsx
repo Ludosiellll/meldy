@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   fetchTestDoc: vi.fn(),
   saveTestDoc: vi.fn(),
   reload: vi.fn(),
+  listQuizzes: vi.fn(async () => [] as unknown[]),
   user: null as { id: string } | null,
   state: { summary: null as unknown, items: null as unknown, loading: false, error: null as string | null, gone: false },
 }));
@@ -44,7 +45,7 @@ vi.mock('../../lib/containers/hooks', () => ({
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: api.user, session: null, loading: false }) }));
 // Release 49 part B: the canvas reads its questions' percents (test_item_percents); none here, and no fetch of its own.
-vi.mock('../../api/quizzes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/quizzes')>()), itemPercents: vi.fn(async () => []) }));
+vi.mock('../../api/quizzes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/quizzes')>()), itemPercents: vi.fn(async () => []), listQuizzes: api.listQuizzes }));
 // The tour asks the profile whether it was seen (UX audit of 21.10): not yet.
 vi.mock('../../api/social', () => ({ getProfile: vi.fn(async () => ({ onboarding_status: {} })), markOnboardingTourSeen: vi.fn(async () => undefined) }));
 
@@ -164,7 +165,7 @@ afterEach(() => {
 });
 
 describe('StudioPage: loading and saving (plan «Saving»)', () => {
-  it('a new page: the exam’s name and its questions, saved first at revision 0, then «Сохранено»', async () => {
+  it('a new page: the exam’s name and its questions, saved first at revision 0, then «Все изменения сохранены»', async () => {
     api.fetchTestDoc.mockResolvedValue(null);
     renderStudio();
     expect(await screen.findByRole('group', { name: '1 из 3: Вопрос 1' })).toBeInTheDocument();
@@ -174,7 +175,7 @@ describe('StudioPage: loading and saving (plan «Saving»)', () => {
     expect([container, rev]).toEqual([EXAM, 0]);
     expect(doc.title).toBe('Химия, 8 класс');
     expect(doc.blocks.map((block: DocBlock) => (block.type === 'question' ? block.item_id : block.type))).toEqual([uid(1), uid(2), uid(3)]);
-    expect(await screen.findByText(STUDIO.saved)).toBeInTheDocument();
+    expect(await screen.findByText(STUDIO.allSaved)).toBeInTheDocument();
   });
 
   it('an empty test shows the four starters; one press adds its questions, binds them and saves the page', async () => {
@@ -247,7 +248,7 @@ describe('StudioPage: loading and saving (plan «Saving»)', () => {
     fireEvent.click(within(side()).getByRole('button', { name: STUDIO.layouts.pages }));
     expect(await screen.findByText(STUDIO.offline, {}, { timeout: 3000 })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: STUDIO.retry }));
-    expect(await screen.findByText(STUDIO.saved)).toBeInTheDocument();
+    expect(await screen.findByText(STUDIO.allSaved)).toBeInTheDocument();
     expect(lastSaved().layout).toBe('pages');
   });
 

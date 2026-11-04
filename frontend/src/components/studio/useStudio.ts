@@ -133,6 +133,12 @@ export interface Studio {
   /** A change of the page; `key` joins typing into one step (history typingKey). */
   change: (change: (doc: TestDoc) => TestDoc, key?: string | null) => void;
   save: SaveState;
+  /**
+   * The page here is not the page on the server yet: a change waiting for its save (800 ms), one on its way, or one that
+   * did not go (no network, a refusal). Worked out by identity (the page and the rows last found saved), not by comparing
+   * the whole page at every key; false after «Тест изменён в другой вкладке» (nothing is saved then).
+   */
+  pending: boolean;
   /** Save now (the retry of «Не сохранено»). */
   retrySave: () => void;
   /** Saves at once; true when the page on the server is the page here. */
@@ -178,6 +184,16 @@ export function toSend(doc: TestDoc, itemIds: Iterable<string>): TestDoc {
   return withoutUnfinished(withoutDangling(doc, itemIds));
 }
 
+/**
+ * The rows changed but not what a save would send of `doc`: each question block's row is there in both or in neither
+ * (a question saved in its editor changes a row, never the page).
+ */
+export function sameRowsOnPage(doc: TestDoc, rows: ReadonlyMap<string, unknown>, before: ReadonlyMap<string, unknown> | null): boolean {
+  if (rows === before) return true;
+  if (!before) return false;
+  return doc.blocks.every((block) => block.type !== 'question' || rows.has(block.item_id) === before.has(block.item_id));
+}
+
 export function useStudio(containerId: Uuid, build: Build): Studio {
   const loaded = build.data.data;
   const summary = build.summary;
@@ -190,6 +206,15 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   const [history, dispatch] = useReducer(reduce, null);
   const historyRef = useRef(history);
   historyRef.current = history;
+  /**
+   * A step of the history, seen at once by what reads the page before React renders it: «Применить» of «Текст» and
+   * the save right after it (the top bar's «Сохранить», «Применить и выйти») would otherwise send the page as it was.
+   * The reducer is pure, so React's next state is this same fold of the same steps.
+   */
+  const step = useCallback((act: Act) => {
+    historyRef.current = reduce(historyRef.current, act);
+    dispatch(act);
+  }, []);
   const [phase, setPhase] = useState<Studio['phase']>('loading');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
@@ -232,10 +257,12 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       const doc = syncQuestions(base, items);
       rev.current = stored?.rev ?? 0;
       lastSaved.current = stored ? stored.doc : base;
+      // Read as it is stored: nothing waits for a save (the top bar says «Все изменения сохранены» at once).
+      clean.current = sameValue(toSend(doc, ids), lastSaved.current) ? { doc, rows: rowsRef.current } : { doc: null, rows: null };
       paused.current = false;
       seen.current = new Set(questionIds(doc).filter((id) => rowsRef.current.has(id)));
       blocked.current.clear();
-      dispatch({ type: 'load', doc });
+      step({ type: 'load', doc });
       setSave({ kind: stored ? 'saved' : 'idle' });
       setPhase('ready');
       setLoadError(null);
@@ -246,7 +273,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
         setPhase((current) => (current === 'ready' ? current : 'error'));
       }
     }
-  }, [loaded, summary, containerId, subjectOrder]);
+  }, [loaded, summary, containerId, subjectOrder, step]);
 
   useEffect(() => {
     const key = `${containerId}:${loadRound}`;
@@ -294,7 +321,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
           snapshots.current.delete(old);
           seen.current.add(row.id);
           addLocal([item]);
-          dispatch({ type: 'remap', map: [{ ref: old, id: row.id }] });
+          step({ type: 'remap', map: [{ ref: old, id: row.id }] });
         })
         .catch(() => say(STUDIO.rowFailed))
         .finally(() => pending.current.delete(old));
@@ -326,9 +353,9 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       const next = syncQuestions(present, fresh);
       const added = next.blocks.length - present.blocks.length;
       setOverflow(fresh.length - added);
-      if (added > 0) dispatch({ type: 'amend', change: () => next });
+      if (added > 0) step({ type: 'amend', change: () => next });
     } else setOverflow(0);
-  }, [phase, present, rows, subjectOrder, containerId, addLocal, dropLocal, say, setOverflow]);
+  }, [phase, present, rows, subjectOrder, containerId, addLocal, dropLocal, say, setOverflow, step]);
 
   // Any change of the page lets a failed deletion try again.
   useEffect(() => {
@@ -404,7 +431,9 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
 
   // Closing the tab with changes not on the server asks first. Whether they are is worked out when the tab is closed,
   // not at every key (the smoothness audit of 20.10: the whole page was compared with the saved one at each letter).
-  const watching = phase === 'ready' && present !== null && save.kind !== 'stale' && (present !== clean.current.doc || rows !== clean.current.rows);
+  const unsent =
+    phase === 'ready' && present !== null && save.kind !== 'stale' && (present !== clean.current.doc || !sameRowsOnPage(present, rows, clean.current.rows));
+  const watching = unsent;
   useEffect(() => {
     if (!watching) return;
     const onLeave = (event: BeforeUnloadEvent) => {
@@ -425,11 +454,17 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
     return saveNow();
   }, [saveNow]);
 
+  // The studio closed (a link, «Назад») with a change still waiting for its 800 ms: it is sent now, not dropped with
+  // the timer. Nothing to send → no request (saveNow compares with the page last saved).
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+  useEffect(() => () => void saveNowRef.current(), []);
+
   // ───────────────────────────── edits ─────────────────────────────
 
   const change = useCallback((fn: (doc: TestDoc) => TestDoc, key: string | null = null) => {
-    dispatch({ type: 'record', change: fn, key, at: Date.now() });
-  }, []);
+    step({ type: 'record', change: fn, key, at: Date.now() });
+  }, [step]);
 
   const full = () => (historyRef.current?.present.blocks.length ?? 0) >= DOC_MAX_BLOCKS;
 
@@ -464,6 +499,10 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
         seen.current.add(item.id);
       }
       addLocal([...made.values()]);
+      // Seen at once by a save right after (as the page's steps): the rows come to the page with the next render.
+      const known = new Map(rowsRef.current);
+      for (const item of made.values()) known.set(item.id, item);
+      rowsRef.current = known;
       window.setTimeout(() => {
         for (const item of made.values()) pending.current.delete(item.id);
       }, 0);
@@ -651,8 +690,8 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   }, [save]);
 
   const fallback = useMemo(() => emptyDoc(summary?.title ?? ''), [summary?.title]);
-  const undo = useCallback(() => dispatch({ type: 'undo' }), []);
-  const redo = useCallback(() => dispatch({ type: 'redo' }), []);
+  const undo = useCallback(() => step({ type: 'undo' }), [step]);
+  const redo = useCallback(() => step({ type: 'redo' }), [step]);
   const retrySave = useCallback(() => void saveNow(), [saveNow]);
   const doc = present ?? fallback;
   const undoable = history ? canUndo(history) : false;
@@ -672,6 +711,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       redo,
       change,
       save,
+      pending: unsent,
       retrySave,
       flush,
       reloadDoc,
@@ -704,6 +744,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       redo,
       change,
       save,
+      unsent,
       retrySave,
       flush,
       reloadDoc,

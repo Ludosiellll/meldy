@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from 'react';
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type Ref } from 'react';
 import { isPictureFile, pictureFromFile, picturePath, uploadPicture } from '../../../api/itemPictures';
 import { PICTURE_LIMITS, type BankPicture, type TestItem } from '../../../types/container';
 import { EDITOR, letter, nb } from '../copyImport';
@@ -40,10 +40,21 @@ const kindChoiceOf = (draft: Draft): KindChoice => draft.kind ?? (draft.short ? 
  * grow with their text. It says before saving when the change restarts the question for the group (decision 15; an
  * explanation never does) and when the question would have no key. The page saves: an existing question through
  * container_item_update, a new one through container_items_add (editorModel.ts). A page that guards changes not saved
- * hears of them (`onDirty`) and asks about them inside the editor (`unsaved`: «Сохранить» / «Не сохранять»).
+ * hears of them (`onDirty`) and asks about them inside the editor (`unsaved`: «Сохранить» / «Не сохранять»); a page
+ * with a «Сохранить» of its own (the studio's top bar, Ctrl+S, «Сохранить и выйти») presses this one through `handle`.
  */
 
 type Target = 'stem' | number;
+
+/** What a page may ask of the editor (the studio's «Сохранить» for everything, Ctrl+S, «Сохранить и выйти»). */
+export interface EditorHandle {
+  /**
+   * The editor's «Сохранить», with its checks and its lines: true once nothing is left unsaved (nothing was, or the
+   * page's save of it went through); false when the editor stopped it (a problem shown, a picture still loading, a save
+   * already on its way) or the page's save failed (its error shown in the editor).
+   */
+  save: () => Promise<boolean>;
+}
 
 interface Props {
   containerId: string;
@@ -55,7 +66,8 @@ interface Props {
   busy?: boolean;
   /** The page's line after a failed save. */
   error?: string | null;
-  onSave: (draft: Draft) => void;
+  /** The page's save; a promise of false when it failed (`handle.save` then answers false). */
+  onSave: (draft: Draft) => void | Promise<unknown>;
   onCancel: () => void;
   /** Puts a picture into the bucket (tests replace it). */
   upload?: (path: string, picture: BankPicture) => Promise<'kept' | 'refused'>;
@@ -70,6 +82,12 @@ interface Props {
   /** The page asks what to do with the changes before it goes on: the line, «Сохранить» and «Не сохранять». */
   unsaved?: string | null;
   onDiscard?: () => void;
+  /** The page's way to press «Сохранить» (EditorHandle). */
+  handle?: Ref<EditorHandle>;
+  /** A draft the page kept for this question (the editor mounted again elsewhere): taken instead of the question's own. */
+  initialDraft?: Draft | null;
+  /** Told of every change of the draft (the page keeps it while it differs from the question). */
+  onDraft?: (draft: Draft) => void;
 }
 
 const GROWS = 'textarea.qe-text';
@@ -148,9 +166,12 @@ export default function QuestionEditor({
   onDirty,
   unsaved = null,
   onDiscard,
+  handle,
+  initialDraft = null,
+  onDraft,
 }: Props) {
   const id = useId();
-  const [draft, setDraft] = useState<Draft>(() => (item ? draftOf(item) : emptyDraft()));
+  const [draft, setDraft] = useState<Draft>(() => initialDraft ?? (item ? draftOf(item) : emptyDraft()));
   const [local, setLocal] = useState<Record<string, BankPicture>>({});
   const [loading, setLoading] = useState(0);
   /**
@@ -186,7 +207,13 @@ export default function QuestionEditor({
   const canSave = !busy && loading === 0 && problems.length === 0 && !unchanged;
   const dirty = useMemo(() => draftChanged(item, draft), [item, draft]);
 
-  // The page hears of changes not saved (its guard and the browser's «Покинуть сайт?»).
+  // The page hears of changes not saved (its guard and the browser's «Покинуть сайт?»), and of the draft itself.
+  const onDraftRef = useRef(onDraft);
+  onDraftRef.current = onDraft;
+  const firstDraft = useRef(draft);
+  useEffect(() => {
+    if (draft !== firstDraft.current) onDraftRef.current?.(draft);
+  }, [draft]);
   const onDirtyRef = useRef(onDirty);
   onDirtyRef.current = onDirty;
   useEffect(() => {
@@ -271,6 +298,19 @@ export default function QuestionEditor({
     focusOption.current = null;
     formRef.current?.querySelector<HTMLTextAreaElement>(`[data-option="${at}"]`)?.focus();
   });
+
+  // The page presses «Сохранить» (EditorHandle): the same checks as the button; what stops it is shown where it is.
+  const pressSave = useRef<() => Promise<boolean>>(async () => true);
+  pressSave.current = async () => {
+    if (!dirty) return true;
+    if (!canSave) {
+      formRef.current?.querySelector('.qe-notes')?.scrollIntoView?.({ block: 'nearest' });
+      return false;
+    }
+    const result = await onSave(draft);
+    return result !== false;
+  };
+  useImperativeHandle(handle, () => ({ save: () => pressSave.current() }), []);
 
   // The page asks about the changes: the answer's first button takes the focus (it brings the line into view).
   useEffect(() => {

@@ -5,6 +5,7 @@ import { errorText } from '../containers/copyImport';
 import { STUDIO } from './copyStudio';
 import StudioPasteNote from '../quick/StudioPasteNote';
 import { questionParagraphs } from '../quick/studioPaste';
+import { useUnsaved } from './unsaved';
 import type { Studio } from './useStudio';
 
 /**
@@ -12,7 +13,10 @@ import type { Studio } from './useStudio';
  * field, the marks beside it, and «Применить»: fromText reads it back — problems are listed by line (a press puts the
  * cursor on that line) and nothing changes until there are none; questions the text left out are deleted only after
  * «Удалить и применить». New questions are added (container_items_add), changed ones saved (container_item_update).
- * While the text holds changes not applied, the canvas's changes do not overwrite it.
+ * While the text holds changes not applied, the canvas's changes do not overwrite it, and the page knows (unsaved.ts):
+ * its status says «Текст не применён», its «Сохранить» and Ctrl+S press «Применить», leaving asks — and a text that
+ * cannot be applied as it is (problems by line, Word paragraphs to decide on, questions it would delete) stops them,
+ * saying why here.
  */
 export default function TextView({ studio, items, start }: { studio: Studio; items: readonly TestItem[]; start?: string | null }) {
   const id = useId();
@@ -32,7 +36,8 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
     if (!held) setText(base);
   }, [base, held]);
 
-  const run = async (result: TextResult) => {
+  /** true once the text is the page. */
+  const run = async (result: TextResult): Promise<boolean> => {
     setConfirm(null);
     setWorking(true);
     setStatus({ text: STUDIO.textApplying, bad: false });
@@ -41,37 +46,44 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
       setHeld(false);
       setChecked(null);
       setStatus({ text: STUDIO.textApplied, bad: false });
+      return true;
     } catch (error) {
       setStatus({ text: errorText(error), bad: true });
+      return false;
     } finally {
       setWorking(false);
     }
   };
 
-  /** `ask` false: no question about Word paragraphs (they were made questions, or kept as text on purpose). */
-  const apply = (value: string = text, ask = true) => {
+  /**
+   * «Применить»; `ask` false: no question about Word paragraphs (they were made questions, or kept as text on purpose).
+   * true once the text is the page; false while it waits here (its problems, the paragraphs, the questions it deletes).
+   */
+  const apply = async (value: string = text, ask = true): Promise<boolean> => {
     const result = fromText(value, studio.doc, items);
     setChecked(result);
     setStatus(null);
     setRescue(null);
-    if (result.problems.length > 0) return;
+    if (result.problems.length > 0) return false;
     const paragraphs = ask ? questionParagraphs(studio.doc, result.doc) : [];
     if (paragraphs.length > 0) {
       setRescue(paragraphs);
-      return;
+      return false;
     }
     const nothing = result.doc === studio.doc && result.adds.length === 0 && result.updates.length === 0 && result.removes.length === 0;
     if (nothing) {
       setHeld(false);
       setStatus({ text: STUDIO.textNothing, bad: false });
-      return;
+      return true;
     }
     if (result.removes.length > 0) {
       setConfirm(result);
-      return;
+      return false;
     }
-    void run(result);
+    return run(result);
   };
+  // The page's «Сохранить», Ctrl+S and «Применить и выйти» press «Применить» while the text holds changes.
+  useUnsaved('text', held, 'text', null, working, () => apply());
 
   const goToLine = (line: number) => {
     const area = areaRef.current;
@@ -112,7 +124,7 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
           onKeyDown={(event) => {
             if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
               event.preventDefault();
-              apply();
+              void apply();
             }
           }}
         />
@@ -122,7 +134,7 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
           {STUDIO.textLead}
         </p>
         <div className="st-text-acts">
-          <button type="button" className="sf-primary st-apply" disabled={working} aria-busy={working || undefined} onClick={() => apply()}>
+          <button type="button" className="sf-primary st-apply" disabled={working} aria-busy={working || undefined} onClick={() => void apply()}>
             {STUDIO.textApply}
           </button>
           {held ? (
@@ -147,12 +159,12 @@ export default function TextView({ studio, items, start }: { studio: Studio; ite
           <StudioPasteNote
             text={text}
             paragraphs={rescue}
-            onKeep={() => apply(text, false)}
+            onKeep={() => void apply(text, false)}
             onMade={(next) => {
               // Questions without a marked answer are listed by the text's own problems («отметьте его «+»»).
               setText(next);
               setHeld(true);
-              apply(next, false);
+              void apply(next, false);
             }}
           />
         ) : null}
