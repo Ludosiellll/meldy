@@ -277,7 +277,9 @@ describe('the report', () => {
     document.title = 'Meldy — помощник для учёбы';
     const view = openReport();
     await screen.findByRole('article', { name: 'Макроэкономика' });
-    expect(document.title).toBe('Отчёт сверки — Макроэкономика');
+    // the title is set by an effect after the report renders: under a loaded full run the article can be in the DOM a
+    // moment before the effect has run, so the check waits for it rather than reading it at once
+    await waitFor(() => expect(document.title).toBe('Отчёт сверки — Макроэкономика'));
     view.unmount();
     expect(document.title).toBe('Meldy — помощник для учёбы');
   });
