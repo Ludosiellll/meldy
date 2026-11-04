@@ -6,7 +6,7 @@ import { answered as hasAnswer, answerFields, gradeAnswer, type KindAnswer } fro
 import { gapForms } from '../../lib/kinds/cloze';
 import { shortNorm } from '../../lib/kinds/norm';
 import { neverInOrder, rightOrderOf } from '../../lib/kinds/shuffle';
-import { NEW_KINDS } from '../../types/container';
+import { aiKeyShown, NEW_KINDS } from '../../types/container';
 import { KINDS } from '../kinds/copyKinds';
 import { NumberKeyLine } from '../kinds/KindBody';
 import type { KindReview } from '../kinds/KindBody';
@@ -649,7 +649,9 @@ export default function StudyRun(props: StudyRunProps) {
 
   const notes: string[] = [];
   if (pending) {
-    if (item.key_source === 'manual') notes.push(author ? copy.NOTE_MANUAL_OWN : copy.NOTE_MANUAL_AUTHOR);
+    // a key the AI suggested says so beside «Сомневаюсь в ключе» / «Ключ неверный?» (owner, 2026-11-04)
+    if (aiKeyShown(item)) notes.push(copy.NOTE_AI_KEY);
+    else if (item.key_source === 'manual') notes.push(author ? copy.NOTE_MANUAL_OWN : copy.NOTE_MANUAL_AUTHOR);
     if (!author && item.rev > 1 && item.updated_at) notes.push(copy.noteKeyFixed(dayText(item.updated_at.slice(0, 10))));
   }
 

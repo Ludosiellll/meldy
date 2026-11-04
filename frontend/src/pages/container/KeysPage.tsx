@@ -1,4 +1,4 @@
-import { NEW_KINDS } from '../../types/container';
+import { aiKeyShown, NEW_KINDS } from '../../types/container';
 import { KIND_NAMES } from '../../components/kinds/copyKinds';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -374,6 +374,7 @@ export default function KeysPage() {
         {keyed ? (
           <p className="kq-note" data-muted="">
             {keyLine}
+            {aiKeyShown(item) ? ` ${KEYS.aiKey}` : null}
           </p>
         ) : null}
         {doubt?.notes && doubt.notes.length > 0 ? (

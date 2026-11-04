@@ -238,6 +238,28 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(plain(option('Третья').textContent)).not.toContain('В файле');
   });
 
+  it('a key «Подобрать ключи с ИИ» suggested says so beside the key links; once the author changed it, it does not', () => {
+    const flagged = (rev: number) => dbItems().map((entry) => (entry.id === 'q-plain' ? { ...entry, flags: ['ai_key'], rev } : entry));
+    // a member: «Сомневаюсь в ключе» and the label under it
+    renderStudy(dataWith(['q-plain'], { items: flagged(1), summary: summary({ role: 'member', owner: null }) }));
+    fireEvent.click(option('Первая'));
+    expect(screen.getByRole('button', { name: 'Сомневаюсь в ключе' })).toBeInTheDocument();
+    expect(page()).toContain('Ключ подобран ИИ, не из файла.');
+    expect(page()).not.toContain('Ключ поставил автор');
+    cleanup();
+    // the author: «Ключ неверный?» and the label
+    renderStudy(dataWith(['q-plain'], { items: flagged(1) }));
+    fireEvent.click(option('Первая'));
+    expect(screen.getByRole('button', { name: 'Ключ неверный?' })).toBeInTheDocument();
+    expect(page()).toContain('Ключ подобран ИИ, не из файла.');
+    cleanup();
+    // the key changed since (rev 2): the author's key, as any other
+    renderStudy(dataWith(['q-plain'], { items: flagged(2) }));
+    fireEvent.click(option('Первая'));
+    expect(page()).not.toContain('Ключ подобран ИИ');
+    expect(page()).toContain('Ключ поставили вы.');
+  });
+
   it('«Нажали не туда?» marks the answer as a misclick: no mistake, no retry in this session', async () => {
     renderStudy(dataWith(['q-iso', 'q-plain']));
     fireEvent.click(option('READ COMMITTED'));

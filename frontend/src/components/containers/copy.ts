@@ -336,6 +336,8 @@ export const DOUBT = 'Сомневаюсь в ключе';
 export const KEY_WRONG = 'Ключ неверный?';
 export const NOTE_MANUAL_AUTHOR = glue('В файле ответ не был выделен. Ключ поставил автор.');
 export const NOTE_MANUAL_OWN = glue('В файле ответ не был выделен. Ключ поставили вы.');
+/** A key from «Подобрать ключи с ИИ» (flag ai_key; owner, 2026-11-04), beside «Сомневаюсь в ключе» / «Ключ неверный?». */
+export const NOTE_AI_KEY = glue('Ключ подобран ИИ, не из файла.');
 export const noteKeyFixed = (dayText: string) => glue(`Автор исправил ключ ${dayText}.`);
 export const OFFLINE_STUDY = 'Нет сети. Ответы сохраним здесь и отправим, когда сеть появится.';
 export const KEYS_HINT = glue('1–8 — ответ · 0 — не знаю · Enter — дальше · Backspace — нажали не туда');

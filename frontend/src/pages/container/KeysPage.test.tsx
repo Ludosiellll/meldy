@@ -124,6 +124,22 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(api.reload).toHaveBeenCalled();
   });
 
+  it('a key «Подобрать ключи с ИИ» suggested is labelled where it shows, until the author changes it', async () => {
+    const items = itemsFor();
+    const five = BASE_ITEMS[4];
+    items.set(five.id, { ...items.get(five.id)!, flags: ['ai_key'], rev: 1 });
+    api.state.items = items;
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: /Ключ поставили вы/ }));
+    expect(await screen.findByText(/Ключ подобран ИИ, не из файла\./)).toBeInTheDocument();
+    cleanup();
+    items.set(five.id, { ...items.get(five.id)!, flags: ['ai_key'], rev: 2 });
+    renderAt();
+    fireEvent.click(await screen.findByRole('button', { name: /Ключ поставили вы/ }));
+    expect(await screen.findByText(/Ключ сейчас:/)).toBeInTheDocument();
+    expect(screen.queryByText(/Ключ подобран ИИ/)).toBeNull();
+  });
+
   it('a doubted question shows the count, the proposal, the notes and the majority; «Ключ верный» keeps it', async () => {
     renderAt();
     fireEvent.click(await screen.findByRole('button', { name: /Сомневаются в ключе/ }));
