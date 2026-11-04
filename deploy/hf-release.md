@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-04 — Release 50.3: group links live as long as the exam; «Продлить», «Открыть снова»; a new link closes nothing (from the commit of this entry)
+
+- **Why**: the owner (04.11): «ссылка истекает, хотя не должна + потом люди не могут продлить продолжение экзамена». On
+  03.11 «Пригласить группу» on a device without the link's code made a new link, which closed the one 19 members had
+  joined by; the new one ended two days after the exam's date, and moving the exam never moved a link. The first link
+  was reopened by a data fix (20261107090100).
+- **Links**: a new link closes nothing; «Пригласить группу» lists every link of the exam with its end and «вошли N»:
+  «Продлить», «Закрыть её» (asks), «Открыть снова» (asks, says who can come in again). A link lives at least 120 days and
+  until 30 days after the exam (at most about two years); moving the exam or a subject (site, «Настройки», the bot)
+  extends open links.
+- **Members**: a member's oral subject follows the author's moved date (unless the member set their own); a member
+  without their oral copy is told so and asked again after a reopen; `/g/` says plainly when a link is closed or
+  expired and lets a member sign in.
+- **Fair and safe** (independent review twice, then fixes): only the author extends or reopens; a reopen gives new oral
+  codes, so a removed member's old code stays dead; a container's oral shares take only its members, also after the
+  exam is deleted; dates outside 2000–2100 are refused; no deadlock between a join and a move.
+- **Order**: migration 20261107090200 first (applied), then this site.
+
 ## 2026-11-04 — Release 50.2: «Удалить экзамен» on the exam page; a deleted exam takes its oral subjects (from the commit of this entry)
 
 - **Why**: the owner deleted an exam made from 24 college test files; ten «Предмет N» of one question each turned up in
