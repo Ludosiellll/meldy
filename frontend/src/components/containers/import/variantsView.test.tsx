@@ -72,6 +72,6 @@ describe('a subject made of variants on the import page', () => {
     expect(plain(document.body.textContent)).toContain('Этот вопрос есть в нескольких вариантах, а ответы в них отмечены разные: варианты 1–6, 8–12 — Б, вариант 7 — Г.');
     expect(plain(document.body.textContent)).toContain('Сети · № 1 · Вариант 1');
     fireEvent.click(screen.getByRole('button', { name: /два/ }));
-    expect(onFix).toHaveBeenCalledWith(item.uid, { correct: [1], kind: 'single' });
+    expect(onFix).toHaveBeenCalledWith(item.uid, { correct: [1], kind: 'single', aiKey: false });
   });
 });

@@ -1,7 +1,7 @@
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import MoreMenu from '../../ui/MoreMenu';
-import { count, IMPORT, keyShareLine, nb, PROBLEM_PARTS } from '../copyImport';
+import { count, IMPORT, KEYS_AI_WORDS, keyShareLine, nb, PROBLEM_PARTS } from '../copyImport';
 import { problemParts, type DraftSubject } from './importModel';
 
 /**
@@ -28,9 +28,11 @@ interface Props {
   onFormat: ((format: 'open' | 'test') => void) | null;
   /** Variants of one subject: split them into one subject per file (true) or join them again (false). */
   onSplit?: (split: boolean) => void;
+  /** «Подобрать ключи с ИИ» for this subject, its run and its keys to check (ImportPage). */
+  aiKeys?: ReactNode;
 }
 
-export default function SubjectDetail({ subject, phone, onBack, onRename, onRemove, onRestore, onCheck, onKeySource, onMerge, onFormat, onSplit }: Props) {
+export default function SubjectDetail({ subject, phone, onBack, onRename, onRemove, onRestore, onCheck, onKeySource, onMerge, onFormat, onSplit, aiKeys }: Props) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(subject.title);
   const fieldId = useId();
@@ -163,6 +165,13 @@ export default function SubjectDetail({ subject, phone, onBack, onRename, onRemo
           ) : null}
         </p>
       ) : null}
+
+      {subject.aiKeyed > 0 ? (
+        <p className="im-line" data-muted="">
+          {nb(KEYS_AI_WORDS.detailAi(subject.aiKeyed))}
+        </p>
+      ) : null}
+      {aiKeys}
 
       {subject.source === 'pdf' ? <p className="im-line" data-muted="">{IMPORT.pdfNote}</p> : null}
 

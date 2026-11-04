@@ -283,6 +283,10 @@
 .sf-page .im-keyfile-choose { display: grid; gap: 6px; margin-top: 8px; }
 .sf-page .im-keyfile-choose .im-nokey-acts { gap: 8px 10px; }
 .sf-page .im-keytext-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 4px; }
+/* «Подобрать ключи с ИИ»: the button, its count and price, the rule under it. */
+.sf-page .im-aikeys .im-hint { margin-top: 2px; }
+.sf-page .im-aikeys-meta { color: var(--sf-muted); font-size: 15px; }
+.sf-page .im-nokey .im-aikeys .im-line { margin-top: 8px; }
 /* A subject made of variants: which variant's file the key list goes to. */
 .sf-page .im-keysrc-variant { display: grid; gap: 6px; margin-top: 10px; }
 .sf-page .im-keysrc-variant .im-hint,

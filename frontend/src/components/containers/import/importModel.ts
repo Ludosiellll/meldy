@@ -84,6 +84,17 @@ export interface ItemFix {
   imageOk?: boolean;
   keepBoth?: boolean;
   accept?: boolean;
+  /**
+   * «Подобрать ключи с ИИ» (owner, 2026-11-04): `correct` came from the AI, not the file. Saved as a key the student set
+   * (key_source 'manual') with the flag ai_key, and waits in the queue «Проверьте ключи от ИИ» until accepted (aiOk) or
+   * changed (a key the student taps drops aiKey).
+   */
+  aiKey?: boolean;
+  aiOk?: boolean;
+  /** The AI gave no key: 'low' (not sure, the answers differed — asking again gives the same), 'none' (no answer). */
+  aiTried?: 'low' | 'none';
+  /** The server's note for a question it gave no key («ИИ не уверен»). */
+  aiNote?: string;
 }
 export interface SubjectEdit {
   title?: string;
@@ -119,7 +130,9 @@ export type Problem =
   | 'partial'
   | 'no_key'
   | 'duplicate'
-  | 'too_long';
+  | 'too_long'
+  /** A key the AI suggested («Подобрать ключи с ИИ»): not a problem of the file, the student confirms it apart. */
+  | 'ai_key';
 
 export interface DraftItem {
   uid: string;
@@ -160,6 +173,8 @@ export interface DraftItem {
   variant?: number | null;
   /** The same question in several variants with different keys (in this question's option indices): it waits for the student. */
   variantKeys?: VariantKey[];
+  /** The key came from «Подобрать ключи с ИИ», not the file: labelled «Ключ подобран ИИ, не из файла» (flag ai_key). */
+  aiKey?: boolean;
 }
 
 /** One key a question has in some of the variants (variant numbers; null — a file without one). */
@@ -241,6 +256,8 @@ export interface DraftSubject {
   variants: VariantInfo | null;
   /** Questions of other variants left out as repeats of one already in the subject. */
   variantRepeats: number;
+  /** Keys from «Подобрать ключи с ИИ» (not counted in `keyed`, which says what the file marked). */
+  aiKeyed: number;
 }
 
 // ─────────────────────────────────────────────── helpers ───────────────────────────────────────────────
@@ -303,8 +320,10 @@ function utf8Length(text: string): number {
 
 const PROBLEM_ORDER: readonly Problem[] = [
   'image', 'no_options', 'few_options', 'many_options', 'empty_option', 'same_options', 'several', 'key_conflict',
-  'key_invalid', 'key_letter', 'partial', 'no_key', 'duplicate', 'too_long',
+  'key_invalid', 'key_letter', 'partial', 'no_key', 'duplicate', 'too_long', 'ai_key',
 ];
+/** The flag of a key the AI suggested (test_items.flags; owner, 2026-11-04). */
+export const AI_KEY_FLAG = 'ai_key';
 const KEY_FLAGS = new Set(['no_key', 'several_marked', 'key_conflict', 'key_invalid', 'key_letter_ambiguous', 'partial_mark']);
 const SHAPE_FLAGS = new Set(['has_image', 'duplicate', 'empty_option', 'same_options', 'many_options', 'few_options', 'no_options', 'too_long']);
 const FLAG_RE = /^[a-z_]{1,32}$/;
@@ -591,9 +610,13 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
   }
   if (unresolvedDuplicate) problems.push('duplicate');
   if (unresolvedLong) problems.push('too_long');
+  // «Подобрать ключи с ИИ»: a key the AI suggested is a key the student set, with its flag, until they change it
+  const aiKey = Boolean(fix.aiKey && fix.correct && correct.length > 0);
+  if (aiKey && !fix.aiOk) problems.push('ai_key');
 
   const saveKey = !imageLost && !several && correct.length > 0;
   const keyFlags: string[] = [];
+  if (aiKey && saveKey) keyFlags.push(AI_KEY_FLAG);
   if (!imageLost && correct.length === 0 && !noOptions) keyFlags.push('no_key');
   if (several) keyFlags.push('several_marked');
   if (auto && !fix.correct) {
@@ -629,6 +652,7 @@ export function draftItem(item: BankItem, context: ItemContext): DraftItem {
     blocked,
     images,
     ...(explanationOf(item) ? { explanation: explanationOf(item) } : {}),
+    ...(aiKey ? { aiKey: true } : {}),
   };
 }
 
@@ -932,7 +956,9 @@ function emitSubject(out: DraftSubject[], spec: SubjectSpec, edits: ImportEdits)
     items: [...test, ...blocked].filter((item) => item.topic === index + 1).length,
   }));
 
-  const keyedTest = test.filter((item) => item.kind === 'short' || item.correct.length > 0);
+  // a key the AI suggested is not the file's: «Ответ выделен жирным в N из M» counts the file's own (aiKeyed apart)
+  const keyedTest = test.filter((item) => (item.kind === 'short' || item.correct.length > 0) && !item.aiKey);
+  const aiKeyed = test.filter((item) => item.aiKey && item.correct.length > 0).length;
   const choice = test.filter((item) => item.kind !== 'short');
   const sources = new Map<KeySource, number>();
   for (const item of keyedTest) sources.set(item.keySource, (sources.get(item.keySource) ?? 0) + 1);
@@ -1000,6 +1026,7 @@ function emitSubject(out: DraftSubject[], spec: SubjectSpec, edits: ImportEdits)
       topicCounts: first ? topicCounts : [],
       variants: spec.variants,
       variantRepeats: first ? spec.variantRepeats : 0,
+      aiKeyed: first ? aiKeyed : 0,
     });
   }
 }
@@ -1231,9 +1258,23 @@ export function queueOf(subjects: readonly DraftSubject[]): QueueEntry[] {
   for (const subject of activeSubjects(subjects)) {
     const items = subjectOrder([...subject.test, ...subject.blocked], subject.files.map((entry) => entry.id));
     for (const item of items) {
-      const problems = subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems;
+      // a key from the AI is confirmed in its own queue (aiKeyQueue), not counted with the file's problems
+      const problems = (subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems).filter(
+        (problem) => problem !== 'ai_key',
+      );
       if (problems.length === 0) continue;
       out.push({ uid: item.uid, subjectKey: subject.key, subjectTitle: subject.title, item, problem: problems[0] });
+    }
+  }
+  return out;
+}
+
+/** «Проверьте ключи от ИИ (N)»: the keys the AI suggested that the student has not accepted or changed yet. */
+export function aiKeyQueue(subjects: readonly DraftSubject[]): QueueEntry[] {
+  const out: QueueEntry[] = [];
+  for (const subject of activeSubjects(subjects)) {
+    for (const item of subjectOrder(subject.test, subject.files.map((entry) => entry.id))) {
+      if (item.problems.includes('ai_key')) out.push({ uid: item.uid, subjectKey: subject.key, subjectTitle: subject.title, item, problem: 'ai_key' });
     }
   }
   return out;
@@ -1243,7 +1284,9 @@ export function queueOf(subjects: readonly DraftSubject[]): QueueEntry[] {
 export function problemParts(subject: DraftSubject): Array<{ problem: Problem | 'variant_keys'; n: number }> {
   const counts = new Map<Problem | 'variant_keys', number>();
   for (const item of [...subject.test, ...subject.blocked]) {
-    const problems = subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems;
+    const problems = (subject.allNoKey ? item.problems.filter((problem) => problem !== 'no_key') : item.problems).filter(
+      (problem) => problem !== 'ai_key',
+    );
     if (!problems.length) continue;
     // the same question in two variants with different keys is told apart from a key list against the file's marks
     const part = problems[0] === 'key_conflict' && item.variantKeys ? 'variant_keys' : problems[0];
@@ -1296,8 +1339,9 @@ export function isSingleOralList(subjects: readonly DraftSubject[]): boolean {
 
 /** Three questions with a key, spread across the subjects, to compare with the file («Сверить ключ на трёх вопросах»). */
 export function spotCheck(subjects: readonly DraftSubject[]): Array<{ subject: string; item: DraftItem }> {
+  // a key the AI suggested is not compared with the file: the file has none
   const keyed = activeSubjects(subjects).flatMap((subject) =>
-    subject.test.filter((item) => item.kind !== 'short' && item.correct.length > 0).map((item) => ({ subject: subject.title, item })),
+    subject.test.filter((item) => item.kind !== 'short' && item.correct.length > 0 && !item.aiKey).map((item) => ({ subject: subject.title, item })),
   );
   if (keyed.length <= 3) return keyed;
   const picks = [Math.floor(keyed.length / 6), Math.floor(keyed.length / 2), Math.floor((keyed.length * 5) / 6)];

@@ -479,6 +479,45 @@ export const PARSE_ERRORS: Record<string, string> = {
   unknown: 'Файл не прочитался. Попробуйте ещё раз.',
 };
 
+// ─────────────────────────────────────────── «Подобрать ключи с ИИ» ───────────────────────────────────────────
+
+/** The label of a key the AI suggested, wherever the key shows (owner, 2026-11-04). */
+export const AI_KEY_LABEL = 'Ключ подобран ИИ, не из файла';
+
+/**
+ * «Подобрать ключи с ИИ» (owner, 2026-11-04; docs/import/KEYS_AI.md): the button with its count and price, the run,
+ * its result and the errors. No model's or vendor's name: «ИИ».
+ */
+export const KEYS_AI_WORDS = {
+  go: 'Подобрать ключи с ИИ',
+  /** Beside the button: how many questions go and what it costs. */
+  offer: (n: number, cost: number) => `${count(n, 'вопрос', 'вопроса', 'вопросов')} без ключа · ${units(cost)}`,
+  rule: 'Ключ ставим, только если ИИ дважды ответил одинаково и уверенно. Такой ключ подписан и ждёт вашей проверки.',
+  running: (done: number, total: number) => `ИИ подбирает ключи: ${done} из ${total}. Можно проверять остальные вопросы.`,
+  keyed: (keyed: number, sent: number) =>
+    keyed === 0 ? `ИИ не подобрал ни одного ключа из ${sent}.` : `Ключи подобраны для ${keyed} из ${count(sent, 'вопроса', 'вопросов', 'вопросов')}.`,
+  left: (n: number, notes: ReadonlyArray<[string, number]>) =>
+    `Без ключа ${n % 10 === 1 && n % 100 !== 11 ? 'остался' : 'остались'} ${n}${notes.length ? `: ${notes.map(([note, k]) => `${note} — ${k}`).join(', ')}` : ''}.`,
+  spent: (n: number) => `Списано ${units(n)}.`,
+  check: (n: number) => `Проверьте ключи от ИИ (${n}).`,
+  /** The subject row: keys only from the AI, or some besides the file's. */
+  rowAi: 'ключи от ИИ',
+  rowAiMore: (n: number) => `${n} от ИИ`,
+  /** The subject's preview, under «Ответ выделен жирным в N из M». */
+  detailAi: (n: number) => `Ещё ${count(n, 'ключ', 'ключа', 'ключей')} подобрал ИИ, ${n % 10 === 1 && n % 100 !== 11 ? 'он подписан' : 'они подписаны'}.`,
+  unsure: 'ИИ не уверен',
+  noAnswer: 'ИИ не дал ответа',
+  limit: 'Дневной лимит ИИ на сегодня исчерпан. Ключи можно отметить вручную или подобрать завтра.',
+  busy: 'ИИ сейчас занят. Попробуйте подобрать ключи через минуту.',
+  tooMany: 'Слишком много запросов. Подождите минуту и повторите.',
+  tooBig: 'Вопросов слишком много для одного раза. Уберите лишний предмет и попробуйте ещё раз.',
+  badRequest: 'Не удалось отправить вопросы. Обновите страницу и попробуйте ещё раз.',
+  network: 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+  failed: 'Не удалось подобрать ключи. Попробуйте ещё раз.',
+  /** A run stopped by an error after some requests: what came back stays. */
+  partial: (keyed: number) => `Ключи, подобранные до ошибки (${keyed}), остались.`,
+} as const;
+
 // ─────────────────────────────────────────────── the problem queue ───────────────────────────────────────────────
 
 export const QUEUE = {
@@ -497,6 +536,9 @@ export const QUEUE = {
   several: (marked: number[]) => (marked.length >= 2 ? `В файле выделены ${marked.length === 2 ? 'два ответа' : 'несколько ответов'}: ${lettersText(marked)}.` : 'В файле выделено несколько ответов.'),
   bothRight: (n: number) => (n === 2 ? 'Верны оба' : 'Верны все'),
   keyConflict: 'Ключ списком и выделение в файле не совпадают.',
+  /** A key from «Подобрать ключи с ИИ» waits for the student: accepted as it is, or changed by a tap. */
+  aiKey: `${AI_KEY_LABEL}. Если он верный, нажмите «Ключ верный». Если нет — нажмите верный вариант.`,
+  aiKeyOk: 'Ключ верный',
   /** The same question in several variants with different keys (importModel.ts markConflict). */
   variantKeys: (entries: ReadonlyArray<{ variants: ReadonlyArray<number | null>; key: readonly number[] }>) =>
     `Этот вопрос есть в нескольких вариантах, а ответы в них отмечены разные: ${entries
@@ -641,6 +683,8 @@ export const KEYS = {
     group ? 'Сохранено. Счёт по этому вопросу начнётся заново, у вас и у группы.' : 'Сохранено. Счёт по этому вопросу начнётся заново.',
   twice: (n: number) => `Такой номер в предмете встречается ${n} раза: показан первый.`,
   current: (letters: string) => `Ключ сейчас: ${letters}.`,
+  /** A key from «Подобрать ключи с ИИ» the author has not changed since (flag ai_key, rev 1). */
+  aiKey: `${AI_KEY_LABEL}.`,
   currentShort: (forms: string) => `Ключ сейчас: ${forms}.`,
   noKeyNow: 'Ключа пока нет.',
   doubters: (n: number) =>

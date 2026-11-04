@@ -18,6 +18,7 @@ const api = vi.hoisted(() => {
   return {
     ContainerApiError,
     parseBank: vi.fn(),
+    keysAi: vi.fn(),
     createContainer: vi.fn(),
     addSubject: vi.fn(),
     addItems: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock('../../api/containers', () => ({
   ContainerApiError: api.ContainerApiError,
   containerError: (error: unknown) => error,
   parseBank: api.parseBank,
+  keysAi: api.keysAi,
   createContainer: api.createContainer,
   addSubject: api.addSubject,
   addItems: api.addItems,
@@ -92,7 +94,7 @@ vi.mock('../../lib/containers/oralPlan', () => ({ loadOralPlanItems: api.loadOra
 
 import ImportPage from './ImportPage';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
-import { IMPORT, PARSE_ERRORS, QUEUE, REVIEW } from '../../components/containers/copyImport';
+import { IMPORT, KEYS_AI_WORDS, PARSE_ERRORS, QUEUE, REVIEW } from '../../components/containers/copyImport';
 
 const TWO = twoSubjects as unknown as BankParseResult;
 const OPEN = openList as unknown as BankParseResult;
@@ -1046,5 +1048,66 @@ describe('ImportPage: a file the server asks to wait for (429) is read again by 
     // Б keeps its place: it is read again before В, which waited behind it
     expect(api.parseBank.mock.calls.map(([input]) => input.file.name)).toEqual(['А.docx', 'Б.docx', 'Б.docx', 'В.docx']);
     expect(screen.queryByText(PARSE_ERRORS.rate_limited)).toBeNull();
+  });
+});
+
+describe('ImportPage: «Подобрать ключи с ИИ» (owner, 2026-11-04)', () => {
+  const keyless = (position: number, patch: Partial<BankItem> = {}) =>
+    item(position, { correct: [], evidence: '', flags: ['no_key'], marks: {}, ...patch });
+  const ITEMS = [
+    item(1),
+    keyless(2, { text: 'Какой порт у HTTP?', options: ['21', '80', '443'] }),
+    keyless(3, { text: 'Какой порт у SSH?', options: ['22', '25', '110'] }),
+    keyless(4, { images: { stem: ['a'.repeat(64)], options: [[], [], []] } }),
+  ];
+
+  it('sends only keyless questions without pictures; an agreed key is saved with the flag ai_key and waits for a check', async () => {
+    api.parseBank.mockResolvedValue(bank(ITEMS, 'Сети'));
+    api.keysAi.mockImplementation(async (input: { questions: Array<{ id: string }> }) => ({
+      results: [
+        { id: input.questions[0].id, correct: [1], agree: true, sure: 'high' },
+        { id: input.questions[1].id, correct: null, agree: false, sure: 'low', note: 'ИИ не уверен' },
+      ],
+      units: 5,
+      spent_questions: 2,
+    }));
+    renderAt();
+    upload(['Сети.docx']);
+    expect(await screen.findByRole('heading', { name: /Нашли 4\sвопроса/ })).toBeInTheDocument();
+    expect(screen.getByText(nm('2 вопроса без ключа · 5 единиц'))).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: KEYS_AI_WORDS.go }));
+    await waitFor(() => expect(screen.getByText(/Ключи подобраны для 1 из 2/)).toBeInTheDocument());
+    const [request] = api.keysAi.mock.calls[0];
+    expect(request.subject).toBe('Сети');
+    expect(request.questions.map((question: { text: string; options: string[]; kind: string }) => [question.text, question.options, question.kind])).toEqual([
+      ['Какой порт у HTTP?', ['21', '80', '443'], 'single'],
+      ['Какой порт у SSH?', ['22', '25', '110'], 'single'],
+    ]);
+    expect(request.questions.every((question: { id: string }) => /^f\d+:\d$/.test(question.id))).toBe(true);
+    expect(plain(screen.getByText(/Ключи подобраны для 1 из 2/).textContent)).toBe(
+      'Ключи подобраны для 1 из 2 вопросов. Без ключа остался 1: ИИ не уверен — 1. Списано 5 единиц.',
+    );
+    expect(screen.getByText(nm('Проверьте ключи от ИИ (1).'), { exact: false })).toBeInTheDocument();
+    // nothing left to send: the unsure one is not sent again
+    expect(screen.queryByRole('button', { name: KEYS_AI_WORDS.go })).toBeNull();
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    const saved = api.addItems.mock.calls[0][1] as Array<{ stem: string; correct: number[]; key_source: string; flags: string[] }>;
+    const http = saved.find((input) => input.stem === 'Какой порт у HTTP?')!;
+    expect([http.correct, http.key_source, http.flags.includes('ai_key')]).toEqual([[1], 'manual', true]);
+    const ssh = saved.find((input) => input.stem === 'Какой порт у SSH?')!;
+    expect([ssh.correct, ssh.flags.includes('ai_key')]).toEqual([[], false]);
+  });
+
+  it('a refusal says so in plain words; nothing is changed', async () => {
+    api.parseBank.mockResolvedValue(bank(ITEMS, 'Сети'));
+    api.keysAi.mockRejectedValue(Object.assign(new Error('Дневной лимит ИИ на сегодня исчерпан.'), { code: 'ai_limit', status: 429 }));
+    renderAt();
+    upload(['Сети.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: KEYS_AI_WORDS.go }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(KEYS_AI_WORDS.limit);
+    expect(screen.getByRole('button', { name: KEYS_AI_WORDS.go })).toBeEnabled();
+    expect(screen.queryByText(/Проверьте ключи от ИИ/)).toBeNull();
   });
 });

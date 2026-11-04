@@ -100,6 +100,9 @@ function viewOf(item: DraftItem, problem: Problem): View {
         actions: [{ key: 'both', label: QUEUE.bothRight(item.marked.length), fix: { kind: 'multiple', correct: item.marked } }, drop],
         dropped,
       };
+    case 'ai_key':
+      // a key from «Подобрать ключи с ИИ»: «Ключ верный» keeps it (with its label), a tap on another option changes it
+      return { reason: QUEUE.aiKey, tapMode: keyMode, instruction: keyInstruction, actions: [{ key: 'ai-ok', label: QUEUE.aiKeyOk, fix: { aiOk: true } }, drop], dropped };
     case 'key_conflict':
       return { reason: item.variantKeys ? QUEUE.variantKeys(item.variantKeys) : QUEUE.keyConflict, tapMode: keyMode, instruction: keyInstruction, actions: [drop], dropped };
     case 'key_invalid':
@@ -203,10 +206,15 @@ export default function ImportQueue({ subjects, uids, index, onIndex, onFix, onD
             const prior = item.rawOptions.map((_, at) => at).filter((at) => !item.optionMap.includes(at));
             apply({ drop: Array.from(new Set([...prior, option])) });
           } else if (view.tapMode === 'key') {
-            apply({ correct: [option], kind: 'single' });
+            // the AI's own option accepts its key; any other is the student's key, and the label goes (aiKey false)
+            if (item.aiKey && item.rawCorrect.length === 1 && item.rawCorrect[0] === option) apply({ aiOk: true });
+            else apply({ correct: [option], kind: 'single', aiKey: false });
           }
         }}
-        onSaveKeys={(keys) => apply({ correct: keys, kind: 'multiple' })}
+        onSaveKeys={(keys) => {
+          const same = item.aiKey && keys.length === item.rawCorrect.length && keys.every((key) => item.rawCorrect.includes(key));
+          apply(same ? { aiOk: true } : { correct: keys, kind: 'multiple', aiKey: false });
+        }}
         actions={actions}
         pictures={
           item.images

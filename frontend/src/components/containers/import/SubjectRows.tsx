@@ -1,4 +1,4 @@
-import { IMPORT, KEY_WORDS, nb } from '../copyImport';
+import { IMPORT, KEY_WORDS, KEYS_AI_WORDS, nb } from '../copyImport';
 import type { DraftSubject } from './importModel';
 
 /**
@@ -14,7 +14,8 @@ export function rowMeta(subject: DraftSubject): string {
   const test = subject.test.length + subject.blocked.length;
   if (test > 0) {
     parts.push(IMPORT.rowTest(test));
-    parts.push(subject.keyed > 0 ? KEY_WORDS[subject.keySource ?? 'none'] ?? KEY_WORDS.none : IMPORT.rowNoKey);
+    parts.push(subject.keyed > 0 ? KEY_WORDS[subject.keySource ?? 'none'] ?? KEY_WORDS.none : subject.aiKeyed > 0 ? KEYS_AI_WORDS.rowAi : IMPORT.rowNoKey);
+    if (subject.keyed > 0 && subject.aiKeyed > 0) parts.push(KEYS_AI_WORDS.rowAiMore(subject.aiKeyed));
   }
   if (subject.oral.length > 0) parts.push(test > 0 ? IMPORT.rowOralTail(subject.oral.length) : IMPORT.rowOral(subject.oral.length));
   if (subject.oralRange) parts.push(IMPORT.rowRange(subject.oralRange[0], subject.oralRange[1]));

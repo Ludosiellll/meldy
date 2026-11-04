@@ -25,6 +25,7 @@ import UpdatePreview from '../../components/containers/import/UpdatePreview';
 import { fetchOldExams, ownContainers, plainExams, targetOptions as targetOptionsOf, type OldExam } from '../../components/containers/import/targets';
 import {
   activeSubjects,
+  aiKeyQueue,
   deriveSubjects,
   draftPlanInput,
   isSingleOralList,
@@ -48,6 +49,8 @@ import { minutesLines } from '../../components/containers/import/minutesLines';
 import { readBankAi, readBankQueued, ReadError } from '../../components/containers/import/readFiles';
 import { createReadQueue, Throttled } from '../../components/containers/import/readQueue';
 import BankReview from '../../components/containers/import/BankReview';
+import { AiKeysCheck, AiKeysOffer, AiKeysStatus, NO_KEYS_RUN, type KeysRun } from '../../components/containers/import/AiKeys';
+import { keysAiCandidates, keysAiErrorLine, keysAiPrice, runKeysAi } from '../../components/containers/import/keysAi';
 import { reviewCounts } from '../../components/containers/import/reviewModel';
 import { useTelegramFile } from '../../lib/telegram/fileTicket';
 import {
@@ -532,6 +535,10 @@ export default function ImportPage() {
   const active = useMemo(() => activeSubjects(subjects), [subjects]);
   const totals = useMemo(() => totalsOf(subjects), [subjects]);
   const problems = useMemo(() => queueOf(subjects), [subjects]);
+  // «Подобрать ключи с ИИ» (owner, 2026-11-04): the questions it would send, and the AI keys waiting for the student
+  const aiCandidates = useMemo(() => (updateId ? [] : keysAiCandidates(subjects, edits)), [updateId, subjects, edits]);
+  const aiChecks = useMemo(() => aiKeyQueue(subjects), [subjects]);
+  const [keysRun, setKeysRun] = useState<KeysRun>(NO_KEYS_RUN);
   const [sourceKey, setSourceKey] = useState<string | null>(null);
   const sources = useMemo(() => (updateId ? updateSources(subjects) : []), [updateId, subjects]);
   const source = useMemo(
@@ -699,6 +706,27 @@ export default function ImportPage() {
     if ((location.state as { importView?: boolean } | null)?.importView) navigate(-1);
     else navigate({ search: location.search, hash: '' }, { replace: true });
   };
+  /**
+   * «Подобрать ключи с ИИ» for every subject (scope null) or one: only on the press; one request per subject (and per
+   * 300 questions); after each, the keys and the notes go into the import's fixes, so the page and the queue use them
+   * at once and they outlive a re-render.
+   */
+  const runAiKeys = async (scope: string | null) => {
+    if (keysRun.status === 'running') return;
+    const candidates = keysAiCandidates(subjects, edits, scope);
+    if (candidates.length === 0) return;
+    setKeysRun({ status: 'running', scope, done: 0, total: candidates.length, outcome: null, error: null });
+    const outcome = await runKeysAi(candidates, (fixes, progress) => {
+      setEdits((current) => ({
+        ...current,
+        items: { ...current.items, ...Object.fromEntries(Object.entries(fixes).map(([uid, fix]) => [uid, { ...current.items[uid], ...fix }])) },
+      }));
+      setKeysRun((current) => ({ ...current, done: progress.done }));
+    });
+    track('container.import_keys_ai', { sent: outcome.sent, keyed: outcome.keyed, units: outcome.units, failed: outcome.error ? 1 : 0 });
+    setKeysRun({ status: outcome.error ? 'failed' : 'done', scope, done: outcome.sent, total: candidates.length, outcome, error: outcome.error ? keysAiErrorLine(outcome.error) : null });
+  };
+
   const openQueue = (uids: string[]) => {
     setQueue({ uids, index: 0 });
     openView('#check');
@@ -1126,6 +1154,22 @@ export default function ImportPage() {
             const uids = previewProblems.filter((entryItem) => entryItem.subjectKey === detailSubject.key).map((entryItem) => entryItem.uid);
             openQueue(uids);
           }}
+          aiKeys={(() => {
+            const mine = aiCandidates.filter((candidate) => candidate.subjectKey === detailSubject.key);
+            const checks = aiChecks.filter((entryItem) => entryItem.subjectKey === detailSubject.key);
+            return (
+              <>
+                <AiKeysOffer
+                  count={mine.length}
+                  cost={keysAiPrice(mine)}
+                  busy={locked || keysRun.status === 'running'}
+                  onRun={() => void runAiKeys(detailSubject.key)}
+                />
+                {keysRun.scope === null || keysRun.scope === detailSubject.key ? <AiKeysStatus run={keysRun} /> : null}
+                <AiKeysCheck count={checks.length} busy={locked} label={IMPORT.problemsGo} onOpen={() => openQueue(checks.map((entryItem) => entryItem.uid))} />
+              </>
+            );
+          })()}
           onKeySource={() => openView(`#key=${encodeURIComponent(detailSubject.fileId)}`)}
           onMerge={(merged) => setFileEdit(detailSubject.fileId, { merged })}
           onFormat={detailEntries.length > 0 ? (format) => detailIds.forEach((id) => reread(id, { format })) : null}
@@ -1210,6 +1254,11 @@ export default function ImportPage() {
             {IMPORT.noKeyOral}
           </button>
         </p>
+        {/* «Подобрать ключи с ИИ» beside the other ways to a key: this subject's questions (owner, 2026-11-04) */}
+        {(() => {
+          const mine = aiCandidates.filter((candidate) => candidate.subjectKey === subject.key);
+          return <AiKeysOffer count={mine.length} cost={keysAiPrice(mine)} busy={locked || keysRun.status === 'running'} onRun={() => void runAiKeys(subject.key)} />;
+        })()}
         {files
           .filter((entry) => subject.fileIds.includes(entry.id))
           .map((withKeyFile) => (
@@ -1315,6 +1364,15 @@ export default function ImportPage() {
         noKeySubjects.map((subject) => ({ ...subject, fileIds: subject.files.map((file) => file.id) })),
         active.length > 1,
       )}
+      {/* «Подобрать ключи с ИИ» for the keyless questions of the subjects that have keys otherwise (a subject without any
+          key offers it in its own block above) */}
+      {(() => {
+        const asked = new Set(noKeySubjects.map((subject) => subject.key));
+        const rest = aiCandidates.filter((candidate) => !asked.has(candidate.subjectKey));
+        return <AiKeysOffer count={rest.length} cost={keysAiPrice(rest)} busy={locked || keysRun.status === 'running'} onRun={() => void runAiKeys(null)} />;
+      })()}
+      <AiKeysStatus run={keysRun} />
+      <AiKeysCheck count={aiChecks.length} busy={locked} label={IMPORT.problemsGo} onOpen={() => openQueue(aiChecks.map((entryItem) => entryItem.uid))} />
       {reviewLines}
       {problemsLine(previewProblems)}
       {splitGroups.map((subject) => (
