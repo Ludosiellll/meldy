@@ -37,8 +37,13 @@ describe('«Подобрать ключи с ИИ» on the page', () => {
     expect(onRun).toHaveBeenCalled();
     cleanup();
 
-    render(<AiKeysStatus run={{ status: 'running', scope: null, done: 25, total: 60, outcome: null, error: null }} />);
-    expect(plain(screen.getByRole('status').textContent)).toBe('ИИ подбирает ключи: 25 из 60. Можно проверять остальные вопросы.');
+    render(<AiKeysStatus run={{ status: 'running', scope: null, done: 0, total: 24, outcome: null, error: null }} />);
+    expect(plain(screen.getByRole('status').textContent)).toBe(
+      'ИИ подбирает ключи к 24 вопросам. Это может занять пару минут, а пока можно проверять остальные вопросы.',
+    );
+    cleanup();
+    render(<AiKeysStatus run={{ status: 'running', scope: null, done: 300, total: 420, outcome: null, error: null }} />);
+    expect(plain(screen.getByRole('status').textContent)).toBe('ИИ подбирает ключи: готово 300 из 420. Можно проверять остальные вопросы.');
     cleanup();
 
     const outcome = { sent: 25, keyed: 18, notes: { 'ИИ не уверен': 4, 'ответы ИИ разошлись': 3 }, units: 5, error: null };

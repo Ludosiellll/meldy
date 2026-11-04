@@ -493,11 +493,15 @@ export const KEYS_AI_WORDS = {
   /** Beside the button: how many questions go and what it costs. */
   offer: (n: number, cost: number) => `${count(n, 'вопрос', 'вопроса', 'вопросов')} без ключа · ${units(cost)}`,
   rule: 'Ключ ставим, только если ИИ дважды ответил одинаково и уверенно. Такой ключ подписан и ждёт вашей проверки.',
-  running: (done: number, total: number) => `ИИ подбирает ключи: ${done} из ${total}. Можно проверять остальные вопросы.`,
+  /** One request can take up to two and a half minutes (docs/import/KEYS_AI.md): said, so the wait is not a frozen page. */
+  running: (done: number, total: number) =>
+    done === 0
+      ? `ИИ подбирает ключи к ${count(total, 'вопросу', 'вопросам', 'вопросам')}. Это может занять пару минут, а пока можно проверять остальные вопросы.`
+      : `ИИ подбирает ключи: готово ${done} из ${total}. Можно проверять остальные вопросы.`,
   keyed: (keyed: number, sent: number) =>
     keyed === 0 ? `ИИ не подобрал ни одного ключа из ${sent}.` : `Ключи подобраны для ${keyed} из ${count(sent, 'вопроса', 'вопросов', 'вопросов')}.`,
   left: (n: number, notes: ReadonlyArray<[string, number]>) =>
-    `Без ключа ${n % 10 === 1 && n % 100 !== 11 ? 'остался' : 'остались'} ${n}${notes.length ? `: ${notes.map(([note, k]) => `${note} — ${k}`).join(', ')}` : ''}.`,
+    `Без ключа ${n % 10 === 1 && n % 100 !== 11 ? 'остался' : 'остались'} ${n}${notes.length ? `: ${notes.map(([note, k]) => `${note}${NBSP}— ${k}`).join(', ')}` : ''}.`,
   spent: (n: number) => `Списано ${units(n)}.`,
   check: (n: number) => `Проверьте ключи от ИИ (${n}).`,
   /** The subject row: keys only from the AI, or some besides the file's. */
@@ -542,7 +546,7 @@ export const QUEUE = {
   /** The same question in several variants with different keys (importModel.ts markConflict). */
   variantKeys: (entries: ReadonlyArray<{ variants: ReadonlyArray<number | null>; key: readonly number[] }>) =>
     `Этот вопрос есть в нескольких вариантах, а ответы в них отмечены разные: ${entries
-      .map((entry) => `${variantsText(entry.variants)} — ${lettersText(entry.key) || 'без ответа'}`)
+      .map((entry) => `${variantsText(entry.variants)}${NBSP}— ${lettersText(entry.key) || 'без ответа'}`)
       .join(', ')}.`,
   keyInvalid: 'Ключ к этому вопросу не подходит к его вариантам.',
   keyLetter: 'Буква в ключе читается двояко: русская или латинская.',
