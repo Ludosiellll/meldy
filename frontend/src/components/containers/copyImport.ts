@@ -698,8 +698,9 @@ export const INVITE = {
   copyText: 'Скопировать текст',
   message: (title: string, subjectCount: number, questionCount: number, url: string) =>
     `Готовимся вместе в Meldy: «${title}», ${subjectCount > 1 ? `${subjects(subjectCount)}, ` : ''}${questions(questionCount)}. Ссылка: ${url}`,
-  once: 'Meldy не хранит саму ссылку. Она останется только на этом устройстве. Если потеряете её, создайте новую, а эту закройте.',
-  onceLost: 'Ссылку видно только сейчас, Meldy её не хранит. Если потеряете, создайте новую, а эту закройте.',
+  // A lost link still works for everyone who has it: a new one is made beside it, never in its place (owner, 04.11).
+  once: 'Meldy не хранит саму ссылку. Она останется только на этом устройстве. Если потеряете её, создайте новую: эта продолжит работать.',
+  onceLost: 'Ссылку видно только сейчас, Meldy её не хранит. Если потеряете, создайте новую: эта продолжит работать.',
   openElsewhere: (open: number) =>
     open > 1
       ? 'Ссылки открыты, но сами они остались на устройствах, где их создали.'

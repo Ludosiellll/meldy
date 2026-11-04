@@ -21,6 +21,10 @@
 .gj-signin { margin-top: clamp(18px, 3dvh, 32px); }
 .gj-mail { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 4px; margin: 0; color: var(--sf-muted); }
 .gj-wait { margin: 24px 0 0; font-size: 16px; color: var(--sf-muted); }
+/* A closed link, signed out: the way in for a member on a new device (the exam is still theirs). */
+.gj-member { margin: 16px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+/* «Войти» keeps its 44 px target and gives the room back: the line keeps its height. */
+.gj-member .au-link { margin: -12px 0; vertical-align: baseline; }
 .gj-failed { display: grid; gap: 14px; justify-items: start; margin-top: 4px; }
 .gj-actions { margin: 24px 0 0; }
 .gj-next { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin: 24px 0 0; }

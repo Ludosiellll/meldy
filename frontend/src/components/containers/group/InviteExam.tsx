@@ -467,10 +467,13 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
                       {link.expires_at ? ` ${nb(INVITE.otherEnds(dayOf(link.expires_at)))}` : null}{' '}
                       {canExtend(link, summary, now) ? (
                         <>
-                          <button type="button" className="sf-link" disabled={busy} onClick={() => void extend(link)}>
-                            {INVITE.extend}
-                          </button>
-                          {' · '}
+                          {/* The dot stays with the word before it: a line never starts with it. */}
+                          <span className="gr-keep">
+                            <button type="button" className="sf-link" disabled={busy} onClick={() => void extend(link)}>
+                              {INVITE.extend}
+                            </button>
+                            {'\u00a0·'}
+                          </span>{' '}
                         </>
                       ) : null}
                       <button type="button" className="sf-link" data-muted="" data-close={link.id} disabled={busy} onClick={() => askOther(link.id)}>

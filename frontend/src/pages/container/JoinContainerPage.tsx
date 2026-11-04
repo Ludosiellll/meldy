@@ -195,8 +195,8 @@ export default function JoinContainerPage() {
             ) : null}
 
             {shut && !user && !loading && back ? (
-              <p className="gj-mail">
-                {JOIN.memberSignIn}{' '}
+              <p className="gj-member">
+                {nb(JOIN.memberSignIn)}{' '}
                 <Link className="au-link" to={withReturn('/login', back)}>
                   {JOIN.signIn}
                 </Link>

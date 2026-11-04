@@ -67,6 +67,7 @@
    the first line's margin too and nothing under it moves when the answer comes. */
 .gr-area { display: flow-root; }
 .gr-make { display: grid; gap: 14px; margin-top: 20px; }
+.gr-make > .gr-line { margin: 0; }
 .gr-consent {
   display: flex;
   align-items: flex-start;
@@ -199,6 +200,7 @@
 .gr-said:focus { outline: none; }
 .gr-said:focus-visible { outline: 2px solid var(--sf-accent-fg); outline-offset: 4px; border-radius: 4px; }
 .gr-others { margin: 0; padding: 0; list-style: none; }
+.gr-keep { white-space: nowrap; }
 .gr-other .gr-ask { margin-top: 6px; }
 .gr-shut { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--sf-line); }
 .gr-shut > .gr-sub { margin-top: 0; }
