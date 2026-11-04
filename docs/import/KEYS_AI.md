@@ -13,6 +13,13 @@ from it. If this file and the code disagree, fix one of them in the same commit.
   sees the label and can press «Сомневаюсь в ключе». The decision log says the key is stored as a normal key with the
   flag `ai_key`.
 - Keys found in the file (`parse-bank`, `parse-bank/ai`) never go through this endpoint.
+- Where the flag goes (migration `20261107090300_ai_key_flag.sql`):
+  - the import saves the key with `flags` containing `ai_key` and `key_source 'manual'` (`container_items_add`);
+  - «Вопросы и ключи» writes `container_item_update(id, {"correct": [...], "ai_key": true})`; `ai_key` must be a
+    boolean, and true only together with `correct` (else 22023 `ai_key`);
+  - any later change of the key without `ai_key: true` (or `{"ai_key": false}`) takes the flag off, so the label
+    never stays on a key the author set;
+  - the bot's view gives `review.ai_key` and says «Ключ подобран ИИ, не из файла.» (`bot/render.ts`).
 - No model or vendor names anywhere in the interface. Say «ИИ».
 
 ## Request
