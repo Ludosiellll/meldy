@@ -79,6 +79,15 @@ create or replace function pg_temp.expire(p_k text) returns void language sql as
   update public.exam_shares set created_at = now() - interval '200 days', expires_at = now() - interval '1 hour'
    where id in (select unnest(l.oral_share_ids) from public.container_links l where l.id = pg_temp.c(p_k)::uuid);
 $fn$;
+-- The SQLSTATE a statement raises, or '' when it passes.
+create or replace function pg_temp.try_code(p_sql text) returns text language plpgsql as $fn$
+begin
+  execute p_sql;
+  return '';
+exception when others then
+  return sqlstate;
+end;
+$fn$;
 grant execute on all functions in schema pg_temp to anon, authenticated, service_role;
 
 -- The people: A the author, M and N members, S a stranger.
@@ -195,10 +204,13 @@ begin
   perform pg_temp.check(pg_temp.link_end('l1') = pg_temp.utc(d + 430), '«Настройки»: the exam''s date');
   update public.container_subjects set exam_date = d + 410 where id = pg_temp.c('s_test')::uuid;
   perform pg_temp.check(pg_temp.link_end('l2') = pg_temp.utc(d + 440), '«Настройки»: a subject''s date');
-  -- A subject added with a later date.
+  -- A subject added with a later date moves no link (container_subject_add holds the exam's row FOR UPDATE; a link
+  -- written under it could deadlock with a first join): «Продлить» or the next move takes it along.
   perform public.container_subject_add(pg_temp.c('c')::uuid, jsonb_build_object('title', 'Матан', 'exam_date', to_char(d + 450, 'YYYY-MM-DD')));
+  perform pg_temp.check(pg_temp.link_end('l1') = pg_temp.utc(d + 440), 'a subject added with a later date moves no link');
+  perform public.container_link_extend(pg_temp.c('l1')::uuid);
   perform pg_temp.check(pg_temp.link_end('l1') = pg_temp.utc(d + 480) and pg_temp.share_ends('l1') = array[pg_temp.utc(d + 480)],
-                        'a subject added with a later date');
+                        '«Продлить» then counts it');
   -- Another exam's links stay.
   perform pg_temp.check((select l.expires_at from public.container_links l where l.container_id = pg_temp.c('c_far')::uuid)
                         = pg_temp.utc(d + 230), 'another exam''s link stays');
@@ -421,6 +433,202 @@ select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000e1') = 
 select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
 select pg_temp.check(public.exam_date_move(pg_temp.c('c')::uuid, current_date + 35, 'all', pg_temp.c('s_oral')::uuid) ->> 'for' = 'all', 'A moves «Сети» again');
 select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000f1') = current_date + 40, 'a copy M dated keeps M''s date');
+-- …even when the author passes through M's date on the way (review L4: a copy that once had the author's date by chance
+-- no longer follows: M set it themselves).
+select pg_temp.check(public.exam_date_move(pg_temp.c('c')::uuid, current_date + 40, 'all', pg_temp.c('s_oral')::uuid) ->> 'for' = 'all', 'A moves «Сети» to M''s date');
+select pg_temp.check(public.exam_date_move(pg_temp.c('c')::uuid, current_date + 45, 'all', pg_temp.c('s_oral')::uuid) ->> 'for' = 'all', 'and on');
+select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000f1') = current_date + 40, 'M''s own date is not taken over through the author''s',
+                     to_jsonb(pg_temp.exam_day('91170000-0000-4000-8000-0000000000f1')));
+
+-- 8–12: the review of 04.11. A second exam «Летняя» with two oral subjects; P (a member with a bound copy), Q (a
+-- member without one), R (removed before copying), W (removed with a copy), V (left with a copy).
+select pg_temp.as_role('postgres');
+insert into auth.users (id) values
+  ('91170000-0000-4000-8000-0000000000a1'), ('91170000-0000-4000-8000-0000000000a2'), ('91170000-0000-4000-8000-0000000000a3'),
+  ('91170000-0000-4000-8000-0000000000a4'), ('91170000-0000-4000-8000-0000000000a5')
+  on conflict do nothing;
+select pg_temp.put('p', '91170000-0000-4000-8000-0000000000a1'), pg_temp.put('q', '91170000-0000-4000-8000-0000000000a2'),
+       pg_temp.put('r', '91170000-0000-4000-8000-0000000000a3'), pg_temp.put('w', '91170000-0000-4000-8000-0000000000a4'),
+       pg_temp.put('v', '91170000-0000-4000-8000-0000000000a5');
+insert into public.exams (id, user_id, title, exam_date) values
+  ('91170000-0000-4000-8000-0000000000e5', '91170000-0000-4000-8000-00000000000a', 'Право устно', current_date + 10),
+  ('91170000-0000-4000-8000-0000000000e6', '91170000-0000-4000-8000-00000000000a', 'ОС устно', current_date + 10),
+  ('91170000-0000-4000-8000-0000000000e7', '91170000-0000-4000-8000-00000000000a', 'Только устно', current_date + 200);
+insert into public.exam_questions (exam_id, user_id, position, text) values
+  ('91170000-0000-4000-8000-0000000000e5', '91170000-0000-4000-8000-00000000000a', 1, 'Иск'),
+  ('91170000-0000-4000-8000-0000000000e6', '91170000-0000-4000-8000-00000000000a', 1, 'Планировщик'),
+  ('91170000-0000-4000-8000-0000000000e7', '91170000-0000-4000-8000-00000000000a', 1, 'Сокеты');
+create or replace function pg_temp.share_of(p_link text, p_exam text) returns uuid language sql stable security definer as $fn$
+  select sh.id from public.exam_shares sh
+   where sh.id in (select unnest(l.oral_share_ids) from public.container_links l where l.id = pg_temp.c(p_link)::uuid)
+     and sh.exam_id = p_exam::uuid
+$fn$;
+create or replace function pg_temp.share_row(p_id text) returns public.exam_shares language sql stable security definer as $fn$
+  select * from public.exam_shares where id = p_id::uuid
+$fn$;
+create or replace function pg_temp.ids_of(p_link text) returns uuid[] language sql stable security definer as $fn$
+  select oral_share_ids from public.container_links where id = pg_temp.c(p_link)::uuid
+$fn$;
+grant execute on function pg_temp.share_of(text, text), pg_temp.share_row(text), pg_temp.ids_of(text) to authenticated;
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+do $t$
+declare r jsonb;
+begin
+  r := public.container_create('Летняя', current_date + 10, jsonb_build_array(
+         jsonb_build_object('title', 'Право', 'exam_id', '91170000-0000-4000-8000-0000000000e5'),
+         jsonb_build_object('title', 'ОС', 'exam_id', '91170000-0000-4000-8000-0000000000e6')));
+  perform pg_temp.put('c3', r ->> 'container_id');
+  perform pg_temp.put('s_law', r -> 'subjects' -> 0 ->> 'id');
+  perform pg_temp.put('s_os', r -> 'subjects' -> 1 ->> 'id');
+  r := public.container_link_create((r ->> 'container_id')::uuid, 60, pg_temp.c('consent'));
+  perform pg_temp.put('l6', r ->> 'link_id');
+  perform pg_temp.put('code6', r ->> 'code');
+end
+$t$;
+select pg_temp.put('sh_law', pg_temp.share_of('l6', '91170000-0000-4000-8000-0000000000e5')::text),
+       pg_temp.put('sh_os', pg_temp.share_of('l6', '91170000-0000-4000-8000-0000000000e6')::text);
+do $t$
+declare k text;
+begin
+  foreach k in array array['p', 'q', 'r', 'w', 'v'] loop
+    perform pg_temp.as_role('authenticated', pg_temp.c(k)::uuid);
+    perform pg_temp.check((public.container_join(pg_temp.c('code6')) ->> 'joined')::boolean, k || ' joins «Летняя»');
+  end loop;
+end
+$t$;
+-- Every member reads the same oral codes (container_oral_codes); R keeps them.
+select pg_temp.as_role('authenticated', pg_temp.c('r')::uuid);
+select pg_temp.put('code_law', (select x ->> 'code' from jsonb_array_elements(public.container_oral_codes(pg_temp.c('c3')::uuid) -> 'subjects') x
+                                 where x ->> 'subject_id' = pg_temp.c('s_law'))),
+       pg_temp.put('code_os', (select x ->> 'code' from jsonb_array_elements(public.container_oral_codes(pg_temp.c('c3')::uuid) -> 'subjects') x
+                                where x ->> 'subject_id' = pg_temp.c('s_os')));
+-- P, W and V copy «Право» (as oral-sync binds a copy); W is removed and V leaves afterwards; R is removed with nothing.
+select pg_temp.as_role('postgres');
+insert into public.exams (id, user_id, title, exam_date) values
+  ('91170000-0000-4000-8000-0000000000c1', pg_temp.c('p')::uuid, 'Право устно', current_date + 10),
+  ('91170000-0000-4000-8000-0000000000c4', pg_temp.c('w')::uuid, 'Право устно', current_date + 10),
+  ('91170000-0000-4000-8000-0000000000c5', pg_temp.c('v')::uuid, 'Право устно', current_date + 10);
+insert into public.exam_share_members (share_id, user_id, member_exam_id) values
+  (pg_temp.c('sh_law')::uuid, pg_temp.c('p')::uuid, '91170000-0000-4000-8000-0000000000c1'),
+  (pg_temp.c('sh_law')::uuid, pg_temp.c('w')::uuid, '91170000-0000-4000-8000-0000000000c4'),
+  (pg_temp.c('sh_law')::uuid, pg_temp.c('v')::uuid, '91170000-0000-4000-8000-0000000000c5');
+insert into public.container_member_exams (container_id, subject_id, user_id, exam_id) values
+  (pg_temp.c('c3')::uuid, pg_temp.c('s_law')::uuid, pg_temp.c('p')::uuid, '91170000-0000-4000-8000-0000000000c1'),
+  (pg_temp.c('c3')::uuid, pg_temp.c('s_law')::uuid, pg_temp.c('w')::uuid, '91170000-0000-4000-8000-0000000000c4'),
+  (pg_temp.c('c3')::uuid, pg_temp.c('s_law')::uuid, pg_temp.c('v')::uuid, '91170000-0000-4000-8000-0000000000c5');
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+select pg_temp.check((public.container_member_remove(pg_temp.c('c3')::uuid, pg_temp.c('r')::uuid) ->> 'removed')::int = 1, 'A removes R');
+select pg_temp.check((public.container_member_remove(pg_temp.c('c3')::uuid, pg_temp.c('w')::uuid) ->> 'removed')::int = 1, 'A removes W');
+select pg_temp.as_role('authenticated', pg_temp.c('v')::uuid);
+select pg_temp.check((public.container_leave(pg_temp.c('c3')::uuid) ->> 'left')::boolean, 'V leaves');
+
+-- 8. «Продлить» reopens no share the author closed on its own (review M1): «ОС» is taken out of the exam and its share
+--    closed on the oral exam's page; the exam's dates move and the open link is extended.
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+delete from public.container_subjects where id = pg_temp.c('s_os')::uuid;
+select pg_temp.check(public.exam_share_revoke(pg_temp.c('sh_os')::uuid) ->> 'revoked_at' is not null, 'A closes the share of «ОС»');
+select pg_temp.put('sh_os_end', (pg_temp.share_row(pg_temp.c('sh_os'))).expires_at::text);
+update public.containers set exam_date = current_date + 200 where id = pg_temp.c('c3')::uuid;
+select pg_temp.check((pg_temp.share_row(pg_temp.c('sh_os'))).expires_at = pg_temp.c('sh_os_end')::timestamptz,
+                     'a move leaves the share of an exam taken out alone');
+select pg_temp.check(public.container_link_extend(pg_temp.c('l6')::uuid) ->> 'reopened' = 'false', '«Продлить» on the open link');
+select pg_temp.check((pg_temp.share_row(pg_temp.c('sh_os'))).revoked_at is not null, '«Продлить» leaves a closed share closed',
+                     to_jsonb(pg_temp.share_row(pg_temp.c('sh_os'))));
+select pg_temp.check((pg_temp.share_row(pg_temp.c('sh_law'))).expires_at = pg_temp.utc(current_date + 230)
+                     and (pg_temp.share_row(pg_temp.c('sh_law'))).revoked_at is null, 'the open share of «Право» follows the link');
+select pg_temp.as_role('authenticated', pg_temp.c('s')::uuid);
+select pg_temp.check(pg_temp.try_code(format('select public.exam_share_claim(%L)', pg_temp.c('code_os'))) <> '', 'a stranger cannot take «ОС»');
+
+-- 9. A container's oral share takes its members only (review M2). R was removed before copying; R's codes no longer
+--    claim or bundle while the link is open. An ordinary share of an oral exam (/join) still takes anyone.
+select pg_temp.as_role('authenticated', pg_temp.c('r')::uuid);
+select pg_temp.expect_error(format('select public.exam_share_claim(%L)', pg_temp.c('code_law')), 'MS001', 'a removed member claims an oral share');
+select pg_temp.expect_error(format('select public.exam_share_bundle(%L)', pg_temp.c('code_law')), 'MS001', 'a removed member reads the bundle');
+select pg_temp.as_role('postgres');
+insert into public.exam_shares (exam_id, owner_id, code_hash, consent) values
+  ('91170000-0000-4000-8000-0000000000e5', '91170000-0000-4000-8000-00000000000a', meldy_private.code_hash('abcd2fghjk98'),
+   'Делюсь с группой вопросами, текстом моих лекций и пунктами ответа.');
+select pg_temp.as_role('authenticated', pg_temp.c('s')::uuid);
+select pg_temp.check(public.exam_share_claim('abcd2fghjk98') ? 'share_id', 'an ordinary share of the oral exam still takes a stranger');
+select pg_temp.check(public.exam_share_bundle('abcd2fghjk98') ? 'questions', 'and gives the bundle');
+-- Closed and opened again: the old codes are dead for good, the members get new ones, a bound copy stays bound.
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+select pg_temp.put('old_ids', pg_temp.ids_of('l6')::text);
+select pg_temp.check(public.container_link_revoke(pg_temp.c('l6')::uuid) ->> 'revoked_at' is not null, 'A closes «Летняя»''s link');
+select pg_temp.check((public.container_link_extend(pg_temp.c('l6')::uuid) ->> 'reopened')::boolean, 'and opens it again');
+select pg_temp.check(not (pg_temp.ids_of('l6') && pg_temp.c('old_ids')::uuid[]) and cardinality(pg_temp.ids_of('l6')) = 1,
+                     'reopened: new oral shares only for the subjects there are', to_jsonb(pg_temp.ids_of('l6')));
+select pg_temp.check((pg_temp.share_row(pg_temp.c('sh_law'))).revoked_at is not null, 'the old share is closed for good');
+select pg_temp.as_role('authenticated', pg_temp.c('r')::uuid);
+select pg_temp.expect_error(format('select public.exam_share_claim(%L)', pg_temp.c('code_law')), 'MS002', 'R''s old code after the reopen');
+select pg_temp.expect_error(format('select public.exam_share_bundle(%L)', pg_temp.c('code_law')), 'MS002', 'R''s old bundle after the reopen');
+select pg_temp.as_role('authenticated', pg_temp.c('q')::uuid);
+do $t$
+declare r jsonb := public.container_oral_codes(pg_temp.c('c3')::uuid); v_code text;
+begin
+  v_code := r -> 'subjects' -> 0 ->> 'code';
+  perform pg_temp.check(r ->> 'status' = 'open' and jsonb_array_length(r -> 'subjects') = 1 and v_code <> pg_temp.c('code_law'),
+                        'Q (no copy yet) gets a new code', r);
+  perform pg_temp.check(public.exam_share_claim(v_code) ? 'share_id', 'Q''s new code takes Q');
+end
+$t$;
+select pg_temp.as_role('authenticated', pg_temp.c('p')::uuid);
+select pg_temp.check(public.container_oral_codes(pg_temp.c('c3')::uuid) -> 'subjects' = '[]'::jsonb, 'P''s bound copy needs no code');
+select pg_temp.check((public.container_summary(pg_temp.c('c3')::uuid) -> 'subjects' -> 0 -> 'oral' ->> 'exam_id')::uuid
+                     = '91170000-0000-4000-8000-0000000000c1', 'P''s copy is still P''s oral part');
+select pg_temp.check(public.exam_share_bundle(pg_temp.c('code_law')) -> 'joined' ->> 'exam_id' = '91170000-0000-4000-8000-0000000000c1',
+                     'P''s old code still names P''s own copy');
+
+-- 10. The copies that follow the author's oral date: active members only, and only dates a move takes (review M3).
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+update public.exams set exam_date = current_date + 20 where id = '91170000-0000-4000-8000-0000000000e5';
+select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000c1') = current_date + 20, 'P (in the exam) follows');
+select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000c4') = current_date + 10, 'W (removed) does not');
+select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000c5') = current_date + 10, 'V (left) does not');
+update public.exams set exam_date = current_date + 800 where id = '91170000-0000-4000-8000-0000000000e5';
+select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000c1') = current_date + 20, 'a date past two years is not passed on');
+-- 11. Dates out of range are refused where they are written; a link never lives past 760 days (review M4).
+select pg_temp.expect_error($$update public.exams set exam_date = 'infinity' where id = '91170000-0000-4000-8000-0000000000e5'$$, '22023', 'infinity on an oral exam');
+select pg_temp.expect_error($$update public.exams set exam_date = '1900-01-01' where id = '91170000-0000-4000-8000-0000000000e5'$$, '22023', '1900 on an oral exam');
+select pg_temp.expect_error(format($$update public.containers set exam_date = 'infinity' where id = %L$$, pg_temp.c('c3')), '22023', 'infinity on an exam');
+select pg_temp.expect_error(format($$update public.containers set exam_date = '300000-01-01' where id = %L$$, pg_temp.c('c3')), '22023', 'year 300000 on an exam');
+select pg_temp.expect_error(format($$select public.container_subject_add(%L, '{"title": "Опечатка", "exam_date": "2206-01-20"}')$$, pg_temp.c('c3')),
+                            '22023', 'year 2206 on a new subject');
+update public.containers set exam_date = '2062-01-20' where id = pg_temp.c('c3')::uuid;
+select pg_temp.check(pg_temp.link_end('l6') <= now() + interval '760 days' and pg_temp.link_end('l6') > now() + interval '700 days',
+                     'a typo year: the link ends within 760 days', to_jsonb(pg_temp.link_end('l6')));
+select pg_temp.check(pg_temp.share_ends('l6') = array[pg_temp.link_end('l6')], 'and its shares with it');
+-- A row that already holds a date out of range (written before this file) still takes every other write; a new link
+-- of it ignores that date.
+select pg_temp.as_role('postgres');
+set local session_replication_role = replica;
+insert into public.containers (id, owner_id, title, exam_date) values
+  ('91170000-0000-4000-8000-0000000000d4', '91170000-0000-4000-8000-00000000000a', 'Старая опечатка', 'infinity');
+insert into public.container_subjects (id, container_id, owner_id, position, title) values
+  ('91170000-0000-4000-8000-0000000000d5', '91170000-0000-4000-8000-0000000000d4', '91170000-0000-4000-8000-00000000000a', 1, 'Химия');
+set local session_replication_role = origin;
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+update public.containers set title = 'Старая опечатка, переименована' where id = '91170000-0000-4000-8000-0000000000d4';
+select pg_temp.check(public.container_items_add('91170000-0000-4000-8000-0000000000d5',
+                     '[{"ref":"g:9","stem":"H2O?","options":["вода","соль"],"correct":[0]}]') is not null, 'its subject takes questions');
+select pg_temp.check((public.container_link_create('91170000-0000-4000-8000-0000000000d4') ->> 'expires_at')::timestamptz
+                     = now() + interval '120 days', 'a link of it: 120 days, the infinite date ignored');
+
+-- 12. An oral-only exam: its date is the oral exam's (review L2); a new link counts it, a move of it takes the link.
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+do $t$
+declare r jsonb;
+begin
+  r := public.container_create('Только устный', null, jsonb_build_array(
+         jsonb_build_object('title', 'Сети', 'exam_id', '91170000-0000-4000-8000-0000000000e7')));
+  r := public.container_link_create((r ->> 'container_id')::uuid, 60, pg_temp.c('consent'));
+  perform pg_temp.put('l7', r ->> 'link_id');
+  perform pg_temp.check((r ->> 'expires_at')::timestamptz = pg_temp.utc(current_date + 230), 'oral-only: 30 days after the oral exam', r);
+  update public.exams set exam_date = current_date + 300 where id = '91170000-0000-4000-8000-0000000000e7';
+  perform pg_temp.check(pg_temp.link_end('l7') = pg_temp.utc(current_date + 330), 'the oral exam moved: the link follows',
+                        to_jsonb(pg_temp.link_end('l7')));
+end
+$t$;
 
 select pg_temp.as_role('postgres');
 \echo GROUP LINK LIFE CHECKS PASSED

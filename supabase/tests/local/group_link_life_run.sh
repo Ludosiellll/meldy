@@ -6,13 +6,13 @@
 #      up to 20261031090000, then every later file in order) → the existing checks of what the migration touches pass
 #      there → the contract and group_link_life_behaviour.sql fail there (they test something) → catalog fingerprint;
 #   2. the migration twice, each in one transaction as supabase/migrate.py sends it (the second changes nothing in the
-#      catalog; of the base only the two replaced functions change) → the contract (supabase/tests/group_link_life.sql)
-#      → group_link_life_behaviour.sql;
+#      catalog; of the base only the six replaced functions change) → the contract (supabase/tests/group_link_life.sql)
+#      → group_link_life_behaviour.sql → group_link_life_locks.sh (a first join beside every writer, no deadlock);
 #   3. the existing contracts and behaviours of what it touches, again: the containers, «Перенести экзамен» and the bot's
 #      exams, the container kind, the deleted exam's orals, the oral shares, the bot (T1, the oral inputs), the tempo;
 #   4. the rollback twice (the catalog equals the base, the replaced functions byte for byte) → the behaviour and the
 #      contract fail → the existing checks pass;
-#   5. the migration again (the same catalog as its first apply) → the contract and the behaviour again.
+#   5. the migration again (the same catalog as its first apply) → the contract, the behaviour and the locks again.
 # Exit code 0 only when every step is green. The cluster it starts is stopped at the end and its data dir removed
 # (GROUP_LINK_KEEP=1 keeps it).
 # Env (optional): GROUP_LINK_PG_PORT (54399), GROUP_LINK_WORK (${TMPDIR:-/tmp}/meldy-group-link), PG_BIN
@@ -126,14 +126,20 @@ fingerprint "$OUT/fp_again.txt"
 if cmp -s "$OUT/fp_after.txt" "$OUT/fp_again.txt"; then ok "a second apply changes nothing in the catalog"
 else bad "a second apply changed the catalog" "$(diff "$OUT/fp_after.txt" "$OUT/fp_again.txt" | head -3 | tr '\n' ' ')"; fi
 GONE=$(comm -23 <(sort "$OUT/fp_base.txt") <(sort "$OUT/fp_after.txt"))
-REPLACED='^fn public\.(container_link_create|container_link_preview)\('
+REPLACED='^fn (public\.(container_link_create|container_link_preview|container_subjects_guard|exam_share_claim|exam_share_bundle)|meldy_private\.exam_date_move_for)\('
 OTHER=$(echo "$GONE" | grep -v '^$' | grep -Ev "$REPLACED")
-if [ -z "$OTHER" ] && [ "$(echo "$GONE" | grep -Ec "$REPLACED")" = 2 ]; then
-  ok "base lines changed: exactly the 2 replaced functions" "$(comm -13 <(sort "$OUT/fp_base.txt") <(sort "$OUT/fp_after.txt") | wc -l) new or changed lines"
+if [ -z "$OTHER" ] && [ "$(echo "$GONE" | grep -Ec "$REPLACED")" = 6 ]; then
+  ok "base lines changed: exactly the 6 replaced functions" "$(comm -13 <(sort "$OUT/fp_base.txt") <(sort "$OUT/fp_after.txt") | wc -l) new or changed lines"
 else bad "base lines changed or gone beyond the replaced functions" "$(echo "$OTHER" | head -3 | tr '\n' ' ')"; fi
 step "contract: supabase/tests/group_link_life.sql" "$CONTRACT"
 if behaviour; then ok "behaviour: ends, moves, extend and reopen, joins, oral codes, copies' dates" "GROUP LINK LIFE CHECKS PASSED"
 else bad "behaviour" "$(grep -m1 'ERROR\|FAILED' "$OUT/behaviour.log" | sed 's/^psql:[^:]*:[0-9]*: //')"; fi
+locks() {  # <suffix>
+  if "$HERE/group_link_life_locks.sh" $DB "$OUT/locks" > "$OUT/locks.log" 2>&1; then
+    ok "locks: a first join beside «Продлить», the moves and «Настройки»$1" "$(grep -c '^  ok' "$OUT/locks.log") without a deadlock"
+  else bad "locks$1" "$(grep -m1 FAIL "$OUT/locks.log" | sed 's/^ *FAIL *//')"; fi
+}
+locks ""
 
 echo "3. the existing checks after the migration"
 existing ""
@@ -156,6 +162,7 @@ else bad "another catalog than the first apply" "$(diff "$OUT/fp_after.txt" "$OU
 step "contract again" "$CONTRACT"
 if behaviour; then ok "behaviour again" "GROUP LINK LIFE CHECKS PASSED"
 else bad "behaviour again" "$(grep -m1 'ERROR\|FAILED' "$OUT/behaviour.log" | sed 's/^psql:[^:]*:[0-9]*: //')"; fi
+locks " again"
 contract_ok "contract: containers.sql at the end" "$SB/tests/containers.sql"
 test_file "containers_behaviour.sql at the end" "$HERE/containers_behaviour.sql" 'CONTAINER CHECKS PASSED'
 
