@@ -433,6 +433,52 @@ def test_exact_formats_and_clean_files_are_not_sent_and_cost_nothing(api, monkey
     assert api.charges == []
 
 
+def test_the_route_reads_the_file_in_a_parse_place_and_a_busy_server_costs_nothing(api, monkeypatch):
+    """Чтение файла — разбор, как у parse-bank: в его местах (bank_api.ParseSlots) и до списания; сервер занят —
+    429 parse_busy с Retry-After, единиц не тратится."""
+    import bank_api
+
+    seen = []
+    real = bank_ai._blocks_of
+
+    def blocks_in_place(prepared):
+        seen.append(bank_api.parse_slots.busy)
+        return real(prepared)
+
+    monkeypatch.setattr(bank_ai, "_blocks_of", blocks_in_place)
+    monkeypatch.setattr(bank_ai, "default_ask", scripted({"questions": []}))
+    assert api.post(AI_PATH, data={"text": "1. Сколько будет 2 + 2?\nа) 3\nб) **4**\nв) 5\n"}).status_code == 200
+    assert seen == [1] and bank_api.parse_slots.busy == 0
+
+    monkeypatch.setattr(bank_api, "parse_slots", bank_api.ParseSlots(per_user=2, total=0))  # every place taken
+    monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 0.1)
+    busy = api.post(AI_PATH, data={"text": LETTERED})
+    assert busy.status_code == 429 and busy.json() == {"detail": bank_api.PARSE_BUSY_DETAIL, "code": "parse_busy"}
+    assert busy.headers["Retry-After"] == str(bank_api.PARSE_RETRY_AFTER_SECONDS)
+    assert api.charges == []
+
+
+def test_a_file_of_markup_without_text_is_refused_before_any_charge(api, monkeypatch):
+    import io
+    import zipfile
+
+    unit = '<w:p><w:r><w:t>a</w:t></w:r>' + '<w:r><w:rPr><w:b/></w:rPr><w:t></w:t></w:r>' * 20 + '</w:p>'
+    body = unit * (39 * 1024 * 1024 // len(unit))
+    out = io.BytesIO()
+    w = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    with zipfile.ZipFile(Path(__file__).resolve().parent / "fixtures" / "banks" / "13_inline_bold.docx") as source, \
+            zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            data = source.read(info.filename)
+            if info.filename == "word/document.xml":
+                data = f'<w:document xmlns:w="{w}"><w:body>{body}<w:sectPr/></w:body></w:document>'.encode()
+            target.writestr(info, data)
+    monkeypatch.setattr(bank_ai, "default_ask", scripted({"questions": []}))
+    response = api.post(AI_PATH, files={"file": ("bank.docx", out.getvalue(), "application/octet-stream")})
+    assert response.status_code == 413 and response.json()["code"] == "too_complex"
+    assert api.charges == []
+
+
 def test_the_route_is_mounted_and_needs_a_session(api):
     import main
 

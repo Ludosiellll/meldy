@@ -12,7 +12,7 @@ main.py, как у /api/exams/parse (без неё — 401); лимит — 30 �
 пользователем), pictures=1 (картинки DOCX переносятся: так просит страница, которая их сохраняет) и format
 (auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
 ключ, флаги, marks, статистика. Ошибки — {"detail": "<по-русски>", "code": "<код>"}: 415 old_doc /
-unsupported, 413 too_many / too_much_text / file_too_big, 422 empty_file / unreadable / no_items / scan_pdf, 429 parse_busy,
+unsupported, 413 too_many / too_much_text / too_complex / file_too_big, 422 empty_file / unreadable / no_items / scan_pdf, 429 parse_busy,
 400 bad_form / both_inputs / no_input / key_text_too_long.
 """
 
@@ -43,7 +43,7 @@ from bank_parse import (
     parse_bank_text,
     read_key_file,
 )
-from ratelimit import limiter, user_or_ip_key
+from ratelimit import give_back, limiter, user_or_ip_key
 from uploads import read_upload_with_limit
 
 router = APIRouter()
@@ -93,9 +93,11 @@ def _optional_text(value: Any) -> str | None:
     return value
 
 
-# Разбор — работа процессора и памяти (документ до 40 МБ XML — секунды и сотни МБ): одновременно не больше
-# PARSE_PER_USER разборов одного пользователя и PARSE_AT_ONCE всего. Сверх — ждём места до PARSE_WAIT_SECONDS, потом
-# 429 parse_busy с Retry-After: очередь чтения клиента (по 2 файла) подождёт и повторит сама.
+# Разбор — работа процессора и памяти (DOCX с разметкой, несоразмерной тексту, отказывается до разбора: bank_docx
+# check_markup; остальное — до нескольких секунд и сотен МБ): одновременно не больше PARSE_PER_USER разборов одного
+# пользователя и PARSE_AT_ONCE всего, места — по очереди прихода. Сверх — ждём места до PARSE_WAIT_SECONDS, потом 429
+# parse_busy с Retry-After: очередь чтения клиента (по 2 файла) подождёт и повторит сама; такой отказ не считается в
+# пределе запросов (ratelimit.give_back). Те же места занимают файл ключа и чтение файла для разбора с ИИ (bank_ai.py).
 PARSE_PER_USER = 2
 PARSE_AT_ONCE = 3
 PARSE_WAIT_SECONDS = 15.0
@@ -105,17 +107,27 @@ PARSE_BUSY_DETAIL = "Сервер разбирает другие файлы. П
 
 
 class ParseSlots:
-    """Места для разбора: не больше per_user у пользователя и total всего. Счётчики меняются только в цикле событий
-    (ожидание — опросом, без примитивов, привязанных к одному циклу). Место занято, пока идёт поток разбора: запрос,
-    отменённый посреди разбора, отпускает место, когда поток закончит."""
+    """Места для разбора: не больше per_user у пользователя и total всего, по очереди прихода: место берёт первый из
+    ждущих, кому его можно дать (ждущий, у которого уже per_user разборов, не держит очередь). Счётчики меняются только в
+    цикле событий (ожидание — опросом, без примитивов, привязанных к одному циклу). Место занято, пока идёт поток
+    разбора: запрос, отменённый посреди разбора, отпускает место, когда поток закончит."""
 
     def __init__(self, per_user: int, total: int) -> None:
         self.per_user, self.total = per_user, total
         self.users: Counter[str] = Counter()
         self.busy = 0
+        self.waiting: list[tuple[int, str]] = []  # (номер прихода, пользователь)
+        self._arrived = 0
 
-    def _free(self, user: str) -> bool:
-        return self.busy < self.total and self.users[user] < self.per_user
+    def _turn(self, ticket: int, user: str) -> bool:
+        if self.busy >= self.total or self.users[user] >= self.per_user:
+            return False
+        for waiting, other in self.waiting:
+            if waiting == ticket:
+                return True
+            if self.users[other] < self.per_user:  # пришёл раньше и может начать: его очередь
+                return False
+        return True
 
     def _leave(self, user: str) -> None:
         self.busy -= 1
@@ -129,10 +141,16 @@ class ParseSlots:
         работа в потоке-исполнителе на этом месте."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + wait
-        while not self._free(user):
-            if loop.time() >= deadline:
-                raise BankError(429, "parse_busy", PARSE_BUSY_DETAIL)
-            await asyncio.sleep(PARSE_POLL_SECONDS)
+        self._arrived += 1
+        ticket = (self._arrived, user)
+        self.waiting.append(ticket)
+        try:
+            while not self._turn(ticket[0], user):
+                if loop.time() >= deadline:
+                    raise BankError(429, "parse_busy", PARSE_BUSY_DETAIL)
+                await asyncio.sleep(PARSE_POLL_SECONDS)
+        finally:
+            self.waiting.remove(ticket)
         self.busy += 1
         self.users[user] += 1
         threads: list[asyncio.Future] = []
@@ -162,7 +180,7 @@ async def _parse(request: Request) -> dict:
         raise BankError(401, "auth", AUTH_DETAIL)  # middleware main.py уже ответил бы 401: вторая линия
     form = await _read_form(request)
     async with parse_slots.hold(str(user["id"]), PARSE_WAIT_SECONDS) as run:
-        prepared = await prepare(request, form)
+        prepared = await prepare(request, form, run)
         # Разбор — чистый CPU (до 2 000 000 знаков): в потоке-исполнителе он не держит цикл событий.
         options = {"key_mode": prepared["key_mode"], "key_text": prepared["key_text"], "format_mode": prepared["format_mode"]}
         if prepared["key_file"] is not None:
@@ -174,10 +192,10 @@ async def _parse(request: Request) -> dict:
         return await run(functools.partial(parse_bank_text, prepared["text"], **options))
 
 
-async def prepare(request: Request, form) -> dict:
+async def prepare(request: Request, form, run: Callable[[Callable[[], Any]], Any] = asyncio.to_thread) -> dict:
     """Поля формы parse-bank, проверенные: {contents, name, text, key_mode, format_mode, key_text, user_keys, key_file,
     key_section, with_pictures} (файл прочитан с пределом размера; файл ключа — разделы). Ошибки — BankError.
-    Её же читает разбор с ИИ (bank_ai.py)."""
+    Её же читает разбор с ИИ (bank_ai.py). run — где читается файл ключа: место разбора (ParseSlots.hold)."""
     text_value = _optional_text(form.get("text"))
     key_mode = (_optional_text(form.get("key_mode")) or "auto").strip() or "auto"
     format_mode = (_optional_text(form.get("format")) or "auto").strip() or "auto"
@@ -212,7 +230,7 @@ async def prepare(request: Request, form) -> dict:
                       "key_text": key_text, "user_keys": _user_keys(key_text), "key_file": None, "key_section": key_section,
                       "with_pictures": (_optional_text(form.get("pictures")) or "").strip() == "1"}
     if key_upload is not None:
-        prepared["key_file"] = await _key_file(key_upload)
+        prepared["key_file"] = await _key_file(key_upload, run)
     if has_file:
         name = _file_name(upload)
         check_file_name(name)  # .doc и неизвестный формат — 415 сразу, не дожидаясь чтения файла
@@ -228,7 +246,7 @@ async def prepare(request: Request, form) -> dict:
     return prepared
 
 
-async def _key_file(upload: Any) -> list[dict]:
+async def _key_file(upload: Any, run: Callable[[Callable[[], Any]], Any] = asyncio.to_thread) -> list[dict]:
     """Файл ключа → разделы read_key_file. Его ошибки — с кодом key_file_* и словами «Файл ключа: …», чтобы клиент
     не принял их за ошибку файла с вопросами."""
     try:
@@ -240,7 +258,7 @@ async def _key_file(upload: Any) -> list[dict]:
             if exc.status_code == 413:
                 raise BankError(413, "file_too_big", str(exc.detail)) from None
             raise
-        return await asyncio.to_thread(read_key_file, contents, name)
+        return await run(functools.partial(read_key_file, contents, name))
     except BankError as exc:
         code = exc.code if exc.code.startswith("key_file") or exc.code == "no_keys" else f"key_file_{exc.code}"
         raise BankError(exc.status, code, f"Файл ключа: {exc.detail[:1].lower()}{exc.detail[1:]}") from None
@@ -258,5 +276,14 @@ async def parse_test_bank(request: Request):
     try:
         return await _parse(request)
     except BankError as exc:
-        headers = {"Retry-After": str(PARSE_RETRY_AFTER_SECONDS)} if exc.code == "parse_busy" else None
-        return JSONResponse(status_code=exc.status, content={"detail": exc.detail, "code": exc.code}, headers=headers)
+        return bank_error_response(request, exc, "bank_api.parse_test_bank")
+
+
+def bank_error_response(request: Request, exc: BankError, endpoint: str) -> JSONResponse:
+    """Ответ на BankError. «Сервер занят» (parse_busy) — с Retry-After, и этот запрос не считается в пределе запросов
+    маршрута endpoint («модуль.функция»): ждал не пользователь, а сервер."""
+    headers = None
+    if exc.code == "parse_busy":
+        headers = {"Retry-After": str(PARSE_RETRY_AFTER_SECONDS)}
+        give_back(request, endpoint)
+    return JSONResponse(status_code=exc.status, content={"detail": exc.detail, "code": exc.code}, headers=headers)

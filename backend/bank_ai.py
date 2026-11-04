@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import functools
 import hashlib
 import json
 import os
@@ -768,8 +769,10 @@ async def parse_bank_ai(request: Request):
         scope = (bank_api._optional_text(form.get("scope")) or "flagged").strip()
         if scope not in ("flagged", "all"):
             raise BankError(400, "bad_form", bank_api.BAD_FORM_DETAIL)
-        prepared = await bank_api.prepare(request, form)
-        blocks, line_word, pictures = await asyncio.to_thread(_blocks_of, prepared)
+        # reading the files is parsing work: in a place of parse-bank's (bank_api.ParseSlots), let go before the model
+        async with bank_api.parse_slots.hold(str(user["id"]), bank_api.PARSE_WAIT_SECONDS) as run:
+            prepared = await bank_api.prepare(request, form, run)
+            blocks, line_word, pictures = await run(functools.partial(_blocks_of, prepared))
 
         async def charge(units: int):
             return await quota.charge(request, "importAI", units)
@@ -779,7 +782,7 @@ async def parse_bank_ai(request: Request):
                               charge=charge, key_file=prepared["key_file"], key_section=prepared["key_section"])
         return bank_parse._checked(result, prepared["format_mode"])
     except BankError as exc:
-        return JSONResponse(status_code=exc.status, content={"detail": exc.detail, "code": exc.code})
+        return bank_api.bank_error_response(request, exc, "bank_ai.parse_bank_ai")
     except AIError as exc:
         if getattr(exc, "code", "") == "ai_limit":
             raise

@@ -22,6 +22,28 @@ RATE_LIMIT_HOUR_DETAIL = "Слишком много запросов за час
 limiter = Limiter(key_func=get_remote_address)
 
 
+def give_back(request: Request, endpoint: str) -> None:
+    """Вернуть запрос в пределы маршрута endpoint («модуль.функция», как их хранит slowapi): он не был обработан по
+    вине сервера (bank_api: все места разбора заняты), и ждать за него минуту или день пользователю незачем. Счётчики
+    окон (fixed-window, как настроен limiter) уменьшаются на 1; сбой — только в журнал."""
+    if not limiter.enabled:
+        return
+    try:
+        # the window's scope as slowapi counted it: the path (key_style «url», as configured) or the function's name
+        scope_of_route = (request.scope.get("path") or "") if limiter._key_style == "url" else endpoint
+        for lim in limiter._route_limits.get(endpoint, []):
+            key = lim.key_func(request)
+            scope = lim.scope or scope_of_route
+            if lim.per_method:
+                scope += f":{request.method}"
+            args = [key, scope]
+            if limiter._key_prefix:
+                args = [limiter._key_prefix, *args]
+            limiter._storage.decr(lim.limit.key_for(*args), 1)
+    except Exception as exc:  # noqa: BLE001 — предел важнее вернуть не удалось, чем уронить ответ
+        print(f"Rate limit give back failed: {type(exc).__name__}")
+
+
 def user_or_ip_key(request: Request) -> str:
     """Rate-limit key: the signed-in user when the auth middleware set one, else the IP.
 
