@@ -14,6 +14,7 @@ import { joinPlans, joinTargets } from './updateModel';
 import { aiKeyQueue, deriveSubjects, itemInputs, NO_EDITS, queueOf, spotCheck, type ImportEdits, type ImportFile } from './importModel';
 import {
   KEYS_AI_MAX_BATCHES,
+  KEYS_AI_REQUEST_BATCHES,
   keysAiBatchCount,
   keysAiBatches,
   keysAiCandidates,
@@ -85,15 +86,18 @@ describe('«Подобрать ключи с ИИ»: what is sent', () => {
     expect(outcome).toMatchObject({ sent: 1, keyed: 1, units: 5, error: null });
   });
 
-  it('one request per subject (its title along) and per 300 questions; the price is each request’s', () => {
+  it('one request per subject (its title along) and per 100 questions; the price is each request’s, the same in all', () => {
     const many = Array.from({ length: 301 }, (_, at) => q(at + 1));
     const subjects = deriveSubjects([file('f1', many, 'Сети'), file('f2', [q(1), q(2)], 'Базы данных')]);
     const candidates = keysAiCandidates(subjects, NO_EDITS);
     expect(keysAiBatches(candidates).map((batch) => [batch.subject, batch.items.length])).toEqual([
-      ['Сети', 300],
+      ['Сети', 100],
+      ['Сети', 100],
+      ['Сети', 100],
       ['Сети', 1],
       ['Базы данных', 2],
     ]);
+    // 5 per started 100, as one request of 300 and one of 1 would cost (15 + 5), and 5 for the other subject
     expect(keysAiPrice(candidates)).toBe(15 + 5 + 5);
     expect([keysAiCost(1), keysAiCost(100), keysAiCost(101), keysAiCost(300), keysAiCost(0)]).toEqual([5, 5, 10, 15, 5]);
     expect([keysAiCost(100, 4), keysAiCost(100, 5), keysAiCost(12, 12), keysAiCost(300, 12)]).toEqual([5, 10, 15, 15]);
@@ -120,15 +124,17 @@ describe('«Подобрать ключи с ИИ»: what is sent', () => {
     expect(keysAiForJoins(all, {})).toEqual(all);
   });
 
-  it('long questions: batches as the server makes them, at most 12 a request, priced by batches', () => {
+  it('long questions: batches as the server makes them, at most 4 a request, priced by batches', () => {
     // 2000 characters and eight options of 500: one question per model batch (bank_keys_ai.make_batches)
     const long = (position: number) => q(position, { text: `${position} ${'я'.repeat(1990)}`, options: Array.from({ length: 8 }, (_, k) => `${k}${'v'.repeat(499)}`) });
     const subjects = deriveSubjects([file('f1', Array.from({ length: 13 }, (_, at) => long(at + 1)))]);
     const candidates = keysAiCandidates(subjects, NO_EDITS);
     expect(candidates).toHaveLength(13);
     expect(keysAiBatchCount(candidates.map((candidate) => candidate.question))).toBe(13);
-    expect(keysAiBatches(candidates).map((batch) => batch.items.length)).toEqual([KEYS_AI_MAX_BATCHES, 1]);
+    expect(keysAiBatches(candidates).map((batch) => batch.items.length)).toEqual([KEYS_AI_REQUEST_BATCHES, KEYS_AI_REQUEST_BATCHES, KEYS_AI_REQUEST_BATCHES, 1]);
+    // the same total as one request of 12 batches (15) and one of 1 (5)
     expect(keysAiPrice(candidates)).toBe(15 + 5);
+    expect(KEYS_AI_REQUEST_BATCHES * 3).toBe(KEYS_AI_MAX_BATCHES);
     // ordinary questions: 25 to a batch, 300 a request; 60 are three batches (the server: 25, 25, 10)
     const plain = keysAiCandidates(deriveSubjects([file('f2', Array.from({ length: 60 }, (_, at) => q(at + 1)))]), NO_EDITS);
     expect(keysAiBatchCount(plain.map((candidate) => candidate.question))).toBe(3);

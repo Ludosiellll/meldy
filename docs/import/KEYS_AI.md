@@ -69,7 +69,10 @@ The server asks the model in batches (`bank_keys_ai.make_batches`): questions in
 current one has 25 questions or the next question would take it over 12 000 characters. A question's size is its text
 (trimmed) plus each option plus 4, plus 40, in code points. A request may hold at most **12 batches** (300 ordinary
 questions; 12 long ones go one per batch), otherwise 413 `too_big`. The client mirrors this
-(`frontend/src/components/containers/import/keysAi.ts`, `keysAiRequests`) to split requests and to show the price.
+(`frontend/src/components/containers/import/keysAi.ts`, `keysAiRequests`) to split requests and to show the price, and
+sends at most **100 questions and 4 batches** a request, one request after another: with 2 calls at a time a request
+of 12 batches could run out of the 150 s with its last batches unanswered but paid. The price per 100 questions or 4
+batches is the same, so the split costs what one bigger request would.
 
 ## Response 200
 

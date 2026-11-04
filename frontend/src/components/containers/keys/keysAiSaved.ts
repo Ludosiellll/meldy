@@ -2,7 +2,7 @@
  * «Подобрать ключи с ИИ» in «Вопросы и ключи» (owner, 2026-11-04; docs/import/KEYS_AI.md): the saved questions of the
  * exam that have no key. The same rules as at the import (import/keysAi.ts): only on the press; single or multiple
  * choice without pictures, within the server's limits; one request per subject (its title along), split as the server
- * takes them (300 questions, 12 model batches), one after another, waiting when the server asks to; a key only when two
+ * can answer well in time (100 questions, 4 model batches a request), one after another, waiting when the server asks to; a key only when two
  * answers agreed and were sure. Each key is written as the author's key with the AI's mark:
  * container_item_update(id, { correct, ai_key: true }) (migration 20261107090300_ai_key_flag); a later change of the key
  * takes the mark off. A question the author keyed meanwhile is refused by the database (22023 'keyed') and counted as

@@ -2,8 +2,9 @@
  * «Подобрать ключи с ИИ» on the import page (owner, 2026-11-04: «делай подбор ключей с ии»; contract
  * docs/import/KEYS_AI.md). Only on the student's press. The questions sent are those the file gave no key and that the
  * model can read: single or multiple choice, without pictures, within the server's limits; one request per subject (its
- * title goes along), per 300 questions and per 12 of the server's model batches, sent one after another; a request the
- * server asks to wait (429 with Retry-After) waits and goes again. A key comes back only when two independent answers
+ * title goes along), per 100 questions and per 4 of the server's model batches (one price step: the server answers 4
+ * batches well within its deadline with 2 calls at a time), sent one after another; a request the server asks to wait
+ * (429 with Retry-After) waits and goes again. A key comes back only when two independent answers
  * agreed and were sure; it becomes the student's own key with aiKey (saved with key_source 'manual' and the flag ai_key)
  * and waits in «Проверьте ключи от ИИ». A question without a key stays without one, with the server's note («ИИ не
  * уверен»). A result for a question that changed while the AI answered (its file read again, a key set by hand) is
@@ -22,8 +23,15 @@ export const KEYS_AI_MAX_QUESTIONS = 300;
 /** The server's model batches (bank_keys_ai.make_batches): up to 25 questions and 12 000 characters each… */
 const BATCH_QUESTIONS = 25;
 const BATCH_CHARS = 12_000;
-/** …and at most 12 of them in a request (more is a 413): requests are split before. */
+/** …and at most 12 of them in a request (more is a 413). */
 export const KEYS_AI_MAX_BATCHES = 12;
+/**
+ * What one request of ours holds: 100 questions and 4 batches, one price step (keysAiCost). The server answers a batch
+ * twice with 2 calls at a time within 150 s: 4 batches leave room for slow answers, 12 did not (the last ones came back
+ * without an answer but paid). Several requests cost what one bigger request would: 5 units per 100 or per 4 batches.
+ */
+export const KEYS_AI_REQUEST_QUESTIONS = 100;
+export const KEYS_AI_REQUEST_BATCHES = 4;
 const MAX_TEXT = 2000;
 const MAX_OPTIONS = 10;
 const MIN_OPTIONS = 2;
@@ -129,14 +137,14 @@ export function keysAiBatchCount(questions: readonly KeysAiQuestion[]): number {
 /** One request's units, as the server charges it: 5 per started 100 questions or per started 4 batches, the more. */
 export const keysAiRequestCost = (questions: readonly KeysAiQuestion[]) => keysAiCost(questions.length, keysAiBatchCount(questions));
 
-/** A subject's questions split into requests the server takes: up to 300 questions and 12 batches each. */
+/** A subject's questions split into requests: up to 100 questions and 4 batches each (KEYS_AI_REQUEST_*). */
 export function keysAiRequests<T>(list: readonly T[], questionOf: (entry: T) => KeysAiQuestion): T[][] {
   const out: T[][] = [];
   let current: T[] = [];
   let batcher = new Batcher();
   for (const entry of list) {
     const cost = questionSize(questionOf(entry));
-    if (current.length >= KEYS_AI_MAX_QUESTIONS || (batcher.startsNew(cost) && batcher.batches >= KEYS_AI_MAX_BATCHES)) {
+    if (current.length >= KEYS_AI_REQUEST_QUESTIONS || (batcher.startsNew(cost) && batcher.batches >= KEYS_AI_REQUEST_BATCHES)) {
       out.push(current);
       current = [];
       batcher = new Batcher();
