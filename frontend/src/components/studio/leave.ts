@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 
 /**
  * Leaving the studio while something is not saved asks first (owner, 04.11: «если выйти по стрелке, ничего не
@@ -25,6 +26,10 @@ const indexOf = (state: unknown): number | null => {
 export function useLeaveGuard(active: boolean, ask: (step: LeaveStep) => void, navigate: (to: string) => void): (step: LeaveStep) => void {
   const askRef = useRef(ask);
   askRef.current = ask;
+  // The page's own address as the router has it (a link to it is no way out).
+  const location = useLocation();
+  const here = useRef('');
+  here.current = `${location.pathname}${location.search}${location.hash}`;
   /** A step let through: the next history move is not held. */
   const released = useRef(false);
 
@@ -38,7 +43,7 @@ export function useLeaveGuard(active: boolean, ask: (step: LeaveStep) => void, n
       const url = new URL(anchor.href, window.location.href);
       if (url.origin !== window.location.origin) return;
       const to = `${url.pathname}${url.search}${url.hash}`;
-      if (to === `${window.location.pathname}${window.location.search}${window.location.hash}`) return;
+      if (to === here.current) return;
       event.preventDefault();
       event.stopPropagation();
       askRef.current({ kind: 'link', to });

@@ -20,6 +20,7 @@ import { containerOfExam, containerTitle, onContainerTitles } from '../lib/conta
 import { useMiniApp } from '../lib/telegram/miniApp';
 import GuidePulse from './guide/GuidePulse';
 import { useNoHoverWhileScrolling } from '../lib/scrollHover';
+import { mayLeave } from '../lib/leaveCheck';
 import '../styles/paper.css';
 import './layout.css';
 
@@ -486,7 +487,8 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
             </button>
           ) : null}
           <div className="sf-acct-sep" />
-          <button type="button" className="sf-acct-item" onClick={() => void signOut()}>
+          {/* A page with work not saved (the studio) answers first: it saves, or asks, or the user stays. */}
+          <button type="button" className="sf-acct-item" onClick={() => void mayLeave().then((go) => (go ? signOut() : undefined))}>
             Выйти
           </button>
         </>

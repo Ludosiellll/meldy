@@ -84,6 +84,10 @@ interface Props {
   onDiscard?: () => void;
   /** The page's way to press «Сохранить» (EditorHandle). */
   handle?: Ref<EditorHandle>;
+  /** A draft the page kept for this question (the editor mounted again elsewhere): taken instead of the question's own. */
+  initialDraft?: Draft | null;
+  /** Told of every change of the draft (the page keeps it while it differs from the question). */
+  onDraft?: (draft: Draft) => void;
 }
 
 const GROWS = 'textarea.qe-text';
@@ -163,9 +167,11 @@ export default function QuestionEditor({
   unsaved = null,
   onDiscard,
   handle,
+  initialDraft = null,
+  onDraft,
 }: Props) {
   const id = useId();
-  const [draft, setDraft] = useState<Draft>(() => (item ? draftOf(item) : emptyDraft()));
+  const [draft, setDraft] = useState<Draft>(() => initialDraft ?? (item ? draftOf(item) : emptyDraft()));
   const [local, setLocal] = useState<Record<string, BankPicture>>({});
   const [loading, setLoading] = useState(0);
   /**
@@ -201,7 +207,13 @@ export default function QuestionEditor({
   const canSave = !busy && loading === 0 && problems.length === 0 && !unchanged;
   const dirty = useMemo(() => draftChanged(item, draft), [item, draft]);
 
-  // The page hears of changes not saved (its guard and the browser's «Покинуть сайт?»).
+  // The page hears of changes not saved (its guard and the browser's «Покинуть сайт?»), and of the draft itself.
+  const onDraftRef = useRef(onDraft);
+  onDraftRef.current = onDraft;
+  const firstDraft = useRef(draft);
+  useEffect(() => {
+    if (draft !== firstDraft.current) onDraftRef.current?.(draft);
+  }, [draft]);
   const onDirtyRef = useRef(onDirty);
   onDirtyRef.current = onDirty;
   useEffect(() => {

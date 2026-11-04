@@ -13,7 +13,7 @@ import TypeChoice from '../test/TypeChoice';
 import { BUILD, type BuildType } from '../test/copyTest';
 import { ALL_BUILD_TYPES, copyInput, templateItem, typeOf } from '../test/buildModel';
 import type { Build } from '../test/useBuild';
-import { useUnsavedEditor } from './unsaved';
+import { useUnsaved } from './unsaved';
 import type { Studio } from './useStudio';
 import '../test/build.css';
 
@@ -90,7 +90,14 @@ export default function ListView({
   /** The open editor (one at a time: a card's or the new question's), for the page's «Сохранить». */
   const handle = useRef<EditorHandle>(null);
   const editingAt = editing && !newType ? list.findIndex((entry) => entry.id === editing) : -1;
-  useUnsavedEditor('list', editing !== null && dirty, editingAt >= 0 ? editingAt + 1 : null, busy !== null && (busy === editing || (busy === NEW && newType !== null)), handle);
+  useUnsaved(
+    'list',
+    editing !== null && dirty,
+    'question',
+    editingAt >= 0 ? editingAt + 1 : null,
+    busy !== null && (busy === editing || (busy === NEW && newType !== null)),
+    () => handle.current?.save() ?? Promise.resolve(true),
+  );
   const say = (id: string, text: string, error = false) => setNotes((current) => ({ ...current, [id]: { text, error } }));
 
   const run = (step: Step) => {

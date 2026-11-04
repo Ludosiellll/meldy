@@ -73,6 +73,11 @@ export const STUDIO = {
   leavePageText: 'Если уйти сейчас, последние изменения пропадут.',
   leaveStale: 'Тест изменён в другой вкладке: эти правки страницы уже не сохранятся.',
   leaveSave: { go: 'Сохранить и выйти', view: 'Сохранить и перейти', send: 'Сохранить и отправить' },
+  /** «Текст» holds changes not applied: the status, the question before leaving, its answer. */
+  textUnapplied: 'Текст не применён',
+  leaveTextText: 'Если не применить, правки текста пропадут.',
+  leaveApply: { go: 'Применить и выйти', view: 'Применить и перейти', send: 'Применить и отправить' },
+  leaveFailedText: 'Текст не применился. Что мешает, написано рядом с ним.',
   leaveDiscard: 'Не сохранять',
   leaveStay: 'Остаться',
   leaveFailedQuestion: 'Вопрос не сохранился. Что мешает, написано в нём самом.',

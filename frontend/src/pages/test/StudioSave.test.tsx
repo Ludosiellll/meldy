@@ -59,6 +59,7 @@ import { item, subject, summary } from '../../components/containers/testkit/fixt
 import { STUDIO } from '../../components/studio/copyStudio';
 import { EDITOR, nb } from '../../components/containers/copyImport';
 import { emptyDoc } from '../../lib/studio/doc';
+import { mayLeave } from '../../lib/leaveCheck';
 
 const EXAM = '11111111-2222-4333-8444-555555555555';
 const SUBJ = '22222222-3333-4444-8555-666666666666';
@@ -510,5 +511,224 @@ describe('where the changes go: one quiet line on the canvas', () => {
     await openStudio();
     await act(async () => undefined);
     expect(screen.queryByText(STUDIO.where.none)).toBeNull();
+  });
+});
+
+/** «Текст» with words typed after the page's own, not applied. */
+async function typeText(extra: string) {
+  fireEvent.click(view(STUDIO.views.text));
+  const area = await waitFor(() => {
+    const node = document.querySelector<HTMLTextAreaElement>('.st-textview textarea');
+    if (!node) throw new Error('no text yet');
+    return node;
+  });
+  fireEvent.change(area, { target: { value: `${area.value}\n\n${extra}` } });
+  return area;
+}
+const savedTexts = () => api.saveTestDoc.mock.calls.flatMap((call) => (call[1] as TestDoc).blocks.filter((block) => block.type === 'text').map((block) => (block as { text: string }).text));
+
+describe('«Текст» not applied is the page\'s too (review of 04.11)', () => {
+  it('the status says «Текст не применён»; Ctrl+S applies it and the page is saved with it', async () => {
+    await openStudio();
+    await typeText('Новый абзац автора');
+    expect(status()).toContain(STUDIO.textUnapplied);
+    expect(saveAll()).toBeEnabled();
+    expect(fireEvent.keyDown(document.querySelector('.st-textview textarea') as HTMLElement, { key: 's', code: 'KeyS', ctrlKey: true })).toBe(false);
+    await waitFor(() => expect(savedTexts()).toContain('Новый абзац автора'));
+    await waitFor(() => expect(status()).toContain(STUDIO.allSaved));
+  });
+
+  it('leaving asks «Текст не применён»; «Применить и выйти» applies it, saves it, then goes', async () => {
+    await openStudio();
+    await typeText('Новый абзац автора');
+    fireEvent.click(screen.getByRole('link', { name: 'Лекции' }));
+    const dialog = ask() as HTMLElement;
+    expect(dialog).toHaveAccessibleName(nb(STUDIO.textUnapplied));
+    fireEvent.click(within(dialog).getByRole('button', { name: STUDIO.leaveApply.go }));
+    expect(await screen.findByText('Лекции страница')).toBeInTheDocument();
+    expect(savedTexts()).toContain('Новый абзац автора');
+  });
+
+  it('a text that cannot be applied as it is: the page stays, the question says so, the text lists its problem', async () => {
+    await openStudio();
+    await typeText('[картинка] Схема');
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
+    fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveApply.go }));
+    await waitFor(() => expect(within(ask() as HTMLElement).getByRole('alert')).toHaveTextContent(STUDIO.leaveFailedText));
+    expect(screen.queryByText('Экзамен')).toBeNull();
+    fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveStay }));
+    expect(document.querySelector('.st-text-problems')).toHaveTextContent(/Строка \d+: новую картинку добавьте на холсте/);
+    expect(status()).toContain(STUDIO.textUnapplied);
+  });
+
+  it('another view asks («Применить и перейти»); «Не сохранять» drops the text', async () => {
+    await openStudio();
+    await typeText('Новый абзац автора');
+    fireEvent.click(view(STUDIO.views.canvas));
+    const dialog = ask() as HTMLElement;
+    expect(within(dialog).getByRole('button', { name: STUDIO.leaveApply.view })).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: STUDIO.leaveDiscard }));
+    await waitFor(() => expect(document.querySelector('.st-page')).toHaveAttribute('data-view', 'canvas'));
+    expect(screen.queryByText('Новый абзац автора')).toBeNull();
+    expect(status()).toContain(STUDIO.allSaved);
+  });
+
+  it('«Отправить по ссылке» applies the text first', async () => {
+    await openStudio();
+    await typeText('Новый абзац автора');
+    fireEvent.click(within(bar()).getByRole('button', { name: STUDIO.send }));
+    expect(await screen.findByText('Настройка контрольной')).toBeInTheDocument();
+    expect(savedTexts()).toContain('Новый абзац автора');
+  });
+});
+
+describe('one save at a time, one way out at a time (review of 04.11)', () => {
+  it('Ctrl+S and «Отправить по ссылке» at once: the second waits for the first, no «Не сохранено», one save', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    api.updateItem.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    await openStudio();
+    editQuestion2();
+    fireEvent.keyDown(document.body, { key: 's', code: 'KeyS', ctrlKey: true });
+    fireEvent.click(within(bar()).getByRole('button', { name: STUDIO.send }));
+    await act(async () => undefined);
+    expect(screen.queryByText(STUDIO.failed)).toBeNull();
+    await act(async () => answer({ id: uid(2), rev: 2, rev_changed: false, doubts_resolved: 0 }));
+    expect(await screen.findByText('Настройка контрольной')).toBeInTheDocument();
+    expect(api.updateItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('while «Сохранить и выйти» saves, another way out is not taken and the answers stay waiting', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    api.updateItem.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    await openStudio();
+    editQuestion2();
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
+    fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveSave.go }));
+    await waitFor(() => expect(ask()).toHaveAttribute('aria-busy', 'true'));
+    fireEvent.click(screen.getByRole('link', { name: 'Лекции' }));
+    expect(ask()).toHaveAttribute('aria-busy', 'true');
+    for (const button of within(ask() as HTMLElement).getAllByRole('button')) expect(button).toBeDisabled();
+    await act(async () => answer({ id: uid(2), rev: 2, rev_changed: false, doubts_resolved: 0 }));
+    // The first step goes: the exam, not «Лекции».
+    expect(await screen.findByText('Экзамен')).toBeInTheDocument();
+  });
+
+  it('«Не сохранять» on the send question still sends the page first', async () => {
+    await openStudio();
+    fireEvent.click(within(side()).getByRole('button', { name: STUDIO.layouts.pages }));
+    editQuestion2('');
+    fireEvent.click(within(bar()).getByRole('button', { name: STUDIO.send }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(api.saveTestDoc).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: STUDIO.leaveDiscard }));
+    expect(await screen.findByText('Настройка контрольной')).toBeInTheDocument();
+    expect(api.saveTestDoc).toHaveBeenCalledTimes(1);
+    expect(api.saveTestDoc.mock.calls[0][1].layout).toBe('pages');
+  });
+});
+
+describe('«Выйти» of the account menu asks too (lib/leaveCheck)', () => {
+  it('with a question not saved: «Остаться» keeps the studio, «Не сохранять» lets the sign-out go; nothing held — at once', async () => {
+    await expect(mayLeave()).resolves.toBe(true);
+    await openStudio();
+    await expect(mayLeave()).resolves.toBe(true);
+    editQuestion2();
+    let answered: boolean | null = null;
+    void mayLeave().then((go) => (answered = go));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog).toHaveAccessibleName(nb(STUDIO.leaveQuestion([2])));
+    fireEvent.click(within(dialog).getByRole('button', { name: STUDIO.leaveStay }));
+    await waitFor(() => expect(answered).toBe(false));
+    void mayLeave().then((go) => (answered = go));
+    fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: STUDIO.leaveSave.go }));
+    await waitFor(() => expect(answered).toBe(true));
+    expect(api.updateItem).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the window narrows with a question not saved (a tablet turned)', () => {
+  it('the settings move into the phone\'s sheet with the draft, and back into the column with it', async () => {
+    const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1440);
+    await openStudio();
+    editQuestion2();
+    act(() => {
+      width.mockReturnValue(700);
+      window.dispatchEvent(new Event('resize'));
+    });
+    const sheet = await screen.findByRole('dialog', { name: STUDIO.panelsLabel });
+    expect(within(sheet).getByLabelText('Текст вопроса')).toHaveValue('Согласие на медицинское вмешательство оформляется');
+    expect(status()).toContain(STUDIO.questionUnsaved([2]));
+    act(() => {
+      width.mockReturnValue(1440);
+      window.dispatchEvent(new Event('resize'));
+    });
+    await waitFor(() => expect(within(side()).getByLabelText('Текст вопроса')).toHaveValue('Согласие на медицинское вмешательство оформляется'));
+    // «Не сохранять» of another view forgets the kept draft: back on the canvas, the question as it is.
+    fireEvent.click(view(STUDIO.views.list));
+    fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveDiscard }));
+    await waitFor(() => expect(document.querySelector('.st-page')).toHaveAttribute('data-view', 'list'));
+    fireEvent.click(view(STUDIO.views.canvas));
+    await waitFor(() => expect(document.querySelector('.st-page')).toHaveAttribute('data-view', 'canvas'));
+    fireEvent.click(frame('qblock000001'));
+    fireEvent.click(frame('qblock000002'));
+    expect(within(side()).getByLabelText('Текст вопроса')).toHaveValue('Согласие на вмешательство оформляется');
+    width.mockRestore();
+  });
+});
+
+describe('the browser\'s «Назад» twice while only the page is being sent', () => {
+  it('goes back once', async () => {
+    let answer: (value: unknown) => void = () => undefined;
+    api.saveTestDoc.mockImplementation(() => new Promise((resolve) => (answer = resolve)));
+    api.fetchTestDoc.mockResolvedValue({ container_id: EXAM, doc: storedDoc(), rev: 4, updated_at: '2026-11-04T10:00:00Z' });
+    window.history.replaceState({ usr: null, key: 'lib', idx: 0 }, '', '/library');
+    render(<BrowserRouter>{routes()}</BrowserRouter>);
+    expect(await screen.findByText('Лекции страница')).toBeInTheDocument();
+    act(() => {
+      window.history.pushState({ usr: null, key: 'exam', idx: 1 }, '', `/exams/c/${EXAM}`);
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+    });
+    await screen.findByText('Экзамен');
+    act(() => {
+      window.history.pushState({ usr: null, key: 'studio', idx: 2 }, '', STUDIO_PATH);
+      window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }));
+    });
+    await screen.findByRole('group', { name: '1 из 3: Заголовок' });
+    fireEvent.click(within(side()).getByRole('button', { name: STUDIO.layouts.pages }));
+    for (let round = 0; round < 2; round += 1) {
+      await act(async () => {
+        window.history.back();
+        await new Promise((resolve) => setTimeout(resolve, 60));
+      });
+    }
+    expect(ask()).toBeNull();
+    await act(async () => {
+      answer({ rev: 5, updated_at: '2026-11-04T10:00:01Z' });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+    });
+    await waitFor(() => expect(window.location.pathname).toBe(`/exams/c/${EXAM}`));
+    expect(await screen.findByText('Экзамен')).toBeInTheDocument();
+    expect(api.saveTestDoc).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('the session ends while something waits (PrivateRoute closes the studio)', () => {
+  it('nothing throws: the page change is sent, its refusal kept quiet, the guards let go', async () => {
+    api.fetchTestDoc.mockResolvedValue({ container_id: EXAM, doc: storedDoc(), rev: 4, updated_at: '2026-11-04T10:00:00Z' });
+    const view = render(<MemoryRouter initialEntries={[STUDIO_PATH]}>{routes()}</MemoryRouter>);
+    await screen.findByRole('group', { name: '1 из 3: Заголовок' });
+    api.saveTestDoc.mockRejectedValue({ code: '28000', message: 'not authenticated' });
+    fireEvent.click(within(side()).getByRole('button', { name: STUDIO.layouts.pages }));
+    editQuestion2();
+    view.unmount();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(api.saveTestDoc).toHaveBeenCalledTimes(1);
+    // Nothing holds the way out any more.
+    await expect(mayLeave()).resolves.toBe(true);
+    const unload = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(unload);
+    expect(unload.defaultPrevented).toBe(false);
   });
 });

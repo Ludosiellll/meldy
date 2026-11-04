@@ -16,6 +16,7 @@ import { STUDIO, type Panel, type StudioView } from '../../components/studio/cop
 import EmptyStart from '../../components/studio/EmptyStart';
 import { UiIcon } from '../../components/studio/icons';
 import { useLeaveGuard, type LeaveStep } from '../../components/studio/leave';
+import { setLeaveCheck } from '../../lib/leaveCheck';
 import LeavePrompt from '../../components/studio/LeavePrompt';
 import ListView from '../../components/studio/ListView';
 import { bottomBarShown, hasBottomBar, sendWords, useTyping } from '../../components/studio/phone';
@@ -79,7 +80,12 @@ function useSettledDoc(doc: TestDoc, ms = 300): TestDoc {
 }
 
 /** The step the leave question waits on: a way out of the page (leave.ts), «Отправить по ссылке» or another view. */
-type AskStep = LeaveStep | { kind: 'send' } | { kind: 'view'; view: StudioView; check?: boolean };
+type AskStep =
+  | LeaveStep
+  | { kind: 'send' }
+  | { kind: 'view'; view: StudioView; check?: boolean }
+  /** Out of the signed-in app without a link (the account menu's «Выйти», lib/leaveCheck): `done` answers it. */
+  | { kind: 'out'; done: (go: boolean) => void };
 /** A step inside «Холст» that waits for the editor's own «Сохранить» / «Не сохранять». */
 type HeldStep = { kind: 'select'; id: string | null } | { kind: 'panel'; panel: Panel } | { kind: 'close' };
 
@@ -131,7 +137,9 @@ const SaveLine = memo(function SaveLine({
       return (
         <span className="st-save" data-warn="" role="status">
           <span className="st-save-dot" aria-hidden="true" />
-          <span className="st-save-t">{STUDIO.questionUnsaved(editors.map((editor) => editor.number))}</span>
+          <span className="st-save-t">
+            {editors.some((editor) => editor.kind === 'text') ? STUDIO.textUnapplied : STUDIO.questionUnsaved(editors.map((editor) => editor.number))}
+          </span>
         </span>
       );
     }
@@ -241,9 +249,9 @@ export default function StudioPage() {
   /** The question editors holding changes (the canvas's panel, «Список»): the top bar saves them too. */
   const [unsaved] = useState(createUnsavedStore);
   const editors = useUnsavedEditors(unsaved);
-  /** The top bar's «Сохранить» (or Ctrl+S, or «Сохранить и выйти») is on its way. */
+  /** The top bar's «Сохранить» (or Ctrl+S, or «Сохранить и выйти») is on its way; a second press waits for that one. */
   const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
+  const savingRef = useRef<Promise<SaveResult> | null>(null);
   /** The question before leaving: the step it holds, whether its save is on its way, what did not save. */
   const [leaving, setLeaving] = useState<{ step: AskStep; busy: boolean; failed: 'question' | 'page' | null } | null>(null);
   /** Release 49: «Скачать тест файлом» or «Сгенерировать вопросы». */
@@ -337,19 +345,23 @@ export default function StudioPage() {
   /** «Сохранить» of the top bar: each open question through its editor, then the page at once. */
   const studioRef = useRef<Studio>(studio);
   studioRef.current = studio;
-  const saveAll = useCallback(async (): Promise<SaveResult> => {
-    if (savingRef.current) return { ok: false, what: 'page' };
-    savingRef.current = true;
-    setSaving(true);
-    try {
-      for (const editor of unsaved.list()) if (!(await editor.save())) return { ok: false, what: 'question' };
-      // «Тест изменён в другой вкладке»: the page waits for «Обновить»; the questions are saved.
-      if (studioRef.current.save.kind === 'stale') return { ok: true };
-      return (await studioRef.current.flush()) ? { ok: true } : { ok: false, what: 'page' };
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
+  const saveAll = useCallback((): Promise<SaveResult> => {
+    // Ctrl+S and then «Отправить по ссылке» at once: the second gets the first one's answer, not a refusal.
+    if (savingRef.current) return savingRef.current;
+    const run = (async (): Promise<SaveResult> => {
+      setSaving(true);
+      try {
+        for (const editor of unsaved.list()) if (!(await editor.save())) return { ok: false, what: 'question' };
+        // «Тест изменён в другой вкладке»: the page waits for «Обновить»; the questions are saved.
+        if (studioRef.current.save.kind === 'stale') return { ok: true };
+        return (await studioRef.current.flush()) ? { ok: true } : { ok: false, what: 'page' };
+      } finally {
+        savingRef.current = null;
+        setSaving(false);
+      }
+    })();
+    savingRef.current = run;
+    return run;
   }, [unsaved]);
 
   // Ctrl+S (⌘S), in the editor's fields too: everything saved; never the browser's «Сохранить страницу».
@@ -371,10 +383,21 @@ export default function StudioPage() {
   const guarding = studio.phase === 'ready' && (editors.length > 0 || studio.pending);
   const sendTo = `/exams/c/${containerId}/quizzes/new?all=1&design=1`;
   const goRef = useRef<(step: LeaveStep) => void>(() => undefined);
-  const proceed = (step: AskStep) => {
+  const leavingRef = useRef(leaving);
+  leavingRef.current = leaving;
+  /** The question opens (or turns to a new step); a sign-out it held is told «stay». */
+  const askAbout = (step: AskStep, failed: 'question' | 'page' | null = null) => {
+    const before = leavingRef.current?.step;
+    if (before && before !== step && before.kind === 'out') before.done(false);
+    setLeaving({ step, busy: false, failed });
+  };
+  /** The step goes; `dropped`: «Не сохранять» — no kept draft of an editor comes back. */
+  const proceed = (step: AskStep, dropped = false) => {
     setLeaving(null);
+    if (dropped) unsaved.forgetKept();
     if (step.kind === 'link' || step.kind === 'history') goRef.current(step);
-    else if (step.kind === 'send') navigate(sendTo);
+    else if (step.kind === 'out') step.done(true);
+    else if (step.kind === 'send') void sendNow();
     else {
       showView(step.view);
       if (step.check) {
@@ -383,15 +406,39 @@ export default function StudioPage() {
       }
     }
   };
+  /** A leave's own flush is on its way (only the page waited): another way out meanwhile is not taken twice. */
+  const flushing = useRef(false);
   /** A way out: with only the page waiting it is sent now and the step goes; otherwise the question. */
   const leave = async (step: AskStep) => {
-    if (unsaved.list().length === 0 && studioRef.current.save.kind !== 'stale' && (await studioRef.current.flush())) {
-      proceed(step);
+    // While «Сохранить и выйти» saves, or the page is being sent for a step already taken, another step is dropped (the
+    // browser's «Назад» is taken back by the guard all the same).
+    if (leavingRef.current?.busy || flushing.current) {
+      if (step.kind === 'out') step.done(false);
       return;
     }
-    setLeaving({ step, busy: false, failed: null });
+    if (unsaved.list().length === 0 && studioRef.current.save.kind !== 'stale') {
+      flushing.current = true;
+      let sent = false;
+      try {
+        sent = await studioRef.current.flush();
+      } finally {
+        flushing.current = false;
+      }
+      if (sent) {
+        proceed(step);
+        return;
+      }
+    }
+    askAbout(step);
   };
+  const leaveRef = useRef(leave);
+  leaveRef.current = leave;
   goRef.current = useLeaveGuard(guarding, (step) => void leave(step), navigate);
+  // «Выйти» of the account menu asks here too while anything waits (lib/leaveCheck).
+  useEffect(() => {
+    if (!guarding) return undefined;
+    return setLeaveCheck(() => new Promise<boolean>((done) => void leaveRef.current({ kind: 'out', done })));
+  }, [guarding]);
   // The question asked about the page alone, and the page saved meanwhile (the network came back): the step goes.
   useEffect(() => {
     if (leaving && !leaving.busy && editors.length === 0 && !studio.pending && studio.save.kind !== 'stale' && leaving.step.kind !== 'view') proceed(leaving.step);
@@ -405,18 +452,32 @@ export default function StudioPage() {
     if (result.ok) proceed(step);
     else setLeaving({ step, busy: false, failed: result.what });
   };
+  const stay = () => {
+    const step = leavingRef.current?.step;
+    if (step?.kind === 'out') step.done(false);
+    setLeaving(null);
+  };
+
+  // The window narrowed (a tablet turned) while the canvas's question editor held changes: the settings go from the
+  // right column into a phone's sheet; the sheet opens, and the editor there takes its kept draft back (unsaved.ts).
+  const wasNarrow = useRef(narrow);
+  useEffect(() => {
+    if (narrow && !wasNarrow.current && editorDirty && panel === 'block' && view === 'canvas') setSideOpen(true);
+    wasNarrow.current = narrow;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [narrow]);
 
   /** «Холст · Список · Текст»: the open question editor of this view would close — asked first. */
   const chooseView = (next: StudioView) => {
     if (next !== view && unsaved.list().length > 0) {
-      setLeaving({ step: { kind: 'view', view: next }, busy: false, failed: null });
+      askAbout({ kind: 'view', view: next });
       return;
     }
     showView(next);
   };
   const openCheck = () => {
     if (view !== 'canvas' && unsaved.list().length > 0) {
-      setLeaving({ step: { kind: 'view', view: 'canvas', check: true }, busy: false, failed: null });
+      askAbout({ kind: 'view', view: 'canvas', check: true });
       return;
     }
     setView('canvas');
@@ -434,13 +495,23 @@ export default function StudioPage() {
     }, 0);
   };
 
-  /** «Отправить по ссылке»: the open question is saved first (its problem asked about), then the page, then the setup. */
+  /** The quiz setup, once the page is on the server (else «Не сохранено» stays here). */
+  const sendNow = async () => {
+    const before = studioRef.current.save.kind;
+    const ok = await studioRef.current.flush();
+    if (!ok && before !== 'idle') {
+      setSendNote(STUDIO.failed);
+      return;
+    }
+    navigate(sendTo);
+  };
+  /** «Отправить по ссылке»: the open question (or the text) is saved first (its problem asked about), then the page. */
   const send = async () => {
     setSendNote(null);
     if (unsaved.list().length > 0) {
       const result = await saveAll();
       if (!result.ok && result.what === 'question') {
-        setLeaving({ step: { kind: 'send' }, busy: false, failed: 'question' });
+        askAbout({ kind: 'send' }, 'question');
         return;
       }
       if (!result.ok) {
@@ -450,12 +521,7 @@ export default function StudioPage() {
       navigate(sendTo);
       return;
     }
-    const ok = await studio.flush();
-    if (!ok && studio.save.kind !== 'idle') {
-      setSendNote(STUDIO.failed);
-      return;
-    }
-    navigate(sendTo);
+    await sendNow();
   };
 
   // ───────────────────────────── where the changes go ─────────────────────────────
@@ -637,6 +703,8 @@ export default function StudioPage() {
   const failing = studio.save.kind === 'offline' || studio.save.kind === 'failed' || studio.save.kind === 'invalid' || studio.save.kind === 'stale';
   const where = quizzes && !whereSeen && view === 'canvas' ? whereKind(quizzes) : null;
   const askKind = leaving ? (leaving.step.kind === 'send' ? 'send' : leaving.step.kind === 'view' ? 'view' : 'go') : 'go';
+  /** «Текст» holds the changes (its editors and the text never wait together: each lives in its own view). */
+  const textHeld = editors.some((editor) => editor.kind === 'text');
   const stale = studio.save.kind === 'stale';
 
   return (
@@ -835,16 +903,24 @@ export default function StudioPage() {
       {touring && user?.id && view === 'canvas' ? <Tour userId={user.id} phone={narrow} onDone={() => setTouring(false)} /> : null}
       {leaving ? (
         <LeavePrompt
-          title={editors.length > 0 ? STUDIO.leaveQuestion(editors.map((editor) => editor.number)) : STUDIO.leavePage}
-          text={editors.length > 0 ? STUDIO.leaveQuestionText : stale ? STUDIO.leaveStale : STUDIO.leavePageText}
-          problem={leaving.failed === 'question' ? STUDIO.leaveFailedQuestion : leaving.failed === 'page' ? STUDIO.leaveFailedPage(pageWhy(studio.save)) : null}
+          title={textHeld ? STUDIO.textUnapplied : editors.length > 0 ? STUDIO.leaveQuestion(editors.map((editor) => editor.number)) : STUDIO.leavePage}
+          text={textHeld ? STUDIO.leaveTextText : editors.length > 0 ? STUDIO.leaveQuestionText : stale ? STUDIO.leaveStale : STUDIO.leavePageText}
+          problem={
+            leaving.failed === 'question'
+              ? textHeld
+                ? STUDIO.leaveFailedText
+                : STUDIO.leaveFailedQuestion
+              : leaving.failed === 'page'
+                ? STUDIO.leaveFailedPage(pageWhy(studio.save))
+                : null
+          }
           busy={leaving.busy}
-          saveLabel={editors.length === 0 && stale ? null : STUDIO.leaveSave[askKind]}
+          saveLabel={editors.length === 0 && stale ? null : textHeld ? STUDIO.leaveApply[askKind] : STUDIO.leaveSave[askKind]}
           discardLabel={STUDIO.leaveDiscard}
           stayLabel={STUDIO.leaveStay}
           onSave={() => void saveAndLeave()}
-          onDiscard={() => proceed(leaving.step)}
-          onStay={() => setLeaving(null)}
+          onDiscard={() => proceed(leaving.step, true)}
+          onStay={stay}
         />
       ) : null}
     </div>

@@ -37,6 +37,7 @@ import { LOW_SHARE, quotaLevel, quotaSentence } from './QuotaMeter';
 import { rememberAttachedExams, rememberContainerTitle } from '../lib/containers/titleCache';
 import { formatLimitReset, nextLimitReset } from '../api/limits';
 import { OPEN_PRO_EVENT } from '../lib/plans';
+import { setLeaveCheck } from '../lib/leaveCheck';
 import { startMiniApp, stopMiniApp } from '../test/telegramWebApp';
 
 function renderAt(path: string, page: React.ReactNode = <p>Содержимое страницы</p>) {
@@ -491,7 +492,7 @@ describe('account menu', () => {
     expect(within(menu).queryByText('Тема')).toBeNull();
     expect(within(menu).getByRole('switch', { name: /Показ на проекторе/ })).toBeInTheDocument();
     fireEvent.click(within(menu).getByRole('button', { name: 'Выйти' }));
-    expect(mocks.signOut).toHaveBeenCalled();
+    await waitFor(() => expect(mocks.signOut).toHaveBeenCalled());
 
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByRole('dialog', { name: 'Меню аккаунта' })).toBeNull();
@@ -821,6 +822,20 @@ describe('projector mode', () => {
 describe('inside Telegram (the Mini App: meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5)', () => {
   afterEach(() => {
     stopMiniApp();
+  });
+
+  it('«Выйти» asks a page holding work not saved first (the studio, lib/leaveCheck): «Остаться» keeps the account', async () => {
+    let answer: (go: boolean) => void = () => undefined;
+    const release = setLeaveCheck(() => new Promise<boolean>((done) => (answer = done)));
+    renderAt('/dashboard');
+    fireEvent.click(screen.getByRole('button', { name: /Алина: профиль, справка, выход/ }));
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('button', { name: 'Выйти' }));
+    await act(async () => answer(false));
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('button', { name: 'Выйти' }));
+    await act(async () => answer(true));
+    expect(mocks.signOut).toHaveBeenCalledTimes(1);
+    release();
   });
 
   it('keeps the sections and drops «‹ Родитель», the theme button, projector mode, PRO, installing and «Выйти»', async () => {

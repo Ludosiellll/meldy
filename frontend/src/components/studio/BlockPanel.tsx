@@ -1,10 +1,10 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { typingKey } from '../../lib/studio/history';
 import { POINTS_MAX, replaceBlock } from '../../lib/studio/doc';
 import { cleanVideoUrl } from '../../lib/studio/video';
 import { DOC_TITLE_MAX, type DocBlock, type DocLayout } from '../../types/testDoc';
 import QuestionEditor, { type EditorHandle } from '../containers/keys/QuestionEditor';
-import { patchOf, type Draft } from '../containers/keys/editorModel';
+import { draftChanged, draftOf, patchOf, type Draft } from '../containers/keys/editorModel';
 import { errorText, KEYS } from '../containers/copyImport';
 import { typeOf } from '../test/buildModel';
 import { BUILD } from '../test/copyTest';
@@ -12,7 +12,7 @@ import Choice from './Choice';
 import { STUDIO } from './copyStudio';
 import { BlockIcon, QuestionIcon } from './icons';
 import PictureField from './PictureField';
-import { useUnsavedEditor } from './unsaved';
+import { UnsavedContext, useUnsaved } from './unsaved';
 import type { Studio } from './useStudio';
 import type { SideApi } from './Workspace';
 
@@ -170,7 +170,19 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
   const [dirty, setDirty] = useState(false);
   const handle = useRef<EditorHandle>(null);
   // The page's «Сохранить», Ctrl+S and «Сохранить и выйти» reach this editor while it holds changes.
-  useUnsavedEditor('canvas', dirty && Boolean(item), number, busy, handle);
+  useUnsaved('canvas', dirty && Boolean(item), 'question', number, busy, () => handle.current?.save() ?? Promise.resolve(true));
+  // The draft outlives this panel while it differs from the question: the settings move between the right column and
+  // a phone's sheet when the window narrows or a tablet turns, and the editor mounted there takes it back.
+  const store = useContext(UnsavedContext);
+  const keptKey = item ? `draft:${item.id}` : '';
+  const stamp = useMemo(() => (item ? JSON.stringify(draftOf(item)) : ''), [item]);
+  const [kept] = useState(() => {
+    const entry = keptKey ? (store?.kept(keptKey) as { stamp: string; draft: Draft } | undefined) : undefined;
+    return entry && entry.stamp === stamp ? entry.draft : null;
+  });
+  const forget = () => {
+    if (keptKey) store?.keep(keptKey, null);
+  };
   useEffect(() => {
     setError(null);
     setNote(null);
@@ -180,6 +192,7 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
   const save = async (draft: Draft): Promise<boolean> => {
     const patch = patchOf(item, draft);
     if (!patch) {
+      forget();
       onSaved();
       return true;
     }
@@ -187,6 +200,7 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
     setError(null);
     try {
       const result = await studio.patchRow(item.id, patch);
+      forget();
       // «Счёт… начнётся заново» only where somebody's answers were counted (useSavedLine); otherwise the studio's words.
       const line = savedLine(item.id, result.rev_changed);
       setNote(line === KEYS.edited ? STUDIO.editorSaved : line);
@@ -229,12 +243,18 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
         }}
         unsaved={unsaved}
         onDiscard={() => {
+          forget();
           setRound((n) => n + 1);
           onDiscard();
         }}
         onSave={save}
-        onCancel={() => setRound((n) => n + 1)}
+        onCancel={() => {
+          forget();
+          setRound((n) => n + 1);
+        }}
         handle={handle}
+        initialDraft={round === 0 ? kept : null}
+        onDraft={(draft) => store?.keep(keptKey, draftChanged(item, draft) ? { stamp, draft } : null)}
       />
       {note ? (
         <p className="st-note" role="status">
