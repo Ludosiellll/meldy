@@ -36,7 +36,7 @@ $fn$;
 -- The page of X on background p_bg: a cover, a text and both questions.
 create or replace function pg_temp.doc(p_bg jsonb) returns jsonb language sql stable as $fn$
   select jsonb_build_object(
-    'v', 1, 'title', 'Аккред фулл верно',
+    'v', 1, 'title', 'Аккредитация, полный тест',
     'theme', jsonb_build_object('accent', 'orange', 'background', p_bg, 'font', 'onest', 'radius', 'soft', 'density', 'airy',
                                 'answers', 'list', 'buttons', 'pill'),
     'layout', 'one_by_one',
@@ -103,7 +103,7 @@ begin
 
   -- a quiz «как в студии» on X
   r := public.test_doc_save(v_x::uuid, pg_temp.doc(pg_temp.bg('#f3e3c3')), 6);
-  r := public.quiz_create(v_x::uuid, jsonb_build_object('title', 'Аккред фулл верно', 'design', true));
+  r := public.quiz_create(v_x::uuid, jsonb_build_object('title', 'Аккредитация, полный тест', 'design', true));
   if not (r ->> 'design')::boolean then raise exception 'FAILED: the design quiz %', r; end if;
   perform pg_temp.put('code', r ->> 'code');
   r := public.quiz_preview(r ->> 'code');

@@ -71,7 +71,7 @@ const STUDIO_PATH = `/exams/c/${EXAM}/studio`;
 const question = (id: string, itemId: string): DocBlock => ({ type: 'question', id, item_id: itemId, points: 1, required: false });
 function storedDoc(): TestDoc {
   return {
-    ...emptyDoc('Аккред фулл верно'),
+    ...emptyDoc('Аккредитация, полный тест'),
     layout: 'one_page',
     blocks: [
       { type: 'heading', id: 'head00000001', text: 'Часть первая', size: 'l' },
@@ -84,7 +84,7 @@ function storedDoc(): TestDoc {
 const examSummary = (): ContainerSummary =>
   summary({
     id: EXAM,
-    title: 'Аккред фулл верно',
+    title: 'Аккредитация, полный тест',
     exam_date: null,
     subjects: [subject({ id: SUBJ, title: 'Вопросы', exam_date: null, oral: null, topic_titles: [], topics: [], kinds: { single: 2, multiple: 0, short: 0 } })],
     owner: { members: 0, doubts_open: 0, links: [] },
@@ -260,14 +260,14 @@ describe('leaving with something not saved asks first', () => {
   it('the back arrow: «Остаться» keeps the editor, «Не сохранять» goes without saving', async () => {
     await openStudio();
     editQuestion2();
-    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккред фулл верно' }));
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
     const dialog = ask() as HTMLElement;
     expect(dialog).toHaveAccessibleName(nb(STUDIO.leaveQuestion([2])));
     expect(within(dialog).getByRole('button', { name: STUDIO.leaveSave.go })).toHaveFocus();
     fireEvent.click(within(dialog).getByRole('button', { name: STUDIO.leaveStay }));
     expect(ask()).toBeNull();
     expect(within(side()).getByLabelText('Текст вопроса')).toHaveValue('Согласие на медицинское вмешательство оформляется');
-    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккред фулл верно' }));
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
     fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveDiscard }));
     expect(await screen.findByText('Экзамен')).toBeInTheDocument();
     expect(api.updateItem).not.toHaveBeenCalled();
@@ -276,7 +276,7 @@ describe('leaving with something not saved asks first', () => {
   it('«Сохранить и выйти»: the question saved through its editor, then the page goes', async () => {
     await openStudio();
     editQuestion2();
-    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккред фулл верно' }));
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
     fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveSave.go }));
     expect(await screen.findByText('Экзамен')).toBeInTheDocument();
     expect(api.updateItem).toHaveBeenCalledWith(uid(2), { stem: 'Согласие на медицинское вмешательство оформляется' });
@@ -285,7 +285,7 @@ describe('leaving with something not saved asks first', () => {
   it('«Сохранить и выйти» that cannot save: the page stays, the question says why', async () => {
     await openStudio();
     editQuestion2('');
-    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккред фулл верно' }));
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
     fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveSave.go }));
     await waitFor(() => expect(within(ask() as HTMLElement).getByRole('alert')).toHaveTextContent(STUDIO.leaveFailedQuestion));
     expect(screen.queryByText('Экзамен')).toBeNull();
@@ -315,7 +315,7 @@ describe('leaving with something not saved asks first', () => {
   it('only the page waiting (its pause): the back arrow sends it now and goes without asking', async () => {
     await openStudio();
     fireEvent.click(within(side()).getByRole('button', { name: STUDIO.layouts.pages }));
-    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккред фулл верно' }));
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
     expect(await screen.findByText('Экзамен')).toBeInTheDocument();
     expect(ask()).toBeNull();
     expect(api.saveTestDoc).toHaveBeenCalledTimes(1);
@@ -326,7 +326,7 @@ describe('leaving with something not saved asks first', () => {
     await openStudio();
     api.saveTestDoc.mockRejectedValue({ code: 'network' });
     fireEvent.click(within(side()).getByRole('button', { name: STUDIO.layouts.pages }));
-    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккред фулл верно' }));
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
     const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveAccessibleName(nb(STUDIO.leavePage));
     fireEvent.click(within(dialog).getByRole('button', { name: STUDIO.leaveSave.go }));
@@ -413,7 +413,7 @@ describe('«Список»: its editor is the page\'s to save too', () => {
     });
     fireEvent.change(field, { target: { value: 'Срок хранения медицинской карты' } });
     expect(status()).toContain(STUDIO.questionUnsaved([1]));
-    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккред фулл верно' }));
+    fireEvent.click(within(bar()).getByRole('link', { name: 'Аккредитация, полный тест' }));
     expect(ask()).toHaveAccessibleName(nb(STUDIO.leaveQuestion([1])));
     fireEvent.click(within(ask() as HTMLElement).getByRole('button', { name: STUDIO.leaveStay }));
     fireEvent.click(saveAll());
