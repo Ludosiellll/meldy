@@ -54,14 +54,22 @@ MAX_XML_PART_BYTES = 40 * 1024 * 1024  # одна часть XML (document.xml, 
 MAX_ARCHIVE_BYTES = 96 * 1024 * 1024  # весь архив распакованным (картинки почти не сжимаются: ≈ размер файла)
 MAX_ARCHIVE_ENTRIES = 5000
 # Разметка, несоразмерная тексту (обзор 2026-11-04: DOCX в 198 КБ с document.xml в 40 МБ из пустых кусков оформления
-# разбирался 10 с и брал 626 МБ памяти): считается потоком до разбора, такой файл не разбирается. Банк на 2000 вопросов —
+# разбирался 10 с и брал 626 МБ памяти): считается потоком до разбора по всем частям XML, такой файл не разбирается. Банк на 2000 вопросов —
 # десятки тысяч кусков (корпус: до 2311, по 24–70 знаков на кусок); 2 000 000 знаков по 7 на кусок — меньше 300 000.
 MAX_DOC_RUNS = 300_000
 MAX_DOC_PARAGRAPHS = 300_000
 # С этого числа элементов текста должен быть хотя бы байт на 4 элемента (в корпусе — больше байта на элемент).
 MARKUP_ELEMENTS = 1_000_000
 _SCAN_CHUNK = 1 << 20
-_SCAN_TEXT_RE = re.compile(rb"<w:t(?:\s[^>]*)?>([^<]*)<")
+# Элементы — по локальному имени при любом префиксе («w:r», «x:r» с тем же пространством имён, «a:r» рисунков).
+_SCAN_PREFIX = rb"<(?:[A-Za-z_][\w.\-]*:)?"
+_SCAN_RUN_RE = re.compile(_SCAN_PREFIX + rb"r[\s/>]")
+_SCAN_PARA_RE = re.compile(_SCAN_PREFIX + rb"p[\s/>]")
+_SCAN_STYLE_RE = re.compile(_SCAN_PREFIX + rb"style[\s/>]")
+_SCAN_ELEMENT_RE = re.compile(rb"<[A-Za-z_]")
+_SCAN_TEXT_RE = re.compile(_SCAN_PREFIX + rb"t(?:\s[^>]*)?>([^<]*)<")
+# Стилей в документах Word — сотни; цепочка из 250 000 стилей разбиралась бы ещё до чтения (python-docx).
+MAX_DOC_STYLES = 20_000
 
 _M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 _MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -171,49 +179,70 @@ class TooComplex(Exception):
     """В document.xml разметки несоразмерно больше, чем текста (check_markup): файл не разбирается."""
 
 
+def _xml_part(head: bytes) -> Optional[bool]:
+    """По первым байтам части: True — XML в UTF-8 (считаем), False — не XML (картинка), None — XML в UTF-16 или UTF-32
+    (Word так не пишет, а побайтовый счёт его не видит: отказ)."""
+    if head.startswith((b"\xff\xfe", b"\xfe\xff", b"\x00\x00\xfe\xff", b"<\x00", b"\x00<", b"\x00\x00\x00<")):
+        return None
+    return head.lstrip(b"\xef\xbb\xbf \t\r\n").startswith(b"<")
+
+
 def check_markup(contents: bytes) -> None:
-    """TooComplex, если в word/document.xml больше MAX_DOC_RUNS кусков текста (w:r), больше MAX_DOC_PARAGRAPHS абзацев
-    или больше MARKUP_ELEMENTS элементов при тексте меньше байта на 4 элемента. Часть читается потоком по 1 МБ и
-    считается по байтам (без разбора XML): несколько десятых секунды на 40 МБ, отказ — как только предел пройден."""
+    """TooComplex, если во всех частях XML документа вместе (основная часть — как бы она ни называлась, колонтитулы,
+    сноски, стили) больше MAX_DOC_RUNS кусков текста, больше MAX_DOC_PARAGRAPHS абзацев, больше MAX_DOC_STYLES стилей
+    или больше MARKUP_ELEMENTS элементов при тексте меньше байта на 4 элемента. Элементы считаются по локальному имени
+    при любом префиксе пространства имён («w:r», «x:r»). Части читаются потоком по 1 МБ и считаются по байтам (без
+    разбора XML): несколько десятых секунды на 40 МБ, отказ — как только предел пройден. Часть XML не в UTF-8 — отказ."""
+    runs = paragraphs = styles = elements = text = 0
     with zipfile.ZipFile(io.BytesIO(contents)) as archive:
-        try:
-            part = archive.open("word/document.xml")
-        except KeyError:
-            return
-        runs = paragraphs = elements = text = 0
-        tail = b""
-        with part:
-            while True:
-                chunk = part.read(_SCAN_CHUNK)
-                data = tail + chunk
-                if chunk:
-                    cut = data.rfind(b"<")
-                    if cut < 0 or len(data) - cut > 2 * _SCAN_CHUNK:  # долго без «<»: это текст
-                        text += len(data)
-                        tail = b""
-                        continue
-                    # окно — до последнего «<» включительно (им кончается текст w:t); с него начнётся следующее
-                    window, tail = data[:cut + 1], data[cut:]
-                else:
-                    window, tail = data, b""
-                runs += window.count(b"<w:r>") + window.count(b"<w:r ")
-                paragraphs += window.count(b"<w:p>") + window.count(b"<w:p ") + window.count(b"<w:p/>")
-                elements += window.count(b"<w:")
-                text += sum(len(found) for found in _SCAN_TEXT_RE.findall(window))
-                if runs > MAX_DOC_RUNS or paragraphs > MAX_DOC_PARAGRAPHS:
-                    raise TooComplex(f"runs {runs}, paragraphs {paragraphs}")
-                if not chunk:
-                    break
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            with archive.open(info) as part:
+                tail = b""
+                first = True
+                while True:
+                    chunk = part.read(_SCAN_CHUNK)
+                    if first:
+                        first = False
+                        kind = _xml_part(chunk[:64])
+                        if kind is None:
+                            raise TooComplex(f"part {info.filename!r} is not UTF-8 XML")
+                        if not kind:
+                            break  # картинка и прочие не XML
+                    data = tail + chunk
+                    if chunk:
+                        cut = data.rfind(b"<")
+                        if cut < 0 or len(data) - cut > 2 * _SCAN_CHUNK:  # долго без «<»: это текст
+                            text += len(data)
+                            tail = b""
+                            continue
+                        # окно — до последнего «<» включительно (им кончается текст); с него начнётся следующее
+                        window, tail = data[:cut + 1], data[cut:]
+                    else:
+                        window, tail = data, b""
+                    runs += len(_SCAN_RUN_RE.findall(window))
+                    paragraphs += len(_SCAN_PARA_RE.findall(window))
+                    styles += len(_SCAN_STYLE_RE.findall(window))
+                    elements += len(_SCAN_ELEMENT_RE.findall(window))
+                    text += sum(len(found) for found in _SCAN_TEXT_RE.findall(window))
+                    if runs > MAX_DOC_RUNS or paragraphs > MAX_DOC_PARAGRAPHS or styles > MAX_DOC_STYLES:
+                        raise TooComplex(f"runs {runs}, paragraphs {paragraphs}, styles {styles}")
+                    if not chunk:
+                        break
     if elements > MARKUP_ELEMENTS and text * 4 < elements:
         raise TooComplex(f"elements {elements}, text {text}")
 
 
-def check_archive(contents: bytes, *, max_part: Optional[int] = None, max_total: Optional[int] = None) -> list[str]:
+def check_archive(contents: bytes, *, max_part: Optional[int] = None, max_total: Optional[int] = None,
+                  every_part: bool = False) -> list[str]:
     """Имена частей архива или ArchiveTooLarge / zipfile.BadZipFile — до того, как что-то распаковано.
 
     Смотрим объявленные размеры: zipfile не отдаёт больше объявленного (лишнее — ошибка CRC), поэтому
     предел по ним держит и для подделанного архива. Часть XML (.xml, .rels) — до max_part
     (MAX_XML_PART_BYTES), весь архив — до max_total (MAX_ARCHIVE_BYTES), частей — до MAX_ARCHIVE_ENTRIES.
+    every_part — до max_part любая часть, как бы она ни называлась (банк: основная часть «word/main.dat» читается
+    python-docx по ссылке из _rels/.rels так же, как document.xml).
     """
     max_part = MAX_XML_PART_BYTES if max_part is None else max_part
     max_total = MAX_ARCHIVE_BYTES if max_total is None else max_total
@@ -224,7 +253,7 @@ def check_archive(contents: bytes, *, max_part: Optional[int] = None, max_total:
     total = 0
     for info in infos:
         total += info.file_size
-        if info.filename.lower().endswith((".xml", ".rels")) and info.file_size > max_part:
+        if (every_part or info.filename.lower().endswith((".xml", ".rels"))) and info.file_size > max_part:
             raise ArchiveTooLarge(f"part {info.file_size} bytes")
     if total > max_total:
         raise ArchiveTooLarge(f"archive {total} bytes")
@@ -330,8 +359,16 @@ def _complex_letters(text: str) -> Optional[str]:
     return "all" if all(_COMPLEX_LETTER_RE.match(char) for char in _ANY_LETTER_RE.findall(text)) else "some"
 
 
+# Стили (styles.xml): учитываются первые MAX_STYLES, цепочка basedOn — до MAX_STYLE_DEPTH от базового стиля (у Word —
+# единицы; обзор 2026-11-04: цепочка в 250 000 стилей и 600 кусков на её глубоких стилях разбирались 94 с).
+MAX_STYLES = 5000
+MAX_STYLE_DEPTH = 32
+
+
 class _Styles:
-    """Оформление знаков и уровень заголовка у стилей абзаца и знака (цепочки basedOn разрешены)."""
+    """Оформление знаков и уровень заголовка у стилей абзаца и знака (цепочки basedOn разрешены). Каждый стиль
+    разрешается один раз, поверх уже разрешённого базового (без рекурсии); стиль глубже MAX_STYLE_DEPTH и стили сверх
+    MAX_STYLES не учитываются, как неизвестные."""
 
     def __init__(self, doc) -> None:
         self.styles: dict[str, dict] = {}
@@ -339,16 +376,18 @@ class _Styles:
         self.based: dict[str, Optional[str]] = {}
         self.outlines: dict[str, Optional[int]] = {}
         self.default_para: Optional[str] = None
-        self._marks_cache: dict[Optional[str], dict] = {}
-        self._outline_cache: dict[Optional[str], Optional[int]] = {}
+        # стиль → (оформление знаков, уровень заголовка (0 — явно «основной текст»), глубина от базового)
+        self._resolved: dict[str, tuple[dict, Optional[int], int]] = {}
         try:
             root = doc.styles.element
         except Exception:
             return
-        for style in root.findall(_w("style")):
+        for style in root.iterchildren(_w("style")):
             style_id = style.get(_w("styleId"))
             if not style_id:
                 continue
+            if len(self.styles) >= MAX_STYLES:
+                break
             if style.get(_w("type")) == "paragraph" and style.get(_w("default")) in ("1", "true", "on"):
                 self.default_para = style_id
             self.names[style_id] = (_w_val(style.find(_w("name"))) or "").lower()
@@ -356,38 +395,39 @@ class _Styles:
             self.styles[style_id] = _marks_of(style.find(_w("rPr")))
             self.outlines[style_id] = _outline_of(style.find(_w("pPr")))
 
-    def _chain(self, style_id: Optional[str]) -> list[str]:
+    def _resolve(self, style_id: Optional[str]) -> tuple[dict, Optional[int], int]:
+        """(оформление, уровень, глубина) стиля: вверх по basedOn до разрешённого стиля, базового, неизвестного или
+        петли, затем вниз, каждый — поверх своего базового."""
+        path: list[str] = []
         seen: set[str] = set()
-        chain: list[str] = []
         current = style_id
-        while current and current not in seen:
+        while current and current in self.styles and current not in self._resolved and current not in seen:
             seen.add(current)
-            chain.append(current)
+            path.append(current)
             current = self.based.get(current)
-        return chain
+        entry: tuple[dict, Optional[int], int] = self._resolved.get(current, ({}, None, -1)) if current else ({}, None, -1)
+        for sid in reversed(path):
+            marks, level, depth = entry
+            depth += 1
+            if depth >= MAX_STYLE_DEPTH:
+                entry = ({}, None, depth)  # слишком глубоко: как неизвестный стиль (и всё, что на нём основано)
+            else:
+                own_level = self.outlines.get(sid)
+                if own_level is None:
+                    named = _HEADING_NAME_RE.fullmatch(self.names.get(sid, ""))
+                    own_level = int(named.group(1)) if named else level
+                entry = ({**marks, **self.styles[sid]}, own_level, depth)
+            self._resolved[sid] = entry
+        if not style_id or style_id not in self.styles:
+            return {}, None, -1
+        return self._resolved[style_id]
 
     def marks(self, style_id: Optional[str]) -> dict:
-        if style_id not in self._marks_cache:
-            merged: dict = {}
-            for sid in reversed(self._chain(style_id)):  # сначала базовый стиль, производный поверх
-                merged.update(self.styles.get(sid, {}))
-            self._marks_cache[style_id] = merged
-        return dict(self._marks_cache[style_id])
+        return dict(self._resolve(style_id)[0])
 
     def outline(self, style_id: Optional[str]) -> Optional[int]:
         """Уровень заголовка стиля: outlineLvl по цепочке basedOn, иначе имя «heading N» / «Заголовок N»."""
-        if style_id not in self._outline_cache:
-            level: Optional[int] = None
-            for sid in self._chain(style_id):
-                if self.outlines.get(sid) is not None:
-                    level = self.outlines[sid]
-                    break
-                named = _HEADING_NAME_RE.fullmatch(self.names.get(sid, ""))
-                if named:
-                    level = int(named.group(1))
-                    break
-            self._outline_cache[style_id] = level or None
-        return self._outline_cache[style_id]
+        return self._resolve(style_id)[1] or None
 
 
 def _letters(n: int, alphabet: str) -> str:
@@ -628,7 +668,7 @@ def read_docx(contents: bytes, pictures: Optional[dict[str, tuple[str, bytes]]] 
     """Блоки DOCX. Ошибки: ArchiveTooLarge (пределы распаковки), TooComplex (разметка несоразмерна тексту), прочие —
     повреждённый или не тот файл. pictures — словарь, куда сложить картинки абзацев (id → (тип, байты)); без него они
     не возвращаются."""
-    check_archive(contents)
+    check_archive(contents, every_part=True)
     check_markup(contents)
     from docx import Document
 
