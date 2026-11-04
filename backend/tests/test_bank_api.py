@@ -311,6 +311,29 @@ def test_a_busy_answer_does_not_count_against_the_limit(api, monkeypatch):
         api.main.limiter.reset()
 
 
+def test_a_busy_answer_of_ones_own_two_parses_counts_against_the_limit(api, monkeypatch):
+    """Свои два места заняты самим пользователем: «подождите» — его, и такой запрос считается (иначе можно слать без
+    конца ждущие запросы с файлом до 16 МБ каждый). Другой пользователь при этом не ждёт."""
+    blocking = Blocking()
+    monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
+    monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 0.05)
+    monkeypatch.setattr(api.main.limiter, "enabled", True)
+    api.main.limiter.reset()
+    try:
+        results: list = []
+        threads = [post_in_thread(api, "token-b", results) for _ in range(2)]
+        blocking.wait_running(2)
+        answers = [api.post(PATH, data={"text": BANK_TEXT}, headers={"Authorization": "Bearer token-b"}) for _ in range(30)]
+        assert [a.json().get("code") for a in answers[:28]] == ["parse_busy"] * 28
+        assert answers[-1].status_code == 429 and answers[-1].json()["detail"] == RATE_LIMIT_DETAIL  # 2 + 28 = 30 a minute
+        blocking.release.set()
+        assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200  # user-a never waited
+        for thread in threads:
+            thread.join(10)
+    finally:
+        api.main.limiter.reset()
+
+
 def test_a_key_file_is_read_in_the_same_place(api, monkeypatch):
     """Файл ключа — тоже разбор файла: в том же месте, что и файл с вопросами (не сбоку от мест)."""
     seen = []

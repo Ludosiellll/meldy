@@ -918,6 +918,110 @@ def test_markup_out_of_all_proportion_to_its_text_is_refused_before_the_parse(sh
     assert key_file.value.code == "too_complex"
 
 
+def docx_with_parts(parts: dict[str, bytes], rename: dict[str, str] | None = None) -> bytes:
+    """DOCX корпуса с заменёнными или добавленными частями (parts) и переименованными (rename: старое → новое имя)."""
+    rename = rename or {}
+    out = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO((FIXTURES / "13_inline_bold.docx").read_bytes())) as source, \
+            zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        names = []
+        for info in source.infolist():
+            data = parts.pop(info.filename, None) or source.read(info.filename)
+            for old, new in rename.items():
+                data = data.replace(old.encode(), new.encode()).replace(("/" + old).encode(), ("/" + new).encode())
+            target.writestr(rename.get(info.filename, info.filename), data)
+            names.append(info.filename)
+        for name, data in parts.items():
+            target.writestr(name, data)
+    return out.getvalue()
+
+
+BOMB_UNIT = '<{p}:p><{p}:r><{p}:t>a</{p}:t></{p}:r>' + '<{p}:r><{p}:rPr><{p}:b/></{p}:rPr><{p}:t></{p}:t></{p}:r>' * 20 + '</{p}:p>'
+
+
+def bomb_document(prefix: str = "w", root: str = "document") -> bytes:
+    unit = BOMB_UNIT.format(p=prefix)
+    body = unit * (39 * 1024 * 1024 // len(unit))
+    if root == "hdr":
+        return f'<?xml version="1.0" encoding="UTF-8"?><{prefix}:hdr xmlns:{prefix}="{W_NS}">{body}</{prefix}:hdr>'.encode()
+    return (f'<?xml version="1.0" encoding="UTF-8"?><{prefix}:document xmlns:{prefix}="{W_NS}"><{prefix}:body>{body}'
+            f'<{prefix}:sectPr/></{prefix}:body></{prefix}:document>').encode()
+
+
+def refused_as_too_complex(contents: bytes) -> None:
+    started = time.perf_counter()
+    with pytest.raises(BankError) as raised:
+        parse_bank_file(contents, "bank.docx")
+    assert raised.value.code == "too_complex"
+    assert time.perf_counter() - started < 2
+
+
+def test_the_markup_check_sees_any_prefix_any_part_name_and_every_part():
+    """Обход проверки разметки: другой префикс того же пространства имён («x:p», «x:r»), основная часть под другим
+    именем («word/main.dat», python-docx находит её по _rels/.rels), бомба в колонтитуле, часть в UTF-16."""
+    refused_as_too_complex(docx_with_parts({"word/document.xml": bomb_document("x")}))
+    renamed = docx_with_parts({"word/document.xml": bomb_document()},
+                              rename={"word/document.xml": "word/main.dat", "word/_rels/document.xml.rels": "word/_rels/main.dat.rels"})
+    refused_as_too_complex(renamed)
+    refused_as_too_complex(docx_with_parts({"word/header1.xml": bomb_document(root="hdr")}))
+    utf16 = '<?xml version="1.0" encoding="UTF-16"?><w:document xmlns:w="{}"><w:body/></w:document>'.format(W_NS)
+    refused_as_too_complex(docx_with_parts({"word/document.xml": utf16.encode("utf-16")}))
+    # the cap of a part holds whatever its name: 41 MB of zeros under «word/main.dat»
+    with pytest.raises(BankError) as raised:
+        parse_bank_file(docx_with_parts({"word/main.dat": bytes(41 * 1024 * 1024)}), "bank.docx")
+    assert raised.value.code == "too_much_text"
+    # a picture is not XML: not counted, the file reads as before
+    result = parse_bank_file(docx_with_parts({"word/media/image9.png": png((1, 2, 3)) * 1000}), "bank.docx")
+    assert result["stats"]["items"] > 0
+
+
+def test_a_style_chain_of_a_quarter_million_is_refused_and_deep_styles_cost_nothing():
+    """Цепочка basedOn в 250 000 стилей и 200 кусков на её глубоких стилях разбиралась 36 с (600 — 94 с): теперь такой
+    файл не читается (стилей больше 20 000), а в допустимом каждый стиль разрешается один раз."""
+    def chain(n: int, runs: int) -> bytes:
+        styles = ('<w:style w:type="character" w:styleId="s0"><w:name w:val="s0"/><w:rPr><w:b/></w:rPr></w:style>'
+                  + "".join(f'<w:style w:type="character" w:styleId="s{i}"><w:basedOn w:val="s{i - 1}"/></w:style>' for i in range(1, n)))
+        body = "".join(f'<w:p><w:r><w:t>{k}. Вопрос {k}?</w:t></w:r></w:p><w:p><w:r><w:rPr><w:rStyle w:val="s{k}"/></w:rPr>'
+                       f'<w:t>а) да</w:t></w:r></w:p><w:p><w:r><w:t>б) нет</w:t></w:r></w:p>' for k in range(1, 4))
+        body += "".join(f'<w:p><w:r><w:rPr><w:rStyle w:val="s{n - 1 - k}"/></w:rPr><w:t>Пояснение {k}</w:t></w:r></w:p>' for k in range(runs))
+        return docx_with_parts({
+            "word/styles.xml": f'<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="{W_NS}">{styles}</w:styles>'.encode(),
+            "word/document.xml": f'<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="{W_NS}"><w:body>{body}<w:sectPr/></w:body></w:document>'.encode(),
+        })
+
+    refused_as_too_complex(chain(250_000, 200))
+    contents = chain(15_000, 600)
+    started = time.perf_counter()
+    result = parse_bank_file(contents, "bank.docx")
+    assert time.perf_counter() - started < 1.5
+    assert [item["correct"] for item in result["items"]][:3] == [[0], [0], [0]]
+
+
+def test_styles_resolve_within_32_levels_and_5000_styles():
+    from types import SimpleNamespace
+
+    from lxml import etree
+
+    def styles(xml: str):
+        root = etree.fromstring(f'<w:styles xmlns:w="{W_NS}">{xml}</w:styles>'.encode())
+        return bank_docx._Styles(SimpleNamespace(styles=SimpleNamespace(element=root)))
+
+    chain = ('<w:style w:type="paragraph" w:styleId="s0"><w:name w:val="heading 2"/><w:rPr><w:b/></w:rPr></w:style>'
+             + "".join(f'<w:style w:type="paragraph" w:styleId="s{i}"><w:basedOn w:val="s{i - 1}"/>'
+                       + ('<w:rPr><w:i/></w:rPr>' if i == 5 else '') + '</w:style>' for i in range(1, 40)))
+    found = styles(chain)
+    assert found.marks("s5") == {"bold": True, "italic": True} and found.marks("s31") == {"bold": True, "italic": True}
+    assert found.outline("s31") == 2
+    assert found.marks("s32") == {} and found.outline("s32") is None  # deeper than 32: as an unknown style
+    assert found.marks("nope") == {} and found.outline(None) is None
+    # a loop of basedOn ends where it closes; past 5000 styles the rest are not read
+    loop = styles('<w:style w:styleId="a"><w:basedOn w:val="b"/><w:rPr><w:b/></w:rPr></w:style>'
+                  '<w:style w:styleId="b"><w:basedOn w:val="a"/><w:rPr><w:i/></w:rPr></w:style>')
+    assert loop.marks("a") == {"bold": True, "italic": True}
+    many = styles("".join(f'<w:style w:styleId="m{i}"><w:rPr><w:b/></w:rPr></w:style>' for i in range(5001)))
+    assert many.marks("m4999") == {"bold": True} and many.marks("m5000") == {}
+
+
 def test_no_file_of_the_corpus_is_too_complex():
     """Банки корпуса и синтетические файлы (до 2311 кусков, 24–70 знаков на кусок) проходят проверку разметки."""
     files = sorted(FIXTURES.parent.rglob("*.docx"))

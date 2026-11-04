@@ -3693,7 +3693,7 @@ def _sniff(contents: bytes, extension: str) -> str:
         raise BankError(422, "unreadable", UNREADABLE_DETAIL)
     if contents.startswith(b"PK\x03\x04"):
         try:
-            names = set(check_archive(contents))
+            names = set(check_archive(contents, every_part=True))
         except ArchiveTooLarge:
             raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL) from None
         except Exception:
