@@ -133,3 +133,19 @@ describe('reading a batch of files against the server’s limit (owner, 2026-11-
     expect(retryAfterMs('Wed, 04 Nov 2026 09:00:30 GMT', at)).toBe(30_000);
   });
 });
+
+describe('a spent day', () => {
+  beforeEach(() => vi.useFakeTimers({ now: new Date('2026-11-04T09:00:00Z') }));
+  afterEach(() => vi.useRealTimers());
+
+  it('is not waited for: the file fails at once with the server’s own line', async () => {
+    const line = 'На сегодня предел этой функции исчерпан — он обновится завтра.';
+    api.parseBank.mockRejectedValue(new ContainerApiError('http_429', line, { status: 429, detail: line, retryAfter: '50000' }));
+    const queue = createReadQueue({ concurrency: 2 });
+    const refusals: Throttled[] = [];
+    queue.push({ attempt: async () => { await readBankQueued({ text: 'x', format: 'auto' }); }, onGiveUp: (refusal) => refusals.push(refusal) });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(refusals.map((refusal) => [refusal.long, refusal.detail])).toEqual([[true, line]]);
+    expect(api.parseBank).toHaveBeenCalledTimes(1);
+  });
+});

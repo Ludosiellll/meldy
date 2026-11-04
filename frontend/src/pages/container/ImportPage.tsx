@@ -341,14 +341,15 @@ export default function ImportPage() {
 
   const read = useCallback(
     (entry: Entry) => {
-      const give = (code: string) => {
-        const failure = new ReadError(code);
-        track('container.import_failed', { code });
+      // Refused for about three minutes: the usual line and its retry; a spent hour or day says so in the server's words.
+      const give = (refusal: Throttled) => {
+        const failure = new ReadError('rate_limited', refusal.long && refusal.detail ? refusal.detail : undefined);
+        track('container.import_failed', { code: failure.code });
         update(entry.id, { status: entry.result ? 'done' : 'failed', error: failure.message, errorCode: failure.code, waitUntil: null });
       };
       reading.current!.push({
         onWait: (until) => update(entry.id, { waitUntil: until }),
-        onGiveUp: () => give('rate_limited'),
+        onGiveUp: give,
         attempt: async () => {
           let read: Awaited<ReturnType<typeof readBankQueued>>;
           try {

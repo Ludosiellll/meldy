@@ -25,11 +25,14 @@ export class ReadError extends Error {
   readonly code: string;
   /** rate_limited: how long the server asked to wait (Retry-After), in ms; null — it did not say. */
   readonly retryAfterMs: number | null;
-  constructor(code: string, message?: string, retryAfterMs: number | null = null) {
+  /** rate_limited: the server's own line, when it gave one in Russian. */
+  readonly detail: string | null;
+  constructor(code: string, message?: string, retryAfterMs: number | null = null, detail: string | null = null) {
     super(message ?? PARSE_ERRORS[code] ?? PARSE_ERRORS.unknown);
     this.name = 'ReadError';
     this.code = code;
     this.retryAfterMs = retryAfterMs;
+    this.detail = detail;
   }
 }
 
@@ -112,7 +115,9 @@ function asReadError(error: unknown): ReadError {
   const status = (error as { status?: unknown } | null)?.status;
   if (status === 429 || code === '429' || code === 'rate_limit') {
     const header = (error as { retryAfter?: unknown } | null)?.retryAfter;
-    return new ReadError('rate_limited', undefined, retryAfterMs(typeof header === 'string' ? header : null));
+    const detail = (error as { detail?: unknown } | null)?.detail;
+    return new ReadError('rate_limited', undefined, retryAfterMs(typeof header === 'string' ? header : null),
+      typeof detail === 'string' && /[а-яё]/i.test(detail) ? detail : null);
   }
   if (PARSE_ERRORS[code]) return new ReadError(code);
   const message = error instanceof Error ? error.message.trim() : '';
@@ -159,7 +164,7 @@ export async function readBankQueued(input: ReadInput): Promise<{ result: BankPa
   try {
     return await readBank(input);
   } catch (error) {
-    if (error instanceof ReadError && error.code === 'rate_limited') throw new Throttled(error.retryAfterMs);
+    if (error instanceof ReadError && error.code === 'rate_limited') throw new Throttled(error.retryAfterMs, error.detail);
     throw error;
   }
 }

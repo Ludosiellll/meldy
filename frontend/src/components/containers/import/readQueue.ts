@@ -8,13 +8,23 @@
  * Pure of React: the page gives the jobs, the clock and the timer (tests give fake ones).
  */
 
-/** Thrown by a job the server refused for now: `retryAfterMs` — how long it asked to wait (null — it did not say). */
+/**
+ * Thrown by a job the server refused for now: `retryAfterMs` — how long it asked to wait (null — it did not say);
+ * `detail` — the server's own line (a spent day says «обновится завтра», not «подождите минуту»).
+ */
 export class Throttled extends Error {
   readonly retryAfterMs: number | null;
-  constructor(retryAfterMs: number | null) {
+  readonly detail: string | null;
+  constructor(retryAfterMs: number | null, detail: string | null = null) {
     super('throttled');
     this.name = 'Throttled';
     this.retryAfterMs = retryAfterMs;
+    this.detail = detail;
+  }
+
+  /** The server asks for longer than the queue waits (a spent hour or day): its own line says so. */
+  get long(): boolean {
+    return (this.retryAfterMs ?? 0) > LONGEST_WAIT_MS;
   }
 }
 
@@ -23,8 +33,8 @@ export interface QueueJob {
   attempt: () => Promise<void>;
   /** The job waits until this moment (ms of `now`) and then goes on by itself. */
   onWait?: (until: number) => void;
-  /** Refused for too long: the job fails. */
-  onGiveUp?: () => void;
+  /** Refused for too long (or for a spent hour or day): the job fails; the last refusal says why. */
+  onGiveUp?: (refusal: Throttled) => void;
 }
 
 export interface ReadQueueOptions {
@@ -102,8 +112,8 @@ export function createReadQueue(options: ReadQueueOptions): ReadQueue {
             const refusedAt = now();
             entry.firstRefused ??= refusedAt;
             const wait = Math.min(LONGEST_WAIT_MS, Math.max(1_000, error.retryAfterMs ?? waitMs));
-            if (refusedAt + wait - entry.firstRefused > giveUpMs || entry.tries >= maxTries || (error.retryAfterMs ?? 0) > LONGEST_WAIT_MS) {
-              entry.job.onGiveUp?.();
+            if (refusedAt + wait - entry.firstRefused > giveUpMs || entry.tries >= maxTries || error.long) {
+              entry.job.onGiveUp?.(error);
               return;
             }
             pausedUntil = Math.max(pausedUntil, refusedAt + wait);
