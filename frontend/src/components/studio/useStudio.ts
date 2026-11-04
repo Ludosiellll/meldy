@@ -206,6 +206,15 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   const [history, dispatch] = useReducer(reduce, null);
   const historyRef = useRef(history);
   historyRef.current = history;
+  /**
+   * A step of the history, seen at once by what reads the page before React renders it: «Применить» of «Текст» and
+   * the save right after it (the top bar's «Сохранить», «Применить и выйти») would otherwise send the page as it was.
+   * The reducer is pure, so React's next state is this same fold of the same steps.
+   */
+  const step = useCallback((act: Act) => {
+    historyRef.current = reduce(historyRef.current, act);
+    dispatch(act);
+  }, []);
   const [phase, setPhase] = useState<Studio['phase']>('loading');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
@@ -253,7 +262,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       paused.current = false;
       seen.current = new Set(questionIds(doc).filter((id) => rowsRef.current.has(id)));
       blocked.current.clear();
-      dispatch({ type: 'load', doc });
+      step({ type: 'load', doc });
       setSave({ kind: stored ? 'saved' : 'idle' });
       setPhase('ready');
       setLoadError(null);
@@ -264,7 +273,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
         setPhase((current) => (current === 'ready' ? current : 'error'));
       }
     }
-  }, [loaded, summary, containerId, subjectOrder]);
+  }, [loaded, summary, containerId, subjectOrder, step]);
 
   useEffect(() => {
     const key = `${containerId}:${loadRound}`;
@@ -312,7 +321,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
           snapshots.current.delete(old);
           seen.current.add(row.id);
           addLocal([item]);
-          dispatch({ type: 'remap', map: [{ ref: old, id: row.id }] });
+          step({ type: 'remap', map: [{ ref: old, id: row.id }] });
         })
         .catch(() => say(STUDIO.rowFailed))
         .finally(() => pending.current.delete(old));
@@ -344,9 +353,9 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       const next = syncQuestions(present, fresh);
       const added = next.blocks.length - present.blocks.length;
       setOverflow(fresh.length - added);
-      if (added > 0) dispatch({ type: 'amend', change: () => next });
+      if (added > 0) step({ type: 'amend', change: () => next });
     } else setOverflow(0);
-  }, [phase, present, rows, subjectOrder, containerId, addLocal, dropLocal, say, setOverflow]);
+  }, [phase, present, rows, subjectOrder, containerId, addLocal, dropLocal, say, setOverflow, step]);
 
   // Any change of the page lets a failed deletion try again.
   useEffect(() => {
@@ -454,8 +463,8 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   // ───────────────────────────── edits ─────────────────────────────
 
   const change = useCallback((fn: (doc: TestDoc) => TestDoc, key: string | null = null) => {
-    dispatch({ type: 'record', change: fn, key, at: Date.now() });
-  }, []);
+    step({ type: 'record', change: fn, key, at: Date.now() });
+  }, [step]);
 
   const full = () => (historyRef.current?.present.blocks.length ?? 0) >= DOC_MAX_BLOCKS;
 
@@ -490,6 +499,10 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
         seen.current.add(item.id);
       }
       addLocal([...made.values()]);
+      // Seen at once by a save right after (as the page's steps): the rows come to the page with the next render.
+      const known = new Map(rowsRef.current);
+      for (const item of made.values()) known.set(item.id, item);
+      rowsRef.current = known;
       window.setTimeout(() => {
         for (const item of made.values()) pending.current.delete(item.id);
       }, 0);
@@ -677,8 +690,8 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   }, [save]);
 
   const fallback = useMemo(() => emptyDoc(summary?.title ?? ''), [summary?.title]);
-  const undo = useCallback(() => dispatch({ type: 'undo' }), []);
-  const redo = useCallback(() => dispatch({ type: 'redo' }), []);
+  const undo = useCallback(() => step({ type: 'undo' }), [step]);
+  const redo = useCallback(() => step({ type: 'redo' }), [step]);
   const retrySave = useCallback(() => void saveNow(), [saveNow]);
   const doc = present ?? fallback;
   const undoable = history ? canUndo(history) : false;
