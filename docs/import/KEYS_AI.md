@@ -52,9 +52,18 @@ from it. If this file and the code disagree, fix one of them in the same commit.
   They stay without a key.
 - Lengths are counted in characters (code points) on the server. JavaScript's `length` counts UTF-16 units, so
   checking with `length` on the client is never looser than the server.
-- More than 300 questions: split them into several requests. Each request is charged and rate-limited separately (see
-  below), so send as many as fit in one request.
+- More than 300 questions, or more than 12 model batches: split them into several requests (see «Batches» below). Each
+  request is charged and rate-limited separately, so send as many as fit in one request, and send them one after
+  another: a second request while the first is running is refused (429 `keys_running`).
 - Body size: at most 8 MB, otherwise 413.
+
+### Batches
+
+The server asks the model in batches (`bank_keys_ai.make_batches`): questions in request order, a new batch when the
+current one has 25 questions or the next question would take it over 12 000 characters. A question's size is its text
+(trimmed) plus each option plus 4, plus 40, in code points. A request may hold at most **12 batches** (300 ordinary
+questions; 12 long ones go one per batch), otherwise 413 `too_big`. The client mirrors this
+(`frontend/src/components/containers/import/keysAi.ts`, `keysAiRequests`) to split requests and to show the price.
 
 ## Response 200
 
@@ -95,14 +104,18 @@ from it. If this file and the code disagree, fix one of them in the same commit.
 
 ## Cost
 
-- Kind `keysAI` in the daily AI limit: **5 units for each started 100 questions** (1–100 questions cost 5, 101–200
-  cost 10, 201–300 cost 15). It is the same price as `importAI`. Server: `plans.AI_COSTS["keysAI"]`,
-  `plans.KEYS_AI_QUESTIONS_PER_CHARGE`, `plans.keys_ai_cost()`.
-- The mirror in `frontend/src/lib/plans.ts`: `keysAI: 5` in `AI_COSTS`, `KEYS_AI_QUESTIONS_PER_CHARGE = 100` and
-  `keysAiCost(questions)`. `backend/tests/test_quota.py::test_the_browser_shows_the_prices_the_server_charges` checks
-  that both sides name the same price.
-- The server charges **before** calling the model. If no answer came back at all, the units are returned and the
-  request fails. If some answers came back, the charge stays even if some questions end up without a key.
+- Kind `keysAI` in the daily AI limit, per request: **5 units for each started 100 questions or for each started 4
+  batches, whichever is more**. Ordinary questions: 1–100 cost 5, 101–200 cost 10, 201–300 cost 15 (100 ordinary
+  questions are 4 batches). Long questions cost by batches: 12 questions of 2000 characters with ten long options go
+  one per batch, 12 batches, 15 units. Server: `plans.AI_COSTS["keysAI"]`, `plans.KEYS_AI_QUESTIONS_PER_CHARGE`,
+  `plans.KEYS_AI_BATCHES_PER_CHARGE`, `plans.keys_ai_cost(questions, batches)`.
+- The mirror in `frontend/src/lib/plans.ts`: `keysAI: 5` in `AI_COSTS`, `KEYS_AI_QUESTIONS_PER_CHARGE = 100`,
+  `KEYS_AI_BATCHES_PER_CHARGE = 4` and `keysAiCost(questions, batches)`.
+  `backend/tests/test_quota.py::test_the_browser_shows_the_prices_the_server_charges` checks that both sides name the
+  same price.
+- The server charges **before** calling the model. The units are returned only when no model call got a reply (errors,
+  busy, out of time): the request then fails. A reply that came back, even an unusable one, keeps the charge: the
+  provider has done that work. Questions without a usable answer get `sure: "none"`.
 - Read the top bar's AI limit again after the answer, success or error (`notifyAIUsageChanged()`, as `parseBankAi` does).
 - Aborting the request in the browser does not refund it: the server finishes the work and keeps the charge.
 
@@ -113,7 +126,7 @@ The body is always `{"detail": "<Russian text>", "code": "..."}`, except the two
 | Status | `code` | `detail` | When |
 |---|---|---|---|
 | 401 | no code | «Требуется войти в аккаунт» (or the session middleware's own text) | no session or an expired one; nothing charged |
-| 413 | `too_big` | «Слишком большой запрос. Отправьте вопросы частями.» | body over 8 MB |
+| 413 | `too_big` | «Слишком большой запрос. Отправьте вопросы частями.» | body over 8 MB, or more than 12 batches |
 | 422 | `bad_request` | «Не удалось прочитать запрос. Обновите страницу и попробуйте ещё раз.» | not JSON, wrong types, unknown or missing field, bad or duplicate `id`, bad `kind` (a client bug) |
 | 422 | `bad_request` | «Отправьте от 1 до 300 вопросов.» | empty list or more than 300 |
 | 422 | `bad_request` | «Название предмета длиннее 200 знаков.» | `subject` too long |
@@ -121,27 +134,31 @@ The body is always `{"detail": "<Russian text>", "code": "..."}`, except the two
 | 422 | `bad_request` | «Вопрос N: нужно от 2 до 10 вариантов ответа.» / «Вопрос N: вариант ответа длиннее 500 знаков.» / «Вопрос N: пустой вариант ответа.» | options out of limits |
 | 429 | no code | «Слишком много запросов. Подождите минуту и повторите.» or «На сегодня предел этой функции исчерпан — он обновится завтра.» | rate limit: 5 a minute and 30 a day per user; `Retry-After` header |
 | 429 | `ai_limit` | «Дневной лимит ИИ на сегодня исчерпан.» plus `used`, `limit`, `resets_at`, `pro`, `units` | not enough units today; nothing charged; open the limit window as for other AI actions |
+| 429 | `keys_running` | «Ключи уже подбираются — в другой вкладке или окне. Дождитесь конца и попробуйте снова.» | this user's previous request is still running; `Retry-After: 30`; nothing charged |
 | 429 | `ai_busy` | «ИИ сейчас занят. Попробуйте подобрать ключи через минуту.» | the model is overloaded; units returned |
 | 502 / 503 / 504 | `ai_failed` | «Не удалось подобрать ключи. Попробуйте ещё раз.» | the model failed, is not configured, or ran out of time with no answer; units returned |
 
-Nothing is charged for 401, 413, 422, rate-limit 429 or `ai_limit`. The client's `backendError` already shows its own
+Nothing is charged for 401, 413, 422, rate-limit 429, `keys_running` or `ai_limit`. The client's `backendError` already shows its own
 words for every 5xx; the `code` is kept.
 
 ## Timing
 
 One request can take a while. The server sends up to 25 questions per model call, asks each batch twice, and runs up
-to 4 calls at a time, each call allowed 45 s. The server's own deadline is 150 s: answers that came in by then are
+to 2 calls at a time (at most 2 places of the server's shared queue of heavy calls), each call allowed 45 s. Retries
+of broken replies stay within 4 calls per batch on average. The server's own deadline is 150 s: answers that came in by then are
 returned, the rest get `sure: "none"`. Real timings have not been measured yet (no live calls were made when this was
 built); expect seconds for a few questions and up to the full 150 s for 300. Show progress rather than a frozen
 button, and keep the review queue usable while it runs.
 
 ## How the server decides (for reference)
 
-- Two independent answers per question. When both AI providers are configured, each answers once, with the options in
-  the order sent. With only one, it answers twice, and the second time the options are reordered (each one moves,
-  except «все перечисленные»-like options) and mapped back. If one provider fails on a batch, the other answers that
-  batch again with reordered options.
-- The model gets only the question text, the options and the subject: no ids, no keys, no other answers. It is told
-  to answer by option number, in JSON, with «уверен» / «не уверен», temperature 0.
+- Two independent answers per question. The first answer sees the options in the order sent, the second one reordered
+  (each one moves, except «все перечисленные»-like options) and mapped back. When both AI providers are configured,
+  each gives one of the two answers; with only one, it answers twice. If one provider fails on a batch, the other
+  answers that batch again in the order the remaining answer did not use.
+- The model gets only the question text, the options and the subject: no ids, no keys, no other answers. Each question
+  is a heading «Вопрос N. Один верный ответ.» with one line of JSON under it (`{"текст": …, "варианты": {"1": …}}`), so
+  a question's own text cannot pose as another question. It is told to answer by option number, in JSON, with
+  «уверен» / «не уверен», temperature 0.
 - A broken or cut-off reply is asked again in halves. Questions missing from a good reply are asked once more.
 - The server log gets counters only, never question text.

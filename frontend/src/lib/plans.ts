@@ -68,13 +68,19 @@ export function importAiCost(questions: number): number {
   return AI_COSTS.importAI * Math.ceil(count / IMPORT_AI_QUESTIONS_PER_CHARGE);
 }
 
-/** Подбор ключей с ИИ: AI_COSTS.keysAI за каждые начатые столько вопросов одного запроса (backend/bank_keys_ai.py). */
+/** Подбор ключей с ИИ: AI_COSTS.keysAI за каждые начатые столько вопросов одного запроса (backend/bank_keys_ai.py)… */
 export const KEYS_AI_QUESTIONS_PER_CHARGE = 100;
+/** …или за каждые начатые столько кусков (вызовов модели на два ответа), что больше. */
+export const KEYS_AI_BATCHES_PER_CHARGE = 4;
 
-/** Единицы одного запроса подбора ключей: 5 за каждые начатые 100 вопросов (не меньше 5); сервер считает так же (plans.py). */
-export function keysAiCost(questions: number): number {
+/**
+ * Единицы одного запроса подбора ключей: 5 за каждые начатые 100 вопросов или 4 куска, что больше (не меньше 5);
+ * сервер считает так же (plans.py). Куски — import/keysAi.ts keysAiBatchCount, как bank_keys_ai.make_batches.
+ */
+export function keysAiCost(questions: number, batches = 0): number {
   const count = Math.max(1, Math.trunc(Number(questions) || 0));
-  return AI_COSTS.keysAI * Math.ceil(count / KEYS_AI_QUESTIONS_PER_CHARGE);
+  const parts = Math.max(0, Math.trunc(Number(batches) || 0));
+  return AI_COSTS.keysAI * Math.max(Math.ceil(count / KEYS_AI_QUESTIONS_PER_CHARGE), Math.ceil(parts / KEYS_AI_BATCHES_PER_CHARGE));
 }
 
 /** Распознавание скана: AI_COSTS.scanPages за каждые начатые столько страниц. */
