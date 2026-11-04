@@ -79,6 +79,7 @@ from bank_docx import (
     Para,
     Run,
     Table,
+    TooComplex,
     check_archive,
     read_docx,
 )
@@ -148,6 +149,8 @@ NO_ITEMS_DETAIL = "Не нашли вопросов. Проверьте, что 
 NO_TEST_ITEMS_DETAIL = "Не нашли вопросов с вариантами ответов. Проверьте, что это тест: вопрос и под ним варианты."
 UNREADABLE_DETAIL = "Не удалось прочитать файл. Сохраните его заново в Word как DOCX и попробуйте ещё раз."
 TOO_MUCH_TEXT_DETAIL = "В файле больше 2 000 000 знаков текста. Разделите его на части и загрузите по очереди."
+TOO_COMPLEX_DETAIL = ("Файл устроен слишком сложно: в нём сотни тысяч кусков оформления на немного текста. Скопируйте "
+                      "вопросы в новый документ Word или вставьте их текстом.")
 EMPTY_FILE_DETAIL = "Файл пустой. Выберите другой файл."
 TOPICS_MERGED_WARNING = "В файле {count} тем — больше 300. Вопросы тем после 300-й добавлены в 300-ю."
 SUBJECTS_RESTART_WARNING = "Похоже, в файле несколько предметов. Разделить?"
@@ -3852,6 +3855,9 @@ def _file_input(contents: bytes, name: str, pictures: Optional[dict[str, tuple[s
             blocks = bank_formats.read_html(contents)
         else:
             blocks = list(bank_formats.read_pdf(contents))
+    except TooComplex as exc:
+        print(f"Bank file refused before parsing: {exc}")
+        raise BankError(413, "too_complex", TOO_COMPLEX_DETAIL) from None
     except ArchiveTooLarge:
         raise BankError(413, "too_much_text", TOO_MUCH_TEXT_DETAIL) from None
     except bank_formats.PdfScan:
@@ -3999,7 +4005,7 @@ def parse_bank_file(contents: bytes, name: str, *, key_mode: str = "auto", key_t
                     format_mode: str = "auto", key_file: Optional[list[dict]] = None, key_section: Optional[int] = None,
                     with_pictures: bool = False) -> dict:
     """Файл банка (DOCX, XLSX, TXT, MD, CSV, HTML, PDF, Moodle XML) → предпросмотр. Ошибки — BankError с кодом для
-    клиента: 415 old_doc / unsupported, 413 too_many / too_much_text, 422 empty_file / unreadable / no_items / scan_pdf.
+    клиента: 415 old_doc / unsupported, 413 too_many / too_much_text / too_complex, 422 empty_file / unreadable / no_items / scan_pdf.
     key_file — разделы файла ключа (read_key_file), key_section — раздел, выбранный пользователем.
     with_pictures — картинки DOCX переносятся (их просит клиент, который умеет их сохранить: страница, закэшированная до
     этого, сохранила бы вопрос без картинки и без флага has_image); без него картинки — только флаг, как раньше."""

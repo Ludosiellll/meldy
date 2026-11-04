@@ -894,6 +894,40 @@ def test_many_signature_rows_under_the_questions_cost_no_more_than_plain_rows():
     assert signed < 2 * plain + 1, (signed, plain)
 
 
+MARKUP_SHAPES = {
+    # 198 КБ на вид, 40 МБ document.xml: пустые куски оформления (обзор 2026-11-04: 10 с и 626 МБ на разбор)
+    "empty runs": '<w:p><w:r><w:t>a</w:t></w:r>' + '<w:r><w:rPr><w:b/></w:rPr><w:t></w:t></w:r>' * 20 + '</w:p>',
+    "two-letter runs": '<w:p>' + '<w:r><w:t>ab</w:t></w:r>' * 20 + '</w:p>',
+    "empty paragraphs": '<w:p/>',
+    "marks without text": '<w:p><w:r><w:t>a</w:t></w:r>' + '<w:proofErr w:type="spellStart"/>' * 50 + '</w:p>',
+}
+
+
+@pytest.mark.parametrize("shape", sorted(MARKUP_SHAPES))
+def test_markup_out_of_all_proportion_to_its_text_is_refused_before_the_parse(shape):
+    unit = MARKUP_SHAPES[shape]
+    contents = docx_with_body(unit * (39 * 1024 * 1024 // len(unit)))
+    assert len(contents) < 300_000  # мало на вид: предел размера файла его не держит
+    started = time.perf_counter()
+    with pytest.raises(BankError) as raised:
+        parse_bank_file(contents, "bank.docx")
+    assert (raised.value.status, raised.value.code, raised.value.detail) == (413, "too_complex", bank_parse.TOO_COMPLEX_DETAIL)
+    assert time.perf_counter() - started < 2  # до разбора: доли секунды, а не 10 с
+    with pytest.raises(BankError) as key_file:  # файл ключа — так же
+        bank_parse.read_key_file(contents, "key.docx")
+    assert key_file.value.code == "too_complex"
+
+
+def test_no_file_of_the_corpus_is_too_complex():
+    """Банки корпуса и синтетические файлы (до 2311 кусков, 24–70 знаков на кусок) проходят проверку разметки."""
+    files = sorted(FIXTURES.parent.rglob("*.docx"))
+    assert len(files) > 100
+    for path in files:
+        bank_docx.check_markup(path.read_bytes())
+    # чуть ниже пределов — разбирается как обычно (290 000 кусков по 2 буквы: около 3 с и 240 МБ)
+    bank_docx.check_markup(docx_with_body(('<w:p>' + '<w:r><w:t>ab</w:t></w:r>' * 20 + '</w:p>') * 14_500))
+
+
 def test_a_long_list_of_unnumbered_lines_above_the_questions_stays_as_it_was():
     """Больше TITLE_HEAD_ITEMS строк без номера до первого вопроса — это не шапка, а вопросы без номера: не трогаются."""
     result = parse_bank_file(form_rows_then_questions(bank_parse.TITLE_HEAD_ITEMS + 1), "bank.docx")

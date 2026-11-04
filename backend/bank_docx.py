@@ -42,7 +42,9 @@ __all__ = [
     "RichDocxReader",
     "Run",
     "Table",
+    "TooComplex",
     "check_archive",
+    "check_markup",
     "is_code",
     "read_docx",
 ]
@@ -51,6 +53,15 @@ __all__ = [
 MAX_XML_PART_BYTES = 40 * 1024 * 1024  # одна часть XML (document.xml, styles.xml…)
 MAX_ARCHIVE_BYTES = 96 * 1024 * 1024  # весь архив распакованным (картинки почти не сжимаются: ≈ размер файла)
 MAX_ARCHIVE_ENTRIES = 5000
+# Разметка, несоразмерная тексту (обзор 2026-11-04: DOCX в 198 КБ с document.xml в 40 МБ из пустых кусков оформления
+# разбирался 10 с и брал 626 МБ памяти): считается потоком до разбора, такой файл не разбирается. Банк на 2000 вопросов —
+# десятки тысяч кусков (корпус: до 2311, по 24–70 знаков на кусок); 2 000 000 знаков по 7 на кусок — меньше 300 000.
+MAX_DOC_RUNS = 300_000
+MAX_DOC_PARAGRAPHS = 300_000
+# С этого числа элементов текста должен быть хотя бы байт на 4 элемента (в корпусе — больше байта на элемент).
+MARKUP_ELEMENTS = 1_000_000
+_SCAN_CHUNK = 1 << 20
+_SCAN_TEXT_RE = re.compile(rb"<w:t(?:\s[^>]*)?>([^<]*)<")
 
 _M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 _MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -154,6 +165,47 @@ class Table:
 
 
 Block = Union[Para, Table]
+
+
+class TooComplex(Exception):
+    """В document.xml разметки несоразмерно больше, чем текста (check_markup): файл не разбирается."""
+
+
+def check_markup(contents: bytes) -> None:
+    """TooComplex, если в word/document.xml больше MAX_DOC_RUNS кусков текста (w:r), больше MAX_DOC_PARAGRAPHS абзацев
+    или больше MARKUP_ELEMENTS элементов при тексте меньше байта на 4 элемента. Часть читается потоком по 1 МБ и
+    считается по байтам (без разбора XML): несколько десятых секунды на 40 МБ, отказ — как только предел пройден."""
+    with zipfile.ZipFile(io.BytesIO(contents)) as archive:
+        try:
+            part = archive.open("word/document.xml")
+        except KeyError:
+            return
+        runs = paragraphs = elements = text = 0
+        tail = b""
+        with part:
+            while True:
+                chunk = part.read(_SCAN_CHUNK)
+                data = tail + chunk
+                if chunk:
+                    cut = data.rfind(b"<")
+                    if cut < 0 or len(data) - cut > 2 * _SCAN_CHUNK:  # долго без «<»: это текст
+                        text += len(data)
+                        tail = b""
+                        continue
+                    # окно — до последнего «<» включительно (им кончается текст w:t); с него начнётся следующее
+                    window, tail = data[:cut + 1], data[cut:]
+                else:
+                    window, tail = data, b""
+                runs += window.count(b"<w:r>") + window.count(b"<w:r ")
+                paragraphs += window.count(b"<w:p>") + window.count(b"<w:p ") + window.count(b"<w:p/>")
+                elements += window.count(b"<w:")
+                text += sum(len(found) for found in _SCAN_TEXT_RE.findall(window))
+                if runs > MAX_DOC_RUNS or paragraphs > MAX_DOC_PARAGRAPHS:
+                    raise TooComplex(f"runs {runs}, paragraphs {paragraphs}")
+                if not chunk:
+                    break
+    if elements > MARKUP_ELEMENTS and text * 4 < elements:
+        raise TooComplex(f"elements {elements}, text {text}")
 
 
 def check_archive(contents: bytes, *, max_part: Optional[int] = None, max_total: Optional[int] = None) -> list[str]:
@@ -573,9 +625,11 @@ class RichDocxReader(docx_text._DocxReader):
 
 
 def read_docx(contents: bytes, pictures: Optional[dict[str, tuple[str, bytes]]] = None) -> list[Block]:
-    """Блоки DOCX. Ошибки: ArchiveTooLarge (пределы распаковки), прочие — повреждённый или не тот файл.
-    pictures — словарь, куда сложить картинки абзацев (id → (тип, байты)); без него они не возвращаются."""
+    """Блоки DOCX. Ошибки: ArchiveTooLarge (пределы распаковки), TooComplex (разметка несоразмерна тексту), прочие —
+    повреждённый или не тот файл. pictures — словарь, куда сложить картинки абзацев (id → (тип, байты)); без него они
+    не возвращаются."""
     check_archive(contents)
+    check_markup(contents)
     from docx import Document
 
     reader = RichDocxReader(Document(io.BytesIO(contents)))
