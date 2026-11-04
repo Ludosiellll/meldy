@@ -63,7 +63,9 @@ def main() -> int:
         if not (ROOT / 'supabase' / 'functions' / name / 'index.ts').is_file():
             raise SystemExit(f'supabase/functions/{name}/index.ts does not exist')
         verify = jwt_setting(name)
-        command = ['supabase', 'functions', 'deploy', name, '--project-ref', ref or '<ref>', '--use-api']
+        # --yes: the CLI asks to confirm a deploy since late 2026 and, with no terminal, refuses and changes nothing
+        # (run 41818724143: «Confirmation required … Re-run with --yes to confirm»).
+        command = ['supabase', 'functions', 'deploy', name, '--project-ref', ref or '<ref>', '--use-api', '--yes']
         if not verify:
             command.append('--no-verify-jwt')
         print(f'{name}: verify_jwt={str(verify).lower()} → ' + ' '.join(command), flush=True)
