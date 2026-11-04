@@ -208,6 +208,22 @@ test('Z7: the question loses its bold, the answer from the file takes it; «В �
   assert.ok(visibleText(multiple.text).replace(/\u00a0/g, ' ').includes('В файле верны: 10.4.0.9, 172.20.1.1, 192.168.3.7\nВаш ответ: 10.4.0.9, 192.168.3.7'));
 });
 
+test('a key from «Подобрать ключи с ИИ» (ai_key, migration 20261107090300) says so, not «Ключ поставил автор», with «Сомневаюсь в ключе»', () => {
+  const ai = view({ ...ACID, keySource: 'manual' }, DB, 7);
+  ai.item.aiKey = true;
+  const member = reviewOut(ai, shown({ key: [1], chosen: [2] }), 'review', { site: SITE });
+  const text = visibleText(member.text).replace(/\u00a0/g, ' ');
+  assert.ok(text.includes('Ключ подобран ИИ, не из файла.'), text);
+  assert.ok(!text.includes('Ключ поставил автор') && !text.includes('Ключ поставили вы'));
+  assert.ok(member.keyboard!.flat().some((b) => b.text === 'Сомневаюсь в ключе'));
+  const owner = reviewOut({ ...ai, role: 'owner' }, shown({ key: [1], chosen: [2] }), 'review', { site: SITE });
+  assert.ok(visibleText(owner.text).replace(/\u00a0/g, ' ').includes('Ключ подобран ИИ, не из файла.'));
+  assert.deepEqual(owner.keyboard!.at(-1), [{ text: 'Ключ неверный?', url: `${SITE}/exams/c/${CID}/keys?s=${SUBJECT}&no=57` }]);
+  // a key the author set by hand says it as before
+  const manual = visibleText(reviewOut(view({ ...ACID, keySource: 'manual' }, DB, 7), shown({ key: [1], chosen: [2] }), 'review', { site: SITE }).text);
+  assert.ok(manual.replace(/\u00a0/g, ' ').includes('Ключ поставил автор.') && !manual.includes('подобран ИИ'));
+});
+
 test('Z8, Z9, Z11, Z12: «Не знаю» has no «Ваш ответ» nor «Неверно.»; the misclick keeps «В файле»; the author\'s key goes to «Ключи»', () => {
   const v = view(ACID, DB, 7);
   const z8 = words(reviewOut(v, shown({ dontKnow: true, key: [1] }), 'review', { site: SITE }).text);

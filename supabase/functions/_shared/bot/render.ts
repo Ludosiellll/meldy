@@ -52,6 +52,8 @@ export const S = {
   doubtDone: 'Вопрос отложен. Когда автор ответит, он снова будет в занятиях.',
   manualByAuthor: 'В файле ответ не был выделен. Ключ поставил автор.',
   manualByYou: 'В файле ответ не был выделен. Ключ поставили вы.',
+  /** A key from «Подобрать ключи с ИИ» (owner, 2026-11-04), as the site says it. */
+  aiKey: 'Ключ подобран ИИ, не из файла.',
   moved: 'Занятие продолжено ниже.',
 } as const;
 
@@ -179,10 +181,11 @@ function numberLine(item: QuestionItem): string {
   return t(topic ? `№ ${fileNumber(item)} · ${topic}` : `№ ${fileNumber(item)}`);
 }
 
-/** Notes above the number: a key the author set by hand; a key the author fixed (members). */
+/** Notes above the number: a key the AI suggested, or one the author set by hand; a key the author fixed (members). */
 function notes(v: QuestionView): string[] {
   const out: string[] = [];
-  if (v.item.keySource === 'manual') out.push(t(v.role === 'owner' ? S.manualByYou : S.manualByAuthor));
+  if (v.item.aiKey) out.push(t(S.aiKey));
+  else if (v.item.keySource === 'manual') out.push(t(v.role === 'owner' ? S.manualByYou : S.manualByAuthor));
   if (v.role !== 'owner' && v.item.keyChangedAt && /^\d{4}-\d{2}-\d{2}/.test(v.item.keyChangedAt)) {
     out.push(t(keyFixedOn(v.item.keyChangedAt.slice(0, 10))));
   }

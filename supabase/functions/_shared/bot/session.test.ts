@@ -684,9 +684,20 @@ test('the shapes of CONTRACT_T5 read as the function needs them (statuses, the r
   assert.equal(r.session!.figure.tooEarlyStates[0].streakDay, '2026-10-15');
   assert.equal(r.session!.createdAt, Date.parse('2026-10-16T16:50:00Z'));
   assert.equal(r.view!.item.keySource, 'manual');
+  assert.equal(r.view!.item.aiKey, false, 'no ai_key in the review: not a key from the AI');
   assert.equal(r.view!.item.keyChangedAt, '2026-10-16T08:00:00Z');
   assert.deepEqual(r.view!.order, [1, 0]);
   assert.equal(r.view!.retry, 1);
+  // migration 20261107090300_ai_key_flag: the review says whether the key came from «Подобрать ключи с ИИ»
+  const ai = toReply({
+    status: 'ok',
+    view: {
+      pos: 0, item_id: 'i', rev: 1, kind: 'single', code: false, keep_order: false, stem: 'Вопрос?', options: ['Б', 'А'], order: [1, 0], file_no: '', number: 1,
+      topic: null, topic_title: null, retry: 0,
+      review: { correct: false, dont_know: false, choice: [0], text: null, key: [1], answers: [], recorded: false, misclick: false, doubt: false, status: null, step: null, key_source: 'manual', ai_key: true, key_changed_at: null },
+    },
+  });
+  assert.equal(ai.view!.item.aiKey, true);
   assert.equal(toReply({ status: 'weird' }).status, 'invalid');
   assert.equal(toReply({ status: 'unavailable', exam_title: 'Осенняя сессия' }).examTitle, 'Осенняя сессия');
   assert.equal(newSid(() => 0.9999999).length, 8);
