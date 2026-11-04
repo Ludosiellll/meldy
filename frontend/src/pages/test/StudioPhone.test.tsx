@@ -45,6 +45,8 @@ vi.mock('../../lib/containers/hooks', () => ({
     reload: vi.fn(),
   }),
 }));
+// No request leaves the test: the canvas's percents and the exam's links (the studio's «where» line) answer here.
+vi.mock('../../api/quizzes', async (importOriginal) => ({ ...(await importOriginal<typeof import('../../api/quizzes')>()), itemPercents: vi.fn(async () => []), listQuizzes: vi.fn(async () => []) }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: null, session: null, loading: false }) }));
 
 import StudioPage from './StudioPage';

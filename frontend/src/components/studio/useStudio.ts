@@ -133,6 +133,12 @@ export interface Studio {
   /** A change of the page; `key` joins typing into one step (history typingKey). */
   change: (change: (doc: TestDoc) => TestDoc, key?: string | null) => void;
   save: SaveState;
+  /**
+   * The page here is not the page on the server yet: a change waiting for its save (800 ms), one on its way, or one that
+   * did not go (no network, a refusal). Worked out by identity (the page and the rows last found saved), not by comparing
+   * the whole page at every key; false after «Тест изменён в другой вкладке» (nothing is saved then).
+   */
+  pending: boolean;
   /** Save now (the retry of «Не сохранено»). */
   retrySave: () => void;
   /** Saves at once; true when the page on the server is the page here. */
@@ -176,6 +182,16 @@ export function withoutUnfinished(doc: TestDoc): TestDoc {
 /** What a save sends: no dangling question blocks, no picture blocks without their picture, no video without its link. */
 export function toSend(doc: TestDoc, itemIds: Iterable<string>): TestDoc {
   return withoutUnfinished(withoutDangling(doc, itemIds));
+}
+
+/**
+ * The rows changed but not what a save would send of `doc`: each question block's row is there in both or in neither
+ * (a question saved in its editor changes a row, never the page).
+ */
+export function sameRowsOnPage(doc: TestDoc, rows: ReadonlyMap<string, unknown>, before: ReadonlyMap<string, unknown> | null): boolean {
+  if (rows === before) return true;
+  if (!before) return false;
+  return doc.blocks.every((block) => block.type !== 'question' || rows.has(block.item_id) === before.has(block.item_id));
 }
 
 export function useStudio(containerId: Uuid, build: Build): Studio {
@@ -232,6 +248,8 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       const doc = syncQuestions(base, items);
       rev.current = stored?.rev ?? 0;
       lastSaved.current = stored ? stored.doc : base;
+      // Read as it is stored: nothing waits for a save (the top bar says «Все изменения сохранены» at once).
+      clean.current = sameValue(toSend(doc, ids), lastSaved.current) ? { doc, rows: rowsRef.current } : { doc: null, rows: null };
       paused.current = false;
       seen.current = new Set(questionIds(doc).filter((id) => rowsRef.current.has(id)));
       blocked.current.clear();
@@ -404,7 +422,9 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
 
   // Closing the tab with changes not on the server asks first. Whether they are is worked out when the tab is closed,
   // not at every key (the smoothness audit of 20.10: the whole page was compared with the saved one at each letter).
-  const watching = phase === 'ready' && present !== null && save.kind !== 'stale' && (present !== clean.current.doc || rows !== clean.current.rows);
+  const unsent =
+    phase === 'ready' && present !== null && save.kind !== 'stale' && (present !== clean.current.doc || !sameRowsOnPage(present, rows, clean.current.rows));
+  const watching = unsent;
   useEffect(() => {
     if (!watching) return;
     const onLeave = (event: BeforeUnloadEvent) => {
@@ -424,6 +444,12 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
     for (let round = 0; round < 50 && inFlight.current; round += 1) await new Promise((resolve) => window.setTimeout(resolve, 100));
     return saveNow();
   }, [saveNow]);
+
+  // The studio closed (a link, «Назад») with a change still waiting for its 800 ms: it is sent now, not dropped with
+  // the timer. Nothing to send → no request (saveNow compares with the page last saved).
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+  useEffect(() => () => void saveNowRef.current(), []);
 
   // ───────────────────────────── edits ─────────────────────────────
 
@@ -672,6 +698,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       redo,
       change,
       save,
+      pending: unsent,
       retrySave,
       flush,
       reloadDoc,
@@ -704,6 +731,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       redo,
       change,
       save,
+      unsent,
       retrySave,
       flush,
       reloadDoc,

@@ -1,9 +1,9 @@
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { typingKey } from '../../lib/studio/history';
 import { POINTS_MAX, replaceBlock } from '../../lib/studio/doc';
 import { cleanVideoUrl } from '../../lib/studio/video';
 import { DOC_TITLE_MAX, type DocBlock, type DocLayout } from '../../types/testDoc';
-import QuestionEditor from '../containers/keys/QuestionEditor';
+import QuestionEditor, { type EditorHandle } from '../containers/keys/QuestionEditor';
 import { patchOf, type Draft } from '../containers/keys/editorModel';
 import { errorText, KEYS } from '../containers/copyImport';
 import { typeOf } from '../test/buildModel';
@@ -12,6 +12,7 @@ import Choice from './Choice';
 import { STUDIO } from './copyStudio';
 import { BlockIcon, QuestionIcon } from './icons';
 import PictureField from './PictureField';
+import { useUnsavedEditor } from './unsaved';
 import type { Studio } from './useStudio';
 import type { SideApi } from './Workspace';
 
@@ -166,17 +167,21 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [round, setRound] = useState(0);
+  const [dirty, setDirty] = useState(false);
+  const handle = useRef<EditorHandle>(null);
+  // The page's «Сохранить», Ctrl+S and «Сохранить и выйти» reach this editor while it holds changes.
+  useUnsavedEditor('canvas', dirty && Boolean(item), number, busy, handle);
   useEffect(() => {
     setError(null);
     setNote(null);
   }, [block.id]);
   if (!item) return <p className="st-lead">{STUDIO.gone}</p>;
   const type = typeOf(item);
-  const save = async (draft: Draft) => {
+  const save = async (draft: Draft): Promise<boolean> => {
     const patch = patchOf(item, draft);
     if (!patch) {
       onSaved();
-      return;
+      return true;
     }
     setBusy(true);
     setError(null);
@@ -186,8 +191,10 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
       const line = savedLine(item.id, result.rev_changed);
       setNote(line === KEYS.edited ? STUDIO.editorSaved : line);
       onSaved();
+      return true;
     } catch (caught) {
       setError(errorText(caught));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -216,14 +223,18 @@ function QuestionPanel({ studio, block, number, containerId, group, onDirty, uns
         error={error}
         trueFalse={type === 'truefalse'}
         noKeyNote={BUILD.noKey}
-        onDirty={onDirty}
+        onDirty={(next) => {
+          setDirty(next);
+          onDirty(next);
+        }}
         unsaved={unsaved}
         onDiscard={() => {
           setRound((n) => n + 1);
           onDiscard();
         }}
-        onSave={(draft) => void save(draft)}
+        onSave={save}
         onCancel={() => setRound((n) => n + 1)}
+        handle={handle}
       />
       {note ? (
         <p className="st-note" role="status">

@@ -1,4 +1,5 @@
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { listQuizzes } from '../../api/quizzes';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { rememberContainerTitle } from '../../lib/containers/titleCache';
@@ -14,20 +15,24 @@ import { useBuild } from '../../components/test/useBuild';
 import { STUDIO, type Panel, type StudioView } from '../../components/studio/copyStudio';
 import EmptyStart from '../../components/studio/EmptyStart';
 import { UiIcon } from '../../components/studio/icons';
+import { useLeaveGuard, type LeaveStep } from '../../components/studio/leave';
+import LeavePrompt from '../../components/studio/LeavePrompt';
 import ListView from '../../components/studio/ListView';
 import { bottomBarShown, hasBottomBar, sendWords, useTyping } from '../../components/studio/phone';
 import Preview from '../../components/studio/Preview';
 import Side from '../../components/studio/Side';
 import TextView from '../../components/studio/TextView';
 import Tour, { useStudioTour } from '../../components/studio/Tour';
+import { createUnsavedStore, UnsavedContext, useUnsavedEditors, type UnsavedEditor } from '../../components/studio/unsaved';
 import { useDark } from '../../components/studio/useDark';
-import { useStudio, type SaveState } from '../../components/studio/useStudio';
+import { useStudio, type SaveState, type Studio } from '../../components/studio/useStudio';
 import Workspace from '../../components/studio/Workspace';
 import ExportSheet from '../../components/port/ExportSheet';
 import GenerateSheet from '../../components/port/GenerateSheet';
 import { PORT } from '../../components/port/copyPort';
 import { DownloadIcon } from '../../components/port/portIcons';
 import type { Uuid } from '../../types/container';
+import type { QuizListRow } from '../../types/quiz';
 import type { TestDoc } from '../../types/testDoc';
 import '../../components/exams/exams.css';
 import '../../components/studio/studio.css';
@@ -41,6 +46,15 @@ import '../../components/quick/studioPaste.css';
  * and «Текст» (TextView) — over one document that saves itself (useStudio). The top bar: the views, a phone or a
  * computer for the canvas, «Отменить / Повторить» (Ctrl+Z, Ctrl+Shift+Z, Ctrl+Y), «Проверка теста», «Посмотреть как
  * участник» and «Отправить по ссылке» (the quiz setup with every question of the page, «как в студии»).
+ *
+ * Saving (owner, 04.11: «нет кнопки сохранить… если выйти по стрелке, ничего не меняется»): the page saves itself, a
+ * question is saved by its editor's «Сохранить». Beside the status the top bar has its own «Сохранить» (and Ctrl+S, in
+ * the editor too): the page now and the open question editor through its own checks (unsaved.ts). The status says
+ * «Все изменения сохранены» only when neither waits, «Вопрос 3 не сохранён» while an editor holds changes. While
+ * anything waits, leaving asks first (leave.ts: a link, the browser's «Назад» / «Вперёд», closing the tab; LeavePrompt:
+ * «Сохранить и выйти», «Не сохранять», «Остаться»), and so do the views (an editor would close); inside «Холст» another
+ * block, another tab of the settings or closing the phone's sheet wait for the editor's own answer, as before.
+ * «Отправить по ссылке» saves the open question first. One quiet line on the canvas says where changes go.
  */
 
 const VIEWS: StudioView[] = ['canvas', 'list', 'text'];
@@ -64,23 +78,83 @@ function useSettledDoc(doc: TestDoc, ms = 300): TestDoc {
   return sameShape ? settled : doc;
 }
 
-const SaveLine = memo(function SaveLine({ save, onRetry, onReload }: { save: SaveState; onRetry: () => void; onReload: () => void }) {
-  switch (save.kind) {
-    case 'idle':
-      return <span className="st-save" />;
-    case 'saving':
+/** The step the leave question waits on: a way out of the page (leave.ts), «Отправить по ссылке» or another view. */
+type AskStep = LeaveStep | { kind: 'send' } | { kind: 'view'; view: StudioView; check?: boolean };
+/** A step inside «Холст» that waits for the editor's own «Сохранить» / «Не сохранять». */
+type HeldStep = { kind: 'select'; id: string | null } | { kind: 'panel'; panel: Panel } | { kind: 'close' };
+
+/** What the top bar's «Сохранить» left unsaved: a question (its editor says why) or the page (the status says why). */
+type SaveResult = { ok: true } | { ok: false; what: 'question' | 'page' };
+
+/** Which line says where the changes go: a link «как в студии» exists, only older links, or none yet. */
+export function whereKind(quizzes: readonly Pick<QuizListRow, 'design' | 'state'>[]): 'design' | 'plain' | 'none' {
+  const open = quizzes.filter((quiz) => quiz.state !== 'closed');
+  if (open.some((quiz) => quiz.design)) return 'design';
+  return open.length > 0 ? 'plain' : 'none';
+}
+
+const whereKey = (containerId: string) => `meldy_studio_where:${containerId}`;
+
+/** Why the page did not save, in a few words (the leave question's line). */
+function pageWhy(save: SaveState): string {
+  if (save.kind === 'offline') return 'нет связи.';
+  if (save.kind === 'failed') return save.message;
+  if (save.kind === 'invalid') return save.problems[0]?.message ?? '';
+  return STUDIO.failed;
+}
+
+const SaveLine = memo(function SaveLine({
+  save,
+  pending,
+  editors,
+  saving,
+  onRetry,
+  onReload,
+}: {
+  save: SaveState;
+  pending: boolean;
+  editors: readonly UnsavedEditor[];
+  saving: boolean;
+  onRetry: () => void;
+  onReload: () => void;
+}) {
+  const failing = save.kind === 'offline' || save.kind === 'failed' || save.kind === 'invalid' || save.kind === 'stale';
+  if (!failing) {
+    if (saving || editors.some((editor) => editor.busy)) {
       return (
-        <span className="st-save">
+        <span className="st-save" role="status">
           <span className="st-save-t">{STUDIO.saving}</span>
         </span>
       );
-    case 'saved':
+    }
+    if (editors.length > 0) {
       return (
-        <span className="st-save" data-ok="">
-          <UiIcon name="check" />
-          <span className="st-save-t">{STUDIO.saved}</span>
+        <span className="st-save" data-warn="" role="status">
+          <span className="st-save-dot" aria-hidden="true" />
+          <span className="st-save-t">{STUDIO.questionUnsaved(editors.map((editor) => editor.number))}</span>
         </span>
       );
+    }
+    if (save.kind === 'saving' || pending) {
+      return (
+        <span className="st-save" role="status">
+          <span className="st-save-t">{STUDIO.saving}</span>
+        </span>
+      );
+    }
+    return (
+      <span className="st-save" data-ok="" role="status" title={STUDIO.allSaved}>
+        <UiIcon name="check" />
+        <span className="st-save-t">
+          <span className="st-save-long">{STUDIO.allSaved}</span>
+          <span className="st-save-short" aria-hidden="true">
+            {STUDIO.allSavedShort}
+          </span>
+        </span>
+      </span>
+    );
+  }
+  switch (save.kind) {
     case 'offline':
     case 'failed':
       return (
@@ -107,6 +181,7 @@ const SaveLine = memo(function SaveLine({ save, onRetry, onReload }: { save: Sav
         </span>
       );
   }
+  return null;
 });
 
 export default function StudioPage() {
@@ -140,7 +215,7 @@ export default function StudioPage() {
    * itself comes in a transition (smoothness debt: «Список» mounted its 30 cards inside the tap, ~200 ms on a mid phone).
    */
   const [pressedView, setPressedView] = useState<StudioView | null>(null);
-  const chooseView = (next: StudioView) => {
+  const showView = (next: StudioView) => {
     setPressedView(next);
     startTransition(() => {
       setView(next);
@@ -157,9 +232,20 @@ export default function StudioPage() {
   const [textStart, setTextStart] = useState<{ text: string; round: number } | null>(null);
   const [touring, setTouring] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
-  /** A block chosen while the question editor holds changes: waits, with the number of the question left. */
-  const [waitingSelect, setWaitingSelect] = useState<{ id: string | null; number: number } | null>(null);
+  /**
+   * A step inside «Холст» taken while the panel's question editor holds changes (another block, another tab of the
+   * settings, closing the phone's sheet): waits for the editor's «Сохранить» / «Не сохранять», with the question's number.
+   */
+  const [waiting, setWaiting] = useState<{ step: HeldStep; number: number } | null>(null);
   const [sendNote, setSendNote] = useState<string | null>(null);
+  /** The question editors holding changes (the canvas's panel, «Список»): the top bar saves them too. */
+  const [unsaved] = useState(createUnsavedStore);
+  const editors = useUnsavedEditors(unsaved);
+  /** The top bar's «Сохранить» (or Ctrl+S, or «Сохранить и выйти») is on its way. */
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  /** The question before leaving: the step it holds, whether its save is on its way, what did not save. */
+  const [leaving, setLeaving] = useState<{ step: AskStep; busy: boolean; failed: 'question' | 'page' | null } | null>(null);
   /** Release 49: «Скачать тест файлом» or «Сгенерировать вопросы». */
   const [port, setPort] = useState<'export' | 'generate' | null>(null);
   const openGenerate = useCallback(() => setPort('generate'), []);
@@ -211,23 +297,131 @@ export default function StudioPage() {
     return () => window.removeEventListener('keydown', onKey);
   }, [undo, redo]);
 
-  /** A block chosen on the page: waits while the question editor holds changes not saved. */
+  // ───────────────────────────── holding the editor's changes inside «Холст» ─────────────────────────────
+
+  /** A step inside «Холст» waits while the panel's question editor holds changes; true when it was held. */
   const setSelected = (id: string | null) => store.set({ selected: id });
-  const select = (id: string | null) => {
+  const hold = (step: HeldStep): boolean => {
     const selected = store.get().selected;
-    if (id === selected) return;
     const current = selected ? studio.doc.blocks.find((block) => block.id === selected) : null;
-    if (editorDirty && current?.type === 'question' && panel === 'block') {
-      setWaitingSelect({ id, number: (selected && numbers.get(selected)) || 0 });
-      return;
-    }
-    setSelected(id);
+    if (!(editorDirty && current?.type === 'question' && panel === 'block')) return false;
+    setWaiting({ step, number: (selected && numbers.get(selected)) || 0 });
+    return true;
+  };
+  const take = (step: HeldStep) => {
+    if (step.kind === 'select') setSelected(step.id);
+    else if (step.kind === 'panel') setPanel(step.panel);
+    else setSideOpen(false);
+  };
+  const select = (id: string | null) => {
+    if (id === store.get().selected) return;
+    if (!hold({ kind: 'select', id })) setSelected(id);
+  };
+  const choosePanel = (next: Panel) => {
+    if (next === panel) return;
+    if (!hold({ kind: 'panel', panel: next })) setPanel(next);
+  };
+  const openSide = (open: boolean) => {
+    if (open) setSideOpen(true);
+    else if (!hold({ kind: 'close' })) setSideOpen(false);
   };
   const goOn = () => {
-    const waiting = waitingSelect;
-    setWaitingSelect(null);
+    const step = waiting?.step;
+    setWaiting(null);
     setEditorDirty(false);
-    if (waiting) setSelected(waiting.id);
+    if (step) take(step);
+  };
+
+  // ───────────────────────────── saving everything, and leaving ─────────────────────────────
+
+  /** «Сохранить» of the top bar: each open question through its editor, then the page at once. */
+  const studioRef = useRef<Studio>(studio);
+  studioRef.current = studio;
+  const saveAll = useCallback(async (): Promise<SaveResult> => {
+    if (savingRef.current) return { ok: false, what: 'page' };
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      for (const editor of unsaved.list()) if (!(await editor.save())) return { ok: false, what: 'question' };
+      // «Тест изменён в другой вкладке»: the page waits for «Обновить»; the questions are saved.
+      if (studioRef.current.save.kind === 'stale') return { ok: true };
+      return (await studioRef.current.flush()) ? { ok: true } : { ok: false, what: 'page' };
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }, [unsaved]);
+
+  // Ctrl+S (⌘S), in the editor's fields too: everything saved; never the browser's «Сохранить страницу».
+  const saveAllRef = useRef(saveAll);
+  saveAllRef.current = saveAll;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (event.code !== 'KeyS' && key !== 's' && key !== 'ы') return;
+      event.preventDefault();
+      void saveAllRef.current();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
+
+  /** Something would be lost by leaving: an editor's changes, or the page's not yet on the server. */
+  const guarding = studio.phase === 'ready' && (editors.length > 0 || studio.pending);
+  const sendTo = `/exams/c/${containerId}/quizzes/new?all=1&design=1`;
+  const goRef = useRef<(step: LeaveStep) => void>(() => undefined);
+  const proceed = (step: AskStep) => {
+    setLeaving(null);
+    if (step.kind === 'link' || step.kind === 'history') goRef.current(step);
+    else if (step.kind === 'send') navigate(sendTo);
+    else {
+      showView(step.view);
+      if (step.check) {
+        setPanel('check');
+        if (narrow) setSideOpen(true);
+      }
+    }
+  };
+  /** A way out: with only the page waiting it is sent now and the step goes; otherwise the question. */
+  const leave = async (step: AskStep) => {
+    if (unsaved.list().length === 0 && studioRef.current.save.kind !== 'stale' && (await studioRef.current.flush())) {
+      proceed(step);
+      return;
+    }
+    setLeaving({ step, busy: false, failed: null });
+  };
+  goRef.current = useLeaveGuard(guarding, (step) => void leave(step), navigate);
+  // The question asked about the page alone, and the page saved meanwhile (the network came back): the step goes.
+  useEffect(() => {
+    if (leaving && !leaving.busy && editors.length === 0 && !studio.pending && studio.save.kind !== 'stale' && leaving.step.kind !== 'view') proceed(leaving.step);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [leaving, editors.length, studio.pending, studio.save.kind]);
+  const saveAndLeave = async () => {
+    if (!leaving) return;
+    const step = leaving.step;
+    setLeaving({ step, busy: true, failed: null });
+    const result = await saveAll();
+    if (result.ok) proceed(step);
+    else setLeaving({ step, busy: false, failed: result.what });
+  };
+
+  /** «Холст · Список · Текст»: the open question editor of this view would close — asked first. */
+  const chooseView = (next: StudioView) => {
+    if (next !== view && unsaved.list().length > 0) {
+      setLeaving({ step: { kind: 'view', view: next }, busy: false, failed: null });
+      return;
+    }
+    showView(next);
+  };
+  const openCheck = () => {
+    if (view !== 'canvas' && unsaved.list().length > 0) {
+      setLeaving({ step: { kind: 'view', view: 'canvas', check: true }, busy: false, failed: null });
+      return;
+    }
+    setView('canvas');
+    if (narrow) setSideOpen(true);
+    choosePanel('check');
   };
 
   const showBlock = (blockId: string) => {
@@ -240,14 +434,60 @@ export default function StudioPage() {
     }, 0);
   };
 
+  /** «Отправить по ссылке»: the open question is saved first (its problem asked about), then the page, then the setup. */
   const send = async () => {
     setSendNote(null);
+    if (unsaved.list().length > 0) {
+      const result = await saveAll();
+      if (!result.ok && result.what === 'question') {
+        setLeaving({ step: { kind: 'send' }, busy: false, failed: 'question' });
+        return;
+      }
+      if (!result.ok) {
+        setSendNote(STUDIO.failed);
+        return;
+      }
+      navigate(sendTo);
+      return;
+    }
     const ok = await studio.flush();
     if (!ok && studio.save.kind !== 'idle') {
       setSendNote(STUDIO.failed);
       return;
     }
-    navigate(`/exams/c/${containerId}/quizzes/new?all=1&design=1`);
+    navigate(sendTo);
+  };
+
+  // ───────────────────────────── where the changes go ─────────────────────────────
+
+  /** The exam's links, read once: whether one shows the studio's page («как в студии»). */
+  const [quizzes, setQuizzes] = useState<readonly QuizListRow[] | null>(null);
+  useEffect(() => {
+    if (!owner || !containerId) return undefined;
+    let live = true;
+    // Not read (no network): no line — it would guess which links there are.
+    listQuizzes(containerId).then(
+      (rows) => live && setQuizzes(rows),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [owner, containerId]);
+  const [whereSeen, setWhereSeen] = useState(() => {
+    try {
+      return window.localStorage.getItem(whereKey(containerId)) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const seeWhere = () => {
+    setWhereSeen(true);
+    try {
+      window.localStorage.setItem(whereKey(containerId), '1');
+    } catch {
+      // A private window: the line comes back next time.
+    }
   };
 
   // ───────────────────────────── screens before the studio ─────────────────────────────
@@ -351,9 +591,7 @@ export default function StudioPage() {
       studio={studio}
       api={api}
       panel={panel}
-      onPanel={(next) => {
-        setPanel(next);
-      }}
+      onPanel={choosePanel}
       store={store}
       numbers={numbers}
       containerId={containerId}
@@ -369,10 +607,10 @@ export default function StudioPage() {
       onPreview={() => setPreview({ device: phone ? 'phone' : device, percent: null })}
       onPreviewBand={(percent) => setPreview({ device: phone ? 'phone' : device, percent })}
       onEditorDirty={setEditorDirty}
-      unsaved={waitingSelect ? STUDIO.editorUnsaved(waitingSelect.number) : null}
+      unsaved={waiting ? STUDIO.editorUnsaved(waiting.number) : null}
       onDiscard={goOn}
       onSaved={() => {
-        if (waitingSelect) goOn();
+        if (waiting) goOn();
       }}
     />
   );
@@ -392,7 +630,17 @@ export default function StudioPage() {
     </button>
   );
 
+  // The top bar's «Сохранить»: anything waits (an editor, the page, a save that did not go) and nothing is on its way.
+  const pageWaits = studio.pending || studio.save.kind === 'failed' || studio.save.kind === 'offline';
+  const canSaveAll = !saving && !editors.some((editor) => editor.busy) && (editors.length > 0 || (pageWaits && studio.save.kind !== 'saving'));
+  /** A failure has its own words and «Сохранить ещё раз» (or «Обновить»): the bar's button steps away for it. */
+  const failing = studio.save.kind === 'offline' || studio.save.kind === 'failed' || studio.save.kind === 'invalid' || studio.save.kind === 'stale';
+  const where = quizzes && !whereSeen && view === 'canvas' ? whereKind(quizzes) : null;
+  const askKind = leaving ? (leaving.step.kind === 'send' ? 'send' : leaving.step.kind === 'view' ? 'view' : 'go') : 'go';
+  const stale = studio.save.kind === 'stale';
+
   return (
+    <UnsavedContext.Provider value={unsaved}>
     <div className="sf-page tb-page st-page" ref={frame.ref} data-frame={frame.size} data-view={view}>
       <header className="st-bar">
         <div className="st-bar-start">
@@ -403,7 +651,27 @@ export default function StudioPage() {
           )}
           <div className="st-name">
             <h1 className="st-title">{summary.title}</h1>
-            <SaveLine save={studio.save} onRetry={studio.retrySave} onReload={studio.reloadDoc} />
+            {/* The status and «Сохранить» under the name; where the bar is short (studio.css) the button stands in the
+                status's place while it has something to save, and steps away when it has not. */}
+            <div
+              className="st-status"
+              data-held={editors.length > 0 ? '' : undefined}
+              data-busy={saving || editors.some((editor) => editor.busy) ? '' : undefined}
+              data-fail={failing && editors.length === 0 ? '' : undefined}
+              data-stale={stale ? '' : undefined}
+            >
+              <SaveLine save={studio.save} pending={studio.pending} editors={editors} saving={saving} onRetry={studio.retrySave} onReload={studio.reloadDoc} />
+              <button
+                type="button"
+                className="st-saveall"
+                disabled={!canSaveAll}
+                aria-keyshortcuts="Control+S Meta+S"
+                title={`${STUDIO.saveAllHint} · ${STUDIO.saveAllKeys}`}
+                onClick={() => void saveAll()}
+              >
+                {STUDIO.saveAll}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -444,11 +712,7 @@ export default function StudioPage() {
             className="st-tool"
             aria-pressed={view === 'canvas' && panel === 'check' && (!narrow || sideOpen)}
             aria-label={narrow ? STUDIO.check : undefined}
-            onClick={() => {
-              setView('canvas');
-              setPanel('check');
-              if (narrow) setSideOpen(true);
-            }}
+            onClick={openCheck}
           >
             <span className="st-tool-word st-check-long">{STUDIO.check}</span>
             <span className="st-tool-word st-check-short" aria-hidden="true">
@@ -492,6 +756,15 @@ export default function StudioPage() {
           {sendNote}
         </p>
       ) : null}
+      {/* Where the changes go: one quiet line on the canvas until «Понятно» (the owner looked for a way to «обновить»). */}
+      {where ? (
+        <p className="st-line st-where">
+          <span>{STUDIO.where[where]}</span>{' '}
+          <button type="button" className="sf-link" onClick={seeWhere}>
+            {STUDIO.whereOk}
+          </button>
+        </p>
+      ) : null}
 
       <main ref={mainRef} className="st-main" data-view={view}>
         {/* «Холст» stays under «Список» and «Текст», hidden: coming back to it is instant (the audit: 30 blocks remounted). */}
@@ -504,13 +777,13 @@ export default function StudioPage() {
           store={store}
           onSelect={select}
           panel={panel}
-          onPanel={setPanel}
+          onPanel={choosePanel}
           side={side}
           empty={empty}
           paletteOpen={paletteOpen}
           onPaletteOpen={setPaletteOpen}
           sideOpen={sideOpen}
-          onSideOpen={setSideOpen}
+          onSideOpen={openSide}
           active={view === 'canvas'}
           onGenerate={openGenerate}
         />
@@ -560,6 +833,21 @@ export default function StudioPage() {
       ) : null}
       {preview ? <Preview doc={studio.doc} items={studio.rows} dark={dark} device={preview.device} percent={preview.percent} onClose={() => setPreview(null)} /> : null}
       {touring && user?.id && view === 'canvas' ? <Tour userId={user.id} phone={narrow} onDone={() => setTouring(false)} /> : null}
+      {leaving ? (
+        <LeavePrompt
+          title={editors.length > 0 ? STUDIO.leaveQuestion(editors.map((editor) => editor.number)) : STUDIO.leavePage}
+          text={editors.length > 0 ? STUDIO.leaveQuestionText : stale ? STUDIO.leaveStale : STUDIO.leavePageText}
+          problem={leaving.failed === 'question' ? STUDIO.leaveFailedQuestion : leaving.failed === 'page' ? STUDIO.leaveFailedPage(pageWhy(studio.save)) : null}
+          busy={leaving.busy}
+          saveLabel={editors.length === 0 && stale ? null : STUDIO.leaveSave[askKind]}
+          discardLabel={STUDIO.leaveDiscard}
+          stayLabel={STUDIO.leaveStay}
+          onSave={() => void saveAndLeave()}
+          onDiscard={() => proceed(leaving.step)}
+          onStay={() => setLeaving(null)}
+        />
+      ) : null}
     </div>
+    </UnsavedContext.Provider>
   );
 }
