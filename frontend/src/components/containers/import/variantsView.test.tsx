@@ -7,7 +7,7 @@ import SubjectDetail from './SubjectDetail';
 import { rowMeta } from './SubjectRows';
 
 const NB = String.fromCharCode(0xa0);
-const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ');
+const plain = (text: string | null | undefined) => (text ?? '').split(NB).join(' ').split('\u2060').join('');
 const OPTIONS = ['один', 'два', 'три', 'четыре'];
 
 function q(position: number, text: string, correct: number): BankItem {

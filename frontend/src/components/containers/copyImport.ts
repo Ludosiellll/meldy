@@ -143,7 +143,7 @@ export function variantsText(variants: ReadonlyArray<number | null>): string {
   for (let at = 0; at < list.length; ) {
     let end = at;
     while (end + 1 < list.length && list[end + 1] === list[end] + 1) end += 1;
-    runs.push(end > at ? `${list[at]}–${list[end]}` : String(list[at]));
+    runs.push(end > at ? `${list[at]}\u2060–\u2060${list[end]}` : String(list[at])); // «1–6» never breaks at its dash
     at = end + 1;
   }
   return `${list.length === 1 ? 'вариант' : 'варианты'} ${runs.join(', ')}`;
