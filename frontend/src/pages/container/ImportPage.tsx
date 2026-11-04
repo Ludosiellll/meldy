@@ -45,7 +45,8 @@ import {
   type KeySignal,
 } from '../../components/containers/import/importModel';
 import { minutesLines } from '../../components/containers/import/minutesLines';
-import { readBank, readBankAi, ReadError } from '../../components/containers/import/readFiles';
+import { readBankAi, readBankQueued, ReadError } from '../../components/containers/import/readFiles';
+import { createReadQueue, Throttled } from '../../components/containers/import/readQueue';
 import BankReview from '../../components/containers/import/BankReview';
 import { reviewCounts } from '../../components/containers/import/reviewModel';
 import { useTelegramFile } from '../../lib/telegram/fileTicket';
@@ -109,6 +110,8 @@ interface Entry {
   pdf: boolean;
   error: string | null;
   errorCode: string | null;
+  /** The server asked to wait (429): the file is read again by itself at this moment (ms); null — not waiting. */
+  waitUntil?: number | null;
 }
 
 interface FormState {
@@ -316,20 +319,11 @@ export default function ImportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ───────────────────────────── reading files, at most two at once (the importer allows 10 a minute) ─────────────────────────────
+  // ───────────────── reading files, at most two at once (the importer allows 30 a minute, readQueue.ts) ─────────────────
+  // A file the server refuses for now (429) waits as long as it asks and is read again by itself, in its place.
 
-  const running = useRef(0);
-  const waiting = useRef<Array<() => Promise<void>>>([]);
-  const pump = useCallback(() => {
-    while (running.current < READ_AT_ONCE && waiting.current.length > 0) {
-      const job = waiting.current.shift()!;
-      running.current += 1;
-      void job().finally(() => {
-        running.current -= 1;
-        pump();
-      });
-    }
-  }, []);
+  const reading = useRef<ReturnType<typeof createReadQueue> | null>(null);
+  reading.current ??= createReadQueue({ concurrency: READ_AT_ONCE });
 
   const update = useCallback((id: string, patch: Partial<Entry>) => {
     setEntries((list) => list.map((entry) => (entry.id === id ? { ...entry, ...patch } : entry)));
@@ -347,18 +341,36 @@ export default function ImportPage() {
 
   const read = useCallback(
     (entry: Entry) => {
-      waiting.current.push(async () => {
-        try {
-          const { result, pdf } = await readBank({
-            file: entry.file ?? undefined,
-            text: entry.text ?? undefined,
-            format: entry.format,
-            keyText: entry.keyText,
-            keyFile: entry.keyFile,
-            keySection: entry.keySection,
-          });
+      const give = (code: string) => {
+        const failure = new ReadError(code);
+        track('container.import_failed', { code });
+        update(entry.id, { status: entry.result ? 'done' : 'failed', error: failure.message, errorCode: failure.code, waitUntil: null });
+      };
+      reading.current!.push({
+        onWait: (until) => update(entry.id, { waitUntil: until }),
+        onGiveUp: () => give('rate_limited'),
+        attempt: async () => {
+          let read: Awaited<ReturnType<typeof readBankQueued>>;
+          try {
+            read = await readBankQueued({
+              file: entry.file ?? undefined,
+              text: entry.text ?? undefined,
+              format: entry.format,
+              keyText: entry.keyText,
+              keyFile: entry.keyFile,
+              keySection: entry.keySection,
+            });
+          } catch (error) {
+            if (error instanceof Throttled) throw error; // the server asks to wait: the queue reads it again by itself
+            const failure = error instanceof ReadError ? error : new ReadError('unknown');
+            track('container.import_failed', { code: failure.code });
+            // A file read again (a key list, another format) keeps what it had: the line says what went wrong.
+            update(entry.id, { status: entry.result ? 'done' : 'failed', error: failure.message, errorCode: failure.code, waitUntil: null });
+            return;
+          }
+          const { result, pdf } = read;
           forgetEdits(entry.id);
-          update(entry.id, { status: 'done', result, pdf, error: null, errorCode: null });
+          update(entry.id, { status: 'done', result, pdf, error: null, errorCode: null, waitUntil: null });
           track('container.import_parsed', {
             items: result.stats.items,
             subjects: result.subjects.length,
@@ -366,16 +378,10 @@ export default function ImportPage() {
             layout: result.layout,
             kinds: Object.keys(result.stats.kinds ?? {}).sort().join(','),
           });
-        } catch (error) {
-          const failure = error instanceof ReadError ? error : new ReadError('unknown');
-          track('container.import_failed', { code: failure.code });
-          // A file read again (a key list, another format) keeps what it had: the line says what went wrong.
-          update(entry.id, { status: entry.result ? 'done' : 'failed', error: failure.message, errorCode: failure.code });
-        }
+        },
       });
-      pump();
     },
-    [forgetEdits, pump, update],
+    [forgetEdits, update],
   );
 
   const addFiles = useCallback(
@@ -545,6 +551,16 @@ export default function ImportPage() {
   }, [updateId, updatePlan, problems]);
   const singleOral = isSingleOralList(subjects);
   const removedCount = subjects.length - active.length;
+
+  // A file waiting for the server (429) counts down its seconds; the clock ticks only while one waits.
+  const [clock, setClock] = useState(() => Date.now());
+  const waitingUntil = entries.reduce((latest, entry) => Math.max(latest, entry.status === 'reading' ? entry.waitUntil ?? 0 : 0), 0);
+  useEffect(() => {
+    if (waitingUntil <= Date.now()) return undefined;
+    setClock(Date.now());
+    const tick = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, [waitingUntil]);
 
   const firstRead = entries.some((entry) => entry.status === 'reading' && !entry.result);
   const stage: 'pick' | 'reading' | 'preview' = entries.length === 0 ? 'pick' : firstRead || files.length === 0 ? 'reading' : 'preview';
@@ -888,6 +904,7 @@ export default function ImportPage() {
     found: entry.result?.stats.items ?? null,
     error: entry.status === 'failed' ? entry.error : null,
     retry: entry.status === 'failed' && (entry.errorCode === 'network' || entry.errorCode === 'unknown' || entry.errorCode === 'rate_limited'),
+    wait: entry.status === 'reading' && entry.waitUntil && entry.waitUntil > clock ? Math.ceil((entry.waitUntil - clock) / 1000) : null,
   }));
   const removeEntry = (id: string) => {
     setEntries((list) => list.filter((entry) => entry.id !== id));

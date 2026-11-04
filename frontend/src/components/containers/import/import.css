@@ -103,6 +103,7 @@
 .sf-page .im-file[data-status='failed'] .im-file-status { color: var(--sf-ink); font-weight: 500; }
 .sf-page .im-file-why { margin-top: 6px; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .im-file-why p { margin: 0; }
+.sf-page .im-file-why[data-muted] { color: var(--sf-muted); }
 .sf-page .im-file-acts { display: flex; flex-wrap: wrap; gap: 0 20px; }
 
 /* The subjects: rows of one card; the whole row opens the subject. */

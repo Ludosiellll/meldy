@@ -962,3 +962,89 @@ describe('ImportPage: an oral exam the student has joins an exam (usability chec
     expect(screen.queryByRole('region', { name: 'Или устный экзамен, который уже есть' })).toBeNull();
   });
 });
+
+describe('ImportPage: a batch of variants (owner, 2026-11-04)', () => {
+  const variant = (n: number, heading: string) =>
+    bank([item(1, { text: `${heading}: вопрос варианта ${n}?` }), item(2, { text: `${heading}: общий вопрос?` })], heading);
+
+  it('variants of one subject are one subject: «3 варианта», the files and the repeats in its detail, one subject saved', async () => {
+    const results: Record<string, BankParseResult> = {
+      'КПиЯП_Вариант_1.docx': { ...variant(1, 'Конструирование программ'), variant: 1 },
+      'КПиЯП_Вариант_2.docx': { ...variant(2, 'Конструирование программ'), variant: 2 },
+      'КПиЯП_Вариант_3.docx': { ...variant(3, 'Конструирование программ'), variant: 3 },
+      'ТПО_Вариант_1.docx': { ...variant(1, 'Тестирование программ'), variant: 1 },
+      'ТПО_Вариант_2.docx': { ...variant(2, 'Тестирование программ'), variant: 2 },
+    };
+    api.parseBank.mockImplementation(async (input: { file: File }) => results[input.file.name]);
+    renderAt();
+    upload(Object.keys(results));
+    expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 7\sвопросов/ })).toBeInTheDocument();
+    expect(screen.getByText(nm('3 варианта · 4 вопроса · ключ жирным'))).toBeInTheDocument();
+    expect(screen.getByText(nm('2 варианта · 3 вопроса · ключ жирным'))).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /^Конструирование программ/ }));
+    expect(await screen.findByText(/Варианты одного предмета: 3\sфайла \(Вариант 1 – Вариант 3\)\./)).toBeInTheDocument();
+    expect(screen.getByText(nm('2 повтора из других вариантов не добавлены.'))).toBeInTheDocument();
+    expect(screen.getByText('из заголовка в файле')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Все предметы' }));
+
+    fireEvent.change(screen.getByLabelText('Название'), { target: { value: 'Сессия' } });
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    expect(api.createContainer.mock.calls[0][2]).toEqual([
+      // the files' own topic, merged by its name (without topics of their own, a topic «Вариант N» each)
+      expect.objectContaining({ title: 'Конструирование программ', topics: ['Раздел 1'] }),
+      expect.objectContaining({ title: 'Тестирование программ', topics: ['Раздел 1'] }),
+    ]);
+    const refs = api.addItems.mock.calls[0][1].map((input: { ref: string }) => input.ref);
+    expect(refs).toHaveLength(4);
+    expect(new Set(refs.map((ref: string) => ref.split(':')[0])).size).toBe(3); // each question's own file's import id
+  });
+
+  it('«Разделить по файлам» gives one subject per file; «Объединить варианты» joins them again', async () => {
+    api.parseBank.mockImplementation(async (input: { file: File }) => ({ ...variant(Number(/(\d)\./.exec(input.file.name)![1]), 'Сети'), variant: Number(/(\d)\./.exec(input.file.name)![1]) }));
+    renderAt();
+    upload(['Сети_Вариант_1.docx', 'Сети_Вариант_2.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: /^Сети/ }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Разделить по файлам' }));
+    expect(await screen.findByRole('heading', { name: /Нашли 2\sпредмета/ })).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: /^Сети/ })[1]);
+    expect(await screen.findByText(/Вариант 2: один из 2 файлов с вариантами одного предмета\./)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Объединить варианты' }));
+    expect(await screen.findByText(nm('2 варианта · 3 вопроса · ключ жирным'))).toBeInTheDocument();
+  });
+});
+
+describe('ImportPage: a file the server asks to wait for (429) is read again by itself', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('says how long it waits, goes on by itself and fails nothing', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    let refused = 0;
+    api.parseBank.mockImplementation(async (input: { file: File }) => {
+      if (input.file.name === 'Б.docx' && refused === 0) {
+        refused += 1;
+        throw Object.assign(new Error('Много файлов за минуту.'), { code: 'http_429', status: 429, retryAfter: '5' });
+      }
+      return bank([item(1, { text: `Вопрос из ${input.file.name}?` })], input.file.name.replace('.docx', ''));
+    });
+    renderAt();
+    upload(['А.docx', 'Б.docx', 'В.docx']);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(plain(screen.getByRole('region', { name: /Читаем/ }).textContent)).toContain('Сервер просит подождать. Продолжим сами через 5 с.');
+    expect(screen.queryByText(IMPORT.readFailed)).toBeNull();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(plain(document.body.textContent)).toContain('Продолжим сами через 3 с.');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3_000);
+    });
+    expect(screen.getByRole('heading', { name: /Нашли 3\sпредмета и 3\sвопроса/ })).toBeInTheDocument();
+    // Б keeps its place: it is read again before В, which waited behind it
+    expect(api.parseBank.mock.calls.map(([input]) => input.file.name)).toEqual(['А.docx', 'Б.docx', 'Б.docx', 'В.docx']);
+    expect(screen.queryByText(PARSE_ERRORS.rate_limited)).toBeNull();
+  });
+});

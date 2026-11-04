@@ -199,6 +199,8 @@ export const IMPORT = {
   reading: (n: number) => `Читаем ${count(n, 'файл', 'файла', 'файлов')}`,
   readingWait: 'читаем…',
   readFailed: 'не открылся',
+  /** The server asked to wait (429): the file is read again by itself (readQueue.ts). */
+  serverWait: (seconds: number) => `Сервер просит подождать. Продолжим сами через ${seconds} с.`,
   removeFile: 'Убрать файл',
   fileAgain: 'После обновления страницы файл нужно выбрать снова.',
   retryFile: 'Попробовать ещё раз',

@@ -60,12 +60,15 @@ export class ContainerApiError extends Error {
   readonly status: number | null;
   /** The server's detail, when it named one (container_items_add: «item 7: options»). */
   readonly detail: string | null;
-  constructor(code: string, message: string, options: { status?: number | null; detail?: string | null } = {}) {
+  /** A 429's Retry-After as it came (seconds or an HTTP date); null — none. */
+  readonly retryAfter: string | null;
+  constructor(code: string, message: string, options: { status?: number | null; detail?: string | null; retryAfter?: string | null } = {}) {
     super(message);
     this.name = 'ContainerApiError';
     this.code = code;
     this.status = options.status ?? null;
     this.detail = options.detail ?? null;
+    this.retryAfter = options.retryAfter ?? null;
   }
 }
 
@@ -665,10 +668,12 @@ async function backendError(response: Response): Promise<ContainerApiError> {
   const code = raw && RESERVED_CODES.has(raw) ? `server_${raw}` : raw;
   const detail = isRecord(body) && typeof body.detail === 'string' ? body.detail.trim() : '';
   if (status === 401) return new ContainerApiError('28000', CONTAINER_ERROR_TEXT['28000'], { status, detail: detail || null });
-  if (detail && status < 500) return new ContainerApiError(code ?? `http_${status}`, detail, { status, detail });
+  // a 429 says how long to wait (backend/ratelimit.py): the import page waits that long and reads the file again
+  const retryAfter = status === 429 ? response.headers.get('Retry-After') : null;
+  if (detail && status < 500) return new ContainerApiError(code ?? `http_${status}`, detail, { status, detail, retryAfter });
   // A server failure (5xx) is said in the app's own words (api/sseStream: never the text of a 5xx); its code stays.
   const fallback = await httpErrorFromResponse(response);
-  return new ContainerApiError(status >= 500 ? 'unknown' : code ?? `http_${status}`, fallback.message, { status, detail: code });
+  return new ContainerApiError(status >= 500 ? 'unknown' : code ?? `http_${status}`, fallback.message, { status, detail: code, retryAfter });
 }
 
 async function backend(path: string, init: RequestInit): Promise<unknown> {
