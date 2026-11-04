@@ -533,6 +533,13 @@ export const KEYS_AI_WORDS = {
   left: (n: number, notes: ReadonlyArray<[string, number]>) =>
     `Без ключа ${n % 10 === 1 && n % 100 !== 11 ? 'остался' : 'остались'} ${n}${notes.length ? `: ${notes.map(([note, k]) => `${note}${NBSP}— ${k}`).join(', ')}` : ''}.`,
   spent: (n: number) => `Списано ${units(n)}.`,
+  /** A run that stopped before any answer came: the server charged nothing (or gave it back). */
+  notSpent: 'Единицы не списаны.',
+  /** Results for questions changed while the AI answered (a file read again, a key set by hand): not put in. */
+  stale: (n: number) =>
+    `${count(n, 'ответ', 'ответа', 'ответов')} ИИ не ${n % 10 === 1 && n % 100 !== 11 ? 'поставлен' : 'поставлены'}: пока он отвечал, эти вопросы изменились.`,
+  /** Why the file buttons and the save wait while the AI answers. */
+  wait: 'Подождите, пока ИИ подбирает ключи: до конца файлы не перечитываются и импорт не сохраняется.',
   check: (n: number) => `Проверьте ключи от ИИ (${n}).`,
   /** The subject row: keys only from the AI, or some besides the file's. */
   rowAi: 'ключи от ИИ',
@@ -546,7 +553,16 @@ export const KEYS_AI_WORDS = {
   tooMany: 'Слишком много запросов. Подождите минуту и повторите.',
   tooBig: 'Вопросов слишком много для одного раза. Уберите лишний предмет и попробуйте ещё раз.',
   badRequest: 'Не удалось отправить вопросы. Обновите страницу и попробуйте ещё раз.',
-  network: 'Нет связи с сервером. Проверьте интернет и попробуйте ещё раз.',
+  network:
+    'Ответ сервера не дошёл: пропала связь. Сервер мог успеть подобрать ключи и списать единицы — это видно в лимите вверху. Попробуйте ещё раз.',
+  elsewhere: 'Ключи уже подбираются в другой вкладке или окне. Дождитесь конца и попробуйте снова.',
+  /** «Вопросы и ключи»: the author keyed the question while the AI answered; the AI's key is not written over it. */
+  keyedMeanwhile: 'уже есть ключ',
+  notWritten: 'не удалось сохранить',
+  unwritten: (n: number, why: ReadonlyArray<[string, number]>) =>
+    `Не ${n % 10 === 1 && n % 100 !== 11 ? 'записан' : 'записаны'} ${count(n, 'ключ', 'ключа', 'ключей')} от ИИ: ${why.map(([reason, k]) => `${reason}${NBSP}— ${k}`).join(', ')}.`,
+  /** The database does not keep the AI's mark yet (the site came before its migration): nothing more is written. */
+  notStored: 'Ключи от ИИ пока не сохраняются с подписью «Ключ подобран ИИ», поэтому подбор остановлен. Попробуйте позже.',
   failed: 'Не удалось подобрать ключи. Попробуйте ещё раз.',
   /** A run stopped by an error after some requests: what came back stays. */
   partial: (keyed: number) => `Ключи, подобранные до ошибки (${keyed}), остались.`,
@@ -719,7 +735,7 @@ export const KEYS = {
     group ? 'Сохранено. Счёт по этому вопросу начнётся заново, у вас и у группы.' : 'Сохранено. Счёт по этому вопросу начнётся заново.',
   twice: (n: number) => `Такой номер в предмете встречается ${n} раза: показан первый.`,
   current: (letters: string) => `Ключ сейчас: ${letters}.`,
-  /** A key from «Подобрать ключи с ИИ» the author has not changed since (flag ai_key, rev 1). */
+  /** A key from «Подобрать ключи с ИИ» the author has not changed since (the flag ai_key). */
   aiKey: `${AI_KEY_LABEL}.`,
   currentShort: (forms: string) => `Ключ сейчас: ${forms}.`,
   noKeyNow: 'Ключа пока нет.',

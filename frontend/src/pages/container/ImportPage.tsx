@@ -12,7 +12,7 @@ import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import type { BankParseResult, BankPicture, PlanItem, Tempo, TestItem, Uuid } from '../../types/container';
-import { dayText, errorText, IMPORT, nb, REVIEW, SETTINGS } from '../../components/containers/copyImport';
+import { dayText, errorText, IMPORT, KEYS_AI_WORDS, nb, REVIEW, SETTINGS } from '../../components/containers/copyImport';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
@@ -50,7 +50,7 @@ import { readBankAi, readBankQueued, ReadError } from '../../components/containe
 import { createReadQueue, Throttled } from '../../components/containers/import/readQueue';
 import BankReview from '../../components/containers/import/BankReview';
 import { AiKeysCheck, AiKeysOffer, AiKeysStatus, NO_KEYS_RUN, type KeysRun } from '../../components/containers/import/AiKeys';
-import { keysAiCandidates, keysAiErrorLine, keysAiPrice, runKeysAi } from '../../components/containers/import/keysAi';
+import { keysAiCandidates, keysAiErrorLine, keysAiForJoins, keysAiPrice, runKeysAi } from '../../components/containers/import/keysAi';
 import { reviewCounts } from '../../components/containers/import/reviewModel';
 import { useTelegramFile } from '../../lib/telegram/fileTicket';
 import {
@@ -342,6 +342,8 @@ export default function ImportPage() {
     }));
   }, []);
 
+  // How many times each file was read: «Подобрать ключи с ИИ» drops answers for a file read again meanwhile.
+  const readSeq = useRef(new Map<string, number>());
   const read = useCallback(
     (entry: Entry) => {
       // Refused for about three minutes: the usual line and its retry; a spent hour or day says so in the server's words.
@@ -373,6 +375,8 @@ export default function ImportPage() {
             return;
           }
           const { result, pdf } = read;
+          // a file read again: the AI's answers asked for its old questions no longer apply (runAiKeys isFresh)
+          readSeq.current.set(entry.id, (readSeq.current.get(entry.id) ?? 0) + 1);
           forgetEdits(entry.id);
           update(entry.id, { status: 'done', result, pdf, error: null, errorCode: null, waitUntil: null });
           track('container.import_parsed', {
@@ -535,10 +539,12 @@ export default function ImportPage() {
   const active = useMemo(() => activeSubjects(subjects), [subjects]);
   const totals = useMemo(() => totalsOf(subjects), [subjects]);
   const problems = useMemo(() => queueOf(subjects), [subjects]);
-  // «Подобрать ключи с ИИ» (owner, 2026-11-04): the questions it would send, and the AI keys waiting for the student
-  const aiCandidates = useMemo(() => (updateId ? [] : keysAiCandidates(subjects, edits)), [updateId, subjects, edits]);
+  // «Подобрать ключи с ИИ» (owner, 2026-11-04): the AI keys waiting for the student; what it would send is below (aiCandidates)
   const aiChecks = useMemo(() => aiKeyQueue(subjects), [subjects]);
   const [keysRun, setKeysRun] = useState<KeysRun>(NO_KEYS_RUN);
+  const aiRunning = keysRun.status === 'running';
+  const editsRef = useRef(edits);
+  editsRef.current = edits;
   const [sourceKey, setSourceKey] = useState<string | null>(null);
   const sources = useMemo(() => (updateId ? updateSources(subjects) : []), [updateId, subjects]);
   const source = useMemo(
@@ -562,7 +568,10 @@ export default function ImportPage() {
 
   // A file waiting for the server (429) counts down its seconds; the clock ticks only while one waits.
   const [clock, setClock] = useState(() => Date.now());
-  const waitingUntil = entries.reduce((latest, entry) => Math.max(latest, entry.status === 'reading' ? entry.waitUntil ?? 0 : 0), 0);
+  const waitingUntil = entries.reduce(
+    (latest, entry) => Math.max(latest, entry.status === 'reading' ? entry.waitUntil ?? 0 : 0),
+    keysRun.status === 'running' ? keysRun.waitUntil ?? 0 : 0,
+  );
   useEffect(() => {
     if (waitingUntil <= Date.now()) return undefined;
     setClock(Date.now());
@@ -623,6 +632,9 @@ export default function ImportPage() {
     const adding = new Set(keys.flatMap((key) => [...joins[key].plan.add, ...joins[key].plan.blocked].map((item) => item.uid)));
     return problems.filter((entry) => !(entry.subjectKey in joins) || adding.has(entry.uid));
   }, [problems, joins]);
+  // What «Подобрать ключи с ИИ» would send: of a subject joining the exam's own, only the questions it adds (the ones
+  // already in the exam are not saved again, so the AI is not asked about them).
+  const aiCandidates = useMemo(() => (updateId ? [] : keysAiForJoins(keysAiCandidates(subjects, edits), joins)), [updateId, subjects, edits, joins]);
   const joinedTest = joined.reduce((sum, subject) => sum + subject.test.length, 0);
   const joinedAdd = joined.reduce((sum, subject) => sum + joins[subject.key].plan.add.length, 0);
 
@@ -707,24 +719,38 @@ export default function ImportPage() {
     else navigate({ search: location.search, hash: '' }, { replace: true });
   };
   /**
-   * «Подобрать ключи с ИИ» for every subject (scope null) or one: only on the press; one request per subject (and per
-   * 300 questions); after each, the keys and the notes go into the import's fixes, so the page and the queue use them
-   * at once and they outlive a re-render.
+   * «Подобрать ключи с ИИ» for every subject (scope null) or one: only on the press; one request per subject (split as
+   * the server takes them), one after another, waiting when the server asks to; after each, the keys and the notes go
+   * into the import's fixes, so the page and the queue use them at once and they outlive a re-render. While it runs the
+   * files are not read again and the import is not saved (aiRunning); an answer for a question that changed anyway (its
+   * file read again by a shared key file, a key set by hand in the queue) is dropped.
    */
   const runAiKeys = async (scope: string | null) => {
     if (keysRun.status === 'running') return;
-    const candidates = keysAiCandidates(subjects, edits, scope);
+    const candidates = aiCandidates.filter((candidate) => scope === null || candidate.subjectKey === scope);
     if (candidates.length === 0) return;
-    setKeysRun({ status: 'running', scope, done: 0, total: candidates.length, outcome: null, error: null });
-    const outcome = await runKeysAi(candidates, (fixes, progress) => {
-      setEdits((current) => ({
-        ...current,
-        items: { ...current.items, ...Object.fromEntries(Object.entries(fixes).map(([uid, fix]) => [uid, { ...current.items[uid], ...fix }])) },
-      }));
-      setKeysRun((current) => ({ ...current, done: progress.done }));
-    });
+    const sentSeq = new Map(candidates.map((candidate) => [candidate.fileId, readSeq.current.get(candidate.fileId) ?? 0]));
+    const fresh = (uid: string, fileId: string, items: ImportEdits['items']) =>
+      (readSeq.current.get(fileId) ?? 0) === sentSeq.get(fileId) && !items[uid]?.correct;
+    setKeysRun({ status: 'running', scope, done: 0, total: candidates.length, outcome: null, error: null, waitUntil: null });
+    const fileOf = new Map(candidates.map((candidate) => [candidate.uid, candidate.fileId]));
+    const outcome = await runKeysAi(
+      candidates,
+      (fixes, progress) => {
+        setEdits((current) => {
+          const kept = Object.entries(fixes).filter(([uid]) => fresh(uid, fileOf.get(uid) ?? '', current.items));
+          return { ...current, items: { ...current.items, ...Object.fromEntries(kept.map(([uid, fix]) => [uid, { ...current.items[uid], ...fix }])) } };
+        });
+        setKeysRun((current) => ({ ...current, done: progress.done }));
+      },
+      undefined,
+      {
+        isFresh: (candidate) => fresh(candidate.uid, candidate.fileId, editsRef.current.items),
+        onWait: (until) => setKeysRun((current) => ({ ...current, waitUntil: until })),
+      },
+    );
     track('container.import_keys_ai', { sent: outcome.sent, keyed: outcome.keyed, units: outcome.units, failed: outcome.error ? 1 : 0 });
-    setKeysRun({ status: outcome.error ? 'failed' : 'done', scope, done: outcome.sent, total: candidates.length, outcome, error: outcome.error ? keysAiErrorLine(outcome.error) : null });
+    setKeysRun({ status: outcome.error ? 'failed' : 'done', scope, done: outcome.sent, total: candidates.length, outcome, error: outcome.error ? keysAiErrorLine(outcome.error) : null, waitUntil: null });
   };
 
   const openQueue = (uids: string[]) => {
@@ -751,21 +777,26 @@ export default function ImportPage() {
   const locked = saving.status === 'saving' || started;
   const subjectsAfter = active.length - joined.length + (targetKind === 'old' ? 1 : 0) + (container ? container.subjects : 0);
   const itemsAfter = totals.test - joinedTest + joinedAdd + (container ? container.items : 0);
+  // While the AI answers, saving waits (the keys it brings would miss the save) and says why.
   const missing = !user
     ? IMPORT.signedOut
-    : active.length === 0
-      ? IMPORT.nothingLeft
-      : showName && !title.trim()
-        ? IMPORT.nameMissing
-        : !asOralExam && subjectsAfter > SUBJECTS_CAP
-          ? IMPORT.tooManySubjects(subjectsAfter)
-          : itemsAfter > ITEMS_CAP
-            ? IMPORT.tooManyItems(itemsAfter)
-            : joinNeeded && !joinData.data
-              ? joinData.error
-                ? IMPORT.joinLoadFailed
-                : IMPORT.joinLoading
-              : null;
+    : aiRunning
+      ? KEYS_AI_WORDS.wait
+      : active.length === 0
+        ? IMPORT.nothingLeft
+        : showName && !title.trim()
+          ? IMPORT.nameMissing
+          : !asOralExam && subjectsAfter > SUBJECTS_CAP
+            ? IMPORT.tooManySubjects(subjectsAfter)
+            : itemsAfter > ITEMS_CAP
+              ? IMPORT.tooManyItems(itemsAfter)
+              : joinNeeded && !joinData.data
+                ? joinData.error
+                  ? IMPORT.joinLoadFailed
+                  : IMPORT.joinLoading
+                : null;
+  // Reading a file again while the AI answers would change the questions it was asked about: those buttons wait too.
+  const rereadLocked = locked || aiRunning;
 
   useEffect(() => {
     if (stage === 'pick' || saving.status === 'done') return undefined;
@@ -1113,7 +1144,7 @@ export default function ImportPage() {
         <KeySource
           file={keyFile}
           signal={edits.files[keyFile.id]?.signal ?? 'auto'}
-          busy={keyEntry.status === 'reading'}
+          busy={keyEntry.status === 'reading' || aiRunning}
           focusKeyText={view.paste}
           onSignal={(signal: KeySignal) => keyIds.forEach((id) => setFileEdit(id, { signal }))}
           onKeyText={(text) => reread(keyFile.id, { keyText: text })}
@@ -1165,14 +1196,14 @@ export default function ImportPage() {
                   busy={locked || keysRun.status === 'running'}
                   onRun={() => void runAiKeys(detailSubject.key)}
                 />
-                {keysRun.scope === null || keysRun.scope === detailSubject.key ? <AiKeysStatus run={keysRun} /> : null}
+                {keysRun.scope === null || keysRun.scope === detailSubject.key ? <AiKeysStatus run={keysRun} now={clock} /> : null}
                 <AiKeysCheck count={checks.length} busy={locked} label={IMPORT.problemsGo} onOpen={() => openQueue(checks.map((entryItem) => entryItem.uid))} />
               </>
             );
           })()}
           onKeySource={() => openView(`#key=${encodeURIComponent(detailSubject.fileId)}`)}
           onMerge={(merged) => setFileEdit(detailSubject.fileId, { merged })}
-          onFormat={detailEntries.length > 0 ? (format) => detailIds.forEach((id) => reread(id, { format })) : null}
+          onFormat={detailEntries.length > 0 && !aiRunning ? (format) => detailIds.forEach((id) => reread(id, { format })) : null}
           onSplit={
             variants && !locked
               ? (split) => {
@@ -1239,18 +1270,18 @@ export default function ImportPage() {
       <div key={`nokey-${subject.key}`} className="im-nokey">
         <p className="im-nokey-t">{named ? IMPORT.noKeyIn(subject.title) : IMPORT.noKeyTitle}</p>
         <p className="im-nokey-acts">
-          <button type="button" className="sf-link" disabled={locked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
+          <button type="button" className="sf-link" disabled={rereadLocked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
             {IMPORT.noKeyPaste}
           </button>
           <KeyFileButton
             label={IMPORT.noKeyFile}
-            busy={locked}
+            busy={rereadLocked}
             onFile={(chosen) => subject.fileIds.forEach((id) => reread(id, { keyFile: chosen, keySection: null }))}
           />
           <button type="button" className="sf-link" disabled={locked} onClick={() => subject.fileIds.forEach((id) => setFileEdit(id, { noKeyLater: true }))}>
             {IMPORT.noKeyLater}
           </button>
-          <button type="button" className="sf-link" disabled={locked} onClick={() => subject.fileIds.forEach((id) => reread(id, { format: 'open' }))}>
+          <button type="button" className="sf-link" disabled={rereadLocked} onClick={() => subject.fileIds.forEach((id) => reread(id, { format: 'open' }))}>
             {IMPORT.noKeyOral}
           </button>
         </p>
@@ -1268,7 +1299,7 @@ export default function ImportPage() {
                   {withKeyFile.name}
                 </p>
               ) : null}
-              <KeyFileSections file={withKeyFile} busy={locked} onSection={(index) => reread(withKeyFile.id, { keySection: index })} />
+              <KeyFileSections file={withKeyFile} busy={rereadLocked} onSection={(index) => reread(withKeyFile.id, { keySection: index })} />
             </div>
           ))}
       </div>
@@ -1371,7 +1402,7 @@ export default function ImportPage() {
         const rest = aiCandidates.filter((candidate) => !asked.has(candidate.subjectKey));
         return <AiKeysOffer count={rest.length} cost={keysAiPrice(rest)} busy={locked || keysRun.status === 'running'} onRun={() => void runAiKeys(null)} />;
       })()}
-      <AiKeysStatus run={keysRun} />
+      <AiKeysStatus run={keysRun} now={clock} />
       <AiKeysCheck count={aiChecks.length} busy={locked} label={IMPORT.problemsGo} onOpen={() => openQueue(aiChecks.map((entryItem) => entryItem.uid))} />
       {reviewLines}
       {problemsLine(previewProblems)}
@@ -1440,7 +1471,7 @@ export default function ImportPage() {
           ) : null}
         </div>
       ) : null}
-      {singleFile && singleFile.source !== 'pdf' && !locked ? (
+      {singleFile && singleFile.source !== 'pdf' && !rereadLocked ? (
         <div>
           <button
             type="button"

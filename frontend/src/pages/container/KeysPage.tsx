@@ -214,13 +214,24 @@ export default function KeysPage() {
       setBusy(null);
     }
   };
-  /** The row after a key change, as the database leaves its flags: the AI's mark only with ai_key true. */
-  const flagsAfter = (item: TestItem, patch: ItemKeyPatch): string[] | undefined =>
-    patch.ai_key ? [...withoutAiKey(item.flags), AI_KEY] : patch.correct !== undefined || patch.answers !== undefined ? withoutAiKey(item.flags) : undefined;
+  /**
+   * The row's flags after a change, as the database leaves them: the mark as its answer says (it drops it on any change
+   * that moves rev, an option added or single turned multiple too); without that answer, by the patch.
+   */
+  const flagsAfter = (item: TestItem, patch: ItemKeyPatch, stored?: boolean): string[] | undefined =>
+    stored === true
+      ? [...withoutAiKey(item.flags), AI_KEY]
+      : stored === false
+        ? item.flags.includes(AI_KEY) ? withoutAiKey(item.flags) : undefined
+        : patch.ai_key
+          ? [...withoutAiKey(item.flags), AI_KEY]
+          : patch.correct !== undefined || patch.answers !== undefined
+            ? withoutAiKey(item.flags)
+            : undefined;
   const patchItem = (item: TestItem, patch: ItemKeyPatch, local: Partial<TestItem>) =>
     run(item, async () => {
       const result = await updateItem(item.id, patch);
-      const flags = flagsAfter(item, patch);
+      const flags = flagsAfter(item, patch, result.ai_key);
       setPatched((current) => ({
         ...current,
         [item.id]: { ...current[item.id], ...local, rev: result.rev, key_source: 'manual', ...(flags ? { flags } : {}) },
@@ -245,6 +256,15 @@ export default function KeysPage() {
   // ── «Подобрать ключи с ИИ» (owner, 2026-11-04): the keyless choice questions without pictures, on the press ──
   const aiCandidates = useMemo(() => (owner ? savedKeysAiCandidates(noKey, subjectTitle) : []), [owner, noKey, subjectTitle]);
   const [keysRun, setKeysRun] = useState<KeysRun>(NO_KEYS_RUN);
+  // the server's «wait» counts down while the run waits
+  const [clock, setClock] = useState(() => Date.now());
+  const waitUntil = keysRun.status === 'running' ? keysRun.waitUntil ?? 0 : 0;
+  useEffect(() => {
+    if (waitUntil <= Date.now()) return undefined;
+    setClock(Date.now());
+    const tick = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, [waitUntil]);
   const runAiKeys = async () => {
     if (keysRun.status === 'running' || aiCandidates.length === 0) return;
     const candidates = aiCandidates;
@@ -253,12 +273,20 @@ export default function KeysPage() {
       candidates,
       async (item, correct) => {
         const result = await updateItem(item.id, { correct, ai_key: true });
+        if (result.ai_key !== true) {
+          // a database without the mark kept the key unlabelled: put the question back as it was (keyless)
+          await updateItem(item.id, { correct: item.correct }).catch(() => undefined);
+          return result;
+        }
         setPatched((current) => ({
           ...current,
           [item.id]: { ...current[item.id], correct, rev: result.rev, key_source: 'manual', flags: [...withoutAiKey(item.flags), AI_KEY] },
         }));
+        return result;
       },
       (done) => setKeysRun((current) => ({ ...current, done })),
+      undefined,
+      { onWait: (until) => setKeysRun((current) => ({ ...current, waitUntil: until })) },
     );
     track('container.keys_ai', { sent: outcome.sent, keyed: outcome.keyed, units: outcome.units, failed: outcome.error ? 1 : 0 });
     setKeysRun({ status: outcome.error ? 'failed' : 'done', scope: null, done: outcome.sent, total: candidates.length, outcome, error: outcome.error ? keysAiErrorLine(outcome.error) : null });
@@ -290,7 +318,7 @@ export default function KeysPage() {
       if (patch.images !== undefined) local.images = patch.images;
       if (patch.explanation !== undefined) local.explanation = patch.explanation;
       if (patch.correct !== undefined || patch.answers !== undefined) local.key_source = 'manual';
-      const flags = flagsAfter(item, patch);
+      const flags = flagsAfter(item, patch, result.ai_key);
       if (flags) local.flags = flags;
       setPatched((current) => ({ ...current, [item.id]: { ...current[item.id], ...local } }));
       if (result.doubts_resolved > 0) setDoubts((rows) => rows.filter((row) => row.item_id !== item.id));
@@ -577,7 +605,7 @@ export default function KeysPage() {
           {owner ? (
             <div className="ky-aikeys">
               <AiKeysOffer count={aiCandidates.length} cost={savedKeysAiPrice(aiCandidates)} busy={keysRun.status === 'running'} onRun={() => void runAiKeys()} />
-              <AiKeysStatus run={keysRun} />
+              <AiKeysStatus run={keysRun} now={clock} />
             </div>
           ) : null}
           {doubtsError ? (

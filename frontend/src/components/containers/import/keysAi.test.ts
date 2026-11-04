@@ -8,9 +8,21 @@ vi.mock('../../../api/containers', async (importOriginal) => ({
 import { ContainerApiError, type KeysAiQuestion, type KeysAiResponse } from '../../../api/containers';
 import { keysAiCost } from '../../../lib/plans';
 import type { BankItem, BankParseResult } from '../../../types/container';
+import type { TestItem } from '../../../types/container';
 import { KEYS_AI_WORDS } from '../copyImport';
+import { joinPlans, joinTargets } from './updateModel';
 import { aiKeyQueue, deriveSubjects, itemInputs, NO_EDITS, queueOf, spotCheck, type ImportEdits, type ImportFile } from './importModel';
-import { keysAiBatches, keysAiCandidates, keysAiErrorLine, keysAiPrice, runKeysAi } from './keysAi';
+import {
+  KEYS_AI_MAX_BATCHES,
+  keysAiBatchCount,
+  keysAiBatches,
+  keysAiCandidates,
+  keysAiErrorLine,
+  keysAiForJoins,
+  keysAiPrice,
+  keysAiRequestCost,
+  runKeysAi,
+} from './keysAi';
 
 /** «Подобрать ключи с ИИ» (owner, 2026-11-04; docs/import/KEYS_AI.md). Synthetic questions. */
 
@@ -84,6 +96,47 @@ describe('«Подобрать ключи с ИИ»: what is sent', () => {
     ]);
     expect(keysAiPrice(candidates)).toBe(15 + 5 + 5);
     expect([keysAiCost(1), keysAiCost(100), keysAiCost(101), keysAiCost(300), keysAiCost(0)]).toEqual([5, 5, 10, 15, 5]);
+    expect([keysAiCost(100, 4), keysAiCost(100, 5), keysAiCost(12, 12), keysAiCost(300, 12)]).toEqual([5, 10, 15, 15]);
+  });
+
+  it('a subject joining the exam’s own sends only the questions it adds', () => {
+    // variants 1 and 2 of «Сети»; the exam has «Вопрос 2?» already (without a key): only the new «Вопрос 3?» goes
+    const variant = (id: string, n: number, items: BankItem[]): ImportFile => {
+      const base = file(id, items, 'Сети');
+      return { ...base, name: `Сети_Вариант_${n}.docx`, result: { ...base.result, variant: n } };
+    };
+    const subjects = deriveSubjects([variant('f1', 1, [q(2)]), variant('f2', 2, [q(3)])]);
+    expect(subjects).toHaveLength(1);
+    const targets = joinTargets(subjects, [{ id: 'sub-1', title: 'Сети' }]);
+    const saved = [{
+      id: 'i1', container_id: 'c-1', subject_id: 'sub-1', position: 1, file_no: '2', topic: 1, kind: 'single', stem: 'Вопрос 2?',
+      options: ['один', 'два', 'три', 'четыре'], correct: [], answers: [], key_source: 'none', code: false, keep_order: false, flags: ['no_key'],
+    }] as unknown as TestItem[];
+    const joins = joinPlans(subjects, targets, { subjects: [{ id: 'sub-1', topic_titles: ['Вариант 1'] }], items: saved });
+    expect(joins[subjects[0].key].plan.add.map((item) => item.text)).toEqual(['Вопрос 3?']);
+    const all = keysAiCandidates(subjects, NO_EDITS);
+    expect(all.map((candidate) => candidate.question.text)).toEqual(['Вопрос 2?', 'Вопрос 3?']);
+    expect(keysAiForJoins(all, joins).map((candidate) => candidate.question.text)).toEqual(['Вопрос 3?']);
+    expect(keysAiForJoins(all, {})).toEqual(all);
+  });
+
+  it('long questions: batches as the server makes them, at most 12 a request, priced by batches', () => {
+    // 2000 characters and eight options of 500: one question per model batch (bank_keys_ai.make_batches)
+    const long = (position: number) => q(position, { text: `${position} ${'я'.repeat(1990)}`, options: Array.from({ length: 8 }, (_, k) => `${k}${'v'.repeat(499)}`) });
+    const subjects = deriveSubjects([file('f1', Array.from({ length: 13 }, (_, at) => long(at + 1)))]);
+    const candidates = keysAiCandidates(subjects, NO_EDITS);
+    expect(candidates).toHaveLength(13);
+    expect(keysAiBatchCount(candidates.map((candidate) => candidate.question))).toBe(13);
+    expect(keysAiBatches(candidates).map((batch) => batch.items.length)).toEqual([KEYS_AI_MAX_BATCHES, 1]);
+    expect(keysAiPrice(candidates)).toBe(15 + 5);
+    // ordinary questions: 25 to a batch, 300 a request; 60 are three batches (the server: 25, 25, 10)
+    const plain = keysAiCandidates(deriveSubjects([file('f2', Array.from({ length: 60 }, (_, at) => q(at + 1)))]), NO_EDITS);
+    expect(keysAiBatchCount(plain.map((candidate) => candidate.question))).toBe(3);
+    expect(keysAiRequestCost(plain.map((candidate) => candidate.question))).toBe(5);
+    // characters as the server counts them (code points): 920 emoji and ten options of 500 make two to a batch, 921 not
+    const emoji = (n: number) => ({ id: `e${n}`, text: '😀'.repeat(n), options: Array.from({ length: 10 }, () => 'я'.repeat(500)), kind: 'single' as const });
+    expect(keysAiBatchCount([emoji(920), emoji(920)])).toBe(1);
+    expect(keysAiBatchCount([emoji(921), emoji(921)])).toBe(2);
   });
 });
 
@@ -101,7 +154,7 @@ describe('«Подобрать ключи с ИИ»: what comes back', () => {
     const subjects = deriveSubjects([file('f1', ITEMS)]);
     const items: ImportEdits['items'] = {};
     const outcome = await runKeysAi(keysAiCandidates(subjects, NO_EDITS), (fixes) => Object.assign(items, fixes), async () => answer);
-    expect(outcome).toEqual({ sent: 2, keyed: 1, notes: { 'ответы ИИ разошлись': 1 }, units: 5, error: null });
+    expect(outcome).toEqual({ sent: 2, keyed: 1, notes: { 'ответы ИИ разошлись': 1 }, units: 5, error: null, stale: 0 });
     expect(items['f1:2']).toMatchObject({ correct: [2], kind: 'single', aiKey: true, aiOk: false });
     expect(items['f1:3']).toEqual({ aiTried: 'low', aiNote: 'ответы ИИ разошлись' });
 
@@ -121,6 +174,16 @@ describe('«Подобрать ключи с ИИ»: what comes back', () => {
     const input = itemInputs(subject, 'imp-x').find((entry) => entry.ref === 'imp-x:2')!;
     expect(input).toMatchObject({ correct: [2], key_source: 'manual' });
     expect(input.flags).toContain('ai_key');
+  });
+
+  it('the label survives a question with many flags: ai_key goes first, before the cut to 16', () => {
+    const many = Array.from({ length: 20 }, (_, k) => `mark_${String.fromCharCode(97 + k)}`);
+    const edits: ImportEdits = { ...NO_EDITS, items: { 'f1:2': { correct: [1], kind: 'single', aiKey: true, aiOk: false } } };
+    const [subject] = deriveSubjects([file('f1', [q(2, { flags: ['no_key', ...many] })])], edits);
+    const item = subject.test[0];
+    expect(item.flags[0]).toBe('ai_key');
+    expect(item.flags.length).toBeLessThanOrEqual(16);
+    expect(itemInputs(subject, 'imp-x')[0].flags).toContain('ai_key');
   });
 
   it('accepting keeps the key and its label; changing it drops the label', () => {
@@ -150,6 +213,51 @@ describe('«Подобрать ключи с ИИ»: what comes back', () => {
     expect([outcome.keyed, outcome.units, keysAiErrorLine(outcome.error)]).toEqual([1, 5, KEYS_AI_WORDS.busy]);
   });
 
+  it('a request the server asks to wait for waits and goes again; the AI busy or the day spent stops the run', async () => {
+    const subjects = deriveSubjects([file('f1', [q(1)], 'Сети'), file('f2', [q(1)], 'Базы данных')]);
+    const candidates = keysAiCandidates(subjects, NO_EDITS);
+    const waits: Array<number | null> = [];
+    const slept: number[] = [];
+    let calls = 0;
+    const outcome = await runKeysAi(
+      candidates,
+      () => undefined,
+      async (input) => {
+        calls += 1;
+        // «Слишком много запросов» of the minute's limit (no code), then another tab's request still running
+        if (calls === 2) throw new ContainerApiError('http_429', 'Слишком много запросов.', { status: 429, retryAfter: '7' });
+        if (calls === 3) throw new ContainerApiError('keys_running', 'Ключи уже подбираются.', { status: 429, retryAfter: '30' });
+        return { results: input.questions.map((question) => ({ id: question.id, correct: [0], agree: true, sure: 'high' as const })), units: 5, spent_questions: 1 };
+      },
+      { onWait: (until) => waits.push(until), sleep: async (ms) => void slept.push(ms) },
+    );
+    expect([outcome.keyed, outcome.units, outcome.error, calls]).toEqual([2, 10, null, 4]);
+    expect(slept).toEqual([7_000, 30_000]);
+    expect(waits.filter((until) => until !== null)).toHaveLength(2);
+    expect(waits[waits.length - 1]).toBeNull();
+
+    const busy = await runKeysAi(candidates, () => undefined, async () => {
+      throw new ContainerApiError('ai_busy', 'ИИ сейчас занят.', { status: 429, detail: 'ИИ сейчас занят.', retryAfter: '5' });
+    }, { sleep: async () => undefined });
+    expect([busy.sent, keysAiErrorLine(busy.error)]).toEqual([0, KEYS_AI_WORDS.busy]);
+    const day = 'На сегодня предел этой функции исчерпан — он обновится завтра.';
+    const spent = await runKeysAi(candidates, () => undefined, async () => {
+      throw new ContainerApiError('http_429', day, { status: 429, retryAfter: '36000' });
+    }, { sleep: async () => undefined });
+    expect([spent.sent, keysAiErrorLine(spent.error)]).toEqual([0, day]);
+  });
+
+  it('an answer for a question that changed while the AI answered is dropped and counted', async () => {
+    const subjects = deriveSubjects([file('f1', ITEMS)]);
+    const got: Record<string, unknown> = {};
+    const outcome = await runKeysAi(keysAiCandidates(subjects, NO_EDITS), (fixes) => Object.assign(got, fixes), async () => answer, {
+      isFresh: (candidate) => candidate.uid !== 'f1:2',
+    });
+    expect(Object.keys(got)).toEqual(['f1:3']);
+    expect([outcome.keyed, outcome.stale]).toEqual([0, 1]);
+    expect(keysAiCandidates(subjects, NO_EDITS).map((candidate) => candidate.fileId)).toEqual(['f1', 'f1']);
+  });
+
   it('says each error in plain words', () => {
     const error = (code: string, status: number, message = 'x', detail: string | null = null) => new ContainerApiError(code, message, { status, detail });
     expect(keysAiErrorLine(error('ai_limit', 429, 'Дневной лимит ИИ на сегодня исчерпан.'))).toBe(KEYS_AI_WORDS.limit);
@@ -161,6 +269,9 @@ describe('«Подобрать ключи с ИИ»: what comes back', () => {
       'На сегодня предел этой функции исчерпан — он обновится завтра.',
     );
     expect(keysAiErrorLine(error('network', 0, 'Нет сети.'))).toBe(KEYS_AI_WORDS.network);
+    // the answer did not come: the server may have charged, and the line says so
+    expect(KEYS_AI_WORDS.network).toMatch(/мог успеть .*списать единицы/);
+    expect(keysAiErrorLine(error('keys_running', 429, 'Ключи уже подбираются.'))).toBe(KEYS_AI_WORDS.elsewhere);
     expect(keysAiErrorLine(new Error('boom'))).toBe(KEYS_AI_WORDS.failed);
   });
 });

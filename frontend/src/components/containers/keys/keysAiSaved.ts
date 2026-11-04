@@ -1,16 +1,17 @@
 /**
  * «Подобрать ключи с ИИ» in «Вопросы и ключи» (owner, 2026-11-04; docs/import/KEYS_AI.md): the saved questions of the
  * exam that have no key. The same rules as at the import (import/keysAi.ts): only on the press; single or multiple
- * choice without pictures, within the server's limits; one request per subject (its title along) and per 300 questions;
- * a key only when two answers agreed and were sure. Each key is written as the author's key with the AI's mark:
+ * choice without pictures, within the server's limits; one request per subject (its title along), split as the server
+ * takes them (300 questions, 12 model batches), one after another, waiting when the server asks to; a key only when two
+ * answers agreed and were sure. Each key is written as the author's key with the AI's mark:
  * container_item_update(id, { correct, ai_key: true }) (migration 20261107090300_ai_key_flag); a later change of the key
- * takes the mark off.
+ * takes the mark off. A question the author keyed meanwhile is refused by the database (22023 'keyed') and counted as
+ * «уже есть ключ»; any other failed write is counted too and the run goes on: the answers are paid for.
  */
 import { keysAi, type KeysAiQuestion, type KeysAiResponse } from '../../../api/containers';
-import { keysAiCost } from '../../../lib/plans';
 import type { TestItem } from '../../../types/container';
 import { KEYS_AI_WORDS } from '../copyImport';
-import { KEYS_AI_MAX_QUESTIONS, type KeysAiOutcome } from '../import/keysAi';
+import { keysAiRequestCost, keysAiRequests, sendWaiting, type KeysAiOutcome, type KeysAiRunOptions } from '../import/keysAi';
 
 const MAX_TEXT = 2000;
 const MAX_OPTION = 500;
@@ -43,42 +44,70 @@ function batches(candidates: readonly SavedKeysAiCandidate[]): SavedKeysAiCandid
   const bySubject = new Map<string, SavedKeysAiCandidate[]>();
   for (const candidate of candidates) bySubject.set(candidate.item.subject_id, [...(bySubject.get(candidate.item.subject_id) ?? []), candidate]);
   const out: SavedKeysAiCandidate[][] = [];
-  bySubject.forEach((list) => {
-    for (let at = 0; at < list.length; at += KEYS_AI_MAX_QUESTIONS) out.push(list.slice(at, at + KEYS_AI_MAX_QUESTIONS));
-  });
+  bySubject.forEach((list) => out.push(...keysAiRequests(list, (candidate) => candidate.question)));
   return out;
 }
 
-/** What the press costs: each request on its own, 5 units per started 100 of its questions. */
+/** What the press costs: each request on its own (import/keysAi.ts keysAiRequestCost). */
 export function savedKeysAiPrice(candidates: readonly SavedKeysAiCandidate[]): number {
-  return batches(candidates).reduce((sum, batch) => sum + keysAiCost(batch.length), 0);
+  return batches(candidates).reduce((sum, batch) => sum + keysAiRequestCost(batch.map((candidate) => candidate.question)), 0);
+}
+
+/** The database refused the AI's key because the question has one now (the author set it meanwhile). */
+const keyedMeanwhile = (error: unknown) =>
+  (error as { code?: unknown } | null)?.code === '22023' && (error as { detail?: unknown } | null)?.detail === 'keyed';
+
+/** A database without migration 20261107090300 stores the key without the mark: the run stops, nothing more is written. */
+export class AiKeyNotStored extends Error {
+  constructor() {
+    super('ai_key not stored');
+    this.name = 'AiKeyNotStored';
+  }
 }
 
 /**
  * Sends the requests one after another and writes each agreed key with `write` (the page's update of the question,
- * which keeps the row on the page in step); a failed request or write stops the run, what was written stays.
+ * which keeps the row on the page in step; it returns the mark as stored). A question keyed meanwhile counts as «уже
+ * есть ключ», another failed write as «не удалось сохранить»; the run goes on. A failed request stops the run, and so
+ * does a write the database stored without the mark (AiKeyNotStored); what was written stays.
  */
 export async function runSavedKeysAi(
   candidates: readonly SavedKeysAiCandidate[],
-  write: (item: TestItem, correct: number[]) => Promise<void>,
+  write: (item: TestItem, correct: number[]) => Promise<{ ai_key?: boolean }>,
   onProgress: (done: number, total: number) => void,
   call: (input: { subject: string | null; questions: KeysAiQuestion[] }) => Promise<KeysAiResponse> = keysAi,
+  options: Pick<KeysAiRunOptions, 'onWait' | 'sleep'> = {},
 ): Promise<KeysAiOutcome> {
-  const outcome: KeysAiOutcome = { sent: 0, keyed: 0, notes: {}, units: 0, error: null };
+  const outcome: KeysAiOutcome = { sent: 0, keyed: 0, notes: {}, units: 0, error: null, unwritten: {} };
+  const note = (text: string) => {
+    outcome.notes[text] = (outcome.notes[text] ?? 0) + 1;
+  };
+  const unwritten = (text: string) => {
+    outcome.unwritten![text] = (outcome.unwritten![text] ?? 0) + 1;
+  };
   try {
     for (const batch of batches(candidates)) {
-      const response = await call({ subject: batch[0].subjectTitle || null, questions: batch.map((candidate) => candidate.question) });
+      const response = await sendWaiting(
+        () => call({ subject: batch[0].subjectTitle || null, questions: batch.map((candidate) => candidate.question) }),
+        options,
+      );
       outcome.units += response.units;
       const byId = new Map(batch.map((candidate) => [candidate.item.id, candidate]));
       for (const result of response.results) {
         const candidate = byId.get(result.id);
         if (!candidate) continue;
         if (result.correct && result.correct.length > 0 && result.correct.every((index) => index < candidate.item.options.length)) {
-          await write(candidate.item, result.correct);
+          let stored: { ai_key?: boolean };
+          try {
+            stored = await write(candidate.item, result.correct);
+          } catch (error) {
+            unwritten(keyedMeanwhile(error) ? KEYS_AI_WORDS.keyedMeanwhile : KEYS_AI_WORDS.notWritten);
+            continue;
+          }
+          if (stored.ai_key !== true) throw new AiKeyNotStored();
           outcome.keyed += 1;
         } else {
-          const note = result.note ?? (result.sure === 'none' ? KEYS_AI_WORDS.noAnswer : KEYS_AI_WORDS.unsure);
-          outcome.notes[note] = (outcome.notes[note] ?? 0) + 1;
+          note(result.note ?? (result.sure === 'none' ? KEYS_AI_WORDS.noAnswer : KEYS_AI_WORDS.unsure));
         }
       }
       outcome.sent += batch.length;

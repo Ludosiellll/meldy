@@ -653,7 +653,8 @@ export default function StudyRun(props: StudyRunProps) {
     // a key the AI suggested says so beside «Сомневаюсь в ключе» / «Ключ неверный?» (owner, 2026-11-04)
     if (aiKeyShown(item)) notes.push(copy.NOTE_AI_KEY);
     else if (item.key_source === 'manual') notes.push(author ? copy.NOTE_MANUAL_OWN : copy.NOTE_MANUAL_AUTHOR);
-    if (!author && item.rev > 1 && item.updated_at) notes.push(copy.noteKeyFixed(dayText(item.updated_at.slice(0, 10))));
+    // writing the AI's key moves rev like a fix: «Автор исправил ключ» under the AI's label would say what did not happen
+    if (!author && !aiKeyShown(item) && item.rev > 1 && item.updated_at) notes.push(copy.noteKeyFixed(dayText(item.updated_at.slice(0, 10))));
   }
 
   const under: ReactNode[] = [];

@@ -1100,6 +1100,34 @@ describe('ImportPage: «Подобрать ключи с ИИ» (owner, 2026-11-
     expect([ssh.correct, ssh.flags.includes('ai_key')]).toEqual([[], false]);
   });
 
+  it('while the AI answers the import is not saved and the files are not read again, and the page says why', async () => {
+    api.parseBank.mockResolvedValue(bank(ITEMS, 'Сети'));
+    let answer!: (value: unknown) => void;
+    api.keysAi.mockImplementation(
+      (input: { questions: Array<{ id: string }> }) =>
+        new Promise((resolve) => {
+          answer = () =>
+            resolve({ results: input.questions.map((question) => ({ id: question.id, correct: [1], agree: true, sure: 'high' })), units: 5, spent_questions: 2 });
+        }),
+    );
+    renderAt();
+    upload(['Сети.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: KEYS_AI_WORDS.go }));
+    await waitFor(() => expect(api.keysAi).toHaveBeenCalledTimes(1));
+    // reading the file again would change the questions the AI was asked about
+    expect(screen.queryByRole('button', { name: IMPORT.readAsOral })).toBeNull();
+    fireEvent.click(saveButton());
+    expect(await screen.findByText(nm(KEYS_AI_WORDS.wait))).toBeInTheDocument();
+    expect(api.addItems).not.toHaveBeenCalled();
+    expect(api.parseBank).toHaveBeenCalledTimes(1);
+    answer(null);
+    await waitFor(() => expect(screen.getByText(/Ключи подобраны для 2 из 2/)).toBeInTheDocument());
+    expect(screen.queryByText(nm(KEYS_AI_WORDS.wait))).toBeNull();
+    expect(screen.getByRole('button', { name: IMPORT.readAsOral })).toBeInTheDocument();
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(api.addItems).toHaveBeenCalled());
+  });
+
   it('a refusal says so in plain words; nothing is changed', async () => {
     api.parseBank.mockResolvedValue(bank(ITEMS, 'Сети'));
     api.keysAi.mockRejectedValue(Object.assign(new Error('Дневной лимит ИИ на сегодня исчерпан.'), { code: 'ai_limit', status: 429 }));

@@ -370,6 +370,8 @@ export interface ItemUpdated {
   rev: number;
   rev_changed: boolean; // the key, the kind or the option count changed: everyone's state of this item starts again
   doubts_resolved: number;
+  /** The AI's mark as stored (migration 20261107090300_ai_key_flag); absent from a database without it. */
+  ai_key?: boolean;
 }
 
 // doubts («Сомневаюсь в ключе» from members; the author decides)

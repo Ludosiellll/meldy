@@ -1,4 +1,4 @@
-import { KEYS_AI_WORDS, nb } from '../copyImport';
+import { IMPORT, KEYS_AI_WORDS, nb } from '../copyImport';
 import type { KeysAiOutcome } from './keysAi';
 
 /**
@@ -15,9 +15,11 @@ export interface KeysRun {
   total: number;
   outcome: KeysAiOutcome | null;
   error: string | null;
+  /** The server asked to wait (429): the run goes on by itself at this time (ms). */
+  waitUntil?: number | null;
 }
 
-export const NO_KEYS_RUN: KeysRun = { status: 'idle', scope: null, done: 0, total: 0, outcome: null, error: null };
+export const NO_KEYS_RUN: KeysRun = { status: 'idle', scope: null, done: 0, total: 0, outcome: null, error: null, waitUntil: null };
 
 /** The button and its line: «Подобрать ключи с ИИ · 25 вопросов без ключа · 5 единиц». */
 export function AiKeysOffer({ count, cost, busy, onRun, rule = true }: { count: number; cost: number; busy: boolean; onRun: () => void; rule?: boolean }) {
@@ -35,13 +37,18 @@ export function AiKeysOffer({ count, cost, busy, onRun, rule = true }: { count: 
   );
 }
 
-/** What the run is doing or did: progress, then «Ключи подобраны для 18 из 25 вопросов. Без ключа остались 7: …». */
-export function AiKeysStatus({ run }: { run: KeysRun }) {
+/**
+ * What the run is doing or did: progress (and the server's «wait», counted down by `now`), then «Ключи подобраны для 18
+ * из 25 вопросов. Без ключа остались 7: …» and what was charged.
+ */
+export function AiKeysStatus({ run, now = Date.now() }: { run: KeysRun; now?: number }) {
   if (run.status === 'idle') return null;
   if (run.status === 'running') {
+    const wait = run.waitUntil && run.waitUntil > now ? Math.ceil((run.waitUntil - now) / 1000) : 0;
     return (
       <p className="im-line" role="status">
         {nb(KEYS_AI_WORDS.running(run.done, run.total))}
+        {wait > 0 ? ` ${nb(IMPORT.serverWait(wait))}` : ''}
       </p>
     );
   }
@@ -52,8 +59,14 @@ export function AiKeysStatus({ run }: { run: KeysRun }) {
     const notes = Object.entries(outcome.notes).sort((a, b) => b[1] - a[1]);
     const left = notes.reduce((sum, [, n]) => sum + n, 0);
     if (left > 0) lines.push(KEYS_AI_WORDS.left(left, notes));
-    if (outcome.units > 0) lines.push(KEYS_AI_WORDS.spent(outcome.units));
+    if (outcome.stale) lines.push(KEYS_AI_WORDS.stale(outcome.stale));
+    const unwritten = Object.entries(outcome.unwritten ?? {}).sort((a, b) => b[1] - a[1]);
+    const missed = unwritten.reduce((sum, [, n]) => sum + n, 0);
+    if (missed > 0) lines.push(KEYS_AI_WORDS.unwritten(missed, unwritten));
   }
+  // what was charged, said plainly: the units of the answers that came; after a lost answer the error line says the rest
+  if (outcome && outcome.units > 0) lines.push(KEYS_AI_WORDS.spent(outcome.units));
+  else if (outcome && run.error && run.error !== KEYS_AI_WORDS.network) lines.push(KEYS_AI_WORDS.notSpent);
   return (
     <div className="im-aikeys-result">
       {run.error ? (

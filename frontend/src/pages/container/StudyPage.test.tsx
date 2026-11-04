@@ -266,6 +266,19 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(page()).toContain('Ключ поставили вы.');
   });
 
+  it('writing the AI’s key moved rev, but a member reads no «Автор исправил ключ» under its label; a fixed key says it', () => {
+    const at = (flags: string[]) =>
+      dbItems().map((entry) => (entry.id === 'q-plain' ? { ...entry, flags, rev: 2, updated_at: '2026-11-04T09:00:00Z' } : entry));
+    renderStudy(dataWith(['q-plain'], { items: at(['ai_key']), summary: summary({ role: 'member', owner: null }) }));
+    fireEvent.click(option('Первая'));
+    expect(page()).toContain('Ключ подобран ИИ, не из файла.');
+    expect(page()).not.toContain('Автор исправил ключ');
+    cleanup();
+    renderStudy(dataWith(['q-plain'], { items: at([]), summary: summary({ role: 'member', owner: null }) }));
+    fireEvent.click(option('Первая'));
+    expect(page()).toContain('Автор исправил ключ');
+  });
+
   it('«Нажали не туда?» marks the answer as a misclick: no mistake, no retry in this session', async () => {
     renderStudy(dataWith(['q-iso', 'q-plain']));
     fireEvent.click(option('READ COMMITTED'));

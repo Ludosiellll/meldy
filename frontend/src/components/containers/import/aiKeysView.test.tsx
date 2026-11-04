@@ -55,6 +55,23 @@ describe('«Подобрать ключи с ИИ» on the page', () => {
 
     render(<AiKeysStatus run={{ status: 'failed', scope: null, done: 0, total: 25, outcome: { ...outcome, sent: 0, keyed: 0, notes: {}, units: 0 }, error: 'ИИ сейчас занят. Попробуйте подобрать ключи через минуту.' }} />);
     expect(screen.getByRole('alert').textContent).toBe('ИИ сейчас занят. Попробуйте подобрать ключи через минуту.');
+    // nothing came back and nothing was charged: said plainly
+    expect(screen.getByRole('status').textContent).toBe('Единицы не списаны.');
+    cleanup();
+
+    // the server asked to wait: the run says when it goes on by itself
+    render(<AiKeysStatus run={{ status: 'running', scope: null, done: 300, total: 420, outcome: null, error: null, waitUntil: 20_000 }} now={3_500} />);
+    expect(plain(screen.getByRole('status').textContent)).toBe(
+      'ИИ подбирает ключи: готово 300 из 420. Можно проверять остальные вопросы. Сервер просит подождать. Продолжим сами через 17 с.',
+    );
+    cleanup();
+
+    // answers for questions changed meanwhile, keys not written over the author's: counted, with what was charged
+    render(<AiKeysStatus run={{ status: 'done', scope: null, done: 25, total: 25, outcome: { ...outcome, notes: {}, keyed: 20, stale: 2, unwritten: { 'уже есть ключ': 3 } }, error: null }} />);
+    expect(plain(screen.getByRole('status').textContent)).toBe(
+      'Ключи подобраны для 20 из 25 вопросов. 2 ответа ИИ не поставлены: пока он отвечал, эти вопросы изменились. ' +
+        'Не записаны 3 ключа от ИИ: уже есть ключ — 3. Списано 5 единиц.',
+    );
     cleanup();
 
     const onOpen = vi.fn();
