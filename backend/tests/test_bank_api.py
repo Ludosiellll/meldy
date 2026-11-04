@@ -9,6 +9,8 @@ Supabase — подменённый транспорт httpx, который з�
 import asyncio
 import re
 import sys
+import threading
+import time
 from pathlib import Path
 
 import httpx
@@ -154,6 +156,109 @@ def test_the_limit_is_30_a_minute_and_400_a_day_per_user(api, monkeypatch):
         assert other_user.status_code == 200
     finally:
         api.main.limiter.reset()
+
+
+class Blocking:
+    """Подменный разбор: держит поток, пока тест не отпустит; считает, сколько разборов идёт сразу."""
+
+    def __init__(self):
+        self.release = threading.Event()
+        self.lock = threading.Lock()
+        self.running = 0
+        self.most = 0
+
+    def __call__(self, text, **options):
+        with self.lock:
+            self.running += 1
+            self.most = max(self.most, self.running)
+        try:
+            self.release.wait(10)
+            return bank_parse.parse_bank_text(text, **options)
+        finally:
+            with self.lock:
+                self.running -= 1
+
+    def wait_running(self, count: int) -> None:
+        deadline = time.monotonic() + 5
+        while self.running < count and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert self.running == count
+
+
+def post_in_thread(api, token: str, results: list) -> threading.Thread:
+    thread = threading.Thread(target=lambda: results.append(
+        api.post(PATH, data={"text": BANK_TEXT}, headers={"Authorization": f"Bearer {token}"})))
+    thread.start()
+    return thread
+
+
+def test_at_most_two_parses_per_user_and_three_in_all_run_at_once(api, monkeypatch):
+    """Разбор — работа процессора и памяти: третий файл того же пользователя и четвёртый разбор на сервере ждут места
+    (здесь — 0,3 с), потом 429 parse_busy с Retry-After; очередь чтения клиента ждёт и повторяет сама."""
+    blocking = Blocking()
+    monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
+    monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 0.3)
+    monkeypatch.setitem(TOKENS, "token-c", "user-c")
+    results: list = []
+    threads = [post_in_thread(api, "token-a", results) for _ in range(2)]
+    blocking.wait_running(2)
+    third = api.post(PATH, data={"text": BANK_TEXT})
+    assert_error(third, 429, "parse_busy", bank_api.PARSE_BUSY_DETAIL)
+    assert third.headers["Retry-After"] == str(bank_api.PARSE_RETRY_AFTER_SECONDS)
+    threads.append(post_in_thread(api, "token-b", results))  # другой пользователь — третье место на сервере
+    blocking.wait_running(3)
+    assert_error(api.post(PATH, data={"text": BANK_TEXT}, headers={"Authorization": "Bearer token-c"}), 429, "parse_busy")
+    blocking.release.set()
+    for thread in threads:
+        thread.join(10)
+    assert [r.status_code for r in results] == [200, 200, 200] and blocking.most == 3
+    assert bank_api.parse_slots.busy == 0 and not bank_api.parse_slots.users
+    assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200
+
+
+def test_a_parse_waits_for_a_free_place_before_refusing(api, monkeypatch):
+    blocking = Blocking()
+    monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
+    monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 5)
+    results: list = []
+    threads = [post_in_thread(api, "token-a", results) for _ in range(2)]
+    blocking.wait_running(2)
+    threading.Timer(0.3, blocking.release.set).start()
+    started = time.monotonic()
+    assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200 and time.monotonic() - started >= 0.25
+    for thread in threads:
+        thread.join(10)
+    assert [r.status_code for r in results] == [200, 200] and blocking.most == 2
+
+
+def test_a_cancelled_request_keeps_its_place_until_its_parse_ends():
+    """Отменённый посреди разбора запрос (клиент ушёл) не освобождает место раньше потока: иначе пять отмен — пять
+    потоков разбора сразу."""
+    slots = bank_api.ParseSlots(per_user=1, total=1)
+    release = threading.Event()
+
+    async def scenario():
+        async def parse():
+            async with slots.hold("user-a", 0) as run:
+                return await run(lambda: release.wait(5))
+
+        task = asyncio.ensure_future(parse())
+        while not slots.busy:
+            await asyncio.sleep(0.01)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert slots.busy == 1  # поток ещё работает
+        with pytest.raises(bank_parse.BankError) as refused:
+            async with slots.hold("user-a", 0):
+                pass
+        assert refused.value.code == "parse_busy"
+        release.set()
+        while slots.busy:
+            await asyncio.sleep(0.01)
+        assert not slots.users
+
+    asyncio.run(scenario())
 
 
 # ── Ответ ───────────────────────────────────────────────────────────────────────

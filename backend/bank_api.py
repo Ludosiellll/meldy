@@ -2,7 +2,8 @@
 
 Путь объявлен полностью, main.py подключает router без префикса. Сессию проверяет общий middleware
 main.py, как у /api/exams/parse (без неё — 401); лимит — 30 запросов в минуту и 400 в день на пользователя
-(user_or_ip_key, BANK_LIMIT): клиент шлёт по запросу на файл, а 429 ждёт по Retry-After и повторяет сам. Разбор — правила bank_parse.py без ИИ: единиц дневного
+(user_or_ip_key, BANK_LIMIT), разборов сразу — 2 у пользователя и 3 всего (ParseSlots, сверх — 429 parse_busy): клиент
+шлёт по запросу на файл, а 429 ждёт по Retry-After и повторяет сам. Разбор — правила bank_parse.py без ИИ: единиц дневного
 лимита не тратит, в базу ничего не пишет (ни SupabaseRest, ни quota здесь не вызываются). Сохраняет клиент.
 
 Форма (multipart): file (DOCX, XLSX, PDF с текстом, TXT, MD, CSV, HTML, Moodle XML до MAX_UPLOAD_BYTES, по умолчанию
@@ -11,16 +12,19 @@ main.py, как у /api/exams/parse (без неё — 401); лимит — 30 �
 пользователем), pictures=1 (картинки DOCX переносятся: так просит страница, которая их сохраняет) и format
 (auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
 ключ, флаги, marks, статистика. Ошибки — {"detail": "<по-русски>", "code": "<код>"}: 415 old_doc /
-unsupported, 413 too_many / too_much_text / file_too_big, 422 empty_file / unreadable / no_items / scan_pdf,
+unsupported, 413 too_many / too_much_text / file_too_big, 422 empty_file / unreadable / no_items / scan_pdf, 429 parse_busy,
 400 bad_form / both_inputs / no_input / key_text_too_long.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import contextvars
 import functools
 import re
-from typing import Any
+from collections import Counter
+from typing import Any, Callable
 
 from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
@@ -89,21 +93,85 @@ def _optional_text(value: Any) -> str | None:
     return value
 
 
+# Разбор — работа процессора и памяти (документ до 40 МБ XML — секунды и сотни МБ): одновременно не больше
+# PARSE_PER_USER разборов одного пользователя и PARSE_AT_ONCE всего. Сверх — ждём места до PARSE_WAIT_SECONDS, потом
+# 429 parse_busy с Retry-After: очередь чтения клиента (по 2 файла) подождёт и повторит сама.
+PARSE_PER_USER = 2
+PARSE_AT_ONCE = 3
+PARSE_WAIT_SECONDS = 15.0
+PARSE_POLL_SECONDS = 0.1
+PARSE_RETRY_AFTER_SECONDS = 5
+PARSE_BUSY_DETAIL = "Сервер разбирает другие файлы. Продолжим через несколько секунд."
+
+
+class ParseSlots:
+    """Места для разбора: не больше per_user у пользователя и total всего. Счётчики меняются только в цикле событий
+    (ожидание — опросом, без примитивов, привязанных к одному циклу). Место занято, пока идёт поток разбора: запрос,
+    отменённый посреди разбора, отпускает место, когда поток закончит."""
+
+    def __init__(self, per_user: int, total: int) -> None:
+        self.per_user, self.total = per_user, total
+        self.users: Counter[str] = Counter()
+        self.busy = 0
+
+    def _free(self, user: str) -> bool:
+        return self.busy < self.total and self.users[user] < self.per_user
+
+    def _leave(self, user: str) -> None:
+        self.busy -= 1
+        self.users[user] -= 1
+        if self.users[user] <= 0:
+            del self.users[user]
+
+    @contextlib.asynccontextmanager
+    async def hold(self, user: str, wait: float):
+        """Место для разбора пользователя user (ждёт до wait секунд, иначе BankError 429 parse_busy) → run(work):
+        работа в потоке-исполнителе на этом месте."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + wait
+        while not self._free(user):
+            if loop.time() >= deadline:
+                raise BankError(429, "parse_busy", PARSE_BUSY_DETAIL)
+            await asyncio.sleep(PARSE_POLL_SECONDS)
+        self.busy += 1
+        self.users[user] += 1
+        threads: list[asyncio.Future] = []
+
+        async def run(work: Callable[[], Any]) -> Any:
+            future = loop.run_in_executor(None, functools.partial(contextvars.copy_context().run, work))
+            future.add_done_callback(lambda done: done.cancelled() or done.exception())  # ошибка после отмены — не в лог
+            threads.append(future)
+            return await asyncio.shield(future)
+
+        try:
+            yield run
+        finally:
+            pending = [future for future in threads if not future.done()]
+            if pending:  # запрос отменён, а поток ещё работает: место — до его конца
+                asyncio.gather(*pending, return_exceptions=True).add_done_callback(lambda _: self._leave(user))
+            else:
+                self._leave(user)
+
+
+parse_slots = ParseSlots(PARSE_PER_USER, PARSE_AT_ONCE)
+
+
 async def _parse(request: Request) -> dict:
     user = getattr(request.state, "user", None)
     if not (isinstance(user, dict) and user.get("id")):
         raise BankError(401, "auth", AUTH_DETAIL)  # middleware main.py уже ответил бы 401: вторая линия
     form = await _read_form(request)
-    prepared = await prepare(request, form)
-    # Разбор — чистый CPU (до 2 000 000 знаков): в потоке-исполнителе он не держит цикл событий.
-    options = {"key_mode": prepared["key_mode"], "key_text": prepared["key_text"], "format_mode": prepared["format_mode"]}
-    if prepared["key_file"] is not None:
-        options["key_file"] = prepared["key_file"]
-        options["key_section"] = prepared["key_section"]
-    if prepared["contents"] is not None:
-        return await asyncio.to_thread(functools.partial(parse_bank_file, prepared["contents"], prepared["name"],
-                                                         with_pictures=prepared["with_pictures"], **options))
-    return await asyncio.to_thread(functools.partial(parse_bank_text, prepared["text"], **options))
+    async with parse_slots.hold(str(user["id"]), PARSE_WAIT_SECONDS) as run:
+        prepared = await prepare(request, form)
+        # Разбор — чистый CPU (до 2 000 000 знаков): в потоке-исполнителе он не держит цикл событий.
+        options = {"key_mode": prepared["key_mode"], "key_text": prepared["key_text"], "format_mode": prepared["format_mode"]}
+        if prepared["key_file"] is not None:
+            options["key_file"] = prepared["key_file"]
+            options["key_section"] = prepared["key_section"]
+        if prepared["contents"] is not None:
+            return await run(functools.partial(parse_bank_file, prepared["contents"], prepared["name"],
+                                               with_pictures=prepared["with_pictures"], **options))
+        return await run(functools.partial(parse_bank_text, prepared["text"], **options))
 
 
 async def prepare(request: Request, form) -> dict:
@@ -190,4 +258,5 @@ async def parse_test_bank(request: Request):
     try:
         return await _parse(request)
     except BankError as exc:
-        return JSONResponse(status_code=exc.status, content={"detail": exc.detail, "code": exc.code})
+        headers = {"Retry-After": str(PARSE_RETRY_AFTER_SECONDS)} if exc.code == "parse_busy" else None
+        return JSONResponse(status_code=exc.status, content={"detail": exc.detail, "code": exc.code}, headers=headers)

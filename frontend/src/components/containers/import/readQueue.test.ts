@@ -121,6 +121,10 @@ describe('reading a batch of files against the server’s limit (owner, 2026-11-
   it('a 429 reaches the queue as Throttled with the server’s wait; other errors stay ReadError', async () => {
     api.parseBank.mockRejectedValueOnce(new ContainerApiError('http_429', 'Много', { status: 429, retryAfter: '17' }));
     await expect(readBankQueued({ text: 'x', format: 'auto' })).rejects.toEqual(new Throttled(17_000));
+    // сервер занят другими разборами (не больше 2 у пользователя и 3 всего): тот же 429 с Retry-After — ждём и повторяем
+    const busy = 'Сервер разбирает другие файлы. Продолжим через несколько секунд.';
+    api.parseBank.mockRejectedValueOnce(new ContainerApiError('parse_busy', busy, { status: 429, detail: busy, retryAfter: '5' }));
+    await expect(readBankQueued({ text: 'x', format: 'auto' })).rejects.toEqual(new Throttled(5_000, busy));
     api.parseBank.mockRejectedValueOnce(new ContainerApiError('no_items', 'Не нашли вопросов.', { status: 422, detail: 'Не нашли вопросов.' }));
     await expect(readBankQueued({ text: 'x', format: 'auto' })).rejects.toBeInstanceOf(ReadError);
   });

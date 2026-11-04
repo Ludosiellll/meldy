@@ -353,6 +353,7 @@ class RichDocxReader(docx_text._DocxReader):
         self._styles = _Styles(doc)
         # картинки абзацев: sha256 содержимого → (тип, байты); одинаковая картинка в разных вопросах — одна
         self.pictures: dict[str, tuple[str, bytes]] = {}
+        self._picture_ids: dict[str, str] = {}  # rId → id картинки ("" — не переносится)
         self._lifted: set = set()  # надписи с вопросами, чей текст читается абзацами после абзаца-якоря
 
     @staticmethod
@@ -385,6 +386,12 @@ class RichDocxReader(docx_text._DocxReader):
             rid = data.get(f"{{{_R_NS}}}id") if data is not None else None
         if not rid:
             return ""
+        if rid in self._picture_ids:  # одна картинка тысячу раз — хэш один раз
+            return self._picture_ids[rid]
+        self._picture_ids[rid] = key = self._picture_key(rid)
+        return key
+
+    def _picture_key(self, rid: str) -> str:
         try:
             part = self._doc.part.related_parts[rid]
             kind, blob = part.content_type, part.blob

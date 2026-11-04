@@ -1872,6 +1872,34 @@ def test_a_picture_inside_the_numbered_question_line_belongs_to_the_question():
     assert "has_image" in flagged["items"][0]["flags"] and "has_image" not in flagged["items"][1]["flags"]
 
 
+def test_one_picture_repeated_many_times_is_hashed_once(monkeypatch):
+    """Одна картинка, вставленная 300 раз (ссылки на одну часть архива): хэш содержимого считался на каждую ссылку —
+    300 × размер картинки. Теперь — один раз на ссылку rId."""
+    def build(doc):
+        p = doc.add_paragraph("1. Что на схеме?")
+        p.add_run().add_picture(io.BytesIO(png((0, 0, 255))))
+        doc.add_paragraph("1) ").add_run("да").bold = True
+        doc.add_paragraph("2) нет")
+
+    contents = docx_bytes(build)
+    with zipfile.ZipFile(io.BytesIO(contents)) as source:
+        xml = source.read("word/document.xml").decode()
+        start = xml.rfind("<w:r>", 0, xml.index("<w:drawing>"))
+        end = xml.index("</w:r>", xml.index("</w:drawing>")) + len("</w:r>")
+        xml = xml[:end] + xml[start:end] * 299 + xml[end:]
+        out = io.BytesIO()
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+            for info in source.infolist():
+                target.writestr(info, xml.encode() if info.filename == "word/document.xml" else source.read(info.filename))
+    hashed = []
+    real = bank_docx.hashlib.sha256
+    monkeypatch.setattr(bank_docx.hashlib, "sha256", lambda data=b"": hashed.append(len(data)) or real(data))
+    result = parse_bank_file(out.getvalue(), "bank.docx", with_pictures=True)
+    assert len(hashed) == 1 and len(result["pictures"]) == 1
+    assert result["items"][0]["images"]["stem"] == list(result["pictures"]) * 300
+    assert result["items"][0]["correct"] == [0]
+
+
 def test_without_the_request_pictures_stay_a_flag_as_before():
     """Страница, закэшированная до переноса картинок, не просит их: вопрос с картинкой — has_image, как раньше."""
     result = parse_bank_file(picture_bank({1: (255, 0, 0)}), "bank.docx")
