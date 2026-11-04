@@ -135,6 +135,28 @@ export function dayText(day: string | null | undefined): string {
 const questions = (n: number) => count(n, 'вопрос', 'вопроса', 'вопросов');
 const subjects = (n: number) => count(n, 'предмет', 'предмета', 'предметов');
 
+/** «вариант 7», «варианты 1–6, 8–12»: the variants that share a key (null — a file without a number). */
+export function variantsText(variants: ReadonlyArray<number | null>): string {
+  const list = Array.from(new Set(variants.filter((variant): variant is number => variant !== null))).sort((a, b) => a - b);
+  if (list.length === 0) return 'другой файл';
+  const runs: string[] = [];
+  for (let at = 0; at < list.length; ) {
+    let end = at;
+    while (end + 1 < list.length && list[end + 1] === list[end] + 1) end += 1;
+    runs.push(end > at ? `${list[at]}–${list[end]}` : String(list[at]));
+    at = end + 1;
+  }
+  return `${list.length === 1 ? 'вариант' : 'варианты'} ${runs.join(', ')}`;
+}
+
+/** «Вариант 1 – Вариант 12» for numbers in a row, «Варианты 1, 3, 5» otherwise. */
+export function variantRange(numbers: readonly number[]): string {
+  const list = Array.from(new Set(numbers)).sort((a, b) => a - b);
+  if (list.length === 1) return `Вариант ${list[0]}`;
+  if (list[list.length - 1] - list[0] + 1 === list.length) return `Вариант ${list[0]} – Вариант ${list[list.length - 1]}`;
+  return `Варианты ${list.join(', ')}`;
+}
+
 /** «А», «Б», «В» … the option letters of a question, in file order. */
 export const LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О', 'П', 'Р', 'С', 'Т', 'У', 'Ф'];
 export const letter = (index: number) => LETTERS[index] ?? String(index + 1);
@@ -292,6 +314,29 @@ export const IMPORT = {
   merge: 'Оставить одним',
   unmerge: 'Разделить на предметы',
 
+  // variants of one subject in several files (owner, 2026-11-04): «КПиЯП_Вариант_1» … «_12» are one subject
+  rowVariants: (n: number) => count(n, 'вариант', 'варианта', 'вариантов'),
+  fromFiles: 'из названий файлов',
+  variantsLine: (files: number, numbers: readonly number[]) =>
+    `Варианты одного предмета: ${count(files, 'файл', 'файла', 'файлов')}${numbers.length ? ` (${variantRange(numbers)})` : ''}.`,
+  variantRepeats: (n: number) =>
+    `${count(n, 'повтор', 'повтора', 'повторов')} из других вариантов не ${n % 10 === 1 && n % 100 !== 11 ? 'добавлен' : 'добавлены'}.`,
+  variantsSplit: 'Разделить по файлам',
+  variantsJoin: 'Объединить варианты',
+  variantsSplitLine: (variant: number | null, files: number) =>
+    `${variant !== null ? `Вариант ${variant}: ` : ''}один из ${files} ${plural(files, 'файла', 'файлов', 'файлов')} с вариантами одного предмета.`,
+  spotVariant: (n: number) => `вариант ${n}`,
+  /** Adding to an exam that has a subject of this name: the variants go into it (updateModel.ts joinTargets). */
+  joinLine: (title: string, add: number, same: number) =>
+    add > 0
+      ? `«${title}» уже есть в этом экзамене. В него ${add % 10 === 1 && add % 100 !== 11 ? 'добавится' : 'добавятся'} ${questions(add)}${same > 0 ? `, ещё ${same} там уже есть` : ''}.`
+      : `«${title}» уже есть в этом экзамене, и все вопросы этих вариантов в нём уже есть.`,
+  joinLoading: 'Загружаем вопросы экзамена…',
+  joinLoadFailed: 'Вопросы экзамена не загрузились. Проверьте связь и обновите страницу.',
+  saveQuestions: (n: number) => `Добавить ${questions(n)}`,
+  keyVariants: (n: number) => `Отметка ответа меняется для всех ${n} ${plural(n, 'варианта', 'вариантов', 'вариантов')}, файл ключа — тоже. Ключ списком — для одного варианта.`,
+  keyVariantPick: 'Вариант',
+
   // the key: «Как в файле отмечен ответ?»
   keyTitle: 'Как в файле отмечен ответ?',
   keyAuto: 'Как нашёл Meldy',
@@ -355,6 +400,7 @@ export const PROBLEM_PARTS: Record<string, (n: number) => string> = {
   same_options: (n) => `в ${n} одинаковые варианты`,
   several: (n) => `в ${n} выделено два`,
   key_conflict: (n) => `в ${n} ключ и выделение расходятся`,
+  variant_keys: (n) => `в ${n} ответы в вариантах расходятся`,
   key_invalid: (n) => `в ${n} ключ не подходит`,
   key_letter: (n) => `в ${n} буква ключа читается двояко`,
   partial: (n) => `в ${n} выделение неполное`,
@@ -437,8 +483,10 @@ export const QUEUE = {
   title: 'Проверить',
   position: (at: number, of: number) => `${at} из ${of}`,
   done: 'Готово',
-  context: (subject: string, label: string, topic: string | null) =>
-    [subject, label ? `№ ${label}` : null, topic].filter(Boolean).join(' · '),
+  context: (subject: string, label: string, topic: string | null, variant: number | null = null) =>
+    [subject, label ? `№ ${label}` : null, topic, variant !== null && topic !== `Вариант ${variant}` ? `вариант ${variant}` : null]
+      .filter(Boolean)
+      .join(' · '),
   pickKey: 'Какой вариант верный? Нажмите его.',
   pickKeys: 'Отметьте все верные варианты.',
   saveKeys: 'Сохранить ключ',
@@ -447,6 +495,11 @@ export const QUEUE = {
   several: (marked: number[]) => (marked.length >= 2 ? `В файле выделены ${marked.length === 2 ? 'два ответа' : 'несколько ответов'}: ${lettersText(marked)}.` : 'В файле выделено несколько ответов.'),
   bothRight: (n: number) => (n === 2 ? 'Верны оба' : 'Верны все'),
   keyConflict: 'Ключ списком и выделение в файле не совпадают.',
+  /** The same question in several variants with different keys (importModel.ts markConflict). */
+  variantKeys: (entries: ReadonlyArray<{ variants: ReadonlyArray<number | null>; key: readonly number[] }>) =>
+    `Этот вопрос есть в нескольких вариантах, а ответы в них отмечены разные: ${entries
+      .map((entry) => `${variantsText(entry.variants)} — ${lettersText(entry.key) || 'без ответа'}`)
+      .join(', ')}.`,
   keyInvalid: 'Ключ к этому вопросу не подходит к его вариантам.',
   keyLetter: 'Буква в ключе читается двояко: русская или латинская.',
   partial: 'Ответ в файле выделен не целиком.',

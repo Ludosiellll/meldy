@@ -101,7 +101,7 @@ function viewOf(item: DraftItem, problem: Problem): View {
         dropped,
       };
     case 'key_conflict':
-      return { reason: QUEUE.keyConflict, tapMode: keyMode, instruction: keyInstruction, actions: [drop], dropped };
+      return { reason: item.variantKeys ? QUEUE.variantKeys(item.variantKeys) : QUEUE.keyConflict, tapMode: keyMode, instruction: keyInstruction, actions: [drop], dropped };
     case 'key_invalid':
       return { reason: QUEUE.keyInvalid, tapMode: keyMode, instruction: keyInstruction, actions: [drop], dropped };
     case 'key_letter':
@@ -186,7 +186,7 @@ export default function ImportQueue({ subjects, uids, index, onIndex, onFix, onD
     <div className="im-queue" ref={headingRef}>
       <QueueBar title={QUEUE.title} at={index + 1} of={uids.length} onDone={onDone} />
       <KeyQuestion
-        context={QUEUE.context(subject.title, item.label, item.topicTitle)}
+        context={QUEUE.context(subject.title, item.label, item.topicTitle, item.variant ?? null)}
         reason={view.reason}
         stem={item.text}
         code={item.code}

@@ -8,6 +8,10 @@ import { problemParts, type DraftSubject } from './importModel';
  * One subject's preview (Concept 1 §3.2, a tap on a row): where its name came from, how many questions and topics,
  * the file's numbers and the ones not found, how the key is marked («Отмечен по-другому?»), what needs a look, the
  * topics. Renaming goes through «⋯ → Переименовать» (design critique I16: a tap on a heading is invisible).
+ *
+ * A subject made of variants in several files (owner, 2026-11-04) says so — «Варианты одного предмета: 12 файлов
+ * (Вариант 1 – Вариант 12)», how many repeats of other variants were left out — and offers «Разделить по файлам»; one
+ * file of a split group offers «Объединить варианты».
  */
 
 
@@ -22,9 +26,11 @@ interface Props {
   onKeySource: () => void;
   onMerge: (merged: boolean) => void;
   onFormat: ((format: 'open' | 'test') => void) | null;
+  /** Variants of one subject: split them into one subject per file (true) or join them again (false). */
+  onSplit?: (split: boolean) => void;
 }
 
-export default function SubjectDetail({ subject, phone, onBack, onRename, onRemove, onRestore, onCheck, onKeySource, onMerge, onFormat }: Props) {
+export default function SubjectDetail({ subject, phone, onBack, onRename, onRemove, onRestore, onCheck, onKeySource, onMerge, onFormat, onSplit }: Props) {
   const [renaming, setRenaming] = useState(false);
   const [draft, setDraft] = useState(subject.title);
   const fieldId = useId();
@@ -36,7 +42,9 @@ export default function SubjectDetail({ subject, phone, onBack, onRename, onRemo
     subject.titleFrom === 'heading'
       ? IMPORT.fromHeading
       : subject.titleFrom === 'file'
-        ? IMPORT.fromFile(subject.fileName)
+        ? subject.files.length > 1
+          ? IMPORT.fromFiles
+          : IMPORT.fromFile(subject.fileName)
         : subject.titleFrom === 'number'
           ? IMPORT.fromNumber
           : null;
@@ -103,6 +111,38 @@ export default function SubjectDetail({ subject, phone, onBack, onRename, onRemo
       )}
       {from ? <p className="im-subject-from">{from}</p> : null}
       <p className="im-subject-meta">{nb(meta)}</p>
+
+      {subject.variants && !subject.variants.split ? (
+        <>
+          <p className="im-line">
+            {nb(
+              IMPORT.variantsLine(
+                subject.files.length,
+                subject.files.map((file) => file.variant).filter((variant): variant is number => variant !== null),
+              ),
+            )}{' '}
+            {onSplit ? (
+              <button type="button" className="sf-link" data-muted="" onClick={() => onSplit(true)}>
+                {IMPORT.variantsSplit}
+              </button>
+            ) : null}
+          </p>
+          {subject.variantRepeats > 0 ? (
+            <p className="im-line" data-muted="">
+              {nb(IMPORT.variantRepeats(subject.variantRepeats))}
+            </p>
+          ) : null}
+        </>
+      ) : subject.variants?.split ? (
+        <p className="im-line">
+          {nb(IMPORT.variantsSplitLine(subject.files[0]?.variant ?? null, subject.variants.files))}{' '}
+          {onSplit ? (
+            <button type="button" className="sf-link" onClick={() => onSplit(false)}>
+              {IMPORT.variantsJoin}
+            </button>
+          ) : null}
+        </p>
+      ) : null}
 
       {subject.restart && !subject.part ? (
         <p className="im-line">

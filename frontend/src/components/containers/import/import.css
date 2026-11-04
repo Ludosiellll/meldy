@@ -282,6 +282,10 @@
 .sf-page .im-keyfile-choose { display: grid; gap: 6px; margin-top: 8px; }
 .sf-page .im-keyfile-choose .im-nokey-acts { gap: 8px 10px; }
 .sf-page .im-keytext-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin-top: 4px; }
+/* A subject made of variants: which variant's file the key list goes to. */
+.sf-page .im-keysrc-variant { display: grid; gap: 6px; margin-top: 10px; }
+.sf-page .im-keysrc-variant .im-hint,
+.sf-page .im-keysrc-variant .im-subject-from { margin: 0; }
 
 /* «Обновить из файла»: the counts as rows of one card, then the questions whose key differs, by number. */
 .sf-page .im-update-which { margin-top: 18px; }

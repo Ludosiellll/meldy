@@ -39,6 +39,7 @@ import {
   type FileFormat,
   type FileSource,
   type ImportEdits,
+  type DraftSubject,
   type ImportFile,
   type ItemFix,
   type KeySignal,
@@ -56,8 +57,9 @@ import {
   type SaveProgress,
   type SaveState,
   type SaveTarget,
+  type SubjectJoin,
 } from '../../components/containers/import/saveImport';
-import { bestSource, planUpdate, updateItemInputs, updateSources } from '../../components/containers/import/updateModel';
+import { bestSource, joinPlans, joinTargets, planUpdate, updateItemInputs, updateSources } from '../../components/containers/import/updateModel';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './ImportPage.css';
@@ -336,6 +338,7 @@ export default function ImportPage() {
   const forgetEdits = useCallback((fileId: string) => {
     const prefix = `${fileId}:`;
     setEdits((current) => ({
+      ...current,
       items: Object.fromEntries(Object.entries(current.items).filter(([uid]) => !uid.startsWith(prefix))),
       subjects: Object.fromEntries(Object.entries(current.subjects).filter(([key]) => !key.startsWith(prefix))),
       files: Object.fromEntries(Object.entries(current.files).filter(([id]) => id !== fileId)),
@@ -573,6 +576,32 @@ export default function ImportPage() {
   const oldExam = targetKind === 'old' ? oldExams.find((exam) => `old:${exam.id}` === targetValue) ?? null : null;
   const container = targetKind === 'container' ? containers.find((item) => `c:${item.id}` === targetValue) ?? null : null;
 
+  // Adding to an exam that has a subject of the same name as a subject of variants: its new variants land in that
+  // subject (owner, 2026-11-04), its new questions only, compared with the ones saved (updateModel.ts joinPlans).
+  const joinIds = useMemo(
+    () => (!updateId && targetKind === 'container' && container ? joinTargets(subjects, container.subjectList) : {}),
+    [updateId, targetKind, container, subjects],
+  );
+  const joinNeeded = Object.keys(joinIds).length > 0;
+  const joinData = useContainerData((joinNeeded && container ? container.id : '') as Uuid);
+  const joins = useMemo(
+    () =>
+      joinNeeded && joinData.data
+        ? joinPlans(subjects, joinIds, { subjects: joinData.data.summary.subjects, items: [...joinData.data.items.values()] })
+        : {},
+    [joinNeeded, joinData.data, subjects, joinIds],
+  );
+  const joined = active.filter((subject) => joins[subject.key]);
+  // The queue of a joining subject: only the questions it adds (the ones already in the exam stay as they are).
+  const previewProblems = useMemo(() => {
+    const keys = Object.keys(joins);
+    if (keys.length === 0) return problems;
+    const adding = new Set(keys.flatMap((key) => [...joins[key].plan.add, ...joins[key].plan.blocked].map((item) => item.uid)));
+    return problems.filter((entry) => !(entry.subjectKey in joins) || adding.has(entry.uid));
+  }, [problems, joins]);
+  const joinedTest = joined.reduce((sum, subject) => sum + subject.test.length, 0);
+  const joinedAdd = joined.reduce((sum, subject) => sum + joins[subject.key].plan.add.length, 0);
+
   // An oral exam joining as subject 1 names the new exam (with the file's one subject: both names).
   const suggestion =
     targetKind === 'old'
@@ -665,13 +694,18 @@ export default function ImportPage() {
     setEdits((current) => ({ ...current, subjects: { ...current.subjects, [key]: { ...current.subjects[key], ...patch } } }));
   const setFileEdit = (fileId: string, patch: Record<string, unknown>) =>
     setEdits((current) => ({ ...current, files: { ...current.files, [fileId]: { ...current.files[fileId], ...patch } } }));
+  // A subject made of variants (owner, 2026-11-04): what the student does to «the file» goes to each of its files.
+  const variantSubjectOf = (fileId: string): DraftSubject | null =>
+    subjects.find((subject) => subject.files.length > 1 && subject.files.some((entry) => entry.id === fileId)) ?? null;
+  const filesOf = (fileId: string): string[] => variantSubjectOf(fileId)?.files.map((entry) => entry.id) ?? [fileId];
+  const setSplit = (key: string, split: boolean) => setEdits((current) => ({ ...current, split: { ...current.split, [key]: split } }));
 
   // ───────────────────────────── saving ─────────────────────────────
 
   const started = saveStarted(saveState.current);
   const locked = saving.status === 'saving' || started;
-  const subjectsAfter = active.length + (targetKind === 'old' ? 1 : 0) + (container ? container.subjects : 0);
-  const itemsAfter = totals.test + (container ? container.items : 0);
+  const subjectsAfter = active.length - joined.length + (targetKind === 'old' ? 1 : 0) + (container ? container.subjects : 0);
+  const itemsAfter = totals.test - joinedTest + joinedAdd + (container ? container.items : 0);
   const missing = !user
     ? IMPORT.signedOut
     : active.length === 0
@@ -682,7 +716,11 @@ export default function ImportPage() {
           ? IMPORT.tooManySubjects(subjectsAfter)
           : itemsAfter > ITEMS_CAP
             ? IMPORT.tooManyItems(itemsAfter)
-            : null;
+            : joinNeeded && !joinData.data
+              ? joinData.error
+                ? IMPORT.joinLoadFailed
+                : IMPORT.joinLoading
+              : null;
 
   useEffect(() => {
     if (stage === 'pick' || saving.status === 'done') return undefined;
@@ -722,7 +760,9 @@ export default function ImportPage() {
       navigate(firstDiffer ? keysHref : subjectHref, { replace: true });
       return;
     }
-    const importId = files.find((file) => file.id === source?.fileId)?.importId ?? 'imp';
+    // Each question's ref carries its own file's import id (a subject of variants has several files).
+    const importIds = new Map(files.map((file) => [file.id, file.importId]));
+    const importId = (fileId: string) => importIds.get(fileId) ?? 'imp';
     setSaving({ status: 'saving', error: null, progress: null });
     try {
       await saveUpdate(
@@ -750,6 +790,22 @@ export default function ImportPage() {
     }
   };
 
+  /** The joining subjects as saveImport takes them: their new questions, refs by each question's own file. */
+  const joinInputs = (importIdsOf: Map<string, string>): Record<string, SubjectJoin> =>
+    Object.fromEntries(
+      joined.map((subject) => {
+        const { subjectId, plan } = joins[subject.key];
+        const join: SubjectJoin = {
+          subjectId,
+          topics: plan.topics,
+          items: (place) => updateItemInputs(plan, (fileId) => importIdsOf.get(fileId) ?? 'imp', place),
+          pictureIds: pictureIds({ test: plan.add }),
+          count: plan.add.length,
+        };
+        return [subject.key, join];
+      }),
+    );
+
   const runSave = async () => {
     if (updateId) {
       await runUpdate();
@@ -764,6 +820,7 @@ export default function ImportPage() {
       }
       return;
     }
+    const importIdsOf = new Map(files.map((file) => [file.id, file.importId]));
     const target: SaveTarget =
       targetKind === 'container'
         ? { kind: 'container', containerId: targetValue.slice(2), title: container?.title ?? fromTitle ?? '' }
@@ -784,6 +841,7 @@ export default function ImportPage() {
           subjects: active,
           importIds: Object.fromEntries(files.map((file) => [file.id, file.importId])),
           pictures: filePictures(files),
+          joins: target.kind === 'container' ? joinInputs(importIdsOf) : undefined,
         },
         saveState.current,
         (progress) => setSaving((current) => ({ ...current, progress })),
@@ -1001,6 +1059,9 @@ export default function ImportPage() {
   }
 
   if (view.kind === 'key' && keyFile && keyEntry) {
+    // Variants of one subject: the mark and the key file go to every variant, the key list to the one chosen.
+    const keyGroup = variantSubjectOf(keyFile.id);
+    const keyIds = filesOf(keyFile.id);
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
         <KeySource
@@ -1008,11 +1069,15 @@ export default function ImportPage() {
           signal={edits.files[keyFile.id]?.signal ?? 'auto'}
           busy={keyEntry.status === 'reading'}
           focusKeyText={view.paste}
-          onSignal={(signal: KeySignal) => setFileEdit(keyFile.id, { signal })}
+          onSignal={(signal: KeySignal) => keyIds.forEach((id) => setFileEdit(id, { signal }))}
           onKeyText={(text) => reread(keyFile.id, { keyText: text })}
-          onKeyFile={(chosen) => reread(keyFile.id, { keyFile: chosen, keySection: null })}
+          onKeyFile={(chosen) => keyIds.forEach((id) => reread(id, { keyFile: chosen, keySection: null }))}
           onKeySection={(index) => reread(keyFile.id, { keySection: index })}
           onClose={closeView}
+          variants={keyGroup?.files.map((entry) => ({ id: entry.id, label: entry.variant !== null ? `Вариант ${entry.variant}` : entry.name }))}
+          onVariant={(id) =>
+            navigate({ search: location.search, hash: `#key=${encodeURIComponent(id)}${view.paste ? '&paste' : ''}` }, { replace: true, state: location.state })
+          }
         />
         {keyEntry.error ? (
           <p className="ex-note" role="alert">
@@ -1024,7 +1089,9 @@ export default function ImportPage() {
   }
 
   if (view.kind === 'subject' && detailSubject) {
-    const entry = entries.find((item) => item.id === detailSubject.fileId);
+    const detailIds = detailSubject.files.map((file) => file.id);
+    const detailEntries = entries.filter((item) => detailIds.includes(item.id));
+    const variants = detailSubject.variants;
     return (
       <div className="sf-page im-page" ref={frame.ref} data-frame={frame.size}>
         <SubjectDetail
@@ -1038,14 +1105,22 @@ export default function ImportPage() {
           }}
           onRestore={() => setSubjectEdit(detailSubject.key, { removed: false })}
           onCheck={() => {
-            const uids = problems.filter((entryItem) => entryItem.subjectKey === detailSubject.key).map((entryItem) => entryItem.uid);
+            const uids = previewProblems.filter((entryItem) => entryItem.subjectKey === detailSubject.key).map((entryItem) => entryItem.uid);
             openQueue(uids);
           }}
           onKeySource={() => openView(`#key=${encodeURIComponent(detailSubject.fileId)}`)}
           onMerge={(merged) => setFileEdit(detailSubject.fileId, { merged })}
-          onFormat={entry ? (format) => reread(detailSubject.fileId, { format }) : null}
+          onFormat={detailEntries.length > 0 ? (format) => detailIds.forEach((id) => reread(id, { format })) : null}
+          onSplit={
+            variants && !locked
+              ? (split) => {
+                  setSplit(variants.key, split);
+                  closeView();
+                }
+              : undefined
+          }
         />
-        {entry?.status === 'reading' ? (
+        {detailEntries.some((item) => item.status === 'reading') ? (
           <p className="im-line" role="status">
             {IMPORT.rereading}
           </p>
@@ -1088,11 +1163,16 @@ export default function ImportPage() {
               : IMPORT.updateDone
             : IMPORT.updateSave(updatePlan.add.length)
         : targetKind === 'container'
-          ? IMPORT.saveAdd(active.length)
+          ? joined.length > 0 && joined.length === active.length
+            ? IMPORT.saveQuestions(joinedAdd)
+            : IMPORT.saveAdd(active.length - joined.length)
           : IMPORT.save;
 
-  /** A file without keys asks one question (decision 34): paste the key, mark as you go, or read it as oral. */
-  const noKeyBlock = (list: ReadonlyArray<{ key: string; title: string; fileId: string }>, named: boolean) =>
+  /**
+   * A file without keys asks one question (decision 34): paste the key, mark as you go, or read it as oral. A subject
+   * made of variants asks it once for all its files (`fileIds`): each file takes its own section of a key file.
+   */
+  const noKeyBlock = (list: ReadonlyArray<{ key: string; title: string; fileId: string; fileIds: string[] }>, named: boolean) =>
     list.map((subject) => (
       <div key={`nokey-${subject.key}`} className="im-nokey">
         <p className="im-nokey-t">{named ? IMPORT.noKeyIn(subject.title) : IMPORT.noKeyTitle}</p>
@@ -1100,20 +1180,30 @@ export default function ImportPage() {
           <button type="button" className="sf-link" disabled={locked} onClick={() => openView(`#key=${encodeURIComponent(subject.fileId)}&paste`)}>
             {IMPORT.noKeyPaste}
           </button>
-          <KeyFileButton label={IMPORT.noKeyFile} busy={locked} onFile={(chosen) => reread(subject.fileId, { keyFile: chosen, keySection: null })} />
-          <button type="button" className="sf-link" disabled={locked} onClick={() => setFileEdit(subject.fileId, { noKeyLater: true })}>
+          <KeyFileButton
+            label={IMPORT.noKeyFile}
+            busy={locked}
+            onFile={(chosen) => subject.fileIds.forEach((id) => reread(id, { keyFile: chosen, keySection: null }))}
+          />
+          <button type="button" className="sf-link" disabled={locked} onClick={() => subject.fileIds.forEach((id) => setFileEdit(id, { noKeyLater: true }))}>
             {IMPORT.noKeyLater}
           </button>
-          <button type="button" className="sf-link" disabled={locked} onClick={() => reread(subject.fileId, { format: 'open' })}>
+          <button type="button" className="sf-link" disabled={locked} onClick={() => subject.fileIds.forEach((id) => reread(id, { format: 'open' }))}>
             {IMPORT.noKeyOral}
           </button>
         </p>
-        {(() => {
-          const withKeyFile = files.find((entry) => entry.id === subject.fileId);
-          return withKeyFile ? (
-            <KeyFileSections file={withKeyFile} busy={locked} onSection={(index) => reread(subject.fileId, { keySection: index })} />
-          ) : null;
-        })()}
+        {files
+          .filter((entry) => subject.fileIds.includes(entry.id))
+          .map((withKeyFile) => (
+            <div key={`sections-${withKeyFile.id}`}>
+              {subject.fileIds.length > 1 && withKeyFile.result.key_file?.used === null ? (
+                <p className="im-hint" data-muted="">
+                  {withKeyFile.name}
+                </p>
+              ) : null}
+              <KeyFileSections file={withKeyFile} busy={locked} onSection={(index) => reread(withKeyFile.id, { keySection: index })} />
+            </div>
+          ))}
       </div>
     ));
   const problemsLine = (list: ReadonlyArray<{ uid: string }>) =>
@@ -1159,7 +1249,7 @@ export default function ImportPage() {
         {failedFiles}
         {rereadingLine}
         <UpdatePreview subject={updateSubject} sources={sources} source={source} onSource={setSourceKey} plan={updatePlan} locked={locked} />
-        {source && source.allNoKey && updateNew.length > 0 ? noKeyBlock([source], false) : null}
+        {source && source.allNoKey && updateNew.length > 0 ? noKeyBlock([{ ...source, fileIds: source.fileIds }], false) : null}
         {problemsLine(shownProblems)}
         {updateImages.length > 0 ? (
           <p className="im-line" data-muted="">
@@ -1198,9 +1288,17 @@ export default function ImportPage() {
         </p>
       ) : null}
 
-      {noKeyBlock(noKeySubjects, active.length > 1)}
+      {joined.map((subject) => (
+        <p key={`join-${subject.key}`} className="im-line">
+          {nb(IMPORT.joinLine(subject.title, joins[subject.key].plan.add.length, joins[subject.key].plan.same))}
+        </p>
+      ))}
+      {noKeyBlock(
+        noKeySubjects.map((subject) => ({ ...subject, fileIds: subject.files.map((file) => file.id) })),
+        active.length > 1,
+      )}
       {reviewLines}
-      {problemsLine(problems)}
+      {problemsLine(previewProblems)}
       {splitGroups.map((subject) => (
         <p key={`split-${subject.key}`} className="im-line" data-muted="">
           {nb(IMPORT.split(subject.title.replace(/, часть 1$/, ''), subject.oralTotal, subject.parts))}
@@ -1239,7 +1337,13 @@ export default function ImportPage() {
               <ul>
                 {spot.map(({ subject, item }) => (
                   <li key={item.uid}>
-                    <p className="im-spot-ctx">{nb([subject, item.label ? `№ ${item.label}` : null].filter(Boolean).join(' · '))}</p>
+                    <p className="im-spot-ctx">
+                      {nb(
+                        [subject, item.label ? `№ ${item.label}` : null, typeof item.variant === 'number' ? IMPORT.spotVariant(item.variant) : null]
+                          .filter(Boolean)
+                          .join(' · '),
+                      )}
+                    </p>
                     <p className="im-spot-q">{item.text}</p>
                     <p className="im-spot-a">
                       {`${IMPORT.spotCheckFile}: `}
