@@ -323,7 +323,7 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
   it('deletes an exam without members; the database’s refusal (someone joined meanwhile) turns the confirm into the members’ one (m8)', async () => {
     renderAt();
     fireEvent.click(screen.getByRole('button', { name: 'Удалить экзамен' }));
-    expect(screen.getByRole('group', { name: /Удалить «Зимняя сессия»\? Вопросы, ответы и прогресс пропадут\. Устные предметы останутся в «Экзаменах» отдельно\./ })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: /Удалить «Зимняя сессия»\? Вопросы, ответы и прогресс пропадут\. Устные предметы удалятся вместе с ним\./ })).toBeInTheDocument();
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Отмена' })));
     expect(screen.getByText(MEMBERS.inExam(0, false))).toBeInTheDocument();
     api.deleteContainer.mockRejectedValueOnce(Object.assign(new Error('the container has members'), { code: 'MC009' }));

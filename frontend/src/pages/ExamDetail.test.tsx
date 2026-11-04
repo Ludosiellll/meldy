@@ -9,6 +9,7 @@ import { formatDay, formatShortDay } from '../lib/exams/format';
 const mocks = vi.hoisted(() => ({
   loadExamBundle: vi.fn(),
   markQuestionManual: vi.fn(),
+  deleteExam: vi.fn(),
   fetchExamMappingState: vi.fn(),
   fetchQuestionEvents: vi.fn(),
   fetchSessionPoints: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('../api/exams', async (importOriginal) => {
     ...actual,
     loadExamBundle: mocks.loadExamBundle,
     markQuestionManual: mocks.markQuestionManual,
+    deleteExam: mocks.deleteExam,
     fetchExamMappingState: mocks.fetchExamMappingState,
     listLectureTitles: mocks.listLectureTitles,
     fetchLectureFit: mocks.fetchLectureFit,
@@ -1774,7 +1776,7 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(screen.getAllByRole('button', { name: 'Ещё: лист экзамена' })).toHaveLength(1);
     expect(document.querySelector('.ex-links-after')).toBeNull();
     fireEvent.click(more);
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя']);
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя', 'Удалить экзамен']);
     expect(screen.getByRole('menuitem', { name: 'Изменить список' })).toHaveAttribute('href', '/exams/exam-1/edit');
     expect(screen.getByRole('menuitem', { name: 'Лекции' })).toHaveAttribute('href', '/exams/exam-1/edit#lectures');
     expect(screen.getByRole('menuitem', { name: 'Отчёт для преподавателя' })).toHaveAttribute('href', '/exams/exam-1/report');
@@ -2121,6 +2123,51 @@ describe('ExamDetail: «Пригласить группу»', () => {
   });
 });
 
+describe('ExamDetail: «Удалить экзамен» on the page (owner, 2026-11-04)', () => {
+  afterEach(() => {
+    mocks.deleteExam.mockReset();
+    mocks.confirm.mockReset();
+  });
+
+  it('asks, deletes and goes to «Экзамены» with a line of what happened', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.confirm.mockResolvedValue(true);
+    mocks.deleteExam.mockResolvedValue(undefined);
+    renderDetail();
+    await opened();
+    const remove = screen.getByRole('button', { name: 'Удалить экзамен' });
+    expect(remove.closest('.ex-links')).not.toBeNull();
+    fireEvent.click(remove);
+    await waitFor(() => expect(mocks.deleteExam).toHaveBeenCalledWith('exam-1'));
+    expect(mocks.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Удалить экзамен?', type: 'danger' }));
+    expect(await screen.findByText('Другая страница')).toBeInTheDocument();
+  });
+
+  it('deletes nothing when the question is declined, and says why a failed delete failed', async () => {
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    mocks.confirm.mockResolvedValueOnce(false);
+    renderDetail();
+    await opened();
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить экзамен' }));
+    await waitFor(() => expect(mocks.confirm).toHaveBeenCalledTimes(1));
+    expect(mocks.deleteExam).not.toHaveBeenCalled();
+    mocks.confirm.mockResolvedValueOnce(true);
+    mocks.deleteExam.mockRejectedValueOnce(new Error('network'));
+    fireEvent.click(screen.getByRole('button', { name: 'Удалить экзамен' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Макроэкономика' })).toBeInTheDocument();
+  });
+
+  it('is not offered for an oral part inside an exam container (it goes with the container)', async () => {
+    rememberAttachedExams({ 'exam-1': { containerId: 'c-1', title: 'Аккредитация' } });
+    mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
+    renderDetail();
+    await opened();
+    expect(screen.queryByRole('button', { name: 'Удалить экзамен' })).toBeNull();
+    rememberAttachedExams({});
+  });
+});
+
 // ------------------------------------------------------------------------------------ inside an exam container
 
 describe('ExamDetail inside an exam container (spec decisions 29б, 38): guarded, nothing changes for other exams', () => {
@@ -2178,7 +2225,7 @@ describe('ExamDetail inside an exam container (spec decisions 29б, 38): guarded
     renderDetail();
     await opened();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя']);
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя', 'Удалить экзамен']);
   });
 
   it('follows the attached exams when they arrive after the page opened (the overview read elsewhere)', async () => {
