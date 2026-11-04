@@ -147,7 +147,10 @@ class ParseSlots:
         try:
             while not self._turn(ticket[0], user):
                 if loop.time() >= deadline:
-                    raise BankError(429, "parse_busy", PARSE_BUSY_DETAIL)
+                    busy = BankError(429, "parse_busy", PARSE_BUSY_DETAIL)
+                    # its own places taken (a user keeps two parses busy): not the server's fault, not given back
+                    busy.own_places = self.users[user] >= self.per_user
+                    raise busy
                 await asyncio.sleep(PARSE_POLL_SECONDS)
         finally:
             self.waiting.remove(ticket)
@@ -280,10 +283,12 @@ async def parse_test_bank(request: Request):
 
 
 def bank_error_response(request: Request, exc: BankError, endpoint: str) -> JSONResponse:
-    """Ответ на BankError. «Сервер занят» (parse_busy) — с Retry-After, и этот запрос не считается в пределе запросов
-    маршрута endpoint («модуль.функция»): ждал не пользователь, а сервер."""
+    """Ответ на BankError. «Сервер занят» (parse_busy) — с Retry-After; если места заняли другие (общий предел
+    PARSE_AT_ONCE), запрос не считается в пределе запросов маршрута endpoint («модуль.функция»): ждал не пользователь,
+    а сервер. Свои два места заняты самим пользователем — запрос считается, как любой."""
     headers = None
     if exc.code == "parse_busy":
         headers = {"Retry-After": str(PARSE_RETRY_AFTER_SECONDS)}
-        give_back(request, endpoint)
+        if not getattr(exc, "own_places", False):
+            give_back(request, endpoint)
     return JSONResponse(status_code=exc.status, content={"detail": exc.detail, "code": exc.code}, headers=headers)

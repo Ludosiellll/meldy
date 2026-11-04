@@ -691,13 +691,24 @@ def plan(reader: Reader, lines: list[MLine], rules: dict, scope: str) -> tuple[l
     return spans, offer["questions"]
 
 
-async def hybrid(blocks: list, *, ask: Ask, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None,
-                 format_mode: str = "auto", line_word: str = "абзац", pictures: Optional[dict] = None, scope: str = "flagged",
-                 charge: Optional[Callable[[int], Awaitable[Any]]] = None, key_file: Optional[list[dict]] = None,
-                 key_section: Optional[int] = None) -> dict:
-    """Разбор с ИИ блоков документа: результат как у parse-bank и «ai» — счётчики. charge(units) — списание до модели
-    (возвращает квитанцию с keep()/refund()); None — без списания (тесты, оценка корпуса). key_file — разделы файла
-    ключа (раздел варианта этого теста — как у parse-bank)."""
+@dataclass
+class RulesPass:
+    """Разбор правилами до модели (rules_pass): чтение, ключи, предпросмотр, разметка строк и что спросить у модели."""
+
+    reader: Any
+    user_keys: Optional[dict[str, str]]
+    rules: dict
+    lines: list
+    spans: list
+    questions: int
+    started: float
+
+
+def rules_pass(blocks: list, *, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None, format_mode: str = "auto",
+               line_word: str = "абзац", pictures: Optional[dict] = None, scope: str = "flagged",
+               key_file: Optional[list[dict]] = None, key_section: Optional[int] = None) -> RulesPass:
+    """Часть разбора с ИИ без модели — работа процессора (банк на 2000 вопросов — около 2 с): маршрут делает её в потоке
+    на месте разбора (bank_api.ParseSlots), не в цикле событий."""
     started = time.monotonic()
     reader = bank_parse.read_bank(blocks, line_word=line_word, format_mode=format_mode, pictures=pictures)
     if key_file is not None:
@@ -709,6 +720,23 @@ async def hybrid(blocks: list, *, ask: Ask, key_mode: str = "auto", user_keys: O
     rules = finish(copy.deepcopy(reader), key_mode=key_mode, user_keys=user_keys, format_mode=format_mode)
     lines = bank_markup.markup(blocks)
     spans, questions = plan(reader, lines, rules, scope)
+    return RulesPass(reader, user_keys, rules, lines, spans, questions, started)
+
+
+async def hybrid(blocks: list, *, ask: Ask, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None,
+                 format_mode: str = "auto", line_word: str = "абзац", pictures: Optional[dict] = None, scope: str = "flagged",
+                 charge: Optional[Callable[[int], Awaitable[Any]]] = None, key_file: Optional[list[dict]] = None,
+                 key_section: Optional[int] = None, first: Optional[RulesPass] = None,
+                 offload: Optional[Callable[[Callable[[], Any]], Awaitable[Any]]] = None) -> dict:
+    """Разбор с ИИ блоков документа: результат как у parse-bank и «ai» — счётчики. charge(units) — списание до модели
+    (возвращает квитанцию с keep()/refund()); None — без списания (тесты, оценка корпуса). key_file — разделы файла
+    ключа (раздел варианта этого теста — как у parse-bank). first — уже сделанный rules_pass (маршрут: в потоке на
+    месте разбора); offload(work) — где сделать сборку после модели (маршрут: в потоке, не в цикле событий)."""
+    if first is None:
+        first = rules_pass(blocks, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode, line_word=line_word,
+                           pictures=pictures, scope=scope, key_file=key_file, key_section=key_section)
+    reader, user_keys, rules, lines, spans = first.reader, first.user_keys, first.rules, first.lines, first.spans
+    started, questions = first.started, first.questions
     stats = AIStats()
     if not spans:
         rules["ai"] = stats.__dict__
@@ -735,8 +763,11 @@ async def hybrid(blocks: list, *, ask: Ask, key_mode: str = "auto", user_keys: O
             await receipt.refund()
         else:
             receipt.keep()
-    merged = merge(reader, lines, spans, ai_items, key_mode, user_keys, format_mode, stats)
-    result = finish(merged, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode)
+    def assemble() -> dict:
+        merged = merge(reader, lines, spans, ai_items, key_mode, user_keys, format_mode, stats)
+        return finish(merged, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode)
+
+    result = await offload(assemble) if offload else assemble()
     stats.ms = int((time.monotonic() - started) * 1000)
     result["ai"] = {k: v for k, v in stats.__dict__.items()}
     print(f"Bank AI: chunks {stats.chunks}, failed {stats.failed_chunks}, found {stats.found}, rejected keys "
@@ -773,13 +804,18 @@ async def parse_bank_ai(request: Request):
         async with bank_api.parse_slots.hold(str(user["id"]), bank_api.PARSE_WAIT_SECONDS) as run:
             prepared = await bank_api.prepare(request, form, run)
             blocks, line_word, pictures = await run(functools.partial(_blocks_of, prepared))
+            first = await run(functools.partial(
+                rules_pass, blocks, key_mode=prepared["key_mode"], user_keys=prepared["user_keys"],
+                format_mode=prepared["format_mode"], line_word=line_word, pictures=pictures, scope=scope,
+                key_file=prepared["key_file"], key_section=prepared["key_section"]))
 
         async def charge(units: int):
             return await quota.charge(request, "importAI", units)
 
         result = await hybrid(blocks, ask=default_ask, key_mode=prepared["key_mode"], user_keys=prepared["user_keys"],
                               format_mode=prepared["format_mode"], line_word=line_word, pictures=pictures, scope=scope,
-                              charge=charge, key_file=prepared["key_file"], key_section=prepared["key_section"])
+                              charge=charge, key_file=prepared["key_file"], key_section=prepared["key_section"],
+                              first=first, offload=asyncio.to_thread)
         return bank_parse._checked(result, prepared["format_mode"])
     except BankError as exc:
         return bank_api.bank_error_response(request, exc, "bank_ai.parse_bank_ai")

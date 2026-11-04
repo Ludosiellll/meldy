@@ -458,6 +458,39 @@ def test_the_route_reads_the_file_in_a_parse_place_and_a_busy_server_costs_nothi
     assert api.charges == []
 
 
+def test_the_rules_pass_runs_off_the_event_loop_in_the_place_and_the_merge_off_it_too(api, monkeypatch):
+    """Разбор правилами (банк на 2000 вопросов — около 2 с) шёл в цикле событий: теперь в потоке на месте разбора, а
+    сборка после модели — в потоке, без места (место отпущено до модели)."""
+    import bank_api
+
+    seen = []
+
+    def on_loop() -> bool:
+        try:
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
+
+    real_read, real_merge = bank_parse.read_bank, bank_ai.merge
+
+    def read(*args, **kwargs):
+        seen.append(("read", on_loop(), bank_api.parse_slots.busy))
+        return real_read(*args, **kwargs)
+
+    def merged(*args, **kwargs):
+        seen.append(("merge", on_loop(), bank_api.parse_slots.busy))
+        return real_merge(*args, **kwargs)
+
+    monkeypatch.setattr(bank_parse, "read_bank", read)
+    monkeypatch.setattr(bank_ai, "merge", merged)
+    blocks = blocks_of(LETTERED)
+    monkeypatch.setattr(bank_ai, "default_ask", scripted(lambda numbers: lettered_answer(bank_markup.markup(blocks))))
+    response = api.post(AI_PATH, data={"text": LETTERED})
+    assert response.status_code == 200, response.text
+    assert seen == [("read", False, 1), ("merge", False, 0)]
+
+
 def test_a_file_of_markup_without_text_is_refused_before_any_charge(api, monkeypatch):
     import io
     import zipfile
