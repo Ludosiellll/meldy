@@ -12,7 +12,9 @@ import { usePhone } from '../../lib/usePhone';
 import { useFrame } from '../../components/exams/useFrame';
 import PaperSelect from '../../components/ui/PaperSelect';
 import type { BankParseResult, BankPicture, PlanItem, Tempo, TestItem, Uuid } from '../../types/container';
-import { dayText, errorText, IMPORT, KEYS_AI_WORDS, nb, REVIEW, SETTINGS } from '../../components/containers/copyImport';
+import { dayText, errorText, IMPORT, isExamDateError, KEYS_AI_WORDS, nb, REVIEW, SETTINGS } from '../../components/containers/copyImport';
+import { MOVE_MAX_DAYS } from '../../components/containers/MoveExamDialog';
+import { addDay } from '../../components/containers/model';
 import { ALL_QUESTIONS_MIN } from '../../lib/containers/plan';
 import FilePick, { AddFileLink, platformOf } from '../../components/containers/import/FilePick';
 import ImportQueue from '../../components/containers/import/ImportQueue';
@@ -241,6 +243,19 @@ function viewOf(hash: string): View {
 /** The pictures of every file read (ids are hashes: one picture in two files is one). */
 function filePictures(files: readonly ImportFile[]): Record<string, BankPicture> {
   return Object.assign({}, ...files.map((file) => file.result.pictures ?? {}));
+}
+
+/**
+ * What is wrong with the exam dates about to be saved, or null: a date past `maxDay` (two years ahead: a year typed
+ * as 2206), or one the database would refuse otherwise (before 2000, not a date: 0206, 20206). Empty dates are fine.
+ */
+export function examDateProblem(dates: ReadonlyArray<string | null | undefined>, maxDay: string): string | null {
+  for (const value of dates) {
+    if (!value) continue;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || value < '2000-01-01') return IMPORT.dateWrong;
+    if (value > maxDay || value > '2100-12-31') return IMPORT.dateTooFar;
+  }
+  return null;
 }
 
 function localDay(now: Date = new Date()): string {
@@ -661,6 +676,11 @@ export default function ImportPage() {
   const asOralExam = targetKind === 'new' && singleOral;
   const showMinutes = targetKind !== 'container' && !asOralExam;
   const showDate = targetKind !== 'container';
+  // The latest exam date, as «Настройки» and «Перенести экзамен» take it (two years ahead); the database keeps
+  // 2000–2100 only. A date out of that is said before saving: an oral exam saved first must not stay behind.
+  const maxDay = addDay(today, MOVE_MAX_DAYS);
+  const datesSent = !showDate ? [] : perSubject ? subjectDates : targetKind === 'old' && !form.dateTouched ? [] : [date];
+  const dateProblem = examDateProblem(datesSent, maxDay);
 
   // The oral exam joining as subject 1, as the exam's page will plan it: its questions in the plan, from its sheet
   // (lib/containers/oralPlan.ts, read once it is chosen). Undefined while read, null when it could not be.
@@ -782,19 +802,21 @@ export default function ImportPage() {
     ? IMPORT.signedOut
     : aiRunning
       ? KEYS_AI_WORDS.wait
-      : active.length === 0
-        ? IMPORT.nothingLeft
-        : showName && !title.trim()
-          ? IMPORT.nameMissing
-          : !asOralExam && subjectsAfter > SUBJECTS_CAP
-            ? IMPORT.tooManySubjects(subjectsAfter)
-            : itemsAfter > ITEMS_CAP
-              ? IMPORT.tooManyItems(itemsAfter)
-              : joinNeeded && !joinData.data
-                ? joinData.error
-                  ? IMPORT.joinLoadFailed
-                  : IMPORT.joinLoading
-                : null;
+      : dateProblem
+        ? dateProblem
+        : active.length === 0
+          ? IMPORT.nothingLeft
+          : showName && !title.trim()
+            ? IMPORT.nameMissing
+            : !asOralExam && subjectsAfter > SUBJECTS_CAP
+              ? IMPORT.tooManySubjects(subjectsAfter)
+              : itemsAfter > ITEMS_CAP
+                ? IMPORT.tooManyItems(itemsAfter)
+                : joinNeeded && !joinData.data
+                  ? joinData.error
+                    ? IMPORT.joinLoadFailed
+                    : IMPORT.joinLoading
+                  : null;
   // Reading a file again while the AI answers would change the questions it was asked about: those buttons wait too.
   const rereadLocked = locked || aiRunning;
 
@@ -934,7 +956,9 @@ export default function ImportPage() {
       navigate(path, { replace: true });
     } catch (error) {
       const partial = saveStarted(saveState.current);
-      setSaving({ status: 'failed', error: partial ? IMPORT.saveRetry : errorText(error, {}, IMPORT.saveFailed), progress: null });
+      // the database's date guard: pressing again would not help, the date must change
+      const line = isExamDateError(error) ? IMPORT.dateTooFar : partial ? IMPORT.saveRetry : errorText(error, {}, IMPORT.saveFailed);
+      setSaving({ status: 'failed', error: line, progress: null });
     }
   };
 
@@ -1523,6 +1547,7 @@ export default function ImportPage() {
                 className="im-input im-date"
                 value={subject.date ?? ''}
                 min={today}
+                max={maxDay}
                 disabled={locked}
                 aria-label={IMPORT.subjectDate(subject.title)}
                 onChange={(event) => setSubjectEdit(subject.key, { date: event.target.value || null })}
@@ -1541,6 +1566,7 @@ export default function ImportPage() {
             className="im-input im-date"
             value={date}
             min={today}
+            max={maxDay}
             disabled={locked}
             onChange={(event) => setForm((current) => ({ ...current, date: event.target.value, dateTouched: true }))}
           />

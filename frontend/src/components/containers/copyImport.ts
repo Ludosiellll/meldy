@@ -169,6 +169,11 @@ export function lettersText(indices: readonly number[]): string {
 
 // ─────────────────────────────────────────────── /exams/import ───────────────────────────────────────────────
 
+/** The database's guard on exam dates (exam_date_in_range: 2000–2100): 22023 with the detail «date». */
+export const EXAM_DATE_RANGE = 'Дата экзамена — не дальше чем через два года.';
+export const isExamDateError = (error: unknown) =>
+  (error as { code?: unknown } | null)?.code === '22023' && (error as { detail?: unknown } | null)?.detail === 'date';
+
 export const IMPORT = {
   title: 'Новый экзамен',
   titleAdd: 'Добавить предмет',
@@ -288,6 +293,10 @@ export const IMPORT = {
   savingItems: (done: number, total: number) => `Сохраняем вопросы: ${done} из ${total}`,
   saveRetry: 'Не всё сохранилось. Нажмите ещё раз: сохранённое не повторится.',
   saveFailed: 'Не сохранилось. Проверьте связь и нажмите ещё раз.',
+  /** An exam date past two years ahead (the date fields' max, as «Настройки» and «Перенести экзамен»): checked before saving. */
+  dateTooFar: EXAM_DATE_RANGE,
+  /** A year typed wrong (0206, 20206): the database keeps dates of 2000–2100 only. */
+  dateWrong: 'Проверьте год в дате экзамена.',
   tooManySubjects: (n: number) => `В экзамене помещается 20 предметов, а здесь ${n}. Уберите лишние.`,
   tooManyItems: (n: number) =>
     `В экзамене помещается 2000 вопросов с вариантами, а здесь ${n}. Уберите предмет или загрузите часть файлов в другой экзамен.`,
@@ -997,6 +1006,7 @@ export const RPC_ERRORS: Record<string, string> = {
 /** The Russian line for an error of the container API: ours by code, else the API's own message. */
 export function errorText(error: unknown, table: Record<string, string> = RPC_ERRORS, fallback = 'Не получилось. Попробуйте ещё раз.'): string {
   const code = typeof (error as { code?: unknown } | null)?.code === 'string' ? (error as { code: string }).code : '';
+  if (isExamDateError(error)) return EXAM_DATE_RANGE;
   if (code && table[code]) return table[code];
   if (code && RPC_ERRORS[code]) return RPC_ERRORS[code];
   const message = error instanceof Error ? error.message.trim() : '';

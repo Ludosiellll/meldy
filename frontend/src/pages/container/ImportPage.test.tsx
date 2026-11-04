@@ -92,9 +92,9 @@ vi.mock('../../components/containers/import/targets', async () => {
 });
 vi.mock('../../lib/containers/oralPlan', () => ({ loadOralPlanItems: api.loadOralPlanItems }));
 
-import ImportPage from './ImportPage';
+import ImportPage, { examDateProblem } from './ImportPage';
 import { GUIDE_LATER_KEY } from '../../components/guide/guideLater';
-import { IMPORT, KEYS_AI_WORDS, PARSE_ERRORS, QUEUE, REVIEW } from '../../components/containers/copyImport';
+import { errorText, IMPORT, KEYS_AI_WORDS, PARSE_ERRORS, QUEUE, REVIEW } from '../../components/containers/copyImport';
 
 const TWO = twoSubjects as unknown as BankParseResult;
 const OPEN = openList as unknown as BankParseResult;
@@ -292,6 +292,60 @@ describe('ImportPage: one door for every file', () => {
     ]);
     expect(api.addItems).toHaveBeenCalledTimes(1);
     expect(api.addItems.mock.calls[0][1]).toHaveLength(10);
+  });
+
+  it('a mistyped exam year is said before saving: no oral exam is created with it (the database keeps 2000–2100)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-04T09:00:00Z'));
+    try {
+      const items = [...Array.from({ length: 5 }, (_, at) => item(at + 1)), ...Array.from({ length: 12 }, (_, at) => item(at + 6, { kind: 'open', options: [], correct: [], evidence: '', marks: {} }))];
+      api.parseBank.mockResolvedValue(bank(items));
+      renderAt();
+      upload(['Право.docx']);
+      await screen.findByRole('heading', { name: /Нашли 17\sвопросов/ });
+      const field = screen.getByLabelText('Дата экзамена');
+      // the field takes two years ahead at most, as «Настройки» and «Перенести экзамен»
+      expect(field).toHaveAttribute('max', '2028-11-03');
+      fireEvent.change(field, { target: { value: '2206-01-10' } });
+      fireEvent.click(saveButton());
+      expect(await screen.findByText(nm(IMPORT.dateTooFar))).toBeInTheDocument();
+      fireEvent.change(field, { target: { value: '0206-01-10' } });
+      fireEvent.click(saveButton());
+      expect(await screen.findByText(nm(IMPORT.dateWrong))).toBeInTheDocument();
+      expect(api.createExam).not.toHaveBeenCalled();
+      expect(api.createContainer).not.toHaveBeenCalled();
+      // a date within two years saves as before
+      fireEvent.change(field, { target: { value: '2027-01-10' } });
+      fireEvent.click(saveButton());
+      await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+      expect(api.createExam).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('checks every date about to be saved: each subject’s too', () => {
+    expect(examDateProblem(['2027-01-10', null, ''], '2028-11-03')).toBeNull();
+    expect(examDateProblem(['2027-01-10', '2028-11-04'], '2028-11-03')).toBe(IMPORT.dateTooFar);
+    expect(examDateProblem(['2206-01-10'], '2228-11-03')).toBe(IMPORT.dateTooFar); // past 2100: the database's limit
+    expect(examDateProblem(['1999-12-31'], '2028-11-03')).toBe(IMPORT.dateWrong);
+    expect(examDateProblem(['20206-01-10'], '2028-11-03')).toBe(IMPORT.dateWrong);
+    // the database's own refusal reads the same anywhere
+    expect(errorText(Object.assign(new Error('x'), { code: '22023', detail: 'date' }))).toBe(IMPORT.dateTooFar);
+    expect(errorText(Object.assign(new Error('x'), { code: '22023', detail: 'ai_key' }))).toBe('Сервер не принял данные. Обновите страницу и попробуйте ещё раз.');
+  });
+
+  it('the database refusing a date says so plainly, even after an oral exam was saved, instead of «нажмите ещё раз»', async () => {
+    const items = [...Array.from({ length: 5 }, (_, at) => item(at + 1)), ...Array.from({ length: 12 }, (_, at) => item(at + 6, { kind: 'open', options: [], correct: [], evidence: '', marks: {} }))];
+    api.parseBank.mockResolvedValue(bank(items));
+    api.createContainer.mockRejectedValueOnce(Object.assign(new Error('invalid exam date'), { code: '22023', detail: 'date', status: 400 }));
+    renderAt();
+    upload(['Право.docx']);
+    await screen.findByRole('heading', { name: /Нашли 17\sвопросов/ });
+    fireEvent.click(saveButton());
+    expect(await screen.findByText(nm(IMPORT.dateTooFar))).toBeInTheDocument();
+    expect(api.createExam).toHaveBeenCalledTimes(1); // the oral list was saved before the exam was refused
+    expect(screen.queryByText(nm(IMPORT.saveRetry))).toBeNull();
   });
 
   it('says in Russian why a file did not open, and never blocks the others', async () => {
