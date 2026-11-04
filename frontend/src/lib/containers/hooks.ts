@@ -132,6 +132,8 @@ function keptOral(kept: OralPlanPart[] | undefined, parts: Array<{ examId: Uuid 
 /**
  * The plan's input for this exam. A subject with only an oral part in the plan takes its oral exam's date: the exam row
  * is the only owner of an oral date (spec §3 «Даты»); the test part's date is the subject's, else the exam's common one.
+ * The user's own date of the exam (summary.own_exam_date, «Только для меня») overrides both: plan_inputs gives it to every
+ * subject and the oral parts were read for it (loadOralPlanItems), as the bot plans (bot_oral_inputs).
  */
 function buildData(summary: ContainerSummary, wire: PlanInputsWire, items: TestItem[], oral: OralPlanPart[], userId: string): ContainerData {
   const planInput = decodePlanInputs(wire, {
@@ -143,9 +145,10 @@ function buildData(summary: ContainerSummary, wire: PlanInputsWire, items: TestI
   });
   const withTests = new Set(planInput.items.filter((item) => item.f === 't').map((item) => item.s));
   const oralDates = new Map<string, string | null | undefined>(oral.map((part) => [part.subjectId, part.examDate]));
+  const own = summary.own_exam_date ?? null;
   planInput.subjects = planInput.subjects.map((subject) => {
     const oralDate = oralDates.get(subject.id);
-    return !withTests.has(subject.id) && oralDate ? { ...subject, date: oralDate } : subject;
+    return !own && !withTests.has(subject.id) && oralDate ? { ...subject, date: oralDate } : subject;
   });
   // The exam's size as its page says it (components/containers/model.ts examQuestions): every question, oral included.
   // The line under «Время в день» names its count «в плане» when the plan holds fewer (usability check 2026-10-10, m6).
@@ -169,7 +172,9 @@ async function readContainer(userId: string, containerId: Uuid): Promise<State<C
     const stamp = bankStamp(summary.items_version.count, summary.items_version.updated_at);
     const [items, oral] = await Promise.all([
       loadBank(containerId, stamp, summary.subjects.map((subject) => subject.id)),
-      parts.length > 0 ? loadOralPlanItems(parts, Date.now(), deviceZone()).catch(() => keptOral(kept?.oral, parts)) : Promise.resolve([]),
+      parts.length > 0
+        ? loadOralPlanItems(parts, Date.now(), deviceZone(), summary.own_exam_date ?? null).catch(() => keptOral(kept?.oral, parts))
+        : Promise.resolve([]),
     ]);
     await rememberContainer(userId, containerId, { summary, plan: wire, oral });
     return { ...SIGNED_OUT, data: buildData(summary, wire, items, oral, userId) };

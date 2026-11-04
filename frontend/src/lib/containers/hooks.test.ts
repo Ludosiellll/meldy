@@ -171,7 +171,7 @@ describe('useContainerData', () => {
     expect(api.fetchSummary).toHaveBeenCalledWith(C1, '2026-12-21');
     expect(api.fetchPlanInputs).toHaveBeenCalledWith('2026-12-21', C1);
     expect(bank.loadBank).toHaveBeenCalledWith(C1, '18:2026-12-14T16:03:05.069454+00:00', [S1, S2, S3]);
-    expect(oral.loadOralPlanItems).toHaveBeenCalledWith([{ examId: ORAL, subjectId: S3 }], wire.now * 1000, expect.any(String));
+    expect(oral.loadOralPlanItems).toHaveBeenCalledWith([{ examId: ORAL, subjectId: S3 }], wire.now * 1000, expect.any(String), null);
     expect(data.summary).toEqual(summary);
     expect(data.items.get(items[0].id)).toEqual(items[0]);
     expect(data.items.size).toBe(items.length);
@@ -199,6 +199,23 @@ describe('useContainerData', () => {
     const { result } = renderHook(() => useContainerData(C1));
     await waitFor(() => expect(result.current.data).not.toBeNull());
     expect(result.current.data!.planInput.subjects.map((subject) => subject.date)).toEqual(['2027-01-12', '2027-01-16', '2027-01-25']);
+  });
+
+  it('«Перенести экзамен» for me: the own date holds for an oral-only subject too, and its sheet is built for it (as the bot)', async () => {
+    // plan_inputs already gives every subject the own date; the oral exam's own row still has the old one.
+    const own = '2027-02-20';
+    api.fetchSummary.mockResolvedValue({ ...summary, own_exam_date: own, exam_date: own, subjects: summary.subjects.map((subject) => ({ ...subject, exam_date: own })) });
+    api.fetchPlanInputs.mockResolvedValue({ ...wire, subjects: wire.subjects.map((subject) => ({ ...subject, test_date: own })) });
+    const { result } = renderHook(() => useContainerData(C1));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+    expect(oral.loadOralPlanItems).toHaveBeenCalledWith([{ examId: ORAL, subjectId: S3 }], wire.now * 1000, expect.any(String), own);
+    expect(result.current.data!.planInput.subjects.map((subject) => subject.date)).toEqual([own, own, own]);
+  });
+
+  it('without an own date the oral exam’s date is asked for as before', async () => {
+    const { result } = renderHook(() => useContainerData(C1));
+    await waitFor(() => expect(result.current.data).not.toBeNull());
+    expect(oral.loadOralPlanItems).toHaveBeenCalledWith([{ examId: ORAL, subjectId: S3 }], wire.now * 1000, expect.any(String), null);
   });
 
   it('merges its oral exams into the attached map the last overview gave, replacing its own entries', async () => {
