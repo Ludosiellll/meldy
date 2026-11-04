@@ -10,6 +10,7 @@ import {
   isHex,
   luminance,
   mix,
+  onColor,
   readableAccent,
   rgbHex,
   SCRIM_MIN,
@@ -230,6 +231,32 @@ describe('themeTokens', () => {
     expect(tokens['--doc-bg']).toBe(`linear-gradient(180deg, ${softTop('pink', false)} 0%, #f3f3f0 70%)`);
     expect(softTop('pink', true)).not.toBe(softTop('pink', false));
   });
+
+  it('the author\'s own colour: the page is that colour in both themes, its words black or white by contrast', () => {
+    for (const dark of [false, true]) {
+      const light = themeTokens({ ...THEME, background: { kind: 'color', color: '#f3e3c3' } }, dark);
+      expect(light).toMatchObject({ '--doc-bg': '#f3e3c3', '--doc-on-bg': SURFACES.light.ink, '--doc-bg-dim': 'transparent', '--doc-bg-scrim': 'transparent' });
+      // The cards keep the theme's own surfaces.
+      expect(light['--doc-surface']).toBe(dark ? SURFACES.dark.surface : SURFACES.light.surface);
+      const deep = themeTokens({ ...THEME, background: { kind: 'color', color: '#2b3a55' } }, dark);
+      expect(deep).toMatchObject({ '--doc-bg': '#2b3a55', '--doc-on-bg': '#ffffff' });
+    }
+    // The other kinds give the new tokens their old colours.
+    expect(themeTokens(THEME, false)).toMatchObject({ '--doc-on-bg-muted': SURFACES.light.muted, '--doc-bg-line': SURFACES.light.line });
+  });
+
+  it.each(['#000000', '#ffffff', '#777777', '#808080', '#959595', '#ff0000', '#00ff00', '#0000ff', '#ffee00', '#b45309', '#f3e3c3', '#2b3a55', '#40e0d0', '#7f7f7f'])(
+    'words on %s read 4.5:1, the quiet ones too',
+    (color) => {
+      const on = onColor(color);
+      expect(contrast(on.ink, color)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(on.muted, color)).toBeGreaterThanOrEqual(4.5);
+      expect([SURFACES.light.ink, '#ffffff', '#000000']).toContain(on.ink);
+      const tokens = themeTokens({ ...THEME, background: { kind: 'color', color } }, true);
+      expect(tokens['--doc-on-bg']).toBe(on.ink);
+      expect(tokens['--doc-on-bg-muted']).toBe(on.muted);
+    },
+  );
 
   it('a picture: the author dim, a scrim of at least 55 % behind text, white text on it', () => {
     const tokens = themeTokens({ ...THEME, background: { kind: 'image', path: 'x', dim: 20 } }, false);

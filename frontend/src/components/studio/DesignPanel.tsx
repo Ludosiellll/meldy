@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState, type CSSProperties } from 'react';
-import { ACCENTS, FONT_STACKS, readableAccent } from '../../lib/studio/contrast';
+import { ACCENTS, FONT_STACKS, hexRgb, isHex, mix, readableAccent, rgbHex, SURFACES } from '../../lib/studio/contrast';
 import { emptyDoc } from '../../lib/studio/doc';
 import { typingKey } from '../../lib/studio/history';
 import { READY_THEMES } from '../../lib/studio/templates';
@@ -7,6 +7,7 @@ import { QUIZ_ACCENTS, type QuizAccent } from '../../types/quiz';
 import type { DocTheme, TestDoc } from '../../types/testDoc';
 import Choice from './Choice';
 import { STUDIO } from './copyStudio';
+import { UiIcon } from './icons';
 import DocView from './DocView';
 import { gradeDoc, type DocItem } from './docRun';
 import { LAYOUT_OPTIONS } from './BlockPanel';
@@ -17,8 +18,10 @@ import type { SideApi } from './Workspace';
 /**
  * «Оформление» (spec §47.6 «Тема»): a sample of the page in its theme at the top (answerable), the four ready themes,
  * the colour (Meldy's six or the author's own — nudged until white text reads on it: «Цвет чуть поправлен для
- * читаемости»), the background (plain, soft, a picture with its darkening — «Картинка» opens the author's own upload
- * first and the six ready pictures after it; the page keeps its background until a picture is there), the font, the
+ * читаемости»), the background (plain, soft, the author's own colour — a picker and its code, the words on it black or
+ * white by contrast —, a picture with its darkening — «Картинка» opens the author's own upload first and the six ready
+ * pictures after it; the page keeps its background until a picture is there; «Загрузить свою картинку» stands under
+ * the choice too, owner 2026-11-04: «не могу поставить свой фон»), the font, the
  * corners, the density, the answers as a list or tiles, the buttons, and how the page is gone through.
  */
 
@@ -41,6 +44,66 @@ function sampleDoc(doc: TestDoc): TestDoc {
 
 function Swatch({ color }: { color: string }) {
   return <span className="st-swatch-dot" style={{ background: color }} aria-hidden="true" />;
+}
+
+/** «#abc», «abc», «#AABBCC» or «aabbcc» as the page keeps a colour (#rrggbb, lower case); anything else → null. */
+export function hexOf(raw: string): string | null {
+  const text = raw.trim();
+  return isHex(text) ? rgbHex(hexRgb(text)) : null;
+}
+
+/** A first own background: the accent, light in the light theme and deep in the dark one (the author's screen). */
+export function firstColor(fill: string, dark: boolean): string {
+  return dark ? mix(fill, SURFACES.dark.canvas, 0.32) : mix(fill, '#ffffff', 0.16);
+}
+
+/** «Свой цвет» of the background: the browser's picker and the colour's code (typed or pasted, taken on Enter or leaving). */
+function BackgroundColor({ value, onChange }: { value: string; onChange: (color: string) => void }) {
+  const id = useId();
+  const [text, setText] = useState(value);
+  const [bad, setBad] = useState(false);
+  useEffect(() => {
+    setText(value);
+    setBad(false);
+  }, [value]);
+  const take = () => {
+    const hex = hexOf(text);
+    setBad(hex === null);
+    if (hex && hex !== value) onChange(hex);
+  };
+  return (
+    <div className="st-bgcolor">
+      <div className="st-bgcolor-row">
+        <label className="st-bgcolor-pick" title={STUDIO.bgColor}>
+          <input type="color" value={value} aria-label={STUDIO.bgColor} onChange={(event) => onChange(event.target.value.toLowerCase())} />
+        </label>
+        <input
+          id={id}
+          className="st-input st-bgcolor-code"
+          value={text}
+          maxLength={7}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label={STUDIO.bgColorCode}
+          aria-invalid={bad || undefined}
+          aria-describedby={`${id}-hint`}
+          onChange={(event) => {
+            setText(event.target.value);
+            if (bad) setBad(false);
+          }}
+          onBlur={take}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+            event.preventDefault();
+            take();
+          }}
+        />
+      </div>
+      <p className="st-field-hint" id={`${id}-hint`}>
+        {STUDIO.bgColorHint}
+      </p>
+    </div>
+  );
 }
 
 export default function DesignPanel({ studio, dark, api, onPreview }: { studio: Studio; dark: boolean; api: SideApi; onPreview: () => void }) {
@@ -68,6 +131,12 @@ export default function DesignPanel({ studio, dark, api, onPreview }: { studio: 
   const [wantPicture, setWantPicture] = useState(false);
   useEffect(() => setWantPicture(false), [theme.background]);
   const backgroundKind = theme.background.kind === 'image' || wantPicture ? 'image' : theme.background.kind;
+  // «Свой цвет» chosen again comes back with the colour last picked here.
+  const [lastColor, setLastColor] = useState<string | null>(theme.background.kind === 'color' ? theme.background.color : null);
+  const setColor = (color: string) => {
+    setLastColor(color);
+    set({ background: { kind: 'color', color } }, typingKey('theme', 'background'));
+  };
 
   return (
     <div className="st-panel-body st-design">
@@ -147,6 +216,7 @@ export default function DesignPanel({ studio, dark, api, onPreview }: { studio: 
           options={[
             { value: 'plain', label: STUDIO.backgrounds.plain },
             { value: 'soft', label: STUDIO.backgrounds.soft },
+            { value: 'color', label: STUDIO.backgrounds.color, icon: <Swatch color={theme.background.kind === 'color' ? theme.background.color : lastColor ?? firstColor(fill, dark)} /> },
             { value: 'image', label: STUDIO.backgrounds.image },
           ]}
           value={backgroundKind}
@@ -154,8 +224,26 @@ export default function DesignPanel({ studio, dark, api, onPreview }: { studio: 
             setWantPicture(kind === 'image');
             if (kind === 'plain') set({ background: { kind: 'plain' } });
             else if (kind === 'soft') set({ background: { kind: 'soft', tone: accentTone } });
+            else if (kind === 'color' && theme.background.kind !== 'color') setColor(lastColor ?? firstColor(fill, dark));
           }}
         />
+        {theme.background.kind === 'color' && backgroundKind === 'color' ? <BackgroundColor value={theme.background.color} onChange={setColor} /> : null}
+        {backgroundKind === 'image' ? null : (
+          // The author's own picture in one step from any background (the owner did not find it under «Картинка»).
+          <p className="st-bg-own">
+            <button
+              type="button"
+              className="sf-link st-bg-upload"
+              onClick={() => {
+                setWantPicture(true);
+                api.pickPicture({ kind: 'background' });
+              }}
+            >
+              <UiIcon name="upload" />
+              <span>{STUDIO.pictureUpload}</span>
+            </button>
+          </p>
+        )}
         {backgroundKind === 'image' ? (
           <PictureField
             label={STUDIO.picture}

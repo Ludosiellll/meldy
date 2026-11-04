@@ -246,6 +246,7 @@ function backgroundOk(background: unknown, containerId?: string): boolean {
   if (!isObj(background)) return false;
   if (background.kind === 'plain') return keysAre(background, ['kind']);
   if (background.kind === 'soft') return keysAre(background, ['kind', 'tone']) && oneOf(QUIZ_ACCENTS, background.tone);
+  if (background.kind === 'color') return keysAre(background, ['kind', 'color']) && typeof background.color === 'string' && HEX_RE.test(background.color);
   return (
     background.kind === 'image' &&
     keysAre(background, ['kind', 'path', 'dim']) &&
@@ -461,6 +462,7 @@ function accentOf(value: unknown): DocTheme['accent'] {
 
 function backgroundOf(value: unknown): DocBackground {
   if (isObj(value) && value.kind === 'soft') return { kind: 'soft', tone: pick<QuizAccent>(QUIZ_ACCENTS, value.tone, 'blue') };
+  if (isObj(value) && value.kind === 'color' && typeof value.color === 'string' && HEX_RE.test(value.color.toLowerCase())) return { kind: 'color', color: value.color.toLowerCase() };
   if (isObj(value) && value.kind === 'image' && imageOk(value.path)) return { kind: 'image', path: value.path, dim: clampInt(value.dim, 0, DIM_MAX, 40) };
   return { kind: 'plain' };
 }

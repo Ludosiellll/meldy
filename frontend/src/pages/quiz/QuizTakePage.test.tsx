@@ -1024,6 +1024,61 @@ describe('/k/<код>: a quiz «как в студии» (release 47.2)', () => 
   });
 });
 
+describe('/k/<код>: a quiz «как в студии» on the author\'s own colour (20261107090400_studio_color_bg)', () => {
+  const onColor = (color: string): DocDesign => ({
+    title: 'Аккредитация',
+    theme: { accent: 'orange', background: { kind: 'color', color }, font: 'onest', radius: 'soft', density: 'airy', answers: 'list', buttons: 'pill' },
+    layout: 'one_page',
+    blocks: [
+      { type: 'cover', id: 'cover0000001', title: 'Аккредитация: полный тест', subtitle: 'Организация здравоохранения', image: null, align: 'left' },
+      { type: 'text', id: 'text00000001', text: 'Выберите один ответ.', align: 'left' },
+      { type: 'question', id: 'quest0000001', item_id: 'i1', points: 1, required: false },
+      { type: 'question', id: 'quest0000002', item_id: 'i2', points: 1, required: false },
+      { type: 'question', id: 'quest0000003', item_id: 'i3', points: 1, required: false },
+    ],
+    results: { bands: [], cta: null },
+  });
+
+  it('the start, the attempt and the result stand on the colour; the words on it take black or white by contrast', async () => {
+    signedIn({ attempts_used: 1, results: [{ attempt_id: 'att-0', n: 1, finished_at: '2026-10-15T12:00:00.000Z', correct: 2, total: 3, score: 2, max_score: 3 }] }, { attempts: 2, design: onColor('#2b3a55') });
+    api.startQuiz.mockResolvedValue({ ...ATTEMPT, design: onColor('#2b3a55') });
+    api.quizResult.mockResolvedValue({ ...RESULT, attempt_id: 'att-0', correct: 2, total: 3, score: 2, max_score: 3, percent: 67, design: onColor('#2b3a55'), band: null });
+    renderAt();
+    await screen.findByRole('heading', { name: 'Ваши попытки' });
+    const start = document.querySelector('.qt') as HTMLElement;
+    expect(start).toHaveAttribute('data-bg', 'color');
+    expect(start.style.getPropertyValue('--doc-bg')).toBe('#2b3a55');
+    expect(start.style.getPropertyValue('--doc-on-bg')).toBe('#ffffff');
+    // No picture behind it.
+    expect(document.querySelector('.qt-bg')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Посмотреть попытку 1' }));
+    await waitFor(() => expect(document.querySelector('.qt-score')).not.toBeNull());
+    expect(document.querySelector('.ct-roomshell')).toHaveAttribute('data-bg', 'color');
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Начать' }));
+    await waitFor(() => expect(document.querySelector('.dv')).not.toBeNull());
+    const page = document.querySelector('.dv') as HTMLElement;
+    expect(page).toHaveAttribute('data-bg', 'color');
+    expect(page.style.getPropertyValue('--doc-bg')).toBe('#2b3a55');
+    expect(document.querySelector('.dv-bg')).toBeNull();
+    expect(screen.getByText('Выберите один ответ.')).toBeInTheDocument();
+  });
+
+  it('a light colour takes dark words; a colour the client cannot read is drawn plain', async () => {
+    signedIn({}, { design: onColor('#f3e3c3') });
+    renderAt();
+    await screen.findByRole('heading', { level: 1, name: 'Аккредитация: полный тест' });
+    const root = document.querySelector('.qt') as HTMLElement;
+    expect(root.style.getPropertyValue('--doc-bg')).toBe('#f3e3c3');
+    expect(root.style.getPropertyValue('--doc-on-bg')).toBe('#0b121c');
+    cleanup();
+    signedIn({}, { design: { ...onColor('#f3e3c3'), theme: { ...onColor('#f3e3c3').theme, background: { kind: 'color', color: 'beige' } as never } } });
+    renderAt();
+    await screen.findByRole('heading', { level: 1, name: 'Аккредитация: полный тест' });
+    expect(document.querySelector('.qt')).toHaveAttribute('data-bg', 'plain');
+  });
+});
+
 describe('/k/<код> with «Защита от списывания» (20261020120000_quiz_protection)', () => {
   const fullscreen = vi.fn();
   beforeEach(() => {

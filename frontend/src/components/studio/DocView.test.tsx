@@ -53,6 +53,20 @@ describe('DocView in answer mode: what the participant gets', () => {
     expect(screen.getAllByRole('region').length).toBe(2);
   });
 
+  it('the author\'s own background colour: the page in it, no picture layer, the words on it by contrast (both themes)', () => {
+    for (const dark of [false, true]) {
+      const doc: TestDoc = { ...page('one_page'), theme: { ...page('one_page').theme, background: { kind: 'color', color: '#1f2a44' } } };
+      const { container, unmount } = render(<DocView mode="answer" doc={doc} items={items} dark={dark} imageUrl={url} onSubmit={(answers) => gradeDoc(doc, items, answers)} />);
+      const root = container.querySelector('.dv') as HTMLElement;
+      expect(root).toHaveAttribute('data-bg', 'color');
+      expect(root.style.getPropertyValue('--doc-bg')).toBe('#1f2a44');
+      expect(root.style.getPropertyValue('--doc-on-bg')).toBe('#ffffff');
+      expect(root.style.getPropertyValue('--doc-on-bg-muted')).toMatch(/^#[0-9a-f]{6}$/);
+      expect(container.querySelector('.dv-bg')).toBeNull();
+      unmount();
+    }
+  });
+
   it('«Одна страница»: required questions are asked for, then the result with its band, picture and the link’s address', async () => {
     const doc = page('one_page');
     render(<DocView mode="answer" doc={doc} items={items} dark imageUrl={url} onSubmit={(answers) => gradeDoc(doc, items, answers)} />);

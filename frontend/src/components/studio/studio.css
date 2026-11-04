@@ -398,10 +398,11 @@
   pointer-events: none;
 }
 .dv[data-bg='image'] .st-hint { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6); }
+.dv[data-bg='color'] .st-hint { color: var(--doc-on-bg-muted); }
 .st-block[data-selected] + .st-gap { height: max(var(--doc-gap), 56px); }
 .st-block[data-selected] + .st-gap-end { padding-top: 58px; }
 .st-problem { margin: 10px 0 0; color: var(--st-bad); font: 500 14px/1.4 var(--ph-sans); }
-.dv[data-bg='image'] .st-problem { padding: 8px 12px; border-radius: 12px; background: var(--sf-surface); }
+.dv:is([data-bg='image'], [data-bg='color']) .st-problem { padding: 8px 12px; border-radius: 12px; background: var(--sf-surface); }
 
 .st-confirm {
   margin: 12px 0 0;
@@ -537,7 +538,7 @@
   background: color-mix(in srgb, var(--sf-surface) 80%, transparent);
 }
 @media (hover: hover) { .st-plus-end:hover { color: var(--sf-ink); box-shadow: 0 0 0 1px var(--sf-ink); } }
-.dv[data-bg='image'] .st-plus-end { background: var(--sf-surface); color: var(--sf-ink); }
+.dv:is([data-bg='image'], [data-bg='color']) .st-plus-end { background: var(--sf-surface); color: var(--sf-ink); }
 
 /* Editing in place: the field takes the words' own font; the marks' bar floats above it. */
 .st-field {
@@ -569,6 +570,8 @@
 [data-editing] { position: relative; }
 [data-empty] > .st-placeholder { color: var(--doc-muted); font-weight: 400; }
 .dv[data-bg='image'] [data-empty] > .st-placeholder { color: rgba(255, 255, 255, 0.8); }
+.dv[data-bg='color'] :is(.dv-on-bg, .dv-caption)[data-empty] > .st-placeholder,
+.dv[data-bg='color'] :is(.dv-on-bg, .dv-caption) [data-empty] > .st-placeholder { color: var(--doc-on-bg-muted); }
 .st-block [class^='dv-'][data-empty],
 .st-block .dv-text,
 .st-block .dv-heading,
@@ -632,7 +635,7 @@
 .st-start { display: grid; gap: 14px; padding: 8px 0 4px; font-family: var(--ph-sans); color: var(--doc-ink); }
 .st-start-h { margin: 0; font-size: clamp(26px, 4.4cqi, 34px); font-weight: 600; letter-spacing: -0.03em; line-height: 1.1; }
 .st-start-lead { margin: 0; max-width: 34em; font-size: 17px; line-height: 1.5; color: var(--doc-muted); }
-.dv[data-bg='image'] .st-start { padding: 22px; border-radius: var(--doc-radius-card); background: var(--doc-surface); }
+.dv:is([data-bg='image'], [data-bg='color']) .st-start { padding: 22px; border-radius: var(--doc-radius-card); background: var(--doc-surface); }
 .st-templates { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 8px 0 0; padding: 0; list-style: none; }
 .st-template {
   display: grid;
@@ -1044,6 +1047,32 @@
 .st-swatch-custom input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
 .st-swatch-custom input[type='color']::-webkit-color-swatch { border: 0; border-radius: 50%; }
 .st-swatch-custom input[type='color']::-moz-color-swatch { border: 0; border-radius: 50%; }
+/* «Фон»: «Свой цвет» — the browser's picker as a round swatch and the colour's code beside it. */
+.st-choice-ico .st-swatch-dot { width: 16px; height: 16px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sf-ink) 18%, transparent); }
+.st-bgcolor { margin-top: 12px; }
+.st-bgcolor-row { display: flex; align-items: center; gap: 10px; }
+.st-bgcolor-pick {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  box-shadow: inset 0 0 0 1px var(--sf-line);
+  cursor: pointer;
+}
+.st-bgcolor-pick:focus-within { box-shadow: inset 0 0 0 2px var(--st-sel); }
+.st-bgcolor-pick input[type='color'] { width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9px; background: none; cursor: pointer; }
+.st-bgcolor-pick input[type='color']:focus { outline: none; }
+.st-bgcolor-pick input[type='color']::-webkit-color-swatch-wrapper { padding: 0; }
+.st-bgcolor-pick input[type='color']::-webkit-color-swatch { border: 0; border-radius: 9px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.12); }
+.st-bgcolor-pick input[type='color']::-moz-color-swatch { border: 0; border-radius: 9px; }
+.st-bgcolor-code { width: 132px; font-family: var(--st-mono); font-size: 15px; letter-spacing: 0.02em; text-transform: lowercase; }
+/* «Загрузить свою картинку» right under the choice, whatever the background. */
+.st-bg-own { margin: 12px 0 0; }
+.st-bg-upload { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14.5px; }
+.st-bg-upload .st-ui-ico { flex: none; width: 18px; height: 18px; }
 .st-nudged { display: flex; align-items: center; gap: 10px; }
 .st-nudge-pair { display: inline-flex; flex: none; }
 .st-nudge-pair > span { width: 16px; height: 16px; border-radius: 50%; box-shadow: 0 0 0 2px var(--sf-canvas); }

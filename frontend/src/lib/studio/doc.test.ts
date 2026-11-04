@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import casesJson from '../../../../contracts/studio/test_doc_cases.json';
+import colorCasesJson from '../../../../contracts/studio/test_doc_color_cases.json';
 import { BLOCK_ID_RE, DOC_BLOCK_TYPES, DOC_MAX_BLOCKS, type DocBlock, type TestDoc } from '../../types/testDoc';
 import {
   BLOCK_WORDS,
@@ -230,6 +231,21 @@ describe('docProblems gives the first rule test_doc_ok gives (contracts/studio/t
   });
 });
 
+// The author's own background colour (migration 20261107090400_studio_color_bg.sql): the same exam and items.
+describe('docProblems gives the first rule test_doc_ok gives on its own colour (contracts/studio/test_doc_color_cases.json)', () => {
+  const colors = colorCasesJson as unknown as Corpus;
+  it('the corpus: valid colours and broken ones, on the exam of test_doc_cases.json', () => {
+    expect(colors.container_id).toBe(corpus.container_id);
+    expect(colors.items).toEqual(corpus.items);
+    expect(colors.cases.filter((entry) => entry.expect === null).length).toBeGreaterThanOrEqual(4);
+    expect(colors.cases.filter((entry) => entry.expect === 'theme').length).toBeGreaterThanOrEqual(10);
+  });
+  it.each(colors.cases.map((entry) => [entry.name, entry] as const))('%s', (_, entry) => {
+    const problems = docProblems(entry.doc, colors.items, colors.container_id).filter((rule) => rule !== 'size');
+    expect(problems[0] ?? null).toBe(entry.expect);
+  });
+});
+
 describe('docProblems, beyond the first rule', () => {
   it('every broken block, one rule each, counted from 0, then the results', () => {
     const doc = withField(['blocks', 1, 'text'], '');
@@ -407,6 +423,12 @@ describe('normalizeDoc', () => {
     expect(normalizeTheme({ background: { kind: 'image', path: PIC, dim: 99.6 } }).background).toEqual({ kind: 'image', path: PIC, dim: 80 });
     expect(normalizeTheme({ background: { kind: 'image', path: PIC, dim: -4 } }).background).toEqual({ kind: 'image', path: PIC, dim: 0 });
     expect(normalizeTheme({ background: { kind: 'image', path: 'x', dim: 10 } }).background).toEqual({ kind: 'plain' });
+    // The author's own colour: kept in lower case (the server's rule); anything else is plain.
+    expect(normalizeTheme({ background: { kind: 'color', color: '#F3E3C3' } }).background).toEqual({ kind: 'color', color: '#f3e3c3' });
+    expect(normalizeTheme({ background: { kind: 'color', color: '#2b3a55', dim: 3 } }).background).toEqual({ kind: 'color', color: '#2b3a55' });
+    for (const color of ['#fff', 'f3e3c3', 'orange', '#f3e3c3ff', 7, null, undefined]) {
+      expect(normalizeTheme({ background: { kind: 'color', color } }).background).toEqual({ kind: 'plain' });
+    }
     expect(normalizeTheme({ accent: 'violet' }).accent).toBe('violet');
     expect(normalizeTheme({ accent: { custom: 'red' } }).accent).toBe('blue');
     expect(normalizeTheme({ accent: { custom: 5 } }).accent).toBe('blue');
