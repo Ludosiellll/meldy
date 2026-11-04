@@ -136,8 +136,43 @@ describe('JoinContainerPage: /g/<код> (spec decisions 24, 25, 52)', () => {
     api.previewLink.mockResolvedValue({ status });
     renderAt();
     expect(await screen.findByText(text)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: JOIN.failedTitle })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: status === 'revoked' || status === 'expired' ? JOIN.shutTitle : JOIN.failedTitle })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: JOIN.example })).toHaveAttribute('href', '/try');
+  });
+
+  it.each([
+    ['revoked', 'Автор закрыл эту ссылку. Попросите у него новую.'],
+    ['expired', 'Срок этой ссылки закончился. Попросите у автора новую.'],
+  ])('a %s link: says so plainly, to ask the author for a new one; a member signed out can still sign in and get to the exam', async (status, text) => {
+    api.previewLink.mockResolvedValue({ status });
+    renderAt();
+    expect(await screen.findByRole('heading', { name: JOIN.shutTitle })).toBeInTheDocument();
+    expect(screen.getByRole('alert').textContent).toBe(text);
+    // On a new device a member is signed out and the link has closed since: the exam is still theirs.
+    expect(screen.getByText(JOIN.memberSignIn)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: JOIN.signIn })).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/g/${CODE}`)}`);
+    expect(screen.getByRole('link', { name: JOIN.example })).toHaveAttribute('href', '/try');
+    // Signed in and not a member: no sign-in line.
+    cleanup();
+    api.auth.user = { id: 'stranger-1' };
+    renderAt();
+    expect(await screen.findByRole('heading', { name: JOIN.shutTitle })).toBeInTheDocument();
+    expect(screen.queryByText(JOIN.memberSignIn)).not.toBeInTheDocument();
+    expect(api.joinByCode).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['revoked', JOIN.ownShut.revoked],
+    ['expired', JOIN.ownShut.expired],
+    ['full', JOIN.ownShut.full],
+  ])('the author on their own %s link: it lets nobody in, and where to open it again', async (link, text) => {
+    api.auth.user = { id: 'author-1' };
+    api.previewLink.mockResolvedValue({ ...ACTIVE, status: 'own', container_id: CONTAINER, link });
+    renderAt();
+    expect(await screen.findByRole('heading', { name: JOIN.own })).toBeInTheDocument();
+    expect(screen.getByText(text)).toBeInTheDocument();
+    expect(screen.queryByText(JOIN.ownLede)).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: JOIN.openExam })).toHaveAttribute('href', `/exams/c/${CONTAINER}`);
   });
 
   it('a link the database does not know names both reasons: a deleted exam or a cut link (usability check m10)', async () => {
@@ -162,6 +197,7 @@ describe('JoinContainerPage: /g/<код> (spec decisions 24, 25, 52)', () => {
     api.previewLink.mockResolvedValue({ ...ACTIVE, status: 'own', container_id: CONTAINER });
     renderAt();
     expect(await screen.findByRole('heading', { name: JOIN.own })).toBeInTheDocument();
+    expect(screen.getByText(JOIN.ownLede)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: JOIN.openExam })).toHaveAttribute('href', `/exams/c/${CONTAINER}`);
     expect(api.joinByCode).not.toHaveBeenCalled();
   });

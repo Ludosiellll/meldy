@@ -21,6 +21,11 @@ import './JoinContainerPage.css';
  * here through ?next=/g/<код> (lib/returnTo; not the /join device memory, which leads to /join). Signed in, the page
  * joins at once, asks the backend for the copies of the oral subjects (oral-sync) and opens the exam. The mandatory
  * guide waits (deferGuideOnce), as on /join.
+ *
+ * A closed or expired link says so in its own heading, «Ссылка больше не работает», with the line to ask the author for
+ * a new one; signed out, it also offers «Войти»: a member on a new device comes back here signed in, the link answers
+ * «joined» and the exam opens. The author's own link says when it lets nobody in, and where to open it again
+ * (container_link_preview's link, 20261107090200).
  */
 
 if (typeof window !== 'undefined' && /^\/g\//.test(window.location.pathname)) deferGuideOnce();
@@ -128,6 +133,10 @@ export default function JoinContainerPage() {
   };
 
   const live = value && (value.status === 'active' || value.status === 'joined');
+  // Closed or expired: nobody new comes in, but a member signed out (a new device) still gets to the exam by signing in.
+  const shut = value?.status === 'revoked' || value?.status === 'expired';
+  // The author's own link that lets nobody in says so (20261107090200), not the lede of a working one.
+  const ownShut = value?.status === 'own' && value.link && value.link !== 'active' ? JOIN.ownShut[value.link] ?? null : null;
   const problem = !code
     ? JOIN.unreadable
     : preview.state === 'error'
@@ -164,7 +173,7 @@ export default function JoinContainerPage() {
                 <h1 id="gj-title" className="au-h1 gj-h1">
                   {JOIN.own}
                 </h1>
-                <p className="au-lede">{JOIN.ownLede}</p>
+                <p className="au-lede">{ownShut ?? JOIN.ownLede}</p>
                 {value.container_id ? (
                   <p className="gj-actions">
                     <Link className="sf-primary" to={`/exams/c/${value.container_id}`}>
@@ -175,7 +184,7 @@ export default function JoinContainerPage() {
               </>
             ) : (
               <h1 id="gj-title" className="au-h1 gj-h1">
-                {problem ? JOIN.failedTitle : JOIN.loading}
+                {shut ? JOIN.shutTitle : problem ? JOIN.failedTitle : JOIN.loading}
               </h1>
             )}
 
@@ -183,6 +192,15 @@ export default function JoinContainerPage() {
               <div role="alert" className="au-alert gj-alert">
                 {problem}
               </div>
+            ) : null}
+
+            {shut && !user && !loading && back ? (
+              <p className="gj-mail">
+                {JOIN.memberSignIn}{' '}
+                <Link className="au-link" to={withReturn('/login', back)}>
+                  {JOIN.signIn}
+                </Link>
+              </p>
             ) : null}
 
             {browser.app && code && live && !user ? <InAppNote browser={browser} url={pageUrl} /> : null}
