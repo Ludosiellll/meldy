@@ -21,7 +21,7 @@ import {
   NEW_KINDS, TEST_ITEM_COLUMNS,
   type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerKind, type ContainerRpc,
   type ContainerSettings, type ContainerSummary, type ContainersOverview, type CreateSubjectInput, type DayKey,
-  type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkPreview,
+  type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkExtended, type LinkPreview,
   type MemberRow, type MockRunInput, type MockRunResult, type OralSyncResponse, type PlanInputsWire,
   type RecordAnswersResponse, type TestItem, type Uuid,
 } from '../types/container';
@@ -604,6 +604,11 @@ export async function createLink(containerId: Uuid, maxMembers?: number, consent
 
 export async function revokeLink(linkId: Uuid): Promise<void> {
   await call('container_link_revoke', { p_link_id: linkId });
+}
+
+/** The author extends an open link, or opens a closed or expired one again (container_link_extend; MC001, MC007). */
+export async function extendLink(linkId: Uuid): Promise<LinkExtended> {
+  return record<LinkExtended>(await call('container_link_extend', { p_link_id: linkId }), 'container_link_extend', 'expires_at');
 }
 
 const PREVIEW_STATUSES: ReadonlySet<string> = new Set(['active', 'own', 'joined', 'removed', 'revoked', 'expired', 'full', 'not_found']);

@@ -700,9 +700,16 @@ export const INVITE = {
     `Готовимся вместе в Meldy: «${title}», ${subjectCount > 1 ? `${subjects(subjectCount)}, ` : ''}${questions(questionCount)}. Ссылка: ${url}`,
   once: 'Meldy не хранит саму ссылку. Она останется только на этом устройстве. Если потеряете её, создайте новую, а эту закройте.',
   onceLost: 'Ссылку видно только сейчас, Meldy её не хранит. Если потеряете, создайте новую, а эту закройте.',
-  openElsewhere: 'Ссылка открыта, но сама она осталась на устройстве, где её создали.',
-  // Said before «Создать новую ссылку» is pressed: the new link closes every open one (usability check M2).
-  newLinkNote: 'Новая ссылка заменит открытую: по старой больше никто не войдёт.',
+  openElsewhere: (open: number) =>
+    open > 1
+      ? 'Ссылки открыты, но сами они остались на устройствах, где их создали.'
+      : 'Ссылка открыта, но сама она осталась на устройстве, где её создали.',
+  // Said beside «Создать ссылку» while links are open (owner, 04.11: a new link closed the one 19 people had joined by,
+  // without a word): the new link closes none of them; closing is its own press, with a confirm.
+  newLinkNote: (open: number) =>
+    open > 1
+      ? 'Новая ссылка не закроет открытые: по старым тоже можно будет войти.'
+      : 'Новая ссылка не закроет открытую: по старой тоже можно будет войти.',
   newLink: 'Создать новую ссылку',
   // A link whose seats are all taken (decision 52 counted them under the link; the one group line now counts who is in):
   // nobody else can come in by it, so the way on is a new link.
@@ -713,6 +720,24 @@ export const INVITE = {
   revokeYes: 'Да, закрыть',
   revokeNo: 'Отмена',
   revoked: 'Ссылка закрыта. По ней больше никто не войдёт.',
+  // The end of a link (20261107090200: 120 days, or 30 days after the exam's last date; a move takes it along).
+  ends: (day: string) => `Ссылка работает до ${day}.`,
+  extend: 'Продлить',
+  extended: (day: string) => `Ссылка продлена до ${day}.`,
+  // The other open links, each said plainly with what can be done to it.
+  otherOpen: (day: string, joined: number, more: boolean) => `${more ? 'Ещё открыта' : 'Открыта'} ссылка от ${day}: ${joinedBy(joined)}.`,
+  otherEnds: (day: string) => `Работает до ${day}.`,
+  closeOther: 'Закрыть её',
+  closeOtherAsk: (day: string) => `Закрыть ссылку от ${day}? По ней больше никто не войдёт. Кто уже вошёл, останется в экзамене.`,
+  closedOther: (day: string) => `Ссылка от ${day} закрыта. По ней больше никто не войдёт.`,
+  // Closed and expired links: their codes are still in the group's chat, so they can be opened again.
+  shut: 'Закрытые ссылки',
+  shutName: (day: string) => `Ссылка от ${day}`,
+  shutRevoked: (day: string, joined: number) => `закрыта ${day} · ${joinedShort(joined)}`,
+  shutExpired: (day: string, joined: number) => `срок кончился ${day} · ${joinedShort(joined)}`,
+  reopen: 'Открыть снова',
+  reopened: (created: string, until: string) => `Ссылка от ${created} снова работает до ${until}. Кто получал её раньше, может войти по ней.`,
+  shutAll: (n: number) => `Показать все: ${n}`,
   /** The link as a QR over the whole screen (release 47.3; lib/quizzes/qr.ts draws it on the device). */
   qr: 'Показать QR',
   qrTitle: 'QR-код ссылки для группы',
@@ -723,6 +748,7 @@ export const INVITE = {
   copyFailed: 'Не получилось скопировать: выделите текст и скопируйте его сами.',
   made: 'Ссылка создана. Отправьте её группе.',
   errors: {
+    MC001: 'Этой ссылки уже нет. Обновите страницу.',
     MC007: 'Открытых ссылок может быть до 10. Закройте одну из старых.',
     MC008: 'Отметьте согласие: в экзамене есть устные предметы.',
     '22023': 'Пока делиться нечем: ни у одного вопроса нет ключа.',
@@ -730,6 +756,15 @@ export const INVITE = {
   } as Record<string, string>,
   failed: 'Ссылка не создалась. Попробуйте ещё раз.',
 } as const;
+
+/** «по ней вошли 19», «по ней вошёл 1», «по ней пока никто не вошёл». */
+function joinedBy(n: number): string {
+  return n > 0 ? `по ней ${n % 10 === 1 && n % 100 !== 11 ? 'вошёл' : 'вошли'} ${n}` : 'по ней пока никто не вошёл';
+}
+/** «вошли 19», «вошёл 1», «никто не вошёл». */
+function joinedShort(n: number): string {
+  return n > 0 ? `${n % 10 === 1 && n % 100 !== 11 ? 'вошёл' : 'вошли'} ${n}` : 'никто не вошёл';
+}
 
 export const MEMBERS = {
   title: 'Кто вошёл',

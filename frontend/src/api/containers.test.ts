@@ -67,6 +67,7 @@ import {
   createContainer,
   deleteContainer,
   deleteItem,
+  extendLink,
   fetchAllItems,
   fetchItemsPage,
   fetchOverview,
@@ -597,6 +598,14 @@ describe('the group link', () => {
     expect(db.rpcCalls).toHaveLength(1);
     expect((await caught(joinByCode('ilou'))).code).toBe('MC001');
     expect(db.rpcCalls).toHaveLength(1);
+  });
+
+  it('extends or reopens a link by its id; the refusals keep their codes', async () => {
+    db.rpc = () => ({ data: { id: 'link-1', container_id: C1, expires_at: '2027-03-01T00:00:00+00:00', revoked_at: null, reopened: true }, error: null, status: 200 });
+    expect(await extendLink('link-1')).toMatchObject({ reopened: true, expires_at: '2027-03-01T00:00:00+00:00' });
+    expect(db.rpcCalls[0]).toMatchObject({ name: 'container_link_extend', args: { p_link_id: 'link-1' } });
+    db.rpc = () => ({ data: null, error: { code: 'MC007', message: 'at most 10 open links' }, status: 400 });
+    expect((await caught(extendLink('link-2'))).code).toBe('MC007');
   });
 });
 

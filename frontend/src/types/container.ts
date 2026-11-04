@@ -391,6 +391,8 @@ export interface DoubtRow {
 export type LinkPreviewStatus = 'active' | 'own' | 'joined' | 'removed' | 'revoked' | 'expired' | 'full' | 'not_found';
 export interface LinkPreview {
   status: LinkPreviewStatus;
+  /** The author's own link only (status own, 20261107090200): whether it still lets anyone in. */
+  link?: 'active' | 'revoked' | 'expired' | 'full';
   container_id?: Uuid | null; // own / joined
   title?: string;
   exam_date?: DayKey | null;
@@ -403,6 +405,15 @@ export interface LinkCreated {
   path: string;
   oral_subjects: number;
   expires_at: string;
+}
+/** container_link_extend (20261107090200): an open link extended, or a closed or expired one open again. */
+export interface LinkExtended {
+  id: Uuid;
+  container_id: Uuid;
+  expires_at: string | null;
+  revoked_at: null;
+  /** It was closed or had expired. */
+  reopened: boolean;
 }
 /** POST /api/containers/{id}/oral-sync (backend/container_shares.py): the member's oral copies through the oral path. */
 export interface OralSyncResponse {
@@ -446,6 +457,7 @@ export interface ContainerRpc {
   test_answer_days: { args: { p_since: DayKey }; returns: Array<{ local_date: DayKey; answers: number }> };
   container_link_create: { args: { p_container_id: Uuid; p_max_members?: number; p_consent?: string | null }; returns: LinkCreated };
   container_link_revoke: { args: { p_link_id: Uuid }; returns: { id: Uuid; revoked_at: string } };
+  container_link_extend: { args: { p_link_id: Uuid }; returns: LinkExtended };
   container_link_preview: { args: { p_code: string }; returns: LinkPreview };
   container_join: { args: { p_code: string }; returns: { container_id: Uuid; joined: boolean; oral_subjects?: number } };
   /** closed: no new copies; a copy the member already has is still listed, without a code (20261010110000). */
