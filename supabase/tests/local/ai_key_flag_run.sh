@@ -2,12 +2,13 @@
 # LOCAL ONLY; NEVER AGAINST THE LIVE PROJECT. Rehearsal of supabase/migrations/20261107090300_ai_key_flag.sql on a scratch
 # PostgreSQL 16 cluster: the base in the live order (question_kinds_base.sh up to 20261031090000, then every later
 # migration before this one) → which existing contracts (supabase/tests/*.sql) and behaviours (tests/local/*_behaviour.sql)
-# hold on it, among them those of the two functions this file replaces (question_kinds, question_kinds_bot, test_builder,
-# containers, telegram_bot) → ai_key_flag.sql and its behaviour fail before → the migration twice (the second changes
-# nothing in the catalog) → the contract and ai_key_flag_behaviour.sql (the patch adds and removes the flag, the bot's
-# review shows it, nobody else can set it) → every existing contract and behaviour that held on the base still holds →
-# the rollback twice (the catalog of the base again, the two definitions byte for byte) → the migration again (the same
-# catalog as the first apply) → the contract and the behaviour again. The last line is AI KEY FLAG CHECKS PASSED and the
+# hold on it, among them those of the three functions this file replaces (question_kinds, question_kinds_bot,
+# test_builder, telegram_bot, bot_skips_pictures) → ai_key_flag.sql and its behaviour fail before → the migration twice
+# (the second changes nothing in the catalog) → the contract and ai_key_flag_behaviour.sql (the patch adds and removes
+# the flag, never over a key already there, the bot's review shows it, «Вопрос дня» skips it, nobody else can set it) →
+# every existing contract and behaviour that held on the base still holds → the rollback twice (the catalog of the base
+# again, the three definitions byte for byte) → the migration again (the same catalog as the first apply) → the
+# contract and the behaviour again. The last line is AI KEY FLAG CHECKS PASSED and the
 # exit code 0 only when every step is green.
 # Env (optional): AIKEY_PG_PORT (54473), AIKEY_WORK (${TMPDIR:-/tmp}/meldy-aikey), PG_BIN (/usr/lib/postgresql/16/bin).
 set -u -o pipefail
@@ -80,7 +81,7 @@ MIG=$SB/migrations/20261107090300_ai_key_flag.sql
 DOWN=$SB/rollback/20261107090300_ai_key_flag_down.sql
 CONTRACT=$SB/tests/ai_key_flag.sql
 BEHAVIOUR=$HERE/ai_key_flag_behaviour.sql
-defs() { q "select md5(pg_get_functiondef('public.container_item_update(uuid, jsonb)'::regprocedure)) || md5(pg_get_functiondef('bot.session_view_json(bot.sessions)'::regprocedure))"; }
+defs() { q "select md5(pg_get_functiondef('public.container_item_update(uuid, jsonb)'::regprocedure)) || md5(pg_get_functiondef('bot.session_view_json(bot.sessions)'::regprocedure)) || md5(pg_get_functiondef('bot.group_item_ok(public.test_items)'::regprocedure))"; }
 
 # The base: the live order up to the file before this one.
 if bash "$HERE/question_kinds_base.sh" $DB "$WORK" > "$WORK/base.out" 2>&1; then ok "$(tail -1 "$WORK/base.out")"
@@ -109,6 +110,11 @@ for name in question_kinds question_kinds_bot test_builder; do
   printf '%s\n' "${OLD_BEHAVIOURS[@]}" | grep -q "/${name}_behaviour.sql$" && ok "among them the behaviour: ${name}_behaviour.sql" \
     || bad "the behaviour ${name}_behaviour.sql does not hold on the base"
 done
+printf '%s\n' "${OLD_CONTRACTS[@]}" | grep -q "/telegram_bot.sql$" && ok "among them the contract of «Вопрос дня»: telegram_bot.sql" \
+  || bad "the contract telegram_bot.sql does not hold on the base"
+printf '%s\n' "${OLD_BEHAVIOURS[@]}" | grep -q "/bot_skips_pictures_behaviour.sql$" \
+  && ok "among them the behaviour of «Вопрос дня»: bot_skips_pictures_behaviour.sql" \
+  || bad "the behaviour bot_skips_pictures_behaviour.sql does not hold on the base"
 
 FBEFORE=$(fingerprint)
 DBEFORE=$(defs)
@@ -128,7 +134,7 @@ n=0; for f in "${OLD_BEHAVIOURS[@]}"; do if passes "$f" > /dev/null; then n=$((n
 [ $n = ${#OLD_BEHAVIOURS[@]} ] && ok "every existing behaviour still holds ($n)"
 step "rollback, first run" "$DOWN"
 step "rollback, second run (re-runnable)" "$DOWN"
-[ "$(defs)" = "$DBEFORE" ] && ok "the rollback restores both definitions byte for byte" || bad "the rollback left another definition"
+[ "$(defs)" = "$DBEFORE" ] && ok "the rollback restores the three definitions byte for byte" || bad "the rollback left another definition"
 [ "$(fingerprint)" = "$FBEFORE" ] && ok "the rollback restores the catalog before the migration" || bad "the rollback left the catalog changed"
 if holds "$CONTRACT" > /dev/null 2>&1; then bad "ai_key_flag.sql passes after the rollback"; else ok "ai_key_flag.sql fails after the rollback"; fi
 n=0; for f in "${OLD_BEHAVIOURS[@]}"; do if passes "$f" > /dev/null; then n=$((n + 1)); else bad "after the rollback: $(basename "$f")"; fi; done

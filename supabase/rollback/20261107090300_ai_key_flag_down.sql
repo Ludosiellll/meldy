@@ -1,4 +1,4 @@
--- Rollback of 20261107090300_ai_key_flag.sql back to 20261107090000_container_orals_go.sql: the two replaced bodies
+-- Rollback of 20261107090300_ai_key_flag.sql back to 20261107090000_container_orals_go.sql: the three replaced bodies
 -- exactly as their last earlier migrations left them. Re-runnable. The flags already written stay in test_items (the
 -- import wrote ai_key before this file too); container_item_update ignores ai_key again and keeps flags as they are.
 
@@ -189,3 +189,19 @@ begin
 end;
 $fn$;
 
+-- bot.group_item_ok (20261014150000_bot_skips_pictures.sql)
+create or replace function bot.group_item_ok(p_i public.test_items)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $fn$
+  select p_i.id is not null and p_i.kind = 'single' and p_i.keyed and pg_catalog.cardinality(p_i.correct) = 1
+     and not ('has_image' = any (p_i.flags))
+     and p_i.images = '{}'::jsonb
+     and pg_catalog.jsonb_array_length(p_i.options) between 2 and 8
+     and pg_catalog.char_length(p_i.stem)
+         + coalesce((select pg_catalog.sum(pg_catalog.char_length(o.value))
+                       from pg_catalog.jsonb_array_elements_text(p_i.options) o), 0) <= 1500
+     and not exists (select 1 from public.test_key_doubts d where d.item_id = p_i.id and d.resolved_at is null)
+$fn$;

@@ -2,22 +2,28 @@
 -- Repo file: supabase/migrations/20261107090300_ai_key_flag.sql. Contract: docs/import/KEYS_AI.md. Base: the live order
 -- up to 20261107090000_container_orals_go.sql. Each function redefined here is its newest earlier body with this file's
 -- changes: public.container_item_update (20261101090000_question_kinds.sql), bot.session_view_json
--- (20261101090300_question_kinds_bot.sql).
+-- (20261101090300_question_kinds_bot.sql), bot.group_item_ok (20261014150000_bot_skips_pictures.sql).
 -- Why (owner, 2026-11-04, «делай подбор ключей с ии»): a key the AI suggested is stored as a normal key (key_source
 -- 'manual') with the flag ai_key in test_items.flags, and is labelled «Ключ подобран ИИ, не из файла» wherever the key
 -- shows. The import writes the flag through container_items_add (flags were always accepted there). Two places could not:
 --   1. public.container_item_update did not touch flags: «Вопросы и ключи» could not write a key from the AI with its
 --      flag, and a key the author changed later kept the flag of the AI's key. Now p_patch takes ai_key true|false
---      (22023 'ai_key' when it is not a boolean, or true without correct): true puts 'ai_key' into flags once, false
---      takes it out, and any key change without ai_key true (correct, answers, tolerance, unit, an order's options:
---      the changes that make key_source 'manual') takes it out too. Everything else is as before: the owner only,
---      the same checks and errors, rev and the key-change history as before.
+--      (22023 'ai_key' when it is not a boolean, or true without a non-empty correct, or true on a question that is not
+--      single or multiple choice): true puts 'ai_key' into flags once, false takes it out, and any key change without
+--      ai_key true (correct, answers, tolerance, unit, an order's options: the changes that make key_source 'manual')
+--      takes it out too, as does any other change that moves rev (an option added, single turned multiple). ai_key
+--      true on a question that has a key already is refused (22023 'keyed'): the author may have set one by hand while
+--      the AI was answering, and the AI's key never overwrites it. The result gains ai_key (the flag as stored), so a
+--      page can tell a database that ignores it. Everything else is as before: the owner only, the same checks and
+--      errors, rev and the key-change history as before.
 --   2. bot.session_view_json: the review after an answer carries ai_key (a boolean) beside key_source, so the bot says
 --      «Ключ подобран ИИ, не из файла» instead of «Ключ поставил автор» (supabase/functions/_shared/bot/render.ts).
+--   3. bot.group_item_ok: «Вопрос дня» in a group never posts a question whose key the AI suggested: a group answer
+--      shows the key to everyone at once, with no label beside it.
 -- Members and the bot read flags as before; nobody but the exam's owner writes them (container_items_add and
--- container_item_update check the owner; test_items has no insert or update grant).
+-- container_item_update check the owner; test_items has no insert or update grant, on the table or on any column).
 -- Check after the apply: supabase/tests/ai_key_flag.sql (catalog only; read-only). Local rehearsal (never live):
--- supabase/tests/local/ai_key_flag_run.sh. Rollback: supabase/rollback/20261107090300_ai_key_flag_down.sql (the two
+-- supabase/tests/local/ai_key_flag_run.sh. Rollback: supabase/rollback/20261107090300_ai_key_flag_down.sql (the three
 -- bodies as before; flags already written stay in the rows).
 -- Re-runnable: OR REPLACE keeps the grants and comments.
 
@@ -27,8 +33,9 @@ do $do$
 begin
   if pg_catalog.to_regprocedure('public.container_item_update(uuid, jsonb)') is null
      or pg_catalog.to_regprocedure('bot.session_view_json(bot.sessions)') is null
+     or pg_catalog.to_regprocedure('bot.group_item_ok(public.test_items)') is null
      or pg_catalog.to_regprocedure('meldy_private.kind_keys_bad(jsonb, uuid)') is null then
-    raise exception 'the base is expected: 20261101090000_question_kinds.sql and 20261101090300_question_kinds_bot.sql';
+    raise exception 'the base is expected: 20261101090000_question_kinds.sql, 20261101090300_question_kinds_bot.sql and 20261014150000_bot_skips_pictures.sql';
   end if;
 end;
 $do$;
@@ -86,7 +93,7 @@ begin
     raise exception 'invalid patch' using errcode = '22023', detail = 'explanation';
   end if;
   -- 20261107090300_ai_key_flag: ai_key true marks the key the patch sets as one «Подобрать ключи с ИИ» suggested (a
-  -- boolean, and only with the key itself: correct); false or a key change without it drops the mark.
+  -- boolean, and only with the key itself: a non-empty correct); false or a key change without it drops the mark.
   if p_patch ? 'ai_key'
      and (case when pg_catalog.jsonb_typeof(p_patch -> 'ai_key') <> 'boolean' then true
                else p_patch -> 'ai_key' = 'true'::jsonb and not p_patch ? 'correct' end) then
@@ -97,6 +104,17 @@ begin
     raise exception 'invalid patch' using errcode = '22023', detail = v_bad;
   end if;
   v_kind := coalesce(p_patch ->> 'kind', v_old.kind);
+  -- 20261107090300_ai_key_flag: the AI picks options of a choice question, and only for a question without a key: a key
+  -- the author set meanwhile (by hand, in another tab) stays and the AI's is refused.
+  if p_patch -> 'ai_key' = 'true'::jsonb then
+    if v_kind not in ('single', 'multiple') or pg_catalog.jsonb_typeof(p_patch -> 'correct') <> 'array'
+       or pg_catalog.jsonb_array_length(p_patch -> 'correct') = 0 then
+      raise exception 'invalid patch' using errcode = '22023', detail = 'ai_key';
+    end if;
+    if v_old.keyed then
+      raise exception 'invalid patch' using errcode = '22023', detail = 'keyed';
+    end if;
+  end if;
   begin
     update public.test_items i set
       stem = case when p_patch ? 'stem' then p_patch ->> 'stem' else i.stem end,
@@ -151,6 +169,13 @@ begin
     when check_violation or not_null_violation then
       raise exception 'invalid patch' using errcode = '22023', detail = sqlerrm;
   end;
+  -- 20261107090300_ai_key_flag: any other change that moved rev (an option added, single turned multiple) is the
+  -- author's change of the question too: the AI's mark goes. Flags alone do not move rev.
+  if v_new.rev <> v_old.rev and p_patch -> 'ai_key' is distinct from 'true'::jsonb and 'ai_key' = any (v_new.flags) then
+    update public.test_items i set flags = pg_catalog.array_remove(i.flags, 'ai_key')
+     where i.id = p_item_id
+    returning i.* into v_new;
+  end if;
   -- A picture list per option at most: a list past the last option would show under no option.
   if v_new.images ? 'options'
      and pg_catalog.jsonb_array_length(v_new.images -> 'options') > pg_catalog.jsonb_array_length(v_new.options) then
@@ -164,7 +189,9 @@ begin
     get diagnostics v_resolved = row_count;
   end if;
   return pg_catalog.jsonb_build_object('id', v_new.id, 'rev', v_new.rev, 'rev_changed', v_new.rev <> v_old.rev,
-                                       'doubts_resolved', v_resolved);
+                                       'doubts_resolved', v_resolved,
+                                       -- 20261107090300_ai_key_flag: the mark as stored
+                                       'ai_key', 'ai_key' = any (v_new.flags));
 end;
 $fn$;
 
@@ -234,3 +261,22 @@ begin
 end;
 $fn$;
 
+
+-- 3. «Вопрос дня» (bot.group_item_ok (20261014150000_bot_skips_pictures.sql)) + not a key from the AI.
+create or replace function bot.group_item_ok(p_i public.test_items)
+returns boolean
+language sql
+stable
+set search_path = ''
+as $fn$
+  select p_i.id is not null and p_i.kind = 'single' and p_i.keyed and pg_catalog.cardinality(p_i.correct) = 1
+     and not ('has_image' = any (p_i.flags))
+     -- 20261107090300_ai_key_flag: a key the AI suggested is not posted to a group
+     and not ('ai_key' = any (p_i.flags))
+     and p_i.images = '{}'::jsonb
+     and pg_catalog.jsonb_array_length(p_i.options) between 2 and 8
+     and pg_catalog.char_length(p_i.stem)
+         + coalesce((select pg_catalog.sum(pg_catalog.char_length(o.value))
+                       from pg_catalog.jsonb_array_elements_text(p_i.options) o), 0) <= 1500
+     and not exists (select 1 from public.test_key_doubts d where d.item_id = p_i.id and d.resolved_at is null)
+$fn$;

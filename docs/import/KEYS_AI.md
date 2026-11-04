@@ -16,10 +16,16 @@ from it. If this file and the code disagree, fix one of them in the same commit.
 - Where the flag goes (migration `20261107090300_ai_key_flag.sql`):
   - the import saves the key with `flags` containing `ai_key` and `key_source 'manual'` (`container_items_add`);
   - «Вопросы и ключи» writes `container_item_update(id, {"correct": [...], "ai_key": true})`; `ai_key` must be a
-    boolean, and true only together with `correct` (else 22023 `ai_key`);
-  - any later change of the key without `ai_key: true` (or `{"ai_key": false}`) takes the flag off, so the label
-    never stays on a key the author set;
-  - the bot's view gives `review.ai_key` and says «Ключ подобран ИИ, не из файла.» (`bot/render.ts`).
+    boolean, and true only together with a non-empty `correct` on a single or multiple choice question (else 22023
+    `ai_key`). A question that has a key already is refused with 22023 `keyed`: the author may have set one by hand
+    while the AI was answering, and the AI's key never overwrites it (the page counts it as «уже есть ключ» and goes
+    on). The result carries `ai_key` (the flag as stored): a page that asked for it and does not get `true` back is
+    talking to a database without this migration;
+  - any later change of the key without `ai_key: true` (or `{"ai_key": false}`), and any other change that moves `rev`
+    (an option added, single turned multiple), takes the flag off, so the label never stays on a key the author set;
+  - the bot's view gives `review.ai_key`: the bot says «Ключ подобран ИИ, не из файла.», «Верный ответ — …» instead of
+    «В файле — …», and no «Автор исправил ключ» for it (`bot/render.ts`); «Вопрос дня» in a group never posts such a
+    question (`bot.group_item_ok`).
 - No model or vendor names anywhere in the interface. Say «ИИ».
 
 ## Request
