@@ -230,12 +230,6 @@ export const PARTIAL_KINDS: readonly ItemKind[] = ['multiple', 'order', 'match',
 /** Has a key a session can grade (test_items.keyed): an essay never has. */
 export const itemKeyed = (item: Pick<TestItem, 'correct' | 'answers'>) => item.correct.length > 0 || item.answers.length > 0;
 /**
- * A key «Подобрать ключи с ИИ» suggested (owner, 2026-11-04): the flag ai_key, saved with the question, and the key not
- * changed since (rev 1: a change of the key raises rev, test_items_guard). container_item_update does not write flags, so
- * a key the author changed keeps the flag in the row; rev tells it is the author's key now.
- */
-export const aiKeyShown = (item: Pick<TestItem, 'flags' | 'rev'>) => (item.flags ?? []).includes('ai_key') && item.rev === 1;
-/**
  * Pictures of a question (owner, 2026-10-14: «а если вопрос является картинкой, что делать?»): storage paths
  * «<container id>/<sha256>.<ext>» of the bucket test-item-images, the stem's and each option's (file order).
  */

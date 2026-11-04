@@ -6,7 +6,8 @@ import { answered as hasAnswer, answerFields, gradeAnswer, type KindAnswer } fro
 import { gapForms } from '../../lib/kinds/cloze';
 import { shortNorm } from '../../lib/kinds/norm';
 import { neverInOrder, rightOrderOf } from '../../lib/kinds/shuffle';
-import { aiKeyShown, NEW_KINDS } from '../../types/container';
+import { NEW_KINDS } from '../../types/container';
+import { aiKeyShown } from './aiKey';
 import { KINDS } from '../kinds/copyKinds';
 import { NumberKeyLine } from '../kinds/KindBody';
 import type { KindReview } from '../kinds/KindBody';

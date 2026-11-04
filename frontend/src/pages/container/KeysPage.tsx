@@ -1,4 +1,5 @@
-import { aiKeyShown, NEW_KINDS } from '../../types/container';
+import { NEW_KINDS } from '../../types/container';
+import { aiKeyShown } from '../../components/containers/aiKey';
 import { KIND_NAMES } from '../../components/kinds/copyKinds';
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
