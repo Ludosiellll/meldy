@@ -665,7 +665,10 @@ function cleanFlags(
   if (extra.duplicate) out.push('duplicate');
   if (extra.same) out.push('same_options');
   if (extra.tooLong) out.push('too_long');
-  return Array.from(new Set(out.filter((flag) => FLAG_RE.test(flag)))).slice(0, FLAGS_MAX);
+  // ai_key first: the cut to FLAGS_MAX never takes the label «Ключ подобран ИИ» off a key the AI suggested
+  const valid = out.filter((flag) => FLAG_RE.test(flag));
+  const ordered = valid.includes(AI_KEY_FLAG) ? [AI_KEY_FLAG, ...valid.filter((flag) => flag !== AI_KEY_FLAG)] : valid;
+  return Array.from(new Set(ordered)).slice(0, FLAGS_MAX);
 }
 
 function numbersOf(items: BankItem[]): DraftSubject['numbers'] {
@@ -1081,7 +1084,13 @@ function variantGroupKey(nameKey: string): string {
  */
 function groupSpec(members: Unit[], key: string, edits: ImportEdits): SubjectSpec {
   const fixOf = (uid: string) => edits.items[uid] ?? {};
-  type Occurrence = { unit: number; item: BankItem; uid: string; key: string; removed: boolean };
+  // A key the AI suggested is only a stand-in for a key the file did not give: another variant's own key of the same
+  // question (from its file, or set by the student) always wins over it, and two different own keys stay a conflict.
+  const ownFix = (uid: string): ItemFix => {
+    const fix = fixOf(uid);
+    return fix.aiKey && fix.correct ? { ...fix, correct: undefined } : fix;
+  };
+  type Occurrence = { unit: number; item: BankItem; uid: string; key: string; own: string; ai: boolean; removed: boolean };
   const occurrences = new Map<string, Occurrence[]>();
   members.forEach((unit, index) => {
     for (const item of [...unit.items].sort((a, b) => a.position - b.position)) {
@@ -1089,7 +1098,8 @@ function groupSpec(members: Unit[], key: string, edits: ImportEdits): SubjectSpe
       const fix = fixOf(uid);
       const identity = unit.file.format === 'open' || (item.kind === 'open' && !shortForms(item) && !item.number?.answers.length) ? `oral|${sameKey(item.text)}` : identityOf(item);
       const list = occurrences.get(identity) ?? [];
-      list.push({ unit: index, item, uid, key: keyTextOf(item, unit, fix), removed: Boolean(fix.removed) });
+      const ai = Boolean(fix.aiKey && fix.correct);
+      list.push({ unit: index, item, uid, key: keyTextOf(item, unit, fix), own: ai ? keyTextOf(item, unit, ownFix(uid)) : keyTextOf(item, unit, fix), ai, removed: Boolean(fix.removed) });
       occurrences.set(identity, list);
     }
   });
@@ -1098,29 +1108,34 @@ function groupSpec(members: Unit[], key: string, edits: ImportEdits): SubjectSpe
   let repeats = 0;
   for (const list of occurrences.values()) {
     if (new Set(list.map((entry) => entry.unit)).size < 2) continue;
-    const keys = new Set(list.map((entry) => entry.key).filter(Boolean));
+    // with an own key anywhere in the group, the AI's keys do not count (the variant with its own key is shown)
+    const owned = list.some((entry) => entry.ai) && list.some((entry) => entry.own);
+    const keyOf = (entry: Occurrence) => (owned ? entry.own : entry.key);
+    const fixFor = (entry: Occurrence) => (owned ? ownFix(entry.uid) : fixOf(entry.uid));
+    const keys = new Set(list.map(keyOf).filter(Boolean));
     const removed = list.find((entry) => entry.removed);
     const choice = CHOICE_KINDS.has(list[0].item.kind) && members[list[0].unit].file.format !== 'open';
     // Two different keys of a question that is not a choice: both stay, each with its own key (never a wrong one).
     if (!removed && keys.size > 1 && !choice) continue;
-    const rep = removed ?? (keys.size <= 1 ? list.find((entry) => entry.key) ?? list[0] : list[0]);
+    const rep = removed ?? (keys.size <= 1 || owned ? list.find((entry) => keyOf(entry)) ?? list[0] : list[0]);
     for (const entry of list) {
       if (entry.unit === rep.unit) continue;
       skip.add(entry.uid);
       repeats += 1;
     }
-    if (!removed && keys.size > 1 && !fixOf(rep.uid).correct) {
+    const repFix = fixOf(rep.uid);
+    if (!removed && keys.size > 1 && !(repFix.correct && !repFix.aiKey)) {
       // each key once, with the variants that have it: «варианты 1–6, 8–12 — Б, вариант 7 — Г»
       const seen = new Set<number>();
       const byKey = new Map<string, VariantKey>();
       for (const entry of list) {
-        if (seen.has(entry.unit) || !entry.key) continue;
+        if (seen.has(entry.unit) || !keyOf(entry)) continue;
         seen.add(entry.unit);
-        const texts = new Set(rawKey(entry.item, fixOf(entry.uid), members[entry.unit].signal).key.map((at) => sameKey(entry.item.options[at] ?? '')));
+        const texts = new Set(rawKey(entry.item, fixFor(entry), members[entry.unit].signal).key.map((at) => sameKey(entry.item.options[at] ?? '')));
         const mapped = rep.item.options.map((option, at) => (texts.has(sameKey(option)) ? at : -1)).filter((at) => at >= 0);
-        const known = byKey.get(entry.key);
+        const known = byKey.get(keyOf(entry));
         if (known) known.variants.push(members[entry.unit].variant);
-        else byKey.set(entry.key, { variants: [members[entry.unit].variant], key: mapped });
+        else byKey.set(keyOf(entry), { variants: [members[entry.unit].variant], key: mapped });
       }
       conflicts.set(rep.uid, [...byKey.values()]);
     }

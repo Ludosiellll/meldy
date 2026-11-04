@@ -154,6 +154,36 @@ describe('variants of one subject in several files', () => {
     expect(subject.variantRepeats).toBe(1);
   });
 
+  it('another variant’s own key always wins over the AI’s; two own keys stay a conflict the AI does not settle', () => {
+    // variant 1 has no key and the AI suggested «один»; variant 2 (read later) marks «три» in its file
+    const bare = () => result([q(1, 'Что такое класс?', 0, { correct: [], marks: {}, evidence: '', flags: ['no_key'] })], PROG, 1);
+    const files = [file('КПиЯП_Вариант_1.docx', bare()), file('КПиЯП_Вариант_2.docx', v2())];
+    const ai: ImportEdits = { ...NO_EDITS, items: { [`${files[0].id}:1`]: { correct: [0], kind: 'single', aiKey: true, aiOk: false } } };
+    const [subject] = deriveSubjects(files, ai);
+    const klass = subject.test.filter((item) => item.text === 'Что такое класс?');
+    expect(klass.map((item) => [item.uid, item.variant, item.correct, item.aiKey ?? false, item.problems])).toEqual([[`${files[1].id}:2`, 2, [2], false, []]]);
+    expect(subject.aiKeyed).toBe(0);
+    expect(queueOf([subject])).toEqual([]);
+    // the same key as the AI's: still the file's, without the AI's label
+    const same = result([q(1, 'Что такое класс?', 0)], PROG, 2);
+    const [agreed] = deriveSubjects([files[0], file('КПиЯП_Вариант_2.docx', same)], ai);
+    const one = agreed.test.filter((item) => item.text === 'Что такое класс?');
+    expect(one.map((item) => [item.variant, item.correct, item.aiKey ?? false, item.flags.includes('ai_key')])).toEqual([[2, [0], false, false]]);
+    // two own keys that differ stay key_conflict; the AI's key is not one of them and does not settle it
+    const third = file('КПиЯП_Вариант_3.docx', result([q(1, 'Что такое класс?', 4)], PROG, 3));
+    const [conflict] = deriveSubjects([files[0], files[1], third], ai);
+    const rep = conflict.test.find((item) => item.text === 'Что такое класс?')!;
+    expect(rep.problems).toEqual(['key_conflict']);
+    expect(rep.aiKey ?? false).toBe(false);
+    expect(rep.variantKeys).toEqual([
+      { variants: [2], key: [2] },
+      { variants: [3], key: [4] },
+    ]);
+    // without an own key anywhere the AI's key stands for the group
+    const alone = deriveSubjects([files[0], file('КПиЯП_Вариант_2.docx', bare())], ai)[0].test.filter((item) => item.text === 'Что такое класс?');
+    expect(alone.map((item) => [item.variant, item.correct, item.aiKey])).toEqual([[1, [0], true]]);
+  });
+
   it('a question the student removed takes its repeats in the other variants along', () => {
     const files = [file('КПиЯП_Вариант_1.docx', v1()), file('КПиЯП_Вариант_2.docx', v2())];
     const [before] = deriveSubjects(files);
