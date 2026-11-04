@@ -6,9 +6,10 @@
 -- public.container_subjects and BEFORE UPDATE OF exam_date on public.exams; links_follow_date AFTER UPDATE OF exam_date
 -- on the three; copies_follow_date AFTER UPDATE OF exam_date on public.exams; row level, enabled); the column
 -- container_member_exams.follows_author; the replaced functions: container_link_create ends a link by link_date_end and
--- 120 days, container_link_preview says the author's link state and still runs for anon, exam_share_claim and
--- exam_share_bundle check a container's members, exam_date_move_for and container_subjects_guard take the exam's row
--- FOR NO KEY UPDATE; their grants as they were. The behaviour is rehearsed locally:
+-- 120 days, container_link_preview says the author's link state and still runs for anon, exam_share_claim,
+-- exam_share_bundle and exam_share_preview check a container's members (the preview still runs for anon),
+-- take_container_orals closes a deleted exam's links' oral shares, exam_date_move_for and container_subjects_guard take
+-- the exam's row FOR NO KEY UPDATE; their grants as they were. The behaviour is rehearsed locally:
 -- supabase/tests/local/group_link_life_run.sh.
 DO $check$
 DECLARE
@@ -107,17 +108,25 @@ BEGIN
      OR NOT pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE') THEN
     RAISE EXCEPTION 'link_preview_grants';
   END IF;
-  FOREACH v_sig IN ARRAY ARRAY['public.exam_share_claim(text)', 'public.exam_share_bundle(text)'] LOOP
+  FOREACH v_sig IN ARRAY ARRAY['public.exam_share_claim(text)', 'public.exam_share_bundle(text)', 'public.exam_share_preview(text)'] LOOP
     v_fn := v_sig::regprocedure;
     IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid = v_fn AND p.prosecdef
                      AND p.prosrc LIKE '%l.oral_share_ids%' AND p.prosrc LIKE '%meldy_private.role_in(v_user, l.container_id) = ''member''%') THEN
       RAISE EXCEPTION 'members_check %', v_sig;
     END IF;
     IF NOT pg_catalog.has_function_privilege('authenticated', v_fn, 'EXECUTE')
-       OR pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE') THEN
+       OR (v_sig <> 'public.exam_share_preview(text)' AND pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE'))
+       OR (v_sig = 'public.exam_share_preview(text)' AND NOT pg_catalog.has_function_privilege('anon', v_fn, 'EXECUTE')) THEN
       RAISE EXCEPTION 'share_grants %', v_sig;
     END IF;
   END LOOP;
+  -- A deleted exam closes its links' oral shares first (the trigger of 20261107090000, its function replaced).
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p
+                  WHERE p.oid = 'meldy_private.take_container_orals()'::regprocedure AND p.prosecdef
+                    AND p.prosrc LIKE '%update public.exam_shares sh set revoked_at%' AND p.prosrc LIKE '%l.oral_share_ids%'
+                    AND p.prosrc LIKE '%delete from public.exams e%') THEN
+    RAISE EXCEPTION 'take_container_orals_closes_shares';
+  END IF;
   FOREACH v_sig IN ARRAY ARRAY['meldy_private.exam_date_move_for(uuid,uuid,date,text,uuid,date)', 'public.container_subjects_guard()'] LOOP
     IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid = v_sig::regprocedure
                      AND p.prosrc LIKE '%for no key update;%' AND p.prosrc NOT LIKE '%c.id = % for update;%') THEN

@@ -542,6 +542,18 @@ select pg_temp.check(pg_temp.try_code(format('select public.exam_share_claim(%L)
 -- 9. A container's oral share takes its members only (review M2). R was removed before copying; R's codes no longer
 --    claim or bundle while the link is open. An ordinary share of an oral exam (/join) still takes anyone.
 select pg_temp.as_role('authenticated', pg_temp.c('r')::uuid);
+-- /join's preview says the same as the claim (review of 04.11): no invitation that then fails.
+select pg_temp.check(public.exam_share_preview(pg_temp.c('code_law')) = '{"status": "not_found"}'::jsonb, 'a removed member''s preview',
+                     public.exam_share_preview(pg_temp.c('code_law')));
+select pg_temp.as_role('authenticated', pg_temp.c('s')::uuid);
+select pg_temp.check(public.exam_share_preview(pg_temp.c('code_law')) = '{"status": "not_found"}'::jsonb, 'a stranger''s preview');
+select pg_temp.as_role('anon');
+select pg_temp.check(public.exam_share_preview(pg_temp.c('code_law')) = '{"status": "not_found"}'::jsonb, 'a signed-out preview');
+select pg_temp.as_role('authenticated', pg_temp.c('q')::uuid);
+select pg_temp.check(public.exam_share_preview(pg_temp.c('code_law')) ->> 'status' = 'active', 'a member''s preview is the invitation');
+select pg_temp.as_role('authenticated', pg_temp.c('p')::uuid);
+select pg_temp.check(public.exam_share_preview(pg_temp.c('code_law')) ->> 'status' = 'joined', 'a member with the copy: joined');
+select pg_temp.as_role('authenticated', pg_temp.c('r')::uuid);
 select pg_temp.expect_error(format('select public.exam_share_claim(%L)', pg_temp.c('code_law')), 'MS001', 'a removed member claims an oral share');
 select pg_temp.expect_error(format('select public.exam_share_bundle(%L)', pg_temp.c('code_law')), 'MS001', 'a removed member reads the bundle');
 select pg_temp.as_role('postgres');
@@ -549,6 +561,7 @@ insert into public.exam_shares (exam_id, owner_id, code_hash, consent) values
   ('91170000-0000-4000-8000-0000000000e5', '91170000-0000-4000-8000-00000000000a', meldy_private.code_hash('abcd2fghjk98'),
    'Делюсь с группой вопросами, текстом моих лекций и пунктами ответа.');
 select pg_temp.as_role('authenticated', pg_temp.c('s')::uuid);
+select pg_temp.check(public.exam_share_preview('abcd2fghjk98') ->> 'status' = 'active', 'an ordinary share''s preview for a stranger');
 select pg_temp.check(public.exam_share_claim('abcd2fghjk98') ? 'share_id', 'an ordinary share of the oral exam still takes a stranger');
 select pg_temp.check(public.exam_share_bundle('abcd2fghjk98') ? 'questions', 'and gives the bundle');
 -- Closed and opened again: the old codes are dead for good, the members get new ones, a bound copy stays bound.
@@ -629,6 +642,43 @@ begin
                         to_jsonb(pg_temp.link_end('l7')));
 end
 $t$;
+
+-- 13. A deleted exam closes the oral shares of its links (review of 04.11): the links, and with them the list that keeps
+--     a share for the exam's members, go with the exam; an oral exam taken out of it stays, and so would its share.
+select pg_temp.as_role('postgres');
+insert into public.exams (id, user_id, title, exam_date) values
+  ('91170000-0000-4000-8000-0000000000e8', '91170000-0000-4000-8000-00000000000a', 'Сети к удалению', current_date + 10),
+  ('91170000-0000-4000-8000-0000000000e9', '91170000-0000-4000-8000-00000000000a', 'ОС к удалению', current_date + 10);
+insert into public.exam_questions (exam_id, user_id, position, text) values
+  ('91170000-0000-4000-8000-0000000000e8', '91170000-0000-4000-8000-00000000000a', 1, 'Модель OSI'),
+  ('91170000-0000-4000-8000-0000000000e9', '91170000-0000-4000-8000-00000000000a', 1, 'Планировщик');
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+do $t$
+declare r jsonb;
+begin
+  r := public.container_create('К удалению', current_date + 10, jsonb_build_array(
+         jsonb_build_object('title', 'Сети', 'exam_id', '91170000-0000-4000-8000-0000000000e8'),
+         jsonb_build_object('title', 'ОС', 'exam_id', '91170000-0000-4000-8000-0000000000e9')));
+  perform pg_temp.put('c6', r ->> 'container_id');
+  perform pg_temp.put('s6_os', r -> 'subjects' -> 1 ->> 'id');
+  r := public.container_link_create((r ->> 'container_id')::uuid, 60, pg_temp.c('consent'));
+  perform pg_temp.put('code_c6', r ->> 'code');
+end
+$t$;
+select pg_temp.as_role('authenticated', pg_temp.c('q')::uuid);
+select pg_temp.check((public.container_join(pg_temp.c('code_c6')) ->> 'joined')::boolean, 'Q joins «К удалению»');
+select pg_temp.put('code_c6_os', (select x ->> 'code' from jsonb_array_elements(public.container_oral_codes(pg_temp.c('c6')::uuid) -> 'subjects') x
+                                   where x ->> 'subject_id' = pg_temp.c('s6_os')));
+select pg_temp.check((public.container_leave(pg_temp.c('c6')::uuid) ->> 'left')::boolean, 'Q leaves');
+select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+delete from public.container_subjects where id = pg_temp.c('s6_os')::uuid;
+delete from public.containers where id = pg_temp.c('c6')::uuid;
+select pg_temp.check(pg_temp.exam_day('91170000-0000-4000-8000-0000000000e9') is not null, '«ОС», taken out before, stays an exam');
+select pg_temp.as_role('authenticated', pg_temp.c('s')::uuid);
+select pg_temp.expect_error(format('select public.exam_share_claim(%L)', pg_temp.c('code_c6_os')), 'MS002', 'the deleted exam''s oral code claims nothing');
+select pg_temp.expect_error(format('select public.exam_share_bundle(%L)', pg_temp.c('code_c6_os')), 'MS002', 'and gives no bundle');
+select pg_temp.check(public.exam_share_preview(pg_temp.c('code_c6_os')) = '{"status": "revoked"}'::jsonb, 'its preview: closed',
+                     public.exam_share_preview(pg_temp.c('code_c6_os')));
 
 select pg_temp.as_role('postgres');
 \echo GROUP LINK LIFE CHECKS PASSED

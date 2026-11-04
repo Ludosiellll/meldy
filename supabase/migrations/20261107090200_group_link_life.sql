@@ -2,7 +2,8 @@
 -- Repo file: supabase/migrations/20261107090200_group_link_life.sql. Base: the live order up to
 -- 20261107090100_group_link_restore.sql. The functions it replaces are their latest bodies: container_link_create,
 -- container_link_preview and container_subjects_guard of 20261009093500_containers.sql, exam_date_move_for of
--- 20261018120000_exam_move_bot_exams.sql, exam_share_claim and exam_share_bundle of 20261007110403_exam_shares.sql.
+-- 20261018120000_exam_move_bot_exams.sql, exam_share_claim, exam_share_bundle and exam_share_preview of
+-- 20261007110403_exam_shares.sql, take_container_orals of 20261107090000_container_orals_go.sql.
 -- Rollback: supabase/rollback/20261107090200_group_link_life_down.sql. Check after the apply (read-only, catalog only):
 -- supabase/tests/group_link_life.sql. Local rehearsal (never live): supabase/tests/local/group_link_life_run.sh (with
 -- group_link_life_behaviour.sql and the lock check group_link_life_locks.sh).
@@ -44,7 +45,10 @@
 --      expired | full), so /g/<code> does not promise the author that a closed link works. Nothing else changes.
 --   6. public.exam_share_claim and public.exam_share_bundle (replaced): a share in a link's oral_share_ids takes the
 --      members of that link's exam only (MS001 for anyone else, after the copy a caller already has); an ordinary
---      share of an oral exam (/join, in no link) is as before.
+--      share of an oral exam (/join, in no link) is as before. public.exam_share_preview (replaced) answers not_found
+--      to anyone else, as the claim would. meldy_private.take_container_orals (replaced; the BEFORE DELETE trigger of
+--      20261107090000_container_orals_go.sql) closes the oral shares of a deleted exam's links for good before the
+--      links go, so a share of an oral exam taken out of the exam does not become an ordinary one.
 --   7. Copies. Trigger copies_follow_date (meldy_private.copies_follow_date) AFTER UPDATE OF exam_date on public.exams:
 --      when the author's oral exam of a subject gets a new date from today to today + 730 days, the bound copy of each
 --      member still in the exam (not left, not removed) follows it — when it still had the old date and its member never
@@ -554,6 +558,107 @@ begin
                       order by f.question_hash, f.source_key), '[]'::jsonb)
         from public.oral_rubric_failures f
        where f.user_id = v_share.owner_id and f.question_hash = any (v_hashes)));
+end;
+$fn$;
+
+-- 6c. exam_share_preview (20261007110403_exam_shares.sql): + the members' check (/join says «not found» to anyone else).
+create or replace function public.exam_share_preview(p_code text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_user uuid := auth.uid();
+  v_share public.exam_shares%rowtype;
+  v_exam public.exams%rowtype;
+  v_member_exam uuid;
+  v_member boolean := false;
+  v_status text := 'active';
+begin
+  if p_code is null or p_code !~ '^[0-9a-hjkmnp-tv-z]{12}$' then
+    return pg_catalog.jsonb_build_object('status', 'not_found');
+  end if;
+  select s.* into v_share
+    from public.exam_shares s
+   where s.code_hash = pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p_code, 'UTF8')), 'hex');
+  if not found then
+    return pg_catalog.jsonb_build_object('status', 'not_found');
+  end if;
+  select e.* into v_exam from public.exams e where e.id = v_share.exam_id and e.user_id = v_share.owner_id;
+  if not found then
+    return pg_catalog.jsonb_build_object('status', 'not_found');
+  end if;
+  if v_user is not null and v_user = v_share.owner_id then
+    v_status := 'own';
+  else
+    if v_user is not null then
+      select m.member_exam_id into v_member_exam
+        from public.exam_share_members m
+       where m.share_id = v_share.id and m.user_id = v_user;
+      v_member := found;
+      if v_member_exam is not null
+         and exists (select 1 from public.exams e where e.id = v_member_exam and e.user_id = v_user) then
+        return pg_catalog.jsonb_build_object('status', 'joined', 'exam_id', v_member_exam, 'title', v_exam.title,
+          'kind', v_exam.kind, 'exam_date', v_exam.exam_date);
+      end if;
+    end if;
+    -- A container's oral share is for that container's members only (20261107090200), as exam_share_claim says: to
+    -- anyone else, signed out too, the page says what the claim would (no such link), not an invitation that fails.
+    if exists (select 1 from public.container_links l where v_share.id = any (l.oral_share_ids))
+       and not exists (select 1 from public.container_links l
+                        where v_share.id = any (l.oral_share_ids)
+                          and meldy_private.role_in(v_user, l.container_id) = 'member') then
+      return pg_catalog.jsonb_build_object('status', 'not_found');
+    end if;
+    if v_share.revoked_at is not null then
+      return pg_catalog.jsonb_build_object('status', 'revoked');
+    end if;
+    if v_share.expires_at is not null and v_share.expires_at <= pg_catalog.now() then
+      return pg_catalog.jsonb_build_object('status', 'expired');
+    end if;
+    if not v_member
+       and (select pg_catalog.count(*) from public.exam_share_members m where m.share_id = v_share.id) >= v_share.max_members then
+      return pg_catalog.jsonb_build_object('status', 'full');
+    end if;
+  end if;
+  return pg_catalog.jsonb_build_object(
+    'status', v_status,
+    'exam_id', case when v_status = 'own' then v_exam.id end,
+    'title', v_exam.title,
+    'kind', v_exam.kind,
+    'exam_date', v_exam.exam_date,
+    'questions', (select pg_catalog.count(*) from public.exam_questions q where q.exam_id = v_exam.id),
+    'lectures', (select pg_catalog.count(*)
+                   from public.exam_materials l
+                   join public.materials m on m.id = l.material_id and m.user_id = v_share.owner_id
+                  where l.exam_id = v_exam.id and pg_catalog.btrim(m.original_text) <> ''));
+end;
+$fn$;
+
+-- 6d. meldy_private.take_container_orals (20261107090000_container_orals_go.sql): a deleted exam closes its links'
+--     oral shares first (the check of 6a–6c reads them through the links, which go with the exam).
+create or replace function meldy_private.take_container_orals()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+begin
+  -- The oral shares its group links made close for good (20261107090200): the links go with the exam, and with them
+  -- the list that keeps those shares for the exam's members (exam_share_claim, exam_share_bundle, exam_share_preview).
+  -- Its own oral exams go below with their shares; one taken out of the exam before stays, its share closed.
+  update public.exam_shares sh set revoked_at = pg_catalog.now()
+   where sh.id in (select pg_catalog.unnest(l.oral_share_ids) from public.container_links l where l.container_id = old.id)
+     and sh.revoked_at is null;
+  delete from public.exams e
+   using public.container_subjects s
+   where s.container_id = old.id
+     and s.exam_id = e.id
+     and e.user_id = old.owner_id;
+  return old;
 end;
 $fn$;
 

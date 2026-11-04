@@ -6,7 +6,7 @@
 #      up to 20261031090000, then every later file in order) → the existing checks of what the migration touches pass
 #      there → the contract and group_link_life_behaviour.sql fail there (they test something) → catalog fingerprint;
 #   2. the migration twice, each in one transaction as supabase/migrate.py sends it (the second changes nothing in the
-#      catalog; of the base only the six replaced functions change) → the contract (supabase/tests/group_link_life.sql)
+#      catalog; of the base only the eight replaced functions change) → the contract (supabase/tests/group_link_life.sql)
 #      → group_link_life_behaviour.sql → group_link_life_locks.sh (a first join beside every writer, no deadlock);
 #   3. the existing contracts and behaviours of what it touches, again: the containers, «Перенести экзамен» and the bot's
 #      exams, the container kind, the deleted exam's orals, the oral shares, the bot (T1, the oral inputs), the tempo;
@@ -126,10 +126,10 @@ fingerprint "$OUT/fp_again.txt"
 if cmp -s "$OUT/fp_after.txt" "$OUT/fp_again.txt"; then ok "a second apply changes nothing in the catalog"
 else bad "a second apply changed the catalog" "$(diff "$OUT/fp_after.txt" "$OUT/fp_again.txt" | head -3 | tr '\n' ' ')"; fi
 GONE=$(comm -23 <(sort "$OUT/fp_base.txt") <(sort "$OUT/fp_after.txt"))
-REPLACED='^fn (public\.(container_link_create|container_link_preview|container_subjects_guard|exam_share_claim|exam_share_bundle)|meldy_private\.exam_date_move_for)\('
+REPLACED='^fn (public\.(container_link_create|container_link_preview|container_subjects_guard|exam_share_claim|exam_share_bundle|exam_share_preview)|meldy_private\.(exam_date_move_for|take_container_orals))\('
 OTHER=$(echo "$GONE" | grep -v '^$' | grep -Ev "$REPLACED")
-if [ -z "$OTHER" ] && [ "$(echo "$GONE" | grep -Ec "$REPLACED")" = 6 ]; then
-  ok "base lines changed: exactly the 6 replaced functions" "$(comm -13 <(sort "$OUT/fp_base.txt") <(sort "$OUT/fp_after.txt") | wc -l) new or changed lines"
+if [ -z "$OTHER" ] && [ "$(echo "$GONE" | grep -Ec "$REPLACED")" = 8 ]; then
+  ok "base lines changed: exactly the 8 replaced functions" "$(comm -13 <(sort "$OUT/fp_base.txt") <(sort "$OUT/fp_after.txt") | wc -l) new or changed lines"
 else bad "base lines changed or gone beyond the replaced functions" "$(echo "$OTHER" | head -3 | tr '\n' ' ')"; fi
 step "contract: supabase/tests/group_link_life.sql" "$CONTRACT"
 if behaviour; then ok "behaviour: ends, moves, extend and reopen, joins, oral codes, copies' dates" "GROUP LINK LIFE CHECKS PASSED"

@@ -1,10 +1,11 @@
 -- Rollback of supabase/migrations/20261107090200_group_link_life.sql: its triggers and their functions, the helpers,
 -- container_link_extend and container_member_exams.follows_author go; container_link_create, container_link_preview,
--- container_subjects_guard, exam_date_move_for, exam_share_claim and exam_share_bundle get their bodies of
--- 20261009093500_containers.sql, 20261018120000_exam_move_bot_exams.sql and 20261007110403_exam_shares.sql back (a new
--- link then ends two days after the exam's last date again; dates are not range-checked; a container's oral share takes
--- anyone with its code). CREATE OR REPLACE keeps their grants. Links extended or opened again, shares closed by a
--- reopen, and copies whose dates followed the author's keep what they got. Re-runnable.
+-- container_subjects_guard, exam_date_move_for, exam_share_claim, exam_share_bundle, exam_share_preview and
+-- take_container_orals get their bodies of 20261009093500_containers.sql, 20261018120000_exam_move_bot_exams.sql,
+-- 20261007110403_exam_shares.sql and 20261107090000_container_orals_go.sql back (a new link then ends two days after the
+-- exam's last date again; dates are not range-checked; a container's oral share takes anyone with its code; a deleted
+-- exam leaves its links' shares as they are). CREATE OR REPLACE keeps their grants. Links extended or opened again,
+-- shares closed by a reopen or a delete, and copies whose dates followed the author's keep what they got. Re-runnable.
 set local lock_timeout = '2s';
 
 drop trigger if exists links_follow_date on public.containers;
@@ -412,6 +413,92 @@ begin
                       order by f.question_hash, f.source_key), '[]'::jsonb)
         from public.oral_rubric_failures f
        where f.user_id = v_share.owner_id and f.question_hash = any (v_hashes)));
+end;
+$fn$;
+
+-- exam_share_preview (20261007110403_exam_shares.sql).
+create or replace function public.exam_share_preview(p_code text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $fn$
+declare
+  v_user uuid := auth.uid();
+  v_share public.exam_shares%rowtype;
+  v_exam public.exams%rowtype;
+  v_member_exam uuid;
+  v_member boolean := false;
+  v_status text := 'active';
+begin
+  if p_code is null or p_code !~ '^[0-9a-hjkmnp-tv-z]{12}$' then
+    return pg_catalog.jsonb_build_object('status', 'not_found');
+  end if;
+  select s.* into v_share
+    from public.exam_shares s
+   where s.code_hash = pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(p_code, 'UTF8')), 'hex');
+  if not found then
+    return pg_catalog.jsonb_build_object('status', 'not_found');
+  end if;
+  select e.* into v_exam from public.exams e where e.id = v_share.exam_id and e.user_id = v_share.owner_id;
+  if not found then
+    return pg_catalog.jsonb_build_object('status', 'not_found');
+  end if;
+  if v_user is not null and v_user = v_share.owner_id then
+    v_status := 'own';
+  else
+    if v_user is not null then
+      select m.member_exam_id into v_member_exam
+        from public.exam_share_members m
+       where m.share_id = v_share.id and m.user_id = v_user;
+      v_member := found;
+      if v_member_exam is not null
+         and exists (select 1 from public.exams e where e.id = v_member_exam and e.user_id = v_user) then
+        return pg_catalog.jsonb_build_object('status', 'joined', 'exam_id', v_member_exam, 'title', v_exam.title,
+          'kind', v_exam.kind, 'exam_date', v_exam.exam_date);
+      end if;
+    end if;
+    if v_share.revoked_at is not null then
+      return pg_catalog.jsonb_build_object('status', 'revoked');
+    end if;
+    if v_share.expires_at is not null and v_share.expires_at <= pg_catalog.now() then
+      return pg_catalog.jsonb_build_object('status', 'expired');
+    end if;
+    if not v_member
+       and (select pg_catalog.count(*) from public.exam_share_members m where m.share_id = v_share.id) >= v_share.max_members then
+      return pg_catalog.jsonb_build_object('status', 'full');
+    end if;
+  end if;
+  return pg_catalog.jsonb_build_object(
+    'status', v_status,
+    'exam_id', case when v_status = 'own' then v_exam.id end,
+    'title', v_exam.title,
+    'kind', v_exam.kind,
+    'exam_date', v_exam.exam_date,
+    'questions', (select pg_catalog.count(*) from public.exam_questions q where q.exam_id = v_exam.id),
+    'lectures', (select pg_catalog.count(*)
+                   from public.exam_materials l
+                   join public.materials m on m.id = l.material_id and m.user_id = v_share.owner_id
+                  where l.exam_id = v_exam.id and pg_catalog.btrim(m.original_text) <> ''));
+end;
+$fn$;
+
+-- meldy_private.take_container_orals (20261107090000_container_orals_go.sql).
+create or replace function meldy_private.take_container_orals()
+returns trigger
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $fn$
+begin
+  delete from public.exams e
+   using public.container_subjects s
+   where s.container_id = old.id
+     and s.exam_id = e.id
+     and e.user_id = old.owner_id;
+  return old;
 end;
 $fn$;
 
