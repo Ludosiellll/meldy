@@ -58,6 +58,7 @@ import youtube_video
 from exams_api import router as exams_router
 from bank_api import router as bank_router
 from bank_ai import router as bank_ai_router
+from bank_keys_ai import router as bank_keys_ai_router
 from paste_api import router as paste_router
 from container_shares import router as container_shares_router
 from oral_api import router as oral_router
@@ -304,6 +305,7 @@ async def protect_backend_api(request: Request, call_next):
 app.include_router(exams_router)
 app.include_router(bank_router)  # «Тест с вариантами»: разбор банка вопросов (bank_api.py)
 app.include_router(bank_ai_router)  # разбор сложных мест банка с ИИ по нажатию (bank_ai.py)
+app.include_router(bank_keys_ai_router)  # подбор ключей с ИИ для вопросов без ключа, по нажатию (bank_keys_ai.py)
 app.include_router(paste_router)  # «Быстрая контрольная»: вопросы, вставленные текстом (paste_api.py)
 app.include_router(container_shares_router)  # Экзамен на всю сессию: устные копии участника группы (container_shares.py)
 app.include_router(oral_router)
