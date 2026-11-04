@@ -4,6 +4,27 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-04 — Release 52: «Сохранить» in the studio, nothing lost by leaving, «Свой цвет» for the background (from the commit of this entry)
+
+- **Why**: the owner (04.11, a 960-question test in the studio): «почему нет кнопки сохранить изменения? если выйти слева
+  сверху то не меняется ничего, а обновить негде, а еще нельзя свой задний фон сделать». The page saved itself, a
+  question only by the editor's own «Сохранить»; «Сохранено» above did not know about the question, and the back arrow
+  left without asking, so no edit of a question reached the base.
+- **«Сохранить»** under the test's name: the page and every question editor holding changes, in «Холст» and «Список»;
+  Ctrl+S (Cmd+S) anywhere. The status says «Все изменения сохранены» only when nothing waits, else «Вопрос N не
+  сохранён» or «Текст не применён»; «Сохраняю…» while saving. A second save while one runs waits for it.
+- **Nothing lost by leaving**: the back arrow, the site's menu, the browser's back and forward, closing the tab,
+  «Выйти», switching views and «Отправить по ссылке» ask «Сохранить и выйти / Не сохранять / Остаться» while a
+  question or «Текст» holds changes; a failed save keeps the page. A narrowing window keeps the question's draft.
+- **Where changes show**: one quiet line on «Холст» — a studio link shows saved changes at once; older links lack the
+  studio look.
+- **«Свой цвет»** for the background: any colour by the picker or a hex code; text on it takes black or white,
+  whichever reads; drawn in the studio, the preview and the participant's page. «Загрузить свою картинку» sits right
+  under the background choice.
+- **Checked**: an independent review (seven findings, all fixed: «Текст» not applied, two saves at once, the busy
+  prompt, «Выйти», a narrowing window, the send prompt's flush, a double back).
+- **Order**: migration 20261107090400 first (live), then this site.
+
 ## 2026-11-04 — Release 51: variants of one subject are one subject, keys read right, «Подобрать ключи с ИИ» (from the commit of this entry)
 
 - **Why**: the owner (04.11): a batch of 24 college tests («КПиЯП_Вариант_1…12», «ТПО_Вариант_1…12») was not taken in —
