@@ -28,3 +28,4 @@ newest line is read.
 - 2026-10-30 — deploy: quiz-media
 - 2026-10-31 — deploy: telegram
 - 2026-10-31 — deploy: telegram
+- 2026-11-04 — deploy: telegram
