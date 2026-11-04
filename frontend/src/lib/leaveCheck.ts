@@ -15,7 +15,12 @@ export function setLeaveCheck(check: Check): () => void {
   };
 }
 
-/** true: go on (nothing held, saved, or «Не сохранять»); false: the user stays. */
+/** true: go on (nothing held, saved, or «Не сохранять»); false: the user stays. A check that throws lets the user go: «Выйти» never sticks. */
 export function mayLeave(): Promise<boolean> {
-  return current ? current() : Promise.resolve(true);
+  if (!current) return Promise.resolve(true);
+  try {
+    return current().catch(() => true);
+  } catch {
+    return Promise.resolve(true);
+  }
 }
