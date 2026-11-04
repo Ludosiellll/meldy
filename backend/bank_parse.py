@@ -385,10 +385,19 @@ TITLE_FORM_RE = re.compile(
     re.I)
 TITLE_BLOCK_CHARS = 1000
 TITLE_BLOCK_LINES = 12
+TITLE_HEAD_ITEMS = 20  # шапка — не больше стольких вопросов без номера до первого с номером
+TITLE_TAIL_ITEMS = 20  # подпись — среди последних стольких
 # Строка подписи под тестом: «Преподаватель ____ Иванов И.И. (подпись) (фамилия, инициалы) (дата)». Абзацем она уже
 # пропускается; таблицей «Преподаватель | ____ | Иванов» давала вопрос без номера с вариантами «____», «(подпись)».
 SIGNATURE_RE = re.compile(r"^(?:преподавател|составител|разработчик|председател|заведующ|зав\.|подпись|\(подпись\))", re.I)
 SIGNATURE_MARK_RE = re.compile(r"_{3,}|\(\s*(?:подпись|фамилия|ф\.?\s?и\.?\s?о|дата|расшифровка)", re.I)
+# Подпись — только явная: строка с должности (SIGNATURE_ROLE_RE), а в ней или в следующей — инициалы («Иванов И.И.»,
+# «И. И. Иванов»), дата («01.01.2026», «20__ г.», «« __ »») или «(подпись)». «Преподаватель ______ знания студентов…» и
+# «Разработчик ____ отвечает за…» — пропуск в вопросе, «(подпись)» вариантом — вариант. Строка «(подпись) (дата)» —
+# подпись только под такой строкой.
+SIGNATURE_ROLE_RE = re.compile(r"^(?:преподавател|составител|разработчик|председател|заведующ|зав\.)", re.I)
+SIGNATURE_SURE_RE = re.compile(r"(?<![А-ЯЁA-Zа-яёa-z])[А-ЯЁ]\.\s?[А-ЯЁ]\.|\b\d{1,2}[./]\d{1,2}[./](?:\d{4}|\d{2})\b"
+                               r"|\b(?:19|20)(?:\d\d|_+)\s*г\b|«\s*_+\s*»|\(\s*[Пп]одпись\s*\)")
 # «1.2. Что такое алгоритм?» — номер внутри темы: метка «1.2», место в нумерации 2. Только строка-вопрос (знак в конце):
 # «3.5 кг», «10.0.0.1  255.0.0.0» — не вопрос.
 SUBNUMBER_RE = re.compile(r"^(\d{1,2})\.(\d{1,3})\.?\s+(?=[^\W\d_])(.*[?:.…])\s*$", re.S)
@@ -1544,14 +1553,20 @@ class Reader:
         body: list[Line] = []
         in_key = ""  # «heading» — после строки «Ключ» / «Ответы»; «line» — после строки «Ключ: 1 – б, 2 – а, …»
         key_variant: Optional[int] = None  # ключ какого варианта идёт («Вариант 2» в ключе)
+        last_part: Optional[int] = None  # последняя строка с номером вопроса или подписью варианта (при первой подписи)
+        signed = False  # подпись уже пропущена: «(подпись) (фамилия, инициалы) (дата)» под ней — тоже подпись
         for i, line in enumerate(lines):
             text = line.text
             mono = _mono(line.para.runs)
             if text and not mono and i > first_question and self.furniture(lines, i, titles, moodle):
                 continue
             if text and not mono and i > first_question and SIGNATURE_RE.match(text) and SIGNATURE_MARK_RE.search(text):
-                self.skip(text)  # подпись под тестом сразу под последним вариантом — не продолжение варианта
-                continue
+                if last_part is None:
+                    last_part = self._last_question_part(lines)
+                if signed or (i > last_part and SIGNATURE_ROLE_RE.match(text) and _sure_signature(lines, i)):
+                    self.skip(text)  # подпись под тестом после последнего варианта — не продолжение варианта
+                    signed = True
+                    continue
             keyed = self._key_variant_line(lines, i, in_key) if text and not mono and "ариант" in text else None
             if keyed is not None:
                 key_variant, pairs = keyed
@@ -1585,6 +1600,16 @@ class Reader:
             self.read_blocks(body)
         else:
             self.read_numbered(body)
+
+    @staticmethod
+    def _last_question_part(lines: list[Line]) -> int:
+        """Номер последней строки с номером вопроса («2. …») или подписью варианта («б) …»); -1 — нет такой."""
+        for k in range(len(lines) - 1, -1, -1):
+            text = lines[k].text
+            if text and (OPTION_LABEL_RE.match(text) or lines[k].para.level in (None, 0)
+                         and (question_number(text) or QUESTION_NUMBER_RE.match(text))):
+                return k
+        return -1
 
     @staticmethod
     def marked_lines(body: list[Line]) -> bool:
@@ -3382,14 +3407,39 @@ def _title_lines(item: Item) -> Optional[list[str]]:
     return None
 
 
-def _signature(item: Item) -> bool:
-    """Подпись под тестом (SIGNATURE_RE), прочитанная вопросом без номера: в ней черта «____» или «(подпись)», ключа нет."""
+def _sure_signature(lines: list[Line], i: int) -> bool:
+    """В строке i или в следующей непустой — инициалы, дата или «(подпись)» (SIGNATURE_SURE_RE)."""
+    if SIGNATURE_SURE_RE.search(lines[i].text):
+        return True
+    following = next((line.text for line in lines[i + 1:] if line.text), "")
+    return bool(SIGNATURE_SURE_RE.search(following))
+
+
+def _signature_parts(item: Item) -> Optional[list[str]]:
+    """Тексты вопроса без номера, похожего на подпись (SIGNATURE_RE и черта «____» или «(подпись)»), ключа нет. Иначе None."""
     if item.label or item.answer or item.explicit or item.correct or item.pairs or item.gaps:
-        return False
+        return None
     text = item.text.strip()
     if not SIGNATURE_RE.match(text) or len(text) > TITLE_BLOCK_CHARS:
-        return False
-    return any(SIGNATURE_MARK_RE.search(part) for part in [text, *(option.text for option in item.options)])
+        return None
+    parts = [text, *(option.text for option in item.options)]
+    return parts if any(SIGNATURE_MARK_RE.search(part) for part in parts) else None
+
+
+def _signature_tail(items: list[Item]) -> list[Item]:
+    """Подпись под тестом, прочитанная вопросами без номера (таблицей «Преподаватель | ____ | Иванов И.И.»): строка с
+    должности (SIGNATURE_ROLE_RE) с инициалами, датой или «(подпись)» в ней или в следующей; под ней — и строки
+    «(подпись) (фамилия) (дата)». Остальное — вопросы, как раньше."""
+    tail: list[Item] = []
+    parts = [_signature_parts(item) for item in items]
+    for k, item in enumerate(items):
+        if parts[k] is None:
+            continue
+        sure = any(SIGNATURE_SURE_RE.search(part) for part in parts[k]) \
+            or k + 1 < len(items) and parts[k + 1] is not None and any(SIGNATURE_SURE_RE.search(part) for part in parts[k + 1])
+        if tail or SIGNATURE_ROLE_RE.match(parts[k][0]) and sure:
+            tail.append(item)
+    return tail
 
 
 def _drop_title_block(reader: Reader) -> None:
@@ -3397,25 +3447,33 @@ def _drop_title_block(reader: Reader) -> None:
     Учреждение образования… | Специальность… | Учебный предмет: «…»» давала открытый вопрос без номера и второй предмет
     без названия. Её строки уходят в пропущенные (skipped) и в заголовки на своём месте: название предмета из шапки
     по-прежнему называет предмет. Заголовки-строки бланка там же (строка таблицы на всю ширину «Специальность …») —
-    не темы. Подпись под последним вопросом с номером (_signature) — тоже в пропущенные. Файл без вопросов с номерами
-    не трогается: там вопрос без номера — обычный вопрос."""
+    не темы. Подпись под последним вопросом с номером (_signature_tail) — тоже в пропущенные. Файл без вопросов с номерами
+    не трогается: там вопрос без номера — обычный вопрос.
+
+    Шапка — только короткая: не больше TITLE_HEAD_ITEMS вопросов без номера до первого с номером (иначе это список
+    вопросов без номера, как раньше), подпись — среди последних TITLE_TAIL_ITEMS. Работа линейна: 60 000 строк бланка
+    в таблице разбирались 86 с. Файл, где вопросов больше MAX_ITEMS и после снятия шапки и подписи, — отказ сразу."""
+    if sum(1 for item in reader.items if item.text or item.options) > MAX_ITEMS + TITLE_HEAD_ITEMS + TITLE_TAIL_ITEMS:
+        raise BankError(413, "too_many", TOO_MANY_DETAIL)  # шапка и подпись не вернут число в предел
     first = next((k for k, item in enumerate(reader.items) if item.label), None)
     if first is None:
         return
     last = max(k for k, item in enumerate(reader.items) if item.label)
-    tail = [item for item in reader.items[last + 1:] if _signature(item)]
+    tail = _signature_tail(reader.items[max(last + 1, len(reader.items) - TITLE_TAIL_ITEMS):])
     if tail:  # подпись под последним вопросом — не вопрос
-        reader.items = [item for item in reader.items if all(item is not junk for junk in tail)]
+        junk = {id(item) for item in tail}
+        reader.items = [item for item in reader.items if id(item) not in junk]
         reader.skipped.extend(" ".join([item.text.strip(), *(o.text for o in item.options)])[:SKIPPED_CHARS] for item in tail)
         del reader.skipped[MAX_SKIPPED:]
     limit = reader.items[first].seq
     for heading in reader.headings:
         if heading.seq <= limit and heading.kind == "section" and TITLE_FORM_RE.match(heading.text):
             heading.kind = "line"
-    if not first:
+    if not first or first > TITLE_HEAD_ITEMS:
         return
     kept: list[Item] = []
     skipped: list[str] = []
+    inserts: dict[int, list[Heading]] = {}  # место в заголовках (до какого из прежних) → строки шапки
     for item in reader.items[:first]:
         lines = _title_lines(item)
         if lines is None:
@@ -3423,11 +3481,18 @@ def _drop_title_block(reader: Reader) -> None:
             continue
         skipped.append(item.text.strip())
         at = next((k for k, heading in enumerate(reader.headings) if heading.seq > item.seq), len(reader.headings))
-        for offset, line in enumerate(lines):
+        for line in lines:
             kind = heading_kind(line, "line")
             if kind == "variant" and reader.variant is None:
                 reader.variant = variant_number(line)
-            reader.headings.insert(at + offset, Heading(seq=item.seq, text=line[:MAX_TITLE_CHARS], kind=kind))
+            inserts.setdefault(at, []).append(Heading(seq=item.seq, text=line[:MAX_TITLE_CHARS], kind=kind))
+    if inserts:  # заголовки собираются заново один раз
+        headings: list[Heading] = []
+        for k, heading in enumerate(reader.headings):
+            headings += inserts.get(k, [])
+            headings.append(heading)
+        headings += inserts.get(len(reader.headings), [])
+        reader.headings = headings
     if skipped:
         reader.items[:first] = kept
         reader.skipped[:0] = [text[:SKIPPED_CHARS] for text in skipped]

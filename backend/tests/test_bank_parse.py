@@ -810,6 +810,93 @@ def test_a_signature_table_under_the_last_question_is_not_a_question():
     assert any(line.startswith("Преподаватель") for line in result["skipped"])
 
 
+SIGNATURE_LOOKALIKES = {
+    # строка с пропуском под вопросом, варианты ниже
+    "gap": ("Вставьте пропущенное слово:\nПреподаватель ______ знания студентов на экзамене.\nа) оценивает\nб) забывает\n",
+            "single", "Вставьте пропущенное слово:\nПреподаватель ______ знания студентов на экзамене.", ["оценивает", "забывает"]),
+    # варианты без подписей
+    "unlabeled": ("Кто ставит подпись в ведомости?\nПреподаватель ____\nСтудент ____\nДекан ____\n",
+                  "open", "Кто ставит подпись в ведомости?\nПреподаватель ____\nСтудент ____\nДекан ____", []),
+    "podpis": ("Какая графа идёт первой в ведомости?\n(подпись)\n(дата)\n(фамилия)\n",
+               "open", "Какая графа идёт первой в ведомости?\n(подпись)\n(дата)\n(фамилия)", []),
+    "developer": ("Дополните определение:\nРазработчик ________ отвечает за архитектуру системы.\n",
+                  "open", "Дополните определение:\nРазработчик ________ отвечает за архитектуру системы.", []),
+}
+OS_QUESTION = "Что такое ОС?\nа) программа\nб) железо\n"
+
+
+@pytest.mark.parametrize("name", sorted(SIGNATURE_LOOKALIKES))
+@pytest.mark.parametrize("last", [False, True])
+def test_a_line_that_only_looks_like_a_signature_stays_in_its_question(name, last):
+    """Подпись — строка с должности после последнего варианта с инициалами, датой или «(подпись)»; строка вопроса
+    «Преподаватель ______ знания…» и варианты «(подпись)», «Преподаватель ____» остаются на месте, как до шапки."""
+    source, kind, text, options = SIGNATURE_LOOKALIKES[name]
+    pasted = f"1. {OS_QUESTION}\n2. {source}" if last else f"1. {source}\n2. {OS_QUESTION}"
+    result = parse_bank_text(pasted)
+    item = result["items"][1 if last else 0]
+    assert (item["kind"], item["text"], item["options"]) == (kind, text, options)
+    assert result["skipped"] == [] and len(result["items"]) == 2
+
+
+def test_an_unnumbered_line_without_initials_or_a_date_under_the_last_question_stays_a_question():
+    result = parse_bank_text(f"1. {OS_QUESTION}\nРазработчик ________ отвечает за архитектуру системы?\n")
+    assert [(i["label"], i["text"]) for i in result["items"]][-1] == ("", "Разработчик ________ отвечает за архитектуру системы?")
+    table = college_questions().replace(xml_paragraph("Преподаватель ____________    Иванов И.И.         01.01.2026"), "")
+    table = table.replace(xml_paragraph("(подпись)            (фамилия, инициалы)            (дата)"), "")
+    table += plain_table([["Разработчик ________", "отвечает за архитектуру системы"]])
+    result = parse_bank_file(docx_with_body(table), "bank.docx")
+    assert [i["label"] for i in result["items"]] == ["1", "2", "3", ""] and result["skipped"] == []
+
+
+def test_a_signature_with_initials_a_date_or_podpis_under_the_last_option_is_skipped():
+    for signature in ("Преподаватель ____________ Иванов И.И.", "Составитель ________ 01.01.2026",
+                      "Преподаватель ____________\n(подпись) (фамилия, инициалы)"):
+        result = parse_bank_text(f"1. {OS_QUESTION}{signature}\n")
+        assert result["items"][0]["options"] == ["программа", "железо"], signature
+        assert result["skipped"] == signature.split("\n"), signature
+
+
+def form_rows_then_questions(rows: int, line: str = "Учреждение образования") -> bytes:
+    """Таблица в два столбца из rows строк «{line} N | (пусто)», под ней три вопроса с номерами."""
+    table = "".join("<w:tr>" + xml_cell(xml_paragraph(f"{line} {n}")) + xml_cell("") + "</w:tr>" for n in range(rows))
+    return docx_with_body("<w:tbl><w:tblPr/><w:tblGrid><w:gridCol/><w:gridCol/></w:tblGrid>" + table + "</w:tbl>"
+                          + college_questions())
+
+
+def refused_seconds(contents: bytes) -> float:
+    started = time.perf_counter()
+    with pytest.raises(BankError) as raised:
+        parse_bank_file(contents, "bank.docx")
+    assert (raised.value.status, raised.value.code) == (413, "too_many")
+    return time.perf_counter() - started
+
+
+def test_thirty_thousand_form_rows_above_the_questions_cost_no_more_than_plain_rows():
+    """Шапка бланка ищется только в начале файла, заголовки собираются один раз: 30 000 строк «Учреждение образования»
+    над вопросами разбирались 23 с (60 000 — 86 с: поиск и вставка заголовка на каждую строку), а столько же строк без
+    слов бланка — 2–3 с. Теперь отказ «больше 2000 вопросов» стоит как у обычных строк."""
+    plain = refused_seconds(form_rows_then_questions(30_000, line="Строка"))
+    form = refused_seconds(form_rows_then_questions(30_000))
+    assert form < 2 * plain + 1, (form, plain)
+
+
+def test_many_signature_rows_under_the_questions_cost_no_more_than_plain_rows():
+    """Подпись ищется среди последних строк: 15 000 строк «Преподаватель | ____ | (подпись)» под вопросами сравнивались
+    каждая с каждой."""
+    plain = refused_seconds(docx_with_body(college_questions() + plain_table([["Строка", "текст", "ещё"]] * 15_000)))
+    signed = refused_seconds(docx_with_body(college_questions() + plain_table([["Преподаватель", "____________", "(подпись)"]] * 15_000)))
+    assert signed < 2 * plain + 1, (signed, plain)
+
+
+def test_a_long_list_of_unnumbered_lines_above_the_questions_stays_as_it_was():
+    """Больше TITLE_HEAD_ITEMS строк без номера до первого вопроса — это не шапка, а вопросы без номера: не трогаются."""
+    result = parse_bank_file(form_rows_then_questions(bank_parse.TITLE_HEAD_ITEMS + 1), "bank.docx")
+    assert [i["label"] for i in result["items"]][-3:] == ["1", "2", "3"]
+    assert len(result["items"]) == bank_parse.TITLE_HEAD_ITEMS + 4
+    few = parse_bank_file(form_rows_then_questions(3), "bank.docx")
+    assert [i["label"] for i in few["items"]] == ["1", "2", "3"]
+
+
 def test_the_form_header_as_pasted_text_reads_the_same_way():
     text = ("Задание на выполнение контрольной работы в форме тестирования\nУчреждение образования «Энский колледж»\n"
             "Специальность 1-23-4567\nУчебный предмет: «Основы алгоритмизации»\nВариант 2\n\n")
