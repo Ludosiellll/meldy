@@ -79,6 +79,34 @@ describe('design: the page an attempt is shown on', () => {
     expect(doc.theme).toBe(page.theme);
   });
 
+  it('a page of the test none of whose questions the attempt holds is left out whole; a page without questions stays', () => {
+    const D = 'aaaaaaaa-0000-4000-8000-000000000004';
+    const paged = designDoc({
+      ...design([
+        cover,
+        q('quest0000001', A),
+        { type: 'page', id: 'pageintro001', title: 'Как отвечать' },
+        { type: 'text', id: 'text00000001', text: 'Выберите один ответ.', align: 'left' },
+        { type: 'page', id: 'pagesubj0002', title: 'Физиология' },
+        { type: 'heading', id: 'head00000002', text: 'Физиология', size: 'm' },
+        q('quest0000002', B),
+        { type: 'page', id: 'pagesubj0003', title: 'Гигиена' },
+        q('quest0000003', C),
+        q('quest0000004', D),
+      ]),
+      layout: 'pages',
+    })!;
+    // 200 of a big page: the attempt drew A and D, nothing of «Физиология».
+    expect(attemptDoc(paged, [item(A), item(D)]).blocks.map((block) => block.id)).toEqual([
+      'cover0000001', 'quest0000001', 'pageintro001', 'text00000001', 'pagesubj0003', 'quest0000004',
+    ]);
+    // Nothing of the first page: the test's title heads the first page shown, under its own title.
+    expect(attemptDoc(paged, [item(B)]).blocks.map((block) => [block.type, block.id])).toEqual([
+      ['page', 'pageintro001'], ['heading', 'cover0000001'], ['text', 'text00000001'],
+      ['page', 'pagesubj0002'], ['heading', 'head00000002'], ['question', 'quest0000002'],
+    ]);
+  });
+
   it('shows each question once', () => {
     const twice = { ...page, blocks: [...page.blocks, q('quest0000009', B)] };
     expect(attemptDoc(twice, [item(A), item(B)]).blocks.filter((block) => block.type === 'question')).toHaveLength(2);

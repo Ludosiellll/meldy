@@ -78,6 +78,9 @@ import '../../components/quiz/quizAuthor.css';
  * page decides are not shown — which subjects, how many questions, the set, the order of the questions, the cover and
  * the colour. The page is read once to count its keyed questions: the count and the timer follow it, and a page with
  * none says so before «Создать». An edit of such a quiz shows the same switch, locked once somebody has started.
+ * A page of more than 200 such questions (an exam of 960, owner 05.11) is more than an attempt holds: «Вопросов в
+ * попытке» stands under the switch (200 by default) with a line that says each participant gets that many of them,
+ * drawn at random, in the studio's order (20261107090500_studio_pages.sql).
  */
 
 type Problem = SettingsProblem | 'when' | 'page';
@@ -616,6 +619,18 @@ export default function QuizSetupPage() {
       </Link>
     </p>
   ) : null;
+  // A design quiz of a page bigger than an attempt: how many each attempt draws (under the switch, in view).
+  const designBig = designOn && pageCount !== null && pageCount > MAX_ITEMS;
+  const designCountField = designBig
+    ? select({
+        label: QA_SETUP.designCount,
+        value: form.item_count,
+        options: countChoices(pageCount, form.item_count).map((choice) => ({ value: choice.value, label: QA_SETUP.countOption(choice.value) })),
+        onChange: chooseCount,
+        disabled: lockedKey('item_count'),
+        hint: QA_SETUP.designDraw(form.item_count, pageCount),
+      })
+    : null;
   const countField = designOn
     ? null
     : select({
@@ -924,6 +939,7 @@ export default function QuizSetupPage() {
           <>
             {nameField}
             {designField}
+            {designCountField}
             {timeField}
             {closesField}
             {whoField}
@@ -974,6 +990,7 @@ export default function QuizSetupPage() {
         <>
           {nameField}
           {designField}
+          {designCountField}
           {subjectsField}
           {noPoolLine}
           {countField}

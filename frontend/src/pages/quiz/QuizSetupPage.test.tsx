@@ -39,6 +39,7 @@ import { ContainerApiError } from '../../api/containers';
 import { QA_SETUP } from '../../components/quiz/copyAuthor';
 import { localInput, weekOn } from '../../components/quiz/setupModel';
 import { EXAM, examItems, examSummary, listRow, NOW, QUIZ_ID, quizRow, S1, S2 } from '../../components/quiz/testkit';
+import { item } from '../../components/containers/testkit/fixtures';
 
 const plain = (text: string | null | undefined) => (text ?? '').replace(/ /g, ' ');
 const combo = (name: string) => screen.getByRole('combobox', { name });
@@ -631,6 +632,27 @@ describe('QuizSetupPage: a quiz «как в студии» (?all=1&design=1, the
     await waitFor(() =>
       expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ design: true, title: 'Кислоты и основания', item_count: 3, time_limit_min: 5 })),
     );
+  });
+
+  it('a page of more than 200 questions (more than an attempt holds): «Вопросов в попытке» and a line of the random draw', async () => {
+    const many = Array.from({ length: 250 }, (_, n) => item({ id: `big-${n}`, subject_id: S1, position: 300 + n, file_no: String(300 + n), options: ['а', 'б'], correct: [0] }));
+    api.state.items = new Map([...examItems(), ...many.map((entry) => [entry.id, entry] as const)]);
+    api.fetchDoc.mockResolvedValue(page(many.map((entry) => entry.id)));
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
+    await waitFor(() => expect(combo(QA_SETUP.designCount)).toHaveTextContent('200'));
+    const line = () => screen.getByText((_, node) => node?.classList.contains('im-hint') === true && plain(node.textContent).startsWith('В тесте 250 вопросов'));
+    expect(plain(line().textContent)).toBe(QA_SETUP.designDraw(200, 250));
+    pick(QA_SETUP.designCount, '50');
+    expect(plain(line().textContent)).toBe(QA_SETUP.designDraw(50, 250));
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
+    await waitFor(() => expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ design: true, item_count: 50 })));
+  });
+
+  it('a page that fits in an attempt asks no count: all of its questions, as before', async () => {
+    api.fetchDoc.mockResolvedValue(page());
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
+    await waitFor(() => expect(screen.getByLabelText(QA_SETUP.name)).toHaveValue('Кислоты и основания'));
+    expect(screen.queryByRole('combobox', { name: QA_SETUP.designCount })).toBeNull();
   });
 
   it('a page without a keyed question says so before «Создать»', async () => {
