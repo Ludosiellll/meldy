@@ -4,6 +4,30 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-05 — Release 54: «Баллы» for a question, AI keys out of games, the editor smooth, changes kept through an expired login (from the commit of this entry)
+
+- **Why**: the owner (05.11): «Доделывай то что можешь сделать» — the open list after release 53.
+- **AI keys out of games** (migration 20261107090600, live since 05.11): a question whose key came from «Подобрать
+  ключи с ИИ» plays in no game, duel or challenge; the setup screens name it «Ключ подобран ИИ, не из файла.»; a key
+  set by hand plays again. The setup of «Встань на ответ» no longer lists number questions as skipped (the game plays
+  them as four ranges on the floor since 02.11).
+- **«Баллы» for a question** (migration 20261107090700, live since 05.11): «Вопросы и ключи» sets a question's points
+  (1–100, «−» and «+»), the card says «· 3 балла»; a «Контрольная» of the exam's subjects weighs them in the result,
+  the pass mark and the author's results (CSV «Баллы / Всего баллов»); a «как в студии» quiz keeps the studio's
+  points; attempts already started keep their scores.
+- **Smooth typing** in the question editor of «Вопросы и ключи»: a key renders nothing (React commits per key 1 → 0,
+  script 9–15 → 2–4 ms at CPU ×4); what reads the words (problem lines, «Сохранить», counters) redraws only when it
+  changes.
+- **Changes kept through an expired login**: when the session ends by itself, an open question editor's changes are
+  kept in the tab; after signing in, «Вопросы и ключи» says which question waits and «Открыть» brings them back, the
+  studio opens the question with them. «Выйти» keeps nothing.
+- **A heavy file can no longer hang imports**: each file's parse runs in its own process for at most a minute and
+  1.5 GB over its start (the heaviest file the limits let in: 8–10 s, 514 MB); past either the process is killed, its
+  place freed at once, and the author reads «Файл слишком сложный: … Разбейте его на части или вставьте текст.» (413
+  parse_too_long / parse_too_big). A probe parse at the start falls back to the old thread path when the Space's
+  processes do not behave as measured; BANK_PARSE_IN_CHILD=0 turns it off.
+- **Order**: both migrations first (live), then this site.
+
 ## 2026-11-05 — Release 53: the studio holds every question of the exam, one page of «Холст» at a time (from the commit of this entry)
 
 - **Why**: the owner (05.11, a 960-question exam; the studio showed 400): «А нельзя сделать как переход на вторую
