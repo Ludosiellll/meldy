@@ -295,6 +295,31 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
   });
 
+  it('changes kept when the login ran out wait in a line; «Открыть» brings the editor with them, and saving sends them', async () => {
+    const item = BASE_ITEMS[6];
+    const stem = 'Правка, не успевшая сохраниться';
+    const { draftOf } = await import('../../components/containers/keys/editorModel');
+    const itemNow = (api.state.items as Map<string, TestItem>).get(item.id)!;
+    window.sessionStorage.setItem(
+      'meldy_rescued_drafts',
+      JSON.stringify({ [`${ID}:${item.id}`]: { containerId: ID, itemId: item.id, stamp: JSON.stringify(draftOf(itemNow)), draft: { ...draftOf(itemNow), stem }, at: Date.now() } }),
+    );
+    try {
+      renderAt();
+      const open = await screen.findByRole('button', { name: KEYS.rescuedOpen });
+      expect(open.closest('p')?.textContent).toContain(KEYS.rescued(1));
+      fireEvent.click(open);
+      const editor = screen.getByRole('form', { name: EDITOR.label });
+      expect((within(editor).getByLabelText(EDITOR.stem) as HTMLTextAreaElement).value).toBe(stem);
+      expect(within(editor).getByText(EDITOR.rescued)).toBeInTheDocument();
+      fireEvent.click(within(editor).getByRole('button', { name: EDITOR.save }));
+      await waitFor(() => expect(api.updateItem).toHaveBeenCalledWith(item.id, { stem }));
+      expect(screen.queryByRole('button', { name: KEYS.rescuedOpen })).toBeNull();
+    } finally {
+      window.sessionStorage.clear();
+    }
+  });
+
   it('«Баллы» (20261107090700_item_points): the editor sends them alone, the card says them beside the number', async () => {
     api.updateItem.mockImplementationOnce(async (id: string) => ({ id, rev: 1, rev_changed: false, doubts_resolved: 0, points: 4 }));
     renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}&no=7`);

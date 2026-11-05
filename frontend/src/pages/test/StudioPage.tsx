@@ -39,6 +39,7 @@ import '../../components/exams/exams.css';
 import '../../components/studio/studio.css';
 import { STUDIO_PASTE } from '../../components/quick/copyQuick';
 import '../../components/quick/studioPaste.css';
+import { rescuedFor } from '../../lib/draftRescue';
 
 /**
  * /exams/c/:id/studio — «Студия теста» (spec meldy-notes 10_Project/Test_Builder_Spec_2026-10-18.md §47.6; plan
@@ -515,13 +516,20 @@ export default function StudioPage() {
     };
     window.setTimeout(() => reveal(8), 0);
   };
-  // A link to a block (`?block=<id>`): once the page is read, the block is chosen and shown, on its page.
+  // A link to a block (`?block=<id>`): once the page is read, the block is chosen and shown, on its page. Without one,
+  // a question whose changes were kept when the login ran out (lib/draftRescue) is chosen: its editor takes them back.
   const linked = useRef(search.get('block'));
   useEffect(() => {
+    if (studio.phase !== 'ready') return;
     const id = linked.current;
-    if (!id || studio.phase !== 'ready') return;
     linked.current = null;
-    if (studio.doc.blocks.some((block) => block.id === id)) showBlock(id);
+    if (id && studio.doc.blocks.some((block) => block.id === id)) {
+      showBlock(id);
+      return;
+    }
+    const kept = rescuedFor(containerId).find((entry) => entry.itemId !== null);
+    const block = kept ? studio.doc.blocks.find((entry) => entry.type === 'question' && entry.item_id === kept.itemId) : undefined;
+    if (block) showBlock(block.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studio.phase]);
 

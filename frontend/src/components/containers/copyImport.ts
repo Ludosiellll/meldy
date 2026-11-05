@@ -68,6 +68,8 @@ export const EDITOR = {
   /** «Баллы» (20261107090700_item_points): what the question weighs in a quiz of the exam's subjects. */
   points: 'Баллы',
   pointsHint: `Сколько стоит вопрос в контрольной, от 1 до${NBSP}100. В контрольной «как в студии» баллы берутся из студии.`,
+  /** A draft kept when the login ran out (lib/draftRescue), back in the editor. */
+  rescued: 'Это правки, которые не успели сохраниться, когда закончился вход в аккаунт. Проверьте их и сохраните.',
   pointsLess: 'Меньше баллов',
   pointsMore: 'Больше баллов',
   save: 'Сохранить',
@@ -733,6 +735,13 @@ export const KEYS = {
   rowCount: (n: number) => questions(n),
   allGood: 'У всех вопросов есть ключ, сомнений нет.',
   check: (n: number) => `Проверить ${questions(n)}`,
+  /** Changes kept when the login ran out (lib/draftRescue). */
+  rescuedTitle: 'Несохранённые правки',
+  rescued: (n: number) =>
+    n === 1
+      ? 'Правки одного вопроса не успели сохраниться, когда закончился вход в аккаунт.'
+      : `Правки ${n} ${plural(n, 'вопроса', 'вопросов', 'вопросов')} не успели сохраниться, когда закончился вход в аккаунт.`,
+  rescuedOpen: 'Открыть',
   findTitle: 'Найти вопрос по номеру или словам',
   findSubject: 'Предмет',
   findNumber: 'Номер в файле или слова из вопроса',

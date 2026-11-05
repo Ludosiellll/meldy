@@ -23,6 +23,7 @@ import { errorText, GONE, KEYS, lettersText, nb, QUEUE } from '../../components/
 import { TO_EXAMS } from '../../components/containers/copy';
 import type { DoubtRow, SummarySubject, TestItem, Uuid } from '../../types/container';
 import type { ItemKeyPatch } from '../../api/containers';
+import { rescuedFor } from '../../lib/draftRescue';
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './KeysPage.css';
@@ -297,6 +298,23 @@ export default function KeysPage() {
     setEditError(null);
     setEditing(id);
   };
+  // Changes not saved when the login ran out, kept in this tab (lib/draftRescue): the page says they wait, and
+  // «Открыть» opens the question's editor here, which takes them back.
+  const [rescued, setRescued] = useState<Array<string | null>>(() => rescuedFor(containerId).map((kept) => kept.itemId));
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const waiting = rescued.filter((id) => (id === null ? Boolean(chosenSubject && takesItems(chosenSubject)) : items.some((item) => item.id === id)));
+  const openRescued = () => {
+    const id = waiting[0];
+    if (id === undefined) return;
+    setRescued((current) => current.filter((other) => other !== id));
+    if (id === null) {
+      openEditor('new');
+      return;
+    }
+    setRestoring(id);
+    openEditor(id);
+  };
+  const restoringItem = restoring && editing === restoring ? items.find((item) => item.id === restoring) ?? null : null;
   /** The editor's draft saved: only what changed (editorModel.patchOf); the card then shows the question as saved. */
   const saveEdit = async (item: TestItem, draft: Draft) => {
     const patch = patchOf(item, draft);
@@ -622,6 +640,19 @@ export default function KeysPage() {
         </section>
 
         <section className="ky-find" aria-labelledby={`${findId}-h`}>
+          {owner && (waiting.length > 0 || restoringItem) ? (
+            <div className="ky-rescued" role="group" aria-label={KEYS.rescuedTitle}>
+              {waiting.length > 0 ? (
+                <p className="kq-note qe-warn">
+                  {KEYS.rescued(waiting.length)}{' '}
+                  <button type="button" className="sf-link" onClick={openRescued}>
+                    {KEYS.rescuedOpen}
+                  </button>
+                </p>
+              ) : null}
+              {restoringItem ? renderQuestion(restoringItem) : null}
+            </div>
+          ) : null}
           <h2 id={`${findId}-h`} className="ky-h2">
             {KEYS.findTitle}
           </h2>

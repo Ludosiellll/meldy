@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import type { AuthChangeEvent, User, Session } from '@supabase/supabase-js';
 import { hasStoredSession, keptSession, loadSupabase, signInInAddress, whenSupabaseLoaded } from '../lib/supabaseClient';
+import { sessionLost } from '../lib/draftRescue';
 
 /**
  * A guest on a screen that needs no account (the landing, /try), with no session kept in this browser: the session
@@ -49,6 +50,8 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(keptWhileOffline);
   const [user, setUser] = useState<User | null>(() => session?.user ?? null);
+  /** «Выйти» is on its way: its SIGNED_OUT is the author's own choice (the page asked about changes first). */
+  const ownSignOut = useRef(false);
   const [loading, setLoading] = useState(() => session === null);
   const [wanted, setWanted] = useState(() => typeof window === 'undefined' || !guestMayWait());
 
@@ -77,6 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * back. A sign-out never falls back.
    */
   const settle = useCallback((next: Session | null, event?: AuthChangeEvent) => {
+    // A sign-out the app did not ask for (the session ran out, or another tab signed out): an open question editor
+    // keeps its draft in this tab before the sign-in page takes the page's place (lib/draftRescue).
+    if (event === 'SIGNED_OUT' && !ownSignOut.current) sessionLost();
     const current = next ?? (event === 'SIGNED_OUT' ? null : keptSession());
     setSession(current);
     setUser(current?.user ?? null);
@@ -106,7 +112,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = async () => {
     const supabase = await loadSupabase();
-    await supabase.auth.signOut();
+    ownSignOut.current = true;
+    try {
+      await supabase.auth.signOut();
+    } finally {
+      ownSignOut.current = false;
+    }
   };
 
   const requestSession = useCallback(() => setWanted(true), []);

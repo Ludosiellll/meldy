@@ -25,6 +25,7 @@ import {
   type DraftProblem,
 } from './editorModel';
 import { createDraftStore, DraftInput, DraftText, useDraft, useDrawn, type DraftStore } from './draftStore';
+import { keepOnSessionLost, takeRescued } from '../../../lib/draftRescue';
 import KindFields, { PartialCheck } from './KindFields';
 import { KIND_NAMES } from '../../kinds/copyKinds';
 import './keys.css';
@@ -183,6 +184,24 @@ interface Facts {
 type ReadFacts = (draft: Draft) => Facts;
 
 /** The facts of a draft, worked out once for each change (the lines that read them each pick their own answer). */
+/** A kept draft read back from the tab's storage: the fields every draft has, of the right types. */
+function isDraftLike(value: unknown): value is Draft {
+  if (typeof value !== 'object' || value === null) return false;
+  const d = value as Record<string, unknown>;
+  return (
+    typeof d.stem === 'string' &&
+    Array.isArray(d.stemPictures) &&
+    Array.isArray(d.options) &&
+    d.options.every((o) => typeof o === 'object' && o !== null && typeof (o as Record<string, unknown>).text === 'string' && Array.isArray((o as Record<string, unknown>).pictures)) &&
+    Array.isArray(d.correct) &&
+    typeof d.forms === 'string' &&
+    typeof d.explanation === 'string' &&
+    typeof d.code === 'boolean' &&
+    typeof d.keepOrder === 'boolean' &&
+    typeof d.short === 'boolean'
+  );
+}
+
 function factsReader(item: TestItem | null, group: boolean): ReadFacts {
   let last: { draft: Draft; facts: Facts } | null = null;
   return (draft) => {
@@ -343,7 +362,13 @@ export default function QuestionEditor({
 }: Props) {
   const id = useId();
   // The draft lives in a store (draftStore.tsx): the editor renders for a change it draws, never for a key typed.
-  const [store] = useState(() => createDraftStore(initialDraft ?? (item ? draftOf(item) : emptyDraft())));
+  // A draft kept when the login ran out before it was saved (lib/draftRescue): taken back while the question is as it was.
+  const [rescued] = useState(() => {
+    if (initialDraft) return null;
+    const kept = takeRescued(containerId, item?.id ?? null, item ? JSON.stringify(draftOf(item)) : '');
+    return isDraftLike(kept) ? kept : null;
+  });
+  const [store] = useState(() => createDraftStore(initialDraft ?? rescued ?? (item ? draftOf(item) : emptyDraft())));
   useDrawn(store);
   const draft = store.get();
   const setDraft = store.update;
@@ -388,6 +413,17 @@ export default function QuestionEditor({
   onDirtyRef.current = onDirty;
   const factsRef = useRef(facts);
   factsRef.current = facts;
+  // While it holds changes the editor gives its draft to keep if the login runs out (lib/draftRescue).
+  const rescueRef = useRef({ containerId, itemId: item?.id ?? null, stamp: itemStamp });
+  rescueRef.current = { containerId, itemId: item?.id ?? null, stamp: itemStamp };
+  useEffect(
+    () =>
+      keepOnSessionLost(() => {
+        const now = store.get();
+        return factsRef.current(now).dirty ? { ...rescueRef.current, draft: now, at: Date.now() } : null;
+      }),
+    [store],
+  );
   const toldDirty = useRef<boolean | null>(null);
   const tellDirty = useRef(() => {
     const dirty = factsRef.current(store.get()).dirty;
@@ -647,6 +683,7 @@ export default function QuestionEditor({
       }}
     >
       <p className="kq-context">{nb(context)}</p>
+      {rescued ? <p className="kq-note qe-warn qe-rescued">{EDITOR.rescued}</p> : null}
 
       {!item && !trueFalse ? (
         <fieldset className="qe-kind" data-many="">
