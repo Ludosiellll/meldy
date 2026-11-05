@@ -54,6 +54,15 @@ def real_recording_length():
 
 
 @pytest.fixture
+def parse_in_thread(monkeypatch):
+    """The question-bank parse in a thread of this process, as without a fork server (bank_api.PARSE_IN_CHILD): the
+    test's stand-in for the parse (a lock, a spy) lives in this process, not in a child one."""
+    import bank_api
+
+    monkeypatch.setattr(bank_api, "PARSE_IN_CHILD", False)
+
+
+@pytest.fixture
 def quota_on(monkeypatch):
     """The daily limit and the call log as in production (tests mock PostgREST themselves)."""
     monkeypatch.delenv("AI_QUOTA_DISABLED", raising=False)

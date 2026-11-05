@@ -707,8 +707,8 @@ class RulesPass:
 def rules_pass(blocks: list, *, key_mode: str = "auto", user_keys: Optional[dict[str, str]] = None, format_mode: str = "auto",
                line_word: str = "абзац", pictures: Optional[dict] = None, scope: str = "flagged",
                key_file: Optional[list[dict]] = None, key_section: Optional[int] = None) -> RulesPass:
-    """Часть разбора с ИИ без модели — работа процессора (банк на 2000 вопросов — около 2 с): маршрут делает её в потоке
-    на месте разбора (bank_api.ParseSlots), не в цикле событий."""
+    """Часть разбора с ИИ без модели — работа процессора (банк на 2000 вопросов — около 2 с): маршрут делает её на месте
+    разбора (bank_api.ParseSlots: в дочернем процессе с пределами времени и памяти), не в цикле событий."""
     started = time.monotonic()
     reader = bank_parse.read_bank(blocks, line_word=line_word, format_mode=format_mode, pictures=pictures)
     if key_file is not None:
@@ -730,8 +730,9 @@ async def hybrid(blocks: list, *, ask: Ask, key_mode: str = "auto", user_keys: O
                  offload: Optional[Callable[[Callable[[], Any]], Awaitable[Any]]] = None) -> dict:
     """Разбор с ИИ блоков документа: результат как у parse-bank и «ai» — счётчики. charge(units) — списание до модели
     (возвращает квитанцию с keep()/refund()); None — без списания (тесты, оценка корпуса). key_file — разделы файла
-    ключа (раздел варианта этого теста — как у parse-bank). first — уже сделанный rules_pass (маршрут: в потоке на
-    месте разбора); offload(work) — где сделать сборку после модели (маршрут: в потоке, не в цикле событий)."""
+    ключа (раздел варианта этого теста — как у parse-bank). first — уже сделанный rules_pass (маршрут: на месте
+    разбора, в дочернем процессе); offload(work) — где сделать сборку после модели (маршрут: в потоке, не в цикле
+    событий)."""
     if first is None:
         first = rules_pass(blocks, key_mode=key_mode, user_keys=user_keys, format_mode=format_mode, line_word=line_word,
                            pictures=pictures, scope=scope, key_file=key_file, key_section=key_section)
@@ -803,11 +804,7 @@ async def parse_bank_ai(request: Request):
         # reading the files is parsing work: in a place of parse-bank's (bank_api.ParseSlots), let go before the model
         async with bank_api.parse_slots.hold(str(user["id"]), bank_api.PARSE_WAIT_SECONDS) as run:
             prepared = await bank_api.prepare(request, form, run)
-            blocks, line_word, pictures = await run(functools.partial(_blocks_of, prepared))
-            first = await run(functools.partial(
-                rules_pass, blocks, key_mode=prepared["key_mode"], user_keys=prepared["user_keys"],
-                format_mode=prepared["format_mode"], line_word=line_word, pictures=pictures, scope=scope,
-                key_file=prepared["key_file"], key_section=prepared["key_section"]))
+            blocks, line_word, pictures, first = await run(functools.partial(_read_for_ai, prepared, scope))
 
         async def charge(units: int):
             return await quota.charge(request, "importAI", units)
@@ -825,6 +822,16 @@ async def parse_bank_ai(request: Request):
         busy = exc.status_code == 429
         return JSONResponse(status_code=exc.status_code, content={"detail": AI_BUSY_DETAIL if busy else AI_FAILED_DETAIL,
                                                                   "code": "ai_busy" if busy else "ai_failed"})
+
+
+def _read_for_ai(prepared: dict, scope: str) -> tuple[list, str, Optional[dict], RulesPass]:
+    """Чтение файла и разбор правилами — одна работа на месте разбора (bank_api.ParseSlots: в дочернем процессе с
+    пределами времени и памяти): блоки, слово строки, картинки и rules_pass."""
+    blocks, line_word, pictures = _blocks_of(prepared)
+    first = rules_pass(blocks, key_mode=prepared["key_mode"], user_keys=prepared["user_keys"],
+                       format_mode=prepared["format_mode"], line_word=line_word, pictures=pictures, scope=scope,
+                       key_file=prepared["key_file"], key_section=prepared["key_section"])
+    return blocks, line_word, pictures, first
 
 
 def _blocks_of(prepared: dict) -> tuple[list, str, Optional[dict]]:

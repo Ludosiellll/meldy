@@ -4,7 +4,8 @@
 main.py, как у /api/exams/parse (без неё — 401); лимит — 30 запросов в минуту и 400 в день на пользователя
 (user_or_ip_key, BANK_LIMIT), разборов сразу — 2 у пользователя и 3 всего (ParseSlots, сверх — 429 parse_busy): клиент
 шлёт по запросу на файл, а 429 ждёт по Retry-After и повторяет сам. Разбор — правила bank_parse.py без ИИ: единиц дневного
-лимита не тратит, в базу ничего не пишет (ни SupabaseRest, ни quota здесь не вызываются). Сохраняет клиент.
+лимита не тратит, в базу ничего не пишет (ни SupabaseRest, ни quota здесь не вызываются). Сохраняет клиент. Разбор идёт
+в дочернем процессе (parse_child.py) с пределом времени и памяти: дольше минуты или больше PARSE_MEMORY_BYTES — 413.
 
 Форма (multipart): file (DOCX, XLSX, PDF с текстом, TXT, MD, CSV, HTML, Moodle XML до MAX_UPLOAD_BYTES, по умолчанию
 15 МБ) или text; необязательно key_mode (auto | first_option | none), key_text (ключ строками «1 – б»), key_file (ключ
@@ -12,8 +13,9 @@ main.py, как у /api/exams/parse (без неё — 401); лимит — 30 �
 пользователем), pictures=1 (картинки DOCX переносятся: так просит страница, которая их сохраняет) и format
 (auto | test | open). Ответ — словарь bank_parse: предметы, темы, вопросы (с вариантами или открытые),
 ключ, флаги, marks, статистика. Ошибки — {"detail": "<по-русски>", "code": "<код>"}: 415 old_doc /
-unsupported, 413 too_many / too_much_text / too_complex / file_too_big, 422 empty_file / unreadable / no_items / scan_pdf, 429 parse_busy,
-400 bad_form / both_inputs / no_input / key_text_too_long.
+unsupported, 413 too_many / too_much_text / too_complex / file_too_big / parse_too_long / parse_too_big,
+422 empty_file / unreadable / no_items / scan_pdf, 429 parse_busy, 400 bad_form / both_inputs / no_input /
+key_text_too_long (у файла ключа — те же с приставкой key_file_).
 """
 
 from __future__ import annotations
@@ -22,6 +24,7 @@ import asyncio
 import contextlib
 import contextvars
 import functools
+import os
 import re
 from collections import Counter
 from typing import Any, Callable
@@ -43,6 +46,7 @@ from bank_parse import (
     parse_bank_text,
     read_key_file,
 )
+import parse_child
 from ratelimit import give_back, limiter, user_or_ip_key
 from uploads import read_upload_with_limit
 
@@ -105,12 +109,63 @@ PARSE_POLL_SECONDS = 0.1
 PARSE_RETRY_AFTER_SECONDS = 5
 PARSE_BUSY_DETAIL = "Сервер разбирает другие файлы. Продолжим через несколько секунд."
 
+# Каждая работа на месте разбора — в дочернем процессе (parse_child.py): не дольше PARSE_SECONDS по часам и не больше
+# PARSE_MEMORY_BYTES памяти сверх той, с которой процесс начал. Дольше или больше — процесс убит (процессор и память
+# свободны, место отдано сразу), ответ 413 parse_too_long / parse_too_big. Замеры 2026-11-05 на машине с 4 ядрами:
+# файлы корпуса разбираются до 0,35 с и 18 МБ, а самый тяжёлый файл, какой пропускают пределы bank_parse и bank_docx
+# (2000 вопросов, document.xml 37 МБ в 210 000 кусках), — 8–10 с и 514 МБ (чтение для разбора с ИИ, bank_ai: 16 с и
+# 728 МБ). Минута — с запасом на медленный процессор Space (2 vCPU) и три разбора сразу; 1,5 ГБ — вдвое больше самого
+# тяжёлого, три разбора сразу — до 4,5 ГБ из 16 ГБ Space. Нет сервера форков (Windows) или BANK_PARSE_IN_CHILD=0 — в
+# потоке, как раньше: без пределов.
+PARSE_SECONDS = 60.0
+PARSE_MEMORY_BYTES = 1536 << 20
+PARSE_IN_CHILD = os.getenv("BANK_PARSE_IN_CHILD", "1").strip() != "0"
+PARSE_TOO_LONG_DETAIL = "Файл слишком сложный: разбор занял больше минуты. Разбейте его на части или вставьте текст."
+PARSE_TOO_BIG_DETAIL = "Файл слишком сложный: на разбор не хватило памяти. Разбейте его на части или вставьте текст."
+_thread_said = False
+
+
+def _say_in_thread(reason: str) -> None:
+    global _thread_said
+    if not _thread_said:
+        _thread_said = True
+        print(f"Bank parse: in a thread, without the time and memory limits ({reason})")
+
+
+def _in_child() -> bool:
+    if not PARSE_IN_CHILD:
+        _say_in_thread("BANK_PARSE_IN_CHILD=0")
+        return False
+    if not parse_child.available():
+        _say_in_thread("no fork server on this platform")
+        return False
+    return True
+
+
+def _run_job(job: parse_child.Job) -> Any:
+    """Работа в дочернем процессе; процесс не запустить — в этом потоке, как раньше."""
+    try:
+        return job.run()
+    except parse_child.Unavailable as exc:
+        _say_in_thread(f"no child process: {exc}")
+        return job.work()
+
+
+def warm_up() -> None:
+    """Сервер форков разбора — при старте приложения (main.py), а не на первом файле: несколько десятых секунды."""
+    if _in_child():
+        try:
+            parse_child.warm_up()
+        except Exception as exc:  # the first parse tries again (and parses in a thread if it cannot)
+            print(f"Bank parse: the fork server did not start: {type(exc).__name__}: {exc}")
+
 
 class ParseSlots:
     """Места для разбора: не больше per_user у пользователя и total всего, по очереди прихода: место берёт первый из
     ждущих, кому его можно дать (ждущий, у которого уже per_user разборов, не держит очередь). Счётчики меняются только в
-    цикле событий (ожидание — опросом, без примитивов, привязанных к одному циклу). Место занято, пока идёт поток
-    разбора: запрос, отменённый посреди разбора, отпускает место, когда поток закончит."""
+    цикле событий (ожидание — опросом, без примитивов, привязанных к одному циклу). Место занято, пока идёт работа:
+    запрос, отменённый посреди разбора, останавливает её процесс сразу и тогда же отпускает место (работа в потоке — без
+    процесса — не останавливается: место отпускается, когда поток закончит)."""
 
     def __init__(self, per_user: int, total: int) -> None:
         self.per_user, self.total = per_user, total
@@ -138,7 +193,8 @@ class ParseSlots:
     @contextlib.asynccontextmanager
     async def hold(self, user: str, wait: float):
         """Место для разбора пользователя user (ждёт до wait секунд, иначе BankError 429 parse_busy) → run(work):
-        работа в потоке-исполнителе на этом месте."""
+        работа на этом месте — в дочернем процессе с пределами (BankError 413 parse_too_long / parse_too_big), его ждёт
+        поток-исполнитель. work — функция уровня модуля с аргументами (functools.partial): её передаёт pickle."""
         loop = asyncio.get_running_loop()
         deadline = loop.time() + wait
         self._arrived += 1
@@ -157,18 +213,31 @@ class ParseSlots:
         self.busy += 1
         self.users[user] += 1
         threads: list[asyncio.Future] = []
+        jobs: list[parse_child.Job] = []
 
         async def run(work: Callable[[], Any]) -> Any:
+            if _in_child():
+                job = parse_child.Job(work, seconds=PARSE_SECONDS, memory=PARSE_MEMORY_BYTES)
+                jobs.append(job)
+                work = functools.partial(_run_job, job)
             future = loop.run_in_executor(None, functools.partial(contextvars.copy_context().run, work))
             future.add_done_callback(lambda done: done.cancelled() or done.exception())  # ошибка после отмены — не в лог
             threads.append(future)
-            return await asyncio.shield(future)
+            try:
+                return await asyncio.shield(future)
+            except parse_child.TooLong:
+                raise BankError(413, "parse_too_long", PARSE_TOO_LONG_DETAIL) from None
+            except parse_child.TooBig:
+                raise BankError(413, "parse_too_big", PARSE_TOO_BIG_DETAIL) from None
 
         try:
             yield run
         finally:
             pending = [future for future in threads if not future.done()]
-            if pending:  # запрос отменён, а поток ещё работает: место — до его конца
+            if pending:  # запрос отменён посреди работы: процесс убит сейчас (поток без процесса идёт до конца),
+                # место — когда работа на самом деле кончится
+                for job in jobs:
+                    job.stop()
                 asyncio.gather(*pending, return_exceptions=True).add_done_callback(lambda _: self._leave(user))
             else:
                 self._leave(user)
@@ -184,7 +253,7 @@ async def _parse(request: Request) -> dict:
     form = await _read_form(request)
     async with parse_slots.hold(str(user["id"]), PARSE_WAIT_SECONDS) as run:
         prepared = await prepare(request, form, run)
-        # Разбор — чистый CPU (до 2 000 000 знаков): в потоке-исполнителе он не держит цикл событий.
+        # Разбор — чистый CPU (до 2 000 000 знаков): в дочернем процессе он не держит ни цикл событий, ни GIL сервера.
         options = {"key_mode": prepared["key_mode"], "key_text": prepared["key_text"], "format_mode": prepared["format_mode"]}
         if prepared["key_file"] is not None:
             options["key_file"] = prepared["key_file"]

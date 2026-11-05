@@ -173,6 +173,10 @@ class BankError(Exception):
         self.code = code
         self.detail = detail
 
+    def __reduce__(self):
+        # whole across the process boundary (the parse runs in a child process: parse_child.py, bank_api.ParseSlots)
+        return type(self), (self.status, self.code, self.detail), self.__dict__
+
 
 RUS = RUSSIAN_LOWER
 LAT = LATIN_LOWER
