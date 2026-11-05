@@ -25,7 +25,7 @@
  * delete. Problems carry the line (from 1) and plain words; apply only when there are none.
  */
 import { isPictureWord, type ItemInput, type ItemPatch, type TestItem } from '../../types/container';
-import { DOC_CAPTION_MAX, DOC_MAX_BLOCKS, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type TestDoc } from '../../types/testDoc';
+import { DOC_CAPTION_MAX, DOC_MAX_BLOCKS, DOC_PAGE_BLOCKS, DOC_TEXT_MAX, DOC_TITLE_MAX, type DocBlock, type TestDoc } from '../../types/testDoc';
 import { draftOf, draftProblems, emptyDraft, formsOf, inputOf, LIMITS, patchOf, type Draft, type DraftProblem } from '../../components/containers/keys/editorModel';
 import { isTrueFalse, orderBound } from './checker';
 import { chars, cryptoFill, freshId, hasWords, newId, oneLine, sameValue, type RandomFill } from './doc';
@@ -807,7 +807,15 @@ export function fromText(text: string, doc: TestDoc, items: readonly TestItem[],
 
   const kept = new Set(toOld);
   const removes = olds.flatMap((entry, at) => (!kept.has(at) && entry.block.type === 'question' ? [entry.block.item_id] : []));
-  if (blocks.length > DOC_MAX_BLOCKS) problems.push(say(blockLines[DOC_MAX_BLOCKS], 'блоков больше 400. Уберите лишние.'));
+  if (blocks.length > DOC_MAX_BLOCKS) problems.push(say(blockLines[DOC_MAX_BLOCKS], `блоков больше ${DOC_MAX_BLOCKS}. Уберите лишние.`));
+  // A page of the canvas holds DOC_PAGE_BLOCKS blocks: the first block past them is named (once a page).
+  let pageSize = 0;
+  blocks.forEach((block, at) => {
+    pageSize = block.type === 'page' && at > 0 ? 1 : pageSize + 1;
+    if (pageSize === DOC_PAGE_BLOCKS + 1 && at < DOC_MAX_BLOCKS) {
+      problems.push(say(blockLines[at], `на странице больше ${DOC_PAGE_BLOCKS} блоков. Начните новую строкой «===» перед этим блоком.`));
+    }
+  });
   problems.sort((a, b) => a.line - b.line);
 
   const next: TestDoc = { ...doc, blocks };

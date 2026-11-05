@@ -491,9 +491,16 @@ describe('problems: the line and what to do', () => {
     expect(problemsOf(`[картинка] ${long(301)}`, page)).toEqual([{ line: 1, message: 'Строка 1: подпись картинки длиннее 300 знаков. Сократите её.' }]);
   });
 
-  it('more than 400 blocks', () => {
+  it('more than 400 blocks on a page: the first past them is named; a new page («===») makes room', () => {
     const text = Array.from({ length: 401 }, () => '---').join('\n\n');
-    expect(problemsOf(text)).toEqual([{ line: 801, message: 'Строка 801: блоков больше 400. Уберите лишние.' }]);
+    expect(problemsOf(text)).toEqual([{ line: 801, message: 'Строка 801: на странице больше 400 блоков. Начните новую строкой «===» перед этим блоком.' }]);
+    const paged = Array.from({ length: 801 }, (_, at) => (at > 0 && at % 400 === 0 ? '===' : '---')).join('\n\n');
+    expect(problemsOf(paged)).toEqual([]);
+  });
+
+  it('more than 2100 blocks', () => {
+    const text = Array.from({ length: 2101 }, (_, at) => (at > 0 && at % 400 === 0 ? '===' : '---')).join('\n\n');
+    expect(problemsOf(text)).toEqual([{ line: 4201, message: 'Строка 4201: блоков больше 2100. Уберите лишние.' }]);
   });
 
   it('problems in line order; questions left as they were are not checked again', () => {

@@ -32,9 +32,10 @@ import './docview.css';
  * - `mode="answer"` is the author's preview of what the participant gets: the answers live here, «Завершить» (the last
  *   step's word, as in the participant's run) hands them to `onSubmit`, and the result it gives is shown. Question
  *   blocks whose row is missing are skipped.
- * - `mode="edit"` is the studio's canvas: every block in page order (a «Новая страница» shows as a mark between
- *   pages), the texts editable in place (Editable), and the canvas's own frame around each block (`editor.Frame`:
- *   selection, the handle, the actions) and between them (`editor.Gap`, `editor.EndGap`: «+» and the drop line).
+ * - `mode="edit"` is the studio's canvas: the blocks of one page of the test (`range`; a «Новая страница» shows as a
+ *   mark at the top of its page), the texts editable in place (Editable), and the canvas's own frame around each block
+ *   (`editor.Frame`: selection, the handle, the actions) and between them (`editor.Gap`, `editor.EndGap`: «+» and the
+ *   drop line). No gap stands above the «Новая страница» that opens the page: a block put there would leave the page.
  * - `mode="take"` is a quiz «как в студии» (release 47.2, components/quiz/QuizDocRun.tsx): the same steps and blocks,
  *   but the caller keeps everything — the answers (saved to the server as they change), the step, the required
  *   questions it has to name, «Назад / Дальше / Завершить» — and the options stand in the attempt's order. No result
@@ -113,6 +114,11 @@ interface CommonProps {
 export interface EditProps extends CommonProps {
   mode: 'edit';
   editor: DocEditApi;
+  /**
+   * The page of the canvas shown: the blocks [start, end) of the test (lib/studio/pages.ts); all of them when missing.
+   * Indices stay the test's own (a block's place, a gap's, «N из M»), so a move or an insert means the same anywhere.
+   */
+  range?: { start: number; end: number };
 }
 
 export interface AnswerProps extends CommonProps {
@@ -741,10 +747,14 @@ export default function DocView(props: DocViewProps) {
   const background = doc.theme.background;
   const shown = useMemo(() => (props.mode === 'edit' ? doc.blocks : visibleBlocks(doc, items)), [props.mode, doc, items]);
   const numbers = useMemo(() => questionNumbers(props.mode === 'edit' ? doc.blocks.filter((block) => block.type !== 'question' || items.has(block.item_id)) : shown), [props.mode, doc.blocks, items, shown]);
+  // A «Новая страница» opens page 2, 3… — or page 1 when the test starts with it (lib/studio/pages.ts, docRun stepsOf).
   const pageNumbers = useMemo(() => {
     const out = new Map<string, number>();
-    doc.blocks.forEach((block) => {
-      if (block.type === 'page') out.set(block.id, out.size + 2);
+    let n = 1;
+    doc.blocks.forEach((block, at) => {
+      if (block.type !== 'page') return;
+      if (at > 0) n += 1;
+      out.set(block.id, n);
     });
     return out;
   }, [doc.blocks]);
@@ -775,31 +785,36 @@ export default function DocView(props: DocViewProps) {
     const { editor } = props;
     const { Gap, EndGap } = editor;
     const count = doc.blocks.length;
+    const from = Math.max(0, Math.min(count, props.range?.start ?? 0));
+    const to = Math.max(from, Math.min(count, props.range?.end ?? count));
     const busy = editor.busyId();
     return root(
       <div className="dv-col" data-mode="edit">
         {count === 0 ? editor.empty ?? null : null}
-        {doc.blocks.map((block, index) => (
-          <Fragment key={block.id}>
-            <Gap index={index} before={index > 0 ? doc.blocks[index - 1].id : null} />
-            <EditBlock
-              block={block}
-              index={index}
-              count={count}
-              layout={doc.layout}
-              item={block.type === 'question' ? items.get(block.item_id) : undefined}
-              number={numbers.get(block.id) ?? 0}
-              pageNumber={pageNumbers.get(block.id) ?? 2}
-              imageUrl={imageUrl}
-              editor={editor}
-              stage={block.type === 'image' ? editor.pictureStage(block.id) : null}
-              note={block.type === 'image' ? editor.pictureNote(block.id) : null}
-              problem={editor.problemOf(block.id)}
-              busy={busy === block.id}
-            />
-          </Fragment>
-        ))}
-        <EndGap index={count} empty={count === 0} />
+        {doc.blocks.slice(from, to).map((block, offset) => {
+          const index = from + offset;
+          return (
+            <Fragment key={block.id}>
+              {index === from && block.type === 'page' ? null : <Gap index={index} before={index > 0 ? doc.blocks[index - 1].id : null} />}
+              <EditBlock
+                block={block}
+                index={index}
+                count={count}
+                layout={doc.layout}
+                item={block.type === 'question' ? items.get(block.item_id) : undefined}
+                number={numbers.get(block.id) ?? 0}
+                pageNumber={pageNumbers.get(block.id) ?? 2}
+                imageUrl={imageUrl}
+                editor={editor}
+                stage={block.type === 'image' ? editor.pictureStage(block.id) : null}
+                note={block.type === 'image' ? editor.pictureNote(block.id) : null}
+                problem={editor.problemOf(block.id)}
+                busy={busy === block.id}
+              />
+            </Fragment>
+          );
+        })}
+        <EndGap index={to} empty={count === 0} />
       </div>,
       { 'data-mode': 'edit' },
     );

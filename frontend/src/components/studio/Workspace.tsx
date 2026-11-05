@@ -19,6 +19,7 @@ import {
 } from '@dnd-kit/core';
 import { DRAFT_WORDS, isDraftQuestion } from '../../lib/studio/checker';
 import { insertBlock, newBlock, removeBlock } from '../../lib/studio/doc';
+import { pageOfIndex, pageQuestions, pageRanges, pageTitle, type PageRange } from '../../lib/studio/pages';
 import { typingKey } from '../../lib/studio/history';
 import type { TestItem } from '../../types/container';
 import type { DocBlock, DocLayout, TestDoc } from '../../types/testDoc';
@@ -30,6 +31,7 @@ import type { DocItem } from './docRun';
 import BlockMenu from './BlockMenu';
 import { STUDIO, type Panel } from './copyStudio';
 import { uiIcon } from './icons';
+import { PageBar, PageFoot, PageFull, type PageInfo } from './PageBar';
 import Palette, { EntryIcon, entryLabel, paletteEntry, type PaletteEntry } from './Palette';
 import { canHover, revealBlock } from './phone';
 import Sheet from './Sheet';
@@ -64,6 +66,13 @@ import type { Studio } from './useStudio';
  * page; the gap it would land in is worked out here from the blocks' places (measured once a drag starts) and goes to
  * the store, so a step of a drag re-renders the two gaps the line leaves and reaches. DndContext gets stable props and
  * a stable child (CanvasBody reads the page through CanvasData), so it does no work while typing.
+ *
+ * Pages (owner, 2026-11-05: an exam of 960 questions): the canvas draws one page of the test at a time (`page`, the
+ * blocks from one «Новая страница» to the next — lib/studio/pages.ts), at most 400 blocks, with PageBar over it and
+ * PageFoot under it. The indices stay the test's own; a drag, the keyboard's drag, a dropped file and the palette land
+ * on the page shown. Choosing a block of another page (↑ ↓ past the edge, Alt+↑ / Alt+↓ over a page break, «Показать»
+ * of «Проверка теста», a link to a block) brings its page (`onFollow`); the bar asks the studio (`onPage`), which waits
+ * for the question editor's answer as it does for another block.
  */
 
 /** The one place things are dropped on: the page. */
@@ -382,6 +391,8 @@ interface FocusPlan {
   focus: string | null;
   reveal: string | null;
   late: boolean;
+  /** Renders the focus may still wait for its block (a block of another page comes with the page's render). */
+  tries: number;
   kick: () => void;
 }
 
@@ -396,6 +407,11 @@ function runPlan(plan: FocusPlan, scrollRef: RefObject<HTMLDivElement>) {
       const node = root?.querySelector<HTMLElement>(`[data-block="${focus}"]`);
       node?.focus({ preventScroll: true });
       if (reveal !== focus) node?.scrollIntoView?.({ block: 'nearest' });
+      // Not drawn yet (its page comes with the next render): tried again then, twice at most.
+      if (!node && plan.focus === null && plan.tries > 0) {
+        plan.tries -= 1;
+        plan.focus = focus;
+      }
     }
     // A block not on the page yet (a question still being made) is tried again at the next render.
     if (reveal && revealBlock(root, reveal) && plan.reveal === reveal) plan.reveal = null;
@@ -462,6 +478,12 @@ export interface WorkspaceProps {
   active?: boolean;
   /** Release 49: «Сгенерировать из лекции, текста или файла» at the end of the palette. */
   onGenerate?: () => void;
+  /** The page of the test shown (from 0; clamped to the pages there are). */
+  page?: number;
+  /** PageBar and PageFoot ask for another page (the studio may wait for the question editor first). */
+  onPage?: (page: number) => void;
+  /** The chosen block is on another page: that page now. */
+  onFollow?: (page: number) => void;
 }
 
 /** What the settings get from the canvas: pictures go through its file field and its uploads. */
@@ -517,6 +539,15 @@ interface CanvasData {
   };
   canvasClick: (target: HTMLElement) => void;
   fileChosen: (file: File | undefined) => void;
+  /** The page shown, the pages for the bar (stable while they stay the same), and the way to another one. */
+  range: PageRange;
+  pages: readonly PageInfo[];
+  shown: number;
+  toPage: (page: number) => void;
+  /** A block was refused on a full page (the offer of a new one), or a move or a removal (why): the line's words. */
+  full: { text: string; offer: boolean } | null;
+  newPage: () => void;
+  closeFull: () => void;
 }
 const CanvasDataContext = createContext<CanvasData | null>(null);
 
@@ -538,7 +569,9 @@ function CanvasBody() {
           </aside>
         )}
 
-        <section className="st-canvas" data-device={phone ? 'phone' : device} aria-label={STUDIO.canvas}>
+        <section className="st-canvas" data-device={phone ? 'phone' : device} data-top={d.pages.length > 1 || (d.full !== null && !phone) ? '' : undefined} aria-label={STUDIO.canvas}>
+          {d.pages.length > 1 ? <PageBar pages={d.pages} shown={d.shown} onPage={d.toPage} /> : null}
+          {d.full && !phone ? <PageFull text={d.full.text} toast={false} onNew={d.full.offer ? d.newPage : undefined} onClose={d.closeFull} /> : null}
           <div className="st-frame" data-device={phone ? 'fluid' : device}>
             <div
               ref={d.scrollRef}
@@ -551,7 +584,8 @@ function CanvasBody() {
               onDrop={d.fileEvents.onDrop}
               onClick={(event) => d.canvasClick(event.target as HTMLElement)}
             >
-              <DocView mode="edit" doc={d.doc} items={d.rows} dark={d.dark} editor={d.editor} className="st-doc" />
+              <DocView mode="edit" doc={d.doc} items={d.rows} dark={d.dark} editor={d.editor} range={d.range} className="st-doc" />
+              {d.pages.length > 1 ? <PageFoot pages={d.pages} shown={d.shown} onPage={d.toPage} /> : null}
             </div>
             <CanvasDrop target={d.scrollRef} />
           </div>
@@ -589,7 +623,8 @@ function CanvasBody() {
 
       {d.menu && d.active ? <BlockMenu anchor={d.menu.anchor} onClose={d.closeMenu} onPick={d.pickMenu} /> : null}
 
-      {phone && d.active && d.undoNote ? (
+      {phone && d.active && d.full ? <PageFull text={d.full.text} toast onNew={d.full.offer ? d.newPage : undefined} onClose={d.closeFull} /> : null}
+      {phone && d.active && d.undoNote && !d.full ? (
         <div className="st-toast">
           <p className="st-toast-t">{STUDIO.removed(d.undoNote.name, true)}</p>
           <button type="button" className="st-toast-btn" onClick={d.undoRemove}>
@@ -634,11 +669,27 @@ export default function Workspace({
   onSideOpen,
   active = true,
   onGenerate,
+  page = 0,
+  onPage,
+  onFollow,
 }: WorkspaceProps) {
   const { doc, rows } = studio;
   // The ids keep their array while the order is the same (the keyboard's drag reads them; a key typed changes nothing).
   const idsKey = doc.blocks.map((block) => block.id).join(' ');
   const ids = useMemo(() => (idsKey ? idsKey.split(' ') : []), [idsKey]);
+  // The pages, and the one shown: the same objects while the blocks keep their places (a key typed changes nothing).
+  const ranges = useMemo(() => pageRanges(doc.blocks), [idsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const starts = useMemo(() => ranges.map((entry) => entry.start), [ranges]);
+  const shown = Math.max(0, Math.min(page, ranges.length - 1));
+  const range = ranges[shown];
+  // The bar's list (titles and questions of each page): rebuilt when one of them changes, the same array otherwise.
+  const pagesNow = useMemo(() => {
+    if (ranges.length < 2) return [] as PageInfo[];
+    const counts = pageQuestions(doc.blocks, ranges, (block) => rows.has(block.item_id));
+    return ranges.map((entry, at): PageInfo => ({ title: pageTitle(doc.blocks, entry), ...counts[at] }));
+  }, [doc.blocks, ranges, rows]);
+  const pagesKey = pagesNow.map((entry) => `${entry.first}:${entry.count}:${entry.title}`).join('\n');
+  const pages = useMemo(() => pagesNow, [pagesKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const numbers = useMemo(() => {
     const out = new Map<string, number>();
     for (const block of doc.blocks) if (block.type === 'question' && rows.has(block.item_id)) out.set(block.id, out.size + 1);
@@ -672,11 +723,12 @@ export default function Workspace({
 
   // Focus follows a move, a copy, a removal: the block (or its neighbour) once the page shows it. A block just added is
   // brought to the middle of the screen (`reveal`): on a phone `nearest` left it under the bottom bar.
-  const agent = useRef<FocusPlan>({ focus: null, reveal: null, late: false, kick: () => undefined });
+  const agent = useRef<FocusPlan>({ focus: null, reveal: null, late: false, tries: 0, kick: () => undefined });
   useLayoutEffect(() => runPlan(agent.current, scrollRef));
   const focusBlock = (id: string | null, late = false) => {
     agent.current.focus = id;
     agent.current.late = agent.current.late || late;
+    agent.current.tries = 2;
     agent.current.kick();
   };
   const revealNew = (id: string) => {
@@ -685,10 +737,56 @@ export default function Workspace({
   };
 
   const indexOf = (id: string | null) => (id ? doc.blocks.findIndex((block) => block.id === id) : -1);
+  /** Where the palette puts a block: after the chosen one, else at the end of the page shown. */
   const afterSelected = () => {
     const at = indexOf(selectedNow());
-    return at < 0 ? doc.blocks.length : at + 1;
+    return at < 0 ? range.end : at + 1;
   };
+
+  // ─────────────────────────── the page shown follows the chosen block ───────────────────────────
+
+  const follow = useRef({ ids, starts, shown, onFollow });
+  follow.current = { ids, starts, shown, onFollow };
+  /** The page of block `id` when it is not the page shown (null: shown, or not on the test). */
+  const otherPage = (id: string | null): number | null => {
+    const f = follow.current;
+    const at = id ? f.ids.indexOf(id) : -1;
+    if (at < 0) return null;
+    const of = pageOfIndex(f.starts, at);
+    return of === f.shown ? null : of;
+  };
+  // A block chosen elsewhere (↑ ↓ past the edge, «Показать», a link): its page. Read from the store as it changes, so
+  // choosing a block of the page shown renders nothing more.
+  useEffect(() => {
+    let last = store.get().selected;
+    return store.subscribe(() => {
+      const chosen = store.get().selected;
+      if (chosen === last) return;
+      last = chosen;
+      const of = otherPage(chosen);
+      if (of !== null) follow.current.onFollow?.(of);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store]);
+  // The chosen block moved to another page (Alt+↑ over a page break, a new page before it): its page.
+  useLayoutEffect(() => {
+    const of = otherPage(store.get().selected);
+    if (of !== null) onFollow?.(of);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
+  // Another page by the bar: from its top (a block chosen there brings itself into view).
+  const lastShown = useRef(shown);
+  useLayoutEffect(() => {
+    if (lastShown.current === shown) return;
+    lastShown.current = shown;
+    if (store.get().selected) return;
+    const root = scrollRef.current;
+    if (!root) return;
+    if (phone) {
+      const top = root.getBoundingClientRect().top + window.scrollY - 80;
+      if (window.scrollY > top) window.scrollTo({ top: Math.max(0, top) });
+    } else root.scrollTop = 0;
+  }, [shown, phone, store]);
 
   // ─────────────────────────── adding ───────────────────────────
 
@@ -802,13 +900,15 @@ export default function Workspace({
       document.removeEventListener('dragleave', left);
     };
   }, [fileGone]);
+  /** The first place of the page shown a block may take: after the «Новая страница» that opens it. */
+  const firstSlot = () => (doc.blocks[range.start]?.type === 'page' ? range.start + 1 : range.start);
   const slotAtY = (y: number): number => {
     const frames = scrollRef.current?.querySelectorAll<HTMLElement>('.st-block[data-index]') ?? [];
     for (const frame of Array.from(frames)) {
       const rect = frame.getBoundingClientRect();
-      if (y < rect.top + rect.height / 2) return Number(frame.dataset.index);
+      if (y < rect.top + rect.height / 2) return Math.max(firstSlot(), Number(frame.dataset.index));
     }
-    return doc.blocks.length;
+    return range.end;
   };
   const fileEnter = (event: DragEvent<HTMLDivElement>) => {
     if (!draggingFiles(event.dataTransfer) || dragId !== null) return;
@@ -886,9 +986,10 @@ export default function Workspace({
   const removeNow = (id: string) => {
     const at = indexOf(id);
     const gone = doc.blocks[at];
-    const neighbour = doc.blocks[at + 1] ?? doc.blocks[at - 1] ?? null;
+    // The neighbour on the same page (the page shown stays).
+    const neighbour = (at + 1 < range.end ? doc.blocks[at + 1] : null) ?? (at - 1 >= range.start ? doc.blocks[at - 1] : null) ?? null;
     setConfirm(null);
-    studio.remove(id, phone);
+    if (!studio.remove(id, phone)) return;
     onSelect(neighbour?.id ?? null);
     focusBlock(neighbour?.id ?? null);
     // A touch screen has no Ctrl+Z: «Вернуть» stands over the bar until the page changes again.
@@ -964,15 +1065,19 @@ export default function Workspace({
   const keyTarget = useRef<number | null>(null);
   const idsRef = useRef(ids);
   idsRef.current = ids;
+  /** The places of the page shown (the keyboard's drag stays on it): its first block's, its end gap's. */
+  const placesRef = useRef({ first: 0, end: 0 });
+  placesRef.current = { first: firstSlot(), end: range.end };
   const keyboardCoordinates: KeyboardCoordinateGetter = useCallback((event, { context, currentCoordinates }) => {
     if (event.code !== 'ArrowDown' && event.code !== 'ArrowUp') return undefined;
     event.preventDefault();
     const list = idsRef.current;
+    const { first, end } = placesRef.current;
     const from = keyTarget.current ?? list.indexOf(String(context.active?.id ?? ''));
-    const at = Math.max(0, Math.min(list.length, (from < 0 ? 0 : from) + (event.code === 'ArrowDown' ? 1 : -1)));
+    const at = Math.max(first, Math.min(end, (from < 0 ? first : from) + (event.code === 'ArrowDown' ? 1 : -1)));
     keyTarget.current = at;
     const root = scrollRef.current;
-    const node = at === list.length ? root?.querySelector<HTMLElement>('.st-gap-end') : root?.querySelector<HTMLElement>(`[data-block="${list[at]}"]`);
+    const node = at === end ? root?.querySelector<HTMLElement>('.st-gap-end') : root?.querySelector<HTMLElement>(`[data-block="${list[at]}"]`);
     const rect = node?.getBoundingClientRect();
     return rect ? { x: rect.left, y: rect.top } : currentCoordinates;
   }, []);
@@ -996,7 +1101,7 @@ export default function Workspace({
    * The blocks' middles in the window, measured once a drag is on its way (after the dragged block was chosen, which
    * makes the gap under it taller), with the scroll of the page then; the scroll since is followed by its own events.
    */
-  const places = useRef<{ mids: number[]; scroller: Element | null; top: number } | null>(null);
+  const places = useRef<{ mids: number[]; at: number[]; scroller: Element | null; top: number } | null>(null);
   const scrolled = useRef(0);
   const followScroll = useCallback((event: Event) => {
     const scroller = places.current?.scroller;
@@ -1008,18 +1113,19 @@ export default function Workspace({
   const pointerSlot = (y: number): number => {
     if (!places.current) {
       const scroller = phone ? document.scrollingElement : scrollRef.current;
-      const frames = scrollRef.current?.querySelectorAll<HTMLElement>('.st-block[data-index]') ?? [];
-      const mids = Array.from(frames, (frame) => {
+      const frames = Array.from(scrollRef.current?.querySelectorAll<HTMLElement>('.st-block[data-index]') ?? []);
+      const mids = frames.map((frame) => {
         const rect = frame.getBoundingClientRect();
         return rect.top + rect.height / 2;
       });
-      places.current = { mids, scroller, top: scroller?.scrollTop ?? 0 };
+      places.current = { mids, at: frames.map((frame) => Number(frame.dataset.index)), scroller, top: scroller?.scrollTop ?? 0 };
       scrolled.current = places.current.top;
     }
-    const { mids, top } = places.current;
+    // The page's own places (its blocks' indices in the test), never above the «Новая страница» that opens it.
+    const { mids, at: indices, top } = places.current;
     const shift = scrolled.current - top;
-    for (let at = 0; at < mids.length; at += 1) if (y < mids[at] - shift) return at;
-    return mids.length;
+    for (let at = 0; at < mids.length; at += 1) if (y < mids[at] - shift) return Math.max(firstSlot(), indices[at]);
+    return range.end;
   };
 
   /** The gap the dragged thing would land in: 0 — before the first block, blocks.length — after the last; null — outside. */
@@ -1030,7 +1136,7 @@ export default function Workspace({
     const from = fresh ? -1 : ids.indexOf(String(id));
     const key = keyTarget.current;
     // The keyboard: a block takes the place of the one it is over (below it when coming from above).
-    if (key !== null) return fresh || key >= ids.length ? key : key > from ? key + 1 : key;
+    if (key !== null) return fresh || key >= range.end ? key : key > from ? key + 1 : key;
     const pointer = pointerAt.current;
     if (!pointer) return fresh ? null : from;
     return pointerSlot(pointer.y);
@@ -1284,6 +1390,19 @@ export default function Workspace({
     } : undefined),
     [onGenerate, onPaletteOpen, phone],
   );
+  const toPage = useEvent((next: number) => {
+    if (next !== shown && next >= 0 && next < ranges.length) onPage?.(next);
+  });
+  /** «Начать новую страницу»: after the full page; the new page is shown, its «Новая страница» chosen. */
+  const takeNewPage = useEvent(() => {
+    const at = studio.fullAt;
+    if (at === null) return;
+    const block = studio.newPage(at);
+    if (!block) return;
+    onSelect(block.id);
+    onPanel('block');
+    focusBlock(block.id);
+  });
   const dragEntry = dragId !== null ? paletteEntry(dragId) : null;
   const dragBlock = dragId !== null && !dragEntry ? doc.blocks.find((block) => block.id === dragId) ?? null : null;
   const data: CanvasData = {
@@ -1317,6 +1436,13 @@ export default function Workspace({
     fileEvents,
     canvasClick,
     fileChosen,
+    range,
+    pages,
+    shown,
+    toPage,
+    full: studio.fullAt !== null ? { text: STUDIO.pageFull, offer: true } : studio.pageNote ? { text: studio.pageNote, offer: false } : null,
+    newPage: takeNewPage,
+    closeFull: studio.clearFull,
   };
   // DndContext's child: one element for the canvas's life (with the questions' percents of release 49 around it).
   const body = useMemo(() => <ItemPercentsProvider containerId={containerId}><CanvasBody /></ItemPercentsProvider>, [containerId]);

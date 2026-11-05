@@ -4,7 +4,7 @@
  * view, the preview as a participant, and the participant's own words in DocView. Plain Russian, no exclamation
  * marks; words the constructor and the editor already have come from copyTest.ts / copyImport.ts.
  */
-import type { DocBlockType, DocButtons, DocDensity, DocFont, DocLayout, DocRadius } from '../../types/testDoc';
+import { DOC_MAX_BLOCKS, DOC_PAGE_BLOCKS, type DocBlockType, type DocButtons, type DocDensity, type DocFont, type DocLayout, type DocRadius } from '../../types/testDoc';
 import { count, EDITOR, plural } from '../containers/copyImport';
 
 export type QuestionType = 'single' | 'multiple' | 'truefalse' | 'short' | 'number' | 'order' | 'match' | 'cloze' | 'essay';
@@ -113,8 +113,14 @@ export const STUDIO = {
     question: 'Вопрос',
   } as Record<DocBlockType, string>,
   qtypes: { single: 'Один ответ', multiple: 'Несколько ответов', truefalse: 'Верно / неверно', short: 'Короткий ответ', number: 'Число', order: 'Порядок', match: 'Соответствие', cloze: 'Пропуски в тексте', essay: 'Развёрнутый ответ' } as Record<QuestionType, string>,
-  full: 'На странице уже 400 блоков. Больше не поместится.',
-  cap: 'На странице помещается 400 блоков. Остальные вопросы во вкладке «Список».',
+  full: `В тесте уже ${DOC_MAX_BLOCKS} блоков. Больше не поместится.`,
+  cap: `В тесте помещается ${DOC_MAX_BLOCKS} блоков. Остальные вопросы во вкладке «Список».`,
+  /** A block added to a page of the canvas that holds DOC_PAGE_BLOCKS already: the canvas offers a new page. */
+  pageFull: `На этой странице уже ${DOC_PAGE_BLOCKS} блоков. Добавьте блок на новую страницу.`,
+  pageFullNew: 'Начать новую страницу',
+  pageFullClose: 'Закрыть',
+  pageJoinFull: `Страницы не объединить: вместе в них больше ${DOC_PAGE_BLOCKS} блоков.`,
+  pageMoveFull: `Тогда на странице будет больше ${DOC_PAGE_BLOCKS} блоков. Блок остался на месте.`,
 
   // the canvas
   canvas: 'Страница теста',
@@ -141,6 +147,22 @@ export const STUDIO = {
   goneFix: 'Убрать блок',
   pageMark: (n: number) => `Страница ${n}`,
   pageUntitled: 'без названия',
+  // the canvas shows one page at a time (owner, 05.11: 960 questions, «перейти на вторую страницу»)
+  pagesNav: 'Страницы теста',
+  pageOf: (n: number, of: number) => `Страница ${n} из ${of}`,
+  pagePrev: 'Предыдущая страница',
+  pageNext: 'Следующая страница',
+  pageJump: 'Перейти на страницу',
+  /** A page in the list of «Перейти на страницу»: its number, its title, its questions. */
+  pageOption: (n: number, title: string, questions: string) => [`${n}. ${title || `Страница ${n}`}`, questions].filter(Boolean).join(' · '),
+  pageQuestions: (first: number, n: number) => (n === 0 ? 'без вопросов' : n === 1 ? `вопрос ${first}` : `вопросы ${first}–${first + n - 1}`),
+  /** Under the page's last block: the way on. */
+  pageOn: (n: number, title: string) => (title ? `Страница ${n}: ${title}` : `Страница ${n}`),
+  pageBack: (n: number) => `К странице ${n}`,
+  // «Страница на каждый предмет» (the page's own settings)
+  bySubject: 'Страница на каждый предмет',
+  bySubjectHint: 'Каждый предмет начнётся с новой страницы. Блоки останутся на своих местах.',
+  bySubjectDone: (n: number) => (n === 0 ? 'Каждый предмет уже начинается с новой страницы.' : n === 1 ? 'Добавлена одна страница.' : `Добавлено страниц: ${n}.`),
   emptyText: 'Пишите текст или нажмите «/», чтобы выбрать блок',
   imageEmpty: 'Картинки пока нет',
   imagePick: 'Загрузить свою картинку',
