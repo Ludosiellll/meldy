@@ -310,8 +310,9 @@ function stamp(iso: string | null): string {
 
 /**
  * The results as a table Excel opens (BOM, «;», CRLF): a row an attempt, a column a question (1 / 0 / empty). A quiz «как
- * в студии» (release 47.2) also has «Баллы» and «Всего баллов» (its questions weigh their points), and its «%» is the
- * points' percent, as the participant saw it.
+ * в студии» (release 47.2) also has «Баллы» and «Всего баллов» (its questions weigh their points), and so does a quiz of
+ * subjects once an attempt weighs its questions' own points (20261107090700_item_points: max_score is not the count);
+ * its «%» is the points' percent, as the participant saw it.
  */
 export function csvOf(
   quiz: Pick<QuizRow, 'pass_percent' | 'design' | 'protection'>,
@@ -328,7 +329,7 @@ export function csvOf(
     .filter((item): item is TestItem => Boolean(item))
     .sort((a, b) => (order.get(a.subject_id) ?? 0) - (order.get(b.subject_id) ?? 0) || a.position - b.position);
   const mark = new Map(marks.map((m) => [`${m.attempt_id}:${m.item_id}`, m.correct]));
-  const points = quiz.design === true;
+  const points = quiz.design === true || attempts.some((a) => typeof a.max_score === 'number' && a.max_score !== a.total);
   // «Защита от списывания» (20261020120000_quiz_protection): the times away, all events, and a mark on suspicious ones.
   const guarded = (quiz.protection !== undefined && quiz.protection !== 'off') || attempts.some((a) => (a.guard_events ?? 0) > 0);
   const header = [

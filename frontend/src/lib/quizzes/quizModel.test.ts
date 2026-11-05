@@ -305,6 +305,22 @@ describe('the studio’s points (release 47.2)', () => {
     expect(plain[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Проходной балл;Вопросы № 1');
     expect(plain[1].endsWith(';4;6;67;нет;1')).toBe(true);
   });
+
+  it('csvOf: a quiz of subjects whose questions weigh their own points (20261107090700_item_points) has the columns too', () => {
+    const items = [{ id: 'i1', subject_id: 's1', position: 1, file_no: '1' }] as TestItem[];
+    const marks = [{ attempt_id: 'a1', item_id: 'i1', correct: true }];
+    const subjects = [{ id: 's1', title: 'Вопросы' }];
+    const weighed = csvOf({ pass_percent: 80, design: false }, [attempt({ id: 'a1', correct: 2, total: 4, score: 8.5, max_score: 10 })], marks, items, subjects)
+      .slice(1)
+      .split('\r\n');
+    expect(weighed[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;Баллы;Всего баллов;%;Проходной балл;Вопросы № 1');
+    expect(weighed[1].endsWith(';2;4;8.5;10;85;да;1')).toBe(true);
+    // partial credit alone weighs nothing: the count stays the table's
+    const partial = csvOf({ pass_percent: 80, design: false }, [attempt({ id: 'a1', correct: 2, total: 4, score: 2.5, max_score: 4 })], marks, items, subjects)
+      .slice(1)
+      .split('\r\n');
+    expect(partial[0]).toBe('Имя;Попытка;Начало;Конец;Минуты;Верно;Всего;%;Проходной балл;Вопросы № 1');
+  });
 });
 
 describe('statsSubjects (phone audit 47.3)', () => {

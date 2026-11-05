@@ -409,6 +409,14 @@ describe('items by keyset pages', () => {
     expect(items[5]).toMatchObject({ partial: false, tolerance: null, unit: null, material_ids: [] });
   });
 
+  it('reads a question\'s points (20261107090700_item_points): 1..100, anything else or none as 1', async () => {
+    const base = rows(S1, 1)[0];
+    const served = [3, 100, 1, 0, 101, 2.5, '7', null, undefined].map((points, index) => ({ ...base, id: `p-${index}`, position: index + 1, points }));
+    db.table = () => ({ data: served, error: null, status: 200 });
+    const items = await fetchItemsPage(S1, 0);
+    expect(items.map((item) => item.points)).toEqual([3, 100, 1, 1, 1, 1, 7, 1, 1]);
+  });
+
   it('stops on a page that does not move on instead of reading forever, and keeps each item once', async () => {
     db.table = () => ({ data: rows(S1, 500, 1).map((row) => ({ ...row, position: 7 })), error: null, status: 200 });
     const items = await fetchAllItems([S1]);

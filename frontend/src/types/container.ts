@@ -222,7 +222,14 @@ export interface TestItem {
   partial?: boolean;
   /** essay: the author's lectures the check reads. */
   material_ids?: string[];
+  /**
+   * The question's points in a quiz of the exam's subjects (20261107090700_item_points, 1..ITEM_POINTS_MAX, default 1);
+   * a quiz «как в студии» weighs its blocks' points instead. Missing from a row read before that file.
+   */
+  points?: number;
 }
+/** The most points a question weighs (test_items_points_check; the studio's block has the same cap). */
+export const ITEM_POINTS_MAX = 100;
 /** The kinds of release 48 (docs/kinds/CONTRACT.md). */
 export const NEW_KINDS: readonly ItemKind[] = ['number', 'order', 'match', 'cloze', 'essay'];
 /** The kinds whose author may switch partial credit on. */
@@ -244,7 +251,7 @@ export const pictureOption = (letter: string) => `Рисунок ${letter}`;
 export const isPictureWord = (text: string) => text.trim() === PICTURE_STEM || /^Рисунок [А-Я0-9]{1,2}$/.test(text.trim());
 export const PICTURE_LIMITS = { stem: 8, option: 4 } as const; // meldy_images_ok: paths per stem and per option
 export const TEST_ITEM_COLUMNS =
-  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at, images, explanation, tolerance, unit, partial, material_ids';
+  'id, container_id, subject_id, position, file_no, topic, kind, stem, options, correct, answers, key_source, code, keep_order, flags, rev, updated_at, images, explanation, tolerance, unit, partial, material_ids, points';
 
 // record_test_answers(p_answers) / container_mock_finish(p_run)
 /** The plan class an answer belongs to (for the student's own pace and miss rates). */
@@ -355,6 +362,7 @@ export interface ItemInput {
   unit?: string | null; // number: 1..20 characters
   partial?: boolean; // multiple, order, match, cloze
   material_ids?: string[]; // essay: ≤ 10 of the author's lectures
+  points?: number; // 1..ITEM_POINTS_MAX; absent — 1
 }
 export interface ItemsAdded {
   subject_id: Uuid;
@@ -362,7 +370,7 @@ export interface ItemsAdded {
   in_container: number; // ≤ 2000
   items: Array<{ ref: string; id: Uuid; position: number }>;
 }
-export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order' | 'images' | 'explanation' | 'tolerance' | 'unit' | 'partial' | 'material_ids'>>;
+export type ItemPatch = Partial<Pick<ItemInput, 'stem' | 'options' | 'correct' | 'answers' | 'kind' | 'file_no' | 'topic' | 'key_source' | 'code' | 'keep_order' | 'images' | 'explanation' | 'tolerance' | 'unit' | 'partial' | 'material_ids' | 'points'>>;
 /** The most characters of an explanation (test_items_explanation_check). */
 export const EXPLANATION_MAX = 2000;
 export interface ItemUpdated {
@@ -370,6 +378,8 @@ export interface ItemUpdated {
   rev: number;
   rev_changed: boolean; // the key, the kind or the option count changed: everyone's state of this item starts again
   doubts_resolved: number;
+  /** The points as stored (20261107090700_item_points); missing from an older server. */
+  points?: number;
 }
 
 // doubts («Сомневаюсь в ключе» from members; the author decides)

@@ -95,6 +95,8 @@ export function copyInput(item: TestItem, fileNo: string, ref: string): ItemInpu
   const images = copyImages(item.images);
   if (images) input.images = images;
   if (item.explanation) input.explanation = item.explanation;
+  // a copy weighs what the question weighs (20261107090700_item_points)
+  if (item.points !== undefined && item.points !== 1) input.points = item.points;
   return input;
 }
 
@@ -120,6 +122,7 @@ export function itemFromInput(input: ItemInput, id: Uuid, position: number, subj
     updated_at: '',
     images: copyImages(input.images),
     explanation: input.explanation ?? '',
+    points: input.points ?? 1,
   };
 }
 

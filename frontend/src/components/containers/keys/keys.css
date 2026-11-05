@@ -355,6 +355,14 @@
 @media (pointer: coarse) {
   .qe-hint { display: none; }
 }
+/* «Баллы» (20261107090700_item_points): one short row under the explanation — the label, «−», the number and «+» (the
+   editor's own icon buttons and field) — with its hint under it. */
+.qe-points { margin-top: 16px; }
+.qe-points-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; }
+.qe-points-row .qe-label { margin: 0; }
+.qe-stepper { display: inline-flex; align-items: center; gap: 2px; }
+.qe-points-input { width: 64px; min-height: 44px; padding: 0 6px; text-align: center; font-variant-numeric: tabular-nums; }
+.qe-points .qe-khint { margin-top: 4px; }
 /* The explanation's counter near its limit; over it the figure turns ink and bold, and a problem line says it too. */
 .qe-count { margin: 6px 0 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); text-align: right; font-variant-numeric: tabular-nums; }
 .qe-count[data-over] { color: var(--sf-ink); font-weight: 600; }

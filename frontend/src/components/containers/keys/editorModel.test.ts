@@ -14,9 +14,12 @@ import {
   kindOf,
   nextFileNo,
   patchOf,
+  pointsValue,
   removeOption,
   resetsProgress,
   searchItems,
+  stepPoints,
+  switchKind,
   tickOnly,
   toggleTick,
   type Draft,
@@ -330,5 +333,65 @@ describe('countRestarts (phone audit 47.3)', () => {
   });
   it('a restart this page already made is not said twice', () => {
     expect(countRestarts(false, { seen: 3 }, true)).toBe(false);
+  });
+});
+
+describe('«Баллы» (20261107090700_item_points)', () => {
+  it('a draft carries the question\'s points; a row read before the column weighs 1, a new question too', () => {
+    expect(draftOf(item({ points: 7 })).points).toBe('7');
+    expect(draftOf(item()).points).toBe('1');
+    expect(draftOf(item({ kind: 'number', options: [], correct: [], answers: ['9.8'], points: 4 })).points).toBe('4');
+    expect(emptyDraft().points).toBe('1');
+    expect(switchKind({ ...emptyDraft(), points: '6' }, 'number').points).toBe('6');
+  });
+
+  it('reads a whole number 1..100 and nothing else', () => {
+    expect(['1', ' 42 ', '100'].map((points) => pointsValue({ points }))).toEqual([1, 42, 100]);
+    expect(['', '0', '101', '2.5', '-3', 'пять', '0100'].map((points) => pointsValue({ points }))).toEqual([null, null, null, null, null, null, null]);
+    expect(pointsValue({})).toBeNull();
+  });
+
+  it('steps within 1..100, from 1 when the field is broken', () => {
+    expect(stepPoints({ ...emptyDraft(), points: '5' }, 1).points).toBe('6');
+    expect(stepPoints({ ...emptyDraft(), points: '1' }, -1).points).toBe('1');
+    expect(stepPoints({ ...emptyDraft(), points: '100' }, 1).points).toBe('100');
+    expect(stepPoints({ ...emptyDraft(), points: '' }, 1).points).toBe('2');
+  });
+
+  it('a broken number is a problem; a draft without the field has none', () => {
+    expect(draftProblems({ ...draftOf(item()), points: '0' })).toEqual(['points']);
+    expect(draftProblems({ ...draftOf(item()), points: '' })).toEqual(['points']);
+    const older: Draft = draftOf(item());
+    delete older.points;
+    expect(draftProblems(older)).toEqual([]);
+  });
+
+  it('the patch sends them only when they changed, alone or with the rest, and they never restart anybody', () => {
+    expect(patchOf(item({ points: 3 }), draftOf(item({ points: 3 })))).toBeNull();
+    expect(patchOf(item(), { ...draftOf(item()), points: '1' })).toBeNull();
+    expect(patchOf(item({ points: 3 }), { ...draftOf(item({ points: 3 })), points: '5' })).toEqual({ points: 5 });
+    expect(patchOf(item(), { ...draftOf(item()), points: '2', correct: [1] })).toEqual({ points: 2, correct: [1] });
+    const number = item({ kind: 'number', options: [], correct: [], answers: ['9.8'] });
+    expect(patchOf(number, { ...draftOf(number), points: '3' })).toEqual({ points: 3 });
+    const older: Draft = draftOf(item({ points: 3 }));
+    delete older.points;
+    expect(patchOf(item({ points: 3 }), older)).toBeNull();
+    expect(resetsProgress(item(), { points: 9 })).toBe(false);
+  });
+
+  it('a new question takes them when they are not 1', () => {
+    const draft: Draft = { ...emptyDraft(), stem: 'Сколько будет 2 + 2?', options: [{ text: '4', pictures: [] }, { text: '5', pictures: [] }], correct: [0] };
+    expect(inputOf(draft, '1', 'man:p').points).toBeUndefined();
+    expect(inputOf({ ...draft, points: '4' }, '1', 'man:p').points).toBe(4);
+    const number = { ...switchKind({ ...draft, points: '3' }, 'number'), numbers: '4' };
+    expect(inputOf(number, '2', 'man:n')).toMatchObject({ kind: 'number', points: 3 });
+  });
+
+  it('a new question whose points alone changed holds a change; so does a number typed out of range', () => {
+    expect(draftChanged(null, { ...emptyDraft(), points: '2' })).toBe(true);
+    expect(draftChanged(null, emptyDraft())).toBe(false);
+    expect(draftChanged(item(), { ...draftOf(item()), points: '0' })).toBe(true);
+    expect(draftChanged(item(), { ...draftOf(item()), points: '' })).toBe(true);
+    expect(draftChanged(item({ points: 2 }), draftOf(item({ points: 2 })))).toBe(false);
   });
 });

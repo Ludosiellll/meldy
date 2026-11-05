@@ -12,8 +12,10 @@ import {
   explanationText,
   kindForced,
   patchOf,
+  pointsValue,
   removeOption,
   resetsProgress,
+  stepPoints,
   switchKind,
   tickOnly,
   toggleTick,
@@ -42,6 +44,8 @@ const kindChoiceOf = (draft: Draft): KindChoice => draft.kind ?? (draft.short ? 
  * container_item_update, a new one through container_items_add (editorModel.ts). A page that guards changes not saved
  * hears of them (`onDirty`) and asks about them inside the editor (`unsaved`: «Сохранить» / «Не сохранять»); a page
  * with a «Сохранить» of its own (the studio's top bar, Ctrl+S, «Сохранить и выйти») presses this one through `handle`.
+ * «Вопросы и ключи» also shows «Баллы» (`points`, 20261107090700_item_points): the question's points in a quiz of the
+ * exam's subjects, «−», the number and «+» under the explanation. The studio leaves them out: its block has its own.
  */
 
 type Target = 'stem' | number;
@@ -88,6 +92,8 @@ interface Props {
   initialDraft?: Draft | null;
   /** Told of every change of the draft (the page keeps it while it differs from the question). */
   onDraft?: (draft: Draft) => void;
+  /** «Баллы»: the question's points in a quiz of the exam's subjects («Вопросы и ключи»; the studio has the block's). */
+  points?: boolean;
 }
 
 const GROWS = 'textarea.qe-text';
@@ -142,6 +148,14 @@ function PictureIcon() {
   );
 }
 
+function StepIcon({ plus }: { plus: boolean }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d={plus ? 'M3.5 8h9M8 3.5v9' : 'M3.5 8h9'} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function CrossIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true">
@@ -169,6 +183,7 @@ export default function QuestionEditor({
   handle,
   initialDraft = null,
   onDraft,
+  points = false,
 }: Props) {
   const id = useId();
   const [draft, setDraft] = useState<Draft>(() => initialDraft ?? (item ? draftOf(item) : emptyDraft()));
@@ -192,7 +207,9 @@ export default function QuestionEditor({
 
   const problems = draftProblems(draft);
   const patch = useMemo(() => (item ? patchOf(item, draft) : null), [item, draft]);
-  const unchanged = Boolean(item) && patch === null;
+  const dirty = useMemo(() => draftChanged(item, draft), [item, draft]);
+  // «Баллы» typed out of range send no patch, yet they are a change: the problem line says what is wrong, not «no change»
+  const unchanged = Boolean(item) && !dirty;
   // «Ничего не изменилось» answers a change taken back, so it waits for the author's first change: not on a fresh
   // editor, and not right after «Сохранить» where the page keeps the editor open on the question as saved (the studio's
   // panel: the draft then equals the question, and the line read as if the save had been lost — phone audit 47.3).
@@ -205,7 +222,6 @@ export default function QuestionEditor({
   const noKey = !draft.kind && !draft.short && draft.correct.length === 0 && draft.options.length >= 2;
   const explained = explanationText(draft).length;
   const canSave = !busy && loading === 0 && problems.length === 0 && !unchanged;
-  const dirty = useMemo(() => draftChanged(item, draft), [item, draft]);
 
   // The page hears of changes not saved (its guard and the browser's «Покинуть сайт?»), and of the draft itself.
   const onDraftRef = useRef(onDraft);
@@ -423,6 +439,9 @@ export default function QuestionEditor({
   };
 
   const several = !trueFalse && Boolean(draft.multiple);
+  // «Баллы» as typed; a draft kept from before the field shows the question's own
+  const pointsText = draft.points ?? String(item?.points ?? 1);
+  const pointsNow = pointsValue({ points: pointsText });
   const saving = busy ? EDITOR.saving : null;
 
   return (
@@ -629,6 +648,52 @@ export default function QuestionEditor({
         <p id={`${id}-explanation-count`} className="qe-count" data-over={explained > LIMITS.explanation ? '' : undefined}>
           {EDITOR.explanationCount(explained, LIMITS.explanation)}
         </p>
+      ) : null}
+      {points ? (
+        <div className="qe-points">
+          <div className="qe-points-row">
+            <label className="qe-label" htmlFor={`${id}-points`}>
+              {EDITOR.points}
+            </label>
+            <span className="qe-stepper">
+              <button
+                type="button"
+                className="qe-icon"
+                aria-label={EDITOR.pointsLess}
+                title={EDITOR.pointsLess}
+                disabled={busy || (pointsNow ?? 1) <= 1}
+                onClick={() => setDraft((current) => stepPoints({ ...current, points: current.points ?? pointsText }, -1))}
+              >
+                <StepIcon plus={false} />
+              </button>
+              <input
+                id={`${id}-points`}
+                className="kq-input qe-points-input"
+                inputMode="numeric"
+                autoComplete="off"
+                value={pointsText}
+                maxLength={3}
+                disabled={busy}
+                aria-describedby={`${id}-points-hint`}
+                aria-invalid={pointsNow === null ? true : undefined}
+                onChange={(event) => setDraft((current) => ({ ...current, points: event.target.value.replace(/\D/g, '').slice(0, 3) }))}
+              />
+              <button
+                type="button"
+                className="qe-icon"
+                aria-label={EDITOR.pointsMore}
+                title={EDITOR.pointsMore}
+                disabled={busy || (pointsNow ?? 1) >= LIMITS.points}
+                onClick={() => setDraft((current) => stepPoints({ ...current, points: current.points ?? pointsText }, 1))}
+              >
+                <StepIcon plus />
+              </button>
+            </span>
+          </div>
+          <p className="qe-khint" id={`${id}-points-hint`}>
+            {nb(EDITOR.pointsHint)}
+          </p>
+        </div>
       ) : null}
       <input
         ref={fileRef}

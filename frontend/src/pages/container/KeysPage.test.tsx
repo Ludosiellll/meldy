@@ -295,6 +295,38 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     expect(screen.queryByRole('form', { name: EDITOR.label })).toBeNull();
   });
 
+  it('«Баллы» (20261107090700_item_points): the editor sends them alone, the card says them beside the number', async () => {
+    api.updateItem.mockImplementationOnce(async (id: string) => ({ id, rev: 1, rev_changed: false, doubts_resolved: 0, points: 4 }));
+    renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}&no=7`);
+    const card = await screen.findByRole('article');
+    // a question of 1 point says nothing of points
+    expect(within(card).queryByText(/балл/)).toBeNull();
+    fireEvent.click(within(card).getByRole('button', { name: KEYS.edit }));
+    const editor = screen.getByRole('form', { name: EDITOR.label });
+    expect((within(editor).getByLabelText(EDITOR.points) as HTMLInputElement).value).toBe('1');
+    fireEvent.change(within(editor).getByLabelText(EDITOR.points), { target: { value: '4' } });
+    fireEvent.click(within(editor).getByRole('button', { name: EDITOR.save }));
+    await waitFor(() => expect(api.updateItem).toHaveBeenCalledWith(BASE_ITEMS[6].id, { points: 4 }));
+    const saved = await screen.findByRole('article');
+    expect(within(saved).getByText(/№\s7 · .* · 4\sбалла$/)).toBeInTheDocument();
+    expect(screen.getByText(KEYS.edited)).toBeInTheDocument();
+  });
+
+  it('a new question goes with the points the author set', async () => {
+    renderAt(`/exams/c/${ID}/keys?s=${SUBJECT_1}`);
+    fireEvent.click(await screen.findByRole('button', { name: KEYS.add }));
+    const editor = screen.getByRole('form', { name: EDITOR.label });
+    fireEvent.change(within(editor).getByLabelText(EDITOR.stem), { target: { value: 'Что такое шлюз в BPMN?' } });
+    fireEvent.change(within(editor).getByLabelText(EDITOR.option('А')), { target: { value: 'Ромб ветвления' } });
+    fireEvent.change(within(editor).getByLabelText(EDITOR.option('Б')), { target: { value: 'Стрелка' } });
+    fireEvent.click(within(editor).getByLabelText(EDITOR.right('А')));
+    fireEvent.click(within(editor).getByRole('button', { name: EDITOR.pointsMore }));
+    fireEvent.click(within(editor).getByRole('button', { name: EDITOR.add }));
+    await waitFor(() => expect(api.addItems).toHaveBeenCalledTimes(1));
+    const [, inputs] = api.addItems.mock.calls[0] as [string, Array<Record<string, unknown>>];
+    expect(inputs[0]).toMatchObject({ stem: 'Что такое шлюз в BPMN?', points: 2 });
+  });
+
   // Phone audit 47.3: a brand-new test's first save said «Счёт по этому вопросу начнётся заново» — nothing was counted.
   describe('the line after a save that moves the key', () => {
     const saveNewKey = async () => {

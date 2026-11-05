@@ -65,6 +65,11 @@ export const EDITOR = {
   explanationShown: 'Пояснение',
   /** Near the limit: «1 850 из 2000». */
   explanationCount: (n: number, max: number) => `${n} из ${max}`,
+  /** «Баллы» (20261107090700_item_points): what the question weighs in a quiz of the exam's subjects. */
+  points: 'Баллы',
+  pointsHint: `Сколько стоит вопрос в контрольной, от 1 до${NBSP}100. В контрольной «как в студии» баллы берутся из студии.`,
+  pointsLess: 'Меньше баллов',
+  pointsMore: 'Больше баллов',
   save: 'Сохранить',
   /** A new question in «Конструктор»: saved, and a blank one of the same kind opens under it. */
   saveNext: 'Сохранить и следующий',
@@ -120,6 +125,7 @@ export const EDITOR = {
     gaps_many: 'Пропусков больше десяти.',
     gap_forms: 'У каждого пропуска нужен хотя бы один верный ответ.',
     materials_many: 'Лекций не больше десяти.',
+    points: 'Баллы — целое число от 1 до 100.',
   },
 } as const;
 
@@ -738,6 +744,8 @@ export const KEYS = {
   edit: 'Изменить',
   add: 'Добавить вопрос',
   addContext: (subject: string, no: string) => `Новый вопрос · ${subject} · № ${no}`,
+  /** A question's points beside its number when they are not 1 (20261107090700_item_points): «3 балла». */
+  points: (n: number) => count(n, 'балл', 'балла', 'баллов'),
   added: (no: string) => `Вопрос № ${no} добавлен.`,
   edited: 'Сохранено.',
   editedReset: (group: boolean) =>

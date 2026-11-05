@@ -1,4 +1,4 @@
-import { EXPLANATION_MAX, isPictureWord, PICTURE_STEM, pictureOption, type ItemImages, type ItemInput, type ItemKind, type ItemPatch, type TestItem } from '../../../types/container';
+import { EXPLANATION_MAX, isPictureWord, ITEM_POINTS_MAX, PICTURE_STEM, pictureOption, type ItemImages, type ItemInput, type ItemKind, type ItemPatch, type TestItem } from '../../../types/container';
 import { letter } from '../copyImport';
 import { answersOfGaps, gapCount, gapForms, GAPS_MAX, GAP_FORMS_MAX, GAP_TEXT_MAX } from '../../../lib/kinds/cloze';
 import { canonicalNumber, canonicalTolerance } from '../../../lib/kinds/number';
@@ -18,7 +18,8 @@ export const isNewKind = (kind: string | undefined): kind is NewKind => NEW_KIND
  * «Вопрос на картинке» / «Рисунок Б» and shown back empty here. The explanation (release 47, ≤ EXPLANATION_MAX) is
  * shown after an answer; changing it never restarts anybody's progress. A choice question keeps the kind the author
  * gave it (release 47, M5): «несколько ответов» stays so with one tick; two ticks make any choice question one with
- * several answers (the database refuses a one-answer question with two keys).
+ * several answers (the database refuses a one-answer question with two keys). «Баллы» (20261107090700_item_points) are
+ * the question's weight in a quiz of subjects, 1..ITEM_POINTS_MAX; they are not the key and restart nothing.
  */
 
 export interface DraftOption {
@@ -60,6 +61,11 @@ export interface Draft {
   materialIds?: string[];
   /** Partial credit (multiple, order, match, cloze). */
   partial?: boolean;
+  /**
+   * «Баллы» as typed (digits; 20261107090700_item_points): the question's points in a quiz of subjects. Absent — the
+   * question's own points stay as they are (a draft kept from before the field).
+   */
+  points?: string;
 }
 
 export type DraftProblem =
@@ -84,10 +90,13 @@ export type DraftProblem =
   | 'gaps'
   | 'gaps_many'
   | 'gap_forms'
-  | 'materials_many';
+  | 'materials_many'
+  // 20261107090700_item_points
+  | 'points';
 
 export const LIMITS = { stem: 4000, option: 600, optionsMin: 2, optionsMax: 8, optionsBytes: 8192, forms: 10, form: 200, explanation: EXPLANATION_MAX,
-  numbers: 10, unit: 20, rights: 10, right: 200, gaps: GAPS_MAX, gapForms: GAP_FORMS_MAX, gapForm: GAP_TEXT_MAX, materials: 10 } as const;
+  numbers: 10, unit: 20, rights: 10, right: 200, gaps: GAPS_MAX, gapForms: GAP_FORMS_MAX, gapForm: GAP_TEXT_MAX, materials: 10,
+  points: ITEM_POINTS_MAX } as const;
 /** The explanation's counter shows from this many characters on. */
 export const EXPLANATION_COUNT_FROM = LIMITS.explanation - 200;
 
@@ -108,6 +117,7 @@ export function draftOf(item: TestItem): Draft {
     multiple: item.kind === 'multiple',
     forms: item.answers.join('; '),
     explanation: item.explanation ?? '',
+    points: String(item.points ?? 1),
     ...(item.kind === 'multiple' && item.partial ? { partial: true } : {}),
   };
 }
@@ -136,7 +146,7 @@ function newKindDraft(item: TestItem): Draft {
 
 /** A blank draft of a new kind, keeping the stem and explanation typed so far (the editor's kind switch). */
 export function switchKind(draft: Draft, kind: NewKind | 'choice' | 'short'): Draft {
-  const keep = { stem: draft.stem, stemPictures: draft.stemPictures, code: draft.code, explanation: draft.explanation, keepOrder: draft.keepOrder };
+  const keep = { stem: draft.stem, stemPictures: draft.stemPictures, code: draft.code, explanation: draft.explanation, keepOrder: draft.keepOrder, points: draft.points };
   const options = draft.options.length >= 2 ? draft.options : emptyDraft().options;
   if (kind === 'choice' || kind === 'short') {
     return { ...emptyDraft(), ...keep, short: kind === 'short', options: kind === 'short' ? emptyDraft().options : options };
@@ -189,6 +199,7 @@ export function emptyDraft(): Draft {
     multiple: false,
     forms: '',
     explanation: '',
+    points: '1',
   };
 }
 
@@ -212,6 +223,20 @@ export function stemText(draft: Draft): string {
   const words = draft.stem.replace(/^(?:[ \t]*\r?\n)+/, '').replace(/\s+$/, '');
   if (words.trim()) return words;
   return draft.stemPictures.length > 0 ? PICTURE_STEM : '';
+}
+
+/** «Баллы» as saved: a whole number 1..ITEM_POINTS_MAX, or null when the typed text is not one (or there is none). */
+export function pointsValue(draft: Pick<Draft, 'points'>): number | null {
+  const text = (draft.points ?? '').trim();
+  if (!/^\d{1,3}$/.test(text)) return null;
+  const n = Number(text);
+  return n >= 1 && n <= LIMITS.points ? n : null;
+}
+
+/** «Баллы» one step up or down, held in 1..ITEM_POINTS_MAX (a field left empty or broken counts from 1). */
+export function stepPoints(draft: Draft, by: 1 | -1): Draft {
+  const n = Math.min(LIMITS.points, Math.max(1, (pointsValue(draft) ?? 1) + by));
+  return { ...draft, points: String(n) };
 }
 
 /** The explanation as saved: the typed words without blank lines or spaces around them. */
@@ -265,6 +290,7 @@ export function draftProblems(draft: Draft): DraftProblem[] {
     }
   }
   if (explanationText(draft).length > LIMITS.explanation) problems.push('explanation_long');
+  if (draft.points !== undefined && pointsValue(draft) === null) problems.push('points');
   return problems;
 }
 
@@ -295,11 +321,12 @@ export function appendOption(draft: Draft): Draft {
 }
 
 /**
- * The editor holds something not saved: the draft differs from the question it was opened on (patchOf), or, for a
- * question of «Вопросы и ключи» that starts empty, from the empty draft.
+ * The editor holds something not saved: the draft differs from the question it was opened on (patchOf, or «Баллы»
+ * typed out of range), or, for a question of «Вопросы и ключи» that starts empty, from the empty draft.
  */
 export function draftChanged(item: TestItem | null, draft: Draft): boolean {
-  if (item) return patchOf(item, draft) !== null;
+  // «Баллы» typed out of 1..100 send nothing yet, but they are the author's change all the same
+  if (item) return patchOf(item, draft) !== null || (draft.points !== undefined && pointsValue(draft) === null);
   const blank = emptyDraft();
   const held = (d: Draft) => ({
     stem: d.stem.trim(),
@@ -310,6 +337,7 @@ export function draftChanged(item: TestItem | null, draft: Draft): boolean {
     correct: d.short ? [] : d.correct,
     forms: d.short ? d.forms.trim() : '',
     explanation: d.explanation.trim(),
+    points: (d.points ?? '1').trim(),
   });
   return !same(held(draft), held(blank));
 }
@@ -353,6 +381,9 @@ function newKindFields(draft: Draft): Pick<ItemInput, 'options' | 'correct' | 'a
 /** Only what the draft changed; null when it changed nothing. */
 export function patchOf(item: TestItem, draft: Draft): ItemPatch | null {
   const patch: ItemPatch = {};
+  // «Баллы» (20261107090700_item_points): sent only when they differ from the question's; never the key
+  const points = draft.points === undefined ? null : pointsValue(draft);
+  if (points !== null && points !== (item.points ?? 1)) patch.points = points;
   const stem = stemText(draft);
   if (stem !== item.stem) patch.stem = stem;
   if (draft.code !== item.code) patch.code = draft.code;
@@ -480,6 +511,8 @@ export function inputOf(draft: Draft, fileNo: string, ref: string): ItemInput {
     if (hasPictures(images)) input.images = images;
     const explanation = explanationText(draft);
     if (explanation) input.explanation = explanation;
+    const points = pointsValue(draft);
+    if (points !== null && points !== 1) input.points = points;
     return input;
   }
   const answers = draft.short ? formsOf(draft.forms) : undefined;
@@ -502,6 +535,8 @@ export function inputOf(draft: Draft, fileNo: string, ref: string): ItemInput {
   const explanation = explanationText(draft);
   if (explanation) input.explanation = explanation;
   if (kind === 'multiple' && draft.partial) input.partial = true;
+  const points = pointsValue(draft);
+  if (points !== null && points !== 1) input.points = points;
   return input;
 }
 
