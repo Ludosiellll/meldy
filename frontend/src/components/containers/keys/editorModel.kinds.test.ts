@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { TestItem } from '../../../types/container';
-import { draftOf, draftProblems, emptyDraft, inputOf, patchOf, resetsProgress, switchKind, type Draft } from './editorModel';
+import { draftOf, draftProblems, emptyDraft, fieldText, inputOf, patchOf, resetsProgress, switchKind, typedDraft, type Draft, type FieldPath } from './editorModel';
 
 const row = (patch: Partial<TestItem>): TestItem => ({
   id: 'i1', container_id: 'c', subject_id: 's', position: 1, file_no: '1', topic: null, kind: 'single', stem: 'Вопрос',
@@ -74,5 +74,33 @@ describe('the editor writes the new kinds', () => {
     const number = row({ kind: 'number', answers: ['9.8'], tolerance: 0.1 });
     expect(resetsProgress(number, { answers: ['9.80'] })).toBe(false);
     expect(resetsProgress(number, { tolerance: '0.2' })).toBe(true);
+  });
+});
+
+describe('a field typed in (the editor keeps the words in the browser and the draft beside them)', () => {
+  it('each field reads its words back', () => {
+    const match: Draft = { ...blank('match'), options: [{ text: 'Вход', pictures: [] }, { text: 'Выход', pictures: [] }], rights: ['слева'], extras: ['сверху'] };
+    const paths: Array<[FieldPath, string]> = [['stem', 'Вопрос'], ['option:1', 'Выход'], ['right:0', 'слева'], ['right:1', ''], ['extra:0', 'сверху'], ['extra:1', ''], ['numbers', ''], ['explanation', '']];
+    for (const [path, text] of paths) expect(fieldText(match, path)).toBe(text);
+    const cloze: Draft = { ...blank('cloze'), stem: 'Столица ___ и ___', gaps: ['Париж'] };
+    expect([fieldText(cloze, 'gap:0'), fieldText(cloze, 'gap:1')]).toEqual(['Париж', '']);
+    expect(fieldText({ ...emptyDraft(), short: true, forms: 'да; верно' }, 'forms')).toBe('да; верно');
+  });
+
+  it('makes the draft each field made before: the words in their place, the pairs and the gaps filled out', () => {
+    const choice = draftOf(row({ options: ['Вход', 'Выход'], correct: [0] }));
+    expect(typedDraft(choice, 'option:1', 'Выход и')).toEqual({ ...choice, options: [choice.options[0], { text: 'Выход и', pictures: [] }] });
+    expect(typedDraft(choice, 'stem', 'Другой')).toEqual({ ...choice, stem: 'Другой' });
+    expect(typedDraft(choice, 'explanation', 'Потому что')).toEqual({ ...choice, explanation: 'Потому что' });
+    const number = blank('number');
+    expect(typedDraft(typedDraft(typedDraft(number, 'numbers', '9,8'), 'tolerance', '0,1'), 'unit', 'м')).toEqual({ ...number, numbers: '9,8', tolerance: '0,1', unit: 'м' });
+    // a match's right items: as many as the left ones, the one typed in its place
+    const match: Draft = { ...blank('match'), options: [{ text: 'А', pictures: [] }, { text: 'Б', pictures: [] }, { text: 'В', pictures: [] }], rights: ['1'] };
+    expect(typedDraft(match, 'right:2', '3').rights).toEqual(['1', '', '3']);
+    expect(typedDraft({ ...match, extras: ['x', 'y'] }, 'extra:1', 'z').extras).toEqual(['x', 'z']);
+    // a cloze's gaps: at least one per gap of the question, those kept beyond it kept
+    const cloze: Draft = { ...blank('cloze'), stem: 'а ___ б ___ в ___', gaps: ['1'] };
+    expect(typedDraft(cloze, 'gap:1', '2').gaps).toEqual(['1', '2', '']);
+    expect(typedDraft({ ...cloze, stem: 'а ___', gaps: ['1', '2', '3'] }, 'gap:0', '0').gaps).toEqual(['0', '2', '3']);
   });
 });

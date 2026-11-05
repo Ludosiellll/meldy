@@ -1,4 +1,4 @@
-import { useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type Ref } from 'react';
+import { useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent, type Ref, type RefObject } from 'react';
 import { isPictureFile, pictureFromFile, picturePath, uploadPicture } from '../../../api/itemPictures';
 import { PICTURE_LIMITS, type BankPicture, type TestItem } from '../../../types/container';
 import { EDITOR, letter, nb } from '../copyImport';
@@ -20,7 +20,9 @@ import {
   EXPLANATION_COUNT_FROM,
   LIMITS,
   type Draft,
+  type DraftProblem,
 } from './editorModel';
+import { createDraftStore, DraftInput, DraftText, useDraft, useDrawn, type DraftStore } from './draftStore';
 import KindFields, { PartialCheck } from './KindFields';
 import { KIND_NAMES } from '../../kinds/copyKinds';
 import './keys.css';
@@ -150,6 +152,158 @@ function CrossIcon() {
   );
 }
 
+/** What the editor says of a draft: its problems, whether it changed the question, restarts it, holds changes. */
+interface Facts {
+  problems: DraftProblem[];
+  /** An existing question the draft leaves as it is (editorModel.patchOf: nothing to send). */
+  unchanged: boolean;
+  /** The change restarts the question for the group (decision 15). */
+  resets: boolean;
+  /** Something not saved (editorModel.draftChanged). */
+  dirty: boolean;
+  /** The explanation's length as saved. */
+  explained: number;
+  /** A choice question with nothing ticked. */
+  noKey: boolean;
+}
+type ReadFacts = (draft: Draft) => Facts;
+
+/** The facts of a draft, worked out once for each change (the lines that read them each pick their own answer). */
+function factsReader(item: TestItem | null, group: boolean): ReadFacts {
+  let last: { draft: Draft; facts: Facts } | null = null;
+  return (draft) => {
+    if (last && last.draft === draft) return last.facts;
+    const patch = item ? patchOf(item, draft) : null;
+    const facts: Facts = {
+      problems: draftProblems(draft),
+      unchanged: Boolean(item) && patch === null,
+      resets: Boolean(item && patch && group && resetsProgress(item, patch)),
+      dirty: item ? patch !== null : draftChanged(null, draft),
+      explained: explanationText(draft).length,
+      noKey: !draft.kind && !draft.short && draft.correct.length === 0 && draft.options.length >= 2,
+    };
+    last = { draft, facts };
+    return facts;
+  };
+}
+
+/** What stops «Сохранить», what the change does, the page's error: renders when one of them changes, not at each key. */
+function Notes({ store, facts, noKeyNote, error }: { store: DraftStore; facts: ReadFacts; noKeyNote: string; error: string | null }) {
+  const problemWords = useDraft(store, (draft) => facts(draft).problems.join(' '));
+  const noKey = useDraft(store, (draft) => facts(draft).noKey);
+  const resets = useDraft(store, (draft) => facts(draft).resets);
+  const problems = problemWords ? (problemWords.split(' ') as DraftProblem[]) : [];
+  return (
+    <div className="qe-notes" aria-live="polite">
+      {problems.map((problem) => (
+        <p key={problem} className="kq-note qe-problem">
+          {EDITOR.problems[problem]}
+        </p>
+      ))}
+      {problems.length === 0 && noKey ? <p className="kq-note qe-warn">{noKeyNote}</p> : null}
+      {resets ? <p className="kq-note qe-warn">{EDITOR.resets}</p> : null}
+      {error ? (
+        <p className="kq-note" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** «Пояснение»: its length counted (and read out) near the limit; only then does a key render the counter. */
+function ExplanationField({ id, store, facts, busy, onTyped }: { id: string; store: DraftStore; facts: ReadFacts; busy: boolean; onTyped: () => void }) {
+  const counted = useDraft(store, (draft) => {
+    const length = facts(draft).explained;
+    return length >= EXPLANATION_COUNT_FROM ? length : -1;
+  });
+  return (
+    <>
+      <DraftText
+        store={store}
+        path="explanation"
+        id={`${id}-explanation`}
+        className="qe-text qe-explanation"
+        rows={2}
+        maxLength={LIMITS.explanation + 200}
+        disabled={busy}
+        aria-describedby={counted >= 0 ? `${id}-explanation-count` : undefined}
+        aria-invalid={counted > LIMITS.explanation ? true : undefined}
+        onTyped={onTyped}
+      />
+      {counted >= 0 ? (
+        <p id={`${id}-explanation-count`} className="qe-count" data-over={counted > LIMITS.explanation ? '' : undefined}>
+          {EDITOR.explanationCount(counted, LIMITS.explanation)}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+interface ActionsProps {
+  id: string;
+  store: DraftStore;
+  facts: ReadFacts;
+  /** The draft the editor last had when the question came (or changed): «Ничего не изменилось» waits for a change. */
+  base: Draft;
+  /** Nothing on its way (a save, a picture). */
+  open: boolean;
+  busy: boolean;
+  item: boolean;
+  saveNext: boolean;
+  unsaved: string | null;
+  guardRef: RefObject<HTMLButtonElement>;
+  discardRef: RefObject<HTMLButtonElement>;
+  onSave: () => void;
+  onCancel: () => void;
+  onDiscard?: () => void;
+}
+
+/** The editor's buttons: «Сохранить» on while the draft can go, «Ничего не изменилось» for a change taken back. */
+function Actions({ id, store, facts, base, open, busy, item, saveNext, unsaved, guardRef, discardRef, onSave, onCancel, onDiscard }: ActionsProps) {
+  const ready = useDraft(store, (draft) => {
+    const now = facts(draft);
+    return now.problems.length === 0 && !now.unchanged;
+  });
+  const nothing = useDraft(store, (draft) => draft !== base && facts(draft).unchanged);
+  const canSave = open && ready;
+  const saving = busy ? EDITOR.saving : null;
+  if (unsaved) {
+    // The page waits for an answer about the changes: save them and go on, or leave them and go on.
+    return (
+      <div className="qe-unsaved" role="group" aria-labelledby={`${id}-unsaved`}>
+        <p id={`${id}-unsaved`} className="qe-unsaved-text">
+          {nb(unsaved)}
+        </p>
+        <div className="qe-actions">
+          <button ref={guardRef} type="submit" className="sf-primary" disabled={!canSave} aria-busy={busy || undefined}>
+            {saving ?? EDITOR.save}
+          </button>
+          <button ref={discardRef} type="button" className="sf-link" disabled={busy} onClick={onDiscard}>
+            {EDITOR.discard}
+          </button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className="qe-actions">
+      <button type="submit" className="sf-primary" disabled={!canSave} aria-busy={busy || undefined}>
+        {saving ?? (saveNext ? EDITOR.saveNext : item ? EDITOR.save : EDITOR.add)}
+      </button>
+      {saveNext ? (
+        <button type="button" className="sf-secondary" disabled={!canSave} onClick={onSave}>
+          {EDITOR.save}
+        </button>
+      ) : null}
+      <button type="button" className="sf-link" disabled={busy} onClick={onCancel}>
+        {EDITOR.cancel}
+      </button>
+      {nothing ? <span className="qe-same">{EDITOR.nothing}</span> : null}
+    </div>
+  );
+}
+
 export default function QuestionEditor({
   containerId,
   item,
@@ -171,7 +325,11 @@ export default function QuestionEditor({
   onDraft,
 }: Props) {
   const id = useId();
-  const [draft, setDraft] = useState<Draft>(() => initialDraft ?? (item ? draftOf(item) : emptyDraft()));
+  // The draft lives in a store (draftStore.tsx): the editor renders for a change it draws, never for a key typed.
+  const [store] = useState(() => createDraftStore(initialDraft ?? (item ? draftOf(item) : emptyDraft())));
+  useDrawn(store);
+  const draft = store.get();
+  const setDraft = store.update;
   const [local, setLocal] = useState<Record<string, BankPicture>>({});
   const [loading, setLoading] = useState(0);
   /**
@@ -190,9 +348,7 @@ export default function QuestionEditor({
   /** The option field that takes the focus after the next render (Enter added it). */
   const focusOption = useRef<number | null>(null);
 
-  const problems = draftProblems(draft);
-  const patch = useMemo(() => (item ? patchOf(item, draft) : null), [item, draft]);
-  const unchanged = Boolean(item) && patch === null;
+  const facts = useMemo(() => factsReader(item, group), [item, group]);
   // «Ничего не изменилось» answers a change taken back, so it waits for the author's first change: not on a fresh
   // editor, and not right after «Сохранить» where the page keeps the editor open on the question as saved (the studio's
   // panel: the draft then equals the question, and the line read as if the save had been lost — phone audit 47.3).
@@ -200,32 +356,53 @@ export default function QuestionEditor({
   const itemStamp = useMemo(() => (item ? JSON.stringify(draftOf(item)) : ''), [item]);
   const [base, setBase] = useState(() => ({ stamp: itemStamp, draft }));
   if (base.stamp !== itemStamp) setBase({ stamp: itemStamp, draft });
-  const touched = base.stamp === itemStamp && draft !== base.draft;
-  const resets = Boolean(item && patch && group && resetsProgress(item, patch));
-  const noKey = !draft.kind && !draft.short && draft.correct.length === 0 && draft.options.length >= 2;
-  const explained = explanationText(draft).length;
-  const canSave = !busy && loading === 0 && problems.length === 0 && !unchanged;
-  const dirty = useMemo(() => draftChanged(item, draft), [item, draft]);
+  const open = !busy && loading === 0;
+  /** «Сохранить» may go now: nothing on its way, no problem, a change to send. */
+  const canSave = () => {
+    const now = facts(store.get());
+    return open && now.problems.length === 0 && !now.unchanged;
+  };
 
-  // The page hears of changes not saved (its guard and the browser's «Покинуть сайт?»), and of the draft itself.
+  // The page hears of changes not saved (its guard and the browser's «Покинуть сайт?»), and of the draft itself: at
+  // every change of the draft (keys typed too), from the store.
   const onDraftRef = useRef(onDraft);
   onDraftRef.current = onDraft;
-  const firstDraft = useRef(draft);
-  useEffect(() => {
-    if (draft !== firstDraft.current) onDraftRef.current?.(draft);
-  }, [draft]);
   const onDirtyRef = useRef(onDirty);
   onDirtyRef.current = onDirty;
-  useEffect(() => {
+  const factsRef = useRef(facts);
+  factsRef.current = facts;
+  const toldDirty = useRef<boolean | null>(null);
+  const tellDirty = useRef(() => {
+    const dirty = factsRef.current(store.get()).dirty;
+    if (dirty === toldDirty.current) return;
+    toldDirty.current = dirty;
     onDirtyRef.current?.(dirty);
-  }, [dirty]);
-  useEffect(() => () => onDirtyRef.current?.(false), []);
+  }).current;
+  useEffect(
+    () =>
+      store.subscribe(() => {
+        onDraftRef.current?.(store.get());
+        tellDirty();
+      }),
+    [store, tellDirty],
+  );
+  // The question it was opened on changed (saved): the draft may hold nothing new any more.
+  useEffect(() => tellDirty(), [facts, tellDirty]);
+  useEffect(
+    () => () => {
+      toldDirty.current = false;
+      onDirtyRef.current?.(false);
+    },
+    [],
+  );
 
   // Every field as tall as its text: after a change only the field whose text (or face) changed — the one being typed
   // in — and every field when the column's width changes (a phone turned) or the fonts come. The width is the
   // observer's report, never read from the page.
   // A field whose text changed with its face kept (typed in) only grows at once (growTyped); the rest — a new field, a
   // new face, a forced pass — are sized in full. The fields typed in are sized in full after a pause, to get shorter.
+  // A key typed sizes the fields from the field's own change (the editor does not render for it); a change the editor
+  // draws sizes them after its render.
   const sized = useRef(new WeakMap<HTMLTextAreaElement, string>());
   const typedSince = useRef(new Set<HTMLTextAreaElement>());
   const shrinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -257,6 +434,7 @@ export default function QuestionEditor({
   };
   const sizeAllRef = useRef(sizeAll);
   sizeAllRef.current = sizeAll;
+  const typedIn = useRef(() => sizeAllRef.current()).current;
   useLayoutEffect(() => sizeAll());
   useEffect(
     () => () => {
@@ -302,12 +480,13 @@ export default function QuestionEditor({
   // The page presses «Сохранить» (EditorHandle): the same checks as the button; what stops it is shown where it is.
   const pressSave = useRef<() => Promise<boolean>>(async () => true);
   pressSave.current = async () => {
-    if (!dirty) return true;
-    if (!canSave) {
+    const now = store.get();
+    if (!facts(now).dirty) return true;
+    if (!canSave()) {
       formRef.current?.querySelector('.qe-notes')?.scrollIntoView?.({ block: 'nearest' });
       return false;
     }
-    const result = await onSave(draft);
+    const result = await onSave(now);
     return result !== false;
   };
   useImperativeHandle(handle, () => ({ save: () => pressSave.current() }), []);
@@ -319,7 +498,10 @@ export default function QuestionEditor({
   }, [unsaved]);
 
   const sourceOf = (path: string): PictureSource => (local[path] ? { picture: local[path] } : { path });
-  const picturesOf = (target: Target) => (target === 'stem' ? draft.stemPictures : draft.options[target]?.pictures ?? []);
+  const picturesOf = (target: Target) => {
+    const now = store.get();
+    return target === 'stem' ? now.stemPictures : now.options[target]?.pictures ?? [];
+  };
   const roomFor = (target: Target) => picturesOf(target).length < (target === 'stem' ? PICTURE_LIMITS.stem : PICTURE_LIMITS.option);
 
   const setPictures = (target: Target, change: (list: string[]) => string[]) =>
@@ -395,9 +577,10 @@ export default function QuestionEditor({
     if (event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
     const form = formRef.current;
-    if (index < draft.options.length - 1) {
+    const count = store.get().options.length;
+    if (index < count - 1) {
       form?.querySelector<HTMLTextAreaElement>(`[data-option="${index + 1}"]`)?.focus();
-    } else if (!trueFalse && draft.options.length < LIMITS.optionsMax) {
+    } else if (!trueFalse && count < LIMITS.optionsMax) {
       focusOption.current = index + 1;
       setDraft(appendOption);
     } else {
@@ -423,7 +606,6 @@ export default function QuestionEditor({
   };
 
   const several = !trueFalse && Boolean(draft.multiple);
-  const saving = busy ? EDITOR.saving : null;
 
   return (
     <form
@@ -432,9 +614,10 @@ export default function QuestionEditor({
       aria-label={EDITOR.label}
       onSubmit={(event) => {
         event.preventDefault();
-        if (!canSave) return;
-        if (onSaveNext && !unsaved) onSaveNext(draft);
-        else onSave(draft);
+        if (!canSave()) return;
+        const now = store.get();
+        if (onSaveNext && !unsaved) onSaveNext(now);
+        else onSave(now);
       }}
       // Ctrl+Enter (⌘+Enter) in any field: the blue pill's step, without tabbing past every option's buttons.
       onKeyDown={(event) => {
@@ -473,15 +656,16 @@ export default function QuestionEditor({
       <label className="qe-label" htmlFor={`${id}-stem`}>
         {EDITOR.stem}
       </label>
-      <textarea
+      <DraftText
+        store={store}
+        path="stem"
         id={`${id}-stem`}
         className="qe-text qe-stem"
         data-code={draft.code ? '' : undefined}
-        value={draft.stem}
         rows={2}
         maxLength={LIMITS.stem + 200}
         disabled={busy}
-        onChange={(event) => setDraft((current) => ({ ...current, stem: event.target.value }))}
+        onTyped={typedIn}
         onPaste={pasteInto('stem')}
       />
       {pictureRow('stem', EDITOR.pictures)}
@@ -499,13 +683,13 @@ export default function QuestionEditor({
       {pictureLine('stem')}
 
       {draft.kind ? (
-        <KindFields id={id} draft={draft} busy={busy} setDraft={setDraft} />
+        <KindFields id={id} store={store} draft={draft} busy={busy} setDraft={setDraft} />
       ) : draft.short ? (
         <>
           <label className="qe-label" htmlFor={`${id}-forms`}>
             {EDITOR.forms}
           </label>
-          <input id={`${id}-forms`} className="kq-input" value={draft.forms} disabled={busy} onChange={(event) => setDraft((current) => ({ ...current, forms: event.target.value }))} />
+          <DraftInput store={store} path="forms" id={`${id}-forms`} className="kq-input" disabled={busy} />
         </>
       ) : (
         <>
@@ -513,7 +697,7 @@ export default function QuestionEditor({
             {EDITOR.options}
           </p>
           <ol className="qe-options" aria-labelledby={`${id}-options`}>
-            {draft.options.map((option, index) => {
+            {draft.options.map((_, index) => {
               const l = letter(index);
               const right = draft.correct.includes(index);
               return (
@@ -532,20 +716,19 @@ export default function QuestionEditor({
                     </span>
                   </label>
                   <div className="qe-option-body">
-                    <textarea
+                    <DraftText
+                      store={store}
+                      path={`option:${index}`}
                       className="qe-text"
                       data-option={index}
                       data-code={draft.code ? '' : undefined}
                       aria-label={EDITOR.option(l)}
-                      value={option.text}
                       rows={1}
                       maxLength={LIMITS.option + 100}
                       disabled={busy}
                       enterKeyHint="next"
                       onKeyDown={optionKey(index)}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...current, options: current.options.map((entry, at) => (at === index ? { ...entry, text: event.target.value } : entry)) }))
-                      }
+                      onTyped={typedIn}
                       onPaste={pasteInto(index)}
                     />
                     {pictureRow(index, EDITOR.option(l))}
@@ -593,7 +776,7 @@ export default function QuestionEditor({
                   className="sf-link"
                   disabled={busy}
                   onClick={() => {
-                    focusOption.current = draft.options.length;
+                    focusOption.current = store.get().options.length;
                     setDraft(appendOption);
                   }}
                 >
@@ -614,22 +797,7 @@ export default function QuestionEditor({
       <label className="qe-label" htmlFor={`${id}-explanation`}>
         {EDITOR.explanation}
       </label>
-      <textarea
-        id={`${id}-explanation`}
-        className="qe-text qe-explanation"
-        value={draft.explanation}
-        rows={2}
-        maxLength={LIMITS.explanation + 200}
-        disabled={busy}
-        aria-describedby={explained >= EXPLANATION_COUNT_FROM ? `${id}-explanation-count` : undefined}
-        aria-invalid={explained > LIMITS.explanation ? true : undefined}
-        onChange={(event) => setDraft((current) => ({ ...current, explanation: event.target.value }))}
-      />
-      {explained >= EXPLANATION_COUNT_FROM ? (
-        <p id={`${id}-explanation-count`} className="qe-count" data-over={explained > LIMITS.explanation ? '' : undefined}>
-          {EDITOR.explanationCount(explained, LIMITS.explanation)}
-        </p>
-      ) : null}
+      <ExplanationField id={id} store={store} facts={facts} busy={busy} onTyped={typedIn} />
       <input
         ref={fileRef}
         type="file"
@@ -642,52 +810,24 @@ export default function QuestionEditor({
         }}
       />
 
-      <div className="qe-notes" aria-live="polite">
-        {problems.map((problem) => (
-          <p key={problem} className="kq-note qe-problem">
-            {EDITOR.problems[problem]}
-          </p>
-        ))}
-        {problems.length === 0 && noKey ? <p className="kq-note qe-warn">{noKeyNote}</p> : null}
-        {resets ? <p className="kq-note qe-warn">{EDITOR.resets}</p> : null}
-        {error ? (
-          <p className="kq-note" role="alert">
-            {error}
-          </p>
-        ) : null}
-      </div>
+      <Notes store={store} facts={facts} noKeyNote={noKeyNote} error={error} />
 
-      {unsaved ? (
-        // The page waits for an answer about the changes: save them and go on, or leave them and go on.
-        <div className="qe-unsaved" role="group" aria-labelledby={`${id}-unsaved`}>
-          <p id={`${id}-unsaved`} className="qe-unsaved-text">
-            {nb(unsaved)}
-          </p>
-          <div className="qe-actions">
-            <button ref={guardRef} type="submit" className="sf-primary" disabled={!canSave} aria-busy={busy || undefined}>
-              {saving ?? EDITOR.save}
-            </button>
-            <button ref={discardRef} type="button" className="sf-link" disabled={busy} onClick={onDiscard}>
-              {EDITOR.discard}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="qe-actions">
-          <button type="submit" className="sf-primary" disabled={!canSave} aria-busy={busy || undefined}>
-            {saving ?? (onSaveNext ? EDITOR.saveNext : item ? EDITOR.save : EDITOR.add)}
-          </button>
-          {onSaveNext ? (
-            <button type="button" className="sf-secondary" disabled={!canSave} onClick={() => onSave(draft)}>
-              {EDITOR.save}
-            </button>
-          ) : null}
-          <button type="button" className="sf-link" disabled={busy} onClick={onCancel}>
-            {EDITOR.cancel}
-          </button>
-          {unchanged && touched ? <span className="qe-same">{EDITOR.nothing}</span> : null}
-        </div>
-      )}
+      <Actions
+        id={id}
+        store={store}
+        facts={facts}
+        base={base.draft}
+        open={open}
+        busy={busy}
+        item={Boolean(item)}
+        saveNext={Boolean(onSaveNext)}
+        unsaved={unsaved}
+        guardRef={guardRef}
+        discardRef={discardRef}
+        onSave={() => onSave(store.get())}
+        onCancel={onCancel}
+        onDiscard={onDiscard}
+      />
     </form>
   );
 }
