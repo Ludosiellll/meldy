@@ -4,6 +4,29 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-05 — Release 53: the studio holds every question of the exam, one page of «Холст» at a time (from the commit of this entry)
+
+- **Why**: the owner (05.11, a 960-question exam; the studio showed 400): «А нельзя сделать как переход на вторую
+  страницу где покажет остальные 400 и потом еще раз остальные 160? в студии». Agreed with the owner: pages by subject
+  (4 × 240), not 400 + 400 + 160.
+- **Room**: a test holds 2100 blocks (the exam's 2000 questions and 100 more) and 512 KB, on the server and in the
+  browser alike (was 400 blocks, 200 KB).
+- **Pages on «Холст»**: one page at a time, at most 400 blocks; a bar over it («Страница 2 из 4 · Физиология», back,
+  forward, a list of pages with their questions) and buttons to the next and previous page under its last block.
+  «Показать» in «Проверка теста», ↑ ↓ past the edge and a `?block=` link open the block's page. Another page with an
+  unsaved question asks first, as another block does. Undo, redo and «Сохранить» cover the whole test.
+- **Questions from the exam** come in the exam's order, a subject a page titled by the subject; a full page is cut
+  where the previous subject ends. Blocks the author placed are never moved or deleted. «Страница на каждый предмет»
+  (page settings) adds the breaks to a test built before, one Ctrl+Z step.
+- **A full page**: a block added there offers «Начать новую страницу»; a move or a removed page break that would pass
+  400 does not happen, and a line says why.
+- **Link «как в студии»**: draws from the whole test. Up to 200 questions — all of them, as before. Above 200 — each
+  attempt takes «Вопросов в попытке» of them at random, in the studio's order; pages left without a question are
+  skipped.
+- **Also**: the «Скачать» icon in the studio's top bar was squeezed to 8 px below 1700 px; now 19 px.
+- **Order**: migration 20261107090500 first, then this site. Rollback: the site first, then
+  supabase/rollback/20261107090500_studio_pages_down.sql.
+
 ## 2026-11-04 — Release 52: «Сохранить» in the studio, nothing lost by leaving, «Свой цвет» for the background (from the commit of this entry)
 
 - **Why**: the owner (04.11, a 960-question test in the studio): «почему нет кнопки сохранить изменения? если выйти слева
