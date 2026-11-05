@@ -7,6 +7,8 @@ Supabase — подменённый транспорт httpx, который з�
 и BaseAgent.run подменены так, что вызов роняет тест.
 """
 import asyncio
+import functools
+import os
 import re
 import sys
 import threading
@@ -22,6 +24,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import bank_api  # noqa: E402
 import bank_parse  # noqa: E402
+import child_work  # noqa: E402
+import parse_child  # noqa: E402
 import quota  # noqa: E402
 import supabase_rest  # noqa: E402
 from agents.base import BaseAgent  # noqa: E402
@@ -192,7 +196,7 @@ def post_in_thread(api, token: str, results: list) -> threading.Thread:
     return thread
 
 
-def test_at_most_two_parses_per_user_and_three_in_all_run_at_once(api, monkeypatch):
+def test_at_most_two_parses_per_user_and_three_in_all_run_at_once(api, monkeypatch, parse_in_thread):
     """Разбор — работа процессора и памяти: третий файл того же пользователя и четвёртый разбор на сервере ждут места
     (здесь — 0,3 с), потом 429 parse_busy с Retry-After; очередь чтения клиента ждёт и повторяет сама."""
     blocking = Blocking()
@@ -216,7 +220,7 @@ def test_at_most_two_parses_per_user_and_three_in_all_run_at_once(api, monkeypat
     assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200
 
 
-def test_a_parse_waits_for_a_free_place_before_refusing(api, monkeypatch):
+def test_a_parse_waits_for_a_free_place_before_refusing(api, monkeypatch, parse_in_thread):
     blocking = Blocking()
     monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
     monkeypatch.setattr(bank_api, "PARSE_WAIT_SECONDS", 5)
@@ -231,7 +235,7 @@ def test_a_parse_waits_for_a_free_place_before_refusing(api, monkeypatch):
     assert [r.status_code for r in results] == [200, 200] and blocking.most == 2
 
 
-def test_places_go_in_the_order_people_came_and_a_waiter_at_its_own_limit_does_not_hold_the_line():
+def test_places_go_in_the_order_people_came_and_a_waiter_at_its_own_limit_does_not_hold_the_line(parse_in_thread):
     """Места — по очереди прихода (было — кто первым спросит после освобождения); ждущий, у которого уже свои
     PARSE_PER_USER разборов, не держит тех, кто за ним."""
     async def scenario():
@@ -283,7 +287,7 @@ def test_places_go_in_the_order_people_came_and_a_waiter_at_its_own_limit_does_n
     asyncio.run(scenario())
 
 
-def test_a_busy_answer_does_not_count_against_the_limit(api, monkeypatch):
+def test_a_busy_answer_does_not_count_against_the_limit(api, monkeypatch, parse_in_thread):
     """«Сервер занят» — не вина пользователя: 30 разборов в минуту остаются его, сколько бы раз сервер ни просил ждать."""
     blocking = Blocking()
     monkeypatch.setattr(bank_api, "parse_bank_text", blocking)
@@ -311,7 +315,7 @@ def test_a_busy_answer_does_not_count_against_the_limit(api, monkeypatch):
         api.main.limiter.reset()
 
 
-def test_a_busy_answer_of_ones_own_two_parses_counts_against_the_limit(api, monkeypatch):
+def test_a_busy_answer_of_ones_own_two_parses_counts_against_the_limit(api, monkeypatch, parse_in_thread):
     """Свои два места заняты самим пользователем: «подождите» — его, и такой запрос считается (иначе можно слать без
     конца ждущие запросы с файлом до 16 МБ каждый). Другой пользователь при этом не ждёт."""
     blocking = Blocking()
@@ -334,7 +338,7 @@ def test_a_busy_answer_of_ones_own_two_parses_counts_against_the_limit(api, monk
         api.main.limiter.reset()
 
 
-def test_a_key_file_is_read_in_the_same_place(api, monkeypatch):
+def test_a_key_file_is_read_in_the_same_place(api, monkeypatch, parse_in_thread):
     """Файл ключа — тоже разбор файла: в том же месте, что и файл с вопросами (не сбоку от мест)."""
     seen = []
     real = bank_api.read_key_file
@@ -349,9 +353,9 @@ def test_a_key_file_is_read_in_the_same_place(api, monkeypatch):
     assert seen == [(1, {"user-a": 1})]
 
 
-def test_a_cancelled_request_keeps_its_place_until_its_parse_ends():
-    """Отменённый посреди разбора запрос (клиент ушёл) не освобождает место раньше потока: иначе пять отмен — пять
-    потоков разбора сразу."""
+def test_a_cancelled_request_keeps_its_place_until_its_parse_ends(parse_in_thread):
+    """Разбор в потоке (без сервера форков): отменённый посреди разбора запрос (клиент ушёл) не освобождает место раньше
+    потока — иначе пять отмен — пять потоков разбора сразу."""
     slots = bank_api.ParseSlots(per_user=1, total=1)
     release = threading.Event()
 
@@ -377,6 +381,147 @@ def test_a_cancelled_request_keeps_its_place_until_its_parse_ends():
         assert not slots.users
 
     asyncio.run(scenario())
+
+
+# ── Пределы разбора: дочерний процесс (parse_child.py) ─────────────────────────
+
+in_child = pytest.mark.skipif(not parse_child.available(), reason="no fork server on this platform")
+
+
+@in_child
+def test_the_parse_runs_in_a_child_process(api, monkeypatch):
+    """Разбор — в дочернем процессе: не держит ни цикл событий, ни GIL сервера, и его можно остановить."""
+    monkeypatch.setattr(bank_api, "parse_bank_text", child_work.where)
+    seen = api.post(PATH, data={"text": BANK_TEXT}).json()
+    assert seen["pid"] != os.getpid() and seen["loop"] is False
+
+
+@in_child
+def test_a_parse_past_its_time_is_stopped_refused_and_its_place_given_back(api, monkeypatch, tmp_path):
+    """Разбор, который не кончается (регулярное выражение с перебором, бомба): через PARSE_SECONDS (здесь — 0,5 с
+    вместо минуты) его процесс убит — процессор свободен, место отдано, ответ 413 parse_too_long. Поток так не
+    остановить."""
+    monkeypatch.setattr(bank_api, "PARSE_SECONDS", 0.5)
+    monkeypatch.setattr(bank_api, "parse_bank_text", child_work.spin)
+    started = time.monotonic()
+    response = api.post(PATH, data={"text": str(tmp_path / "pid")})
+    assert_error(response, 413, "parse_too_long", bank_api.PARSE_TOO_LONG_DETAIL)
+    assert response.json()["detail"] == "Файл слишком сложный: разбор занял больше минуты. Разбейте его на части или вставьте текст."
+    assert time.monotonic() - started < 5
+    assert bank_api.parse_slots.busy == 0 and not bank_api.parse_slots.users
+    assert child_work.gone(child_work.pid_from(tmp_path / "pid"))
+    monkeypatch.setattr(bank_api, "parse_bank_text", bank_parse.parse_bank_text)
+    assert api.post(PATH, data={"text": BANK_TEXT}).status_code == 200
+
+
+@in_child
+def test_a_key_file_past_its_time_is_refused_in_the_key_file_s_words(api, monkeypatch, tmp_path):
+    monkeypatch.setattr(bank_api, "PARSE_SECONDS", 0.5)
+    monkeypatch.setattr(bank_api, "read_key_file", child_work.spin_key)
+    response = api.post(PATH, data={"text": BANK_TEXT},
+                        files={"key_file": ("key.txt", str(tmp_path / "pid").encode(), "text/plain")})
+    assert_error(response, 413, "key_file_parse_too_long",
+                 "Файл ключа: файл слишком сложный: разбор занял больше минуты. Разбейте его на части или вставьте текст.")
+    assert bank_api.parse_slots.busy == 0 and child_work.gone(child_work.pid_from(tmp_path / "pid"))
+
+
+@in_child
+def test_a_parse_over_its_memory_cap_is_refused(api, monkeypatch, tmp_path):
+    """Больше PARSE_MEMORY_BYTES (здесь — 64 МБ вместо гигабайта) — 413 parse_too_big, место отдано. Настоящий файл
+    тоже: XML, которому не хватило памяти, — не «файл не прочитан», а «не хватило памяти»."""
+    monkeypatch.setattr(bank_api, "PARSE_MEMORY_BYTES", 64 << 20)
+    monkeypatch.setattr(bank_api, "parse_bank_text", child_work.hungry)
+    response = api.post(PATH, data={"text": str(tmp_path / "pid")})
+    assert_error(response, 413, "parse_too_big", bank_api.PARSE_TOO_BIG_DETAIL)
+    assert response.json()["detail"] == "Файл слишком сложный: на разбор не хватило памяти. Разбейте его на части или вставьте текст."
+    assert bank_api.parse_slots.busy == 0 and child_work.gone(child_work.pid_from(tmp_path / "pid"))
+    monkeypatch.setattr(bank_api, "PARSE_MEMORY_BYTES", 4 << 20)
+    csharp = {"file": ("csharp_table.docx", (FIXTURES / "synthetic" / "csharp_table.docx").read_bytes(), DOCX)}
+    assert_error(api.post(PATH, files=csharp), 413, "parse_too_big", bank_api.PARSE_TOO_BIG_DETAIL)
+    assert bank_api.parse_slots.busy == 0
+
+
+WILD = FIXTURES / "wild" / "files"
+
+
+@in_child
+def test_a_file_reads_the_same_in_a_child_process_as_in_a_thread(api, monkeypatch):
+    """Ответ маршрута — те же байты, что при разборе в потоке (как до дочернего процесса): каждый формат, картинки,
+    ключ строками и отдельным файлом, отказ."""
+    def wild(name: str):
+        return {"file": (name, (WILD / name).read_bytes(), "application/octet-stream")}
+
+    questions = ("16_questions_only.docx", (FIXTURES / "16_questions_only.docx").read_bytes(), DOCX)
+    key = ("Ключ.txt", (FIXTURES / "16_key.txt").read_bytes(), "text/plain")
+    asks = [
+        {"files": fixture_file("01_table_rows_bold.docx", DOCX)},
+        {"files": wild("w111_pictures.docx"), "data": {"pictures": "1"}},
+        {"files": fixture_file("11_columns_key.xlsx")},
+        {"files": wild("k01_csv_english_letter_key.csv")},
+        {"files": wild("k04_html_word_export_red_key.html")},
+        {"files": wild("k09_pdf_bold_font_key.pdf")},
+        {"files": wild(next(path.name for path in sorted(WILD.glob("*.xml"))))},
+        {"files": wild(next(path.name for path in sorted(WILD.glob("*.md"))))},
+        {"data": {"text": BANK_TEXT, "key_text": "1 – а\n2 – б"}},
+        {"files": {"file": questions, "key_file": key}, "data": {"key_section": "0"}},
+        {"files": {"file": ("Тест.docx", b"broken", DOCX)}},
+    ]
+    in_child = [api.post(PATH, **ask) for ask in asks]
+    monkeypatch.setattr(bank_api, "PARSE_IN_CHILD", False)
+    in_thread = [api.post(PATH, **ask) for ask in asks]
+    assert [r.status_code for r in in_child] == [200] * 10 + [422]
+    assert [(r.status_code, r.content) for r in in_child] == [(r.status_code, r.content) for r in in_thread]
+    assert any(item["images"] for item in in_child[1].json()["items"])
+
+
+@in_child
+def test_a_cancelled_request_stops_its_parse_and_frees_its_place_at_once(tmp_path):
+    """Отменённый посреди разбора запрос (клиент ушёл): процесс разбора убит сразу и место свободно тогда же, а не когда
+    разбор кончится сам (этот — никогда)."""
+    slots = bank_api.ParseSlots(per_user=1, total=1)
+    pid_file = tmp_path / "pid"
+
+    async def scenario():
+        async def parse():
+            async with slots.hold("user-a", 0) as run:
+                return await run(functools.partial(child_work.spin, str(pid_file)))
+
+        task = asyncio.ensure_future(parse())
+        deadline = time.monotonic() + 5
+        while not (pid_file.exists() and pid_file.read_text()) and time.monotonic() < deadline:
+            await asyncio.sleep(0.01)
+        assert slots.busy == 1
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        started = time.monotonic()
+        while slots.busy and time.monotonic() - started < 5:
+            await asyncio.sleep(0.01)
+        assert time.monotonic() - started < 2 and slots.busy == 0 and not slots.users
+        async with slots.hold("user-a", 0):  # the place is free again
+            pass
+
+    asyncio.run(scenario())
+    assert child_work.gone(int(pid_file.read_text()))
+
+
+def test_without_a_fork_server_the_parse_runs_in_a_thread_and_says_so_once(api, monkeypatch, capsys):
+    """Нет сервера форков (Windows) или процесс не запустить — разбор в потоке, как раньше; в журнал — один раз."""
+    monkeypatch.setattr(bank_api, "_thread_said", False)
+    monkeypatch.setattr(parse_child, "available", lambda: False)
+    assert [api.post(PATH, data={"text": BANK_TEXT}).status_code for _ in range(2)] == [200, 200]
+    assert capsys.readouterr().out.count("Bank parse: in a thread") == 1
+
+    def no_child(self):
+        raise parse_child.Unavailable("ConnectionRefusedError: the fork server is gone")
+
+    monkeypatch.setattr(bank_api, "_thread_said", False)
+    monkeypatch.setattr(parse_child, "available", lambda: True)
+    monkeypatch.setattr(parse_child.Job, "run", no_child)
+    responses = [api.post(PATH, data={"text": BANK_TEXT}) for _ in range(2)]
+    assert [r.status_code for r in responses] == [200, 200] and responses[0].json()["stats"]["items"] == 3
+    logged = capsys.readouterr().out
+    assert logged.count("Bank parse: in a thread") == 1 and "the fork server is gone" in logged
 
 
 # ── Ответ ───────────────────────────────────────────────────────────────────────
@@ -568,7 +713,7 @@ def test_nothing_is_written_to_the_database_and_no_units_are_charged(api, quota_
         assert not re.search(r"^\s*(?:import|from)\s+(?:supabase_rest|quota|agents|exams_parse|ocr)\b", source, re.M), module
 
 
-def test_parsing_runs_off_the_event_loop(api, monkeypatch):
+def test_parsing_runs_off_the_event_loop(api, monkeypatch, parse_in_thread):
     seen = {}
     real = bank_api.parse_bank_text
 

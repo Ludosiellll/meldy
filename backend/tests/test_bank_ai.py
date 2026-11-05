@@ -433,7 +433,7 @@ def test_exact_formats_and_clean_files_are_not_sent_and_cost_nothing(api, monkey
     assert api.charges == []
 
 
-def test_the_route_reads_the_file_in_a_parse_place_and_a_busy_server_costs_nothing(api, monkeypatch):
+def test_the_route_reads_the_file_in_a_parse_place_and_a_busy_server_costs_nothing(api, monkeypatch, parse_in_thread):
     """Чтение файла — разбор, как у parse-bank: в его местах (bank_api.ParseSlots) и до списания; сервер занят —
     429 parse_busy с Retry-After, единиц не тратится."""
     import bank_api
@@ -458,7 +458,7 @@ def test_the_route_reads_the_file_in_a_parse_place_and_a_busy_server_costs_nothi
     assert api.charges == []
 
 
-def test_the_rules_pass_runs_off_the_event_loop_in_the_place_and_the_merge_off_it_too(api, monkeypatch):
+def test_the_rules_pass_runs_off_the_event_loop_in_the_place_and_the_merge_off_it_too(api, monkeypatch, parse_in_thread):
     """Разбор правилами (банк на 2000 вопросов — около 2 с) шёл в цикле событий: теперь в потоке на месте разбора, а
     сборка после модели — в потоке, без места (место отпущено до модели)."""
     import bank_api

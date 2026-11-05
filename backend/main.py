@@ -57,6 +57,7 @@ from utils import is_video_link, is_youtube_link, scrape_url, strip_transcript_t
 import youtube_video
 from exams_api import router as exams_router
 from bank_api import router as bank_router
+from bank_api import warm_up as warm_up_bank_parse
 from bank_ai import router as bank_ai_router
 from bank_keys_ai import router as bank_keys_ai_router
 from paste_api import router as paste_router
@@ -334,6 +335,9 @@ async def startup_event():
     # collector skips them.
     gc.collect()
     gc.freeze()
+    # The question-bank parse runs in child processes of a fork server (parse_child.py): it starts now, in an executor
+    # thread (a few tenths of a second), not on the first file.
+    asyncio.get_running_loop().run_in_executor(None, warm_up_bank_parse)
 
 
 class LastAnswer(BaseModel):
