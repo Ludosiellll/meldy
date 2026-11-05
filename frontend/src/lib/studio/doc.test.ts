@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import casesJson from '../../../../contracts/studio/test_doc_cases.json';
 import colorCasesJson from '../../../../contracts/studio/test_doc_color_cases.json';
-import { BLOCK_ID_RE, DOC_BLOCK_TYPES, DOC_MAX_BLOCKS, type DocBlock, type TestDoc } from '../../types/testDoc';
+import pagesCasesJson from '../../../../contracts/studio/test_doc_pages_cases.json';
+import { BLOCK_ID_RE, DOC_BLOCK_TYPES, DOC_MAX_BLOCKS, DOC_MAX_BYTES, type DocBlock, type TestDoc } from '../../types/testDoc';
 import {
   BLOCK_WORDS,
   bindRefs,
@@ -246,6 +247,34 @@ describe('docProblems gives the first rule test_doc_ok gives on its own colour (
   });
 });
 
+// Past the old caps (migration 20261107090500_studio_pages.sql: 2100 blocks, 512 KB): the exam of test_doc_cases.json,
+// its 3 questions and 1997 more.
+describe('docProblems gives the first rule test_doc_ok gives past the old caps (contracts/studio/test_doc_pages_cases.json)', () => {
+  const pages = pagesCasesJson as unknown as Corpus & {
+    sizes: Array<{ name: string; texts: number; ya: number; a: number; bytes: number | null; expect: string | null }>;
+  };
+  const items = [...corpus.items, ...pages.items];
+  it('the corpus: the exam of test_doc_cases.json with 2000 questions, valid pages and broken ones', () => {
+    expect(pages.container_id).toBe(corpus.container_id);
+    expect(items).toHaveLength(2000);
+    expect(pages.cases.some((entry) => entry.expect === null && (entry.doc as TestDoc).blocks.length === DOC_MAX_BLOCKS)).toBe(true);
+    expect(pages.cases.filter((entry) => entry.expect !== null).length).toBeGreaterThanOrEqual(5);
+    expect(DOC_MAX_BYTES).toBe(524288);
+  });
+  it.each(pages.cases.map((entry) => [entry.name, entry] as const))('%s', (_, entry) => {
+    const problems = docProblems(entry.doc, items, pages.container_id).filter((rule) => rule !== 'size');
+    expect(problems[0] ?? null).toBe(entry.expect);
+  });
+  // The sizes are made by the file's recipe (studio_pages_behaviour.sql makes the same ones and saves them).
+  it.each(pages.sizes.map((entry) => [entry.name, entry] as const))('%s', (_, entry) => {
+    const blocks: DocBlock[] = Array.from({ length: entry.texts }, (_, at) => ({ type: 'text', id: `size${String(at + 1).padStart(6, '0')}`, text: 'я'.repeat(4000), align: 'left' }));
+    blocks.push({ type: 'text', id: 'sizepad0', text: 'я'.repeat(entry.ya) + 'a'.repeat(entry.a), align: 'left' });
+    const doc: TestDoc = { ...emptyDoc('Размер'), layout: 'one_page', blocks };
+    if (entry.bytes !== null) expect(jsonbTextBytes(doc)).toBe(entry.bytes);
+    expect(docProblems(doc, [], pages.container_id)).toEqual(entry.expect === null ? [] : [entry.expect]);
+  });
+});
+
 describe('docProblems, beyond the first rule', () => {
   it('every broken block, one rule each, counted from 0, then the results', () => {
     const doc = withField(['blocks', 1, 'text'], '');
@@ -272,9 +301,10 @@ describe('docProblems, beyond the first rule', () => {
     expect(docProblems(withField(['blocks', 5, 'style'], undefined), ITEMS)).toEqual([]);
   });
 
-  it('size: test_doc_save keeps 200 KB of jsonb text', () => {
-    const blocks = Array.from({ length: 60 }, (_, at) => ({ type: 'text', id: `t${String(at).padStart(8, '0')}`, text: 'я'.repeat(4000), align: 'left' }));
-    expect(docProblems(withField(['blocks'], blocks), ITEMS)).toEqual(['size']);
+  it('size: test_doc_save keeps 512 KB of jsonb text', () => {
+    const blocks = (n: number) => Array.from({ length: n }, (_, at) => ({ type: 'text', id: `t${String(at).padStart(8, '0')}`, text: 'я'.repeat(4000), align: 'left' }));
+    expect(docProblems(withField(['blocks'], blocks(60)), ITEMS)).toEqual([]);
+    expect(docProblems(withField(['blocks'], blocks(66)), ITEMS)).toEqual(['size']);
   });
 });
 
@@ -284,9 +314,9 @@ describe('ruleMessage', () => {
     ['title', 'Название теста'],
     ['theme', 'Оформление'],
     ['layout', 'как проходить'],
-    ['blocks', 'больше 400'],
+    ['blocks', 'больше 2100'],
     ['results', 'Экран результата'],
-    ['size', '200 КБ'],
+    ['size', '512 КБ'],
     ['something', 'Обновите страницу'],
     ['block:2:type', 'Блок 3: сломан'],
     ['block:2:id', 'Блок 3: сломан'],
@@ -412,8 +442,8 @@ describe('normalizeDoc', () => {
     expect(normalizeDoc(fullDoc()).dangling).toEqual([]);
   });
 
-  it('keeps at most 400 blocks', () => {
-    const blocks = Array.from({ length: 450 }, () => ({ type: 'divider' }));
+  it('keeps at most 2100 blocks', () => {
+    const blocks = Array.from({ length: 2150 }, () => ({ type: 'divider' }));
     expect(normalizeDoc({ blocks }, [], seeded()).doc.blocks).toHaveLength(DOC_MAX_BLOCKS);
   });
 
@@ -474,8 +504,12 @@ describe('the page and the exam questions', () => {
     expect(syncQuestions(next, [])).toBe(next);
   });
 
-  it('syncQuestions stops at 400 blocks', () => {
-    const doc: TestDoc = { ...emptyDoc('Т'), blocks: Array.from({ length: DOC_MAX_BLOCKS - 1 }, (_, at): DocBlock => ({ type: 'divider', id: `d${String(at).padStart(8, '0')}` })) };
+  it('syncQuestions stops at the test\'s 2100 blocks', () => {
+    // Pages of 400 (a «Новая страница» every 400): the last one has room, the test has one place left.
+    const doc: TestDoc = {
+      ...emptyDoc('Т'),
+      blocks: Array.from({ length: DOC_MAX_BLOCKS - 1 }, (_, at): DocBlock => (at > 0 && at % 400 === 0 ? { type: 'page', id: `p${String(at).padStart(8, '0')}`, title: '' } : { type: 'divider', id: `d${String(at).padStart(8, '0')}` })),
+    };
     const next = syncQuestions(doc, [{ id: 'q1' }, { id: 'q2' }], seeded());
     expect(next.blocks).toHaveLength(DOC_MAX_BLOCKS);
     expect(questionIds(next)).toEqual(['q1']);

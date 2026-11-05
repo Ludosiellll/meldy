@@ -342,6 +342,103 @@
 .st-doc { min-height: 100%; }
 .st-frame[data-device='phone'] .st-doc .dv-col { padding-top: 34px; }
 
+/*
+ * The canvas's pages (owner, 05.11: an exam of 960 questions): one page of the test at a time. Over the frame a quiet
+ * bar — back, «Страница 2 из 4» with the page's title (the whole list behind it, the device's own picker), forward;
+ * under the page's last block the way on; a full page's offer of a new one. The frame keeps the rest of the height.
+ */
+.st-canvas[data-top] { flex-direction: column; align-items: center; gap: 10px; }
+.st-canvas[data-top] > .st-frame:not([data-device='fluid']) { flex: 1 1 0; height: auto; min-height: 0; }
+/* A phone's (and a tablet's) page is as long as it is: the window scrolls it. */
+.st-canvas[data-top] > .st-frame[data-device='fluid'] { flex: none; }
+.st-canvas[data-top] > .st-frame[data-device='phone'] { margin-top: 2px; margin-bottom: 10px; }
+.st-pages { display: flex; flex: none; align-items: center; justify-content: center; gap: 2px; width: 100%; max-width: 1000px; min-width: 0; }
+.st-pages-step { width: 36px; height: 36px; color: var(--sf-muted); }
+.st-pages-step[data-next] .st-ui-ico { transform: scaleX(-1); }
+.st-pages-pick {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: min(560px, calc(100% - 80px));
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  color: var(--sf-ink);
+  font: 500 15px/1.2 var(--ph-sans);
+}
+@media (hover: hover) { .st-pages-pick:hover { background: var(--st-tint); } }
+.st-pages-pick:focus-within { outline: 2px solid var(--st-sel); outline-offset: 2px; }
+.st-pages-now { display: inline-flex; align-items: center; gap: 8px; min-width: 0; white-space: nowrap; pointer-events: none; }
+.st-pages-n { flex: none; font-variant-numeric: tabular-nums; }
+.st-pages-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--sf-muted); }
+.st-pages-title::before { content: '·'; margin-right: 8px; }
+.st-pages-caret { flex: none; width: 12px; height: 12px; color: var(--sf-muted); }
+.st-pages-pick select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; font-size: 16px; cursor: pointer; }
+.st-pagefoot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px 36px; scroll-margin-bottom: calc(var(--st-bottom-bar, 0px) + 8px); }
+.st-pagefoot-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--sf-line);
+  border-radius: 999px;
+  background: var(--sf-surface);
+  color: var(--sf-ink);
+  font: 500 15px/1.2 var(--ph-sans);
+  cursor: pointer;
+}
+.st-pagefoot-btn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.st-pagefoot-btn .st-ui-ico { flex: none; width: 18px; height: 18px; }
+.st-pagefoot-btn[data-next] { margin-left: auto; }
+.st-pagefoot-btn[data-next] .st-ui-ico { transform: scaleX(-1); }
+.st-pagefoot-btn[data-back] { padding-left: 10px; border-color: transparent; background: none; color: var(--sf-muted); }
+@media (hover: hover) { .st-pagefoot-btn:hover { border-color: var(--sf-ink); } }
+/* A phone: the way on across the page, the way back under it (both whole). */
+@media (max-width: 479px) {
+  .st-pagefoot { flex-direction: column-reverse; align-items: stretch; gap: 4px; padding-inline: 14px; }
+  .st-pagefoot > span:empty { display: none; }
+  .st-pagefoot-btn[data-next] { justify-content: space-between; margin-left: 0; }
+  .st-pagefoot-btn[data-back] { align-self: flex-start; }
+}
+.st-pagefoot-btn:focus-visible { outline: 2px solid var(--st-sel); outline-offset: 2px; }
+.st-pagefull {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px 14px;
+  width: 100%;
+  max-width: 1000px;
+  box-sizing: border-box;
+  padding: 4px 4px 4px 16px;
+  border-radius: 16px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  font: 14.5px/1.4 var(--ph-sans);
+}
+.st-pagefull-t { flex: 1; min-width: 0; margin: 0; }
+.st-pagefull .sf-link.st-pagefull-new { flex: none; font-size: 14.5px; white-space: nowrap; }
+.st-pagefull-x { flex: none; width: 36px; height: 36px; color: var(--sf-muted); }
+.st-pagefull-x .st-ui-ico { width: 18px; height: 18px; }
+.st-toast.st-pagefull {
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  width: calc(100vw - 32px);
+  max-width: 480px;
+  padding: 12px 6px 8px 18px;
+  border-radius: 22px;
+  font: 500 15px/1.4 var(--ph-sans);
+}
+/* The words and the cross on the first line, «Начать новую страницу» under them. */
+.st-toast.st-pagefull .st-toast-t { flex: 1 1 calc(100% - 60px); padding-top: 6px; }
+.st-toast.st-pagefull .st-pagefull-x { order: 1; color: inherit; }
+.st-toast.st-pagefull .st-toast-btn { order: 2; margin: 4px 0 2px -6px; }
+.st-bysubject { align-items: flex-start; padding-top: 18px; border-top: 1px solid var(--sf-line); }
+.st-bysubject-btn.sf-secondary { min-height: 40px; padding: 0 16px; font-size: 14.5px; }
+
 /* ---------------------------------------------------------------- the palette */
 .st-side-h { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -0.015em; }
 .st-pal-hint { margin: 6px 0 0; font-size: 13.5px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }

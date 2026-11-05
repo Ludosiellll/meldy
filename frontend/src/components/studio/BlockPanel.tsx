@@ -21,10 +21,53 @@ import type { SideApi } from './Workspace';
  * alignment of a cover and a text, a heading's size, a picture (the author's own first) and its width, a video's
  * link, a note's tone, a page's name; for a question the editor of «Вопросы и ключи» (saved into test_items, as
  * there) with «Баллы» and «Обязательный». With nothing selected: the page's name for the participants and how they go
- * through it.
+ * through it. «Страница на каждый предмет» stands under those, and under a «Новая страница»'s name, when the test's
+ * questions come from two subjects or more (owner, 2026-11-05: the pages of an exam of four subjects).
  */
 
 export const LAYOUT_OPTIONS = (['one_by_one', 'one_page', 'pages'] as DocLayout[]).map((value) => ({ value, label: STUDIO.layouts[value], hint: STUDIO.layoutHints[value] }));
+
+/**
+ * «Страница на каждый предмет»: a page break before each subject of the test (useStudio bySubject — nothing moves, one
+ * step of Ctrl+Z); what it did is said under it for a while.
+ */
+function BySubject({ studio }: { studio: Studio }) {
+  const { doc, rows } = studio;
+  const subjects = useMemo(() => {
+    const seen = new Set<string>();
+    for (const block of doc.blocks) {
+      const row = block.type === 'question' ? rows.get(block.item_id) : undefined;
+      if (row) seen.add(row.subject_id);
+    }
+    return seen.size;
+  }, [doc.blocks, rows]);
+  const [done, setDone] = useState<string | null>(null);
+  useEffect(() => {
+    if (!done) return undefined;
+    const timer = window.setTimeout(() => setDone(null), 8000);
+    return () => window.clearTimeout(timer);
+  }, [done]);
+  const id = useId();
+  if (subjects < 2) return null;
+  return (
+    <div className="st-group st-bysubject">
+      <button
+        type="button"
+        className="sf-secondary st-bysubject-btn"
+        aria-describedby={`${id}-hint`}
+        onClick={() => {
+          const added = studio.bySubject();
+          setDone(added === null ? STUDIO.full : STUDIO.bySubjectDone(added));
+        }}
+      >
+        {STUDIO.bySubject}
+      </button>
+      <p className="st-field-hint" id={`${id}-hint`} role="status">
+        {done ?? STUDIO.bySubjectHint}
+      </p>
+    </div>
+  );
+}
 
 function PageSettings({ studio }: { studio: Studio }) {
   const id = useId();
@@ -50,6 +93,7 @@ function PageSettings({ studio }: { studio: Studio }) {
         </p>
       </div>
       <Choice label={STUDIO.layout} options={LAYOUT_OPTIONS} value={doc.layout} wide onChange={(layout) => studio.change((current) => ({ ...current, layout }))} />
+      <BySubject studio={studio} />
     </div>
   );
 }
@@ -363,6 +407,7 @@ export default function BlockPanel({ studio, selected, containerId, group, api, 
               <input className="st-input" value={block.title} maxLength={DOC_TITLE_MAX} onChange={(event) => set({ ...block, title: event.target.value.replace(/\s*\n\s*/g, ' ') }, 'title')} />
             </label>
           ) : null}
+          {block.type === 'page' ? <BySubject studio={studio} /> : null}
           <p className="st-panel-foot">
             <button type="button" className="sf-link" data-muted="" onClick={() => api.removeBlock(block.id)}>
               {STUDIO.remove}

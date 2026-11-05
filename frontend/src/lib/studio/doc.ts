@@ -38,61 +38,17 @@ import {
   type ResultBand,
   type TestDoc,
 } from '../../types/testDoc';
+import { chars, cryptoFill, cut, freshId, isObj, newId, oneLine, sameValue, type RandomFill } from './basics';
+import { appendQuestions, type SubjectsOf } from './pages';
 import { videoUrlOk } from './video';
 
-// ─────────────────────────────────────────────── small shared helpers
+// ─────────────────────────────────────────────── small shared helpers (basics.ts)
 
-/** A source of random bytes shaped like crypto.getRandomValues (tests pass a fixed one). */
-export type RandomFill = (bytes: Uint8Array) => Uint8Array;
-export const cryptoFill: RandomFill = (bytes) => crypto.getRandomValues(bytes);
+export { BLOCK_ID_LENGTH, chars, cryptoFill, cut, freshId, isObj, newId, oneLine, sameValue, type RandomFill } from './basics';
 
 export type BlockOf<T extends DocBlockType> = Extract<DocBlock, { type: T }>;
 /** A block without its id (each type keeps its own fields). */
 export type BlockBody = DocBlock extends infer B ? (B extends DocBlock ? Omit<B, 'id'> : never) : never;
-
-export const isObj = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-/** Characters as the database counts them (code points, not UTF-16 units). */
-export const chars = (text: string): number => Array.from(text).length;
-export const cut = (text: string, max: number): string => (chars(text) <= max ? text : Array.from(text).slice(0, max).join(''));
-/** A one-line field: line breaks (and the spaces around them) become one space. */
-export const oneLine = (text: string): string => text.replace(/[ \t]*(?:\r\n?|\n)\s*/g, ' ');
-
-/** Equal as data: the same values under the same keys, in any key order (an undefined field counts as absent). */
-export function sameValue(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  if (Array.isArray(a)) return Array.isArray(b) && a.length === b.length && a.every((entry, at) => sameValue(entry, b[at]));
-  if (!isObj(a) || !isObj(b)) return false;
-  const keys = Object.keys(a).filter((key) => a[key] !== undefined);
-  return keys.length === Object.keys(b).filter((key) => b[key] !== undefined).length && keys.every((key) => sameValue(a[key], b[key]));
-}
-
-// ─────────────────────────────────────────────── ids
-
-export const BLOCK_ID_LENGTH = 12;
-const ID_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
-
-/** A block id: 12 characters of [a-z0-9] (BLOCK_ID_RE), from unbiased random bytes. */
-export function newId(random: RandomFill = cryptoFill): string {
-  let id = '';
-  for (let round = 0; round < 64 && id.length < BLOCK_ID_LENGTH; round += 1) {
-    for (const byte of random(new Uint8Array(BLOCK_ID_LENGTH * 2))) {
-      // 252 = 7 × 36: bytes above it would make the first letters likelier.
-      if (byte < 252 && id.length < BLOCK_ID_LENGTH) id += ID_ALPHABET[byte % ID_ALPHABET.length];
-    }
-  }
-  if (id.length < BLOCK_ID_LENGTH) throw new Error('studio: the random source gives no usable bytes');
-  return id;
-}
-
-/** A new id that is not among `taken` (added to it). */
-export function freshId(taken: Set<string>, random: RandomFill = cryptoFill): string {
-  let id = newId(random);
-  while (taken.has(id)) id = newId(random);
-  taken.add(id);
-  return id;
-}
 
 // ─────────────────────────────────────────────── a new document, new blocks
 
@@ -175,7 +131,7 @@ export function newBlock<T extends DocBlockType>(type: T, itemId = '', random: R
 
 // ─────────────────────────────────────────────── the server's check, mirrored
 
-/** jsonb's text as Postgres prints it (`{"a": 1, "b": [1, 2]}`): the table keeps octet_length(doc::text) ≤ 200 KB. */
+/** jsonb's text as Postgres prints it (`{"a": 1, "b": [1, 2]}`): the table keeps octet_length(doc::text) ≤ 512 KB. */
 export function jsonbTextBytes(value: unknown): number {
   const json = JSON.stringify(value);
   if (json === undefined) return 0;
@@ -360,7 +316,7 @@ function blockRule(block: unknown, scope: BlockScope): string | null {
  * have), `results`. The first
  * entry is the server's answer (22023 detail); [] — the server takes it. Pass `containerId` for the server's own check
  * (pictures in the exam's folder): contracts/studio/test_doc_cases.json holds both to the same answers. One more name
- * comes last, never from test_doc_ok: `size` (test_doc_save refuses more than 200 KB of jsonb text before the rules).
+ * comes last, never from test_doc_ok: `size` (test_doc_save refuses more than 512 KB of jsonb text before the rules).
  */
 export function docProblems(doc: unknown, itemIds: Iterable<string>, containerId?: string): string[] {
   if (!isObj(doc)) return ['version'];
@@ -434,11 +390,11 @@ export function ruleMessage(rule: string, doc?: unknown): string {
     case 'layout':
       return 'Не выбрано, как проходить тест. Выберите в «Оформлении».';
     case 'blocks':
-      return 'Блоков больше 400. Уберите лишние.';
+      return `Блоков больше ${DOC_MAX_BLOCKS}. Уберите лишние.`;
     case 'results':
       return 'Экран результата задан неверно. Проверьте диапазоны баллов и ссылку.';
     case 'size':
-      return 'Тест больше 200 КБ. Сократите тексты или уберите блоки.';
+      return `Тест больше ${DOC_MAX_BYTES / 1024} КБ. Сократите тексты или уберите блоки.`;
     default:
       return 'Тест не сохранился. Обновите страницу.';
   }
@@ -558,7 +514,7 @@ export interface NormalizedDoc {
  * block ids renewed, a question shown at most once, result bands sorted without overlaps. The result passes
  * docProblems except for dangling question blocks,
  * which stay (listed in `dangling` when `itemIds` is given), pictures of another exam's folder (only the bucket's
- * pattern is known here) and the 200 KB size. Normalising twice changes nothing more.
+ * pattern is known here) and the 512 KB size. Normalising twice changes nothing more.
  */
 export function normalizeDoc(raw: unknown, itemIds?: Iterable<string>, random: RandomFill = cryptoFill): NormalizedDoc {
   const source = isObj(raw) ? raw : {};
@@ -601,19 +557,17 @@ export function questionIds(doc: TestDoc): string[] {
 
 /**
  * The exam's questions that are not on the page yet, appended as question blocks at the end (a question added in
- * «Список» or by an import shows up on the canvas), in the order given, while the page has room (DOC_MAX_BLOCKS).
- * The same document back when nothing is missing.
+ * «Список» or by an import shows up on the canvas), in the order given, a page of the canvas holding at most
+ * DOC_PAGE_BLOCKS and the test DOC_MAX_BLOCKS; with `subjects`, each subject starts a page of its own (pages.ts
+ * appendQuestions). The same document back when nothing is missing.
  */
-export function syncQuestions(doc: TestDoc, items: readonly Pick<TestItem, 'id'>[], random: RandomFill = cryptoFill): TestDoc {
-  const onPage = lowerSet(questionIds(doc));
-  const ids = new Set(doc.blocks.map((block) => block.id));
-  const added: DocBlock[] = [];
-  for (const item of items) {
-    if (onPage.has(item.id.toLowerCase()) || doc.blocks.length + added.length >= DOC_MAX_BLOCKS) continue;
-    onPage.add(item.id.toLowerCase());
-    added.push(blockWith('question', freshId(ids, random), item.id));
-  }
-  return added.length === 0 ? doc : { ...doc, blocks: [...doc.blocks, ...added] };
+export function syncQuestions(
+  doc: TestDoc,
+  items: ReadonlyArray<{ id: string; subject_id?: string }>,
+  random: RandomFill = cryptoFill,
+  subjects: SubjectsOf | null = null,
+): TestDoc {
+  return appendQuestions(doc, items, subjects, random);
 }
 
 /**

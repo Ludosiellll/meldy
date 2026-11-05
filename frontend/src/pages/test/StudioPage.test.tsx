@@ -407,14 +407,6 @@ describe('StudioPage: undo, moving, inserting, removing (spec §47.6 «Холс�
     expect(subtitle).toHaveValue('Для 8 класса');
     await user.keyboard('{Escape}');
 
-    // Новая страница: its title starts empty, so the words typed are all there is.
-    await add(STUDIO.types.page);
-    const pageTitle = onCanvas().getByRole('textbox', { name: STUDIO.pageBlockTitle });
-    expect(pageTitle).toHaveValue('');
-    await user.keyboard('Часть 2');
-    expect(pageTitle).toHaveValue('Часть 2');
-    await user.keyboard('{Escape}');
-
     // Картинка: the caption starts empty too.
     await add(STUDIO.types.image);
     await user.click(onCanvas().getByText(STUDIO.captionAdd));
@@ -427,6 +419,16 @@ describe('StudioPage: undo, moving, inserting, removing (spec §47.6 «Холс�
     // Разделитель: no words at all.
     await add(STUDIO.types.divider);
     expect(onCanvas().queryByRole('textbox')).toBeNull();
+
+    // Новая страница: its title starts empty, so the words typed are all there is. The blocks after it are its page,
+    // and the canvas shows that page now, the new block at its top.
+    await add(STUDIO.types.page);
+    expect(screen.getByRole('navigation', { name: STUDIO.pagesNav })).toHaveTextContent(STUDIO.pageOf(2, 2));
+    const pageTitle = within(frame(order()[0] as string)).getByRole('textbox', { name: STUDIO.pageBlockTitle });
+    expect(pageTitle).toHaveValue('');
+    await user.keyboard('Часть 2');
+    expect(pageTitle).toHaveValue('Часть 2');
+    await user.keyboard('{Escape}');
 
     // A question: Enter on its block opens its editor on «Новый вопрос», selected whole.
     fireEvent.click(frame('qblock000003'));
@@ -678,12 +680,40 @@ describe('StudioPage: the views and the participant', () => {
     expect(api.saveTestDoc.mock.calls.length).toBe(saves);
   });
 
-  it('400 blocks fit on a page: the questions beyond them are named, and they stay in «Список»', async () => {
+  it('a full page of the canvas: the questions past its 400 blocks go on a new page, the bar shows it', async () => {
     const doc = { ...emptyDoc('Длинный тест'), blocks: Array.from({ length: 399 }, (_, at) => ({ type: 'divider' as const, id: `divider${String(at).padStart(5, '0')}` })) };
     api.fetchTestDoc.mockResolvedValue({ container_id: EXAM, doc, rev: 2, updated_at: '' });
     renderStudio();
-    expect(await screen.findByText(STUDIO.cap, {}, { timeout: 5000 })).toBeInTheDocument();
+    const nav = await screen.findByRole('navigation', { name: STUDIO.pagesNav }, { timeout: 5000 });
+    expect(nav).toHaveTextContent(STUDIO.pageOf(1, 2));
+    // 399 dividers and the first question: the page is full.
     expect(order()).toHaveLength(400);
+    expect(frame(order()[399] as string)).toHaveAttribute('data-type', 'question');
+    expect(screen.queryByText(STUDIO.cap)).toBeNull();
+    fireEvent.click(within(nav).getByRole('button', { name: STUDIO.pageNext }));
+    expect(nav).toHaveTextContent(STUDIO.pageOf(2, 2));
+    // The new page: its «Новая страница», named by the subject, and the two other questions.
+    expect(order()).toHaveLength(3);
+    expect(frame(order()[0] as string)).toHaveAttribute('data-type', 'page');
+    expect(within(frame(order()[0] as string)).getByText('Вопросы')).toBeInTheDocument();
+    fireEvent.click(view(STUDIO.views.list));
+    expect(screen.getAllByRole('article')).toHaveLength(3);
+  }, 20000);
+
+  it('a test with no room left (2100 blocks): the questions past it are named, and they stay in «Список»', async () => {
+    const blocks = Array.from({ length: 2098 }, (_, at) =>
+      at > 0 && at % 400 === 0 ? { type: 'page' as const, id: `page${String(at).padStart(8, '0')}`, title: '' } : { type: 'divider' as const, id: `divider${String(at).padStart(5, '0')}` },
+    );
+    api.fetchTestDoc.mockResolvedValue({ container_id: EXAM, doc: { ...emptyDoc('Длинный тест'), blocks }, rev: 2, updated_at: '' });
+    renderStudio();
+    expect(await screen.findByText(STUDIO.cap, {}, { timeout: 5000 })).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: STUDIO.pagesNav });
+    expect(nav).toHaveTextContent(STUDIO.pageOf(1, 6));
+    fireEvent.change(within(nav).getByRole('combobox'), { target: { value: '5' } });
+    expect(nav).toHaveTextContent(STUDIO.pageOf(6, 6));
+    // The last page: its «Новая страница», 97 dividers and the two questions that fitted.
+    expect(order()).toHaveLength(100);
+    expect(order().filter((id) => frame(id as string).dataset.type === 'question')).toHaveLength(2);
     fireEvent.click(view(STUDIO.views.list));
     expect(screen.getAllByRole('article')).toHaveLength(3);
   }, 20000);

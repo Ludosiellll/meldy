@@ -56,6 +56,10 @@ import '../../components/quick/studioPaste.css';
  * «Сохранить и выйти», «Не сохранять», «Остаться»), and so do the views (an editor would close); inside «Холст» another
  * block, another tab of the settings or closing the phone's sheet wait for the editor's own answer, as before.
  * «Отправить по ссылке» saves the open question first. One quiet line on the canvas says where changes go.
+ *
+ * Pages (owner, 05.11: an exam of 960 questions, the canvas held 400): «Холст» shows one page of the test at a time
+ * (Workspace, lib/studio/pages.ts). Another page from its bar waits for the question editor's answer as another block
+ * does; a block chosen on another page («Показать» of «Проверка теста», ↑ ↓, a link `?block=<id>`) brings its page.
  */
 
 const VIEWS: StudioView[] = ['canvas', 'list', 'text'];
@@ -87,7 +91,7 @@ type AskStep =
   /** Out of the signed-in app without a link (the account menu's «Выйти», lib/leaveCheck): `done` answers it. */
   | { kind: 'out'; done: (go: boolean) => void };
 /** A step inside «Холст» that waits for the editor's own «Сохранить» / «Не сохранять». */
-type HeldStep = { kind: 'select'; id: string | null } | { kind: 'panel'; panel: Panel } | { kind: 'close' };
+type HeldStep = { kind: 'select'; id: string | null } | { kind: 'panel'; panel: Panel } | { kind: 'close' } | { kind: 'page'; page: number };
 
 /** What the top bar's «Сохранить» left unsaved: a question (its editor says why) or the page (the status says why). */
 type SaveResult = { ok: true } | { ok: false; what: 'question' | 'page' };
@@ -234,6 +238,8 @@ export default function StudioPage() {
   /** The canvas's own facts (the chosen block, the text typed in…): read by the frame or gap they concern (canvasStore). */
   const [store] = useState(createCanvasStore);
   const [panel, setPanel] = useState<Panel>('block');
+  /** The page of the test «Холст» shows (from 0; Workspace clamps it to the pages there are). */
+  const [canvasPage, setCanvasPage] = useState(0);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [sideOpen, setSideOpen] = useState(false);
   const [preview, setPreview] = useState<{ device: 'phone' | 'desktop'; percent: number | null } | null>(null);
@@ -319,7 +325,11 @@ export default function StudioPage() {
   const take = (step: HeldStep) => {
     if (step.kind === 'select') setSelected(step.id);
     else if (step.kind === 'panel') setPanel(step.panel);
-    else setSideOpen(false);
+    else if (step.kind === 'page') {
+      // Another page from its top, nothing chosen on it yet (the settings show the page's own).
+      setSelected(null);
+      setCanvasPage(step.page);
+    } else setSideOpen(false);
   };
   const select = (id: string | null) => {
     if (id === store.get().selected) return;
@@ -328,6 +338,11 @@ export default function StudioPage() {
   const choosePanel = (next: Panel) => {
     if (next === panel) return;
     if (!hold({ kind: 'panel', panel: next })) setPanel(next);
+  };
+  /** Another page of «Холст» (its bar): as another block, it waits for the question editor's answer. */
+  const choosePage = (next: number) => {
+    if (next === canvasPage) return;
+    if (!hold({ kind: 'page', page: next })) take({ kind: 'page', page: next });
   };
   const openSide = (open: boolean) => {
     if (open) setSideOpen(true);
@@ -488,12 +503,27 @@ export default function StudioPage() {
   const showBlock = (blockId: string) => {
     setView('canvas');
     select(blockId);
-    window.setTimeout(() => {
+    // A block of another page is drawn once its page is (Workspace follows the choice): looked for a few times.
+    const reveal = (tries: number) => {
       const node = document.querySelector<HTMLElement>(`[data-block="${blockId}"]`);
-      node?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
-      node?.focus({ preventScroll: true });
-    }, 0);
+      if (!node) {
+        if (tries > 0) window.setTimeout(() => reveal(tries - 1), 40);
+        return;
+      }
+      node.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+      node.focus({ preventScroll: true });
+    };
+    window.setTimeout(() => reveal(8), 0);
   };
+  // A link to a block (`?block=<id>`): once the page is read, the block is chosen and shown, on its page.
+  const linked = useRef(search.get('block'));
+  useEffect(() => {
+    const id = linked.current;
+    if (!id || studio.phase !== 'ready') return;
+    linked.current = null;
+    if (studio.doc.blocks.some((block) => block.id === id)) showBlock(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studio.phase]);
 
   /** The quiz setup, once the page is on the server (else «Не сохранено» stays here). */
   const sendNow = async () => {
@@ -854,6 +884,9 @@ export default function StudioPage() {
           onSideOpen={openSide}
           active={view === 'canvas'}
           onGenerate={openGenerate}
+          page={canvasPage}
+          onPage={choosePage}
+          onFollow={setCanvasPage}
         />
         {view === 'canvas' ? null : view === 'list' ? (
           <div className="st-scrollpage">

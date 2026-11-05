@@ -186,6 +186,21 @@ describe('DocView in edit mode: the canvas', () => {
     expect(document.querySelector('.dv-pagemark')).toHaveAttribute('data-off');
   });
 
+  it('one page of the test (`range`): its blocks with the test\'s own indices, no gap above its «Новая страница»', () => {
+    const doc = page('pages');
+    render(<DocView mode="edit" doc={doc} items={items} dark={false} imageUrl={url} editor={editor({ Frame: ({ block, index, count, children }) => <div data-frame={`${block.id}:${index}/${count}`}>{children}</div> })} range={{ start: 3, end: 7 }} />);
+    expect(Array.from(document.querySelectorAll('[data-frame]')).map((node) => node.getAttribute('data-frame'))).toEqual(['p2:3/7', 'tip:4/7', 'q2:5/7', 'gone:6/7']);
+    // The gaps of the page: none before its «Новая страница», one before each other block, the end gap after the last.
+    expect(Array.from(document.querySelectorAll('[data-gap]')).map((node) => node.getAttribute('data-gap'))).toEqual(['4', '5', '6', '7']);
+    expect(screen.getByText(STUDIO.pageMark(2))).toBeInTheDocument();
+    cleanup();
+    // A test that starts with «Новая страница»: that one is page 1.
+    const opened: TestDoc = { ...doc, blocks: [{ type: 'page', id: 'p1', title: 'Начало' }, ...doc.blocks] };
+    render(<DocView mode="edit" doc={opened} items={items} dark={false} imageUrl={url} editor={editor()} />);
+    expect(screen.getByText(STUDIO.pageMark(1))).toBeInTheDocument();
+    expect(screen.getByText(STUDIO.pageMark(2))).toBeInTheDocument();
+  });
+
   it('a click on a text starts typing there; typing goes to `change`; «/» in an empty text asks for the menu', () => {
     const doc = page('one_page');
     const api = editor();

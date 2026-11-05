@@ -21,10 +21,11 @@ import {
   withoutDangling,
 } from '../../lib/studio/doc';
 import { amend, canRedo, canUndo, record, redo, startHistory, undo, type DocHistory } from '../../lib/studio/history';
+import { appendQuestions, pageOfInsert, pageRanges, pagesBySubject, pagesFit, type SubjectsOf } from '../../lib/studio/pages';
 import { templateDoc, type TemplateId } from '../../lib/studio/templates';
 import type { TextResult } from '../../lib/studio/textFormat';
 import type { ItemInput, ItemPatch, TestItem, Uuid } from '../../types/container';
-import { DOC_MAX_BLOCKS, type DocBlock, type DocBlockType, type TestDoc } from '../../types/testDoc';
+import { DOC_MAX_BLOCKS, DOC_PAGE_BLOCKS, type DocBlock, type DocBlockType, type TestDoc } from '../../types/testDoc';
 import { errorText } from '../containers/copyImport';
 import { copyInput, itemFromInput, numbered } from '../test/buildModel';
 import type { Build } from '../test/useBuild';
@@ -35,8 +36,13 @@ import { draftInput } from './newQuestion';
  * The studio's state in one place (plan docs/superpowers/plans/2026-10-18-studio.md, «Canvas UI», «Saving»):
  *
  * - The page: read with test_doc_get once the exam's questions are in (none yet → emptyDoc of the exam's name), made
- *   safe (normalizeDoc), the questions not on it appended (syncQuestions). Every change is a step of
+ *   safe (normalizeDoc), the questions not on it appended (syncQuestions: in the exam's order, a subject a page of its
+ *   own, no page of the canvas past DOC_PAGE_BLOCKS — lib/studio/pages.ts). Every change is a step of
  *   lib/studio/history (typing into one field is one step while the keys keep coming).
+ * - Pages (owner, 2026-11-05: 960 questions, 400 fitted): the test holds DOC_MAX_BLOCKS, a page of the canvas
+ *   DOC_PAGE_BLOCKS. A block added to a full page is refused with `fullAt` (the canvas offers a new page there); a move
+ *   or a removed «Новая страница» that would make a page pass it is refused with words. «Страница на каждый предмет»
+ *   (bySubject) puts a page break before each subject.
  * - Saving: 800 ms after the last change, the page without dangling question blocks (withoutDangling), only when
  *   docProblems has nothing against it (else the rule's words stand by the block and nothing is sent), over the
  *   revision it was read at. MC020 stops saving: «Тест изменён в другой вкладке» and «Обновить» (never overwritten
@@ -145,8 +151,24 @@ export interface Studio {
   flush: () => Promise<boolean>;
   /** After MC020: the page as the other tab saved it. */
   reloadDoc: () => void;
-  /** The exam's questions that do not fit on the page (DOC_MAX_BLOCKS). */
+  /** The exam's questions that do not fit in the test (DOC_MAX_BLOCKS). */
   overflow: number;
+  /**
+   * Where a block was just refused because its page of the canvas holds DOC_PAGE_BLOCKS already (an index of the
+   * blocks), until the page changes or the canvas takes the offer (newPage) or puts it away (clearFull).
+   */
+  fullAt: number | null;
+  /** Why a move or a removal did not happen (a page would pass DOC_PAGE_BLOCKS), shown on the canvas until the page changes. */
+  pageNote: string | null;
+  /** Puts away the offer of a new page and the note. */
+  clearFull: () => void;
+  /** A «Новая страница» at the end of the page that holds block `index`: the new page to add to. */
+  newPage: (index: number) => DocBlock | null;
+  /**
+   * «Страница на каждый предмет»: a page break before each subject (lib/studio/pages.ts pagesBySubject), one step of the
+   * history; the number of pages put in, or null when the test has no room for them.
+   */
+  bySubject: () => number | null;
   /** The problems of the last check before saving, by block. */
   problems: ReadonlyMap<string, string>;
   /** A line read out and shown for a moment: «Блок удалён…». */
@@ -159,8 +181,11 @@ export interface Studio {
   /** New rows (the list's editor, a copy of a row off the page) and their blocks at `index` (the end by default). */
   addInputs: (inputs: ItemInput[], index?: number) => Promise<DocBlock[]>;
   duplicate: (blockId: string) => Promise<DocBlock | null>;
-  /** Takes a block off the page; `touch`: the words read out leave out Ctrl+Z (the screen shows «Вернуть»). */
-  remove: (blockId: string, touch?: boolean) => void;
+  /**
+   * Takes a block off the page; `touch`: the words read out leave out Ctrl+Z (the screen shows «Вернуть»). False when
+   * it stays (a «Новая страница» whose two pages together would pass DOC_PAGE_BLOCKS: said).
+   */
+  remove: (blockId: string, touch?: boolean) => boolean;
   move: (blockId: string, index: number) => void;
   replace: (block: DocBlock, key?: string | null) => void;
   /** container_item_update for a row, kept here when it is saved. */
@@ -202,6 +227,16 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const subjectOrder = useMemo(() => (summary?.subjects ?? []).map((subject) => subject.id), [summary]);
+  /** The exam's subjects for the pages: a row's subject, a subject's title (read when called: the latest rows). */
+  const subjectsRef = useRef<SubjectsOf | null>(null);
+  const titles = useMemo(() => new Map((summary?.subjects ?? []).map((subject) => [subject.id, subject.title])), [summary]);
+  const titlesRef = useRef(titles);
+  titlesRef.current = titles;
+  subjectsRef.current ??= {
+    subjectOf: (itemId) => rowsRef.current.get(itemId)?.subject_id,
+    titleOf: (subjectId) => titlesRef.current.get(subjectId) ?? '',
+  };
+  const subjects = subjectsRef.current;
 
   const [history, dispatch] = useReducer(reduce, null);
   const historyRef = useRef(history);
@@ -220,6 +255,21 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
   const [save, setSave] = useState<SaveState>({ kind: 'idle' });
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [fullAt, setFullAtState] = useState<number | null>(null);
+  const [pageNote, setPageNoteState] = useState<string | null>(null);
+  const pageNoteRef = useRef<string | null>(null);
+  const setPageNote = useCallback((text: string | null) => {
+    if (pageNoteRef.current === text) return;
+    pageNoteRef.current = text;
+    setPageNoteState(text);
+  }, []);
+  // Set only when it changes (the page's every key would otherwise cost a commit: the render budget's test).
+  const fullAtRef = useRef<number | null>(null);
+  const setFullAt = useCallback((index: number | null) => {
+    if (fullAtRef.current === index) return;
+    fullAtRef.current = index;
+    setFullAtState(index);
+  }, []);
 
   const rev = useRef(0);
   const lastSaved = useRef<unknown>(null);
@@ -254,7 +304,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       const items = ordered([...rowsRef.current.values()], subjectOrder);
       const ids = items.map((item) => item.id);
       const base = stored ? normalizeDoc(stored.doc, ids).doc : emptyDoc(summary.title);
-      const doc = syncQuestions(base, items);
+      const doc = syncQuestions(base, items, undefined, subjects);
       rev.current = stored?.rev ?? 0;
       lastSaved.current = stored ? stored.doc : base;
       // Read as it is stored: nothing waits for a save (the top bar says «Все изменения сохранены» at once).
@@ -273,7 +323,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
         setPhase((current) => (current === 'ready' ? current : 'error'));
       }
     }
-  }, [loaded, summary, containerId, subjectOrder, step]);
+  }, [loaded, summary, containerId, subjectOrder, subjects, step]);
 
   useEffect(() => {
     const key = `${containerId}:${loadRound}`;
@@ -350,17 +400,20 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       subjectOrder,
     );
     if (fresh.length > 0) {
-      const next = syncQuestions(present, fresh);
-      const added = next.blocks.length - present.blocks.length;
+      const next = syncQuestions(present, fresh, undefined, subjects);
+      // The questions that came (a page break may come with them).
+      const added = next === present ? 0 : questionIds(next).length - questionIds(present).length;
       setOverflow(fresh.length - added);
-      if (added > 0) step({ type: 'amend', change: () => next });
+      if (next !== present) step({ type: 'amend', change: () => next });
     } else setOverflow(0);
-  }, [phase, present, rows, subjectOrder, containerId, addLocal, dropLocal, say, setOverflow, step]);
+  }, [phase, present, rows, subjectOrder, subjects, containerId, addLocal, dropLocal, say, setOverflow, step]);
 
-  // Any change of the page lets a failed deletion try again.
+  // Any change of the page lets a failed deletion try again, and puts away the offer of a new page.
   useEffect(() => {
     blocked.current.clear();
-  }, [present]);
+    setFullAt(null);
+    setPageNote(null);
+  }, [present, setFullAt, setPageNote]);
 
   // ───────────────────────────── saving ─────────────────────────────
 
@@ -466,14 +519,33 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
     step({ type: 'record', change: fn, key, at: Date.now() });
   }, [step]);
 
-  const full = () => (historyRef.current?.present.blocks.length ?? 0) >= DOC_MAX_BLOCKS;
+  /**
+   * Whether `count` blocks fit at `index`: the test (DOC_MAX_BLOCKS) and the page of the canvas they would land on
+   * (DOC_PAGE_BLOCKS; a «Новая страница» splits its page, so only the test counts for it). Said when they do not; a full
+   * page also leaves `fullAt` for the canvas's offer of a new page.
+   */
+  const fits = (index: number, count = 1, type: DocBlockType | null = null): boolean => {
+    const blocks = historyRef.current?.present.blocks ?? [];
+    if (blocks.length + count > DOC_MAX_BLOCKS) {
+      say(STUDIO.full);
+      return false;
+    }
+    if (type === 'page') return true;
+    const ranges = pageRanges(blocks);
+    const page = ranges[pageOfInsert(ranges.map((range) => range.start), index)];
+    if (page && page.end - page.start + count > DOC_PAGE_BLOCKS) {
+      setFullAt(index);
+      say(STUDIO.pageFull);
+      return false;
+    }
+    return true;
+  };
+  const fitsRef = useRef(fits);
+  fitsRef.current = fits;
 
   const insert = useCallback(
     (type: Exclude<DocBlockType, 'question'>, index: number) => {
-      if (full()) {
-        say(STUDIO.full);
-        return null;
-      }
+      if (!fitsRef.current(index, 1, type)) return null;
       const block = newBlock(type);
       change((doc) => insertBlock(doc, block, index));
       say(STUDIO.added(STUDIO.types[type]));
@@ -513,10 +585,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
 
   const addQuestion = useCallback(
     async (type: QuestionType, index: number) => {
-      if (full()) {
-        say(STUDIO.full);
-        return null;
-      }
+      if (!fitsRef.current(index)) return null;
       const subjectId = buildSubject;
       if (!subjectId) return null;
       setBusy('question');
@@ -543,20 +612,34 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
     async (inputs: ItemInput[], index?: number) => {
       const subjectId = buildSubject;
       if (!subjectId) return [];
-      const room = DOC_MAX_BLOCKS - (historyRef.current?.present.blocks.length ?? 0);
       const made = await addRows(inputs, subjectId);
-      const blocks = [...made.values()].slice(0, Math.max(0, room)).map((item) => newBlock('question', item.id));
-      change((doc) => {
-        let next = doc;
-        const at = index ?? doc.blocks.length;
-        blocks.forEach((block, offset) => {
-          next = insertBlock(next, block, at + offset);
+      const items = [...made.values()];
+      const current = historyRef.current?.present;
+      const at = index ?? current?.blocks.length ?? 0;
+      let blocks: DocBlock[] = [];
+      if (current && index !== undefined && index < current.blocks.length) {
+        // In the middle of the page: as many as its page of the canvas takes.
+        const ranges = pageRanges(current.blocks);
+        const page = ranges[pageOfInsert(ranges.map((range) => range.start), at)];
+        const room = Math.min(DOC_MAX_BLOCKS - current.blocks.length, page ? DOC_PAGE_BLOCKS - (page.end - page.start) : DOC_PAGE_BLOCKS);
+        blocks = items.slice(0, Math.max(0, room)).map((item) => newBlock('question', item.id));
+        change((doc) => {
+          let next = doc;
+          blocks.forEach((block, offset) => {
+            next = insertBlock(next, block, at + offset);
+          });
+          return next;
         });
-        return next;
-      });
+      } else if (current) {
+        // At the end: in pages, as the exam's questions come (a full page goes on on a new one).
+        const next = appendQuestions(current, items, subjects);
+        const before = new Set(current.blocks.map((block) => block.id));
+        blocks = next.blocks.filter((block) => block.type === 'question' && !before.has(block.id));
+        if (next !== current) change(() => next);
+      }
       return blocks;
     },
-    [addRows, buildSubject, change],
+    [addRows, buildSubject, change, subjects],
   );
 
   const duplicate = useCallback(
@@ -564,10 +647,7 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       const doc = historyRef.current?.present;
       const block = doc?.blocks.find((entry) => entry.id === blockId);
       if (!doc || !block) return null;
-      if (full()) {
-        say(STUDIO.full);
-        return null;
-      }
+      if (!fitsRef.current(doc.blocks.indexOf(block) + 1, 1, block.type)) return null;
       if (block.type !== 'question') {
         const next = duplicateBlock(doc, blockId);
         const at = next.blocks.findIndex((entry) => entry.id === blockId);
@@ -602,12 +682,20 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
 
   const remove = useCallback(
     (blockId: string, touch = false) => {
-      const block = historyRef.current?.present.blocks.find((entry) => entry.id === blockId);
-      if (!block) return;
-      change((doc) => removeBlock(doc, blockId));
+      const doc = historyRef.current?.present;
+      const block = doc?.blocks.find((entry) => entry.id === blockId);
+      if (!doc || !block) return false;
+      // A «Новая страница» taken away joins two pages of the canvas: not past DOC_PAGE_BLOCKS.
+      if (block.type === 'page' && !pagesFit(doc.blocks, removeBlock(doc, blockId).blocks)) {
+        say(STUDIO.pageJoinFull);
+        setPageNote(STUDIO.pageJoinFull);
+        return false;
+      }
+      change((current) => removeBlock(current, blockId));
       say(STUDIO.removed(STUDIO.types[block.type], touch));
+      return true;
     },
-    [change, say],
+    [change, say, setPageNote],
   );
 
   const move = useCallback(
@@ -616,10 +704,15 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       if (!doc) return;
       const next = moveBlock(doc, blockId, index);
       if (next === doc) return;
+      if (!pagesFit(doc.blocks, next.blocks)) {
+        say(STUDIO.pageMoveFull);
+        setPageNote(STUDIO.pageMoveFull);
+        return;
+      }
       change(() => next);
       say(STUDIO.moved(next.blocks.findIndex((entry) => entry.id === blockId) + 1, next.blocks.length));
     },
-    [change, say],
+    [change, say, setPageNote],
   );
 
   const replace = useCallback((block: DocBlock, key: string | null = null) => change((doc) => replaceBlock(doc, block), key), [change]);
@@ -683,6 +776,41 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
     [change, patchRow],
   );
 
+  const clearFull = useCallback(() => {
+    setFullAt(null);
+    setPageNote(null);
+  }, [setFullAt, setPageNote]);
+  const newPage = useCallback(
+    (index: number) => {
+      const doc = historyRef.current?.present;
+      if (!doc) return null;
+      if (doc.blocks.length + 1 > DOC_MAX_BLOCKS) {
+        say(STUDIO.full);
+        return null;
+      }
+      const ranges = pageRanges(doc.blocks);
+      const page = ranges[pageOfInsert(ranges.map((range) => range.start), index)];
+      const block = newBlock('page');
+      change((current) => insertBlock(current, block, page ? page.end : current.blocks.length));
+      setFullAt(null);
+      say(STUDIO.added(STUDIO.types.page));
+      return block;
+    },
+    [change, say, setFullAt],
+  );
+  const bySubject = useCallback(() => {
+    const doc = historyRef.current?.present;
+    if (!doc) return 0;
+    const result = pagesBySubject(doc, subjects);
+    if (!result) {
+      say(STUDIO.full);
+      return null;
+    }
+    if (result.added > 0) change(() => result.doc);
+    say(STUDIO.bySubjectDone(result.added));
+    return result.added;
+  }, [change, say, subjects]);
+
   const problems = useMemo(() => {
     const out = new Map<string, string>();
     if (save.kind === 'invalid') for (const problem of save.problems) if (problem.blockId && !out.has(problem.blockId)) out.set(problem.blockId, problem.message);
@@ -716,6 +844,11 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       flush,
       reloadDoc,
       overflow,
+      fullAt,
+      pageNote,
+      clearFull,
+      newPage,
+      bySubject,
       problems,
       notice,
       say,
@@ -749,6 +882,11 @@ export function useStudio(containerId: Uuid, build: Build): Studio {
       flush,
       reloadDoc,
       overflow,
+      fullAt,
+      pageNote,
+      clearFull,
+      newPage,
+      bySubject,
       problems,
       notice,
       say,

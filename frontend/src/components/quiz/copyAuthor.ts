@@ -194,6 +194,12 @@ export const QA_SETUP = {
   protectionLimitOption: (n: number) => `${n} ${plural(n, 'ухода', 'уходов', 'уходов')}`,
   design: 'Как в студии',
   designLine: 'Вопросы, порядок и оформление берём из студии.',
+  /**
+   * A page of the studio with more questions than an attempt holds (200; 20261107090500_studio_pages.sql): how many each
+   * attempt takes, and how.
+   */
+  designCount: 'Вопросов в попытке',
+  designDraw: (n: number, of: number) => `В тесте ${of} ${plural(of, 'вопрос', 'вопроса', 'вопросов')}. Каждый участник получит ${n} из них, выбранных случайно. Порядок как в студии.`,
   designOff: 'Вопросы берём из предметов экзамена.',
   toStudio: 'Открыть студию',
   moreNoteDesign: 'варианты ответа, попытки, проходной балл, что видно после сдачи, защита от списывания',

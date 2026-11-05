@@ -6,8 +6,12 @@
  * - The page's cover (the first cover block, before any question) is the start screen of /k/<код>: the title, the
  *   line under it and the picture. The attempt does not repeat it: its title stays as the page's heading.
  * - The attempt's questions are the server's (`attempt.items`, drawn from the page at the start, keyed ones only): a
- *   question block whose row is not among them is left out (no key, deleted, or added after the start), and a question
+ *   question block whose row is not among them is left out (no key, deleted, added after the start, or not drawn: a page
+ *   of more than 200 questions gives each attempt item_count of them, 20261107090500_studio_pages.sql), and a question
  *   of the attempt the page no longer has (the author edited the page after the start) comes at the end.
+ * - A page of the test (from one «Новая страница» to the next) whose questions are all left out is left out whole, its
+ *   other blocks with it (a subject's heading over none of its questions): the participant meets no empty page. A page
+ *   that never had a question (an introduction) stays; the start screen's title stays on the first page shown.
  */
 import { normalizeDoc } from '../studio/doc';
 import type { Answer, DocItem } from '../../components/studio/docRun';
@@ -43,29 +47,57 @@ export const EXTRA_PREFIX = 'extra-';
 
 /**
  * The page an attempt is shown on: the start screen's cover reduced to its title (a heading), without question blocks
- * of questions the attempt does not hold (each question once, in the attempt's spelling of its id), and with the
- * attempt's questions the page no longer has at the end — one point each, not required.
+ * of questions the attempt does not hold (each question once, in the attempt's spelling of its id) and without the pages
+ * of the test all of whose questions those were, and with the attempt's questions the page no longer has at the end —
+ * one point each, not required.
  */
 export function attemptDoc(doc: TestDoc, items: ReadonlyArray<Pick<QuizAttemptItem, 'id'>>): TestDoc {
   const ids = new Map(items.map((item) => [item.id.toLowerCase(), item.id]));
   const cover = startCover(doc);
   const used = new Set<string>();
-  const blocks: DocBlock[] = [];
-  for (const block of doc.blocks) {
+  // The test's pages (a «Новая страница» after the first block opens one): their blocks, their questions, the kept ones.
+  const pages: Array<{ blocks: DocBlock[]; had: number; kept: number; title: DocBlock | null }> = [];
+  let current: (typeof pages)[number] = { blocks: [], had: 0, kept: 0, title: null };
+  doc.blocks.forEach((block, at) => {
+    if (block.type === 'page' && at > 0) {
+      pages.push(current);
+      current = { blocks: [block], had: 0, kept: 0, title: null };
+      return;
+    }
     if (block === cover) {
       // The start screen showed the cover; the page keeps its title as its heading.
-      blocks.push({ type: 'heading', id: block.id, text: block.title, size: 'l' });
-      continue;
+      const heading: DocBlock = { type: 'heading', id: block.id, text: block.title, size: 'l' };
+      current.blocks.push(heading);
+      current.title = heading;
+      return;
     }
     if (block.type !== 'question') {
-      blocks.push(block);
+      current.blocks.push(block);
+      return;
+    }
+    current.had += 1;
+    const id = ids.get(block.item_id.toLowerCase());
+    if (!id || used.has(id)) return;
+    used.add(id);
+    current.kept += 1;
+    current.blocks.push(id === block.item_id ? block : { ...block, item_id: id });
+  });
+  pages.push(current);
+  const blocks: DocBlock[] = [];
+  let title: DocBlock | null = null;
+  for (const entry of pages) {
+    if (entry.had > 0 && entry.kept === 0) {
+      title ??= entry.title;
       continue;
     }
-    const id = ids.get(block.item_id.toLowerCase());
-    if (!id || used.has(id)) continue;
-    used.add(id);
-    blocks.push(id === block.item_id ? block : { ...block, item_id: id });
+    if (title) {
+      // The test's title heads the first page shown (after its «Новая страница», whose title the participant sees first).
+      entry.blocks.splice(entry.blocks[0]?.type === 'page' ? 1 : 0, 0, title);
+      title = null;
+    }
+    blocks.push(...entry.blocks);
   }
+  if (title) blocks.unshift(title);
   for (const item of items) {
     if (used.has(item.id)) continue;
     used.add(item.id);

@@ -3,15 +3,26 @@
  * docs/superpowers/plans/2026-10-18-studio.md): a test is a page the author builds from blocks, like a site builder.
  * The document keeps the page (blocks, theme, layout, the result screen); the questions themselves stay rows of
  * test_items (sessions, the bot and the stats keep working) and a question block only points at one by id.
- * Stored per exam in public.test_docs (≤ 200 KB, a revision for two tabs); the server checks the same shape
+ * Stored per exam in public.test_docs (≤ 512 KB, a revision for two tabs); the server checks the same shape
  * (meldy_private.test_doc_ok) — keep both in step.
  */
 import type { Uuid } from './container';
 import type { QuizAccent } from './quiz';
 
 export const TEST_DOC_VERSION = 1 as const;
-export const DOC_MAX_BLOCKS = 400;
-export const DOC_MAX_BYTES = 200 * 1024;
+/**
+ * The whole test (owner, 2026-11-05: an exam of 960 questions, 400 fitted): the exam's 2000 questions (MC007) and 100
+ * more blocks; 512 KB of jsonb text — a question block is ≈ 128 bytes, so 2000 of them leave ≈ 256 KB for the rest.
+ * meldy_private.test_doc_ok and test_doc_save hold the same numbers (20261107090500_studio_pages.sql;
+ * contracts/studio/test_doc_pages_cases.json checks both sides).
+ */
+export const DOC_MAX_BLOCKS = 2100;
+export const DOC_MAX_BYTES = 512 * 1024;
+/**
+ * One page of the canvas (the blocks from one «Новая страница» to the next): at most this many, the size the canvas is
+ * proven smooth at (StudioBudget.test.tsx). The client's own rule: the server knows only the whole test's cap.
+ */
+export const DOC_PAGE_BLOCKS = 400;
 export const DOC_TEXT_MAX = 4000;
 export const DOC_TITLE_MAX = 200;
 export const DOC_CAPTION_MAX = 300;
