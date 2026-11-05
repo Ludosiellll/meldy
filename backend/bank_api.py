@@ -123,6 +123,21 @@ PARSE_IN_CHILD = os.getenv("BANK_PARSE_IN_CHILD", "1").strip() != "0"
 PARSE_TOO_LONG_DETAIL = "Файл слишком сложный: разбор занял больше минуты. Разбейте его на части или вставьте текст."
 PARSE_TOO_BIG_DETAIL = "Файл слишком сложный: на разбор не хватило памяти. Разбейте его на части или вставьте текст."
 _thread_said = False
+# The child path switched off for this process, and why: the fork server's probe parse at the start failed or gave
+# another result than this process's, or a child failed CHILD_FAILURES times on its own (not the work's error, nor a
+# time or memory stop). Imports must never break because the server's processes behave otherwise than measured here.
+_child_off: str | None = None
+_child_failures = 0
+CHILD_FAILURES = 3
+# The probe: two questions with a key, parsed at the start in a child and in this process; both must agree.
+PROBE_TEXT = "1. Сколько будет 2 + 2?\nа) 3\nб) 4\nОтвет: б\n\n2. Столица Франции?\nа) Лион\nб) Париж\nОтвет: б\n"
+
+
+def _child_broken(reason: str) -> None:
+    global _child_off
+    if _child_off is None:
+        _child_off = reason
+        print(f"Bank parse: the child process does not work here; in a thread from now on ({reason})")
 
 
 def _say_in_thread(reason: str) -> None:
@@ -139,25 +154,42 @@ def _in_child() -> bool:
     if not parse_child.available():
         _say_in_thread("no fork server on this platform")
         return False
-    return True
+    return _child_off is None
 
 
 def _run_job(job: parse_child.Job) -> Any:
-    """Работа в дочернем процессе; процесс не запустить — в этом потоке, как раньше."""
+    """Работа в дочернем процессе; процесс не запустить или он сломался сам (не работа, не предел) — в этом потоке, как
+    раньше; после CHILD_FAILURES таких сбоев дочерний путь выключен до перезапуска."""
+    global _child_failures
     try:
         return job.run()
     except parse_child.Unavailable as exc:
         _say_in_thread(f"no child process: {exc}")
         return job.work()
+    except parse_child.ChildFailed as exc:
+        _child_failures += 1
+        print(f"Bank parse: a child failed ({_child_failures}/{CHILD_FAILURES}): {exc}; this parse in a thread")
+        if _child_failures >= CHILD_FAILURES:
+            _child_broken(f"{_child_failures} children failed")
+        return job.work()
 
 
 def warm_up() -> None:
-    """Сервер форков разбора — при старте приложения (main.py), а не на первом файле: несколько десятых секунды."""
-    if _in_child():
-        try:
-            parse_child.warm_up()
-        except Exception as exc:  # the first parse tries again (and parses in a thread if it cannot)
-            print(f"Bank parse: the fork server did not start: {type(exc).__name__}: {exc}")
+    """Сервер форков разбора — при старте приложения (main.py), а не на первом файле: несколько десятых секунды. Затем
+    пробный разбор PROBE_TEXT в дочернем процессе и в этом: не сошлись или дочерний не смог — разбор в потоке, как раньше."""
+    if not _in_child():
+        return
+    try:
+        parse_child.warm_up()
+        expected = parse_bank_text(PROBE_TEXT)
+        got = parse_child.Job(functools.partial(parse_bank_text, PROBE_TEXT), seconds=PARSE_SECONDS, memory=PARSE_MEMORY_BYTES).run()
+    except Exception as exc:  # Unavailable, TooBig, TooLong, ChildFailed, the work's own error: not this server's way
+        _child_broken(f"the probe parse: {type(exc).__name__}: {exc}")
+        return
+    if got != expected:
+        _child_broken("the probe parse in a child differs from this process's")
+        return
+    print("Bank parse: in a child process, the probe parse agrees")
 
 
 class ParseSlots:
