@@ -45,7 +45,8 @@ const KIND_KEY = {
  *
  * The editor (spec 2026-10-16 part 1): «Изменить» opens the question's text, options, key and pictures in place of its
  * card (also in a queue); «Добавить вопрос» adds one to the chosen subject with the next number; the find field takes a
- * number from the file or words from the question.
+ * number from the file or words from the question. The editor here also has «Баллы» (20261107090700_item_points): the
+ * question's points in a quiz of the exam's subjects; a card says them beside its number when they are not 1.
  */
 
 type ListKind = 'check' | 'nokey' | 'doubts' | 'manual' | 'ai';
@@ -317,6 +318,7 @@ export default function KeysPage() {
       if (patch.keep_order !== undefined) local.keep_order = patch.keep_order;
       if (patch.images !== undefined) local.images = patch.images;
       if (patch.explanation !== undefined) local.explanation = patch.explanation;
+      if (patch.points !== undefined) local.points = result.points ?? patch.points;
       if (patch.correct !== undefined || patch.answers !== undefined) local.key_source = 'manual';
       const flags = flagsAfter(item, patch, result.ai_key);
       if (flags) local.flags = flags;
@@ -366,6 +368,7 @@ export default function KeysPage() {
           group={group}
           busy={busy === item.id}
           error={editError}
+          points
           onSave={(draft) => void saveEdit(item, draft)}
           onCancel={() => setEditing(null)}
         />
@@ -401,11 +404,14 @@ export default function KeysPage() {
     const actions: KeyAction[] = [{ key: 'edit', label: KEYS.edit, onClick: () => openEditor(item.id) }];
     if (doubt && keyed) actions.push({ key: 'keep', label: KEYS.keep, onClick: () => void keep(item) });
     actions.push({ key: 'delete', label: QUEUE.remove, muted: true, onClick: () => setAskDelete(item.id) });
+    // the question's points beside its number when they are not 1 (20261107090700_item_points)
+    const weight = item.points ?? 1;
+    const context = weight !== 1 ? `${QUEUE.context(subjectName, item.file_no, topic)} · ${KEYS.points(weight)}` : QUEUE.context(subjectName, item.file_no, topic);
     return (
       <KeyQuestion
         key={item.id}
         explanation={item.explanation}
-        context={QUEUE.context(subjectName, item.file_no, topic)}
+        context={context}
         reason={
           reasonLines.length ? (
             <>
@@ -671,6 +677,7 @@ export default function KeysPage() {
                 group={group}
                 busy={adding}
                 error={editError}
+                points
                 onSave={(draft) => void saveNew(draft, newNumber)}
                 onCancel={() => setEditing(null)}
               />

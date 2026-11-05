@@ -597,6 +597,8 @@ const DRAFT_WORDS: Record<DraftProblem, string> = {
   gaps_many: 'пропусков больше десяти.',
   gap_forms: 'у пропуска нет верного ответа.',
   materials_many: 'лекций больше десяти.',
+  // 20261107090700_item_points: the text never sets a question's points; its draft keeps the question's own
+  points: 'баллы — целое число от 1 до 100.',
 };
 
 function questionProblems(draft: Draft, question: QuestionText, lines: Lines): TextProblem[] {

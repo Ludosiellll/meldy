@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../../../lib/supabase', () => ({ supabase: { storage: { from: vi.fn() } } }));
 
 import QuestionEditor from './QuestionEditor';
+import { patchOf } from './editorModel';
 import { EDITOR, nb } from '../copyImport';
 import { EXPLANATION_MAX, type TestItem } from '../../../types/container';
 
@@ -385,5 +386,71 @@ describe('QuestionEditor: changes not saved (release 47, B3) and the writing loo
     fireEvent.keyDown(screen.getByLabelText(EDITOR.explanation), { key: 'Enter', metaKey: true });
     expect(onSaveNext).toHaveBeenCalledTimes(2);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  describe('«Баллы» (20261107090700_item_points)', () => {
+    const points = () => screen.getByLabelText(EDITOR.points) as HTMLInputElement;
+
+    it('only where the page asks: the studio\'s block has its own', () => {
+      setup();
+      expect(screen.queryByLabelText(EDITOR.points)).toBeNull();
+    });
+
+    it('shows the question\'s points with «−» and «+», and saves them alone as a change', () => {
+      const { onSave } = setup({ points: true, item: { ...ITEM, points: 3 } });
+      expect(points().value).toBe('3');
+      expect(screen.getByText(plain(nb(EDITOR.pointsHint)))).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: EDITOR.save })).toBeDisabled();
+      fireEvent.click(screen.getByRole('button', { name: EDITOR.pointsMore }));
+      fireEvent.click(screen.getByRole('button', { name: EDITOR.pointsMore }));
+      expect(points().value).toBe('5');
+      fireEvent.click(screen.getByRole('button', { name: EDITOR.pointsLess }));
+      expect(points().value).toBe('4');
+      // not the key: nothing restarts, even in a group
+      expect(screen.queryByText(EDITOR.resets)).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: EDITOR.save }));
+      const draft = onSave.mock.calls[0][0];
+      expect(patchOf({ ...ITEM, points: 3 }, draft)).toEqual({ points: 4 });
+    });
+
+    it('a question read before the column weighs 1; «−» stops at 1 and «+» at 100', () => {
+      setup({ points: true });
+      expect(points().value).toBe('1');
+      expect(screen.getByRole('button', { name: EDITOR.pointsLess })).toBeDisabled();
+      fireEvent.change(points(), { target: { value: '100' } });
+      expect(screen.getByRole('button', { name: EDITOR.pointsMore })).toBeDisabled();
+      expect(screen.getByRole('button', { name: EDITOR.pointsLess })).toBeEnabled();
+    });
+
+    it('takes digits only and says when the number is out of 1..100; the save waits', () => {
+      const { onSave } = setup({ points: true, group: true });
+      fireEvent.change(points(), { target: { value: '2,5 б' } });
+      expect(points().value).toBe('25');
+      fireEvent.change(points(), { target: { value: '0' } });
+      expect(points()).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByText(EDITOR.problems.points)).toBeInTheDocument();
+      // a change the author is making, not «nothing changed»
+      expect(screen.queryByText(EDITOR.nothing)).toBeNull();
+      expect(screen.getByRole('button', { name: EDITOR.save })).toBeDisabled();
+      fireEvent.change(points(), { target: { value: '' } });
+      expect(screen.getByText(EDITOR.problems.points)).toBeInTheDocument();
+      fireEvent.change(points(), { target: { value: '7' } });
+      expect(screen.queryByText(EDITOR.problems.points)).toBeNull();
+      expect(points()).not.toHaveAttribute('aria-invalid');
+      fireEvent.click(screen.getByRole('button', { name: EDITOR.save }));
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ points: '7' }));
+    });
+
+    it('a new question starts at 1 and keeps what the author sets', () => {
+      const { onSave } = setup({ points: true, item: null });
+      expect(points().value).toBe('1');
+      fireEvent.change(screen.getByLabelText(EDITOR.stem), { target: { value: 'Сколько будет 2 + 2?' } });
+      fireEvent.change(screen.getByLabelText(EDITOR.option('А')), { target: { value: '4' } });
+      fireEvent.change(screen.getByLabelText(EDITOR.option('Б')), { target: { value: '5' } });
+      fireEvent.click(screen.getByRole('checkbox', { name: EDITOR.right('А') }));
+      fireEvent.click(screen.getByRole('button', { name: EDITOR.pointsMore }));
+      fireEvent.click(screen.getByRole('button', { name: EDITOR.add }));
+      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ points: '2' }));
+    });
   });
 });

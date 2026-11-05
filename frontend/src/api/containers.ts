@@ -18,7 +18,7 @@ import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
 import { notifyAIUsageChanged } from './limits';
 import {
-  NEW_KINDS, TEST_ITEM_COLUMNS,
+  ITEM_POINTS_MAX, NEW_KINDS, TEST_ITEM_COLUMNS,
   type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerKind, type ContainerRpc,
   type ContainerSettings, type ContainerSummary, type ContainersOverview, type CreateSubjectInput, type DayKey,
   type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkExtended, type LinkPreview,
@@ -271,7 +271,15 @@ export function normalizeItem(raw: unknown): TestItem | null {
     unit: typeof raw.unit === 'string' ? raw.unit : null,
     partial: raw.partial === true,
     material_ids: strings(raw.material_ids),
+    // 20261107090700_item_points: the question's points in a quiz of subjects (1..100; a row without them weighs 1)
+    points: pointsOf(raw.points),
   };
+}
+
+/** test_items.points: a whole number 1..ITEM_POINTS_MAX, else 1. */
+function pointsOf(raw: unknown): number {
+  const n = typeof raw === 'number' ? raw : typeof raw === 'string' && /^\d{1,3}$/.test(raw) ? Number(raw) : NaN;
+  return Number.isInteger(n) && n >= 1 && n <= ITEM_POINTS_MAX ? n : 1;
 }
 
 /** test_items.images ({} — none) → ItemImages, or null when it names no picture. */
