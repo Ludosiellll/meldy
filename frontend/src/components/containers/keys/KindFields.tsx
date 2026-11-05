@@ -5,12 +5,15 @@ import { gapCount } from '../../../lib/kinds/cloze';
 import { canonicalTolerance } from '../../../lib/kinds/number';
 import { KINDS, num } from '../../kinds/copyKinds';
 import { LIMITS, numbersOf, type Draft } from './editorModel';
+import { DraftInput, useDraft, type DraftStore } from './draftStore';
 
 /**
  * The key of a question of a new kind in the author's editor (release 48, docs/kinds/CONTRACT.md §1): the accepted
  * numbers with a tolerance and a unit, the items in the right order, the pairs and the extra right items, the forms of
  * each gap, the lectures an essay is checked by; partial credit where the kind has it. The rows are the editor's own
- * (keys.css .qe-*): a field each, arrows and «×» beside it.
+ * (keys.css .qe-*): a field each, arrows and «×» beside it. The fields keep their words themselves (draftStore.tsx): a
+ * key typed renders nothing here but the range of a number when it changes, or the gaps' fields when the question's
+ * gaps change.
  */
 
 const W = {
@@ -60,6 +63,9 @@ const W = {
 
 interface Props {
   id: string;
+  /** The draft's words, typed into the fields (the editor's store). */
+  store: DraftStore;
+  /** The draft as the editor last drew it: what the fields are (their words are the store's). */
   draft: Draft;
   busy: boolean;
   setDraft: (change: (current: Draft) => Draft) => void;
@@ -102,54 +108,60 @@ const moved = <T,>(list: readonly T[], from: number, to: number): T[] => {
   return next;
 };
 
-function NumberFields({ id, draft, busy, setDraft }: Props) {
+/** What a number question accepts, in words: «Засчитаем от 9,7 до 9,9 м/с².» ('' — no number yet). */
+function numberLine(draft: Draft): string {
   const numbers = numbersOf(draft.numbers ?? '');
   const first = numbers[0] ?? null;
   const tolerance = canonicalTolerance(draft.tolerance ?? '');
   const unit = (draft.unit ?? '').trim();
-  let line = '';
-  if (first) {
-    if (tolerance && Number(tolerance) > 0) {
-      const scale = Math.max((first.split('.')[1] ?? '').length, (tolerance.split('.')[1] ?? '').length);
-      line = W.range(num((Number(first) - Number(tolerance)).toFixed(scale)), num((Number(first) + Number(tolerance)).toFixed(scale)), unit);
-    } else line = W.exact(num(first), unit);
+  if (!first) return '';
+  if (tolerance && Number(tolerance) > 0) {
+    const scale = Math.max((first.split('.')[1] ?? '').length, (tolerance.split('.')[1] ?? '').length);
+    return W.range(num((Number(first) - Number(tolerance)).toFixed(scale)), num((Number(first) + Number(tolerance)).toFixed(scale)), unit);
   }
+  return W.exact(num(first), unit);
+}
+
+/** The range line: renders when its words change, not at each key. */
+function NumberLine({ store }: { store: DraftStore }) {
+  const line = useDraft(store, numberLine);
+  return line ? (
+    <p className="qe-kind-line" aria-live="polite">
+      {line}
+    </p>
+  ) : null;
+}
+
+function NumberFields({ id, store, busy }: Props) {
   return (
     <div className="qe-kindbox">
       <label className="qe-label" htmlFor={`${id}-numbers`}>
         {W.numbers}
       </label>
-      <input id={`${id}-numbers`} className="kq-input" inputMode="decimal" value={draft.numbers ?? ''} disabled={busy} aria-describedby={`${id}-numbers-hint`}
-        onChange={(event) => setDraft((current) => ({ ...current, numbers: event.target.value }))} />
+      <DraftInput store={store} path="numbers" id={`${id}-numbers`} className="kq-input" inputMode="decimal" disabled={busy} aria-describedby={`${id}-numbers-hint`} />
       <p className="qe-khint" id={`${id}-numbers-hint`}>{W.numbersHint}</p>
       <div className="qe-pair-row">
         <div>
           <label className="qe-label" htmlFor={`${id}-tolerance`}>
             {W.tolerance}
           </label>
-          <input id={`${id}-tolerance`} className="kq-input" inputMode="decimal" value={draft.tolerance ?? ''} disabled={busy} placeholder="0" aria-describedby={`${id}-tolerance-hint`}
-            onChange={(event) => setDraft((current) => ({ ...current, tolerance: event.target.value }))} />
+          <DraftInput store={store} path="tolerance" id={`${id}-tolerance`} className="kq-input" inputMode="decimal" disabled={busy} placeholder="0" aria-describedby={`${id}-tolerance-hint`} />
           <p className="qe-khint" id={`${id}-tolerance-hint`}>{W.toleranceHint}</p>
         </div>
         <div>
           <label className="qe-label" htmlFor={`${id}-unit`}>
             {W.unit}
           </label>
-          <input id={`${id}-unit`} className="kq-input" value={draft.unit ?? ''} maxLength={LIMITS.unit + 10} disabled={busy} placeholder="м/с²" aria-describedby={`${id}-unit-hint`}
-            onChange={(event) => setDraft((current) => ({ ...current, unit: event.target.value }))} />
+          <DraftInput store={store} path="unit" id={`${id}-unit`} className="kq-input" maxLength={LIMITS.unit + 10} disabled={busy} placeholder="м/с²" aria-describedby={`${id}-unit-hint`} />
           <p className="qe-khint" id={`${id}-unit-hint`}>{W.unitHint}</p>
         </div>
       </div>
-      {line ? (
-        <p className="qe-kind-line" aria-live="polite">
-          {line}
-        </p>
-      ) : null}
+      <NumberLine store={store} />
     </div>
   );
 }
 
-function OrderFields({ id, draft, busy, setDraft }: Props) {
+function OrderFields({ id, store, draft, busy, setDraft }: Props) {
   const items = draft.options;
   return (
     <div className="qe-kindbox">
@@ -157,11 +169,10 @@ function OrderFields({ id, draft, busy, setDraft }: Props) {
         {W.orderItems}
       </p>
       <ol className="qe-rows" aria-labelledby={`${id}-order`}>
-        {items.map((option, index) => (
+        {items.map((_, index) => (
           <li key={index} className="qe-rowline">
             <span className="qe-letter" aria-hidden="true">{index + 1}</span>
-            <input className="kq-input" aria-label={W.item(index + 1)} value={option.text} disabled={busy}
-              onChange={(event) => setDraft((current) => ({ ...current, options: current.options.map((o, at) => (at === index ? { ...o, text: event.target.value } : o)) }))} />
+            <DraftInput store={store} path={`option:${index}`} className="kq-input" aria-label={W.item(index + 1)} disabled={busy} />
             <span className="qe-option-tools">
               <button type="button" className="qe-icon" aria-label={W.up(index + 1)} disabled={busy || index === 0}
                 onClick={() => setDraft((current) => ({ ...current, options: moved(current.options, index, index - 1) }))}>
@@ -194,9 +205,8 @@ function OrderFields({ id, draft, busy, setDraft }: Props) {
   );
 }
 
-function MatchFields({ id, draft, busy, setDraft }: Props) {
+function MatchFields({ id, store, draft, busy, setDraft }: Props) {
   const lefts = draft.options;
-  const rights = draft.rights ?? [];
   const extras = draft.extras ?? [];
   const room = LIMITS.rights - lefts.length - extras.length;
   return (
@@ -205,18 +215,12 @@ function MatchFields({ id, draft, busy, setDraft }: Props) {
         {W.pairs}
       </p>
       <ol className="qe-rows" aria-labelledby={`${id}-pairs`}>
-        {lefts.map((option, index) => (
+        {lefts.map((_, index) => (
           <li key={index} className="qe-rowline qe-pairline">
             <span className="qe-letter" aria-hidden="true">{index + 1}</span>
-            <input className="kq-input" aria-label={W.left(index + 1)} value={option.text} disabled={busy}
-              onChange={(event) => setDraft((current) => ({ ...current, options: current.options.map((o, at) => (at === index ? { ...o, text: event.target.value } : o)) }))} />
+            <DraftInput store={store} path={`option:${index}`} className="kq-input" aria-label={W.left(index + 1)} disabled={busy} />
             <span className="qe-pair-arrow" aria-hidden="true">→</span>
-            <input className="kq-input" aria-label={W.right(index + 1)} value={rights[index] ?? ''} maxLength={LIMITS.right + 20} disabled={busy}
-              onChange={(event) => setDraft((current) => {
-                const next = current.options.map((_, at) => current.rights?.[at] ?? '');
-                next[index] = event.target.value;
-                return { ...current, rights: next };
-              })} />
+            <DraftInput store={store} path={`right:${index}`} className="kq-input" aria-label={W.right(index + 1)} maxLength={LIMITS.right + 20} disabled={busy} />
             <span className="qe-option-tools">
               {lefts.length > LIMITS.optionsMin ? (
                 <button type="button" className="qe-icon" aria-label={W.removePair(index + 1)} disabled={busy}
@@ -246,10 +250,9 @@ function MatchFields({ id, draft, busy, setDraft }: Props) {
       <p className="qe-khint">{W.extrasHint}</p>
       {extras.length > 0 ? (
         <ol className="qe-rows" aria-labelledby={`${id}-extras`}>
-          {extras.map((text, index) => (
+          {extras.map((_, index) => (
             <li key={index} className="qe-rowline">
-              <input className="kq-input" aria-label={W.extra(index + 1)} value={text} maxLength={LIMITS.right + 20} disabled={busy}
-                onChange={(event) => setDraft((current) => ({ ...current, extras: (current.extras ?? []).map((t, at) => (at === index ? event.target.value : t)) }))} />
+              <DraftInput store={store} path={`extra:${index}`} className="kq-input" aria-label={W.extra(index + 1)} maxLength={LIMITS.right + 20} disabled={busy} />
               <span className="qe-option-tools">
                 <button type="button" className="qe-icon" aria-label={W.removeExtra(index + 1)} disabled={busy}
                   onClick={() => setDraft((current) => ({ ...current, extras: (current.extras ?? []).filter((_, at) => at !== index) }))}>
@@ -272,8 +275,9 @@ function MatchFields({ id, draft, busy, setDraft }: Props) {
   );
 }
 
-function ClozeFields({ id, draft, busy, setDraft }: Props) {
-  const count = gapCount(draft.stem);
+function ClozeFields({ id, store, draft, busy, setDraft }: Props) {
+  // The gaps of the question as typed: their fields come and go with them (a key that keeps them renders nothing).
+  const count = useDraft(store, (current) => gapCount(current.stem));
   return (
     <div className="qe-kindbox">
       <p className="qe-khint">{W.gapsHint}</p>
@@ -289,12 +293,7 @@ function ClozeFields({ id, draft, busy, setDraft }: Props) {
           <label className="qe-label" htmlFor={`${id}-gap-${index}`}>
             {W.gap(index + 1)}
           </label>
-          <input id={`${id}-gap-${index}`} className="kq-input" value={draft.gaps?.[index] ?? ''} disabled={busy} aria-describedby={`${id}-gap-hint`}
-            onChange={(event) => setDraft((current) => {
-              const next = Array.from({ length: Math.max(count, current.gaps?.length ?? 0) }, (_, at) => current.gaps?.[at] ?? '');
-              next[index] = event.target.value;
-              return { ...current, gaps: next };
-            })} />
+          <DraftInput store={store} path={`gap:${index}`} id={`${id}-gap-${index}`} className="kq-input" disabled={busy} aria-describedby={`${id}-gap-hint`} />
         </div>
       ))}
       {count > 0 ? <p className="qe-khint" id={`${id}-gap-hint`}>{W.gapHint}</p> : null}

@@ -107,6 +107,47 @@ function Stem({ text, code, pictures }: { text: string; code: boolean; pictures:
   );
 }
 
+/**
+ * A short answer's accepted forms, changed on the card: its own state, so a key typed renders this row and not the card
+ * (its question, its options, its notes) or the list it stands in. Another question (or forms saved) starts from its own
+ * forms, set while rendering (a state set again to the same words after the first paint was redone at the first key, in
+ * a commit of its own).
+ */
+function ShortForms({ id, answers, stem, busy, onSaveForms }: { id: string; answers: string[]; stem: string; busy: boolean; onSaveForms?: (forms: string[]) => void }) {
+  const [forms, setForms] = useState(answers.join('; '));
+  const source = `${answers.join('\u0000')}\u0001${stem}`;
+  const [from, setFrom] = useState(source);
+  if (from !== source) {
+    setFrom(source);
+    setForms(answers.join('; '));
+  }
+  return (
+    <div className="kq-short">
+      <label className="kq-label" htmlFor={id}>
+        {QUEUE.shortForms}
+      </label>
+      <input id={id} className="kq-input" value={forms} disabled={busy} onChange={(event) => setForms(event.target.value)} />
+      {onSaveForms ? (
+        <button
+          type="button"
+          className="kq-save"
+          disabled={busy || forms.trim() === answers.join('; ')}
+          onClick={() =>
+            onSaveForms(
+              forms
+                .split(';')
+                .map((form) => form.trim())
+                .filter(Boolean),
+            )
+          }
+        >
+          {QUEUE.saveForms}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 export default function KeyQuestion({
   context,
   reason,
@@ -135,12 +176,9 @@ export default function KeyQuestion({
   const fallbackId = useId();
   const contextId = headingId ?? fallbackId;
   const [ticked, setTicked] = useState<number[]>(current);
-  const [forms, setForms] = useState(answers.join('; '));
   const currentKey = current.join(',');
-  const answersKey = answers.join('\u0000');
   // Another question (or a saved key) starts from its own key.
   useEffect(() => setTicked(current), [currentKey, stem]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => setForms(answers.join('; ')), [answersKey, stem]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const droppedSet = new Set(dropped);
   const tappable = tapMode !== 'none' && !busy;
@@ -158,35 +196,7 @@ export default function KeyQuestion({
           <KindKeyView kind={kind} stem={stem} options={options} answers={answers} tolerance={tolerance} unit={unit} />
         </div>
       ) : kind === 'short' ? (
-        <div className="kq-short">
-          <label className="kq-label" htmlFor={`${contextId}-forms`}>
-            {QUEUE.shortForms}
-          </label>
-          <input
-            id={`${contextId}-forms`}
-            className="kq-input"
-            value={forms}
-            disabled={busy}
-            onChange={(event) => setForms(event.target.value)}
-          />
-          {onSaveForms ? (
-            <button
-              type="button"
-              className="kq-save"
-              disabled={busy || forms.trim() === answers.join('; ')}
-              onClick={() =>
-                onSaveForms(
-                  forms
-                    .split(';')
-                    .map((form) => form.trim())
-                    .filter(Boolean),
-                )
-              }
-            >
-              {QUEUE.saveForms}
-            </button>
-          ) : null}
-        </div>
+        <ShortForms id={`${contextId}-forms`} answers={answers} stem={stem} busy={busy} onSaveForms={onSaveForms} />
       ) : (
         <>
           {instruction ? <p className="kq-instruction">{instruction}</p> : null}

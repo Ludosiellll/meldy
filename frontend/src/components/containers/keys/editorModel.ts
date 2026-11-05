@@ -157,6 +157,96 @@ export function switchKind(draft: Draft, kind: NewKind | 'choice' | 'short'): Dr
   };
 }
 
+/**
+ * A field of the editor the author types words into, by what it holds: the question, the explanation, a short answer's
+ * forms, a number's three fields, an option (a choice's, an order's item, a match's left item), a match's right item
+ * or extra, a gap's forms.
+ */
+export type FieldPath =
+  | 'stem'
+  | 'explanation'
+  | 'forms'
+  | 'numbers'
+  | 'tolerance'
+  | 'unit'
+  | `option:${number}`
+  | `right:${number}`
+  | `extra:${number}`
+  | `gap:${number}`;
+
+const fieldAt = (path: FieldPath): [string, number] => {
+  const colon = path.indexOf(':');
+  return colon < 0 ? [path, -1] : [path.slice(0, colon), Number(path.slice(colon + 1))];
+};
+
+/** The words a field shows for the draft. */
+export function fieldText(draft: Draft, path: FieldPath): string {
+  const [name, index] = fieldAt(path);
+  switch (name) {
+    case 'stem':
+      return draft.stem;
+    case 'explanation':
+      return draft.explanation;
+    case 'forms':
+      return draft.forms;
+    case 'numbers':
+      return draft.numbers ?? '';
+    case 'tolerance':
+      return draft.tolerance ?? '';
+    case 'unit':
+      return draft.unit ?? '';
+    case 'option':
+      return draft.options[index]?.text ?? '';
+    case 'right':
+      return draft.rights?.[index] ?? '';
+    case 'extra':
+      return draft.extras?.[index] ?? '';
+    case 'gap':
+      return draft.gaps?.[index] ?? '';
+    default:
+      return '';
+  }
+}
+
+/**
+ * The draft after the author typed `text` into a field: what each field's change made of the draft before the editor
+ * stopped re-rendering on a key (a match's right items as many as its left ones, a cloze's gaps at least as many as the
+ * question's).
+ */
+export function typedDraft(draft: Draft, path: FieldPath, text: string): Draft {
+  const [name, index] = fieldAt(path);
+  switch (name) {
+    case 'stem':
+      return { ...draft, stem: text };
+    case 'explanation':
+      return { ...draft, explanation: text };
+    case 'forms':
+      return { ...draft, forms: text };
+    case 'numbers':
+      return { ...draft, numbers: text };
+    case 'tolerance':
+      return { ...draft, tolerance: text };
+    case 'unit':
+      return { ...draft, unit: text };
+    case 'option':
+      return { ...draft, options: draft.options.map((option, at) => (at === index ? { ...option, text } : option)) };
+    case 'right': {
+      const rights = draft.options.map((_, at) => draft.rights?.[at] ?? '');
+      rights[index] = text;
+      return { ...draft, rights };
+    }
+    case 'extra':
+      return { ...draft, extras: (draft.extras ?? []).map((extra, at) => (at === index ? text : extra)) };
+    case 'gap': {
+      const gaps = Array.from({ length: Math.max(gapCount(draft.stem), draft.gaps?.length ?? 0) }, (_, at) => draft.gaps?.[at] ?? '');
+      gaps[index] = text;
+      return { ...draft, gaps };
+    }
+    default:
+      return draft;
+  }
+}
+
 /** The accepted numbers typed, canonical; null for one that is not a number. */
 export function numbersOf(text: string): Array<string | null> {
   return text.split(';').map((part) => part.trim()).filter(Boolean).map(canonicalNumber);
