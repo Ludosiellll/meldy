@@ -3,7 +3,8 @@
 -- that does not. Catalog only, plus calls of the rule function on documents made here, for a made-up exam id: nothing is
 -- written, and the only row it looks for (the question of a made-up id) does not exist.
 -- Checks: public.test_docs (container_id the key, referencing containers on delete cascade; doc jsonb not null; rev
--- integer not null default 1; updated_at timestamptz not null default now(); at most 204800 bytes of doc text) with row
+-- integer not null default 1; updated_at timestamptz not null default now(); at most 204800 bytes of doc text, 524288
+-- once 20261107090500_studio_pages.sql is applied) with row
 -- security on, no policy and no client right; quizzes.design (boolean not null default false); test_doc_get and
 -- test_doc_save SECURITY DEFINER with an empty search_path, for authenticated only (not anon, not PUBLIC); the rule
 -- function and the quiz helpers exist and stay private; test_doc_ok answers null for a valid document and the rule for
@@ -44,9 +45,16 @@ BEGIN
                        AND k.confdeltype = 'c' AND pg_catalog.pg_get_constraintdef(k.oid) LIKE 'FOREIGN KEY (container_id)%') THEN
     RAISE EXCEPTION 'test_docs_key_per_exam';
   END IF;
+  -- 20261107090500_studio_pages.sql widens it to 524288 bytes, NOT VALID (studio_pages.sql checks that apply).
   IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k
                   WHERE k.conrelid = v_rel AND k.conname = 'test_docs_doc_check' AND k.convalidated
-                    AND pg_catalog.pg_get_constraintdef(k.oid) LIKE '%octet_length((doc)::text) <= 204800%') THEN
+                    AND pg_catalog.pg_get_constraintdef(k.oid) LIKE '%octet_length((doc)::text) <= 204800%')
+     AND NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint k
+                      WHERE k.conrelid = v_rel AND k.conname = 'test_docs_doc_check'
+                        AND pg_catalog.pg_get_constraintdef(k.oid) LIKE '%octet_length((doc)::text) <= 524288%'
+                        AND pg_catalog.strpos((SELECT p.prosrc FROM pg_catalog.pg_proc p
+                                                WHERE p.oid = pg_catalog.to_regprocedure('public.test_doc_save(uuid,jsonb,integer)')),
+                                              'octet_length(p_doc::text) > 524288') > 0) THEN
     RAISE EXCEPTION 'test_docs_size_check';
   END IF;
   IF NOT (SELECT c.relrowsecurity FROM pg_catalog.pg_class c WHERE c.oid = v_rel)

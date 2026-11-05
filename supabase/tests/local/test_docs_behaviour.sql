@@ -4,7 +4,8 @@
 -- guests are anon with tokens tok(n).
 -- X: subject S1 with d:1 (single, an explanation), d:2 (multiple), d:3 (short, an explanation), d:4 (keyed, not on the
 -- page), d:5 (on the page, deleted half way), d:6 (no key, on the page); subject S2 with d:7. Y: one question y:1 (an
--- item of another exam). Z: 201 questions (the 200 cap of an attempt).
+-- item of another exam). Z: 201 questions (the 200 cap of an attempt; past it once 20261107090500_studio_pages.sql is
+-- applied, the attempt draws item_count of them).
 -- Covers: every rule of meldy_private.test_doc_ok with documents that pass and documents that break it (the rule names
 -- of the plan, the first broken rule wins, blocks counted from 0); test_doc_get / test_doc_save for the owner only (anon
 -- 42501, not signed in 28000, a stranger, a member, a missing exam → P0002 container); the first save with rev 0; MC020
@@ -107,10 +108,17 @@ create or replace function pg_temp.doc() returns jsonb language sql stable as $f
         jsonb_build_object('from', 80, 'to', 100, 'title', 'Отлично', 'text', '**Так держать**', 'image', null)),
       'cta', jsonb_build_object('label', 'Тренироваться дальше', 'url', 'https://meldy.example/train')))
 $fn$;
+-- the caps of 20261107090500_studio_pages.sql once it is applied (studio_pages_behaviour.sql pins them): 2100 blocks,
+-- 512 KB, a design quiz of more than 200 questions draws item_count of them
+insert into pg_temp.ctx
+select 'pages_on', (strpos(pg_get_functiondef('meldy_private.test_doc_ok(jsonb, uuid)'::regprocedure), '> 2100 then') > 0)::text;
+create or replace function pg_temp.pages_on() returns boolean language sql stable as $fn$
+  select v::boolean from pg_temp.ctx where k = 'pages_on'
+$fn$;
 grant all on ctx to authenticated, anon, service_role;
 grant execute on function pg_temp.expect_error(text, text, text, text), pg_temp.c(text), pg_temp.put(text, text),
   pg_temp.keys(jsonb), pg_temp.find(jsonb, text, text), pg_temp.tok(integer), pg_temp.item(text), pg_temp.pic(text, integer),
-  pg_temp.ids(jsonb), pg_temp.refs(text[]), pg_temp.doc()
+  pg_temp.ids(jsonb), pg_temp.refs(text[]), pg_temp.doc(), pg_temp.pages_on()
   to authenticated, anon, service_role;
 
 -- 1. A: exams X (S1: d:1..d:6, S2: d:7), Y (y:1) and Z (201 questions).
@@ -234,8 +242,8 @@ begin
       ('layout grid', d || '{"layout": "grid"}', 'layout'), ('no layout', d - 'layout', 'layout'), ('layout null', d || '{"layout": null}', 'layout'),
       -- blocks
       ('no blocks', d - 'blocks', 'blocks'), ('blocks as an object', d || '{"blocks": {}}', 'blocks'),
-      ('401 blocks', jsonb_set(d, '{blocks}', (select jsonb_agg(jsonb_build_object('type', 'divider', 'id', 'div' || lpad(i::text, 5, '0')))
-         from generate_series(1, 401) i)), 'blocks'),
+      ('one block past the cap', jsonb_set(d, '{blocks}', (select jsonb_agg(jsonb_build_object('type', 'divider', 'id', 'div' || lpad(i::text, 5, '0')))
+         from generate_series(1, case when pg_temp.pages_on() then 2101 else 401 end) i)), 'blocks'),
       -- a block: type, id
       ('a block that is a string', jsonb_set(d, '{blocks,3}', '"текст"'), 'block:3:type'),
       -- (not «video»: 20261019110000_doc_video.sql made it a type of its own)
@@ -419,7 +427,8 @@ begin
   if (g ->> 'rev')::int is distinct from 2 or g -> 'doc' ->> 'layout' is distinct from 'pages' then
     raise exception 'FAILED: a refused save changed the document %', g ->> 'rev';
   end if;
-  -- size: 20 texts of 4000 letters (≈ 160 KB) save; 30 (≈ 240 KB) are refused (22023 size), whatever else they hold
+  -- size: 20 texts of 4000 letters (≈ 160 KB) save; 30 (≈ 240 KB) are refused (22023 size), whatever else they hold —
+  -- 66 (≈ 530 KB) once 20261107090500_studio_pages.sql is applied
   v_big := jsonb_set(d, '{blocks}', (select jsonb_agg(jsonb_build_object('type', 'text', 'id', 'big' || lpad(i::text, 5, '0'),
                                                                           'text', repeat('я', 4000), 'align', 'left'))
                                        from generate_series(1, 20) i));
@@ -428,7 +437,7 @@ begin
   if (r ->> 'rev')::int is distinct from 3 then raise exception 'FAILED: a document of 160 KB %', r; end if;
   v_big := jsonb_set(d, '{blocks}', (select jsonb_agg(jsonb_build_object('type', 'text', 'id', 'big' || lpad(i::text, 5, '0'),
                                                                           'text', repeat('я', 4000), 'align', 'left'))
-                                       from generate_series(1, 30) i));
+                                       from generate_series(1, case when pg_temp.pages_on() then 66 else 30 end) i));
   perform pg_temp.expect_error(format('select public.test_doc_save(%L, %L, 3)', v_x, v_big), '22023', 'a document over 200 KB', 'size');
   perform pg_temp.expect_error(format('select public.test_doc_save(%L, %L, 3)', v_x, v_big || '{"v": 7}'), '22023', 'a broken document over 200 KB', 'size');
   -- back to the page of X (rev 4)
@@ -445,7 +454,7 @@ reset role;
 do $t$
 begin
   perform pg_temp.expect_error(format('update public.test_docs set doc = %L where container_id = %L',
-    jsonb_build_object('pad', repeat('я', 110000)), pg_temp.c('x')), '23514', 'a document over 200 KB in the table');
+    jsonb_build_object('pad', repeat('я', case when pg_temp.pages_on() then 270000 else 110000 end)), pg_temp.c('x')), '23514', 'a document over 200 KB in the table');
   perform pg_temp.expect_error(format('update public.test_docs set rev = 0 where container_id = %L', pg_temp.c('x')), '23514', 'rev 0 in the table');
   if (select count(*) from public.test_docs) <> 1 then raise exception 'FAILED: documents %', (select count(*) from public.test_docs); end if;
 end
@@ -694,7 +703,8 @@ begin
 end
 $t$;
 
--- 12. Z: a page of 201 questions draws the first 200 (an attempt's limit), in order.
+-- 12. Z: a page of 201 questions draws the first 200 (an attempt's limit), in order — once 20261107090500_studio_pages.sql
+--     is applied, item_count of them (5) at random, in the page's order.
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-0000-0000-0000-000000000001', true);
 do $t$
 declare r jsonb; v_z uuid := pg_temp.c('z')::uuid; d jsonb;
@@ -706,7 +716,7 @@ begin
   if (r ->> 'rev')::int is distinct from 1 then raise exception 'FAILED: the page of Z %', r; end if;
   r := public.quiz_create(v_z, '{"design": true, "item_count": 5}');
   perform pg_temp.put('code_z', r ->> 'code');
-  if (public.quiz_preview(r ->> 'code') ->> 'item_count')::int is distinct from 200 then
+  if (public.quiz_preview(r ->> 'code') ->> 'item_count')::int is distinct from (case when pg_temp.pages_on() then 5 else 200 end) then
     raise exception 'FAILED: the preview of 201 questions %', public.quiz_preview(r ->> 'code') ->> 'item_count';
   end if;
 end
@@ -718,7 +728,17 @@ do $t$
 declare r jsonb;
 begin
   r := public.quiz_guest_start(pg_temp.c('code_z'), 'Гость Зет', pg_temp.tok(4));
-  if jsonb_array_length(r -> 'items') <> 200 or r -> 'items' -> 0 ->> 'id' is distinct from pg_temp.item('z:1')::text
+  if pg_temp.pages_on() then
+    -- five of Z's questions (z:1..z:201), each once, in the page's order
+    if jsonb_array_length(r -> 'items') <> 5
+       or (select count(distinct c.k) from jsonb_array_elements(r -> 'items') x join pg_temp.ctx c on c.k like 'item:z:%' and c.v = x ->> 'id') <> 5
+       or exists (select 1 from (select substr(c.k, 8)::integer as z, lag(substr(c.k, 8)::integer) over (order by t.n) as before
+                                   from jsonb_array_elements(r -> 'items') with ordinality t(x, n)
+                                   join pg_temp.ctx c on c.k like 'item:z:%' and c.v = t.x ->> 'id') o
+                   where o.z <= o.before) then
+      raise exception 'FAILED: 201 questions on the page, item_count 5 → % in the attempt', jsonb_array_length(r -> 'items');
+    end if;
+  elsif jsonb_array_length(r -> 'items') <> 200 or r -> 'items' -> 0 ->> 'id' is distinct from pg_temp.item('z:1')::text
      or r -> 'items' -> 199 ->> 'id' is distinct from pg_temp.item('z:200')::text then
     raise exception 'FAILED: 201 questions on the page → % in the attempt', jsonb_array_length(r -> 'items');
   end if;
