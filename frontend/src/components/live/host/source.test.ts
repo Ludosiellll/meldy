@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { amountChoices, fakeSource, kindSkip, questionLine, skipReason } from './source';
+import { amountChoices, challengeSkip, fakeSource, kindSkip, questionLine, skipReason } from './source';
 
 describe('the questions a game takes (CONTRACT §4)', () => {
   it('plays exactly one correct option of 2–4, names why the rest are left out', () => {
@@ -26,10 +26,12 @@ describe('the questions a game takes (CONTRACT §4)', () => {
     expect(skipReason({ kind: 'short', options: [], correct: [] }, true)).toBe('short');
   });
 
-  it('release 48: a number plays in a battle, not in «Встань на ответ»; order, match, cloze and essay name themselves', () => {
+  it('release 48: a number plays in a battle and, as ranges, in «Встань на ответ»; order, match, cloze and essay name themselves', () => {
     const number = { kind: 'number' as const, options: [], correct: [], answers: ['42'] };
     expect(kindSkip(number, true)).toBeNull();
-    expect(kindSkip(number, false)).toBe('number');
+    // 20261102090200_live_ranges.sql: four ranges on the floor
+    expect(kindSkip(number, false)).toBeNull();
+    expect(kindSkip({ ...number, answers: [] }, false)).toBe('nokey');
     expect(kindSkip({ ...number, answers: [] }, true)).toBe('nokey');
     // an order has its identity as the key and 2–8 options: it is still no question of several right answers
     expect(kindSkip({ kind: 'order', options: ['a', 'b', 'c'], correct: [0, 1, 2] }, true)).toBe('order');
@@ -44,6 +46,24 @@ describe('the questions a game takes (CONTRACT §4)', () => {
     expect(kindSkip({ kind: 'multiple', options: ['a', 'b', 'c'], correct: [0, 2] }, true)).toBeNull();
     expect(kindSkip({ kind: 'short', options: [], correct: [], answers: ['Париж'] }, false)).toBe('short');
     expect(kindSkip({ kind: 'single', options: ['a', 'b', 'c', 'd', 'e', 'f', 'g'], correct: [0] }, true)).toBe('options');
+  });
+
+  it('a key the AI picked (the flag ai_key) plays in no game, duel or challenge (20261107090600_live_no_ai_keys.sql)', () => {
+    const one = { kind: 'single' as const, options: ['a', 'b', 'c'], correct: [1], flags: ['ai_key'] };
+    const two = { kind: 'multiple' as const, options: ['a', 'b', 'c', 'd'], correct: [0, 2], flags: ['doubt', 'ai_key'] };
+    expect(skipReason(one)).toBe('aikey');
+    expect(skipReason(one, true)).toBe('aikey');
+    expect(kindSkip(one, true)).toBe('aikey');
+    expect(kindSkip(one, false)).toBe('aikey');
+    expect(kindSkip(two, true)).toBe('aikey');
+    expect(challengeSkip(one)).toBe('aikey');
+    expect(challengeSkip(two)).toBe('aikey');
+    // another flag, or none, plays as before
+    expect(kindSkip({ ...one, flags: ['doubt'] }, true)).toBeNull();
+    expect(challengeSkip({ ...two, flags: [] })).toBeNull();
+    expect(skipReason({ ...one, flags: undefined })).toBeNull();
+    // a question that is skipped anyway keeps its own reason
+    expect(kindSkip({ ...one, options: ['a'] }, true)).toBe('options');
   });
 
   it('offers amounts only when the test has more than 10 that fit', () => {

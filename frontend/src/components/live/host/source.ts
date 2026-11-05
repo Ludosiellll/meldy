@@ -11,9 +11,11 @@ import type { TestItem } from '../../../types/container';
 
 /**
  * Why a question is not in the game. Release 48's kinds that no game plays name themselves (order, match, cloze,
- * essay); a number plays in a battle (20261102090100_live_numbers.sql) and is 'number' only in «Встань на ответ».
+ * essay); a number plays in a battle (20261102090100_live_numbers.sql) and, as four ranges on the floor, in «Встань на
+ * ответ» too (20261102090200_live_ranges.sql). 'aikey': the key came from «Подобрать ключи с ИИ» (the flag ai_key), and
+ * no game, duel or challenge plays such a question (20261107090600_live_no_ai_keys.sql) until the author sets a key.
  */
-export type SkipReason = 'multiple' | 'short' | 'number' | 'order' | 'match' | 'cloze' | 'essay' | 'options' | 'nokey' | 'picture';
+export type SkipReason = 'multiple' | 'short' | 'number' | 'order' | 'match' | 'cloze' | 'essay' | 'options' | 'nokey' | 'picture' | 'aikey';
 
 /** Release 48's kinds that no game plays (docs/kinds/CONTRACT.md): each its own reason. */
 const UNPLAYED = new Set<SkipReason>(['order', 'match', 'cloze', 'essay']);
@@ -56,8 +58,11 @@ function hasPicture(item: Pick<TestItem, 'images'>): boolean {
   return !!im && ((im.stem?.length ?? 0) > 0 || (im.options ?? []).some((o) => (o?.length ?? 0) > 0));
 }
 
+/** The key came from the AI (the flag ai_key): no game plays the question. */
+const aiKey = (item: { flags?: readonly string[] }) => item.flags?.includes('ai_key') ?? false;
+
 /** Why a game skips the item; `wide`: a battle without mini-games (meldy_private.live_playable(item, wide)). */
-export function skipReason(item: Pick<TestItem, 'kind' | 'options' | 'correct' | 'images'>, wide = false): SkipReason | null {
+export function skipReason(item: Pick<TestItem, 'kind' | 'options' | 'correct' | 'images'> & { flags?: readonly string[] }, wide = false): SkipReason | null {
   if (UNPLAYED.has(item.kind as SkipReason)) return item.kind as SkipReason;
   if (item.kind === 'number') return 'number';
   if (item.kind === 'short' || item.options.length === 0) return 'short';
@@ -65,18 +70,18 @@ export function skipReason(item: Pick<TestItem, 'kind' | 'options' | 'correct' |
   if (item.correct.length > 1) return 'multiple';
   if (item.options.length < 2 || item.options.length > (wide ? 6 : 4)) return 'options';
   if (!wide && hasPicture(item)) return 'picture';
-  return null;
+  return aiKey(item) ? 'aikey' : null;
 }
 
 /**
  * Why a game skips the item with several right answers, text answers and numbers (meldy_private.live_playable(item,
- * true) or live_more(item, text)): 2–6 options with one right or more, or a text answer or a number with accepted
- * answers when `text` (not in «Встань на ответ»). Order, match, cloze and essay never play.
+ * true) or live_more(item, text)): 2–6 options with one right or more, a number with accepted answers (typed in a
+ * battle, four ranges on the floor in «Встань на ответ»), or a text answer with accepted answers when `text` (not in
+ * «Встань на ответ»). Order, match, cloze and essay never play, nor a question whose key the AI picked.
  */
-export function kindSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct'> & { answers?: readonly string[] }, text: boolean): SkipReason | null {
+export function kindSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct'> & { answers?: readonly string[]; flags?: readonly string[] }, text: boolean): SkipReason | null {
   if (UNPLAYED.has(item.kind as SkipReason)) return item.kind as SkipReason;
   if (item.kind === 'number') {
-    if (!text) return 'number';
     return item.answers === undefined || item.answers.length > 0 ? null : 'nokey';
   }
   if (item.kind === 'short' || item.options.length === 0) {
@@ -85,11 +90,11 @@ export function kindSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct'> & 
   }
   if (item.correct.length === 0) return 'nokey';
   if (item.options.length < 2 || item.options.length > 6) return 'options';
-  return null;
+  return aiKey(item) ? 'aikey' : null;
 }
 
 /** Why a challenge skips the item: as a battle (kindSkip with text answers), and a picture anywhere in it. */
-export function challengeSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct' | 'images'> & { answers?: readonly string[] }): SkipReason | null {
+export function challengeSkip(item: Pick<TestItem, 'kind' | 'options' | 'correct' | 'images'> & { answers?: readonly string[]; flags?: readonly string[] }): SkipReason | null {
   return kindSkip(item, true) ?? (hasPicture(item) ? 'picture' : null);
 }
 
