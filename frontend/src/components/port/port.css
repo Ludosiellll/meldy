@@ -84,10 +84,12 @@
 }
 
 /* the studio's top bar: «Скачать» by its icon alone below 1700 px, so the test's name keeps its room (its name stays: aria-label, title) */
+/* (.st-tool.pt-tool: studio.css's .st-tool padding loads later and would squeeze the icon to 8 px) */
+.pt-tool svg { flex: none; }
 @media (max-width: 1699px) {
-  .pt-tool { width: 40px; padding: 0; justify-content: center; }
+  .st-tool.pt-tool { width: 40px; padding: 0; justify-content: center; }
   .pt-tool .pt-tool-word { display: none; }
 }
-.st-page[data-frame='s'] .pt-tool { width: 40px; padding: 0; justify-content: center; }
+.st-page[data-frame='s'] .st-tool.pt-tool { width: 40px; padding: 0; justify-content: center; }
 .st-page[data-frame='s'] .pt-tool .pt-tool-word { display: none; }
 .pt-pal-gen { margin-top: 10px; text-align: left; line-height: 1.3; }
