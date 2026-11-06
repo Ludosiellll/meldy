@@ -265,14 +265,14 @@ describe('TokenInfoModal', () => {
       ['Выжимка лекции', String(AI_COSTS.cheatsheet)],
       ['Схемы к подкасту', String(AI_COSTS.visuals)],
       ['Работа над ошибками', String(AI_COSTS.mistakesPractice)],
-      ['Оценки по фото', String(AI_COSTS.gradebookScan)],
       ['Раздел анализа заново' + 'раздел, который не получился при анализе, — бесплатно', String(AI_COSTS.analysisSection)],
       [`Разбор сложных мест файла с вопросамиза каждые ${IMPORT_AI_QUESTIONS_PER_CHARGE} вопросов, отправленных модели`, String(AI_COSTS.importAI)],
       [`Подбор ключей с ИИза каждые ${KEYS_AI_QUESTIONS_PER_CHARGE} вопросов без ключа`, String(AI_COSTS.keysAI)],
     ]);
-    // One row per priced action of lib/plans.ts (scan pages are the note under the analysis): a new
-    // price there fails here until the window lists it.
-    expect(rows).toHaveLength(Object.keys(AI_COSTS).length - 1);
+    // One row per priced action of lib/plans.ts (scan pages are the note under the analysis; gradebookScan's page
+    // left the site 06.11, the price stays for the server's route): a new price there fails here until the window
+    // lists it.
+    expect(rows).toHaveLength(Object.keys(AI_COSTS).length - 2);
     expect(container.querySelector('details.ac-costs-more > summary')).toHaveTextContent('Ещё: выжимка, схемы, работа над ошибками, оценки по фото');
     expect(screen.getByText('Если ИИ не справился, единицы возвращаются.')).toBeInTheDocument();
     expect(screen.getByText(WITHOUT_UNITS)).toBeInTheDocument();

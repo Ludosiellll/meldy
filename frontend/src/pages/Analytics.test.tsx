@@ -37,7 +37,6 @@ const db = vi.hoisted(() => {
 
 vi.mock('../lib/supabase', () => ({ supabase: { from: (table: string) => db.from(table) } }));
 vi.mock('../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
-vi.mock('../components/Gradebook', () => ({ default: () => <div>Зачётка на экране</div> }));
 vi.mock('../api/learning', () => ({
   fetchMaterialEvents: (...args: unknown[]) => db.fetchMaterialEvents(...args),
   fetchQuestionEvents: (...args: unknown[]) => db.fetchQuestionEvents(...args),
@@ -184,7 +183,8 @@ describe('Progress page', () => {
       'Лекции',
       'Занятия по дням',
     ]);
-    expect(screen.getByRole('link', { name: 'Оценки из зачётки' })).toHaveAttribute('href', '/analytics?tab=gradebook');
+    // «Оценки из зачётки» left the site (owner, 06.11): no way to it from «Прогресс».
+    expect(screen.queryByRole('link', { name: 'Оценки из зачётки' })).toBeNull();
   });
 
   it('opens the knowledge map from its own card: what the map shows, and one button', async () => {
@@ -358,17 +358,11 @@ describe('Progress page', () => {
     expect(await screen.findByText('Часть данных не загрузилась, поэтому список может быть неполным.')).toBeInTheDocument();
   });
 
-  it('opens the gradebook from the link in the header, with the way back as on the other inner pages', async () => {
+  it('an old link to the gradebook (?tab=gradebook) opens «Прогресс» (the gradebook left the site 06.11)', async () => {
     renderProgress('/analytics?tab=gradebook');
-    expect(await screen.findByText('Зачётка на экране')).toBeInTheDocument();
-    const title = screen.getByRole('heading', { level: 1, name: 'Оценки из зачётки' });
-    expect(screen.queryByRole('tab')).toBeNull();
-    // «‹ Прогресс» over the title, the crumb of the map and the diary (LIB-34).
-    const crumb = screen.getByRole('link', { name: 'Прогресс' });
-    expect(crumb).toHaveAttribute('href', '/analytics');
-    expect(crumb).toHaveClass('sc-crumb');
-    expect(crumb.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(document.title).toBe('Оценки из зачётки — Meldy');
+    expect(await screen.findByRole('heading', { level: 1, name: 'Прогресс' })).toBeInTheDocument();
+    expect(screen.queryByText('Оценки из зачётки')).toBeNull();
+    expect(document.title).toBe('Прогресс — Meldy');
   });
 
   it('names the browser tab after the page', async () => {
@@ -914,13 +908,9 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     expect(screen.getByText(/^Ответы на билеты и вопросы экзаменов по дням; больше всего 25 — /)).toBeInTheDocument();
   });
 
-  it('makes the gradebook a quiet link and the map one row', async () => {
+  it('makes the map one row', async () => {
     renderProgress();
     await screen.findByRole('heading', { name: 'Что подтянуть' });
-    const gradebook = screen.getByRole('link', { name: 'Оценки из зачётки' });
-    expect(gradebook).toHaveAttribute('href', '/analytics?tab=gradebook');
-    expect(gradebook).toHaveClass('sf-link');
-    expect(gradebook).not.toHaveClass('sf-secondary');
     expect(screen.queryByRole('heading', { name: 'Карта знаний' })).toBeNull();
     expect(document.querySelector('.pg-map-art')).toBeNull();
     expect(screen.getByRole('link', { name: /^Карта знаний:\s*лекции и понятия$/ })).toHaveAttribute('href', '/knowledge-map');

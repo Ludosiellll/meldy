@@ -38,7 +38,6 @@ export const LIMIT_COSTS: ReadonlyArray<{ what: string; units: number; note?: st
   { what: 'Выжимка лекции', units: AI_COSTS.cheatsheet, more: true },
   { what: 'Схемы к подкасту', units: AI_COSTS.visuals, more: true },
   { what: 'Работа над ошибками', units: AI_COSTS.mistakesPractice, more: true },
-  { what: 'Оценки по фото', units: AI_COSTS.gradebookScan, more: true },
   {
     what: 'Раздел анализа заново',
     units: AI_COSTS.analysisSection,

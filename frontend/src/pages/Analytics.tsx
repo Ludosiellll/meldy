@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import Gradebook from '../components/Gradebook';
 import { useAuth } from '../hooks/useAuth';
 import { supabase } from '../lib/supabase';
 import { fetchMaterialEvents, fetchQuestionEvents, type LearningEvent } from '../api/learning';
@@ -545,10 +544,9 @@ function ReadinessDots({ exam }: { exam: ExamBlock }) {
 export default function Analytics() {
   const { user } = useAuth();
   const phone = usePhone();
-  const [searchParams] = useSearchParams();
-  const gradebook = searchParams.get('tab') === 'gradebook';
-  // The gradebook is a page of its own inside «Прогресс», with its own title.
-  useDocumentTitle(gradebook ? 'Оценки из зачётки' : 'Прогресс');
+  // «Оценки из зачётки» is gone (owner, 06.11: «разве есть смысл от оценок из зачетки?» — one user, last grade 29.05):
+  // an old link with ?tab=gradebook opens «Прогресс».
+  useDocumentTitle('Прогресс');
   const [sources, setSources] = useState<Sources>(LOADING);
   const [loadingLine, setLoadingLine] = useState(false);
   // The exam containers of the account (their figures in «Экзамены»), read once for the page.
@@ -596,24 +594,6 @@ export default function Analytics() {
     return () => clearTimeout(timer);
   }, [initialLoading]);
 
-  if (gradebook) {
-    return (
-      <div className="sf-page pg pg-gb">
-        <header className="sf-head">
-          <div className="min-w-0">
-            {/* «‹ Прогресс» as on the other pages inside a section (the map, the diary). The top line of a
-                phone cannot show it here (it reads the path, not ?tab), so this crumb stays on phones too. */}
-            <SectionCrumb to="/analytics" label="Прогресс" />
-            <h1 className="sf-h1">Оценки из зачётки</h1>
-            <p className="sf-lede">{ty('Оценки по предметам и средний балл. Их можно ввести вручную или распознать по фото зачётки.')}</p>
-          </div>
-        </header>
-        <div className="pg-gradebook">
-          <Gradebook />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="sf-page pg">
@@ -624,10 +604,6 @@ export default function Analytics() {
           <h1 className="sf-h1">Прогресс</h1>
           <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : typeset(ledeOf(sources))}</p>
         </div>
-        {/* On a phone a quiet link under the line: the page's one pill is «Повторить». */}
-        <Link className={phone ? 'sf-link pg-head-link' : 'sf-secondary pg-head-link'} data-muted={phone ? '' : undefined} to="/analytics?tab=gradebook">
-          Оценки из зачётки
-        </Link>
       </header>
       {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} userId={user?.id ?? null} layer={layer} />}
     </div>
