@@ -75,7 +75,7 @@ afterEach(() => {
 });
 
 describe.each([
-  ['/login', 'Войти по почте можно и здесь.', 'Войти', 'Войти через Google', 'Email'],
+  ['/login', 'Войти по почте можно и здесь.', 'Войти', 'Войти через Google', 'Почта'],
   ['/register', 'Зарегистрироваться по почте можно и здесь.', 'Создать аккаунт', 'Продолжить с Google', 'Почта'],
 ])('%s inside a messenger', (page, mailLine, submit, google, emailLabel) => {
   it('in Telegram on Android: the /join note, the link with its way back into Chrome, no Google, e-mail stays', async () => {
