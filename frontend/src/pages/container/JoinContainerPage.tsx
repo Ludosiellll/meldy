@@ -172,6 +172,7 @@ export default function JoinContainerPage() {
                 {meta ? <p className="gj-meta">{nb(meta)}</p> : null}
                 <p className="au-lede">{JOIN.lede}</p>
                 {hasOral ? <p className="gj-oral">{JOIN.oral}</p> : null}
+                {!user && !loading ? <p className="gj-oral">{JOIN.signInLine}</p> : null}
               </>
             ) : value && value.status === 'own' ? (
               <>

@@ -1006,7 +1006,10 @@ export const JOIN = {
       .filter(Boolean)
       .map((part) => (part as string).replace(/\s/g, NBSP))
       .join(`${NBSP}· `),
-  lede: 'Вопросы и ключи из файлов автора, его исправления придут и вам. Ваши ответы и прогресс не видит никто. Автор увидит только ваше имя среди вошедших.',
+  // UX audit 06.11: the first screen of most people — what it is and what to do, then who sees what.
+  lede: 'Вопросы с ответами уже загружены. Ваши ответы и прогресс не видит никто, автор увидит только ваше имя среди вошедших.',
+  /** Signed out: signing in is the way in. */
+  signInLine: 'Войдите или создайте аккаунт — экзамен сразу откроется.',
   oral: 'С устными предметами придут текст лекций автора и пункты ответа.',
   google: 'Войти через Google',
   or: 'или',

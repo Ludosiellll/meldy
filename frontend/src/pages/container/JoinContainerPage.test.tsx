@@ -66,6 +66,8 @@ describe('JoinContainerPage: /g/<код> (spec decisions 24, 25, 52)', () => {
     expect(screen.getByText(/3\sпредмета,\s18\sвопросов\s· экзамен\s12\sянваря/)).toBeInTheDocument();
     expect(screen.getByText(JOIN.lede)).toBeInTheDocument();
     expect(screen.getByText(JOIN.oral)).toBeInTheDocument();
+    // UX audit 06.11: signing in is the way in, said in words
+    expect(screen.getByText(JOIN.signInLine)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Войти по почте' })).toHaveAttribute('href', `/login?next=${encodeURIComponent(`/g/${CODE}`)}`);
     expect(screen.getByRole('link', { name: 'Создать аккаунт' })).toHaveAttribute('href', `/register?next=${encodeURIComponent(`/g/${CODE}`)}`);
     fireEvent.click(screen.getByRole('link', { name: 'Войти по почте' }));
