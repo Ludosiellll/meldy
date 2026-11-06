@@ -151,6 +151,28 @@
 /* ─── PIN ─── */
 .lp-pin-boss { align-self: center; margin: 22px 0 6px; }
 .lp-pin-field { margin-top: 22px; }
+/* The site's way back on the PIN screen (owner, 06.11): a quiet word with an arrow, above the title. */
+.lp-leave {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  margin: -10px 0 8px -8px;
+  padding: 0 12px 0 6px;
+  border-radius: 999px;
+  font: 500 16px/1 var(--ph-sans, sans-serif);
+  color: var(--lp-ink-2);
+}
+.lp-leave svg { width: 20px; height: 20px; }
+@media (hover: hover) { .lp-leave:hover { color: var(--lp-ink); } }
+/* A laptop: the phone's column in the middle, not a field and a button across the whole screen (owner, 06.11). */
+@media (min-width: 720px) {
+  .lp-page, .lp-bar {
+    padding-left: max(calc(var(--lp-left) + 20px), calc((100% - 560px) / 2));
+    padding-right: max(calc(var(--lp-right) + 20px), calc((100% - 560px) / 2));
+  }
+}
 .lp-pin-field label { display: block; font: 500 14px/1.2 var(--ph-sans, sans-serif); color: var(--lp-ink-2); margin-bottom: 8px; }
 .lp-pin-input {
   width: 100%;

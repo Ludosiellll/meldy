@@ -6,7 +6,11 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { LiveBoss } from './art';
 import type { PlayerController } from './controller';
 
-export function PinScreen({ ctl, error, initial, busy }: { ctl: PlayerController; error: string | null; initial: string; busy: boolean }) {
+/**
+ * `onLeave`: the site's way back (owner, 06.11: «нельзя назад вернуться отсюда») — the page before, or the site's start
+ * when /play was opened by a link. Telegram has its own «Назад» and passes none.
+ */
+export function PinScreen({ ctl, error, initial, busy, onLeave }: { ctl: PlayerController; error: string | null; initial: string; busy: boolean; onLeave?: () => void }) {
   const [value, setValue] = useState(initial);
   // A PIN from the address arrives after the first paint: the field shows the one being checked.
   useEffect(() => {
@@ -21,6 +25,14 @@ export function PinScreen({ ctl, error, initial, busy }: { ctl: PlayerController
   return (
     <form className="lp-page-wrap" onSubmit={submit} style={{ display: 'contents' }}>
       <div className="lp-page">
+        {onLeave ? (
+          <button type="button" className="lp-leave" onClick={onLeave}>
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M12 4.5 6.5 10l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Назад
+          </button>
+        ) : null}
         <h1 className="lp-h1">Битва с монстром</h1>
         <p className="lp-sub">Весь класс против Дедлайна. Введите PIN с экрана ведущего.</p>
         <div className="lp-pin-boss">

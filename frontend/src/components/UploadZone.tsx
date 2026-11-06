@@ -229,6 +229,12 @@ export default function UploadZone({
   const [mediaSeconds, setMediaSeconds] = useState<number | null>(null);
   const [measuring, setMeasuring] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // «Изменить» opens the settings under the steps, out of sight on a laptop (owner, 06.11: «человек незнающий не
+  // заметит где настройки»): the page goes to them and the focus with it; «Готово» under them comes back to step 2.
+  const settingsRef = useRef<HTMLElement | null>(null);
+  const planRef = useRef<HTMLElement | null>(null);
+  const changeRef = useRef<HTMLButtonElement | null>(null);
+  const goTo = useRef<'settings' | 'plan' | null>(null);
   // «Открыть «Аудио и видео»» under a video link: the focus goes on to the file picker of that tab.
   const [focusPicker, setFocusPicker] = useState(false);
   const [videoCheck, setVideoCheck] = useState<VideoCheck>({ state: 'idle' });
@@ -463,6 +469,24 @@ export default function UploadZone({
   // The demo text is analysed with its own settings: the line says what will be made, and «Изменить» waits.
   const summary = settingsSummary(demoText ? DEMO_SETTINGS : settings);
   const showSettings = settingsOpen && !demoText;
+  useEffect(() => {
+    const where = goTo.current;
+    goTo.current = null;
+    if (where === 'settings' && showSettings) {
+      const card = settingsRef.current;
+      if (!card) return;
+      const still = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      card.scrollIntoView?.({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+      card.focus({ preventScroll: true });
+    } else if (where === 'plan' && !showSettings) {
+      bringIntoView(planRef.current);
+      changeRef.current?.focus({ preventScroll: true });
+    }
+  }, [showSettings]);
+  const toggleSettings = (open: boolean) => {
+    goTo.current = open ? 'settings' : 'plan';
+    setSettingsOpen(open);
+  };
 
   return (
     <div className="az-upload">
@@ -754,7 +778,7 @@ export default function UploadZone({
 
       {/* Step 2, folded: what will be made, in one line, and what it spends; the defaults are good, «Изменить» opens
           the settings under the steps. */}
-      <section className="az-card az-plan az-rise" data-d="2" aria-labelledby={`${ids}-settings`}>
+      <section ref={planRef} className="az-card az-plan az-rise" data-d="2" aria-labelledby={`${ids}-settings`}>
         <div className="az-plan-head">
           <span className="az-step-n" aria-hidden="true">
             2
@@ -770,13 +794,14 @@ export default function UploadZone({
           </p>
         ) : null}
         <button
+          ref={changeRef}
           type="button"
           className="az-change"
           aria-expanded={showSettings}
           aria-controls={settingsId}
           aria-describedby={demoText ? settingsWhyId : undefined}
           disabled={demoText}
-          onClick={() => setSettingsOpen(open => !open)}
+          onClick={() => toggleSettings(!settingsOpen)}
         >
           {showSettings ? 'Свернуть настройки' : 'Изменить'}
           <ChevronDown aria-hidden="true" className="az-change-icon" />
@@ -807,8 +832,13 @@ export default function UploadZone({
       </div>
 
       {showSettings ? (
-        <section id={settingsId} className="az-card az-settings-card" aria-label="Настройки разбора">
+        <section ref={settingsRef} id={settingsId} className="az-card az-settings-card" aria-label="Настройки разбора" tabIndex={-1}>
           <SettingsPanel settings={settings} onChange={onSettingsChange} />
+          <div className="az-settings-done">
+            <button type="button" className="sf-secondary" onClick={() => toggleSettings(false)}>
+              Готово
+            </button>
+          </div>
         </section>
       ) : null}
     </div>

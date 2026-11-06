@@ -5,7 +5,7 @@
  * `?fake=1` plays against the in-page fake server (lib/live/fake.ts) with 23 bots and demo PIN 482913.
  */
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { liveApi } from '../../lib/live/api';
 import { PlayerApp } from '../../components/live/player/PlayerApp';
 import { PlayerController } from '../../components/live/player/controller';
@@ -45,6 +45,14 @@ export default function PlayPage() {
     [ctl, setParams],
   );
 
+  // «Назад» on the PIN screen: the page this one was opened from, or the site's start for a link opened anew.
+  const navigate = useNavigate();
+  const location = useLocation();
+  const leave = () => {
+    if (location.key !== 'default') navigate(-1);
+    else navigate('/');
+  };
+
   // Shared with the result: the game's own door on the site (a PIN from the teacher's screen), never a token.
-  return <PlayerApp ctl={ctl} platform={platform} shareUrl={`${SITE_URL}/play`} />;
+  return <PlayerApp ctl={ctl} platform={platform} shareUrl={`${SITE_URL}/play`} onLeave={leave} />;
 }

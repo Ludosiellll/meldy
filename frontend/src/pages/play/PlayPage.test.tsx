@@ -13,12 +13,13 @@ function Where() {
   return null;
 }
 
-async function open(url: string) {
+async function open(url: string, before: string[] = []) {
   render(
-    <MemoryRouter initialEntries={[url]}>
+    <MemoryRouter initialEntries={[...before, url]} initialIndex={before.length}>
       <Where />
       <Routes>
         <Route path="/play" element={<PlayPage />} />
+        <Route path="*" element={<p>Другая страница</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -54,6 +55,16 @@ describe('/play', () => {
     expect(screen.getByRole('heading', { name: 'Битва с монстром' })).toBeInTheDocument();
     expect(screen.getByLabelText('PIN игры')).toHaveValue('111 111');
     expect(screen.getByRole('alert').textContent).toMatch(/^Игры с PIN 111.111 нет/);
+  });
+
+  it('«Назад» on the PIN screen goes to the page before, or to the start for a link opened anew (owner, 06.11)', async () => {
+    await open('/play', ['/games']);
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(where).toBe('/games');
+    cleanup();
+    await open('/play');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(where).toBe('/');
   });
 
   it('a typed PIN goes into the address (a reload comes back to it)', async () => {

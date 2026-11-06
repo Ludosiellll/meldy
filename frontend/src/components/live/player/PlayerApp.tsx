@@ -38,9 +38,11 @@ export interface PlayerAppProps {
   shareUrl: string;
   /** Telegram's «Назад»: the page shows it with this handler, or hides it with null. */
   onBackChange?: (handler: (() => void) | null) => void;
+  /** The site's «Назад» on the PIN screen (PlayPage); Telegram passes none: its own button is there. */
+  onLeave?: () => void;
 }
 
-export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppProps) {
+export function PlayerApp({ ctl, platform, shareUrl, onBackChange, onLeave }: PlayerAppProps) {
   const s = useSyncExternalStore(ctl.subscribe, ctl.getSnapshot, ctl.getSnapshot);
   const haptic = useCallback((kind: HapticKind) => platform.haptic(kind), [platform]);
 
@@ -87,7 +89,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange }: PlayerAppPr
     </div>
   );
   let screen: JSX.Element;
-  if (s.step === 'pin') screen = <PinScreen ctl={ctl} error={s.error} initial={s.pin} busy={s.busy} />;
+  if (s.step === 'pin') screen = <PinScreen ctl={ctl} error={s.error} initial={s.pin} busy={s.busy} onLeave={onLeave} />;
   else if (stand && st && s.game && (s.step === 'game' || (s.step === 'builder' && s.builderFrom === 'lobby')))
     screen = (
       <Suspense fallback={waiting}>

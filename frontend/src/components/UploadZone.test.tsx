@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useState } from 'react';
 import UploadZone, { type UploadOptions, type UploadTab } from './UploadZone';
 import { DEFAULT_SETTINGS } from '../types';
@@ -590,6 +590,27 @@ describe('«Разобрать лекцию»: three steps, the start on the fir
     expect(change).toHaveTextContent('Свернуть настройки');
     fireEvent.click(change);
     expect(screen.queryByRole('region', { name: 'Настройки разбора' })).not.toBeInTheDocument();
+  });
+
+  it('«Изменить» brings the settings into view with the focus, and «Готово» under them comes back to step 2 (owner, 06.11)', () => {
+    const targets: Element[] = [];
+    const scrolled = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(function (this: Element) {
+      targets.push(this);
+    });
+    try {
+      render(<Harness onUpload={vi.fn()} initialText={lecture(400)} />);
+      const change = screen.getByRole('button', { name: 'Изменить' });
+      fireEvent.click(change);
+      const settings = screen.getByRole('region', { name: 'Настройки разбора' });
+      expect(targets[0]).toBe(settings);
+      expect(scrolled).toHaveBeenCalledWith(expect.objectContaining({ block: 'start' }));
+      expect(document.activeElement).toBe(settings);
+      fireEvent.click(within(settings).getByRole('button', { name: 'Готово' }));
+      expect(screen.queryByRole('region', { name: 'Настройки разбора' })).not.toBeInTheDocument();
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Изменить' }));
+    } finally {
+      scrolled.mockRestore();
+    }
   });
 
   it('puts the start right after the two steps, before the settings', () => {
