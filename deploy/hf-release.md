@@ -4,6 +4,18 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-06 — Release 54.2: no gradebook, plain words on the way in (from the commit of this entry)
+
+- **Why**: the owner (06.11): «разве есть смысл от оценок из зачетки? зачем это вообще», «интерфейс уже перегружен», and
+  the UX audit of the night (meldy-notes 10_Project/UX_Audit_2026-11-06.md) — only what contradicts no earlier decision.
+- **«Оценки из зачётки» gone**: the link on «Прогресс», the page (an old ?tab=gradebook opens «Прогресс»), its price
+  line; the tables and the one user's grades stay.
+- **Group invite /g/<code>**: «Вопросы с ответами уже загружены…» and, signed out, «Войдите или создайте аккаунт —
+  экзамен сразу откроется».
+- **Words**: «ИИ не ответил» instead of «Модель не ответила» in a lecture's section errors; «Почта» on sign-in and
+  password reset; no «оценки по фото» left in the AI prices.
+- **Checked**: gate green (pytest 2833, bot 437, vitest 7322, build).
+
 ## 2026-11-06 — Release 54.1: «Изменить» shows the settings, «Назад» on /play (from the commit of this entry)
 
 - **Why**: the owner (06.11): «нажимаю «Изменить» и человек незнающий не заметит где настройки» and, on the PIN
