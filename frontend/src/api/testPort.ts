@@ -72,7 +72,7 @@ async function call(path: string, init: RequestInit): Promise<unknown> {
   if (!response.ok) {
     const detail = isRecord(body) && typeof body.detail === 'string' && /[а-яё]/i.test(body.detail) && response.status < 500 ? body.detail : FAILED;
     const code = isRecord(body) && typeof body.code === 'string' ? body.code : `http_${response.status}`;
-    throw new PortError(code, response.status === 504 ? 'Модель не ответила вовремя. Повторите через минуту.' : detail, response.status);
+    throw new PortError(code, response.status === 504 ? 'ИИ не ответил вовремя. Повторите через минуту.' : detail, response.status);
   }
   if (!isRecord(body)) throw new PortError('bad_shape', FAILED, response.status);
   return body;

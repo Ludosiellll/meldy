@@ -11,6 +11,7 @@ import { detectInAppBrowser } from '../lib/inAppBrowser';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import InAppNote from '../components/InAppNote';
 import AuthHalftone from '../components/AuthHalftone';
+import { EMAIL_LABEL, EMAIL_PLACEHOLDER } from './Register';
 
 /** Under the heading: what waits after signing in («продолжите с того же места» — as the group room says it, copyImport leaveAsk). */
 export const LOGIN_LEDE = 'Ваши экзамены, лекции и ответы сохранены. Продолжите с\u00a0того же места.';
@@ -113,7 +114,7 @@ export default function Login() {
 
             <form onSubmit={handleLogin} className="au-form">
               <div className="au-field">
-                <label htmlFor="login-email" className="au-label">Email</label>
+                <label htmlFor="login-email" className="au-label">{EMAIL_LABEL}</label>
                 <input
                   id="login-email"
                   name="email"
@@ -127,7 +128,7 @@ export default function Login() {
                   aria-invalid={Boolean(emailError)}
                   aria-describedby={emailError ? 'login-email-error' : undefined}
                   className="au-input"
-                  placeholder="you@example.com"
+                  placeholder={EMAIL_PLACEHOLDER}
                   required
                 />
                 {emailError && <p id="login-email-error" role="alert" className="au-hint au-hint--error">{emailError}</p>}

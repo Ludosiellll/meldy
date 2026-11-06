@@ -77,10 +77,10 @@ AGENT_LABELS = {
 
 # Per-section failure lines (agent_done.message, results.sections, warnings).
 SECTION_MESSAGES = {
-    "empty": "Модель вернула пустой ответ",
+    "empty": "ИИ вернул пустой ответ",
     "busy": "Сервис ИИ был перегружен",
-    "failed": "Модель не ответила",
-    "timeout": "Модель не ответила вовремя",
+    "failed": "ИИ не ответил",
+    "timeout": "ИИ не ответил вовремя",
 }
 
 # Terminal error when no requested core section is usable.

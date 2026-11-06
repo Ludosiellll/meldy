@@ -146,7 +146,7 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, lim
             <p className="ac-modal-p ac-costs-h">Единицы списываются, когда Meldy обращается к ИИ:</p>
             <CostRows rows={LIMIT_COSTS.filter((row) => !row.more)} />
             <details className="ac-costs-more">
-              <summary>Ещё: выжимка, схемы, работа над ошибками, оценки по фото</summary>
+              <summary>Ещё: выжимка, схемы, работа над ошибками</summary>
               <CostRows rows={LIMIT_COSTS.filter((row) => row.more)} />
             </details>
             <p className="ac-modal-p ac-costs-back">Если ИИ не справился, единицы возвращаются.</p>

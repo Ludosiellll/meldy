@@ -5,6 +5,7 @@ import { Mail, ShieldCheck, HelpCircle } from 'lucide-react';
 import { ty } from '../components/landing/typo';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import AuthHalftone from '../components/AuthHalftone';
+import { EMAIL_LABEL, EMAIL_PLACEHOLDER } from './Register';
 
 /** For an account made with Google there is no password to restore (audit 2026-10-08, PUB-20). */
 export const GOOGLE_ONLY_NOTE = 'Входили через Google? Пароль не нужен:';
@@ -76,7 +77,7 @@ export default function ForgotPassword() {
               <>
                 <form onSubmit={handleReset} className="au-form">
                   <div className="au-field">
-                    <label htmlFor="reset-email" className="au-label">Email</label>
+                    <label htmlFor="reset-email" className="au-label">{EMAIL_LABEL}</label>
                     <input
                       id="reset-email"
                       name="email"
@@ -85,7 +86,7 @@ export default function ForgotPassword() {
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       className="au-input"
-                      placeholder="you@example.com"
+                      placeholder={EMAIL_PLACEHOLDER}
                       required
                     />
                   </div>

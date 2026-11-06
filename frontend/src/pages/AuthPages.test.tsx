@@ -87,7 +87,7 @@ describe('each sign-in page names its tab', () => {
 describe('/login: an address is checked for its form only (PUB-4)', () => {
   it.each(['student@mail.com', 'student@inbox.lv', 'student@mail.kz', 'student@yandex.ua', 'student@gmail.co'])('%s signs in, no hint', async (email) => {
     renderAt('/login');
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } });
+    fireEvent.change(screen.getByLabelText('Почта'), { target: { value: email } });
     fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
     await waitFor(() => expect(auth.signInWithPassword).toHaveBeenCalledWith({ email, password: 'Secret123' }));
@@ -96,12 +96,12 @@ describe('/login: an address is checked for its form only (PUB-4)', () => {
 
   it('a malformed address stops the form and says why; fixing it clears the message', () => {
     renderAt('/login');
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'student@mail' } });
+    fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'student@mail' } });
     fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'Secret123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
     expect(screen.getByRole('alert')).toHaveTextContent(EMAIL_FORMAT_MESSAGE);
     expect(auth.signInWithPassword).not.toHaveBeenCalled();
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'student@mail.ru' } });
+    fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'student@mail.ru' } });
     expect(screen.queryByText(EMAIL_FORMAT_MESSAGE)).toBeNull();
   });
 

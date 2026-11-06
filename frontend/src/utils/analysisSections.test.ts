@@ -84,9 +84,9 @@ describe('statuses and usability', () => {
 describe('failure sentence', () => {
   it('builds one plain sentence from the section message', () => {
     expect(sectionFailureSentence('quiz', { status: 'busy', message: 'Сервис ИИ был перегружен' })).toBe('Самопроверка не получилась: сервис ИИ был перегружен.');
-    expect(sectionFailureSentence('flashcards', { status: 'empty' })).toBe('Карточки не получились: модель вернула пустой ответ.');
+    expect(sectionFailureSentence('flashcards', { status: 'empty' })).toBe('Карточки не получились: ИИ вернул пустой ответ.');
     expect(sectionFailureSentence('summarizer', { status: 'missing' })).toBe('Конспект не получился: связь прервалась до этого раздела.');
-    expect(sectionFailureSentence('cheatsheet', { status: 'timeout' })).toBe('Выжимка не получилась: модель не ответила вовремя.');
+    expect(sectionFailureSentence('cheatsheet', { status: 'timeout' })).toBe('Выжимка не получилась: ИИ не ответил вовремя.');
     expect(sectionFailureSentence('quiz', { status: 'failed', message: 'ИИ-сервис сейчас не ответил.' })).toBe('Самопроверка не получилась: ИИ-сервис сейчас не ответил.');
   });
 });

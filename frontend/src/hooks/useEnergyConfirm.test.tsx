@@ -273,7 +273,7 @@ describe('TokenInfoModal', () => {
     // left the site 06.11, the price stays for the server's route): a new price there fails here until the window
     // lists it.
     expect(rows).toHaveLength(Object.keys(AI_COSTS).length - 2);
-    expect(container.querySelector('details.ac-costs-more > summary')).toHaveTextContent('Ещё: выжимка, схемы, работа над ошибками, оценки по фото');
+    expect(container.querySelector('details.ac-costs-more > summary')).toHaveTextContent('Ещё: выжимка, схемы, работа над ошибками');
     expect(screen.getByText('Если ИИ не справился, единицы возвращаются.')).toBeInTheDocument();
     expect(screen.getByText(WITHOUT_UNITS)).toBeInTheDocument();
     // What PRO gives, in the same numbers; no price, no checkout here.

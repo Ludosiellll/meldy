@@ -518,7 +518,7 @@ describe('«Создать … заново»', () => {
       results: { ...partialResults(), quiz, flashcards: { flashcards: [] }, sections: { summarizer: { status: 'ok' }, flashcards: { status: 'empty' }, quiz: { status: 'ok' } } },
     });
     fireEvent.click(screen.getByRole('button', { name: /^Карточки/ }));
-    expect(await screen.findByText('Карточки не получились: модель вернула пустой ответ.')).toBeInTheDocument();
+    expect(await screen.findByText('Карточки не получились: ИИ вернул пустой ответ.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Создать карточки заново' }));
     await waitFor(() => expect(db.sync).toHaveBeenCalledTimes(1));
     expect(db.sync).toHaveBeenCalledWith('user-1', 'm1', newCards.flashcards);
@@ -549,7 +549,7 @@ describe('«Создать … заново»', () => {
       results: { summarizer: { content: '' }, flashcards: cards, quiz, sections: { summarizer: { status: 'timeout' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' } } },
     });
     fireEvent.click(screen.getByRole('button', { name: /^Конспект/ }));
-    expect(await screen.findByText('Конспект не получился: модель не ответила вовремя.')).toBeInTheDocument();
+    expect(await screen.findByText('Конспект не получился: ИИ не ответил вовремя.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Создать конспект заново' }));
     await waitFor(() => expect(db.updates).toHaveLength(1));
     const saved = db.updates[0].summary_json as Record<string, unknown>;

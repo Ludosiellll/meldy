@@ -450,7 +450,7 @@ async function requestSection(
     throw new Error('Сервер вернул непонятный ответ. Попробуйте ещё раз.');
   }
   if (!isRecord(data) || !sectionHasContent(section, data.result)) {
-    throw new Error('Модель вернула пустой ответ. Попробуйте ещё раз.');
+    throw new Error('ИИ вернул пустой ответ. Попробуйте ещё раз.');
   }
   return { result: data.result as Record<string, unknown>, grounding: parseGrounding(data.grounding) };
 }

@@ -48,10 +48,10 @@ const FAILED_VERB: Record<SectionName, string> = {
 
 /** Причины сбоя раздела, как их присылает сервер; missing — только клиент. */
 export const SECTION_STATUS_MESSAGES: Record<Exclude<SectionStatus, 'ok'>, string> = {
-  empty: 'Модель вернула пустой ответ',
+  empty: 'ИИ вернул пустой ответ',
   busy: 'Сервис ИИ был перегружен',
-  failed: 'Модель не ответила',
-  timeout: 'Модель не ответила вовремя',
+  failed: 'ИИ не ответил',
+  timeout: 'ИИ не ответил вовремя',
   missing: 'Связь прервалась до этого раздела',
 };
 

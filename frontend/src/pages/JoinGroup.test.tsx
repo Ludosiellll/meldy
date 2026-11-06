@@ -334,7 +334,7 @@ describe('the way back: link → sign in by e-mail → the copy', () => {
     renderAt(`/join/${CODE}`);
     fireEvent.click(await screen.findByRole('link', { name: 'Войти по почте' }));
     expect(location).toBe(`/login?next=%2Fjoin%2F${CODE}`);
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'student@example.com' } });
+    fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'student@example.com' } });
     fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'secret-pass-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
     expect(await screen.findByText('Копия экзамена')).toBeInTheDocument();
@@ -354,7 +354,7 @@ describe('the way back: link → sign in by e-mail → the copy', () => {
       provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
-    fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'student@example.com' } });
+    fireEvent.change(screen.getByLabelText('Почта'), { target: { value: 'student@example.com' } });
     fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'secret-pass-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
     await waitFor(() => expect(location).toBe('/dashboard'));

@@ -167,7 +167,7 @@ def test_one_usable_core_section_gives_results_then_done(api, monkeypatch):
     results = items[-2]
     assert results["sections"]["summarizer"] == {"status": "ok"}
     assert results["sections"]["quiz"]["status"] == "timeout"
-    assert results["quiz"] == {"error": "Модель не ответила вовремя"}
+    assert results["quiz"] == {"error": "ИИ не ответил вовремя"}
 
 
 def test_code_heavy_lecture_gets_results_not_an_empty_error(api, monkeypatch):
