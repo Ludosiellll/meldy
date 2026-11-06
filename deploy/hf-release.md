@@ -4,6 +4,16 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-06 — Release 54.1: «Изменить» shows the settings, «Назад» on /play (from the commit of this entry)
+
+- **Why**: the owner (06.11): «нажимаю «Изменить» и человек незнающий не заметит где настройки» and, on the PIN
+  screen, «нельзя назад вернуться отсюда».
+- **«Разобрать лекцию»**: «Изменить» brings the settings (under the steps) into view with the focus; «Готово» under
+  them folds them and comes back to step 2.
+- **/play**: «Назад» on the PIN screen (the page before, or the start for a link opened anew; Telegram keeps its own);
+  on a laptop the player's pages are a column in the middle instead of a field and a button across the screen.
+- **Checked**: gate green (pytest 2833, bot 437, vitest 7326, build).
+
 ## 2026-11-05 — Release 54: «Баллы» for a question, AI keys out of games, the editor smooth, changes kept through an expired login (from the commit of this entry)
 
 - **Why**: the owner (05.11): «Доделывай то что можешь сделать» — the open list after release 53.
