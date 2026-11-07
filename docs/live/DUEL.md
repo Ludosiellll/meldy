@@ -168,10 +168,12 @@ before it locks the duel (a wrong token never holds the lock), then settles.
   plus a call exactly when the server's clock says something is due (the text, the end of the time and its grace, the
   reveal's end, the wait's end).
 - On the `/sb` route (`lib/supabaseRoute.ts`: the browser reaches Supabase through the site) the proxy
-  (`backend/supabase_proxy.py`, slowapi) lets **600 calls a minute** through per key: a signed-in browser's session, a
-  guest's address (`visitor_ip_key`). The `rest/v1/rpc/duel_*` calls count in a bucket of their own (the key with
-  `:duel`), and the live game's `rest/v1/rpc/live_*` in another (`:live`), so a duel neither spends nor is starved by
-  the 600 the rest of the site's calls of that address share. There a device polls about every **3 s** while timed and
+  (`backend/supabase_proxy.py`, slowapi) lets calls through per key — a signed-in browser's session, a guest's address
+  (`visitor_ip_key`) — **and per path** (slowapi's `key_style="url"`: each RPC has its own window). The
+  `rest/v1/rpc/duel_*` calls count in a bucket of their own (the key with `:duel`, **3 000 a minute**), and the live
+  game's `rest/v1/rpc/live_*` in another (`:live`, **6 000 a minute**), so a duel neither spends nor is starved by the
+  600 a minute the rest of the site's calls of that address get (load audit 07.11, LOAD-1/5/6: at 600 the class game
+  held 8 phones of one address and the duel ~22 devices). There a device polls about every **3 s** while timed and
   in the lobby and **5 s** after the end, the due calls still on top, and backs off on a 429 by 3 s more each time, at
   most 9 s. A page that does not know its route (`preferredRoute()` null: a private window, storage blocked) polls at
   the `/sb` pace too; what is due is still asked for exactly when it is due.
@@ -183,8 +185,8 @@ before it locks the duel (a wrong token never holds the lock), then settles.
 - Honest numbers (the `/sb` route, a guest): the polls are 20 calls a minute while timed; the due calls (the text, the
   time's end, the reveal's end: 2–3 a question) and the presses (the answer, «Дальше») add 8–18 more with questions of
   10–20 s — about **30 calls a minute** a device, up to about 38 with short questions answered at once; 12 after the
-  end. One classroom address therefore carries about **20 guests in duels at once** (10 duels) within the duel
-  bucket's 600; more get 429s, slow down by the back-off, still count as here (20 s) and lose a moment on an answer, not
+  end. One classroom address therefore carries about **100 guests in duels at once** (50 duels) within the duel
+  bucket's 3 000 (it was 20 at 600); more get 429s, slow down by the back-off, still count as here (20 s) and lose a moment on an answer, not
   the answer. Signed-in players have their session's own buckets. On the direct route the polls are about 60 calls a
   minute a device (plus the due calls and presses) and Supabase's own limits apply.
 - Both pressed «Ещё раз»: the device moves to the next duel — after every state and on the start, so a reload after both
