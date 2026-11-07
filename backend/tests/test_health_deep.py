@@ -349,3 +349,45 @@ def test_supabase_unconfigured(providers, monkeypatch):
     result = run(health_deep.check_supabase())
     assert result["ok"] is False and result["code"] == "unconfigured"
     assert providers.supabase_requests == []
+
+
+# ── /api/health/db (reliability audit 07.11, REL-16 and the outage monitor's second layer) ──────────────────────────
+
+
+def test_health_db_reads_one_row_through_the_rest_api(client, providers):
+    response = client.get("/api/health/db")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["db"] == "ok" and isinstance(body["ms"], int)
+    assert response.headers["cache-control"] == "no-store"
+    request = providers.supabase_requests[-1]
+    assert request.url.path == "/rest/v1/quests" and request.url.params["limit"] == "1"
+    assert request.headers["apikey"] == SUPABASE_KEY
+
+
+def test_health_db_is_503_when_the_database_does_not_answer(client, providers):
+    providers.supabase_status = 503
+    response = client.get("/api/health/db")
+    assert response.status_code == 503 and response.json() == {"db": "down", "code": "http_503", "ms": response.json()["ms"]}
+    providers.supabase_status = 200
+    providers.supabase_error = httpx.ConnectTimeout("slow")
+    health_deep._db_state.update(at=None, result=None)
+    response = client.get("/api/health/db")
+    assert response.status_code == 503 and response.json()["code"] == "timeout"
+
+
+def test_health_db_is_public_and_cached_for_a_few_seconds(client, providers):
+    client.get("/api/health/db")
+    client.get("/api/health/db")
+    assert len([r for r in providers.supabase_requests if r.url.path == "/rest/v1/quests"]) == 1
+    providers.clock["t"] += health_deep.DB_CACHE_S + 1
+    client.get("/api/health/db")
+    assert len([r for r in providers.supabase_requests if r.url.path == "/rest/v1/quests"]) == 2
+
+
+def test_health_db_without_configuration_is_503(client, monkeypatch):
+    monkeypatch.setenv("SUPABASE_URL", "")
+    monkeypatch.setenv("VITE_SUPABASE_URL", "")
+    health_deep._db_state.update(at=None, result=None)
+    response = client.get("/api/health/db")
+    assert response.status_code == 503 and response.json()["code"] == "unconfigured"

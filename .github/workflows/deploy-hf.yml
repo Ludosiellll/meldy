@@ -180,8 +180,10 @@ jobs:
           for i in $(seq 1 12); do
             if curl -fsSL -o /tmp/health.json "https://${SPACE_HOST}/api/health"; then
               jq . /tmp/health.json
-              curl -fsSL -o /dev/null -w "root: %{http_code}\n" "https://${SPACE_HOST}/" && exit 0
+              # The database too (reliability audit 07.11, REL-16): /api/health says only that the process is up.
+              curl -fsSL -o /dev/null -w "root: %{http_code}\n" "https://${SPACE_HOST}/" \
+                && curl -fsS -w "\n" "https://${SPACE_HOST}/api/health/db" && exit 0
             fi
             echo "[$i] not answering yet"; sleep 10
           done
-          echo "::error::The Space did not answer /api/health and / with 200 within two minutes"; exit 1
+          echo "::error::The Space did not answer /api/health, / and /api/health/db with 200 within two minutes"; exit 1

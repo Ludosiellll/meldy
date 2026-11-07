@@ -255,8 +255,53 @@ async def deep_health() -> dict[str, Any]:
 
 
 def reset_cache() -> None:
-    """Forget the stored result (tests)."""
+    """Forget the stored results (tests)."""
     _state.update(result=None, at=None, task=None)
+    _db_state.update(at=None, result=None)
+
+
+# ── /api/health/db: is the database answering (reliability audit 07.11, REL-16) ─────────────────────────────────────
+#
+# /api/health says the process is up and /api/health/deep checks Supabase Auth only; neither reads the database. This is
+# one anon read through PostgREST (the row the keepalive reads, `quests?select=id&limit=1`), 3 s at most, kept DB_CACHE_S
+# so a monitor or a curious visitor costs the database at most one read every few seconds. 200 {"db": "ok", "ms"} or
+# 503 {"db": "down", "code", "ms"} — for the post-deploy smoke check and an external uptime monitor.
+DB_SECONDS = 3.0
+DB_CACHE_S = 15.0
+_db_state: dict[str, Any] = {"at": None, "result": None}
+
+
+async def check_db() -> tuple[int, dict[str, Any]]:
+    url, key = _supabase_config()
+    if not url or not key:
+        return 503, {"db": "down", "code": "unconfigured", "ms": 0}
+    started = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=DB_SECONDS, transport=_supabase_transport) as client:
+            response = await client.get(
+                f"{url}/rest/v1/quests",
+                params={"select": "id", "limit": "1"},
+                headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            )
+    except httpx.TimeoutException:
+        return 503, {"db": "down", "code": "timeout", "ms": _elapsed_ms(started)}
+    except httpx.HTTPError:
+        return 503, {"db": "down", "code": "network", "ms": _elapsed_ms(started)}
+    if response.status_code != 200:
+        return 503, {"db": "down", "code": f"http_{response.status_code}", "ms": _elapsed_ms(started)}
+    return 200, {"db": "ok", "ms": _elapsed_ms(started)}
+
+
+@router.get("/api/health/db")
+@limiter.limit("30/minute")
+async def health_db(request: Request):
+    """One anon read of the database through its REST API; cached DB_CACHE_S. See the block above."""
+    at = _db_state["at"]
+    if at is None or _clock() - at >= DB_CACHE_S or _db_state["result"] is None:
+        _db_state["result"] = await check_db()
+        _db_state["at"] = _clock()
+    status, body = _db_state["result"]
+    return JSONResponse(body, status_code=status, headers={"Cache-Control": "no-store"})
 
 
 @router.get("/api/health/deep")

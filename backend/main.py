@@ -270,7 +270,7 @@ async def require_authenticated_user(request: Request) -> dict:
     return dict(user)
 
 
-# Open without a session: the health check, the statistics that signed-out visitors send too (telemetry_api.py), what
+# Open without a session: the health checks (the process, the database, the deep one), the statistics that signed-out visitors send too (telemetry_api.py), what
 # a group link is before its classmate signs in (exam_shares.py: the status and the exam's title only), the AI
 # check of the no-sign-up example (try_api.py: its own questions only, its own key and caps, no units, no writes), and
 # the Telegram bot's voice bridge (bot_bridge.py: a single-use ticket from the database is its whole authority).
@@ -278,6 +278,7 @@ PUBLIC_API_PATHS = frozenset(
     {
         "/api/health",
         "/api/health/deep",
+        "/api/health/db",
         telemetry_api.TELEMETRY_PATH,
         "/api/exam-shares/preview",
         try_api.TRY_EVALUATE_PATH,

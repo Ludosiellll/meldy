@@ -1492,12 +1492,60 @@ async def _assert_public_target(url: str) -> None:
         raise ValueError("Ссылки на локальные и внутренние адреса запрещены.")
 
 
+# A page read by link (security audit 07.11, SEC-3): at most PAGE_MAX_BYTES of its body, within PAGE_DEADLINE_S in all
+# (the client's timeout counts each read, so a fast endless stream never timed out and filled the Space's memory). A
+# longer page is cut: the analysis takes its beginning, as it would a long file.
+PAGE_MAX_BYTES = 5 * 1024 * 1024
+PAGE_DEADLINE_S = 20.0
+_REDIRECTS = (301, 302, 303, 307, 308)
+
+
+class _CappedPage:
+    """What the callers read of a response: the status, the headers and the text of the (capped) body."""
+
+    def __init__(self, status_code: int, headers, text: str):
+        self.status_code = status_code
+        self.headers = headers
+        self.text = text
+
+
+async def _read_capped(client, url: str, *, timeout: float) -> _CappedPage:
+    """One GET, streamed: a redirect or an error status without its body, a page up to PAGE_MAX_BYTES."""
+    async with client.stream("GET", url, timeout=timeout, follow_redirects=False) as response:
+        if response.status_code != 200:
+            return _CappedPage(response.status_code, response.headers, "")
+        chunks: list[bytes] = []
+        size = 0
+        async for chunk in response.aiter_bytes():
+            room = PAGE_MAX_BYTES - size
+            if len(chunk) >= room:
+                chunks.append(chunk[:room])
+                break
+            chunks.append(chunk)
+            size += len(chunk)
+        encoding = getattr(response, "encoding", None) or "utf-8"
+        try:
+            text = b"".join(chunks).decode(encoding, errors="replace")
+        except LookupError:
+            text = b"".join(chunks).decode("utf-8", errors="replace")
+        return _CappedPage(response.status_code, response.headers, text)
+
+
+async def _fetch_capped(client, url: str, *, timeout: float) -> _CappedPage:
+    import asyncio
+
+    try:
+        return await asyncio.wait_for(_read_capped(client, url, timeout=timeout), PAGE_DEADLINE_S)
+    except asyncio.TimeoutError as exc:
+        raise ValueError("Сайт отвечает слишком долго.") from exc
+
+
 async def _get_public_response(client, url: str, max_redirects: int = 3):
     current_url = url
     for _ in range(max_redirects + 1):
         await _assert_public_target(current_url)
-        response = await client.get(current_url, timeout=10.0, follow_redirects=False)
-        if response.status_code not in (301, 302, 303, 307, 308):
+        response = await _fetch_capped(client, current_url, timeout=10.0)
+        if response.status_code not in _REDIRECTS:
             return response
         location = response.headers.get("location")
         if not location:
@@ -1574,7 +1622,7 @@ async def scrape_url(url: str) -> str:
     jina_url = f"https://r.jina.ai/{url}"
     try:
         async with httpx.AsyncClient(follow_redirects=False) as client:
-            response = await client.get(jina_url, timeout=12.0)
+            response = await _fetch_capped(client, jina_url, timeout=12.0)
             if response.status_code == 200 and response.text.strip():
                 text = response.text
                 if "Failed to fetch" not in text and "Error fetching" not in text:

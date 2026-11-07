@@ -1467,6 +1467,26 @@ class FakeHttp:
         status, text = FakeHttp.pages.get(url, (404, ""))
         return SimpleNamespace(status_code=status, text=text, headers={})
 
+    def stream(self, method, url, **kwargs):
+        status, text = FakeHttp.pages.get(url, (404, ""))
+
+        class Response:
+            status_code = status
+            headers: dict = {}
+            encoding = "utf-8"
+
+            async def aiter_bytes(self):
+                yield text.encode()
+
+        class Ctx:
+            async def __aenter__(self):
+                return Response()
+
+            async def __aexit__(self, *args):
+                return False
+
+        return Ctx()
+
 
 @pytest.fixture
 def web(monkeypatch):

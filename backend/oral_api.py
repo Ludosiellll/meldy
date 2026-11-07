@@ -270,8 +270,10 @@ def _cut_off(meta: dict) -> bool:
 # ── POST /api/oral/check ────────────────────────────────────────────────────────
 
 
+# 300 a day (was 600; security audit 07.11, SEC-2): a check costs no units but is a model call on the shared daily
+# quota — about 100 answers with their follow-ups a day for a student, and half of what one script could burn before.
 @router.post("/api/oral/check")
-@limiter.limit("40/minute;600/day", key_func=user_or_ip_key)
+@limiter.limit("40/minute;300/day", key_func=user_or_ip_key)
 async def oral_check(request: Request):
     """Быстрая проверка ответа по пунктам: статусы и пункт для переспроса (или один пункт с only)."""
     body = await _read_json(request)

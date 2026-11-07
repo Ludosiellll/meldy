@@ -28,9 +28,24 @@ jobs:
 
       - uses: actions/checkout@v4
 
+      # The bot's and quiz-media's own tests before anything goes live (reliability audit 07.11, REL-4: the release 55
+      # bot went live 13 minutes before the site's gate had run these). The same commands as deploy-hf.yml's test job.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test the shared function code
+        run: |
+          node --experimental-strip-types --test supabase/functions/_shared/bot/*.test.ts supabase/functions/_shared/quizMedia.test.ts
+          node scripts/sync_bot_plan.mjs --check
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+
+      # The CLI is still «latest» (REL-5): its version goes into the log, so the next pin is the one that last worked.
+      - name: Show the CLI version
+        run: supabase --version
 
       - uses: actions/setup-python@v5
         with:
