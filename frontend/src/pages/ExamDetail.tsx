@@ -897,7 +897,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
           <p>{status === 'missing' ? 'Его удалили, или он принадлежит другому аккаунту.' : loadError}</p>
           {status === 'error' ? (
             <button type="button" className="sf-link" onClick={() => void load()}>
-              Повторить
+              Попробовать ещё раз
             </button>
           ) : (
             <Link className="sf-link" to="/exams">
@@ -944,7 +944,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   if (reusedPart) statusNotes.push({ key: 'reused', text: reusedPart });
   if (skippedLectures > 0) statusNotes.push({ key: 'notext', text: `${lecturesPhrase(skippedLectures)} без текста не ${skippedLectures === 1 ? 'учтена' : 'учтены'}.` });
   if (limit && !pageStatus.blocked) statusNotes.push({ key: 'limit', text: mappingLimitLine({ remaining: limit.remaining, resetAt: formatClock(new Date(limit.resetAt).toISOString()) }, nextRunCost), live: true });
-  if (eventsState === 'error' && eventsError) statusNotes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) } });
+  if (eventsState === 'error' && eventsError) statusNotes.push({ key: 'events', text: eventsError, action: { label: 'Попробовать ещё раз', run: () => void loadEvents(bundle.questions) } });
 
   const editLocked = running || job.phase === 'waiting' || (examFresh && exam.mapping_state === 'running' && isMappingLocked(exam));
   // Only «Все 40» until something is mapped: three filters showing 0 said nothing (redesign critique 7). A phone shows no

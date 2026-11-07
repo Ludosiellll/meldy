@@ -663,7 +663,7 @@ export default function Library() {
           </h1>
           <p>Лекции на месте — повторите через минуту.</p>
           <button type="button" className="lib-pill" onClick={() => void load()}>
-            Повторить
+            Попробовать ещё раз
             <span className="lib-dot" aria-hidden="true">
               <RotateCcw strokeWidth={2} />
             </span>

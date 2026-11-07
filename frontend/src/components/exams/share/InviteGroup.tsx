@@ -324,7 +324,7 @@ function InviteDialog({ examId, examTitle, onClose }: Props & { onClose: () => v
             <div className="ig-note" role="alert">
               <p>{phase.message}</p>
               <button type="button" className="sf-link" onClick={load}>
-                Повторить
+                Попробовать ещё раз
               </button>
             </div>
           )}

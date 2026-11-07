@@ -135,7 +135,7 @@ export default function ExpressPrepView({
                   {cheatsheetJob.message}
                 </span>
                 <button type="button" onClick={handleCreateCheatsheet} className="xp-retry">
-                  Повторить
+                  Попробовать ещё раз
                 </button>
               </div>
             )}

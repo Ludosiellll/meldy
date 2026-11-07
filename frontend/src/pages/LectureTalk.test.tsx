@@ -285,7 +285,7 @@ describe('the start card', () => {
     api.sessionError = new TutorApiError('http', 'Сначала разберите лекцию: репетитор спрашивает по её карточкам.', { status: 409 });
     renderRoom();
     expect(await screen.findByText('Сначала разберите лекцию: репетитор спрашивает по её карточкам.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Попробовать ещё раз' })).not.toBeInTheDocument();
     const back = screen.getAllByRole('link', { name: 'К лекции' });
     expect(back.every((link) => link.getAttribute('href') === `/library/${MATERIAL}`)).toBe(true);
   });
@@ -295,7 +295,7 @@ describe('the start card', () => {
     renderRoom();
     expect(await screen.findByText('Не удалось начать разговор: сервер не ответил. Повторите через минуту.')).toBeInTheDocument();
     api.sessionError = null;
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByRole('heading', { name: 'Поговорить о лекции' })).toBeInTheDocument();
   });
 });
@@ -548,7 +548,7 @@ describe('the voice', () => {
     await started();
     act(() => tts.plays[0].onError?.(new Error('no audio')));
     expect(await screen.findByText(/Голос не включился — реплика на экране\./)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить звук' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(played()).toEqual([QUESTIONS[0], QUESTIONS[0]]);
     act(() => tts.plays[1].onError?.(new Error('no audio')));
     expect(await screen.findByText('Голос пока недоступен — реплики только текстом.')).toBeInTheDocument();
@@ -625,7 +625,7 @@ describe('waiting and errors', () => {
     expect(telemetry.events.find(([name]) => name === 'tutor_finished')?.[1]).toMatchObject({ reason: 'limit', cards: 0 });
   });
 
-  it('a busy service: «Повторить» sends the same words again', async () => {
+  it('a busy service: «Попробовать ещё раз» sends the same words again', async () => {
     await started();
     hearAll();
     await answerAloud('ставка растёт');
@@ -633,7 +633,7 @@ describe('waiting and errors', () => {
       api.turns[0].reject(new TutorApiError('busy', 'Сервис ИИ занят. Подождите минуту — ответ сохранён.', { status: 503 }));
     });
     expect(screen.getByRole('alert')).toHaveTextContent('Сервис ИИ занят. Подождите минуту — ответ сохранён.');
-    fireEvent.click(within(desk()).getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(within(desk()).getByRole('button', { name: 'Попробовать ещё раз' }));
     await waitFor(() => expect(api.turns).toHaveLength(2));
     expect(api.turns[1].body).toEqual(api.turns[0].body);
   });

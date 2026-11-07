@@ -440,7 +440,7 @@ describe('ExamTicket: before the answer', () => {
     await renderPage(ticketUrl());
     expect(await screen.findByText('ИИ-сервис сейчас не ответил. Попробуйте ещё раз.')).toBeInTheDocument();
     expect(screen.queryByText(/нет в ваших лекциях/)).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     await readyToAnswer();
     expect(api['/api/oral/rubric']).toHaveBeenCalledTimes(2);
   });
@@ -996,7 +996,7 @@ describe('ExamTicket: answering by text', () => {
     expect(document.querySelector('.or-ph-sheet, .or-stamp')).toBeNull();
     expect(mocks.fetchLearnLeft).not.toHaveBeenCalled();
     fail = false;
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByText(/Сохранено в историю и/)).toBeInTheDocument();
     await waitFor(() => expect(mocks.fetchLearnLeft).toHaveBeenCalledWith([EXAM], { fresh: true }));
     expect(document.querySelector('.or-stamp')).toBeNull();

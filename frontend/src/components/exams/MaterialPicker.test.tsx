@@ -317,7 +317,7 @@ describe('MaterialPicker: which lectures fit the questions', () => {
     expect(document.querySelector('.nx-pick-fit')).toBeNull();
     rerender(<Harness materials={LONG} initial={['p1']} fit={fit({ status: 'error', view: null, onRetry })} />);
     expect(screen.getByText(/Не удалось подобрать лекции к вопросам/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
     rerender(<Harness materials={LONG} initial={['p1']} fit={fit({ status: 'error', onRetry })} />);
     expect(screen.getByText(/Подсказка не обновилась/)).toBeInTheDocument();

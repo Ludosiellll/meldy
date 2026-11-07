@@ -506,7 +506,7 @@ export default function ExamEditor() {
             <p>{loadState === 'missing' ? 'Его удалили, или он принадлежит другому аккаунту.' : loadError}</p>
             {loadState === 'error' ? (
               <button type="button" className="sf-link" onClick={() => void loadExam()}>
-                Повторить
+                Попробовать ещё раз
               </button>
             ) : (
               <Link className="sf-link" to="/exams">

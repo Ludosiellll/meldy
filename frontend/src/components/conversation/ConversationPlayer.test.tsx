@@ -385,7 +385,7 @@ describe('ConversationPlayer', () => {
       expect(screen.getByRole('status')).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
       act(() => vi.advanceTimersByTime(SLOW_NOTE_MS));
       expect(screen.getByRole('status')).toHaveTextContent('Звук не загрузился. Попробуйте ещё раз.');
-      expect(within(screen.getByRole('status')).getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+      expect(within(screen.getByRole('status')).getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -566,7 +566,7 @@ describe('ConversationPlayer', () => {
     expect(screen.getByRole('status')).toHaveTextContent('Звук недоступен в этом браузере');
     expect(screen.getByRole('button', { name: 'Слушать' })).toBeInTheDocument();
 
-    await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Повторить' }));
+    await user.click(within(screen.getByRole('status')).getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(tts.forgetTTSFailures).toHaveBeenCalled();
     expect(tts.playTTS).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
@@ -672,7 +672,7 @@ describe('ConversationPlayer', () => {
 
     const alert = await screen.findByRole('alert');
     expect(within(alert).getByText('Не удалось подготовить разговор. Попробуйте ещё раз.')).toBeInTheDocument();
-    expect(within(alert).getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(within(alert).getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
     expect(db.update).not.toHaveBeenCalled();
     expect(limits.incrementAIUsage).not.toHaveBeenCalled();
   });
@@ -1058,7 +1058,7 @@ describe('ConversationPlayer', () => {
     expect(tts.prefetchTTSInOrder).toHaveBeenCalledTimes(1);
 
     // «Повторить» forgets the failures first, then asks for the same line again.
-    await user.click(within(status).getByRole('button', { name: 'Повторить' }));
+    await user.click(within(status).getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(tts.forgetTTSFailures).toHaveBeenCalledTimes(1);
     expect(tts.playTTS).toHaveBeenCalledTimes(2);
     expect(tts.forgetTTSFailures.mock.invocationCallOrder[0]).toBeLessThan(tts.playTTS.mock.invocationCallOrder[1]);
@@ -1635,7 +1635,7 @@ describe('ConversationPlayer with the real speech module', () => {
 
     // The server is back: «Повторить» plays Max's line in Max's server voice.
     serverUp = true;
-    fireEvent.click(within(status).getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(within(status).getByRole('button', { name: 'Попробовать ещё раз' }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });

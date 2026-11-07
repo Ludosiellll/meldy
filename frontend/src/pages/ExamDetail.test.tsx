@@ -744,7 +744,7 @@ describe('ExamDetail: the sheet', () => {
     mocks.loadExamBundle.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(bundle(mixed()));
     renderDetail();
     expect(await screen.findByRole('heading', { name: 'Не удалось открыть лист экзамена' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     await opened();
   });
 
@@ -795,11 +795,11 @@ describe('ExamDetail: the sheet', () => {
     mocks.fetchQuestionEvents.mockRejectedValueOnce(new Error('Не удалось загрузить историю ответов. Повторите попытку.')).mockResolvedValue([]);
     renderDetail();
     await opened();
-    await waitFor(() => expect(statusNotes()).toContain('Не удалось загрузить историю ответов. Повторите попытку. Повторить'));
+    await waitFor(() => expect(statusNotes()).toContain('Не удалось загрузить историю ответов. Повторите попытку. Попробовать ещё раз'));
     expect(document.querySelectorAll('.ex-q')).toHaveLength(6);
     // Nothing is said about answers or confidence that the journal would have to back.
     expect(plain(column().textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность/);
-    fireEvent.click(within(statusCard()).getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(within(statusCard()).getByRole('button', { name: 'Попробовать ещё раз' }));
     await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalledTimes(2));
   });
 });

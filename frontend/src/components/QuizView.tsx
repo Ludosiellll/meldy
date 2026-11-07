@@ -269,7 +269,7 @@ function JournalLine({ state, onRetry }: { state: SaveState; onRetry: () => void
       <div role="alert" className="qz-journal-line qz-journal-failed">
         <span>{state.message === SAVE_FAILED_MESSAGE ? 'Результат не сохранён.' : state.message}</span>
         <button type="button" onClick={onRetry} className="qz-link">
-          Повторить
+          Попробовать ещё раз
         </button>
       </div>
     );

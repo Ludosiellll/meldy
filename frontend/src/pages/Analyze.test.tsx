@@ -274,7 +274,7 @@ describe('the page’s name', () => {
 });
 
 describe('stream outcomes', () => {
-  it('a clean EOF after agent_start shows «Анализ не завершён»; «Повторить» resends the same file and settings', async () => {
+  it('a clean EOF after agent_start shows «Анализ не завершён»; «Попробовать ещё раз» resends the same file and settings', async () => {
     streams = [() => sse([ev(TEXT), ev(start('summarizer'))], 'close')];
     renderAnalyze();
     const file = await chooseFile();
@@ -285,7 +285,7 @@ describe('stream outcomes', () => {
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     await resultsHeading();
     expect(analyzeCalls()).toHaveLength(2);
     const [first, second] = analyzeCalls().map(form);
@@ -396,7 +396,7 @@ describe('stream outcomes', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Сервис ИИ сейчас занят.');
     await act(async () => new Promise(resolve => setTimeout(resolve, 50)));
     expect(screen.getByRole('heading', { name: 'Анализ не завершён' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
     expect(s.activity).not.toHaveBeenCalled();
@@ -432,7 +432,7 @@ describe('HTTP errors before the stream', () => {
     await errorHeading();
     expect(screen.getByRole('alert')).toHaveTextContent('Сервер сейчас недоступен. Повторите попытку через минуту.');
     expect(document.body.textContent).not.toMatch(/Unexpected|JSON|token/);
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
   });
 
   it('a slowapi 429 asks to wait a minute', async () => {
@@ -455,7 +455,7 @@ describe('HTTP errors before the stream', () => {
     fireEvent.click(startButton());
     await errorHeading();
     expect(screen.getByRole('alert')).toHaveTextContent('Файл больше 15 МБ. Сожмите его или загрузите часть материала.');
-    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Попробовать ещё раз' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Выбрать другой файл' }));
     await uploadScreen();
     expect(screen.getByText(/^Подробный конспект, 6 карточек и самопроверка из 5 вопросов$/)).toBeInTheDocument();
@@ -572,7 +572,7 @@ describe('one run per click', () => {
     expect(analyzeCalls()).toHaveLength(1);
   });
 
-  it('going back while «Повторить» waits for the limit check cancels that start', async () => {
+  it('going back while «Попробовать ещё раз» waits for the limit check cancels that start', async () => {
     streams = [() => new Response(NGINX_502, { status: 502, headers: { 'content-type': 'text/html' } })];
     renderAnalyze();
     await chooseFile();
@@ -581,9 +581,9 @@ describe('one run per click', () => {
 
     let release: (value: boolean) => void = () => undefined;
     s.verify = vi.fn(() => new Promise<boolean>(resolve => (release = resolve)));
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(s.verify).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Выбрать другой файл' }));
     await uploadScreen();
 
@@ -603,7 +603,7 @@ describe('one run per click', () => {
 
     let release: (value: boolean) => void = () => undefined;
     s.verify = vi.fn(() => new Promise<boolean>(resolve => (release = resolve)));
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     const abandoned = release;
     fireEvent.click(screen.getByRole('button', { name: 'Выбрать другой файл' }));
 
@@ -788,7 +788,7 @@ describe('pasted text', () => {
     expect(s.verify).toHaveBeenCalledWith('user-1', 20, 'Анализ материала');
   });
 
-  it('an error keeps the text: «Повторить» resends it and «Изменить текст» shows it again', async () => {
+  it('an error keeps the text: «Попробовать ещё раз» resends it and «Изменить текст» shows it again', async () => {
     streams = [
       () => new Response(NGINX_502, { status: 502, headers: { 'content-type': 'text/html' } }),
       () => new Response(NGINX_502, { status: 502, headers: { 'content-type': 'text/html' } }),
@@ -797,7 +797,7 @@ describe('pasted text', () => {
     await pasteText(LECTURE);
     fireEvent.click(startButton());
     await errorHeading();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     await waitFor(() => expect(analyzeCalls()).toHaveLength(2));
     expect(await (form(analyzeCalls()[1]).get('file') as File).text()).toBe(LECTURE);
     await errorHeading();
@@ -865,7 +865,7 @@ describe('saving', () => {
     const line = await screen.findByText(/Карточки не добавлены в повторение/);
     expect(s.increment).toHaveBeenCalledTimes(1);
     s.sync = vi.fn(async () => ({ inserted: 1, skipped: 0 }));
-    fireEvent.click(within(line).getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(within(line).getByRole('button', { name: 'Попробовать ещё раз' }));
     await waitFor(() => expect(screen.queryByText(/Карточки не добавлены в повторение/)).not.toBeInTheDocument());
     expect(s.sync).toHaveBeenCalledWith('user-1', 'mat-1', cards.flashcards);
   });
@@ -878,7 +878,7 @@ describe('saving', () => {
     fireEvent.click(startButton());
     await errorHeading();
     expect(screen.getByRole('alert')).toHaveTextContent('Текст содержит недопустимые материалы');
-    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Попробовать ещё раз' })).not.toBeInTheDocument();
     expect(lastSignal()?.aborted).toBe(true);
   });
 });

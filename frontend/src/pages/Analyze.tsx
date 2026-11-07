@@ -550,7 +550,7 @@ export default function Analyze() {
         <p role="status" className="flex flex-wrap items-center gap-x-3">
           Карточки не добавлены в повторение.
           <button type="button" onClick={() => void retryCardSync()} disabled={saveBusy} className={INLINE_ACTION}>
-            Повторить
+            Попробовать ещё раз
           </button>
         </p>
       )}
@@ -665,7 +665,7 @@ export default function Analyze() {
                   </Link>
                 ) : state.error.retryable ? (
                   <button type="button" onClick={handleRetry} disabled={starting} aria-busy={starting || undefined} className="sf-primary">
-                    Повторить
+                    Попробовать ещё раз
                   </button>
                 ) : null}
                 <button type="button" onClick={backToUpload} className="sf-secondary az-back">

@@ -1614,7 +1614,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
                   <p className="or-save-line" data-state="failed" role="alert">
                     Результат не сохранён.{' '}
                     <button type="button" className="sf-link" onClick={() => dispatch({ type: 'save_retry' })}>
-                      Повторить
+                      Попробовать ещё раз
                     </button>
                   </p>
                 )}
@@ -1833,7 +1833,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
       <>
         <div className="or-acts" data-wide="">
           <button type="button" className="sf-primary" onClick={retryRubric} data-anchor="">
-            Повторить
+            Попробовать ещё раз
           </button>
           <button type="button" className="sf-link" onClick={voiceFirst ? startVoice : startText}>
             Ответить без проверки
@@ -2384,7 +2384,7 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
               <div className="or-acts">
                 {view.status === 'failed' ? (
                   <button type="button" className="sf-link" onClick={() => setAttempt((value) => value + 1)}>
-                    Повторить
+                    Попробовать ещё раз
                   </button>
                 ) : null}
                 <Link className="sf-link" to={`/exams/${examId}`}>

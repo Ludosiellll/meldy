@@ -312,7 +312,7 @@ describe('<Library>', () => {
     renderLibrary();
     expect(await screen.findByRole('heading', { name: 'Не удалось загрузить библиотеку' })).toBeInTheDocument();
     expect(screen.getByText('Лекции на месте — повторите через минуту.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
   });
 
   it('keeps its own cache and never rewrites the key the older client reads', async () => {
@@ -432,7 +432,7 @@ describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', 
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     renderLibrary();
     expect(await screen.findByRole('heading', { name: 'Не удалось загрузить библиотеку' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
   });
 });

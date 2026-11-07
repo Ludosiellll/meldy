@@ -116,7 +116,7 @@ describe('the page «Игры»', () => {
     expect(within(sheet).getByRole('link', { name: 'Быстрая контрольная' })).toHaveAttribute('href', '/tests/quick');
   });
 
-  it('while the list loads, and when it could not: a quiet line, and «Повторить»', () => {
+  it('while the list loads, and when it could not: a quiet line, and «Попробовать ещё раз»', () => {
     overview.state = { ...overview.state, data: null, loading: true };
     const view = renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'Начать игру' }));
@@ -125,7 +125,7 @@ describe('the page «Игры»', () => {
     overview.state = { ...overview.state, data: null, loading: false, error: 'нет сети' };
     renderPage();
     fireEvent.click(screen.getByRole('button', { name: 'Начать игру' }));
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(overview.state.reload).toHaveBeenCalled();
   });
 });

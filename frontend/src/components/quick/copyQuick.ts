@@ -40,7 +40,7 @@ export const QUICK = {
   nothing: 'Здесь нет вопросов. Начните вопрос с номера «1.». Вариант начните с буквы «а)».',
   reading: 'Читаем вопросы…',
   readFailed: 'Не получилось прочитать вопросы. Проверьте интернет.',
-  retry: 'Повторить',
+  retry: 'Попробовать ещё раз',
   /** The badge over the questions: how many still need their answer. */
   noKey: (n: number) => `${questions(n)} без верного ответа`,
   number: (n: number) => `Вопрос ${n}`,
@@ -115,7 +115,7 @@ export const QUICK_LINK = {
   loading: 'Загружаем ссылку…',
   failed: 'Не получилось загрузить ссылку.',
   missing: 'Этой контрольной больше нет.',
-  retry: 'Повторить',
+  retry: 'Попробовать ещё раз',
   toTests: 'К тестам',
 } as const;
 
@@ -141,7 +141,7 @@ export const TESTS_VIEW = {
   writing: (n: number) => `Пишут ${n}`,
   loading: 'Загружаем…',
   failed: 'Не получилось загрузить тесты.',
-  retry: 'Повторить',
+  retry: 'Попробовать ещё раз',
   empty: 'Тестов пока нет. Начните с быстрой контрольной.',
   more: (n: number) => `Ещё ${quizzes(n)}`,
 } as const;

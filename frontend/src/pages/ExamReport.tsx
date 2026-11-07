@@ -161,7 +161,7 @@ function ReportPage({ examId }: { examId: string }) {
     body = (
       <Empty title="Не удалось собрать отчёт" text={data.message} alert>
         <button type="button" className="sf-primary" onClick={() => void load()}>
-          Повторить
+          Попробовать ещё раз
         </button>
       </Empty>
     );

@@ -469,7 +469,7 @@ describe('states', () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Не удалось загрузить карту' })).toBeInTheDocument();
     failing = new Set();
-    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+    await user.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByRole('group', { name: /^Карта связей/ })).toBeInTheDocument();
   });
 

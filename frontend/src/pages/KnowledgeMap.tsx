@@ -308,7 +308,7 @@ export default function KnowledgeMap() {
             <h1 className="km-state-h">Не удалось загрузить карту</h1>
             <p className="km-state-text">Лекции на месте — повторите через минуту.</p>
             <button type="button" className="sf-secondary km-state-act" onClick={retry}>
-              Повторить
+              Попробовать ещё раз
             </button>
           </div>
         </div>
@@ -449,7 +449,7 @@ export default function KnowledgeMap() {
         <p className="km-note">
           {`Не удалось загрузить ${missingList}; карта показана без этих данных.`}
           <button type="button" className="sf-link" onClick={retry}>
-            Повторить
+            Попробовать ещё раз
           </button>
         </p>
       ) : null}

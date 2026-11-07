@@ -45,7 +45,7 @@ export const WORDS = {
       : `Этот Telegram подключён к аккаунту ${email}.`,
   openOther: 'Открыть аккаунт Telegram',
   stay: 'Остаться в текущем',
-  retry: 'Повторить',
+  retry: 'Попробовать ещё раз',
   openSite: 'Открыть сайт в браузере',
   problems: {
     stale: { title: 'Откройте Meldy заново', text: 'Данные входа из Telegram устарели. Закройте Meldy и откройте снова из чата с ботом.' },

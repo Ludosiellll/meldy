@@ -257,14 +257,14 @@ describe('not linked', () => {
     expect(calls('telegram_link_start')).toHaveLength(1);
   });
 
-  it('says so when the state cannot be read, and reads it again on «Повторить», the row staying in place', async () => {
+  it('says so when the state cannot be read, and reads it again on «Попробовать ещё раз», the row staying in place', async () => {
     server([{ error: { code: 'XX000', message: 'boom' }, status: 500 }, NOT_LINKED]);
     const { container } = show();
     await tick();
     expect(screen.getByText(TELEGRAM_COPY.readFailed)).toBeInTheDocument();
-    press(screen.getByRole('button', { name: 'Повторить' }));
+    press(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     // While it reads again the row stays, busy.
-    expect(screen.getByRole('button', { name: 'Повторить' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toHaveAttribute('aria-busy', 'true');
     expect(container.querySelector('#telegram')).not.toBeNull();
     await tick();
     expect(screen.getByRole('button', { name: 'Подключить Telegram' })).toHaveFocus();

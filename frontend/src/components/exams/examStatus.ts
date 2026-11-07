@@ -326,7 +326,7 @@ function pickStatus(input: ExamStatusInput): ExamStatus {
       title: plain(head),
       text,
       brief: firstSentence(text),
-      action: { kind: 'map', label: 'Повторить сверку' },
+      action: { kind: 'map', label: 'Попробовать ещё раз' },
       blocked: limit,
       hideCoverage: mapped === 0 || unmapped > 0,
     };

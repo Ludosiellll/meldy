@@ -152,7 +152,7 @@ function FitNote({ fit, disabled, phone }: { fit: PickerFit; disabled?: boolean;
   const { view, status } = fit;
   const retry = (
     <button type="button" className="sf-link nx-pick-retry" onClick={fit.onRetry} disabled={disabled}>
-      Повторить
+      Попробовать ещё раз
     </button>
   );
   return (
@@ -305,7 +305,7 @@ export default function MaterialPicker(props: MaterialPickerProps) {
         <p className="ex-note" role="alert">
           {props.error}{' '}
           <button type="button" className="sf-link" onClick={props.onRetry}>
-            Повторить
+            Попробовать ещё раз
           </button>
         </p>
       )}
