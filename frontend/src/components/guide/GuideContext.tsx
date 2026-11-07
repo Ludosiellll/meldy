@@ -45,8 +45,11 @@ export interface GuideApi {
   chooseGoal: (goal: Goal | null) => void;
   /** Shows card `at` of the goal's way. */
   goStop: (at: number) => void;
-  /** Opens the guide on a chapter: the given one, else the one of the page, else the first. */
-  start: (id?: GuideChapterId) => void;
+  /**
+   * Opens the guide on a chapter: the given one, else the one of the page, else the first. With `way`, only those cards
+   * (firstRun.ts MEMBER_STOPS: a group student after the first «занятие»); «?» opens every chapter.
+   */
+  start: (id?: GuideChapterId, way?: readonly GuideStop[]) => void;
   close: () => void;
   /** «Начать» of the first run: closes the guide and takes the app to «Сегодня», where the first steps are. */
   finish: () => void;
@@ -134,15 +137,16 @@ export function GuideProvider({ userId, seenInProfile, shellHidden = false, chil
     [navigate],
   );
 
-  const start = useCallback((id?: GuideChapterId) => {
-    const byId = id ? GUIDE_CHAPTERS.findIndex((chapter) => chapter.id === id) : -1;
+  const start = useCallback((id?: GuideChapterId, way?: readonly GuideStop[]) => {
+    const first = way && way.length > 0 ? way[0].chapter : id;
+    const byId = first ? GUIDE_CHAPTERS.findIndex((chapter) => chapter.id === first) : -1;
     // A page can say which chapter it is when its address cannot: a test's own page (/exams/c/:id) is «Тесты».
     const marked = typeof document === 'undefined' ? null : document.querySelector('[data-guide-chapter]')?.getAttribute('data-guide-chapter');
     const byPage = marked ? GUIDE_CHAPTERS.findIndex((chapter) => chapter.id === marked) : -1;
     const here = byPage >= 0 ? byPage : chapterIndexFor(pathRef.current);
     setIndex(byId >= 0 ? byId : here >= 0 ? here : 0);
     setPhase('cards');
-    setStops(null);
+    setStops(way && way.length > 0 ? way : null);
     setAt(0);
     brought.current = null;
     touched.current = false;

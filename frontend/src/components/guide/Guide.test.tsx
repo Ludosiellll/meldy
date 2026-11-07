@@ -39,6 +39,8 @@ import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
 import { PHONE_QUERY } from '../../lib/usePhone';
 import { NARROW_QUERY } from './GuidePanel';
+import { useGuide } from './GuideContext';
+import { MEMBER_STOPS } from './firstRun';
 
 function Where() {
   return <p data-testid="where">{useLocation().pathname}</p>;
@@ -355,6 +357,57 @@ describe('the first run', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true');
     expect(goal()).toBeInTheDocument();
     expect(document.querySelector('header.sf-bar')).toHaveAttribute('inert');
+  });
+});
+
+/** The exam's page as ContainerPage leaves it after a group student's first session: the member's way of the guide. */
+function MemberWay() {
+  const guide = useGuide();
+  return (
+    <button type="button" onClick={() => guide?.start('today', MEMBER_STOPS)}>
+      После первого занятия
+    </button>
+  );
+}
+
+describe('the guide after a group student’s first session (UX audit of 06.11)', () => {
+  it('shows only the exam’s cards and the one about own lectures; «?» still opens every chapter', async () => {
+    mocks.getProfile.mockResolvedValue(student({ guide: true }));
+    render(
+      <MemoryRouter initialEntries={['/exams/c/c-1']}>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route path="/exams/c/:id" element={<MemberWay />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(await screen.findByRole('button', { name: 'После первого занятия' }));
+    const card = panel()!;
+    expect(within(card).getByText('1 из 4')).toBeInTheDocument();
+    expect(within(card).getByRole('heading', { name: 'План на сегодня' })).toBeInTheDocument();
+    const strip = within(card).getByRole('list', { name: 'Разделы' });
+    expect(within(strip).getAllByRole('button').map((step) => step.getAttribute('aria-label'))).toEqual(['План на сегодня', 'План по дням', 'План в Telegram', 'Свои лекции']);
+    // Words only: no clip of an author's screens.
+    expect(card.querySelector('.gd-clip')).toBeNull();
+    next();
+    expect(within(panel()!).getByRole('heading', { name: 'План по дням' })).toBeInTheDocument();
+    next();
+    expect(within(panel()!).getByRole('heading', { name: 'План в Telegram' })).toBeInTheDocument();
+    next();
+    // The last card: a student can make lectures too (the owner, 07.11).
+    expect(within(panel()!).getByRole('heading', { name: 'Свои лекции' })).toBeInTheDocument();
+    expect(within(panel()!).getByRole('link', { name: 'Открыть раздел' })).toHaveAttribute('href', '/analyze');
+    for (const word of ['Новый экзамен', 'Новый тест', 'Игры']) expect(panel()!.textContent).not.toContain(word);
+    fireEvent.click(within(panel()!).getByRole('button', { name: 'Готово' }));
+    expect(panel()).toBeNull();
+    // The exam's page stays where it is.
+    expect(screen.getByRole('button', { name: 'После первого занятия' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Как пользоваться Meldy' }));
+    // On the exam's page the whole guide opens on «Экзамены», one card of all of them.
+    expect(within(panel()!).getByText(new RegExp(`^\\d+ из ${GUIDE_CHAPTERS.length}$`))).toBeInTheDocument();
+    expect(within(panel()!).getByRole('heading', { name: 'Экзамены' })).toBeInTheDocument();
   });
 });
 
