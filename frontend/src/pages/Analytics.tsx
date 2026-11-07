@@ -61,11 +61,11 @@ import './Analytics.css';
  *   the gaps the data shows, each with one button.
  * Then the exams (confirmed by answers), every lecture with its state and next step, and the days
  * of study. The numbers come from utils/progressModel.ts (pure, tested); every block reads its own
- * source and fails on its own with «Повторить», never with zeros. No mastery percentage, no
+ * source and fails on its own with «Попробовать ещё раз», never with zeros. No mastery percentage, no
  * invented scores: «Как считается» at the end says how each number is made.
  *
  * On a phone (10_Project/Phone_Declutter_2026-10-08) the three tiles are one card with the page's one
- * blue «Повторить», a part without data is not drawn, the rows' actions are quiet links, the exam card
+ * blue «К карточкам», a part without data is not drawn, the rows' actions are quiet links, the exam card
  * keeps its date, figure and foot (the dots stay on the exam sheet), and the map is one link row.
  */
 
@@ -192,7 +192,7 @@ const loaders = {
   },
   // Answers to the questions of an exam's file per day (exam containers), as «Профиль» reads them for its days in a
   // row: the week under the title and «Занятия по дням» count them. A database without exam containers has none, and
-  // the page is as before; any other failure is this source's own «Повторить».
+  // the page is as before; any other failure is this source's own «Попробовать ещё раз».
   examDays: async (): Promise<ExamQuestionDay[]> => {
     try {
       return await fetchAnswerDays(studySince());
@@ -384,7 +384,7 @@ function ErrorLine({ text, onRetry }: { text: string; onRetry: () => void }) {
     <p role="alert" className="pg-error">
       {text}{' '}
       <button type="button" onClick={onRetry} className="sf-link" style={{ minHeight: 0, fontSize: 15 }}>
-        Повторить
+        Попробовать ещё раз
       </button>
     </p>
   );
@@ -573,7 +573,7 @@ export default function Analytics() {
     void Promise.all(SOURCE_KEYS.map((key) => loadSource(key)));
   }, [user?.id, loadSource]);
 
-  // Drawn once everything answered (or SETTLE_WAIT passed): a «Повторить» later never hides the page again.
+  // Drawn once everything answered (or SETTLE_WAIT passed): a «Попробовать ещё раз» later never hides the page again.
   const [settled, setSettled] = useState(false);
   const [waitOver, setWaitOver] = useState(false);
   useEffect(() => {
@@ -602,7 +602,7 @@ export default function Analytics() {
       <header className="sf-head pg-head">
         <div>
           <h1 className="sf-h1">Прогресс</h1>
-          <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : typeset(ledeOf(sources))}</p>
+          <p className="sf-lede">{initialLoading ? (loadingLine ? 'Загружаем страницу…' : ' ') : typeset(ledeOf(sources, layer.mode === 'on' && layer.overview.containers.length > 0))}</p>
         </div>
       </header>
       {initialLoading ? null : <ProgressBody sources={sources} reload={loadSource} userId={user?.id ?? null} layer={layer} />}
@@ -615,7 +615,7 @@ export default function Analytics() {
  * number: the answers to the questions of an exam's file are «ответов на вопросы экзаменов», counted per day as
  * «Занятия по дням» counts them.
  */
-function ledeOf(sources: Sources): string {
+function ledeOf(sources: Sources, withExams = false): string {
   const { activity, quiz, journal, examDays } = sources;
   if (activity.status !== 'ok' && quiz.status !== 'ok' && journal.status !== 'ok' && examDays.status !== 'ok') return 'Считаем по вашим ответам…';
   const today = localDateKey();
@@ -654,9 +654,10 @@ function ledeOf(sources: Sources): string {
     for (const key of studyDayKeys({ sessions: [], events: [], examQuestionDays: examDays.data })) consider(key);
     for (const day of answersByDay({ sessions: [], events: [], examQuestionDays: examDays.data, from: weekFrom, to: today })) questions += day.questions;
   }
-  // A student without a single card or answer starts with a lecture: «повторение карточек» needs cards.
+  // A student without a single card or answer starts with a lecture: «повторение карточек» needs cards. One who came by
+  // a group link has an exam and nothing else yet (UX audit of 06.11): the page speaks of that exam.
   if (lastDay === null && sources.cards.status === 'ok' && sources.cards.data.length === 0) {
-    return 'Здесь будет видно, как вы запоминаете лекции. Начните с разбора первой лекции.';
+    return withExams ? 'Здесь будет видно, сколько вопросов экзамена вы выучили.' : 'Здесь будет видно, как вы запоминаете лекции. Начните с разбора первой лекции.';
   }
   return weekLede({ cardAnswers, tests: tests.size, tickets, questions, lastDay: lastDay ? formatDay(lastDay) : null });
 }
@@ -805,167 +806,197 @@ function ProgressBody({ sources, reload, userId, layer }: { sources: Sources; re
     );
   };
 
-  return (
-    <>
-      {phone ? (
-        <PhoneSummary
-          cards={cards}
-          journal={journal}
-          states={states}
-          origins={origins}
-          recall={recall}
-          span={span}
-          due={due}
-          laterToday={laterToday}
-          week={week}
-          offerAnalyze={!analyzeInTodo}
-          onRetryCards={() => reload('cards')}
-          onRetryJournal={() => reload('journal')}
-        />
-      ) : (
-        <section className="pg-tiles" aria-label="Сводка">
-          <KnowledgeTile cards={cards} states={states} origins={origins} onRetry={() => reload('cards')} />
-          {/* Unknown cards (still loading or failed) read as «there are cards»: the neutral sentence. */}
-          <MemoryTile journal={journal} recall={recall} span={span} hasCards={cards.status !== 'ok' || states.total > 0} onRetry={() => reload('journal')} />
-          <AheadTile cards={cards} due={due} laterToday={laterToday} hasCards={states.total > 0} week={week} onRetry={() => reload('cards')} />
-        </section>
-      )}
+  // An account without lectures and cards — a group student who studies only an exam (UX audit of 06.11): no lecture
+  // tiles and no «Что подтянуть» that only offers «Разобрать лекцию»; its exams and «Занятия по дням» come first. An
+  // account with lectures or cards sees the page as before. Unknown (a read failed or still loading): as before.
+  const noLectures = materials.status === 'ok' && materials.data.length === 0;
+  const lean = noLectures && cards.status === 'ok' && cards.data.length === 0;
+  // «Что подтянуть» with nothing in it but «Разобрать лекцию» says nothing to such an account.
+  const todoShown = !(lean && todo.items.length === 0 && everythingRead);
 
-      <Section title="Что подтянуть" id="pg-todo">
-        <div className="pg-card pg-todo">
-          {todo.items.length > 0 ? (
-            <ul className="pg-todo-list">
-              {todo.items.map((item) => (
-                <TodoLine
-                  key={todoKey(item)}
-                  item={item}
+  const summarySection = phone ? (
+    <PhoneSummary
+      cards={cards}
+      journal={journal}
+      states={states}
+      origins={origins}
+      recall={recall}
+      span={span}
+      due={due}
+      laterToday={laterToday}
+      week={week}
+      offerAnalyze={!analyzeInTodo}
+      onRetryCards={() => reload('cards')}
+      onRetryJournal={() => reload('journal')}
+    />
+  ) : (
+    <section className="pg-tiles" aria-label="Сводка">
+      <KnowledgeTile cards={cards} states={states} origins={origins} onRetry={() => reload('cards')} />
+      {/* Unknown cards (still loading or failed) read as «there are cards»: the neutral sentence. */}
+      <MemoryTile journal={journal} recall={recall} span={span} hasCards={cards.status !== 'ok' || states.total > 0} onRetry={() => reload('journal')} />
+      <AheadTile cards={cards} due={due} laterToday={laterToday} hasCards={states.total > 0} week={week} onRetry={() => reload('cards')} />
+    </section>
+  );
+  const todoSection = todoShown ? (
+    <Section title="Что подтянуть" id="pg-todo">
+      <div className="pg-card pg-todo">
+        {todo.items.length > 0 ? (
+          <ul className="pg-todo-list">
+            {todo.items.map((item) => (
+              <TodoLine
+                key={todoKey(item)}
+                item={item}
+                span={span}
+                syncing={syncing}
+                failed={syncFailed}
+                onAdd={(lecture) => void addToReview(lecture)}
+              />
+            ))}
+          </ul>
+        ) : everythingRead && nothingYet ? (
+          <div className="pg-todo-empty">
+            <Quiet>
+              {materials.status === 'ok' && materials.data.length > 0
+                ? 'Пока нечего подтягивать. У лекций, загруженных только текстом, нет карточек и самопроверки. Разберите лекцию, и здесь появятся её пробелы.'
+                : 'Пока нечего подтягивать. Разберите первую лекцию, и здесь появятся её пробелы.'}
+            </Quiet>
+            <Link className="sf-secondary" to="/analyze">
+              Разобрать лекцию
+            </Link>
+          </div>
+        ) : everythingRead ? (
+          <Quiet>Пробелов нет. Карточки в повторении, самопроверки пройдены, открытых ошибок нет.</Quiet>
+        ) : (
+          <Quiet>Часть данных не загрузилась, поэтому список может быть неполным.</Quiet>
+        )}
+        {todo.more > 0 ? <Quiet>Ещё {todo.more} — в списке лекций ниже.</Quiet> : null}
+      </div>
+    </Section>
+  ) : null;
+  // The heads' links lead somewhere: ink on a phone, as every such link there (the muted link explains).
+  const examsSection = (
+    <Section title="Экзамены" id="pg-exams" aside={<Link to="/exams" className="sf-link" data-muted={phone ? undefined : ''}>Все экзамены</Link>}>
+      {examRows.length > 0 ? (
+        <ul className="sf-ledger">
+          {examRows.map((row) =>
+            row.kind === 'container' ? (
+              <ContainerLedgerRow key={`c:${row.container.id}`} container={row.container} questions={containerQuestions(row.container, oralTotals)} phone={phone} />
+            ) : (
+              examRow(row.exam)
+            ),
+          )}
+        </ul>
+      ) : null}
+      {exams.status === 'error' ? (
+        <ErrorLine text={hasContainers ? 'Остальные экзамены не загрузились.' : 'Экзамены не загрузились.'} onRetry={() => reload('exams')} />
+      ) : exams.status === 'loading' ? (
+        hasContainers ? null : <Quiet>Загружаем…</Quiet>
+      ) : examRows.length === 0 ? (
+        <div className="pg-card pg-exam-empty">
+          <p>Добавьте список вопросов к экзамену, и здесь будет видно, какие из них вы уже выучили.</p>
+          <Link className="sf-secondary" to="/exams/new">
+            Новый экзамен
+          </Link>
+        </div>
+      ) : null}
+    </Section>
+  );
+  // The map lays out the lectures: without one it has nothing to show.
+  const mapSection = noLectures ? null : phone ? (
+    <KnowledgeMapRow />
+  ) : (
+    <Section title="Карта знаний" id="pg-map">
+      <KnowledgeMapCard />
+    </Section>
+  );
+  const lecturesSection = (
+    <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted={phone ? undefined : ''}>Все лекции</Link>}>
+      {materials.status === 'error' ? (
+        <ErrorLine text="Лекции не загрузились." onRetry={() => reload('materials')} />
+      ) : materials.status === 'loading' ? (
+        <Quiet>Загружаем…</Quiet>
+      ) : materials.data.length === 0 ? (
+        <Quiet>
+          Лекций пока нет.{' '}
+          <Link to="/analyze" className="sf-link" style={{ minHeight: 0, fontSize: 15 }}>
+            Разобрать лекцию
+          </Link>
+        </Quiet>
+      ) : (
+        <>
+          {cards.status === 'error' && <ErrorLine text="Карточки не загрузились, их счётчики не показаны." onRetry={() => reload('cards')} />}
+          {quiz.status === 'error' && <ErrorLine text="Результаты самопроверок не загрузились." onRetry={() => reload('quiz')} />}
+          {active.length > 0 ? (
+            <ul className="pg-card pg-lectures">
+              {active.map((row) => (
+                <LectureLine
+                  key={row.id}
+                  row={row}
                   span={span}
+                  now={now}
+                  cardsKnown={cards.status === 'ok'}
+                  quizKnown={quiz.status === 'ok'}
+                  fromAnswers={answersByLecture.get(row.id) ?? 0}
                   syncing={syncing}
                   failed={syncFailed}
                   onAdd={(lecture) => void addToReview(lecture)}
                 />
               ))}
             </ul>
-          ) : everythingRead && nothingYet ? (
-            <div className="pg-todo-empty">
-              <Quiet>
-                {materials.status === 'ok' && materials.data.length > 0
-                  ? 'Пока нечего подтягивать. У лекций, загруженных только текстом, нет карточек и самопроверки. Разберите лекцию, и здесь появятся её пробелы.'
-                  : 'Пока нечего подтягивать. Разберите первую лекцию, и здесь появятся её пробелы.'}
-              </Quiet>
-              <Link className="sf-secondary" to="/analyze">
-                Разобрать лекцию
-              </Link>
-            </div>
-          ) : everythingRead ? (
-            <Quiet>Пробелов нет. Карточки в повторении, самопроверки пройдены, открытых ошибок нет.</Quiet>
-          ) : (
-            <Quiet>Часть данных не загрузилась, поэтому список может быть неполным.</Quiet>
-          )}
-          {todo.more > 0 ? <Quiet>Ещё {todo.more} — в списке лекций ниже.</Quiet> : null}
-        </div>
-      </Section>
-
-      {/* The heads' links lead somewhere: ink on a phone, as every such link there (the muted link explains). */}
-      <Section title="Экзамены" id="pg-exams" aside={<Link to="/exams" className="sf-link" data-muted={phone ? undefined : ''}>Все экзамены</Link>}>
-        {examRows.length > 0 ? (
-          <ul className="sf-ledger">
-            {examRows.map((row) =>
-              row.kind === 'container' ? (
-                <ContainerLedgerRow key={`c:${row.container.id}`} container={row.container} questions={containerQuestions(row.container, oralTotals)} phone={phone} />
-              ) : (
-                examRow(row.exam)
-              ),
-            )}
-          </ul>
-        ) : null}
-        {exams.status === 'error' ? (
-          <ErrorLine text={hasContainers ? 'Остальные экзамены не загрузились.' : 'Экзамены не загрузились.'} onRetry={() => reload('exams')} />
-        ) : exams.status === 'loading' ? (
-          hasContainers ? null : <Quiet>Загружаем…</Quiet>
-        ) : examRows.length === 0 ? (
-          <div className="pg-card pg-exam-empty">
-            <p>Добавьте список вопросов к экзамену, и здесь будет видно, какие из них вы уже выучили.</p>
-            <Link className="sf-secondary" to="/exams/new">
-              Новый экзамен
-            </Link>
-          </div>
-        ) : null}
-      </Section>
-
-      {phone ? (
-        <KnowledgeMapRow />
-      ) : (
-        <Section title="Карта знаний" id="pg-map">
-          <KnowledgeMapCard />
-        </Section>
-      )}
-
-      <Section title="Лекции" id="pg-lectures" aside={<Link to="/library" className="sf-link" data-muted={phone ? undefined : ''}>Все лекции</Link>}>
-        {materials.status === 'error' ? (
-          <ErrorLine text="Лекции не загрузились." onRetry={() => reload('materials')} />
-        ) : materials.status === 'loading' ? (
-          <Quiet>Загружаем…</Quiet>
-        ) : materials.data.length === 0 ? (
-          <Quiet>
-            Лекций пока нет.{' '}
-            <Link to="/analyze" className="sf-link" style={{ minHeight: 0, fontSize: 15 }}>
-              Разобрать лекцию
-            </Link>
-          </Quiet>
-        ) : (
-          <>
-            {cards.status === 'error' && <ErrorLine text="Карточки не загрузились, их счётчики не показаны." onRetry={() => reload('cards')} />}
-            {quiz.status === 'error' && <ErrorLine text="Результаты самопроверок не загрузились." onRetry={() => reload('quiz')} />}
-            {active.length > 0 ? (
-              <ul className="pg-card pg-lectures">
-                {active.map((row) => (
-                  <LectureLine
-                    key={row.id}
-                    row={row}
-                    span={span}
-                    now={now}
-                    cardsKnown={cards.status === 'ok'}
-                    quizKnown={quiz.status === 'ok'}
-                    fromAnswers={answersByLecture.get(row.id) ?? 0}
-                    syncing={syncing}
-                    failed={syncFailed}
-                    onAdd={(lecture) => void addToReview(lecture)}
-                  />
+          ) : null}
+          {textOnly.length > 0 ? (
+            <details className="pg-textonly">
+              <summary>
+                Только текст — {count(textOnly.length, ['лекция', 'лекции', 'лекций'])}
+              </summary>
+              <p className="pg-quiet">Загружены для сверки с вопросами экзаменов. Конспекта, карточек и самопроверки у них нет.</p>
+              <ul>
+                {textOnly.map((row) => (
+                  <li key={row.id}>
+                    <Link to={`/library/${row.id}`} className="sf-link" data-muted="">
+                      {displayMaterialTitle(row.title)}
+                    </Link>
+                  </li>
                 ))}
               </ul>
-            ) : null}
-            {textOnly.length > 0 ? (
-              <details className="pg-textonly">
-                <summary>
-                  Только текст — {count(textOnly.length, ['лекция', 'лекции', 'лекций'])}
-                </summary>
-                <p className="pg-quiet">Загружены для сверки с вопросами экзаменов. Конспекта, карточек и самопроверки у них нет.</p>
-                <ul>
-                  {textOnly.map((row) => (
-                    <li key={row.id}>
-                      <Link to={`/library/${row.id}`} className="sf-link" data-muted="">
-                        {displayMaterialTitle(row.title)}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-          </>
-        )}
-      </Section>
+            </details>
+          ) : null}
+        </>
+      )}
+    </Section>
+  );
+  const activitySection = (
+    <ActivitySection
+      activity={activity}
+      quiz={quiz}
+      journal={journal}
+      examDays={examDays}
+      examsOn={hasContainers}
+      onRetry={() => reload('activity')}
+      onRetryJournal={() => reload('journal')}
+      onRetryExamDays={() => reload('examDays')}
+    />
+  );
 
-      <ActivitySection
-        activity={activity}
-        quiz={quiz}
-        journal={journal}
-        examDays={examDays}
-        examsOn={hasContainers}
-        onRetry={() => reload('activity')}
-        onRetryJournal={() => reload('journal')}
-        onRetryExamDays={() => reload('examDays')}
-      />
+  return (
+    <>
+      {lean ? (
+        <>
+          {examsSection}
+          {activitySection}
+          {todoSection}
+          {lecturesSection}
+        </>
+      ) : (
+        <>
+          {summarySection}
+          {todoSection}
+          {examsSection}
+          {mapSection}
+          {lecturesSection}
+          {activitySection}
+        </>
+      )}
 
       {(legacyExams.status === 'error' || (legacyExams.status === 'ok' && legacyExams.data.length > 0)) && (
         <Section title="Устные экзамены (прежний формат)" id="pg-legacy">
@@ -1114,7 +1145,7 @@ function statesLine(states: CardStates): string {
 
 /**
  * The phone's summary (10_Project/Phone_Declutter_2026-10-08): the three tiles in one card. On top, what comes next —
- * the cards that wait now with the page's one blue «Повторить», and the week in a line; under a hairline, what is
+ * the cards that wait now with the page's one blue «К карточкам», and the week in a line; under a hairline, what is
  * known — the cards by state, where they came from, and the share recalled once there is one. A part without data
  * is not drawn: no empty week of bars, no «пока нет» tile.
  */
@@ -1172,12 +1203,13 @@ function PhoneSummary({
   return (
     <section className="pg-sum" aria-label="Сводка">
       {due > 0 ? (
-        // «26 карточек ждут сейчас», then «Повторить»: the reading order; the grid sets the button beside the number.
+        // «26 карточек ждут сейчас», then «К карточкам»: the reading order; the grid sets the button beside the number.
+        // «Повторить» is for practising mistakes (copy audit of 06.11, #4): this one opens the cards.
         <div className="pg-sum-top">
           <p className="pg-big">{due}</p>
           <p className="pg-cap">{waitingNowWords(due)}</p>
           <Link className="sf-primary pg-sum-go" to="/review">
-            Повторить
+            К карточкам
           </Link>
         </div>
       ) : (
@@ -1284,7 +1316,7 @@ function AheadTile({
 }) {
   const rest = laterTodayWords(laterToday, due > 0);
   return (
-    // With cards to repeat now, this tile leads on a phone: «Повторить» is the page's next step.
+    // With cards to repeat now, this tile leads on a phone: «К карточкам» is the page's next step.
     <article className="pg-tile" data-tile="ahead" data-lead={cards.status === 'ok' && due > 0 ? '' : undefined} aria-labelledby="pg-k-ahead">
       <h2 className="pg-k" id="pg-k-ahead">
         Повторения на неделю
@@ -1298,12 +1330,12 @@ function AheadTile({
         <p className="pg-note">{ty('Повторять пока нечего. Расписание на неделю появится вместе с карточками.')}</p>
       ) : (
         <>
-          {/* The number and the one action side by side: on a phone «Повторить» is on the first screen. */}
+          {/* The number and the one action side by side: on a phone «К карточкам» is on the first screen. */}
           <div className="pg-ahead-head">
             <p className="pg-big">{due}</p>
             {due > 0 ? (
               <Link className="sf-primary pg-tile-cta" to="/review">
-                Повторить
+                К карточкам
               </Link>
             ) : null}
           </div>
@@ -1399,7 +1431,7 @@ function TodoLine({
       action =
         item.lecture.due > 0 ? (
           <Link className="pg-act" data-blue="" to={`/review?material=${item.lecture.id}`}>
-            Повторить
+            К карточкам
           </Link>
         ) : (
           <Link className="pg-act" to={`/library/${item.lecture.id}`}>

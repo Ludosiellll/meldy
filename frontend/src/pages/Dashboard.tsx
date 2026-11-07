@@ -495,6 +495,23 @@ async function loadDashboard(userId: string, withSteps: boolean, settledLayer: (
 // ---------------------------------------------------------------------------------------------
 // Words
 
+/**
+ * The page did not load (copy audit of 06.11, #22): it names the page and says what is safe for the one who studies an
+ * exam, not «Лекции и карточки на месте»; «Попробовать ещё раз» — «Повторить» is for practising mistakes.
+ */
+export const LOAD_FAILED = { title: '«Сегодня» не загрузилось', text: 'Экзамены и ответы сохранены.' } as const;
+export const RETRY = 'Попробовать ещё раз';
+
+/**
+ * The account has no review cards at all (UX audit of 06.11): none due, none ever reviewed (study_sessions'
+ * cards_reviewed), none among the recent lectures. A group student who studies only the exam: «Повторение» and «Карточки
+ * за две недели» would be two empty cards. Unknown (the recent lectures' cards could not be read): not claimed.
+ */
+export function noCardsAtAll(data: Pick<DashboardData, 'dueCount' | 'sessions' | 'materialsWithCards'>): boolean {
+  if (data.dueCount > 0 || data.materialsWithCards === null || data.materialsWithCards.size > 0) return false;
+  return !data.sessions.some((session) => (Number(session.cards_reviewed) || 0) > 0);
+}
+
 /** «Суббота, 3 октября»: the first letter is made capital here, never by CSS. */
 export function todayLine(now: Date = new Date()): string {
   const text = format(now, 'EEEE, d MMMM', { locale: ru });
@@ -1226,12 +1243,12 @@ export default function Dashboard() {
           </div>
           {loadError || !loading ? (
             <section className="td-card td-error td-rise" data-d="3">
-              <h2 className="td-h3">Не удалось загрузить данные</h2>
+              <h2 className="td-h3">{LOAD_FAILED.title}</h2>
               <p className="td-error-text" role="alert">
-                Лекции и карточки на месте. Повторите через минуту.
+                {LOAD_FAILED.text}
               </p>
               <button type="button" className={alone.mainLeads ? 'sf-link' : 'sf-primary'} onClick={() => void load()}>
-                Повторить
+                {RETRY}
               </button>
             </section>
           ) : null}
@@ -1243,12 +1260,12 @@ export default function Dashboard() {
       <>
         {head}
         <section className="td-card td-error td-rise" data-d="2">
-          <h2 className="td-h2">Не удалось загрузить данные</h2>
+          <h2 className="td-h2">{LOAD_FAILED.title}</h2>
           <p className="td-error-text" role="alert">
-            Лекции и карточки на месте. Повторите через минуту.
+            {LOAD_FAILED.text}
           </p>
           <button type="button" className="sf-primary" onClick={() => void load()}>
-            Повторить
+            {RETRY}
           </button>
         </section>
       </>
@@ -1268,7 +1285,8 @@ export default function Dashboard() {
             phone={phone}
             lead={!stepsLead}
             onRetry={() => void load()}
-            activity={<Activity days={days} streak={streak} phone={phone} />}
+            // No cards at all: no «Карточки за две недели — не повторялись» (UX audit of 06.11).
+            activity={noCardsAtAll(data) ? null : <Activity days={days} streak={streak} phone={phone} />}
             lectures={<Lectures data={data} phone={phone} syncing={syncing} syncError={syncError} onAdd={(material) => void addCardsToReview(material)} />}
             containers={containerSlots}
           />
@@ -1514,6 +1532,8 @@ function useLecturePlace(grid: RefObject<HTMLDivElement | null>) {
     const main = block('td-main');
     const side = block('td-side');
     const lectures = block('td-lectures');
+    // No side column (no cards at all): the lectures stand in its place (Dashboard.css, data-side='none').
+    if (!side) delete el.dataset.lectures;
     if (!main || !side || !lectures) return;
     const was: LecturePlace = el.dataset.lectures === 'below' ? 'below' : 'main';
     el.dataset.lectures = 'main';
@@ -1576,9 +1596,14 @@ function Desk({
   const mainKind = containers ? containers.main : exam ? 'oral' : 'none';
   const withMain = mainKind === 'oral' ? Boolean(exam) : mainKind === 'container';
   const examPrimary = mainKind === 'container' ? Boolean(containers?.mainLeads) : Boolean(exam && exam.questions.length > 0);
+  // No cards at all (a group student who studies only the exam): beside the exam no «Карточек к повторению на сегодня
+  // нет» — there never were any (UX audit of 06.11).
+  const cardless = noCardsAtAll(data);
 
   let cards: ReactNode = null;
-  if (dueCount > 0 && withMain && phone) {
+  if (cardless) {
+    cards = null;
+  } else if (dueCount > 0 && withMain && phone) {
     // A phone: the count and the time in one line; no picture, no lectures (they are in «Повторение»). The action is a
     // quiet link unless it is the page's one blue pill (an exam without questions): one pill on the first screen.
     cards = (
@@ -1645,13 +1670,17 @@ function Desk({
       );
   }
 
+  // Nothing beside the main card: no empty column — the lectures take its place (Dashboard.css, data-side).
+  const side = cards !== null || activity !== null;
   return (
-    <div className="td-grid" ref={grid}>
+    <div className="td-grid" ref={grid} data-side={side ? undefined : 'none'}>
       {main}
-      <div className="td-side">
-        {cards}
-        {activity}
-      </div>
+      {side ? (
+        <div className="td-side">
+          {cards}
+          {activity}
+        </div>
+      ) : null}
       {lectures}
     </div>
   );
@@ -2225,7 +2254,7 @@ function NoExam({
     <p className="td-meta td-retry">
       Экзамены не загрузились.{' '}
       <button type="button" className="sf-link" onClick={onRetry}>
-        Повторить
+        {RETRY}
       </button>
     </p>
   ) : hasExams ? (

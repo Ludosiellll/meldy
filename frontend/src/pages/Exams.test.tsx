@@ -228,7 +228,7 @@ describe('Exams', () => {
     mocks.listExams.mockRejectedValueOnce(new Error('boom')).mockResolvedValue([item()]);
     renderList();
     expect(await screen.findByRole('heading', { name: 'Не удалось загрузить экзамены' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByRole('link', { name: /^Микроэкономика/ })).toBeInTheDocument();
   });
 });

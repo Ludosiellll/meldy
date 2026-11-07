@@ -36,7 +36,7 @@ export function containerSizeLine(container: Pick<OverviewContainer, 'subjects'>
   return subjects && count > 1 ? `${count} ${pluralRu(count, SUBJECT_FORMS)}, ${size}` : size;
 }
 
-/** The figure of a container's test part (spec decision 8): «N из M · верно в два разных дня», over the questions with a key. */
+/** The figure of a container's test part (spec decision 8): «выучено N из M» (верно в два разных дня), over the questions with a key. */
 export function containerFigure(container: Pick<OverviewContainer, 'subjects'>): { twoDays: number; seen: number; keyed: number } | null {
   let twoDays = 0;
   let seen = 0;
@@ -53,11 +53,12 @@ export function containerFigure(container: Pick<OverviewContainer, 'subjects'>):
 }
 
 /**
- * «Верно в два разных дня: 143 из 960» (spec decision 48); while it is 0 the line adds what moved: «… 0 из 960 · видели
- * 60». No forecast and no other verb: the figure is named only «верно в два разных дня» (spec decision 55).
+ * «Выучено 143 из 960» (spec decision 48): the word the exam's page and «Прогресс» use for the same figure (copy audit of
+ * 06.11; «верно в два разных дня» is how a question becomes learned, said in «Как считается»). While it is 0 the line
+ * adds what moved: «… 0 из 960 · видели 60». No forecast.
  */
 export function containerFigureLine(figure: { twoDays: number; seen: number; keyed: number }): string {
-  const line = `Верно в два разных дня: ${figure.twoDays} из ${figure.keyed}`;
+  const line = `Выучено ${figure.twoDays} из ${figure.keyed}`;
   return figure.twoDays === 0 ? `${line} · видели ${figure.seen}` : line;
 }
 

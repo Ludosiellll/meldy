@@ -337,7 +337,7 @@ describe('«Экзамены» with exam containers', () => {
     const list = await renderMixed();
     const card = within(list).getByRole('link', { name: /^Аккредитация/ }).closest('li')!;
     expect(plain(card.querySelector('.ex-row-title')?.textContent)).toBe('Аккредитация');
-    expect(plain(card.querySelector('.ex-row-meta')?.textContent)).toBe('22 октября, через 19 дней · 4 предмета, 960 вопросов · верно в два разных дня: 143 из 960');
+    expect(plain(card.querySelector('.ex-row-meta')?.textContent)).toBe('22 октября, через 19 дней · 4 предмета, 960 вопросов · выучено 143 из 960');
     const bar = card.querySelector('.ex-bar')!;
     expect(bar).toHaveAttribute('aria-hidden', 'true');
     expect(Array.from(bar.querySelectorAll('i')).map((part) => [part.getAttribute('data-k'), (part as HTMLElement).style.flexGrow])).toEqual([
@@ -354,13 +354,13 @@ describe('«Экзамены» with exam containers', () => {
     expect(second.querySelector('.ex-bar')).toBeNull();
   });
 
-  it('a phone: one meta line «дата, через N дней · N вопросов», the bar, then «Верно в два разных дня: 143 из 960»', async () => {
+  it('a phone: one meta line «дата, через N дней · N вопросов», the bar, then «Выучено 143 из 960»', async () => {
     setPhone();
     mixedAccount();
     const list = await renderMixed();
     const card = within(list).getByRole('link', { name: /^Аккредитация/ }).closest('li')!;
     expect(plain(card.querySelector('.ex-row-meta')?.textContent)).toBe('22 октября, через 19 дней · 960 вопросов');
-    expect(plain(card.querySelector('.ex-row-counts')?.textContent)).toBe('Верно в два разных дня: 143 из 960');
+    expect(plain(card.querySelector('.ex-row-counts')?.textContent)).toBe('Выучено 143 из 960');
     const bar = card.querySelector('.ex-bar')!;
     expect(bar.compareDocumentPosition(card.querySelector('.ex-row-counts')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // The oral rows keep today's phone lines.
@@ -389,6 +389,66 @@ describe('«Экзамены» with exam containers', () => {
     expect(mocks.fetchQuestionEvents).not.toHaveBeenCalled();
   });
 
+  it('no «Экзамены N | Тесты 0» while the account has no test; «Тесты» asked by the address keeps it (UX audit of 06.11)', async () => {
+    mocks.listExams.mockResolvedValue([]);
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation()], attached_exam_ids: [] } });
+    await renderMixed();
+    expect(screen.queryByRole('group', { name: 'Что показать' })).toBeNull();
+    // The author keeps the doors.
+    expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/import');
+    expect(screen.getByRole('link', { name: 'Новый тест' })).toHaveAttribute('href', '/tests/new');
+    cleanup();
+
+    // The guide's way to «Тесты» (/exams?view=tests): the tests' page, with the way back to the exams.
+    render(
+      <MemoryRouter initialEntries={['/exams?view=tests']}>
+        <Routes>
+          <Route path="/exams" element={<Exams />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole('heading', { level: 1, name: 'Тесты' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Что показать' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Быстрая контрольная' })).toHaveAttribute('href', '/tests/quick');
+  });
+
+  it('a group student (every exam someone else’s, nothing of its own): one quiet «Создать свой экзамен или тест» that opens the doors', async () => {
+    mocks.listExams.mockResolvedValue([]);
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation({ role: 'member' })], attached_exam_ids: [] } });
+    const list = await renderMixed();
+    expect(within(list).getAllByRole('listitem')).toHaveLength(1);
+    expect(screen.queryByRole('group', { name: 'Что показать' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Новый экзамен' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Новый тест' })).toBeNull();
+    expect(screen.queryByText('Для себя: план по вопросам и лекциям')).toBeNull();
+    const own = screen.getByRole('button', { name: 'Создать свой экзамен или тест' });
+    expect(own).toHaveClass('sf-link');
+    expect(own).toHaveAttribute('aria-expanded', 'false');
+    // The same choice, one tap away, the first door in focus.
+    fireEvent.click(own);
+    const door = await screen.findByRole('link', { name: 'Новый экзамен' });
+    expect(door).toHaveAttribute('href', '/exams/import');
+    expect(screen.getByRole('link', { name: 'Новый тест' })).toHaveAttribute('href', '/tests/new');
+    expect(door).toHaveAccessibleDescription('Для себя: план по вопросам и лекциям');
+    expect(document.activeElement).toBe(door);
+  });
+
+  it('a member with an exam of its own (an old one outside the containers) is an author: the doors stay', async () => {
+    mocks.listExams.mockResolvedValue([item()]);
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation({ role: 'member' })], attached_exam_ids: [] } });
+    await renderMixed();
+    expect(screen.getByRole('link', { name: 'Новый экзамен' })).toHaveAttribute('href', '/exams/import');
+    expect(screen.queryByRole('button', { name: 'Создать свой экзамен или тест' })).toBeNull();
+  });
+
+  it('a member whose other exams cannot be read keeps the doors: nothing is claimed', async () => {
+    mocks.listExams.mockRejectedValue(new Error('Failed to fetch'));
+    layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation({ role: 'member' })], attached_exam_ids: [] }, offline: true });
+    await renderMixed();
+    await screen.findByText(/^Остальные экзамены не загрузились\./);
+    expect(screen.getByRole('link', { name: 'Новый экзамен' })).toBeInTheDocument();
+  });
+
   it('without network draws the containers from the device’s copy and says in one quiet line the rest did not load', async () => {
     mocks.listExams.mockRejectedValue(new Error('Failed to fetch'));
     layer.overview = loadable({ data: { v: 1, day: '2026-10-03', containers: [accreditation()], attached_exam_ids: [] }, offline: true });
@@ -398,9 +458,9 @@ describe('«Экзамены» with exam containers', () => {
     expect(line).toHaveClass('exc-rest');
     expect(screen.queryByRole('heading', { name: 'Не удалось загрузить экзамены' })).toBeNull();
     expect(list.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // «Повторить» reads the other exams again.
+    // «Попробовать ещё раз» reads the other exams again.
     mocks.listExams.mockClear();
-    within(line).getByRole('button', { name: 'Повторить' }).click();
+    within(line).getByRole('button', { name: 'Попробовать ещё раз' }).click();
     await waitFor(() => expect(mocks.listExams).toHaveBeenCalledTimes(1));
   });
 
@@ -532,8 +592,9 @@ describe('a container row’s words', () => {
     expect(containerSizeLine(winter(), 0, true)).toBe('вопросов пока нет');
     expect(containerFigure(accreditation())).toEqual({ twoDays: 143, seen: 410, keyed: 960 });
     expect(containerFigure(winter())).toBeNull();
-    expect(containerFigureLine({ twoDays: 143, seen: 410, keyed: 960 })).toBe('Верно в два разных дня: 143 из 960');
-    expect(containerFigureLine({ twoDays: 0, seen: 60, keyed: 960 })).toBe('Верно в два разных дня: 0 из 960 · видели 60');
+    // The exam's page says «выучено» for the same figure (copy audit of 06.11).
+    expect(containerFigureLine({ twoDays: 143, seen: 410, keyed: 960 })).toBe('Выучено 143 из 960');
+    expect(containerFigureLine({ twoDays: 0, seen: 60, keyed: 960 })).toBe('Выучено 0 из 960 · видели 60');
   });
 
   it('orders the list as listExams does: dates ahead, then without a date (newest first), then the past', () => {

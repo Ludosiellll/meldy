@@ -277,7 +277,8 @@ describe('Progress page', () => {
     expect(within(ahead).getByText('карточка ждёт сейчас')).toBeInTheDocument();
     expect(Array.from(ahead.querySelectorAll('.pg-mini-val')).map((v) => v.textContent)).toEqual(['1', '2', '3']);
     expect(within(ahead).getByText('Завтра 2 карточки, всего на неделю 6.')).toBeInTheDocument();
-    expect(within(ahead).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review');
+    // «Повторить» is for mistakes (copy audit of 06.11): the button opens the cards.
+    expect(within(ahead).getByRole('link', { name: 'К карточкам' })).toHaveAttribute('href', '/review');
     // With cards waiting, this tile comes first on a phone (LIB-25).
     expect(ahead).toHaveAttribute('data-lead');
   });
@@ -317,7 +318,7 @@ describe('Progress page', () => {
       '«Новая лекция»: 2 карточки не добавлены в повторение',
       'Самопроверка не пройдена в 2 лекциях. Начните с «Новая лекция»',
     ]);
-    expect(within(rows[0] as HTMLElement).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review?material=m1');
+    expect(within(rows[0] as HTMLElement).getByRole('link', { name: 'К карточкам' })).toHaveAttribute('href', '/review?material=m1');
     expect(within(rows[1] as HTMLElement).getByRole('button', { name: 'Добавить' })).toBeEnabled();
     expect(within(rows[2] as HTMLElement).getByRole('link', { name: 'Пройти самопроверку: Новая лекция' })).toHaveAttribute('href', '/library/m2?section=quiz');
   });
@@ -433,7 +434,7 @@ describe('Lectures', () => {
     // The tests still show: they come from another source.
     expect(within(await lectureRow('Энтропия')).getByText('самопроверка 4 из 5, 2 окт. · повторно 5 из 5')).toBeInTheDocument();
 
-    await user.click(within(alert.closest('p')!).getByRole('button', { name: 'Повторить' }));
+    await user.click(within(alert.closest('p')!).getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByText('закреплено 3 из 6 · новых 1')).toBeInTheDocument();
   });
 });
@@ -526,15 +527,48 @@ describe('Progress sources', () => {
 
     expect(await screen.findByText('За 30 дней занятий не было.')).toBeInTheDocument();
     expect(screen.getByText('Здесь будет видно, как вы запоминаете лекции. Начните с разбора первой лекции.')).toBeInTheDocument();
-    const todo = screen.getByRole('heading', { name: 'Что подтянуть' }).closest('section') as HTMLElement;
-    expect(within(todo).getByText('Пока нечего подтягивать. Разберите первую лекцию, и здесь появятся её пробелы.')).toBeInTheDocument();
-    expect(within(todo).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
-    expect(within(todo).queryByText(/Пробелов не видно/)).toBeNull();
-    // No big «0» in the week's tile when there are no cards at all.
-    expect(tile('Повторения на неделю').querySelector('.pg-big')).toBeNull();
-    expect(within(tile('Повторения на неделю')).getByText(/Повторять пока нечего/)).toBeInTheDocument();
-    // Nothing to repeat: on a phone the week does not lead, the cards' tile with «Разобрать лекцию» does.
-    expect(tile('Повторения на неделю')).not.toHaveAttribute('data-lead');
+    // No lectures and no cards (UX audit of 06.11): no empty lecture tiles, no «Что подтянуть» that only offers a lecture.
+    expect(screen.queryByRole('region', { name: 'Сводка' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Что подтянуть' })).toBeNull();
+    expect(screen.queryByText(/Повторять пока нечего/)).toBeNull();
+    // The one way to start is still there: «Лекции» offers the first lecture.
+    const lectures = screen.getByRole('heading', { name: 'Лекции' }).closest('section') as HTMLElement;
+    expect(within(lectures).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+    // No map of lectures without a lecture.
+    expect(screen.queryByRole('heading', { name: 'Карта знаний' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Открыть карту знаний' })).toBeNull();
+  });
+
+  it('puts the exams and the days of study first for an account without lectures and cards', async () => {
+    setTable('materials', () => ({ data: [] }));
+    setTable('flashcard_progress', () => ({ data: [] }));
+    renderProgress();
+    const exams = await screen.findByRole('heading', { name: 'Экзамены' });
+    const days = screen.getByRole('heading', { name: 'Занятия по дням' });
+    const lectures = screen.getByRole('heading', { name: 'Лекции' });
+    expect(exams.compareDocumentPosition(days) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(days.compareDocumentPosition(lectures) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole('heading', { level: 2 })[0]).toBe(exams);
+  });
+
+  it('speaks of the exam to a group student who has not answered yet, not of a first lecture', async () => {
+    layer.containers = [{ id: 'c-1', title: 'Анатомия', role: 'member', exam_date: '2026-10-22' }];
+    setTable('materials', () => ({ data: [] }));
+    setTable('flashcard_progress', () => ({ data: [] }));
+    setJournal([], []);
+    renderProgress();
+    expect(await screen.findByText('Здесь будет видно, сколько вопросов экзамена вы выучили.')).toBeInTheDocument();
+    expect(screen.queryByText(/Начните с разбора первой лекции/)).toBeNull();
+    const exams = screen.getByRole('heading', { name: 'Экзамены' }).closest('section') as HTMLElement;
+    expect(within(exams).getByRole('link', { name: 'Анатомия' })).toHaveAttribute('href', '/exams/c/c-1');
+  });
+
+  it('keeps the page as it was for an account with lectures: the tiles, «Что подтянуть», then the exams and the map', async () => {
+    renderProgress();
+    const todo = await screen.findByRole('heading', { name: 'Что подтянуть' });
+    expect(screen.getByRole('region', { name: 'Сводка' })).toBeInTheDocument();
+    expect(todo.compareDocumentPosition(screen.getByRole('heading', { name: 'Экзамены' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Карта знаний' })).toBeInTheDocument();
   });
 
   it('names only what happened in 30 days and draws no empty axis', async () => {
@@ -546,7 +580,7 @@ describe('Progress sources', () => {
     expect(screen.queryByText('сегодня')).toBeNull();
     expect(screen.queryByText(/0 ответов|0 дней подряд|занятия в 0/)).toBeNull();
     expect(within(tile('Карточки')).getByText('Карточек в повторении пока нет. Они появятся после разбора лекции и после ответов на билеты.')).toBeInTheDocument();
-    expect(within(tile('Повторения на неделю')).queryByRole('link', { name: 'Повторить' })).toBeNull();
+    expect(within(tile('Повторения на неделю')).queryByRole('link', { name: 'К карточкам' })).toBeNull();
   });
 
   it('offers to add an exam when there is none', async () => {
@@ -602,7 +636,7 @@ describe('Progress sources', () => {
     expect(screen.queryByText('Загружаем страницу…')).toBeNull();
   });
 
-  it('a source slower than the wait fills its own block later; a «Повторить» never hides the page again', async () => {
+  it('a source slower than the wait fills its own block later; a «Попробовать ещё раз» never hides the page again', async () => {
     SETTLE_WAIT.ms = 60;
     try {
       // The journal hangs: after the wait the page is drawn, the journal's parts wait in their own blocks.
@@ -614,7 +648,7 @@ describe('Progress sources', () => {
       renderProgress();
       const exams = (await screen.findByRole('heading', { name: 'Экзамены' })).closest('section') as HTMLElement;
       expect(screen.getByRole('heading', { name: 'Что подтянуть' })).toBeInTheDocument();
-      within(exams).getByRole('button', { name: 'Повторить' }).click();
+      within(exams).getByRole('button', { name: 'Попробовать ещё раз' }).click();
       // Read again: the page stays, the block fills in.
       expect(await within(exams).findByText(/Добавьте список вопросов к экзамену/)).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Что подтянуть' })).toBeInTheDocument();
@@ -786,14 +820,14 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     delete (window as unknown as { matchMedia?: unknown }).matchMedia;
   });
 
-  it('says the three tiles in one card, with the page’s one blue «Повторить»', async () => {
+  it('says the three tiles in one card, with the page’s one blue «К карточкам»', async () => {
     renderProgress();
     await screen.findByRole('heading', { name: 'Что подтянуть' });
     for (const name of ['Карточки', 'Вспомнили с 3 октября', 'Повторения на неделю']) expect(screen.queryByRole('heading', { name })).toBeNull();
     const summary = screen.getByRole('region', { name: 'Сводка' });
     expect(summary.querySelector('.pg-big')?.textContent).toBe('1');
     expect(within(summary).getByText('карточка ждёт сейчас')).toBeInTheDocument();
-    expect(within(summary).getByRole('link', { name: 'Повторить' })).toHaveAttribute('href', '/review');
+    expect(within(summary).getByRole('link', { name: 'К карточкам' })).toHaveAttribute('href', '/review');
     expect(within(summary).getByText('Завтра 2 карточки, всего на неделю 6.')).toBeInTheDocument();
     expect(within(summary).getByText('Закреплено 5 из 8 · учатся 2 · новых 1')).toBeInTheDocument();
     expect(within(summary).getByText(/^Вспомнили\s50\s%\sс\s3\sоктября:\s6\sиз\s12\sответов$/)).toBeInTheDocument();
@@ -835,13 +869,13 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     setTable('flashcard_progress', () => ({ data: [] }));
     setJournal([], []);
     renderProgress();
-    expect(await screen.findByText('Пока нечего подтягивать. Разберите первую лекцию, и здесь появятся её пробелы.')).toBeInTheDocument();
-    const summary = screen.getByRole('region', { name: 'Сводка' });
-    expect(within(summary).getByText(/Карточек в повторении пока нет/)).toBeInTheDocument();
-    // «Что подтянуть» offers the lecture under the card; the card does not offer it again.
-    expect(within(summary).queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
-    const todo = screen.getByRole('heading', { name: 'Что подтянуть' }).closest('section') as HTMLElement;
-    expect(within(todo).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+    const lectures = (await screen.findByRole('heading', { name: 'Лекции' })).closest('section') as HTMLElement;
+    expect(within(lectures).getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+    // No card about cards that never were, and no «Что подтянуть» with only a lecture in it (UX audit of 06.11).
+    expect(screen.queryByRole('region', { name: 'Сводка' })).toBeNull();
+    expect(screen.queryByText(/Карточек в повторении пока нет/)).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Что подтянуть' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Карта знаний/ })).toBeNull();
   });
 
   it('offers the first lecture under «Карточек пока нет» when «Что подтянуть» does not', async () => {
@@ -1103,7 +1137,7 @@ describe('the exam container’s answers in the week and in the days of study (u
     const section = (await screen.findByRole('heading', { name: 'Занятия по дням' })).closest('section') as HTMLElement;
     expect(await within(section).findByRole('alert')).toHaveTextContent(/^Ответы на вопросы экзаменов не загрузились, их дни здесь не учтены\./);
     expect(within(section).queryByText(/вопросы экзаменов,/)).toBeNull();
-    await userEvent.setup().click(within(section).getByRole('button', { name: 'Повторить' }));
+    await userEvent.setup().click(within(section).getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await within(section).findByText(/95 ответов на вопросы экзаменов/)).toBeInTheDocument();
     expect(within(section).queryByRole('alert')).toBeNull();
     // The week under the title counts them once they came.

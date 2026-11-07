@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   deleteSubject: vi.fn(),
   moveExamDate: vi.fn(),
   oralSync: vi.fn(),
+  fetchOverview: vi.fn(),
+  readOwnWork: vi.fn(),
 }));
 
 vi.mock('../../lib/containers/hooks', () => ({ useContainerData: () => mocks.state }));
@@ -38,9 +40,16 @@ vi.mock('../../api/containers', async (importOriginal) => ({
   deleteSubject: mocks.deleteSubject,
   moveExamDate: mocks.moveExamDate,
   oralSync: mocks.oralSync,
+  fetchOverview: mocks.fetchOverview,
+}));
+// What the account owns besides its exams (lectures, old exams): read for the guide after the first session.
+vi.mock('../../lib/accountShape', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/accountShape')>()),
+  readOwnWork: mocks.readOwnWork,
 }));
 
 import ContainerPage from './ContainerPage';
+import { MEMBER_STOPS } from '../../components/guide/firstRun';
 import { DEFAULT_PACE } from '../../lib/containers/pace';
 import { PHONE_QUERY } from '../../lib/usePhone';
 import { saveSession } from '../../components/containers/sessionStore';
@@ -118,6 +127,9 @@ beforeEach(() => {
   mocks.saveSettings.mockResolvedValue(undefined);
   mocks.withdrawDoubt.mockResolvedValue(undefined);
   mocks.deleteContainer.mockResolvedValue(undefined);
+  mocks.start.mockReset();
+  mocks.fetchOverview.mockReset().mockResolvedValue(null);
+  mocks.readOwnWork.mockReset().mockResolvedValue({ lectures: 0, ownExams: 0 });
   mocks.moveExamDate.mockReset().mockImplementation(async (id: string, date: string | null, forWhom: string) => ({
     for: forWhom, container_id: id, exam_date: forWhom === 'all' ? date : '2026-10-05', own_exam_date: forWhom === 'me' ? date : null, subjects: [],
   }));
@@ -646,5 +658,55 @@ describe('loading, failures, the guide', () => {
     renderPage(loaded(containerData()), { entry: { pathname: `/exams/c/${CONTAINER}`, state: { guide: true } } });
     await waitFor(() => expect(mocks.start).toHaveBeenCalledWith('today'));
     expect(mocks.start).toHaveBeenCalledTimes(1);
+    // The author of this exam: the whole guide, nothing more to read.
+    expect(mocks.fetchOverview).not.toHaveBeenCalled();
+  });
+
+  const memberData = () => containerData({ summary: { ...summary(), role: 'member' } });
+  const overviewOf = (roles: Array<'owner' | 'member'>) => ({
+    v: 1,
+    day: '2026-10-03',
+    containers: roles.map((role, index) => ({ id: `c-${index}`, title: 'Экзамен', role, items: 10, subjects: [] })),
+    attached_exam_ids: ['copy-1'],
+  });
+
+  it('gives a group student only the exam’s way, and a card about its own lectures (UX audit of 06.11)', async () => {
+    mocks.fetchOverview.mockResolvedValue(overviewOf(['member']));
+    mocks.readOwnWork.mockResolvedValue({ lectures: 0, ownExams: 0 });
+    renderPage(loaded(memberData()), { entry: { pathname: `/exams/c/${CONTAINER}`, state: { guide: true } } });
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith('today', MEMBER_STOPS));
+    expect(mocks.start).toHaveBeenCalledTimes(1);
+    expect(mocks.readOwnWork).toHaveBeenCalledWith('user-1', ['copy-1']);
+  });
+
+  it('gives the whole guide to a member who owns something: an exam, a lecture, or what cannot be read', async () => {
+    for (const [roles, own] of [
+      [['member', 'owner'], { lectures: 0, ownExams: 0 }],
+      [['member'], { lectures: 3, ownExams: 0 }],
+      [['member'], { lectures: null, ownExams: 0 }],
+    ] as const) {
+      mocks.start.mockClear();
+      mocks.fetchOverview.mockResolvedValue(overviewOf([...roles]));
+      mocks.readOwnWork.mockResolvedValue(own);
+      renderPage(loaded(memberData()), { entry: { pathname: `/exams/c/${CONTAINER}`, state: { guide: true } } });
+      await waitFor(() => expect(mocks.start).toHaveBeenCalledTimes(1));
+      expect(mocks.start).toHaveBeenCalledWith('today');
+      cleanup();
+    }
+    mocks.start.mockClear();
+    mocks.fetchOverview.mockRejectedValue(new Error('Failed to fetch'));
+    renderPage(loaded(memberData()), { entry: { pathname: `/exams/c/${CONTAINER}`, state: { guide: true } } });
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledWith('today'));
+  });
+
+  it('the member’s way: the exam’s plan, «План по дням», Telegram and its own lectures — no «Новый экзамен», «Тесты», «Игры»', () => {
+    expect(MEMBER_STOPS.map((stop) => stop.title)).toEqual(['План на сегодня', 'План по дням', 'План в Telegram', 'Свои лекции']);
+    expect(MEMBER_STOPS.map((stop) => stop.chapter)).not.toContain('tests');
+    expect(MEMBER_STOPS.map((stop) => stop.chapter)).not.toContain('game');
+    const words = MEMBER_STOPS.map((stop) => stop.text ?? '').join(' ');
+    expect(words).not.toMatch(/Новый экзамен|Новый тест|Игр/);
+    expect(words).toContain('«Начать»');
+    expect(words).toContain('«Осталось выучить»');
+    expect(words).toContain('«Разобрать лекцию»');
   });
 });

@@ -110,7 +110,8 @@ describe('the example’s answer room and the lecture’s result are files of th
       files.lecture.resolve(ExampleLecture);
       await files.lecture.promise;
     });
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    // The result's header (the analysis page's, without the «Материал обработан» badge since the UX audit of 06.11).
+    expect(document.querySelector('.rp-result-head')).not.toBeNull();
     expect(screen.getAllByRole('link', { name: 'Вернуться к примеру' })[0]).toHaveAttribute('href', '/try');
     expect(screen.queryByRole('status', { name: 'Загрузка страницы' })).toBeNull();
   });

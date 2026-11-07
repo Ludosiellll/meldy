@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { EXAM_MESSAGES, examErrorMessage, listExams, type ExamListItem } from '../api/exams';
 import { fetchQuestionEvents } from '../api/learning';
@@ -20,6 +20,7 @@ import { NEW_TEST, TEST_HOME } from '../components/test/copyTest';
 import { isOwnTest } from '../components/containers/model';
 import TestsView, { TestDoors, ViewSwitch } from '../components/quick/TestsView';
 import { TESTS_VIEW } from '../components/quick/copyQuick';
+import { isMemberOnly } from '../lib/accountShape';
 
 export { containerDays };
 import '../styles/paper.css';
@@ -225,7 +226,7 @@ function ContainerRow({ container, questions, phone }: { container: OverviewCont
   }
   const figure = containerFigure(container);
   const date = containerDateLine(container);
-  // A computer: the figure joins the meta and stays whole («верно в два разных дня: 143 из 960»), so a long line breaks
+  // A computer: the figure joins the meta and stays whole («выучено 143 из 960»), so a long line breaks
   // after «·», never inside it.
   const meta = phone
     ? `${date} · ${containerSizeLine(container, questions, false)}`
@@ -239,7 +240,7 @@ function ContainerRow({ container, questions, phone }: { container: OverviewCont
           {glue(meta)}
         </span>
       </Link>
-      {/* «верно в два разных дня» · «видели» · not seen yet; the text carries the numbers. */}
+      {/* «выучено» · «видели» · not seen yet; the text carries the numbers. */}
       {figure ? (
         <span className="ex-bar" aria-hidden="true">
           {figure.twoDays > 0 ? <i data-k="full" style={{ flexGrow: figure.twoDays }} /> : null}
@@ -336,6 +337,37 @@ function EmptyExams({ phone }: { phone: boolean }) {
 }
 
 const NO_CONTAINERS: OverviewContainer[] = [];
+
+/** «Создать свой экзамен или тест»: a group student's one quiet way to the doors of an author (UX audit of 06.11, #8). */
+export const CREATE_OWN = 'Создать свой экзамен или тест';
+/** A retry after a failed read: «Повторить» is for practising mistakes (copy audit of 06.11, #4). */
+export const RETRY = 'Попробовать ещё раз';
+
+/**
+ * The doors of an author for an account that is only a member of someone else's exams: one quiet link that opens the
+ * same choice in place — «Новый экзамен» and «Новый тест» with their notes, the first door in focus.
+ */
+function OwnDoors({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const doors = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (open) doors.current?.querySelector<HTMLElement>('a')?.focus();
+  }, [open]);
+  if (open) {
+    return (
+      <div ref={doors} className="ex-draw" data-pair="">
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div className="ex-draw ex-own">
+      <button type="button" className="sf-link" data-muted="" aria-expanded={false} onClick={() => setOpen(true)}>
+        {CREATE_OWN}
+      </button>
+    </div>
+  );
+}
 
 /**
  * «Экзамены»: the student's exams as cards, nearest date first. Each card says when the exam is, how
@@ -445,59 +477,73 @@ export default function Exams() {
   // Only where the exam container is used, or the page is empty: an account of old exams alone keeps today's page.
   const switchOn = Boolean(on) && (containers.length > 0 || (rows !== null && rows.length === 0));
   const view: 'exams' | 'tests' = switchOn && (asked === 'tests' || (asked !== 'exams' && rows !== null && rows.length === 0 && ownTests.length > 0)) ? 'tests' : 'exams';
+  // No «Экзамены N | Тесты 0» while the account has no test (UX audit of 06.11, #8); «Тесты» asked for by its address
+  // (the guide's way, a link) keeps the switch, so the way back to the exams is on the page.
+  const switchShown = switchOn && (ownTests.length > 0 || view === 'tests');
+  // Every exam is someone else's and the account owns none (a group student): the doors of an author are one quiet link.
+  const memberOnly = isMemberOnly({ containers, ownExams: plain ? plain.length : null });
   const chooseView = (next: 'exams' | 'tests') => {
     const params = new URLSearchParams(search);
     params.set('view', next);
     setSearch(params, { replace: true });
   };
   useDocumentTitle(view === 'tests' ? TESTS_VIEW.title : 'Экзамены');
+  const doors = (
+    <>
+      {/* One door (spec decision 21). Without containers the old address stays (App.tsx sends it on to
+          /exams/import), so such an account's page is today's to the byte. */}
+      {containers.length > 0 ? (
+        // Beside «Новый тест» each door says in one quiet line what it makes (release 47, M11).
+        <div className="tb-door">
+          <Link className="ex-secondary ex-new" to="/exams/import" aria-describedby="ex-door-exam">
+            Новый экзамен
+            <NewDot />
+          </Link>
+          <p id="ex-door-exam" className="tb-door-note">
+            {NEW_TEST.examNote}
+          </p>
+        </div>
+      ) : (
+        <Link className="ex-secondary ex-new" to="/exams/new">
+          Новый экзамен
+          <NewDot />
+        </Link>
+      )}
+      {/* «Новый тест» (spec 2026-10-18 §47.2): questions written in the builder. A white pill too, so the
+          page keeps one blue one; for the same reason as above only beside the containers' door. */}
+      {containers.length > 0 ? (
+        <div className="tb-door">
+          <Link className="ex-secondary ex-new" to="/tests/new" aria-describedby="ex-door-test">
+            {NEW_TEST.entry}
+            <NewDot />
+          </Link>
+          <p id="ex-door-test" className="tb-door-note">
+            {NEW_TEST.entryNote}
+          </p>
+        </div>
+      ) : null}
+    </>
+  );
 
   return (
     <div className="sf-page ex-list-page" ref={frame.ref} data-frame={frame.size}>
       {probe}
       <header className="ex-head">
         <div>
-          {switchOn ? <ViewSwitch view={view} exams={rows?.length ?? null} tests={ownTests.length} onChange={chooseView} /> : null}
+          {switchShown ? <ViewSwitch view={view} exams={rows?.length ?? null} tests={ownTests.length} onChange={chooseView} /> : null}
           <h1 className="ex-h1">{view === 'tests' ? TESTS_VIEW.title : 'Экзамены'}</h1>
           {view === 'tests' ? <p className="ex-meta tv-lede">{TESTS_VIEW.lede}</p> : null}
         </div>
         {view === 'tests' ? <TestDoors /> : null}
-        {view === 'exams' && anyRow && (
-          <div className="ex-draw" data-pair={containers.length > 0 ? '' : undefined}>
-            {/* One door (spec decision 21). Without containers the old address stays (App.tsx sends it on to
-                /exams/import), so such an account's page is today's to the byte. */}
-            {containers.length > 0 ? (
-              // Beside «Новый тест» each door says in one quiet line what it makes (release 47, M11).
-              <div className="tb-door">
-                <Link className="ex-secondary ex-new" to="/exams/import" aria-describedby="ex-door-exam">
-                  Новый экзамен
-                  <NewDot />
-                </Link>
-                <p id="ex-door-exam" className="tb-door-note">
-                  {NEW_TEST.examNote}
-                </p>
-              </div>
-            ) : (
-              <Link className="ex-secondary ex-new" to="/exams/new">
-                Новый экзамен
-                <NewDot />
-              </Link>
-            )}
-            {/* «Новый тест» (spec 2026-10-18 §47.2): questions written in the builder. A white pill too, so the
-                page keeps one blue one; for the same reason as above only beside the containers' door. */}
-            {containers.length > 0 ? (
-              <div className="tb-door">
-                <Link className="ex-secondary ex-new" to="/tests/new" aria-describedby="ex-door-test">
-                  {NEW_TEST.entry}
-                  <NewDot />
-                </Link>
-                <p id="ex-door-test" className="tb-door-note">
-                  {NEW_TEST.entryNote}
-                </p>
-              </div>
-            ) : null}
-          </div>
-        )}
+        {view === 'exams' && anyRow ? (
+          memberOnly ? (
+            <OwnDoors>{doors}</OwnDoors>
+          ) : (
+            <div className="ex-draw" data-pair={containers.length > 0 ? '' : undefined}>
+              {doors}
+            </div>
+          )
+        ) : null}
       </header>
       {notice ? (
         <p ref={noticeRef} className="ex-notice" role="status" tabIndex={-1}>
@@ -514,7 +560,7 @@ export default function Exams() {
           <p className="exc-rest" role="status">
             Остальные экзамены не загрузились.{' '}
             <button type="button" className="sf-link" onClick={() => void load()}>
-              Повторить
+              {RETRY}
             </button>
           </p>
         </>
@@ -523,7 +569,7 @@ export default function Exams() {
           <h2>Не удалось загрузить экзамены</h2>
           <p>{error} Ваши экзамены сохранены.</p>
           <button type="button" className="sf-link" onClick={() => void load()}>
-            Повторить
+            {RETRY}
           </button>
         </div>
       ) : rows === null ? (

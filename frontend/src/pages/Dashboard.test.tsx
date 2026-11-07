@@ -17,6 +17,7 @@ import Dashboard, {
   examMeta,
   examMetaShort,
   examWhen,
+  noCardsAtAll,
   firstStepViews,
   firstStepsDone,
   greeting,
@@ -818,6 +819,49 @@ describe('«Сегодня»: today’s cards', () => {
     expect(screen.queryByRole('link', { name: named('Начать повторение') })).not.toBeInTheDocument();
   });
 
+  it('leaves out both cards beside the exam when the account has no cards at all (UX audit of 06.11)', async () => {
+    // A group student: no lectures, nothing due, nothing ever reviewed.
+    db.countDueCards.mockResolvedValue(0);
+    db.getDueCards.mockResolvedValue([]);
+    db.tables.materials = () => ({ data: [] });
+    db.tables.flashcard_progress = () => ({ data: [] });
+    exam();
+    renderDashboard();
+    expect(await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).toBeInTheDocument();
+    expect(screen.queryByText('Карточек к повторению на сегодня нет.')).toBeNull();
+    expect(screen.queryByRole('heading', { name: named('Карточки за две недели') })).toBeNull();
+    expect(screen.queryByText('За две недели карточки не повторялись.')).toBeNull();
+    // No empty column beside the exam: the lectures take its place.
+    expect(document.querySelector('.td-side')).toBeNull();
+    expect(document.querySelector('.td-grid')).toHaveAttribute('data-side', 'none');
+    expect(screen.getByRole('heading', { name: 'Лекции' })).toBeInTheDocument();
+  });
+
+  it('keeps both for an account that has cards, even with none due and none reviewed lately', async () => {
+    db.countDueCards.mockResolvedValue(0);
+    db.getDueCards.mockResolvedValue([]);
+    db.tables.materials = () => ({ data: [] });
+    db.tables.flashcard_progress = () => ({ data: [] });
+    // Reviewed a month ago: the account has cards.
+    db.tables.study_sessions = () => ({ data: [{ date: '2026-09-02', cards_reviewed: 5 }] });
+    exam();
+    renderDashboard();
+    expect(await screen.findByText('Карточек к повторению на сегодня нет.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: named('Карточки за две недели') })).toBeInTheDocument();
+    expect(document.querySelector('.td-grid')).not.toHaveAttribute('data-side');
+  });
+
+  it('knows an account without cards from what the page reads', () => {
+    const none = { dueCount: 0, sessions: [], materialsWithCards: new Set<string>() };
+    expect(noCardsAtAll(none)).toBe(true);
+    expect(noCardsAtAll({ ...none, sessions: [{ date: '2026-10-01', cards_reviewed: 0 }] })).toBe(true);
+    expect(noCardsAtAll({ ...none, dueCount: 3 })).toBe(false);
+    expect(noCardsAtAll({ ...none, sessions: [{ date: '2026-10-01', cards_reviewed: 2 }] })).toBe(false);
+    expect(noCardsAtAll({ ...none, materialsWithCards: new Set(['m1']) })).toBe(false);
+    // The lectures' cards could not be read: nothing is claimed.
+    expect(noCardsAtAll({ ...none, materialsWithCards: null })).toBe(false);
+  });
+
   it('words the review time and the lectures of the due cards', () => {
     expect(reviewTime(11)).toBe('Около 6 минут.');
     expect(reviewTime(1)).toBe('Около минуты.');
@@ -917,7 +961,7 @@ describe('«Сегодня»: without an exam, and a new account', () => {
     expect(screen.getByRole('link', { name: named('Начать повторение') })).toHaveClass('sf-primary');
 
     exam();
-    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+    await user.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).toBeInTheDocument();
   });
 });
@@ -1082,19 +1126,21 @@ describe('«Сегодня»: an error', () => {
     const user = userEvent.setup();
     renderDashboard();
 
-    expect(await screen.findByRole('heading', { name: named('Не удалось загрузить данные') })).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('Лекции и карточки на месте. Повторите через минуту.');
+    // It names the page and says what is safe for one who studies an exam (copy audit of 06.11, #22).
+    expect(await screen.findByRole('heading', { name: named('«Сегодня» не загрузилось') })).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Экзамены и ответы сохранены.');
+    expect(screen.queryByText(/Лекции и карточки на месте/)).not.toBeInTheDocument();
     expect(screen.queryByText('Начните со списка вопросов')).not.toBeInTheDocument();
 
     fail = false;
-    await user.click(screen.getByRole('button', { name: 'Повторить' }));
+    await user.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).toBeInTheDocument();
   });
 
   it('treats a failed activity read as a load error too', async () => {
     db.tables.study_sessions = () => ({ data: null, error: { code: '08006', message: 'offline' } });
     renderDashboard();
-    expect(await screen.findByRole('heading', { name: named('Не удалось загрузить данные') })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: named('«Сегодня» не загрузилось') })).toBeInTheDocument();
   });
 });
 
@@ -1390,6 +1436,20 @@ describe('«Сегодня» on a phone', () => {
     expect((bars[11] as HTMLElement).style.height).toBe('48px');
     expect((bars[13] as HTMLElement).style.height).toBe('24px');
     expect(within(section).getByRole('table', { name: named('Повторения карточек по дням') })).toBeInTheDocument();
+  });
+
+  it('says nothing about cards to an account that has none, and keeps «Игры · Войти по коду»', async () => {
+    db.countDueCards.mockResolvedValue(0);
+    db.getDueCards.mockResolvedValue([]);
+    db.tables.materials = () => ({ data: [] });
+    db.tables.flashcard_progress = () => ({ data: [] });
+    exam();
+    renderDashboard();
+    await examCard();
+    expect(screen.queryByText('Карточек к повторению на сегодня нет.')).toBeNull();
+    expect(screen.queryByRole('heading', { name: named('Карточки за две недели') })).toBeNull();
+    // A student may type a game's PIN in class.
+    expect(screen.getByRole('group', { name: 'Игры' })).toBeInTheDocument();
   });
 
   it('lists the lectures as rows with a short meta, «Разобрать лекцию» into the analysis, and «Все 5» while some are not listed', async () => {
