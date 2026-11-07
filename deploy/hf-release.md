@@ -4,6 +4,29 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-07 — Release 56: the audit's fixes — a class of 40 through /sb, safer avatars and links, focus, speed (from the commit of this entry)
+
+- **Why**: the owner (07.11): «Сможешь ли провести максимальный аудит всего проекта… проверяй все что нужно». Six
+  independent checks of release 55 (security, reliability, speed, the stand's walkthrough, load, accessibility and
+  code); every fix below was checked against the code first (meldy-notes 10_Project/Audit_2026-11-07.md).
+- **Class game through the site's fallback (/sb)**: 600 a minute per address held about 8 phones of one hall Wi-Fi
+  (40 → 76 % of reads refused); the game's bucket is 6 000, the duel's 3 000 (the limiter replay: 40 phones, worst
+  gap 1 s). A slow route probe keeps the fallback an hour, not 12; a finished game is read every 10 s; a 429 backs
+  off 3–6–9 s; Retry-After passes the proxy. Quiz covers go through /sb when the app does.
+- **Security**: «Разобрать лекцию» by link reads at most 5 MB in 20 s (a 400 MB page took the process to 934 MB);
+  avatars — each account touches only its own, pictures up to 2 MB, a crop scaled to 512 px (migration
+  20261107090800, applied before this release); /api/oral/check 300 a day; the dead gradebook photo route is gone.
+- **The stand's walkthrough**: «Отправить по ссылке» works for a test never opened in the studio; «Назад» after a
+  wrong PIN stays on the site; bad /s/ and /d/ links have a way out; no «ловушка» on a tie; «Проверка на время», no
+  «единицы» on sign-up, the ticket and the mistakes diary, /try's points line, the studio's save note.
+- **Reliability**: GET /api/health/db (the post-deploy check reads the database); removing a subject of a group's exam
+  says the members' answers go too; the functions workflow runs the bot's tests before deploying.
+- **Speed and accessibility**: one KaTeX; a guest's first visit by QR downloads no whole app; WebGL without a GPU
+  shows the 2D board; the studio's block menu, the limit window and the exam invite keep and return focus; the game
+  and the duel move a lost focus to the new screen; no 3D camera shake under reduced motion; one <main> in the studio.
+- **Checked**: gate green on dff82c44 (pytest 2842, bot 437, vitest 7335 + 3 skipped, build); the live bundle checked
+  after the deploy.
+
 ## 2026-11-07 — Release 55: plain words, a group student sees only theirs, one path per author task (from the commit of this entry)
 
 - **Why**: the owner's answer to the UX audit (07.11): «Б сделать надо, слова изнутри продукта тоже исправить», «технические
