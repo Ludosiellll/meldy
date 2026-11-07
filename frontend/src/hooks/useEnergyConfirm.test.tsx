@@ -26,7 +26,7 @@ import { ConfirmProvider } from '../contexts/ConfirmContext';
 import TokenInfoModal from '../components/TokenInfoModal';
 import { formatLimitReset, nextLimitReset, reportAILimit, resetAILimitReportsForTests } from '../api/limits';
 import { AI_COSTS, EXAM_MAPPING_QUESTIONS_PER_CHARGE, IMPORT_AI_QUESTIONS_PER_CHARGE, KEYS_AI_QUESTIONS_PER_CHARGE, OCR_PAGES_PER_CHARGE, OPEN_PRO_EVENT } from '../lib/plans';
-import { WITHOUT_UNITS } from '../components/pro/planCopy';
+import { FREE_ANSWERS, WITHOUT_UNITS } from '../components/pro/planCopy';
 import { startMiniApp, stopMiniApp } from '../test/telegramWebApp';
 
 type Verify = ReturnType<typeof useEnergyConfirm>['verifyEnergy'];
@@ -246,27 +246,29 @@ describe('TokenInfoModal', () => {
   it('shows what is left, when it comes back and what the main actions cost — the numbers of lib/plans.ts', () => {
     const { container } = render(<TokenInfoModal isOpen onClose={() => {}} usedTokens={20} />);
     expect(screen.getByRole('dialog', { name: 'Дневной лимит ИИ' })).toBeInTheDocument();
-    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 80 из 100 единиц.');
+    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 80 из 100');
     expect(screen.getByText(new RegExp(`Лимит обновится в ${formatLimitReset(nextLimitReset())}\\.`))).toBeInTheDocument();
-    // Цены — из lib/plans.ts; списывает сервер, при сбое ИИ единицы возвращаются.
-    expect(screen.getByText('Единицы списываются, когда Meldy обращается к ИИ:')).toBeInTheDocument();
+    // The first line under the figure: answering questions with options costs nothing (UX audit 06.11).
+    expect(screen.getByText(FREE_ANSWERS)).toBeInTheDocument();
+    // Цены — из lib/plans.ts; списывает сервер, при сбое ИИ лимит возвращается.
+    expect(screen.getByText('Лимит тратится, когда Meldy обращается к ИИ:')).toBeInTheDocument();
     const rows = Array.from(container.querySelectorAll('.ac-cost')).map((row) => [
       row.querySelector('dt')?.textContent,
       row.querySelector('dd')?.textContent,
     ]);
     expect(rows).toEqual([
-      [`Анализ лекциискан PDF — ещё ${AI_COSTS.scanPages} за каждые ${OCR_PAGES_PER_CHARGE} страниц`, String(AI_COSTS.lecture)],
+      [`Разбор лекциискан PDF — ещё ${AI_COSTS.scanPages} за каждые ${OCR_PAGES_PER_CHARGE} страниц`, String(AI_COSTS.lecture)],
       ['Проверка ответа на билет', String(AI_COSTS.answer)],
-      ['Пункты ответа к новому вопросуодин раз на вопрос', String(AI_COSTS.answerPoints)],
-      [`Сверка списка вопросовза каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`, String(AI_COSTS.examMapping)],
+      ['План ответа к новому вопросуодин раз на вопрос', String(AI_COSTS.answerPoints)],
+      [`Привязка вопросов к лекциямза каждые ${EXAM_MAPPING_QUESTIONS_PER_CHARGE} новых вопросов`, String(AI_COSTS.examMapping)],
       ['Подкаст по лекциидва ведущих обсуждают лекцию', String(AI_COSTS.conversation)],
       ['«Поговорить о лекции»за каждый ответ репетитора', String(AI_COSTS.tutorTurn)],
       // Under «Ещё: …»: the rarer actions, so every action that spends units has its price here.
       ['Выжимка лекции', String(AI_COSTS.cheatsheet)],
       ['Схемы к подкасту', String(AI_COSTS.visuals)],
       ['Работа над ошибками', String(AI_COSTS.mistakesPractice)],
-      ['Раздел анализа заново' + 'раздел, который не получился при анализе, — бесплатно', String(AI_COSTS.analysisSection)],
-      [`Разбор сложных мест файла с вопросамиза каждые ${IMPORT_AI_QUESTIONS_PER_CHARGE} вопросов, отправленных модели`, String(AI_COSTS.importAI)],
+      ['Раздел лекции заново' + 'раздел, который не получился при разборе, — бесплатно', String(AI_COSTS.analysisSection)],
+      [`Разбор сложных мест файла с вопросамиза каждые ${IMPORT_AI_QUESTIONS_PER_CHARGE} вопросов, отправленных ИИ`, String(AI_COSTS.importAI)],
       [`Подбор ключей с ИИза каждые ${KEYS_AI_QUESTIONS_PER_CHARGE} вопросов без ключа`, String(AI_COSTS.keysAI)],
     ]);
     // One row per priced action of lib/plans.ts (scan pages are the note under the analysis; gradebookScan's page
@@ -274,10 +276,10 @@ describe('TokenInfoModal', () => {
     // lists it.
     expect(rows).toHaveLength(Object.keys(AI_COSTS).length - 2);
     expect(container.querySelector('details.ac-costs-more > summary')).toHaveTextContent('Ещё: выжимка, схемы, работа над ошибками');
-    expect(screen.getByText('Если ИИ не справился, единицы возвращаются.')).toBeInTheDocument();
+    expect(screen.getByText('Если ИИ не справился, лимит возвращается.')).toBeInTheDocument();
     expect(screen.getByText(WITHOUT_UNITS)).toBeInTheDocument();
     // What PRO gives, in the same numbers; no price, no checkout here.
-    expect(screen.getByText('С PRO — 1000 единиц ИИ в день.')).toBeInTheDocument();
+    expect(screen.getByText('С PRO — лимит ИИ 1000 в день.')).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/⚡|Энергия|₽|оплат/);
     expect(container.querySelector('.animate-pulse, [class*="gradient"], [class*="shadow-[0_0"]')).toBeNull();
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '80%' });
@@ -294,13 +296,13 @@ describe('TokenInfoModal', () => {
 
   it('counts the day the server gave (the limit prop), not only the plan default', () => {
     render(<TokenInfoModal isOpen isPro limit={1000} onClose={() => {}} usedTokens={40} />);
-    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 960 из 1000 единиц.');
+    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 960 из 1000');
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '96%' });
   });
 
   it('clamps an overspent counter at zero', () => {
     render(<TokenInfoModal isOpen onClose={() => {}} usedTokens={130} />);
-    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 0 из 100 единиц.');
+    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 0 из 100');
     expect(screen.getByText(/На сегодня лимит исчерпан, он обновится в \d{1,2}:\d{2}\./)).toBeInTheDocument();
     expect(screen.queryByText(/^Лимит обновится/)).not.toBeInTheDocument();
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '0%' });
@@ -308,8 +310,8 @@ describe('TokenInfoModal', () => {
 
   it('tells PRO the truth: up to 1000 units a day, counted like everyone else, and offers nothing', () => {
     const { container } = render(<TokenInfoModal isOpen isPro onClose={() => {}} usedTokens={250} onOpenPro={() => {}} />);
-    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 750 из 1000 единиц.');
-    expect(container.textContent).toContain('У аккаунта PRO — до 1000 единиц в день.');
+    expect(screen.getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 750 из 1000');
+    expect(container.textContent).toContain('У аккаунта PRO — лимит ИИ 1000 в день.');
     expect(container.textContent).not.toMatch(/не применяется|С PRO —/);
     expect(screen.queryByRole('button', { name: 'Что даёт PRO' })).not.toBeInTheDocument();
     expect(screen.getByTestId('limit-bar')).toHaveStyle({ width: '75%' });

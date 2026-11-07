@@ -104,7 +104,7 @@ describe('«Сомнительные места»', () => {
     });
     const runAi = vi.fn(async () => after);
     show(runAi);
-    expect(plain(screen.getByText(/Отправим в модель/).textContent)).toBe('Отправим в модель только непонятные куски файла, 5 единиц.');
+    expect(plain(screen.getByText(/Отправим ИИ/).textContent)).toBe('Отправим ИИ только непонятные куски файла, 5 единиц.');
     fireEvent.click(screen.getByRole('button', { name: REVIEW.aiButton }));
     await waitFor(() => expect(screen.getByText(/Сложные места разобраны/)).toBeTruthy());
     expect(runAi).toHaveBeenCalledTimes(1);

@@ -6,7 +6,6 @@ import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS, type AICostKind } from '..
 
 type Forms = readonly [one: string, few: string, many: string];
 
-const UNITS: Forms = ['единица', 'единицы', 'единиц'];
 const LECTURES: Forms = ['лекция', 'лекции', 'лекций'];
 const CHECKS: Forms = ['проверка', 'проверки', 'проверок'];
 
@@ -34,18 +33,24 @@ const checks = (units: number) => {
   return `${n} ${plural(n, CHECKS)} ответов`;
 };
 
-/** «100 единиц ИИ в день» */
+/** «лимит ИИ 100 в день»: the day's allowance, no unit noun (UX audit 06.11: «единицы» was a word of our own). */
 export function unitsPerDay(units: number): string {
-  return `${units} ${plural(units, UNITS)} ИИ в день`;
+  return `лимит ИИ ${units} в день`;
 }
 
-/** What still works when the day's units are spent (the limit window and the refusal dialog say it). */
-export const WITHOUT_UNITS = 'Без единиц работают повторение карточек и самопроверки. На билеты можно отвечать без проверки ИИ.';
+/**
+ * The first line under the day's figure in the limit window: what a student of an exam does most costs nothing (UX
+ * audit 06.11: the window did not say whether studying uses up the limit).
+ */
+export const FREE_ANSWERS = 'Ответы на вопросы с вариантами — без ИИ, лимит не тратят.';
 
-/** What PRO changes: «До 1000 единиц ИИ в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.» */
+/** What still works when the day's limit is spent (the limit window and the refusal dialog say it). */
+export const WITHOUT_UNITS = 'Без лимита работают повторение карточек и самопроверка. На билеты можно отвечать без проверки ИИ.';
+
+/** What PRO changes: «Лимит ИИ до 1000 в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.» */
 export function proGainLine(): string {
   // The dash keeps to the number before it (no line on a phone starts with «—»).
-  return `До ${unitsPerDay(PRO_DAILY_UNITS)} вместо ${FREE_DAILY_UNITS}\u00a0— это примерно ${checks(PRO_DAILY_UNITS)} или ${lectures(PRO_DAILY_UNITS)}.`;
+  return `Лимит ИИ до ${PRO_DAILY_UNITS} в день вместо ${FREE_DAILY_UNITS}\u00a0— это примерно ${checks(PRO_DAILY_UNITS)} или ${lectures(PRO_DAILY_UNITS)}.`;
 }
 
 /** How many times the PRO day is the free one, when it is a whole number («в 10 раз»), else null. */

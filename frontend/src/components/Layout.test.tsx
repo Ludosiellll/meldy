@@ -644,7 +644,7 @@ describe('the daily limit meter in the top line', () => {
       await waitFor(() => expect(number()).toBe('70'));
       fireEvent.click(meter());
       const dialog = screen.getByRole('dialog', { name: 'Дневной лимит ИИ' });
-      expect(within(dialog).getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 70 из 100 единиц.');
+      expect(within(dialog).getByText(/Осталось на сегодня:/).textContent).toBe('Осталось на сегодня: 70 из 100');
       expect(within(dialog).getByText(`Лимит обновится в ${resetAt()}.`)).toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole('button', { name: 'Что даёт PRO' }));
       expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({ reason: 'meter' });

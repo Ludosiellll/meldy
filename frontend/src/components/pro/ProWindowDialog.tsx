@@ -208,7 +208,7 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
   const isPro = pro?.isPro === true;
   const proDay = unitsPerDay(PRO_DAILY_UNITS);
   const announcement =
-    done === 'bought' ? `Готово — у вас PRO. Дневной лимит теперь — ${proDay}.` : done === 'cancelled' ? 'PRO отключён.' : '';
+    done === 'bought' ? `Готово — у вас PRO. Теперь ${proDay}.` : done === 'cancelled' ? 'PRO отключён.' : '';
 
   return (
     <div className="pw">
@@ -266,7 +266,7 @@ export default function ProWindow({ reason, onClose }: WindowProps) {
                   {done === 'bought' ? 'Готово — у вас PRO' : 'У вас PRO'}
                 </span>
               </p>
-              <p className="pw-now">{done === 'bought' ? `Дневной лимит теперь — ${proDay}.` : `Дневной лимит — ${proDay}.`}</p>
+              <p className="pw-now">{done === 'bought' ? `Теперь ${proDay}.` : `У вас ${proDay}.`}</p>
               <button
                 type="button"
                 className="pw-quiet"
