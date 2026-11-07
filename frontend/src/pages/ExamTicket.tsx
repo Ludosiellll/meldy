@@ -113,13 +113,13 @@ export const PRIVACY_LINE =
 
 /** An answer nobody checks goes nowhere: only the student's own rating is saved. */
 export const PRIVACY_UNCHECKED_LINE =
-  'Речь распознаёт браузер, в Chrome — через сервис Google. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
+  'Речь распознаёт браузер, в Chrome — через сервис Google. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «с трудом» или «не знаю».';
 
 /** The same two lines when the speech is recognised on the server (the browser could not, or there is no Web Speech). */
 export const PRIVACY_SERVER_LINE =
   'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись уходит туда кусками и не сохраняется. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq); в истории остаются итоги проверки по пунктам и короткие отрывки ответа.';
 export const PRIVACY_SERVER_UNCHECKED_LINE =
-  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись не сохраняется. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
+  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись не сохраняется. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «с трудом» или «не знаю».';
 
 export function privacyText(engine: VoiceEngine, checked: boolean): string {
   if (engine === 'server') return checked ? PRIVACY_SERVER_LINE : PRIVACY_SERVER_UNCHECKED_LINE;

@@ -66,9 +66,9 @@ test('numbers are worded by the copied words.ts (no plural rules of the bot\'s o
   assert.equal(plain(W.dateWhen('2026-11-03', 3)), '3 ноября, через 3 дня');
   assert.equal(plain(W.dateWhen('2026-11-03', 1)), '3 ноября, завтра');
   assert.equal(plain(W.dateWhen('2026-11-03', 0)), '3 ноября, сегодня');
-  assert.equal(plain(W.keysFixed(1)), 'Автор исправил ключ в 1 вопросе. Его нужно выучить заново.');
-  assert.equal(plain(W.keysFixed(2)), 'Автор исправил ключ в 2 вопросах. Их нужно выучить заново.');
-  assert.equal(plain(W.keysFixed(5)), 'Автор исправил ключ в 5 вопросах. Их нужно выучить заново.');
+  assert.equal(plain(W.keysFixed(1)), 'Автор исправил ответ в 1 вопросе. Его нужно выучить заново.');
+  assert.equal(plain(W.keysFixed(2)), 'Автор исправил ответ в 2 вопросах. Их нужно выучить заново.');
+  assert.equal(plain(W.keysFixed(5)), 'Автор исправил ответ в 5 вопросах. Их нужно выучить заново.');
   assert.equal(plain(W.aboutMinutes(21)), 'около 21 минуты');
   assert.equal(plain(W.aboutMinutes(0)), 'около 1 минуты');
   // «Все вопросы»: a day of hours reads in hours, as on the site

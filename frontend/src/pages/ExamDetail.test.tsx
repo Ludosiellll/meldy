@@ -1122,10 +1122,10 @@ describe('ExamDetail: self-rating', () => {
     expect(screen.getByRole('button', { name: 'Знаю: 1. Показать эти вопросы' })).toBeInTheDocument();
 
     const second = screen.getByRole('group', { name: 'Самооценка, вопрос 2' });
-    fireEvent.click(within(second).getByRole('button', { name: 'плаваю' }));
+    fireEvent.click(within(second).getByRole('button', { name: 'с трудом' }));
     expect(await within(second).findByRole('alert')).toHaveTextContent('Отметка не сохранена. Проверьте связь и повторите.');
-    expect(within(second).getByRole('button', { name: 'плаваю' })).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByRole('button', { name: 'плаваю: 0. Показать эти вопросы' })).toBeInTheDocument();
+    expect(within(second).getByRole('button', { name: 'с трудом' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'с трудом: 0. Показать эти вопросы' })).toBeInTheDocument();
     expect(within(first).getByRole('button', { name: 'знаю' })).toHaveAttribute('aria-pressed', 'true');
 
     // The counts filter the sheet.

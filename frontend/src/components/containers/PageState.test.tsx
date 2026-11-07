@@ -22,7 +22,7 @@ function renderState(value: Loadable<unknown>) {
 afterEach(() => cleanup());
 
 describe('PageState: an exam page without its data', () => {
-  it('an exam that is not the user’s any more (deleted, left, removed): says so plainly, the way to «Экзамены», no «Повторить» (usability check m2)', () => {
+  it('an exam that is not the user’s any more (deleted, left, removed): says so plainly, the way to «Экзамены», no «Попробовать ещё раз» (usability check m2)', () => {
     renderState(state({ error: CONTAINER_ERROR_TEXT.P0002, gone: true }));
     expect(screen.getByRole('heading', { level: 1, name: GONE.title })).toBeInTheDocument();
     expect(screen.getByText(GONE.text)).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe('PageState: an exam page without its data', () => {
     expect(GONE.text).toMatch(/вышли/);
     expect(GONE.text).toMatch(/убрал/);
     expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
-    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Попробовать ещё раз' })).not.toBeInTheDocument();
     expect(screen.queryByText('Не удалось загрузить экзамен')).not.toBeInTheDocument();
     expect(screen.queryByText(CONTAINER_ERROR_TEXT.P0002)).not.toBeInTheDocument();
   });
@@ -50,12 +50,12 @@ describe('PageState: an exam page without its data', () => {
     expect(goneWords(undefined)).toBe(GONE);
   });
 
-  it('a real failure (no network) keeps «Повторить»', () => {
+  it('a real failure (no network) keeps «Попробовать ещё раз»', () => {
     const value = state({ error: CONTAINER_ERROR_TEXT.network, offline: true });
     renderState(value);
     expect(screen.getByRole('alert').textContent).toContain(CONTAINER_ERROR_TEXT.network);
     expect(screen.getByRole('heading', { level: 1, name: 'Не удалось загрузить экзамен' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(value.reload).toHaveBeenCalled();
     expect(screen.queryByText(GONE.title)).not.toBeInTheDocument();
   });

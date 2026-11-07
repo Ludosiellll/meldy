@@ -75,7 +75,7 @@ async function tap(h: GroupHarness, i: number, from: number, opts: { postId?: nu
 function lintGroup(text: string, keyboard: Keyboard | null, it: FakeItem) {
   const problems = lintMessage({ text, keyboard, chat: 'group', user: [it.subject, it.stem, ...it.stem.split('\n'), ...it.options], options: it.options });
   assert.deepEqual(problems, [], problems.join('; '));
-  assert.doesNotMatch(words(text), /В файле|✓|Верно|Неверно/, 'no key in the chat');
+  assert.doesNotMatch(words(text), /Ответ из файла|✓|Верно|Неверно/, 'no key in the chat');
   for (const button of (keyboard ?? []).flat()) assert.equal(button.style, undefined, 'no blue or red button in a group');
 }
 
@@ -252,7 +252,7 @@ test('G3: a member right → the line «Верно.» and one tgq row with bot_g
   assert.deepEqual([right.text, right.show_alert], ['Верно.', undefined]);
   assert.deepEqual(h.fg.records, [{ clientEventId: `tgq:${POST}:${MEMBER.tg}`, userId: MEMBER.userId, itemId: DHCP.id, chosen: 1, source: 'bot_group', correct: true, shownOrder: shownOf(DHCP) }]);
   const wrong = await tap(h, buttonOf(DHCP, 'ARP'), AUTHOR.tg);
-  assert.deepEqual([wrong.text, wrong.show_alert], ['Неверно. В файле — DHCP. Повторим вопрос в ваших занятиях завтра.', true]);
+  assert.deepEqual([wrong.text, wrong.show_alert], ['Неверно. Ответ из файла: DHCP. Повторим вопрос в ваших занятиях завтра.', true]);
   assert.equal(h.fg.records.length, 2, 'the author is in the exam too');
   const call = h.fdb.of('bot_group_answer').at(-1)!.args as Params;
   assert.deepEqual(call, { p_post_id: POST, p_tg_user_id: AUTHOR.tg, p_shown: buttonOf(DHCP, 'ARP'), p_chat_id: GROUP, p_message_id: 1000 });
@@ -273,12 +273,12 @@ test('G3: not linked, and linked but not in the exam: only the counter; the wind
   await posted(h);
   assert.equal((await tap(h, keyButton(DHCP), STRANGER.tg)).text, 'Верно.');
   const stranger = await tap(h, buttonOf(DHCP, 'DNS'), STRANGER.tg + 1);
-  assert.deepEqual([stranger.text, stranger.show_alert], ['Неверно. В файле — DHCP. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.', true]);
+  assert.deepEqual([stranger.text, stranger.show_alert], ['Неверно. Ответ из файла: DHCP. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.', true]);
   assert.equal((await tap(h, keyButton(DHCP), OUTSIDER.tg)).text, 'Верно.');
   const h2 = groupHarness();
   await posted(h2);
   const outsider = await tap(h2, buttonOf(DHCP, 'NAT'), OUTSIDER.tg);
-  assert.deepEqual([outsider.text, outsider.show_alert], ['Неверно. В файле — DHCP.', true]);
+  assert.deepEqual([outsider.text, outsider.show_alert], ['Неверно. Ответ из файла: DHCP.', true]);
   assert.equal(h.fg.records.length + h2.fg.records.length, 0, 'nothing in anyone\'s count');
   assert.equal(h.fg.post(POST)!.answered, 3, 'every first press is counted');
 });
@@ -288,7 +288,7 @@ test('G3: a repeated tap → «Вы уже ответили: …» with the firs
   await posted(h);
   await tap(h, buttonOf(DHCP, 'ARP'), MEMBER.tg);
   const again = await tap(h, keyButton(DHCP), MEMBER.tg);
-  assert.deepEqual([again.text, again.show_alert], ['Вы уже ответили: ARP. В файле — DHCP.', true]);
+  assert.deepEqual([again.text, again.show_alert], ['Вы уже ответили: ARP. Ответ из файла: DHCP.', true]);
   assert.equal(h.fg.records.length, 1);
   assert.equal(h.fg.records[0].correct, false, 'the first press stays');
   assert.equal(h.fg.post(POST)!.answered, 1);
@@ -321,10 +321,10 @@ test('G3 windows stay within 200 characters: a long option is cut with «…»',
   const unlinked = await tap(h, wrong, STRANGER.tg);
   assert.equal(unlinked.show_alert, true);
   assert.ok([...unlinked.text].length <= 200, `${[...unlinked.text].length}`);
-  assert.match(unlinked.text, /^Неверно\. В файле — Каждый неключевой атрибут .+[а-яё]… Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy\.$/);
+  assert.match(unlinked.text, /^Неверно\. Ответ из файла: Каждый неключевой атрибут .+[а-яё]… Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy\.$/);
   const again = await tap(h, order.indexOf(0), STRANGER.tg);
   assert.ok([...again.text].length <= 200, `${[...again.text].length}`);
-  assert.match(again.text, /^Вы уже ответили: Каждое значение атрибута .+[а-яё]… В файле — Каждый неключевой атрибут .+[а-яё]…$/);
+  assert.match(again.text, /^Вы уже ответили: Каждое значение атрибута .+[а-яё]… Ответ из файла: Каждый неключевой атрибут .+[а-яё]…$/);
   const member = await tap(h, wrong, MEMBER.tg);
   assert.ok([...member.text].length <= 200);
   assert.match(member.text, /[а-яё]… Повторим вопрос в ваших занятиях завтра\.$/);
@@ -813,14 +813,14 @@ test('snapshots of G1–G4 and every G3 reply, each through T2\'s linter (in a g
   };
   for (const [name, answer] of Object.entries(replies)) {
     const reply = G.g3(answer);
-    const showsKey = plain(reply.text).includes('В файле');
+    const showsKey = plain(reply.text).includes('Ответ из файла');
     assert.equal(reply.alert, showsKey, `${name}: a window exactly when it shows the key`);
     assert.ok([...reply.text].length <= 200, `${name}: ${[...reply.text].length}`);
     const problems = lintMessage({ text: 'Вопрос дня', toasts: [reply.text], user: [...DHCP.options, ...LONG.options] });
     assert.deepEqual(problems, [], `${name}: ${problems.join('; ')}`);
     shots[`G3_${name}`] = { text: '', keyboard: null, toasts: [`${reply.alert ? 'window' : 'line'}: ${reply.text}`] };
   }
-  assert.equal(plain(G.g3(replies.member_refused_by_core).text), 'Неверно. В файле — DHCP.', 'not recorded: no promise of a return');
+  assert.equal(plain(G.g3(replies.member_refused_by_core).text), 'Неверно. Ответ из файла: DHCP.', 'not recorded: no promise of a return');
   matchSnapshots('../group/snapshots', shots);
 });
 
@@ -838,7 +838,7 @@ test('the texts T7 returns are raw: < > & are escaped in every message and stay 
   const params = sends(h).at(-1)!;
   await tap(h, shownOf(RAW).indexOf(3), STRANGER.tg);
   const toast = lastAnswer(h);
-  assert.equal(toast.text, 'Неверно. В файле — a & b. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.', 'a window is plain text');
+  assert.equal(toast.text, 'Неверно. Ответ из файла: a & b. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.', 'a window is plain text');
   await h.tick();
   h.set(AT_2101);
   await h.tick();

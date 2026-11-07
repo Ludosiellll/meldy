@@ -197,7 +197,7 @@ export const FILTER_NAMES: Record<SheetFilter, string> = {
   'rd:not_passed': READINESS_LABELS.not_passed,
   'rd:untested': 'ещё не отвечали',
   'sr:know': '«знаю»',
-  'sr:unsure': '«плаваю»',
+  'sr:unsure': '«с трудом»',
   'sr:dont_know': '«не знаю»',
   'sr:none': 'без самооценки',
 };

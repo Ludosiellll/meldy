@@ -481,12 +481,12 @@ describe('ExamTicket: answering without a check', () => {
     expect(screen.getByText('У лекций экзамена нет текста, поэтому сверять не с чем.')).toBeInTheDocument();
     expect(screen.getByText('Энтропия — мера неопределённости, бит — её единица.')).toBeInTheDocument();
     const rate = screen.getByRole('group', { name: 'Как вы ответили?' });
-    fireEvent.click(within(rate).getByRole('button', { name: 'плаваю' }));
-    await waitFor(() => expect(screen.getByText('Отмечено «плаваю». Отметка видна на листе экзамена.')).toBeInTheDocument());
+    fireEvent.click(within(rate).getByRole('button', { name: 'с трудом' }));
+    await waitFor(() => expect(screen.getByText('Отмечено «с трудом». Отметка видна на листе экзамена.')).toBeInTheDocument());
     expect(mocks.recordSelfRating).toHaveBeenCalledWith(
       expect.objectContaining({ questionHash: HASH, rating: 'unsure', examId: EXAM, examQuestionId: Q1, materialId: 'mat-1' }),
     );
-    expect(within(rate).getByRole('button', { name: 'плаваю' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(rate).getByRole('button', { name: 'с трудом' })).toHaveAttribute('aria-pressed', 'true');
     // Nothing was checked, graded, charged or recorded as an oral answer.
     expect(callsTo('/api/oral/check')).toHaveLength(0);
     expect(callsTo('/api/oral/evaluate')).toHaveLength(0);

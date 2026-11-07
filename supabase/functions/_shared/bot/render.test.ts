@@ -133,8 +133,8 @@ test('Z3: code options in <code> (never inside <b>), the question\'s code in <pr
   assert.ok(stem.text.includes('<b>Что выведет программа?</b>\n<pre>int x = 7;\nint y = x++ + ++x;\nConsole.WriteLine(y);</pre>'));
   assert.deepEqual(stem.keyboard!.slice(0, 4).map((r) => r.map((b) => b.text)), [['14'], ['15'], ['16'], ['17']]);
   const review = reviewOut(view(DRAW, CS, 5), shown({ key: [1], chosen: [0] }), 'review', { site: SITE });
-  assert.ok(review.text.includes('<b>В\u00a0файле\u00a0— Б</b>\n<code>public virtual void Draw()</code>'), 'bold may not hold code: the heading is bold');
-  assert.ok(review.text.includes('Ваш ответ\u00a0— А\n<code>public static void Draw()</code>'));
+  assert.ok(review.text.includes('<b>Ответ из\u00a0файла: Б</b>\n<code>public virtual void Draw()</code>'), 'bold may not hold code: the heading is bold');
+  assert.ok(review.text.includes('Ваш ответ: А\n<code>public static void Draw()</code>'));
 });
 
 /** The question's code block (Z3): verbatim, escaped, never glued. */
@@ -189,65 +189,65 @@ test('Z4: a mark changes only the keyboard, the marks ride in callback_data (t<m
   assert.match(words(questionOut(v).text), /Верных ответов несколько — отметьте все\./);
 });
 
-test('Z7: the question loses its bold, the answer from the file takes it; «В файле» / «Ваш ответ»; № and the topic from the file', () => {
+test('Z7: the question loses its bold, the answer from the file takes it; «Ответ из файла» / «Ваш ответ»; № and the topic from the file', () => {
   const out = reviewOut(view(ACID, DB, 7), shown({ key: [1], chosen: [2] }), 'review', { site: SITE });
   const words = visibleText(out.text).replace(/\u00a0/g, ' ');
   assert.equal(words, [
     'Базы данных · 7 из 20', '', 'Что гарантирует изолированность — буква I в ACID?', '',
-    'В файле — Б', 'Параллельные транзакции не видят промежуточных изменений друг друга', 'Ваш ответ — В',
+    'Ответ из файла: Б', 'Параллельные транзакции не видят промежуточных изменений друг друга', 'Ваш ответ: В',
     'Транзакция выполняется целиком или не выполняется совсем', '', 'Неверно. Повторим через пару вопросов и завтра.', '№ 57 · Тема 3. Транзакции',
   ].join('\n'));
   assert.ok(!out.text.includes('<b>Что гарантирует'), 'the question is no longer bold');
   assert.ok(out.text.includes('<b>Параллельные транзакции'));
-  assert.deepEqual(out.keyboard!.map((r) => r.map((b) => b.text)), [['Дальше'], ['Нажали не туда?'], ['Сомневаюсь в ключе']]);
+  assert.deepEqual(out.keyboard!.map((r) => r.map((b) => b.text)), [['Дальше'], ['Нажали не туда?'], ['Сомневаюсь в ответе']]);
   assert.equal(out.keyboard!.flat().filter((b) => b.style === 'primary').length, 1);
   const buttons = reviewOut(view(HTTPS, NETS, 3), shown({ key: [2], chosen: [0] }), 'review', { site: SITE });
-  assert.ok(visibleText(buttons.text).replace(/\u00a0/g, ' ').includes('В файле — HTTPS\nВаш ответ — HTTP'));
+  assert.ok(visibleText(buttons.text).replace(/\u00a0/g, ' ').includes('Ответ из файла: HTTPS\nВаш ответ: HTTP'));
   const multiple = reviewOut(view(PRIVATE_IP, NETS, 9), shown({ key: [0, 1, 2], chosen: [0, 2] }), 'review', { site: SITE });
   assert.ok(multiple.text.includes('<b>10.4.0.9, 172.20.1.1, 192.168.3.7</b>'));
-  assert.ok(visibleText(multiple.text).replace(/\u00a0/g, ' ').includes('В файле верны: 10.4.0.9, 172.20.1.1, 192.168.3.7\nВаш ответ: 10.4.0.9, 192.168.3.7'));
+  assert.ok(visibleText(multiple.text).replace(/\u00a0/g, ' ').includes('Ответы из файла: 10.4.0.9, 172.20.1.1, 192.168.3.7\nВаш ответ: 10.4.0.9, 192.168.3.7'));
 });
 
-test('a key from «Подобрать ключи с ИИ» (ai_key, migration 20261107090300) says so, not «Ключ поставил автор», with «Сомневаюсь в ключе»', () => {
+test('a key from «Подобрать ключи с ИИ» (ai_key, migration 20261107090300) says so, not «его отметил автор», with «Сомневаюсь в ответе»', () => {
   const ai = view({ ...ACID, keySource: 'manual' }, DB, 7);
   ai.item.aiKey = true;
   const member = reviewOut(ai, shown({ key: [1], chosen: [2] }), 'review', { site: SITE });
   const text = visibleText(member.text).replace(/\u00a0/g, ' ');
-  assert.ok(text.includes('Ключ подобран ИИ, не из файла.'), text);
-  assert.ok(!text.includes('Ключ поставил автор') && !text.includes('Ключ поставили вы'));
-  assert.ok(member.keyboard!.flat().some((b) => b.text === 'Сомневаюсь в ключе'));
+  assert.ok(text.includes('Ответ подобран ИИ, не из файла.'), text);
+  assert.ok(!text.includes('его отметил автор') && !text.includes('его отметили вы'));
+  assert.ok(member.keyboard!.flat().some((b) => b.text === 'Сомневаюсь в ответе'));
   const owner = reviewOut({ ...ai, role: 'owner' }, shown({ key: [1], chosen: [2] }), 'review', { site: SITE });
-  assert.ok(visibleText(owner.text).replace(/\u00a0/g, ' ').includes('Ключ подобран ИИ, не из файла.'));
+  assert.ok(visibleText(owner.text).replace(/\u00a0/g, ' ').includes('Ответ подобран ИИ, не из файла.'));
   assert.deepEqual(owner.keyboard!.at(-1), [{ text: 'Ключ неверный?', url: `${SITE}/exams/c/${CID}/keys?s=${SUBJECT}&no=57` }]);
   // a key the author set by hand says it as before
   const manual = visibleText(reviewOut(view({ ...ACID, keySource: 'manual' }, DB, 7), shown({ key: [1], chosen: [2] }), 'review', { site: SITE }).text);
-  assert.ok(manual.replace(/\u00a0/g, ' ').includes('Ключ поставил автор.') && !manual.includes('подобран ИИ'));
+  assert.ok(manual.replace(/\u00a0/g, ' ').includes('его отметил автор.') && !manual.includes('подобран ИИ'));
 });
 
-test('a key the AI suggested is no file\'s: «Верный ответ — Б», and writing it is not «Автор исправил ключ»', () => {
+test('a key the AI suggested is no file\'s: «Верный ответ: Б», and writing it is not «Автор исправил ответ»', () => {
   // writing the AI's key moves rev and leaves a key change: members must not read it as the author's fix
   const ai = view({ ...ACID, keySource: 'manual' }, DB, 7);
   ai.item.aiKey = true;
   ai.item.keyChangedAt = '2026-11-04T09:00:00Z';
   const text = visibleText(reviewOut(ai, shown({ key: [1], chosen: [2] }), 'review', { site: SITE }).text).replace(/\u00a0/g, ' ');
-  assert.ok(text.includes('Верный ответ — Б') && !text.includes('В файле'), text);
-  assert.ok(text.includes('Ключ подобран ИИ, не из файла.') && !text.includes('Автор исправил ключ'), text);
+  assert.ok(text.includes('Верный ответ: Б') && !text.includes('Ответ из файла'), text);
+  assert.ok(text.includes('Ответ подобран ИИ, не из файла.') && !text.includes('Автор исправил ответ'), text);
   // the same key the author fixed by hand: the note stays for members, and the key is the author's, not the file's
   const byHand = view({ ...ACID, keySource: 'manual' }, DB, 7);
   byHand.item.keyChangedAt = '2026-11-04T09:00:00Z';
   const fixed = visibleText(reviewOut(byHand, shown({ key: [1], chosen: [2] }), 'review', { site: SITE }).text).replace(/\u00a0/g, ' ');
-  assert.ok(fixed.includes('Автор исправил ключ 4 ноября.') && fixed.includes('Верный ответ — Б'), fixed);
+  assert.ok(fixed.includes('Автор исправил ответ 4 ноября.') && fixed.includes('Верный ответ: Б'), fixed);
   // several correct, buttons and a typed answer say it the same way
   const many = view({ ...PRIVATE_IP, keySource: 'manual' }, NETS, 9);
   many.item.aiKey = true;
   const multiple = visibleText(reviewOut(many, shown({ key: [0, 1, 2], chosen: [0, 2] }), 'review', { site: SITE }).text).replace(/\u00a0/g, ' ');
-  assert.ok(multiple.includes('Верные ответы: 10.4.0.9, 172.20.1.1, 192.168.3.7') && !multiple.includes('В файле'), multiple);
+  assert.ok(multiple.includes('Верные ответы: 10.4.0.9, 172.20.1.1, 192.168.3.7') && !multiple.includes('Ответы из файла'), multiple);
   // a key from the file says «В файле» as before
   const file = visibleText(reviewOut(view(ACID, DB, 7), shown({ key: [1], chosen: [2] }), 'review', { site: SITE }).text).replace(/\u00a0/g, ' ');
-  assert.ok(file.includes('В файле — Б'), file);
+  assert.ok(file.includes('Ответ из файла: Б'), file);
 });
 
-test('Z8, Z9, Z11, Z12: «Не знаю» has no «Ваш ответ» nor «Неверно.»; the misclick keeps «В файле»; the author\'s key goes to «Ключи»', () => {
+test('Z8, Z9, Z11, Z12: «Не знаю» has no «Ваш ответ» nor «Неверно.»; the misclick keeps «Ответ из файла»; the author\'s key goes to «Ключи»', () => {
   const v = view(ACID, DB, 7);
   const z8 = words(reviewOut(v, shown({ dontKnow: true, key: [1] }), 'review', { site: SITE }).text);
   assert.ok(!z8.includes('Ваш ответ') && !z8.includes('Неверно'));
@@ -287,7 +287,7 @@ test('4096: a question that fits, and one that does not (question up to 4000 + o
     && visibleLength(reviewOut(almost, shown({ key: [1], chosen: [0] }), 'review', { site: SITE }).text) <= 4096);
 });
 
-test('§4.8: «Повторить» repeats the press\'s own data; the exam gone names it; the words come from words.ts', () => {
+test('§4.8: «Попробовать ещё раз» repeats the press\'s own data; the exam gone names it; the words come from words.ts', () => {
   const out = retryOut('Базы данных · 8 из 20', `s|${SID}|7|1`);
   assert.deepEqual(out.keyboard, [[{ text: W.RETRY, data: `s|${SID}|7|1`, style: 'primary' }]]);
   assert.equal(visibleText(out.text).replace(/\u00a0/g, ' '), `Базы данных · 8 из 20\n${W.DB_DOWN_AGAIN}`);

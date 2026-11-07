@@ -110,7 +110,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
-  it('shows the subject’s step with «Только ошибки» and «Как на экзамене», the figure and the topics', () => {
+  it('shows the subject’s step with «Только ошибки» and «Проверить себя на время», the figure and the topics', () => {
     renderPage(loaded(dbData()));
     expect(screen.getByRole('heading', { level: 1, name: 'Базы данных' })).toBeInTheDocument();
     // The laptop crumb leads back to the exam by its name.
@@ -120,7 +120,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     // The subject's share of the day in the plan's words: its session, 180 seconds read as «около 3 минут».
     expect(plain(card.textContent)).toContain('Сегодня 5 вопросов, около 3 минут');
     expect(within(card).getByRole('link', { name: nm('Повторить 2 ошибки') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&only=errors&back=s`);
-    expect(within(card).getByRole('button', { name: 'Как на экзамене' })).toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: 'Проверить себя на время' })).toBeInTheDocument();
     expect(within(card).getByRole('link', { name: nm('Начать: 5 вопросов, около 3 минут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/study?s=${SUBJECT_DB}&back=s`);
     const figure = screen.getByRole('region', { name: 'Выученные вопросы' });
     expect(plain(figure.textContent)).toContain('40');
@@ -161,10 +161,10 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     }
   });
 
-  it('«Как на экзамене» opens the setup with one line of rules and the last try, and «Начать» opens the try', () => {
+  it('«Проверить себя на время» opens the setup «Как на экзамене» with one line of rules and the last try, and «Начать» opens the try', () => {
     const base = summary({ mock_runs: [{ id: 'run-1', local_date: '2026-10-05', subject_ids: [SUBJECT_DB], items: 40, correct: 31 }] });
     renderPage(loaded(dbData({ summary: base })));
-    fireEvent.click(screen.getByRole('button', { name: 'Как на экзамене' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Проверить себя на время' }));
     const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
     expect(plain(sheet.textContent)).toContain('Ответы можно менять до конца. Результат покажем после «Завершить».');
     expect(plain(sheet.textContent)).toContain('Прошлая попытка 5 октября: 31 из 40.');
@@ -191,7 +191,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     data.planInput.items = data.planInput.items.filter((entry) => entry.id !== 'q-short');
     const state = loaded(data);
     renderPage(state);
-    expect(page()).toContain('1 вопрос отложен, вы сомневаетесь в ключе.');
+    expect(page()).toContain('1 вопрос отложен, вы сомневаетесь в ответе.');
     fireEvent.click(screen.getByRole('button', { name: 'Вернуть в занятия' }));
     await waitFor(() => expect(mocks.withdrawDoubt).toHaveBeenCalledWith('q-short'));
     await waitFor(() => expect(state.reload).toHaveBeenCalled());

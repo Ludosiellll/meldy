@@ -507,7 +507,7 @@ export function RateSummary({ counts, confidence, answers, answersError, filter,
       {answers === 'ready' ? (
         <>
           <p className="ex-stmt" style={{ marginTop: 6 }}>
-            {item('sr:know', 'Знаю', counts.know)}, {item('sr:unsure', 'плаваю', counts.unsure)}, {item('sr:dont_know', 'не знаю', counts.dont_know)}.{' '}
+            {item('sr:know', 'Знаю', counts.know)}, {item('sr:unsure', 'с трудом', counts.unsure)}, {item('sr:dont_know', 'не знаю', counts.dont_know)}.{' '}
             {item('sr:none', 'Не отмечено', counts.none)}.
           </p>
           <p className="ex-fine">Отметка ставится одним касанием и на пометки по лекциям и ответам не влияет.</p>

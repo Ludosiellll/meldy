@@ -52,7 +52,7 @@ export const SEP = `${NBSP}· `;
 
 export const LOADING = 'Загружаем экзамен…';
 export const LOAD_FAILED = 'Не удалось загрузить экзамен';
-export const RETRY = 'Повторить';
+export const RETRY = 'Попробовать ещё раз';
 export const UNAVAILABLE_TITLE = 'Экзамен пока не открывается';
 export const UNAVAILABLE_TEXT = 'Мы обновляем эту часть Meldy. Зайдите чуть позже.';
 export const TO_EXAMS = 'Экзамены';
@@ -90,7 +90,7 @@ export const PLAN_BY_DAYS = 'План по дням';
 /** «Повторить 3 ошибки»: the button says what it does (the owner's plain words, 2026-10-21). */
 export const errorsN = (n: number) => `${n} ${pl(n, 'ошибку', 'ошибки', 'ошибок')}`;
 export const ONLY_ERRORS = (n: number) => glue(`Повторить ${errorsN(n)}`);
-export const MOCK_LINK = 'Как на экзамене';
+export const MOCK_LINK = 'Проверить себя на время';
 export const SUBJECT_DONE = 'На сегодня всё.';
 export const EXAM_TODAY = 'Сегодня экзамен.';
 export const SET_NEW_DATE = 'Поставить новую дату';
@@ -105,7 +105,7 @@ export function howCounted(dueDays: readonly number[]): string[] {
   const days = dueDays.length > 1 ? `${dueDays.slice(0, -1).join(', ')} и ${dueDays[dueDays.length - 1]}` : String(dueDays[0] ?? 5);
   return [
     'Вопрос выучен, когда вы ответили на него верно в два разных дня. Между ответами должно пройти 20 часов. После ошибки вопрос учим заново.',
-    'В вопросе с вариантами верен ответ из файла. Устный вопрос выучен, когда в двух проверках в разные дни вы назвали все главные пункты из лекций. Самопроверку не считаем.',
+    'В вопросе с вариантами верен ответ из файла. Устный вопрос выучен, когда в двух проверках в разные дни вы назвали все главные пункты из лекций. Оценку себя не считаем.',
     `Выученные вопросы повторяем через ${days} дней. В последние дни перед экзаменом повторяем все.`,
     '«Видели» — вы ответили хотя бы раз. «Ошибки» — последний ответ был неверным.',
   ].map(glue);
@@ -170,15 +170,15 @@ export const SUBJECTS_LABEL = 'Предметы';
 
 // Notes under the rows and in the card (each one line, phone rule 5).
 export function noKeyLine(n: number): string {
-  return glue(`${q(n)} без ключа ${pl(n, 'не попадёт', 'не попадут', 'не попадут')} в занятия.`);
+  return glue(`${q(n)} без ответа ${pl(n, 'не попадёт', 'не попадут', 'не попадут')} в занятия.`);
 }
 export const MARK_ANSWERS = 'Отметить ответы';
 export const doubtsLine = (n: number) => glue(`В ${n} ${pl(n, 'вопросе', 'вопросах', 'вопросах')} сомневаются в ключе.`);
 export const LOOK = 'Посмотреть';
-export const setAsideLine = (n: number) => glue(`${q(n)} ${pl(n, 'отложен', 'отложено', 'отложено')}, вы сомневаетесь в ключе.`);
+export const setAsideLine = (n: number) => glue(`${q(n)} ${pl(n, 'отложен', 'отложено', 'отложено')}, вы сомневаетесь в ответе.`);
 export const RETURN_TO_PLAN = 'Вернуть в занятия';
 export function keyFixedLine(n: number): string {
-  return glue(`Автор исправил ключ в ${n} ${pl(n, 'вопросе', 'вопросах', 'вопросах')}. ${pl(n, 'Его', 'Их', 'Их')} нужно выучить заново.`);
+  return glue(`Автор исправил ответ в ${n} ${pl(n, 'вопросе', 'вопросах', 'вопросах')}. ${pl(n, 'Его', 'Их', 'Их')} нужно выучить заново.`);
 }
 export const OFFLINE_PAGE = 'Нет сети. Вопросы на сегодня сохранены, заниматься можно.';
 export const ADD_LECTURES = 'Добавить лекции';
@@ -272,7 +272,7 @@ export const MULTIPLE_EMPTY = 'Отметьте хотя бы один вари�
 export const SHORT_LABEL = 'Ваш ответ';
 export const SHORT_EMPTY = 'Впишите ответ.';
 export const TAG_YOURS = 'Ваш ответ';
-export const TAG_FILE = 'В файле';
+export const TAG_FILE = 'Ответ из файла';
 /** The tag beside the key the author set (a test written in «Конструктор», a key ticked in «Ключи»): no file says it. */
 export const TAG_KEY = 'Верный ответ';
 export const TAG_RIGHT = 'Верно';
@@ -291,29 +291,29 @@ const sentence = (text: string) => (/[.!?…;]$/u.test(text) ? text : `${text}.`
 const NOT_FROM_FILE = new Set(['manual', 'key_text', 'none']);
 /**
  * The key came from the file (its marks, its key column or list, its markup, «первый вариант»): the screens say
- * «В файле». A question without its source (an older caller) reads as one from the file, as before release 47.
+ * «Ответ из файла». A question without its source (an older caller) reads as one from the file, as before release 47.
  */
 export const keyFromFile = (source?: string | null) => !source || !NOT_FROM_FILE.has(source);
-/** The tag beside the key after an answer: «В файле», or «Верный ответ» for a key the author set (release 47, M10). */
+/** The tag beside the key after an answer: «Ответ из файла», or «Верный ответ» for a key the author set (release 47, M10). */
 export const keyTag = (source?: string | null) => (keyFromFile(source) ? TAG_FILE : TAG_KEY);
 /**
- * «В файле — 7 12.» / «В файле верны: CREATE, ALTER и DROP.»: the key in the file's own words (model.ts keyNames), as
- * the bot says it («В файле — DHCP»), so the verdict, the key panel and «Ключи» never name one option two ways. A key
- * the author set is no file's (release 47, M10): «Верный ответ — 7 12.» / «Верные ответы: CREATE, ALTER и DROP.»
+ * «Ответ из файла: 7 12.» / «Ответы из файла: CREATE, ALTER и DROP.»: the key in the file's own words (model.ts keyNames),
+ * as the bot says it («Ответ из файла: DHCP»), so the verdict, the key panel and «Ключи» never name one option two ways. A key
+ * the author set is no file's (release 47, M10): «Верный ответ: 7 12.» / «Верные ответы: CREATE, ALTER и DROP.»
  */
 function inFile(names: string[], source?: string | null): string {
   const file = keyFromFile(source);
-  if (names.length <= 1) return sentence(`${file ? 'В файле' : TAG_KEY} — ${names[0] ?? '—'}`);
+  if (names.length <= 1) return sentence(`${file ? TAG_FILE : TAG_KEY}: ${names[0] ?? '—'}`);
   const list = listLetters(names);
   const n = names.length;
   if (list.length > KEY_NAMES_MAX) {
     return file
-      ? `В файле верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')}, они отмечены выше.`
+      ? `Из файла верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')}, они отмечены выше.`
       : `Верны ${n} ${pl(n, 'вариант', 'варианта', 'вариантов')}, они отмечены выше.`;
   }
-  return sentence(file ? `В файле верны: ${list}` : `Верные ответы: ${list}`);
+  return sentence(file ? `Ответы из файла: ${list}` : `Верные ответы: ${list}`);
 }
-/** `source` — the question's key_source: «В файле» for a key from the file, «Верный ответ» for one the author set. */
+/** `source` — the question's key_source: «Ответ из файла» for a key from the file, «Верный ответ» for one the author set. */
 export function verdictWrong(keyNames: string[], again: boolean, when?: string, source?: string | null): string {
   return glue(`Неверно. ${inFile(keyNames, source)} ${comesBack(again, when)}`);
 }
@@ -332,13 +332,13 @@ function listLetters(names: string[]): string {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}` : names.join('');
 }
 export const MISCLICK = 'Нажали не туда?';
-export const DOUBT = 'Сомневаюсь в ключе';
+export const DOUBT = 'Сомневаюсь в ответе';
 export const KEY_WRONG = 'Ключ неверный?';
-export const NOTE_MANUAL_AUTHOR = glue('В файле ответ не был выделен. Ключ поставил автор.');
-export const NOTE_MANUAL_OWN = glue('В файле ответ не был выделен. Ключ поставили вы.');
+export const NOTE_MANUAL_AUTHOR = glue('В файле ответ не был выделен, его отметил автор.');
+export const NOTE_MANUAL_OWN = glue('В файле ответ не был выделен, его отметили вы.');
 /** A key from «Подобрать ключи с ИИ» (flag ai_key; owner, 2026-11-04), beside «Сомневаюсь в ключе» / «Ключ неверный?». */
-export const NOTE_AI_KEY = glue('Ключ подобран ИИ, не из файла.');
-export const noteKeyFixed = (dayText: string) => glue(`Автор исправил ключ ${dayText}.`);
+export const NOTE_AI_KEY = glue('Ответ подобран ИИ, не из файла.');
+export const noteKeyFixed = (dayText: string) => glue(`Автор исправил ответ ${dayText}.`);
 export const OFFLINE_STUDY = 'Нет сети. Ответы сохраним здесь и отправим, когда сеть появится.';
 export const KEYS_HINT = glue('1–8 — ответ · 0 — не знаю · Enter — дальше · Backspace — нажали не туда');
 export const SESSION_LOADING = 'Загружаем вопросы…';
@@ -363,7 +363,7 @@ export const SAVE_KEY = 'Сохранить ключ';
 export const keyChanged = (group: boolean) =>
   group ? 'Ключ изменён. Вам и группе нужно выучить этот вопрос заново.' : 'Ключ изменён. Этот вопрос нужно выучить заново.';
 export const KEY_SAME = 'Это и есть ключ из файла.';
-export const doubtTitle = (no: string) => glue(`Сомневаюсь в ключе · № ${no}`);
+export const doubtTitle = (no: string) => glue(`Сомневаюсь в ответе · № ${no}`);
 export const DOUBT_MEMBER_TEXT = 'Автор увидит число отметок и комментарии, но не имена.';
 export const DOUBT_OWN_TEXT = 'Вопроса не будет в занятиях, пока вы не решите в «Вопросах и ключах».';
 export const DOUBT_NOTE_LABEL = 'Комментарий';
@@ -380,7 +380,7 @@ export const POINTS_TITLE = 'Пункты из ваших лекций';
 export const NO_POINTS = 'Пунктов пока нет. Добавьте к предмету лекции.';
 export const HOW_ANSWERED = 'Как вы ответили?';
 export const RATE_KNOW = 'Знаю';
-export const RATE_UNSURE = 'Плаваю';
+export const RATE_UNSURE = 'С трудом';
 export const RATE_DONT_KNOW = 'Не знаю';
 export const SELF_CHECK_NOTE = 'Отметка решает, когда повторим вопрос. Выученным он от неё не станет.';
 export const ORAL_OFFLINE = 'Для устных вопросов нужна сеть.';
@@ -426,7 +426,7 @@ export function tooEarlyLine(n: number, time: string | null, day = 'завтра
 export const firstCountLine = (time: string | null, when = 'завтра') =>
   glue(`Ответьте верно ещё раз ${when}${time ? ` после ${time}` : ''}, и первые вопросы будут выучены.`);
 export function selfCheckLine(know: number, unsure: number, dontKnow: number): string {
-  return glue(`«Знаю» — ${know}, «плаваю» — ${unsure}, «не знаю» — ${dontKnow}. ${SELF_CHECK_NOTE}`);
+  return glue(`«Знаю» — ${know}, «с трудом» — ${unsure}, «не знаю» — ${dontKnow}. ${SELF_CHECK_NOTE}`);
 }
 export function leftToday(questions: number, minutes: number): string {
   return glue(`Сегодня ${pl(questions, 'остался', 'осталось', 'осталось')} ${q(questions)}, около ${minGen(Math.max(1, minutes))}.`);
@@ -447,7 +447,7 @@ export const MOCK_NO_LIMIT = 'без времени';
 export const MOCK_RULE = 'Ответы можно менять до конца. Результат покажем после «Завершить».';
 export const mockLast = (dayText: string, correct: number, items: number) => glue(`Прошлая попытка ${dayText}: ${correct} из ${items}.`);
 export const MOCK_START = 'Начать';
-export const MOCK_EMPTY = 'В предмете пока нет вопросов с ключом.';
+export const MOCK_EMPTY = 'В предмете пока нет вопросов с ответами.';
 export const mockBar = (pos: number, total: number, clock: string | null) => glue(clock ? `${pos} из ${total} · ${clock}` : `${pos} из ${total}`);
 export const MOCK_FINISH = 'Завершить';
 export const MOCK_BACK = 'Назад';

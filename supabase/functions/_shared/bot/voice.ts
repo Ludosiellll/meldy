@@ -6,7 +6,7 @@
  * One oral question of the plan's AI-check session (DayPlan.sessions, kind 'ai_check': up to three questions of the
  * subject's oral exam that may count today — the same ids the site opens as /exams/<exam>/ticket?q=a,b,c) goes:
  *   V1  startVoice — a new message: «<предмет> · устный вопрос · 1 из 3», the question in bold, «Этот вопрос может войти
- *       в счёт сегодня…», the price and the units left; [Не знаю] [Проверить себя без Meldy]. No blue: the microphone
+ *       в счёт сегодня…», the price and the units left; [Не знаю] [Оценить себя самому]. No blue: the microphone
  *       is the action.
  *   V2  each voice → a single-use ticket (bot_voice_ticket) → getFile and its bytes (≤ 20 MB) → the Space
  *       (backend/bot_bridge.py: POST /api/bot/voice, header X-Meldy-Ticket) → the recognised text → bot_voice_part →
@@ -18,9 +18,9 @@
  *   V4  the site's grade formula (oralGrade.ts) and save payload (oralPersistence.ts) → bot_voice_record (the site's
  *       record_oral_attempt for this user) → a new message: «Сами назвали …» (answerSummary.ts), the units spent,
  *       [[Следующий: 2 из 3]] {Протокол}; V1 loses its keyboard.
- *   Self-check: V1 turns into the points in an expandable quote with [Знаю] [Плаваю] [Не знаю] (bot_voice_self writes a
+ *   Self-check: V1 turns into the points in an expandable quote with [Знаю] [С трудом] [Не знаю] (bot_voice_self writes a
  *   sheet_peek of every point, as «Показать пункты» on the site); the mark (bot_voice_rate: the site's self_rating)
- *   folds it into «Отмечено: плаваю. Самопроверка в счёт не идёт…»: the points do not stay in the history.
+ *   folds it into «Отмечено: с трудом. Самопроверка в счёт не идёт…»: the points do not stay in the history.
  * Refusals never charge: a typed text, a forwarded voice, too short (the answer's first voice under 5 s by Telegram,
  * under 8 words by the Space), not recognised, the AI limit, the student's ceiling, the shared stop, over 20 MB.
  *
@@ -46,7 +46,7 @@ export const V = {
   ORAL: 'устный вопрос',
   MAY_COUNT: 'Сегодня этот вопрос можно выучить. Ответьте голосовым, как на экзамене.',
   DONT_KNOW: 'Не знаю',
-  SELF_CHECK: 'Проверить себя без Meldy',
+  SELF_CHECK: 'Оценить себя самому',
   MORE_OR_AGAIN: 'Можно добавить ещё голосовое или начать заново.',
   AGAIN: 'Сначала',
   EXAMINER: 'Экзаменатор:',
@@ -66,7 +66,7 @@ export const V = {
   POINTS_TITLE: 'Пункты из ваших лекций:',
   HOW_ANSWERED: 'Как вы ответили?',
   KNOW: 'Знаю',
-  UNSURE: 'Плаваю',
+  UNSURE: 'С трудом',
   SELF_NOTE: 'Отметка решает, когда повторим вопрос. Выученным он от неё не станет.',
 };
 
@@ -94,18 +94,18 @@ export function limitLine(resetsAt: number | null, now: number, tz: string): str
   const d = new Date(now);
   const at = resetsAt ?? Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
   const when = localDay(at, tz) === localDay(now, tz) ? 'сегодня' : 'завтра';
-  return `Проверки ИИ на сегодня закончились. Снова можно ${when} в ${clockText(at, tz)}. Проверить себя без Meldy можно сейчас.`;
+  return `Проверки ИИ на сегодня закончились. Снова можно ${when} в ${clockText(at, tz)}. Оценить себя самому можно сейчас.`;
 }
 
 export type Rating = 'know' | 'unsure' | 'dont_know';
-const RATING_WORD: Record<Rating, string> = { know: 'знаю', unsure: 'плаваю', dont_know: 'не знаю' };
+const RATING_WORD: Record<Rating, string> = { know: 'знаю', unsure: 'с трудом', dont_know: 'не знаю' };
 export const markedLine = (rating: Rating) => `Отмечено: ${RATING_WORD[rating]}. ${V.SELF_NOTE}`;
 
 // ─────────────────────────────────────────── callback data: v|<aid>|<act> ───────────────────────────────────────────
 
 /**
- * x «Не знаю» under V1 · s «Проверить себя без Meldy» · c «Проверить» · r «Сначала» · y «Не знаю» under V3 · k u d the
- * self-check's «Знаю» «Плаваю» «Не знаю» · n «Следующий». aid: the attempt's 8 base36 characters — client input, every
+ * x «Не знаю» under V1 · s «Оценить себя самому» · c «Проверить» · r «Сначала» · y «Не знаю» under V3 · k u d the
+ * self-check's «Знаю» «С трудом» «Не знаю» · n «Следующий». aid: the attempt's 8 base36 characters — client input, every
  * bot_voice_* matches it with the user it resolves from the Telegram id. 12 bytes.
  */
 export type VoiceAct = 'x' | 's' | 'c' | 'r' | 'y' | 'k' | 'u' | 'd' | 'n';

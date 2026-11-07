@@ -58,10 +58,10 @@ export const READINESS_LABELS: Record<Readiness, string> = {
   not_passed: 'ответ неполный',
 };
 
-/** «Плаваю» is only a self-rating word; the readiness mark for a failed answer reads «названо недостаточно». */
+/** «С трудом» is only a self-rating word; the readiness mark for a failed answer reads «названо недостаточно». */
 export const SELF_RATING_LABELS: Record<SelfRating, string> = {
   know: 'знаю',
-  unsure: 'плаваю',
+  unsure: 'с трудом',
   dont_know: 'не знаю',
 };
 

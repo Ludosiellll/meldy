@@ -54,7 +54,7 @@ test('every message of §4.5 passes the linter and matches its snapshot', () => 
   matchSnapshots('settings', shots);
 });
 
-test('the lines of §4.8 (presses that fail, old buttons) pass the toast rules; «Повторить» is the one blue', () => {
+test('the lines of §4.8 (presses that fail, old buttons) pass the toast rules; «Попробовать ещё раз» is the one blue', () => {
   const toasts = [W.DB_DOWN_TAP, W.OLD_BUTTON, W.SESSION_OVER, W.KEY_STALE, W.ITEM_GONE, W.NOT_LINKED];
   const shots: Record<string, Shot> = {
     toasts: check('toasts', { text: t('Базы данных · 8 из 20'), keyboard: null }, [], toasts),

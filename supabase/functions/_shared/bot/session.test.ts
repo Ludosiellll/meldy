@@ -120,9 +120,9 @@ test('Z7 → «Дальше»: nothing is recorded before it; then the miss, and
   await s.at(String(s.wrong(0)), 0);
   assert.equal(s.h.fs.answers.length, 0, 'a wrong answer waits for «Дальше»');
   const review = words(s.h.message(s.card)!.text);
-  assert.match(review, /В файле — Первый \d+\nВаш ответ — /);
+  assert.match(review, /Ответ из файла: Первый \d+\nВаш ответ: /);
   assert.match(review, /Неверно\. Повторим через пару вопросов и завтра\./);
-  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Нажали не туда?'], ['Сомневаюсь в ключе']]);
+  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Нажали не туда?'], ['Сомневаюсь в ответе']]);
   const id = s.row().items[0];
   s.h.fs.calls.length = 0;
   await s.at('n', 0);
@@ -172,19 +172,19 @@ test('«Нажали не туда?» (Z9): recorded with misclick, the question
   assert.equal(s.row().position, 1);
   // «Не знаю» → «Нажали не туда?» is offered too (decision 16).
   await s.at('x', 1);
-  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Нажали не туда?'], ['Сомневаюсь в ключе']]);
+  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Нажали не туда?'], ['Сомневаюсь в ответе']]);
   assert.ok(!words(s.h.message(s.card)!.text).includes('Неверно'));
   lintAll(s.h);
 });
 
-test('«Сомневаюсь в ключе» (Z11): the question under the review, nothing written; «Отмена» back; «Отметить» records and sets it aside', async () => {
+test('«Сомневаюсь в ответе» (Z11): the question under the review, nothing written; «Отмена» back; «Отметить» records and sets it aside', async () => {
   const s = await started();
   await s.at(String(s.wrong(0)), 0);
   const writes = () => s.h.fs.calls.filter((c) => c.fn !== 'bot_session_view').length;
   const before = writes();
   await s.at('d', 0);
-  assert.equal(writes(), before, '«Сомневаюсь в ключе» only reads');
-  assert.match(words(s.h.message(s.card)!.text), /Сомневаетесь в ключе к № \d+\? Автор увидит/);
+  assert.equal(writes(), before, '«Сомневаюсь в ответе» only reads');
+  assert.match(words(s.h.message(s.card)!.text), /Сомневаетесь в ответе к № \d+\? Автор увидит/);
   assert.deepEqual(s.h.labels(s.card), [['Отметить'], ['Отмена']]);
   await s.at('b', 0);
   assert.match(words(s.h.message(s.card)!.text), /Неверно\. Повторим через пару вопросов и завтра\./);
@@ -292,7 +292,7 @@ test('the tick\'s flush (30 minutes): the waiting answer is recorded as given; �
   await s.h.tick();
   assert.deepEqual(s.h.fs.answers.map((a) => [a.cid, a.step]), [[`tg:${s.sid}:0`, 'miss']]);
   await s.at('m', 0);
-  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Сомневаюсь в ключе']], 'recorded: the review again, without «Нажали не туда?»');
+  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Сомневаюсь в ответе']], 'recorded: the review again, without «Нажали не туда?»');
   assert.equal(s.h.fs.answers.length, 1);
   await s.at('n', 0);
   assert.equal(s.row().retry.filter((r) => r === 1).length, 1, 'the miss comes back');
@@ -372,7 +372,7 @@ test('Z4: marks change only the keyboard (no answer written), «Ответить
   const partial = [0, 2].reduce((m, f) => m | (1 << s.row().shown[1].o.indexOf(f)), 0);
   await s.at(`a${partial}`, 1);
   const text = words(s.h.message(s.card)!.text);
-  assert.match(text, /В файле верны: .+\nВаш ответ: /);
+  assert.match(text, /Ответы из файла: .+\nВаш ответ: /);
   assert.equal(s.h.fs.answers.length, 1);
   lintAll(s.h);
 });
@@ -406,8 +406,8 @@ test('Z5: a typed short answer — the message deleted, the result an edit with 
   assert.match(words(s.h.message(s.card)!.text), /^Компьютерные сети · 2 из 20\n\nСколько бит в адресе IPv4\?\nНапишите ответ сообщением\./);
   await s.h.type('23');
   const wrong = words(s.h.message(s.card)!.text);
-  assert.match(wrong, /В файле — 32\nВаш ответ — 23/);
-  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Сомневаюсь в ключе']], 'a typed answer is not a press: no «Нажали не туда?»');
+  assert.match(wrong, /Ответ из файла: 32\nВаш ответ: 23/);
+  assert.deepEqual(s.h.labels(s.card), [['Дальше'], ['Сомневаюсь в ответе']], 'a typed answer is not a press: no «Нажали не туда?»');
   // A second message while the result waits is not an answer: S6 (once an hour).
   s.h.tg.reset();
   await s.h.type('32');
@@ -566,7 +566,7 @@ test('one open session: «Начать» on a new card closes the one in another
   assert.deepEqual(s.h.fs.answers.map((a) => [a.cid, a.step]), [[`tg:${s.sid}:0`, 'miss']], 'its waiting answer recorded as given');
   const text = words(s.h.message(s.card)!.text);
   assert.match(text, /^Компьютерные сети: 1 вопрос за 1 минуту\n1 неверно/);
-  assert.ok(!/В файле/.test(text), 'no key stays in the chat');
+  assert.ok(!/Ответ из файла/.test(text), 'no key stays in the chat');
   assert.equal(s.h.message(s.card)!.markup, null);
   assert.match(words(s.h.message(second)!.text), /· 1 из 20/);
   lintAll(s.h);
@@ -652,7 +652,7 @@ test('a question that reaches the rule: «Верно. Теперь 144 из 960 
   assert.match(words(s.h.message(s.card)!.text), /Выучен ещё 1 вопрос\. Всего 144 из 960\./);
 });
 
-test('Z12: the author sees «Ключ неверный?» — a link to «Ключи» on this question — instead of «Сомневаюсь в ключе»', async () => {
+test('Z12: the author sees «Ключ неверный?» — a link to «Ключи» on this question — instead of «Сомневаюсь в ответе»', async () => {
   const s = await started({}, (h) => h.fs.role(USER, CID, 'owner'));
   await s.at(String(s.wrong(0)), 0);
   const last = s.h.message(s.card)!.markup.inline_keyboard.at(-1)[0];
