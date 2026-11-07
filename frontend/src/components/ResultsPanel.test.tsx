@@ -54,7 +54,7 @@ vi.mock('react-hot-toast', () => ({
   default: Object.assign(vi.fn(), { success: (...args: unknown[]) => db.toastSuccess(...args), error: vi.fn() }),
 }));
 
-import ResultsPanel, { buildHtmlExport, restsOnLine } from './ResultsPanel';
+import ResultsPanel, { buildHtmlExport, resultMeta } from './ResultsPanel';
 import type { ResultExportItem, ResultTab } from './resultSections';
 
 const summary = { title: 'Энтропия', subject: 'Физика', content: 'Энтропия — мера беспорядка системы.', terms: [], source_ids: ['S01'] };
@@ -109,12 +109,13 @@ afterEach(() => {
 });
 
 describe('header', () => {
-  it('says «Материал обработан» only when every requested section is ok', () => {
+  it('says nothing about the status when every requested section is ok (UX audit of 06.11: no «Материал обработан»)', () => {
     renderPanel({
       results: { ...partialResults(), quiz, sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' } } },
     });
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    expect(screen.queryByText('Материал обработан')).not.toBeInTheDocument();
     expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
+    expect(document.querySelector('.rp-status')).toBeNull();
   });
 
   it('says «Обработан частично» when a requested section failed and keeps its tab', () => {
@@ -147,12 +148,12 @@ describe('header', () => {
       results: { ...partialResults(), quiz, sections: { summarizer: { status: 'ok' }, flashcards: { status: 'ok' }, quiz: { status: 'ok' } } },
     });
     expect(screen.queryByText('Связь прервалась. Показаны разделы, которые успели прийти.')).not.toBeInTheDocument();
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
   });
 
   it('a legacy material without sections shows no failure lines', () => {
     renderPanel({ results: { summarizer: summary, flashcards: cards, quiz: { quiz: [] } } as AnalysisResults });
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Самопроверка/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/не получил/)).not.toBeInTheDocument();
   });
@@ -168,60 +169,30 @@ describe('header', () => {
     expect(screen.getByText('Выжимка не получилась: модель не ответила.')).toBeInTheDocument();
   });
 
-  it('says what rests on the fragments in the student’s words, never «confirmed» (finding LIB-19)', () => {
-    const { unmount } = renderPanel({
-      results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 23, citable_items: 9 } },
-    });
-    expect(screen.getByText('Конспект, карточки и самопроверка опираются на 23 фрагмента лекции')).toBeInTheDocument();
-    // Links found by matching words, not checked: «похожий фрагмент».
-    expect(screen.getByText('у 9 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/подтвержд|исходник|наиболее похож/i);
+  it('has no line about the fragments on the analysis page or the material page (UX audit of 06.11)', () => {
+    const results = { ...partialResults(), quiz, grounding: { ...grounding, source_count: 23, citable_items: 9 } };
+    const { unmount } = renderPanel({ results });
+    expect(screen.queryByText(/опира(ю)?тся на/)).toBeNull();
+    expect(screen.queryByText(/похожий фрагмент/)).toBeNull();
+    expect(document.querySelector('.rp-grounding')).toBeNull();
     unmount();
 
-    renderPanel({ results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 21, citable_items: 1 } } });
-    expect(screen.getByText('Конспект, карточки и самопроверка опираются на 21 фрагмент лекции')).toBeInTheDocument();
-    expect(screen.getByText('у 1 пункта есть ссылка на похожий фрагмент')).toBeInTheDocument();
+    renderPanel({ embedded: true, initialTab: 'flashcards', results });
+    expect(screen.queryByText(/опира(ю)?тся на/)).toBeNull();
+    expect(screen.queryByText(/похожий фрагмент/)).toBeNull();
   });
 
-  it('names only the materials the result has (QA 2026-10-11: «карточки и тест» under a lone конспект)', () => {
-    const lone = { summarizer: summary, flashcards: { flashcards: [] }, quiz: { quiz: [] }, grounding: { ...grounding, source_count: 4, citable_items: 0 } } as AnalysisResults;
-    const { unmount } = renderPanel({ results: lone });
-    expect(screen.getByText('Конспект опирается на 4 фрагмента лекции')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/карточки|тест опира/i);
-    unmount();
-
-    // The test did not come: the summary and the cards rest on the fragments.
-    renderPanel({ results: { ...partialResults(), grounding: { ...grounding, source_count: 23, citable_items: 9 } } });
-    expect(screen.getByText('Конспект и карточки опираются на 23 фрагмента лекции')).toBeInTheDocument();
-  });
-
-  it('builds the line from what exists, with the verb in the right number', () => {
-    expect(restsOnLine(['summary'], 4)).toBe('Конспект опирается на 4\u00a0фрагмента лекции');
-    expect(restsOnLine(['flashcards'], 1)).toBe('Карточки опираются на 1\u00a0фрагмент лекции');
-    expect(restsOnLine(['quiz'], 11)).toBe('Самопроверка опирается на 11\u00a0фрагментов лекции');
-    expect(restsOnLine(['summary', 'quiz'], 2)).toBe('Конспект и самопроверка опираются на 2\u00a0фрагмента лекции');
-    expect(restsOnLine(['summary', 'flashcards', 'quiz'], 5)).toBe('Конспект, карточки и самопроверка опираются на 5\u00a0фрагментов лекции');
-    expect(restsOnLine([], 5)).toBe('');
-    expect(restsOnLine(['summary'], 0)).toBe('');
-  });
-
-  it('on the material page says it in one line next to the cards and the test, naming only those it has', () => {
-    const { unmount } = renderPanel({
-      embedded: true,
-      initialTab: 'flashcards',
-      results: { ...partialResults(), quiz, grounding: { ...grounding, source_count: 17, citable_items: 17 } },
-    });
-    expect(screen.getByText('Карточки и самопроверка опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
-    expect(document.body.textContent).not.toMatch(/исходник|наиболее похож/i);
-    unmount();
-
-    // The test failed: the cards alone.
-    renderPanel({
-      embedded: true,
-      initialTab: 'flashcards',
-      results: { ...partialResults(), grounding: { ...grounding, source_count: 17, citable_items: 17 } },
-    });
-    expect(screen.getByText('Карточки опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент')).toBeInTheDocument();
+  it('says under the title what a student can do with the result: «около 4 мин чтения · 11 заданий»', () => {
+    renderPanel({ textLength: 2943 });
+    const meta = document.querySelector('.rp-meta') as HTMLElement;
+    // partialResults: one card and no test (it failed).
+    expect(meta.textContent).toBe('около\u00a04\u00a0мин чтения · 1\u00a0задание');
+    expect(document.body.textContent).not.toMatch(/символ|для практики|сек на обработку/);
+    expect(resultMeta(4, 11)).toBe('около\u00a04\u00a0мин чтения · 11\u00a0заданий');
+    expect(resultMeta(1, 1)).toBe('около\u00a01\u00a0мин чтения · 1\u00a0задание');
+    expect(resultMeta(null, 3)).toBe('3\u00a0задания');
+    expect(resultMeta(2, 0)).toBe('около\u00a02\u00a0мин чтения');
+    expect(resultMeta(null, 0)).toBe('');
   });
 
   it('on the material page says «Обработан частично» as a plain line when a saved section is not ok', () => {
@@ -493,7 +464,9 @@ describe('«Создать … заново»', () => {
     );
     expect(db.increment).not.toHaveBeenCalled();
     expect(db.verify).not.toHaveBeenCalled();
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    // Every section is there now: the «Обработан частично» line goes, and no badge takes its place.
+    await waitFor(() => expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument());
+    expect(screen.queryByText('Материал обработан')).not.toBeInTheDocument();
   });
 
   it('sends how the lecture was got: a recording gets its section as its analysis did (recheck of 44.2)', async () => {
@@ -764,11 +737,11 @@ describe('the lecture page’s own row on a phone (pageTabs, Phone_Declutter_202
     expect(exportItems.current).toEqual([]);
   });
 
-  it('without it the panel keeps its row, its «Экспорт» and the line about fragments', () => {
+  it('without it the panel keeps its row and its «Экспорт» (the line about fragments is gone: UX audit of 06.11)', () => {
     renderPanel({ embedded: true, results: allOk() });
     expect(screen.getByRole('navigation', { name: 'Разделы результата' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Карточки/ }));
-    expect(screen.getByText(/Карточки и самопроверка опираются на 1/)).toBeInTheDocument();
+    expect(screen.queryByText(/опираются на/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Экспорт' }));
     expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Копировать', 'Печать или PDF', 'Файл для Anki', 'Скачать HTML']);
   });

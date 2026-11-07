@@ -36,7 +36,6 @@ import {
   sectionHasContent,
 } from '../utils/analysisSections';
 import { openingResultTab, resultSectionFailed, resultTabs, type ResultExportItem, type ResultTab } from './resultSections';
-import { charactersLabel } from '../utils/pastedText';
 import { pluralRu } from './conversation/visuals';
 import { repairMathEscapes } from '../lib/mathEscapes';
 import type { RecognizedSource } from '../lib/lectureFormats';
@@ -385,21 +384,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-type GroundedPart = 'summary' | 'flashcards' | 'quiz';
-const GROUNDED_WORDS: Record<GroundedPart, string> = { summary: 'конспект', flashcards: 'карточки', quiz: 'самопроверка' };
-
 /**
- * «Конспект, карточки и тест опираются на 4 фрагмента лекции»: only the materials the result has (QA 2026-10-11: a lone
- * конспект was said to carry «карточки и тест» too). «Карточки» are many; a lone конспект or тест «опирается». A number
- * keeps its word. Empty when there is nothing to name.
+ * The line under a result's title: «около 4 мин чтения · 11 заданий» — what a student can do with it, not how it was
+ * made (UX audit of 06.11: «2 943 символа», «для практики» and «N сек на обработку» went). '' when there is nothing.
  */
-export function restsOnLine(parts: readonly GroundedPart[], sourceCount: number): string {
-  if (parts.length === 0 || sourceCount <= 0) return '';
-  const words = parts.map(part => GROUNDED_WORDS[part]);
-  const named = words.length > 1 ? `${words.slice(0, -1).join(', ')} и ${words[words.length - 1]}` : words[0];
-  const verb = parts.length === 1 && parts[0] !== 'flashcards' ? 'опирается' : 'опираются';
-  const fragments = `${sourceCount} ${pluralRu(sourceCount, ['фрагмент', 'фрагмента', 'фрагментов'])}`;
-  return `${named.charAt(0).toUpperCase()}${named.slice(1)} ${verb} на ${fragments} лекции`;
+export function resultMeta(readingMinutes: number | null, exercises: number): string {
+  const parts: string[] = [];
+  if (readingMinutes) parts.push(`около\u00a0${readingMinutes}\u00a0мин чтения`);
+  if (exercises > 0) parts.push(`${exercises}\u00a0${pluralRu(exercises, ['задание', 'задания', 'заданий'])}`);
+  return parts.join(' · ');
 }
 
 function settingsBody(settings?: AnalysisSettings) {
@@ -534,7 +527,6 @@ export default function ResultsPanel({
   results,
   onReset,
   textLength,
-  analysisDuration,
   sourceFileName,
   materialId: savedMaterialId,
   embedded = false,
@@ -556,6 +548,7 @@ export default function ResultsPanel({
   /** «Новый анализ» на странице анализа; без него кнопки нет (пример результата /try/lecture). */
   onReset?: () => void;
   textLength?: number;
+  /** Seconds the analysis took: no longer shown (UX audit of 06.11), still passed by the analysis page. */
   analysisDuration?: number;
   sourceFileName?: string;
   materialId?: string;
@@ -683,6 +676,7 @@ export default function ResultsPanel({
   }, [embedded, conversationKey, conversationCount]);
   const exerciseCount = flashcardCount + quizCount;
   const readingMinutes = textLength ? Math.max(1, Math.round(textLength / 800)) : null;
+  const metaLine = resultMeta(readingMinutes, exerciseCount);
 
   /** Раздел запрошен, не получился и содержимого нет — показываем строку о сбое. */
   const isFailed = (name: SectionName): boolean => resultSectionFailed(view, name, { showConversation, conversationCount });
@@ -806,7 +800,9 @@ export default function ResultsPanel({
   };
 
   const allRequestedOk = !sections || (Object.keys(sections) as SectionName[]).every(name => !isFailed(name));
-  const statusLabel = allRequestedOk ? 'Материал обработан' : 'Обработан частично';
+  // Only a result with a part missing says so: «Материал обработан» over a lecture that is open and done said nothing
+  // (UX audit of 06.11, approved by the owner: «технические строки, которые мешают, тоже убрать»).
+  const statusLabel = 'Обработан частично';
   // Строка об обрыве связи нужна, пока какого-то раздела не хватает.
   const showPartialNotice = partial && !allRequestedOk;
   // У выжимки, которая не получилась, вкладки нет: о сбое говорит строка под заголовком.
@@ -881,26 +877,6 @@ export default function ResultsPanel({
 
   // Попытка теста попадает в журнал этого материала (QuizView: materialId, topic, surface).
   // null — материал ещё сохраняется; в режиме просмотра журнала нет вовсе (materialId не передаётся).
-  // «Карточки и тест опираются на 17 фрагментов лекции · у 17 пунктов есть ссылка на похожий фрагмент»
-  // (finding LIB-19: «исходника» and «наиболее похожий» were the program's words). The links are found by
-  // matching words, not checked: «похожий фрагмент».
-  const sourceCount = view.grounding?.source_count ?? 0;
-  const citable = view.grounding?.citable_items ?? 0;
-  // Only the materials the result has are named (QA 2026-10-11).
-  const hasSummary = Boolean(view.summarizer?.content || (view.summarizer as any)?.raw);
-  const grounded = (withSummary: boolean): GroundedPart[] => [
-    ...(withSummary && hasSummary ? (['summary'] as const) : []),
-    ...(flashcardCount > 0 ? (['flashcards'] as const) : []),
-    ...(quizCount > 0 ? (['quiz'] as const) : []),
-  ];
-  // A number keeps its word, «·» the word before it.
-  const citableText =
-    citable > 0 ? `у\u00a0${citable}\u00a0${pluralRu(citable, ['пункта', 'пунктов', 'пунктов'])} есть ссылка на\u00a0похожий фрагмент` : '';
-  // The material page names the cards and the test: on «Конспект» the fragments stand by the sections themselves.
-  const pageRestsOn = restsOnLine(grounded(false), sourceCount);
-  const groundingText = pageRestsOn ? `${pageRestsOn}${citableText ? `\u00a0· ${citableText}` : ''}` : '';
-  // The analysis page names everything that rests on the fragments.
-  const resultRestsOn = restsOnLine(grounded(true), sourceCount);
   // The reviewing of these cards is «Повторение» of this lecture: its own cards and those from ticket answers.
   const reviewHref = materialId ? `/review?material=${encodeURIComponent(materialId)}` : undefined;
 
@@ -927,9 +903,9 @@ export default function ResultsPanel({
   const exportInTabs = embedded && !textOnly && tabs.length > 1;
   // The page's own row and «⋯» stand in for the panel's (pageTabs): then no row and no «Экспорт» here.
   const ownExport = !pageTabs;
-  // The page's phone row (pageTabs) keeps to one-line explanations: each card and question has its «фрагмент N».
-  const groundingShown = !textOnly && Boolean(groundingText) && tab !== 'summary' && !pageTabs;
-  const headerHasText = Boolean(!allRequestedOk || groundingShown || showPartialNotice || cheatsheetFailed || notices);
+  // No line «Карточки и самопроверка опираются на 7 фрагментов лекции · у 32 пунктов есть ссылка на похожий фрагмент»
+  // (UX audit of 06.11): each card, question and section has its own «фрагмент N».
+  const headerHasText = Boolean(!allRequestedOk || showPartialNotice || cheatsheetFailed || notices);
   const sectionShown = tab === 'summary' || tab === 'flashcards' || tab === 'quiz';
   const exportItems: ResultExportItem[] = [
     { key: 'copy', label: copied ? 'Скопировано' : 'Копировать', run: handleCopy },
@@ -989,9 +965,6 @@ export default function ResultsPanel({
           <header className="no-print rp-head">
             <div className="rp-notes">
               {!allRequestedOk && <p className="rp-status">{statusLabel}</p>}
-              {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «похожий фрагмент». */}
-              {/* On «Конспект» the fragments stand next to the sections and say so themselves. */}
-              {groundingShown ? <p>{groundingText}</p> : null}
               {showPartialNotice && <p role="status">{PARTIAL_NOTICE}</p>}
               {cheatsheetFailed && <p>{sectionFailureSentence('cheatsheet', sections?.cheatsheet)}</p>}
               {notices}
@@ -1000,13 +973,16 @@ export default function ResultsPanel({
           </header>
         )
       ) : (
-        // На странице анализа: статус пилюлей с точкой, крупное название, одна строка о тексте; «Экспорт» и «Новый анализ».
+        // На странице анализа: крупное название и одна строка о тексте (статус пилюлей — только когда раздела не хватает);
+        // «Экспорт» и «Новый анализ».
         <header className="rp-result-head no-print">
           <div className="rp-result-top">
             <div className="rp-result-main">
-              <p className="rp-status" data-tone={allRequestedOk ? 'ok' : 'partial'}>
-                {statusLabel}
-              </p>
+              {!allRequestedOk ? (
+                <p className="rp-status" data-tone="partial">
+                  {statusLabel}
+                </p>
+              ) : null}
 
               {isEditing ? (
                 <div className="rp-title-edit">
@@ -1045,14 +1021,8 @@ export default function ResultsPanel({
                 </div>
               )}
 
-              <div className="rp-meta">
-                {textLength ? <span>{charactersLabel(textLength)}</span> : null}
-                {textLength && readingMinutes ? <span aria-hidden="true">·</span> : null}
-                {readingMinutes ? <span>около {readingMinutes} мин чтения</span> : null}
-                {exerciseCount > 0 ? <span aria-hidden="true">·</span> : null}
-                {exerciseCount > 0 ? <span>{exerciseCount} {pluralRu(exerciseCount, ['задание', 'задания', 'заданий'])} для практики</span> : null}
-                {!textLength && analysisDuration ? <span>{analysisDuration} сек на обработку</span> : null}
-              </div>
+              {/* «около 4 мин чтения · 11 заданий» (UX audit of 06.11): no count of characters, no seconds of processing. */}
+              {metaLine ? <p className="rp-meta">{metaLine}</p> : null}
             </div>
 
             {!textOnly && (
@@ -1079,18 +1049,6 @@ export default function ResultsPanel({
               </div>
             )}
           </div>
-
-          {/* Ссылки на фрагменты подобраны по совпадению слов, а не проверены: «похожий фрагмент». */}
-          {!textOnly && resultRestsOn ? (
-            // «·» keeps to the words before it: on a phone the line never starts with it (finding LIB-21).
-            <p className="rp-grounding">
-              <span>
-                {resultRestsOn}
-                {citableText ? <span aria-hidden="true">{'\u00a0·'}</span> : null}
-              </span>
-              {citableText ? <span>{citableText}</span> : null}
-            </p>
-          ) : null}
 
           {(showPartialNotice || cheatsheetFailed || notices) && (
             <div className="rp-result-notes">

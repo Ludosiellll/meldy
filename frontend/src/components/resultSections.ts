@@ -65,7 +65,8 @@ export function resultTabs(view: AnalysisResults, options: ResultTabOptions = {}
     { id: 'flashcards', label: SECTION_LABELS.flashcards, count: n.flashcards },
     { id: 'quiz', label: SECTION_LABELS.quiz, count: n.quiz },
     { id: 'cheatsheet', label: SECTION_LABELS.cheatsheet },
-    { id: 'podcast', label: SECTION_LABELS.podcast, count: conversationCount },
+    // No number: it counted the dialogue's lines («Подкаст 16»), which say nothing to a student (UX audit of 06.11).
+    { id: 'podcast', label: SECTION_LABELS.podcast },
   ];
   return all.filter((tab) => {
     if (tab.id === 'summary') return n.summary || failed('summary');

@@ -220,7 +220,15 @@ async function loadDemo() {
 const LECTURE = `Лекция 3. Эластичность спроса\n${'Эластичность показывает, насколько меняется спрос при изменении цены. '.repeat(6)}`;
 
 const errorHeading = () => screen.findByRole('heading', { name: 'Анализ не завершён' }, { timeout: 3000 });
-const resultsHeading = () => screen.findByText(/Материал обработан|Обработан частично/, undefined, { timeout: 3000 });
+// The result screen's header (ResultsPanel): no «Материал обработан» badge any more (UX audit of 06.11), only
+// «Обработан частично» when a part is missing.
+const resultsHeading = () => waitFor(() => expect(document.querySelector('.rp-result-head')).not.toBeNull(), { timeout: 3000 });
+/** The result screen with every section: its header, and no «Обработан частично». */
+async function fullResult() {
+  await resultsHeading();
+  expect(screen.queryByText('Обработан частично')).not.toBeInTheDocument();
+  expect(screen.queryByText('Материал обработан')).not.toBeInTheDocument();
+}
 
 beforeAll(() => {
   MotionGlobalConfig.skipAnimations = true;
@@ -302,7 +310,7 @@ describe('stream outcomes', () => {
     await chooseFile();
     fireEvent.click(startButton());
 
-    expect(await screen.findByText('Материал обработан', undefined, { timeout: 3000 })).toBeInTheDocument();
+    await fullResult();
     await waitFor(() => expect(s.activity).toHaveBeenCalledTimes(1));
     expect(s.inserts).toHaveLength(1);
     expect(s.increment).toHaveBeenCalledTimes(1);
@@ -498,7 +506,7 @@ describe('timeouts and cancel', () => {
     renderAnalyze();
     await chooseFile();
     fireEvent.click(startButton());
-    expect(await screen.findByText('Материал обработан', undefined, { timeout: 3000 })).toBeInTheDocument();
+    await fullResult();
   });
 
   it('«Отменить» aborts the request and returns to the upload screen without an error or a save', async () => {
@@ -614,7 +622,7 @@ describe('one run per click', () => {
     await act(async () => abandoned(true));
     await act(async () => new Promise(resolve => setTimeout(resolve, 30)));
     expect(analyzeCalls()).toHaveLength(2);
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    await fullResult();
     await waitFor(() => expect(s.inserts).toHaveLength(1));
     expect(s.increment).toHaveBeenCalledTimes(1);
   });
@@ -918,7 +926,7 @@ describe('a section re-created for an earlier run', () => {
 
     expect(screen.getByRole('heading', { name: 'Эластичность спроса' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Энтропия' })).not.toBeInTheDocument();
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    await fullResult();
     // Тест второго запуска остаётся привязан к его материалу.
     fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     await screen.findByText('Тест на экране');

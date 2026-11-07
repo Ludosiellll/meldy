@@ -139,15 +139,15 @@ describe('/try/lecture: what Meldy made of the example’s first lecture, with n
     expect(within(bar).getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
     expect(within(bar).getByRole('link', { name: 'Начать со своего списка' })).toHaveAttribute('href', expect.stringMatching(/^\/register/));
 
-    // The analysis page's header, as the student saw it after the run.
-    expect(screen.getByText('Материал обработан')).toBeInTheDocument();
+    // The analysis page's header, as the student saw it after the run — without its technical lines (UX audit of
+    // 06.11): no «Материал обработан», no count of characters, no line about the fragments, no number on «Подкаст».
+    expect(screen.queryByText('Материал обработан')).toBeNull();
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(EXAMPLE_LECTURE_RESULTS.summarizer.title);
-    const meta = Array.from(document.querySelector('.rp-meta')?.children ?? []).map((part) => plain(part.textContent));
-    expect(meta).toEqual(['2 943 символа', '·', 'около 4 мин чтения', '·', '11 заданий для практики']);
-    const grounding = Array.from(document.querySelector('.rp-grounding')?.children ?? []).map((part) => plain(part.textContent));
-    expect(grounding).toEqual(['Конспект, карточки и самопроверка опираются на 7 фрагментов лекции ·', 'у 32 пунктов есть ссылка на похожий фрагмент']);
+    expect(plain(document.querySelector('.rp-meta')?.textContent)).toBe('около 4 мин чтения · 11 заданий');
+    expect(document.querySelector('.rp-grounding')).toBeNull();
+    expect(screen.queryByText(/опираются на|похожий фрагмент|символ/)).toBeNull();
     const tabs = within(screen.getByRole('navigation', { name: 'Разделы результата' })).getAllByRole('button');
-    expect(tabs.map((button) => plain(button.textContent))).toEqual(['Конспект', 'Карточки6', 'Самопроверка5', 'Выжимка', 'Подкаст16']);
+    expect(tabs.map((button) => plain(button.textContent))).toEqual(['Конспект', 'Карточки6', 'Самопроверка5', 'Выжимка', 'Подкаст']);
 
     // Nothing that saves, makes anew or analyses again.
     expect(screen.queryByRole('button', { name: 'Новый анализ' })).toBeNull();

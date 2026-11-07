@@ -31,7 +31,8 @@ describe('resultTabs', () => {
       { id: 'flashcards', label: 'Карточки', count: 6 },
       { id: 'quiz', label: 'Самопроверка', count: 5 },
       { id: 'cheatsheet', label: 'Выжимка' },
-      { id: 'podcast', label: 'Подкаст', count: 14 },
+      // No number on the podcast: it counted the dialogue's lines (UX audit of 06.11).
+      { id: 'podcast', label: 'Подкаст' },
     ]);
     // The lecture page has its own «Выжимка»; a failed or empty one is a line under the header, not a tab.
     expect(resultTabs(withBrief).map(tab => tab.id)).not.toContain('cheatsheet');
