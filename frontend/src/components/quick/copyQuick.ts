@@ -141,7 +141,7 @@ export const TESTS_VIEW = {
   writing: (n: number) => `Пишут ${n}`,
   loading: 'Загружаем…',
   failed: 'Не получилось загрузить тесты.',
-  retry: 'Повторить',
+  retry: 'Попробовать ещё раз',
   empty: 'Тестов пока нет. Начните с быстрой контрольной.',
   more: (n: number) => `Ещё ${quizzes(n)}`,
 } as const;
