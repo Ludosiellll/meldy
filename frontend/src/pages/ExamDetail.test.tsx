@@ -474,7 +474,7 @@ describe('ExamDetail: the sheet', () => {
     const how = within(side).getByRole('button', { name: 'Как считается' });
     expect(plain(how.closest('.ex-caveat')?.textContent)).toBe('Это доля билетов, а не вероятность сдать. Как считается');
     const action = side.querySelector('.ex-act') as HTMLElement;
-    expect(plain(action.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(action.textContent)).toBe('7 вопросов «частично»: добавьте к ним лекции — тогда оба вопроса будут в лекциях в 60 % билетов.');
     // Nothing about answers before the first one: the status at the top says what to do.
     await waitFor(() => expect(mocks.fetchQuestionEvents).toHaveBeenCalled());
     expect(plain(side.textContent)).not.toMatch(/Ответов по билетам ещё не было|Сравнить уверенность|Выучено/);
@@ -519,7 +519,7 @@ describe('ExamDetail: the sheet', () => {
     await opened();
     const side = column();
     expect(plain(side.querySelector('.ex-figs-now')?.textContent)).toBe('36 %');
-    expect(plain(side.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(side.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним лекции — тогда оба вопроса будут в лекциях в 60 % билетов.');
     fireEvent.click(within(side).getByRole('button', { name: 'Как считается' }));
     expect(within(side).getByText(named('В 16 % билетов нет ни одного вопроса с отметкой «есть».'))).toBeInTheDocument();
     const [main, gap] = within(side).getAllByRole('math').map((formula) => plain(formula.textContent));
@@ -743,7 +743,7 @@ describe('ExamDetail: the sheet', () => {
 
     mocks.loadExamBundle.mockRejectedValueOnce(new Error('boom')).mockResolvedValue(bundle(mixed()));
     renderDetail();
-    expect(await screen.findByRole('heading', { name: 'Не удалось открыть лист экзамена' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Не удалось открыть экзамен' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     await opened();
   });
@@ -1482,7 +1482,7 @@ describe('ExamDetail: mapping by lectures', () => {
     await mapToTheEnd(() => mocks.loadExamBundle.mockRejectedValue(new Error('offline')));
     expect(row('q1')).toHaveAttribute('data-coverage', 'full');
     expect(row('q3')).toHaveAttribute('data-coverage', 'partial');
-    expect(screen.queryByRole('heading', { name: 'Не удалось открыть лист экзамена' })).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Не удалось открыть экзамен' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Вопрос 2 о денежном рынке' }));
     fireEvent.click(within(column()).getByRole('button', { name: 'Это есть в лекции…' }));
     await waitFor(() => expect(row('q2')).toHaveAttribute('data-coverage', 'full'));
@@ -1617,7 +1617,7 @@ describe('ExamDetail on a phone', () => {
     const after = screen.getByRole('region', { name: 'Ответы по билетам' });
     const sheet = document.querySelector('.ex-sheet') as HTMLElement;
     expect(sheet.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(plain(after.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(after.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним лекции — тогда оба вопроса будут в лекциях в 60 % билетов.');
   });
   it('closes the phone menu with Escape and gives the focus back', async () => {
     setPhone();
@@ -1731,7 +1731,7 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(how).toHaveAttribute('aria-expanded', 'true');
     const panel = summary.querySelector('.ex-psum-calc') as HTMLElement;
     expect(how).toHaveAttribute('aria-controls', panel.id);
-    expect(plain(panel.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(panel.querySelector('.ex-act')?.textContent)).toBe('7 вопросов «частично»: добавьте к ним лекции — тогда оба вопроса будут в лекциях в 60 % билетов.');
     expect(panel.querySelector('.ex-formula')).not.toBeNull();
     expect(plain(panel.textContent)).not.toMatch(/Подтверждено/);
     // The legend of the number circles is «Обозначения» over the list, not here.
@@ -1765,7 +1765,7 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     renderDetail();
     await opened();
     expect(document.querySelector('.ex-links')).toBeNull();
-    const more = screen.getByRole('button', { name: 'Ещё: лист экзамена' });
+    const more = screen.getByRole('button', { name: 'Ещё: экзамен' });
     // Beside the heading, before the status and the list (a newcomer did not find «Изменить список» under the list).
     expect(more).toHaveClass('sf-more');
     expect(more.closest('.ex-titlerow')?.querySelector('h1')).toHaveTextContent('Макроэкономика');
@@ -1773,7 +1773,7 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     expect(more.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(more.compareDocumentPosition(statusCard()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One «Ещё» on the page: none under the list.
-    expect(screen.getAllByRole('button', { name: 'Ещё: лист экзамена' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Ещё: экзамен' })).toHaveLength(1);
     expect(document.querySelector('.ex-links-after')).toBeNull();
     fireEvent.click(more);
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя', 'Удалить экзамен']);
@@ -1799,14 +1799,14 @@ describe('ExamDetail on a phone: one line of each thing (Phone_Declutter_2026-10
     mocks.loadExamBundle.mockResolvedValue({ ...bundle(forty()), copy: true });
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Лекции', 'Самооценка', 'Отчёт для преподавателя']);
     cleanup();
     mocks.loadExamBundle.mockResolvedValue(bundle(forty(), { mapping_state: 'running', mapping_started_at: new Date().toISOString() }));
     mocks.fetchExamMappingState.mockResolvedValue({ mapping_state: 'running', mapping_started_at: new Date().toISOString(), mapped_at: null });
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     expect(screen.queryByRole('menuitem', { name: 'Изменить список' })).toBeNull();
     expect(screen.getByRole('menuitem', { name: 'Пригласить группу' })).toBeInTheDocument();
   });
@@ -1881,7 +1881,7 @@ describe('ExamDetail on a phone: what the critics found (2026-10-08)', () => {
     renderDetail();
     await opened();
     await screen.findByRole('button', { name: 'Обозначения' });
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Самооценка' }));
     expect(screen.queryByRole('button', { name: 'Обозначения' })).toBeNull();
     expect(document.querySelector('.ex-sheet-hint')).toBeNull();
@@ -1965,7 +1965,7 @@ describe('ExamDetail on a phone: what the critics found (2026-10-08)', () => {
     expect(screen.queryByRole('list', { name: 'Показать вопросы' })).toBeNull();
     expect(document.querySelector('.ex-sheet')).toBeNull();
     expect(screen.queryByText('В списке пока нет вопросов.')).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Ещё: лист экзамена' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ещё: экзамен' })).toBeNull();
     expect(document.querySelector('.ex-meta')).toBeNull();
     expect(within(document.querySelector('.ex-cta') as HTMLElement).getByRole('link', { name: 'Добавить вопросы' })).toHaveAttribute('href', '/exams/exam-1/edit');
     cleanup();
@@ -2218,13 +2218,13 @@ describe('ExamDetail inside an exam container (spec decisions 29б, 38): guarded
     mocks.loadExamBundle.mockResolvedValue(bundle(forty()));
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Отчёт для преподавателя']);
     cleanup();
     rememberAttachedExams({});
     renderDetail();
     await opened();
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Изменить список', 'Лекции', 'Самооценка', 'Пригласить группу', 'Отчёт для преподавателя', 'Удалить экзамен']);
   });
 
