@@ -234,8 +234,9 @@ export class ViewImpl {
     this.camera.updateMatrixWorld(true);
   }
 
-  /** A short jolt of the camera (the stomp). */
+  /** A short jolt of the camera (the stomp); none where the system asks for less motion (accessibility audit 07.11, A11Y-6). */
   shake(strength = 0.35): void {
+    if (prefersLessMotion()) return;
     this.shakeLeft = 0.8;
     this.shakeStrength = strength * (this.base.eye.distanceTo(this.base.target) / 37);
   }
@@ -394,3 +395,11 @@ export function softwareRenderer(renderer: Pick<THREE.WebGLRenderer, 'getContext
 }
 
 const SOFTWARE_GL = /swiftshader|llvmpipe|softpipe|software rasterizer|microsoft basic render/i;
+
+function prefersLessMotion(): boolean {
+  try {
+    return typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}

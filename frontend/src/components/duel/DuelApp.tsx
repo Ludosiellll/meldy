@@ -20,6 +20,7 @@ import { OPTION_STYLES, questionSize } from '../live/player/options';
 import { numberAnswer, padReady, typedText } from '../../lib/live/numbers';
 import { qrCode } from '../../lib/quizzes/qr';
 import { copyText } from '../../lib/clipboard';
+import { useFocusAfterSwap } from '../../lib/useFocusAfterSwap';
 import type { AnswerInput, Look } from '../../lib/live/types';
 import type { DuelReviewItem, DuelSide, DuelState, TrackMark } from '../../lib/duel/types';
 import type { DuelController, DuelSnapshot } from './controller';
@@ -55,6 +56,9 @@ export function DuelApp({ ctl, signInHref, exitHref }: DuelAppProps) {
 
   let screen: ReactNode;
   const st = s.state;
+  // A new screen (the step, the stage, the question) takes the focus that went with the old one (A11Y-4).
+  const rootRef = useRef<HTMLElement | null>(null);
+  useFocusAfterSwap(rootRef, `${s.step}:${st?.duel.stage ?? ''}:${st?.question?.qi ?? ''}`);
   if (s.step === 'loading') screen = <Message text={s.backoff > 0 ? DU.loadingBusy : DU.loading} status />;
   else if (s.step === 'gone')
     screen = <Message title={s.gone?.title} text={s.gone?.text} exitHref={exitHref} exitLabel={exitHref === '/games' ? DU.gone.toGames : DU.gone.toStart} alert />;
@@ -102,7 +106,7 @@ export function DuelApp({ ctl, signInHref, exitHref }: DuelAppProps) {
   } else screen = <div className="lp-page" />;
 
   return (
-    <main className="lp du" data-step={s.step} data-stage={st?.duel.stage} aria-label={DU.name}>
+    <main ref={rootRef} className="lp du" data-step={s.step} data-stage={st?.duel.stage} aria-label={DU.name}>
       <div className="du-col">{screen}</div>
     </main>
   );

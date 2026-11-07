@@ -168,6 +168,9 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   };
 
   useEffect(() => {
+    // Closing gives the focus back to what opened the window («Пригласить группу» in «Ещё»), as InviteGroup does
+    // (accessibility audit 07.11, A11Y-5: it dropped to the page's body).
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     boxRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
@@ -181,6 +184,7 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
     return () => {
       document.removeEventListener('keydown', onKey);
       root.style.overflow = previous;
+      if (opener && opener.isConnected) window.setTimeout(() => opener.focus({ preventScroll: true }), 0);
     };
   }, []);
   useEffect(() => {

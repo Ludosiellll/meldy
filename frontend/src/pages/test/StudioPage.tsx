@@ -872,7 +872,8 @@ export default function StudioPage() {
         </p>
       ) : null}
 
-      <main ref={mainRef} className="st-main" data-view={view}>
+      {/* A section, not a second <main>: the site's Layout has the page's one (accessibility audit 07.11, A11Y-7). */}
+      <section ref={mainRef} className="st-main" data-view={view} aria-label={STUDIO.workspace}>
         {/* «Холст» stays under «Список» and «Текст», hidden: coming back to it is instant (the audit: 30 blocks remounted). */}
         <Workspace
           studio={studio}
@@ -903,7 +904,7 @@ export default function StudioPage() {
         ) : (
           <TextView key={textStart?.round ?? 0} studio={studio} items={items} start={textStart?.text ?? null} />
         )}
-      </main>
+      </section>
 
       {narrow ? (
         <div className="st-phonebar" hidden={!bottomBarShown(frame.size, typing)}>

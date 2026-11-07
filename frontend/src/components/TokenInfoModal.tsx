@@ -83,6 +83,8 @@ function CostRows({ rows }: { rows: ReadonlyArray<(typeof LIMIT_COSTS)[number]> 
  * строками; на компьютере — две колонки (остаток и кнопки слева, цены справа); стили .ac-modal-*,
  * .ac-limit-* и .ac-costs в styles/legacy.css.
  */
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, limit: dayLimit, onOpenPro }: Props) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -91,15 +93,38 @@ export default function TokenInfoModal({ isOpen, onClose, usedTokens, isPro, lim
   const remaining = Math.max(0, limit - used);
   const share = Math.min(100, Math.max(0, (remaining / limit) * 100));
 
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!isOpen) return;
-    dialogRef.current?.focus(); // фокус в окно, без рамки на кнопке закрытия
+    // The window is modal (aria-modal): Tab stays inside, and closing gives the focus back to what opened it — the meter
+    // (accessibility audit 07.11, A11Y-2: three Tabs left it, Escape dropped the focus to the page's body).
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const node = dialogRef.current;
+    node?.focus(); // фокус в окно, без рамки на кнопке закрытия
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') {
+        closeRef.current();
+        return;
+      }
+      if (event.key !== 'Tab' || !node) return;
+      const items = Array.from(node.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((item) => item.offsetParent !== null || item === document.activeElement);
+      if (items.length === 0) return;
+      const at = items.indexOf(document.activeElement as HTMLElement);
+      if (event.shiftKey && at <= 0) {
+        event.preventDefault();
+        items[items.length - 1].focus();
+      } else if (!event.shiftKey && (at === items.length - 1 || at === -1)) {
+        event.preventDefault();
+        items[0].focus();
+      }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      if (opener && opener.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 

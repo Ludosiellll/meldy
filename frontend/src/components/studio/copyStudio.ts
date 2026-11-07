@@ -50,6 +50,8 @@ export const STUDIO = {
   allSaved: 'Все изменения сохранены',
   /** The same where the bar is short (below 1500 px, a phone: «Сохранено» whole at 360 px). */
   allSavedShort: 'Сохранено',
+  /** The name of the studio's working area (a section inside the page's <main>). */
+  workspace: 'Студия',
   /** A question editor holds changes: the page itself may be saved, the question is not. */
   questionUnsaved: (numbers: ReadonlyArray<number | null>) => {
     const known = numbers.filter((n): n is number => n !== null);

@@ -47,6 +47,14 @@ export default function BlockMenu({ anchor, onPick, onClose }: Props) {
     setPlace({ top, left });
   }, [anchor]);
 
+  // The box is hidden until its place is measured, and a hidden input takes no focus: autoFocus failed silently and the
+  // keyboard never reached the menu (accessibility audit 07.11, A11Y-1). The field is focused once the box is placed.
+  const findRef = useRef<HTMLInputElement | null>(null);
+  const placed = place !== null;
+  useEffect(() => {
+    if (placed) findRef.current?.focus({ preventScroll: true });
+  }, [placed]);
+
   useEffect(() => {
     const onDown = (event: PointerEvent) => {
       if (boxRef.current && event.target instanceof Node && !boxRef.current.contains(event.target)) onClose();
@@ -84,9 +92,9 @@ export default function BlockMenu({ anchor, onPick, onClose }: Props) {
       }}
     >
       <input
+        ref={findRef}
         className="st-menu-find"
         value={query}
-        autoFocus
         placeholder={STUDIO.blockMenu}
         aria-label={STUDIO.blockMenu}
         role="combobox"

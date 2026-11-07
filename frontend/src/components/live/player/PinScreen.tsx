@@ -42,6 +42,7 @@ export function PinScreen({ ctl, error, initial, busy, onLeave }: { ctl: PlayerC
           <label htmlFor="lp-pin">PIN игры</label>
           <input
             id="lp-pin"
+            data-autofocus=""
             className="lp-pin-input"
             inputMode="numeric"
             autoComplete="one-time-code"

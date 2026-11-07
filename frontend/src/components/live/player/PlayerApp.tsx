@@ -11,7 +11,8 @@
  * movement round, the arena in their place. A battle without them wraps them in BattleLink: the socket only, so the
  * character stands round the boss on the 3D projector.
  */
-import { Suspense, lazy, useCallback, useEffect, useSyncExternalStore } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useFocusAfterSwap } from '../../../lib/useFocusAfterSwap';
 import { Battle } from './Battle';
 import { Builder } from './Builder';
 import { Ended } from './Ended';
@@ -47,6 +48,9 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange, onLeave }: Pl
   const haptic = useCallback((kind: HapticKind) => platform.haptic(kind), [platform]);
 
   const st = s.state;
+  // A new screen (the step, the round's state, the question) takes the focus that went with the old one (A11Y-4).
+  const rootRef = useRef<HTMLElement | null>(null);
+  useFocusAfterSwap(rootRef, `${s.step}:${st?.state ?? ''}:${st?.qi ?? ''}`);
   const stand = st ? st.mode === 'stand' : s.modeHint === 'stand';
   const title = stand ? 'Встань на ответ' : 'Битва с монстром';
   useEffect(() => {
@@ -244,7 +248,7 @@ export function PlayerApp({ ctl, platform, shareUrl, onBackChange, onLeave }: Pl
     );
 
   return (
-    <main className="lp" data-step={s.step} data-state={st?.state ?? 'none'} data-mode={stand ? 'stand' : mixed ? 'mixed' : 'boss'} data-platform={platform.kind} aria-label={title}>
+    <main ref={rootRef} className="lp" data-step={s.step} data-state={st?.state ?? 'none'} data-mode={stand ? 'stand' : mixed ? 'mixed' : 'boss'} data-platform={platform.kind} aria-label={title}>
       {screen}
       {/* Over the boss's row in a question (never the counter, the timer, the question or the answers). */}
       {(lost || s.notice) && (
