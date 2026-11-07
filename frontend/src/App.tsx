@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './hooks/useAuth';
@@ -78,7 +78,6 @@ const NewTestPage = lazy(() => import('./pages/test/NewTestPage'));
 // «Быстрая контрольная» (UX audit of 21.10): pasted questions to a link on one screen, and that link with its QR code.
 const QuickTestPage = lazy(() => import('./pages/test/QuickTestPage'));
 const QuickLinkPage = lazy(() => import('./pages/quiz/QuickLinkPage'));
-const BuildPage = lazy(() => import('./pages/test/BuildPage'));
 const StudioPage = lazy(() => import('./pages/test/StudioPage'));
 // Meldy as a Telegram Mini App (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md): the bot opens /tg.
 const TelegramMiniApp = lazy(() => import('./pages/TelegramMiniApp'));
@@ -165,6 +164,18 @@ export function ExamsNewRedirect() {
 }
 
 /**
+ * The constructor's old address, /exams/c/:id/build (release 47.2 made it the studio's «Список»): one way to the
+ * questions (UX audit 06.11, owner 07.11) — it opens the studio on «Список», with the same query (?s= and the rest).
+ */
+export function BuildRedirect() {
+  const { id } = useParams();
+  const { search, hash } = useLocation();
+  const query = new URLSearchParams(search);
+  query.set('view', 'list');
+  return <Navigate to={{ pathname: `/exams/c/${id ?? ''}/studio`, search: `?${query.toString()}`, hash }} replace />;
+}
+
+/**
  * Files are added on the site: inside Telegram (lib/telegram/miniApp) the import page says so and opens the site in
  * the browser (meldy-notes 10_Project/Telegram_Mini_App_Spec_2026-10-10.md §5). Elsewhere it is the import page.
  */
@@ -234,7 +245,7 @@ export default function App() {
           <Route path="exams/c/:id/mock" element={<MockPage />} />
           <Route path="exams/c/:id/keys" element={<KeysPage />} />
           {/* «Конструктор» (spec 2026-10-18 §47.2): the author's questions as cards; /tests/new names a new test. */}
-          <Route path="exams/c/:id/build" element={<BuildPage />} />
+          <Route path="exams/c/:id/build" element={<BuildRedirect />} />
           <Route path="exams/c/:id/studio" element={<StudioPage />} />
           <Route path="tests/new" element={<NewTestPage />} />
           <Route path="tests/quick" element={<QuickTestPage />} />

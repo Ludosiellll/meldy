@@ -29,6 +29,9 @@
 .th-page .th-send:focus-visible { outline: 2px solid var(--ph-focus); outline-offset: 3px; }
 .th-page .th-send:disabled { color: var(--sf-muted); cursor: not-allowed; box-shadow: 0 0 0 1px var(--sf-line); }
 .th-page .ct-links[data-lead] .ct-more-pill .mm-text { min-height: 56px; padding: 0 22px 0 18px; font-size: 17px; }
+/* «Провести игру»: a quiet link beside the two pills (UX audit 06.11). */
+.th-page .th-game { align-self: center; padding: 0 6px; font-size: 17px; }
+.th-page .th-game:disabled { color: var(--sf-muted); cursor: not-allowed; }
 .th-page .th-why { max-width: 640px; margin: 12px 0 0; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 
 /* «Контрольные». */

@@ -445,15 +445,16 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
         ) : null}
       </div>
       <Link className="sf-acct-item" to="/profile">Профиль</Link>
-      {/* «Игры» on a phone and a tablet, whose tabs have no room for it (on a computer it is in the top line too). */}
-      <Link className="sf-acct-item" to={GAMES_ITEM.to}>
+      {/* «Игры» on a phone and a tablet, whose tabs have no room for it; on a computer it is in the top line, so the menu
+          leaves it out there (UX audit 06.11, layout.css .sf-acct-narrow). */}
+      <Link className="sf-acct-item sf-acct-narrow" to={GAMES_ITEM.to}>
         {GAMES_ITEM.label}
       </Link>
-      {/* The way to the guide on a phone, whose line has no «?»: the focus goes back to the account button, so the guide
-          gives it back there when it closes. */}
+      {/* The way to the guide on a phone, whose line has no «?» (from 640 px the «?» is in the line and the menu leaves this
+          out, .sf-acct-phone): the focus goes back to the account button, so the guide gives it back there when it closes. */}
       <button
         type="button"
-        className="sf-acct-item"
+        className="sf-acct-item sf-acct-phone"
         onClick={() => {
           setMenuOpen(false);
           menuButtonRef.current?.focus();

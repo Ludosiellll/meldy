@@ -44,7 +44,6 @@ describe('the page fetched with the shell', () => {
     expect(signedInPageOf('/exams/c/abc/keys')).toBe('KeysPage');
     expect(signedInPageOf('/exams/c/abc/settings')).toBe('SettingsPage');
     // «Студия теста» (release 47.2) beside the constructor it replaces in the menu.
-    expect(signedInPageOf('/exams/c/abc/build')).toBe('BuildPage');
     expect(signedInPageOf('/exams/c/abc/studio')).toBe('StudioPage');
   });
 

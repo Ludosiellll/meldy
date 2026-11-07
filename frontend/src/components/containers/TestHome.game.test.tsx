@@ -107,3 +107,28 @@ describe('the test’s page and the game', () => {
     expect(tipCard()).toBeNull();
   });
 });
+
+/* UX audit 06.11 (owner 07.11): on the row only «Открыть студию» and «Отправить по ссылке» are pills; «Провести игру» is a
+   quiet link, «Соревнование по ссылке» and «Дуэль» moved into «Ещё». */
+describe('the test’s page: one row, the rest in «Ещё»', () => {
+  it('the game is a quiet link; the challenge and the duel are not on the row but in «Ещё»', async () => {
+    renderHome();
+    const game = await screen.findByRole('link', { name: 'Провести игру' });
+    expect(game).toHaveClass('sf-link');
+    expect(game).not.toHaveClass('th-send');
+    expect(screen.queryByRole('link', { name: 'Соревнование по ссылке' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Дуэль' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: тест' }));
+    const items = await screen.findAllByRole('menuitem');
+    const names = items.map((item) => item.textContent);
+    expect(names).toEqual(['Соревнование по ссылке', 'Дуэль']);
+    expect(items[0]).toHaveAttribute('href', '/live/challenge?c=c-1');
+    expect(items[1]).toHaveAttribute('href', '/live/duel?c=c-1');
+  });
+
+  it('a test that cannot be played has no challenge or duel in the menu', async () => {
+    renderHome(0, 5);
+    await screen.findByRole('button', { name: 'Провести игру' });
+    expect(screen.queryByRole('button', { name: 'Ещё: тест' })).toBeNull();
+  });
+});

@@ -241,3 +241,11 @@
 @media (prefers-reduced-motion: reduce) {
   .sf-shell .sf-tab-ico { transition: none; }
 }
+
+/* The account menu does not repeat the top line (UX audit 06.11): «Игры» is in the line from 1024 px, «?» from 640 px. */
+@media (min-width: 1024px) {
+  .sf-acct .sf-acct-item.sf-acct-narrow { display: none; }
+}
+@media (min-width: 640px) {
+  .sf-acct .sf-acct-item.sf-acct-phone { display: none; }
+}

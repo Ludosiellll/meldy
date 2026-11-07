@@ -315,8 +315,12 @@ describe('the author’s own test opens as the test’s page (release 47.3)', ()
       'Настройки',
       'Вопросы и ключи',
       'Пригласить группу',
+      'Соревнование по ссылке',
+      'Дуэль',
       'Удалить',
     ]);
+    // UX audit 06.11: «Провести игру» is a quiet link on the row, not a pill.
+    expect(screen.getByRole('link', { name: 'Провести игру' })).toHaveClass('th-game');
     // The only pills of the row are the page's own two: the rest are in «Ещё».
     expect(document.querySelectorAll('.ct-pill-link')).toHaveLength(0);
   });

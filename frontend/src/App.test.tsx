@@ -35,6 +35,7 @@ vi.mock('./pages/container/SubjectPage', () => ({ default: () => <h1>Стран�
 vi.mock('./pages/container/StudyPage', () => ({ default: () => <h1>Занятие</h1> }));
 vi.mock('./pages/container/MockPage', () => ({ default: () => <h1>Как на экзамене</h1> }));
 vi.mock('./pages/container/KeysPage', () => ({ default: () => <h1>Ключи</h1> }));
+vi.mock('./pages/test/StudioPage', () => ({ default: () => <h1>Студия</h1> }));
 vi.mock('./pages/container/SettingsPage', () => ({ default: () => <h1>Настройки экзамена</h1> }));
 vi.mock('./pages/container/JoinContainerPage', () => ({ default: () => <h1>Приглашение к экзамену</h1> }));
 vi.mock('./components/authReel/AuthReel', () => ({ default: () => null }));
@@ -167,6 +168,18 @@ describe('the exam container routes', () => {
     expect(window.location.search).toBe('?from=try');
     expect(window.location.hash).toBe('#lectures');
     expect(screen.queryByRole('heading', { name: 'Редактор экзамена' })).toBeNull();
+  });
+
+  it('the constructor’s old address opens the studio on «Список», with its query, in place (UX audit 06.11)', async () => {
+    window.history.pushState({}, '', '/dashboard');
+    const before = window.history.length;
+    openAt(`/exams/c/${C}/build?s=${S}`);
+    expect(await screen.findByRole('heading', { name: 'Студия' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(`/exams/c/${C}/studio`);
+    const query = new URLSearchParams(window.location.search);
+    expect(query.get('view')).toBe('list');
+    expect(query.get('s')).toBe(S);
+    expect(window.history.length).toBe(before + 1);
   });
 
   it('replaces /exams/new in the history: «назад» does not bounce through it', async () => {

@@ -76,47 +76,36 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
   // game points at the button (tips.ts «game»), on that one visit only.
   const gameTip = useFirstUseTip('game', { enabled: playable && rows !== null, visits: 1 });
   const gamePath = liveGamePath(containerId);
+  // UX audit 06.11 (owner 07.11 «да, делай В»): two pills on the row — «Открыть студию» and «Отправить по ссылке»;
+  // «Провести игру» a quiet link beside them, «Соревнование» and «Дуэль» in «⋯» (0 uses so far).
   const game = !liveGameOpen() ? null : why ? (
-    <button type="button" className="th-send" disabled aria-describedby={whyId}>
+    <button type="button" className="sf-link th-game" disabled aria-describedby={whyId}>
       {LIVE_ENTRY.host}
     </button>
   ) : (
     <>
-      <Link ref={gameRef} className="th-send" to={gamePath} onClick={gameTip.done}>
+      <Link ref={gameRef} className="sf-link th-game" to={gamePath} onClick={gameTip.done}>
         {LIVE_ENTRY.host}
       </Link>
       {/* Right after the button, so Tab goes from it to its tip; the card lies over the page. */}
       {gameTip.show ? <TipCard tip={TIPS.game} anchor={gameRef} to={gamePath} onAction={gameTip.done} onDismiss={gameTip.dismiss} /> : null}
     </>
   );
-  // «Соревнование по ссылке» (docs/live/CHALLENGE.md): the same questions, each person alone before a deadline; shut
-  // for the same reason as the game
-  const challenge = !liveGameOpen() ? null : why ? (
-    <button type="button" className="th-send" disabled aria-describedby={whyId}>
-      {CHALLENGE_ENTRY.action}
-    </button>
-  ) : (
-    <Link className="th-send" to={challengePath(containerId)}>
-      {CHALLENGE_ENTRY.action}
-    </Link>
-  );
-  // «Дуэль» (docs/live/DUEL.md): two people, the same questions at the same time; shut for the same reason
-  const duel = !liveGameOpen() ? null : why ? (
-    <button type="button" className="th-send" disabled aria-describedby={whyId}>
-      {DUEL_ENTRY.action}
-    </button>
-  ) : (
-    <Link className="th-send" to={duelPath(containerId)}>
-      {DUEL_ENTRY.action}
-    </Link>
-  );
+  // «Соревнование по ссылке» (docs/live/CHALLENGE.md) and «Дуэль» (docs/live/DUEL.md) in «⋯» before «Удалить»; left out
+  // while the game is shut or the test cannot be played (the same reason as the game).
+  const more = !liveGameOpen() || why
+    ? actions
+    : [
+        ...actions.filter((action) => action.key !== 'delete'),
+        { key: 'challenge', label: CHALLENGE_ENTRY.action, to: challengePath(containerId), separatorBefore: true },
+        { key: 'duel', label: DUEL_ENTRY.action, to: duelPath(containerId) },
+        ...actions.filter((action) => action.key === 'delete'),
+      ];
   const lead = (
     <>
       {wide ? studio : null}
       {send}
       {game}
-      {challenge}
-      {duel}
     </>
   );
 
@@ -170,7 +159,7 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
         title={summary.title}
         meta={meta}
         crumb={{ to: '/exams', label: TO_EXAMS }}
-        actions={actions}
+        actions={more}
         menuLabel={TEST_HOME.menuLabel}
         phone={phone}
         pills={0}
