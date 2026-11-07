@@ -449,7 +449,7 @@ describe('ExamEditor: a new exam', () => {
     // first screen (audit of 2026-10-08: the button was below it at 1532×734).
     const bar = screen.getByRole('button', { name: 'Сверить с лекциями' }).closest('.ex-cta')!;
     expect(bar).toHaveAttribute('data-row');
-    expect(plain(bar.querySelector('.ex-cta-why[data-next]')?.textContent)).toBe('Meldy сверит каждый вопрос с 2 выбранными лекциями — пометки появятся на листе экзамена.');
+    expect(plain(bar.querySelector('.ex-cta-why[data-next]')?.textContent)).toBe('Meldy сверит каждый вопрос с 2 выбранными лекциями — пометки появятся на странице экзамена.');
     expect(document.querySelector('.nx-go-note')).toBeNull();
     expect(screen.getByRole('list', { name: 'Шаги' }).querySelector('[aria-current="step"]')).toHaveTextContent('Проверка и лекции');
   });

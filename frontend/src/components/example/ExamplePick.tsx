@@ -26,7 +26,7 @@ export const PARTIAL_NOTE = 'В лекциях есть только часть 
 export const NONE_NOTE = 'Этого вопроса нет в лекциях. Проверить ответ не получится.';
 
 /** The way to what Meldy made of the first lecture (/try/lecture): a verb and what it shows. */
-export const LECTURE_RESULT_LINK = `Посмотреть конспект и тест по лекции «${lectureOf('M1').title}»`;
+export const LECTURE_RESULT_LINK = `Посмотреть конспект и самопроверку по лекции «${lectureOf('M1').title}»`;
 
 /** The address of a question's answer screen (step 2). */
 export function answerHref(question: Pick<ExampleQuestion, 'id'>): string {

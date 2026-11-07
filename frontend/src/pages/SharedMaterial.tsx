@@ -30,7 +30,7 @@ const retryable = (status: number | undefined) => !status || status === 408 || s
  * «Создать аккаунт», the title, the summary (or the cheat sheet) in a white card, and an invitation on a blue panel.
  *
  * Audit 2026-10-08 (PUB-26): a material that is not there and a load that failed are told apart (the second offers
- * «Обновить»); the label «Общий материал» is plain text and only over a material; the way on is the example.
+ * «Обновить»); the label «Общая лекция» is plain text and only over a material; the way on is the example.
  */
 export default function SharedMaterial() {
   const { id } = useParams();
@@ -38,7 +38,7 @@ export default function SharedMaterial() {
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
   const material = load.state === 'ready' ? load.material : null;
-  useDocumentTitle(material ? displayMaterialTitle(material.title) : 'Общий материал');
+  useDocumentTitle(material ? displayMaterialTitle(material.title) : 'Общая лекция');
 
   useEffect(() => {
     if (!id) {
@@ -76,7 +76,7 @@ export default function SharedMaterial() {
         <Link className="shm-logo" to="/">
           Meldy
         </Link>
-        {material ? <span className="shm-bar-label">Общий материал</span> : null}
+        {material ? <span className="shm-bar-label">Общая лекция</span> : null}
         {/* «Войти» is always there for a guest (decision 5 of 2026-10-08), sign-up beside it. */}
         <Link to="/login" className="shm-signin">
           Войти
@@ -92,7 +92,7 @@ export default function SharedMaterial() {
     return (
       <div className="shm">
         {bar}
-        <main className="shm-main" role="status" aria-label="Загружаем материал">
+        <main className="shm-main" role="status" aria-label="Загружаем лекцию">
           <div className="shm-skeleton" aria-hidden="true">
             <i className="shm-skel-title" />
             <div className="shm-card">
@@ -113,7 +113,7 @@ export default function SharedMaterial() {
         {bar}
         <main className="shm-main">
           <section className="shm-card shm-missing" aria-labelledby="shm-failed-title">
-            <h1 id="shm-failed-title">Не удалось загрузить материал</h1>
+            <h1 id="shm-failed-title">Не удалось загрузить лекцию</h1>
             <p>Проверьте интернет и попробуйте ещё раз.</p>
             <div className="shm-missing-acts">
               <button type="button" onClick={() => setAttempt((value) => value + 1)} className="sf-primary">
@@ -132,7 +132,7 @@ export default function SharedMaterial() {
         {bar}
         <main className="shm-main">
           <section className="shm-card shm-missing" aria-labelledby="shm-missing-title">
-            <h1 id="shm-missing-title">Материал не найден</h1>
+            <h1 id="shm-missing-title">Лекция не найдена</h1>
             <p>Возможно, ссылка устарела или автор закрыл к нему доступ.</p>
             <div className="shm-missing-acts">
               <Link to="/try" className="sf-primary">
@@ -190,7 +190,7 @@ export default function SharedMaterial() {
             {/* The fragment marks «[S02]» are internal ids: a reader of the link never sees them. */}
             <div className="shm-md">
               <ReactMarkdown remarkPlugins={[remarkMath]} rehypePlugins={[rehypeKatex]}>
-                {repairMathEscapes(stripSourceMarkers(extractCleanContent(material.summary_json))) || 'У этого материала пока нет конспекта.'}
+                {repairMathEscapes(stripSourceMarkers(extractCleanContent(material.summary_json))) || 'У этой лекции пока нет конспекта.'}
               </ReactMarkdown>
             </div>
           </article>

@@ -246,7 +246,7 @@ export default function ExamDraw() {
         </span>
       </div>
       <Link className="sf-link dw-exit" to={exitHref}>
-        Лист экзамена
+        Экзамен
       </Link>
     </header>
   );

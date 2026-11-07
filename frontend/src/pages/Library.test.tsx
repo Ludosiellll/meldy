@@ -153,7 +153,7 @@ describe('how the lectures are grouped', () => {
     expect(layout.mode === 'single' && layout.entries.map((item) => item.id)).toEqual(['c', 'a', 'b']);
   });
 
-  it('sections by exam and «Другие материалы»; a lecture in two exams is in both', () => {
+  it('sections by exam and «Другие лекции»; a lecture in two exams is in both', () => {
     const layout = libraryLayout([a, b, c], [shelf('e1', [['a', '1'], ['c', '2']]), shelf('e2', [['c', '1']])]);
     expect(layout.mode).toBe('sections');
     if (layout.mode !== 'sections') return;
@@ -164,7 +164,7 @@ describe('how the lectures are grouped', () => {
     ]);
   });
 
-  it('puts «Другие материалы» first while it holds the newest lecture: a lecture just analysed is at the top (QA 2026-10-11)', () => {
+  it('puts «Другие лекции» first while it holds the newest lecture: a lecture just analysed is at the top (QA 2026-10-11)', () => {
     const d = entry('d', '2026-10-11T17:20:00Z');
     const e = entry('e', '2026-10-11T17:25:00Z');
     const layout = libraryLayout([a, b, c, d, e], [shelf('e1', [['a', '1'], ['b', '2']]), shelf('e2', [['c', '1']])]);
@@ -248,7 +248,7 @@ describe('<Library>', () => {
     // It names only what the lecture has: this one, its конспект (QA 2026-10-11: «карточками и самопроверкой» for every lecture).
     expect(data.confirm).toHaveBeenCalledWith({
       title: 'Удалить лекцию?',
-      message: '«Предложение» исчезнет из библиотеки вместе с конспектом. Это нельзя отменить.',
+      message: '«Предложение» исчезнет из «Лекций» вместе с конспектом. Это нельзя отменить.',
       confirmText: 'Удалить',
       cancelText: 'Оставить',
     });
@@ -310,7 +310,7 @@ describe('<Library>', () => {
     data.failMaterials = true;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     renderLibrary();
-    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить библиотеку' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить лекции' })).toBeInTheDocument();
     expect(screen.getByText('Лекции на месте — повторите через минуту.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
   });
@@ -359,14 +359,14 @@ describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', 
     material('m3', 'Нормализация', '2026-09-03T00:00:00Z', { flashcards_json: six, quiz_json: { quiz: [{}] } }),
   ];
 
-  it('opens with «Разобрать лекцию»; «Лист экзамена» is a quiet link and the lines are short', async () => {
+  it('opens with «Разобрать лекцию»; «Экзамен» is a quiet link and the lines are short', async () => {
     data.materials = lectures();
     data.shelves = [shelf('e1', [['m1', '1'], ['m2', '2'], ['m3', '3']], { title: 'Базы данных' })];
     data.followups = new Map([['m1', 1], ['m2', 4], ['m3', 3]]);
     renderLibrary();
     const row = (await screen.findByText('Реляционная модель данных')).closest('a') as HTMLElement;
     expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
-    const sheet = screen.getByRole('link', { name: 'Лист экзамена' });
+    const sheet = screen.getByRole('link', { name: 'Экзамен' });
     expect(sheet).toHaveAttribute('href', '/exams/e1');
     expect(sheet).toHaveClass('sf-link');
     expect(sheet).not.toHaveClass('lib-pill');
@@ -417,13 +417,13 @@ describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', 
     renderLibrary();
     const section = (await screen.findByRole('heading', { name: 'Базы данных' })).closest('section') as HTMLElement;
     expect(plain(section.querySelector('.sf-lede')?.textContent ?? '')).toMatch(/^\d{1,2} [а-я]+( \d{4})?, через 13 дней · 2 лекции$/);
-    expect(within(section).getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/e1');
+    expect(within(section).getByRole('link', { name: 'Экзамен' })).toHaveAttribute('href', '/exams/e1');
   });
 
   it('offers «Разобрать лекцию» while the list loads and when it cannot be loaded', async () => {
     data.hangMaterials = true;
     const view = renderLibrary();
-    expect(screen.getByRole('status', { name: 'Загружаем библиотеку' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Загружаем лекции' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
     view.unmount();
 
@@ -431,27 +431,27 @@ describe('«Лекции» on a phone (10_Project/Phone_Declutter_2026-10-08)', 
     data.failMaterials = true;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     renderLibrary();
-    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить библиотеку' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить лекции' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
   });
 });
 
 describe('«Лекции» on a computer', () => {
-  it('has no «Разобрать лекцию» of its own (the top line has it) and «Лист экзамена» is the white pill', async () => {
+  it('has no «Разобрать лекцию» of its own (the top line has it) and «Экзамен» is the white pill', async () => {
     data.materials = [material('m1', 'Спрос', '2026-09-01T00:00:00Z')];
     data.shelves = [shelf('e1', [['m1', '1']])];
     renderLibrary();
     await screen.findByText('Спрос');
     expect(screen.queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
-    expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveClass('lib-pill');
+    expect(screen.getByRole('link', { name: 'Экзамен' })).toHaveClass('lib-pill');
     expect(plain(document.querySelector('.lib-head .sf-lede')?.textContent ?? '')).toBe('Экзамен · 1 лекция');
   });
 
   it('keeps its loading and failure states without a start of their own', async () => {
     data.hangMaterials = true;
     const view = renderLibrary();
-    expect(screen.getByRole('status', { name: 'Загружаем библиотеку' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Загружаем лекции' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
     view.unmount();
 
@@ -459,7 +459,7 @@ describe('«Лекции» on a computer', () => {
     data.failMaterials = true;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     renderLibrary();
-    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить библиотеку' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить лекции' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Разобрать лекцию' })).toBeNull();
   });
 });

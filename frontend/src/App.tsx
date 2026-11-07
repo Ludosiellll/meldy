@@ -98,7 +98,7 @@ function loadExamTicket(): Promise<{ default: ComponentType }> {
 function TicketUnavailable() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--sf-canvas)] px-6 text-center text-[var(--sf-ink)]">
-      <p className="max-w-md text-base">Экран ответа пока недоступен в этой сборке. Вернитесь к листу экзамена.</p>
+      <p className="max-w-md text-base">Экран ответа пока недоступен в этой сборке. Вернитесь к экзамену.</p>
     </div>
   );
 }

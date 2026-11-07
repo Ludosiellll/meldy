@@ -121,7 +121,7 @@ export default function ExpressPrepView({
     <section className="xp-empty">
       <div className="xp-empty-text">
         <h2>Выжимка ещё не создана</h2>
-        <p className="xp-empty-p">Соберём главное из материала: определения, формулы и частые ошибки на экзамене.</p>
+        <p className="xp-empty-p">Соберём главное из лекции: определения, формулы и частые ошибки на экзамене.</p>
         {materialId && canEdit ? (
           <div className="xp-empty-acts">
             <button type="button" onClick={handleCreateCheatsheet} disabled={isGenerating} className="sf-primary xp-create" aria-busy={isGenerating || undefined}>
@@ -142,7 +142,7 @@ export default function ExpressPrepView({
           </div>
         ) : (
           <p className="xp-empty-note">
-            {materialId ? 'Выжимку может создать только автор материала.' : 'Выжимку можно создать на странице материала в библиотеке.'}
+            {materialId ? 'Выжимку может создать только автор лекции.' : 'Выжимку можно создать на странице лекции в «Лекциях».'}
           </p>
         )}
       </div>

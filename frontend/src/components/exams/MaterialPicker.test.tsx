@@ -345,7 +345,7 @@ describe('MaterialPicker: which lectures fit the questions', () => {
 
   it('says how many old lectures were not checked when the library has too much text', () => {
     render(<Harness materials={LONG} fit={fit({ view: view({ p1: 2 }, [], 18, 2) })} />);
-    expect(screen.getByText('2 старые лекции не проверены: в библиотеке слишком много текста.')).toBeInTheDocument();
+    expect(screen.getByText('2 старые лекции не проверены: в «Лекциях» слишком много текста.')).toBeInTheDocument();
     expect(document.querySelector('.nx-pick-unmatched')).toBeNull();
   });
 });

@@ -155,7 +155,7 @@ export function deleteLectureConfirm(title: string, has: LectureMaterials = {}) 
   const together = named.length > 1 ? `${named.slice(0, -1).join(', ')} и ${named[named.length - 1]}` : named[0];
   return {
     title: 'Удалить лекцию?',
-    message: `«${title}» исчезнет из библиотеки${together ? ` вместе с ${together}` : ''}. Это нельзя отменить.`,
+    message: `«${title}» исчезнет из «Лекций»${together ? ` вместе с ${together}` : ''}. Это нельзя отменить.`,
     confirmText: 'Удалить',
     cancelText: 'Оставить',
   };

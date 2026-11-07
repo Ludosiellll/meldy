@@ -195,7 +195,7 @@ function renderAnalyze(wrap: (node: ReactNode) => ReactNode = node => node) {
   );
 }
 
-const startButton = () => screen.getByRole('button', { name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Запускаем/ });
+const startButton = () => screen.getByRole('button', { name: /Разобрать лекцию|Вставьте текст|Сначала выберите файл|Запускаем/ });
 const uploadScreen = () => screen.findByRole('heading', { name: 'Разобрать лекцию' });
 
 async function pasteText(text: string) {
@@ -219,7 +219,7 @@ async function loadDemo() {
 
 const LECTURE = `Лекция 3. Эластичность спроса\n${'Эластичность показывает, насколько меняется спрос при изменении цены. '.repeat(6)}`;
 
-const errorHeading = () => screen.findByRole('heading', { name: 'Анализ не завершён' }, { timeout: 3000 });
+const errorHeading = () => screen.findByRole('heading', { name: 'Разбор не завершён' }, { timeout: 3000 });
 const resultsHeading = () => screen.findByText(/Материал обработан|Обработан частично/, undefined, { timeout: 3000 });
 
 beforeAll(() => {
@@ -274,14 +274,14 @@ describe('the page’s name', () => {
 });
 
 describe('stream outcomes', () => {
-  it('a clean EOF after agent_start shows «Анализ не завершён»; «Попробовать ещё раз» resends the same file and settings', async () => {
+  it('a clean EOF after agent_start shows «Разбор не завершён»; «Попробовать ещё раз» resends the same file and settings', async () => {
     streams = [() => sse([ev(TEXT), ev(start('summarizer'))], 'close')];
     renderAnalyze();
     const file = await chooseFile();
     fireEvent.click(startButton());
 
     await errorHeading();
-    expect(screen.getByRole('alert')).toHaveTextContent('Анализ прервался до конца. Материал не сохранён, лимит не списан.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Разбор прервался до конца. Лекция не сохранена, лимит не списан.');
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
 
@@ -374,7 +374,7 @@ describe('stream outcomes', () => {
     await chooseFile();
     fireEvent.click(startButton());
     await errorHeading();
-    expect(screen.getByRole('alert')).toHaveTextContent('ИИ-сервис сейчас не ответил. Материал не сохранён, лимит не списан.');
+    expect(screen.getByRole('alert')).toHaveTextContent('ИИ-сервис сейчас не ответил. Лекция не сохранена, лимит не списан.');
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
     expect(s.activity).not.toHaveBeenCalled();
@@ -395,7 +395,7 @@ describe('stream outcomes', () => {
     await errorHeading();
     expect(screen.getByRole('alert')).toHaveTextContent('Сервис ИИ сейчас занят.');
     await act(async () => new Promise(resolve => setTimeout(resolve, 50)));
-    expect(screen.getByRole('heading', { name: 'Анализ не завершён' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Разбор не завершён' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
@@ -414,7 +414,7 @@ describe('a YouTube link (owner, 2026-10-27)', () => {
     fireEvent.change(screen.getByLabelText('Ссылка на статью или учебный материал'), {
       target: { value: 'https://youtu.be/aircAruvnKk' },
     });
-    fireEvent.click(await screen.findByRole('button', { name: 'Запустить анализ' }, { timeout: 3000 }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Разобрать лекцию' }, { timeout: 3000 }));
     await resultsHeading();
     const [call] = analyzeCalls();
     expect(call.url).toBe('/api/analyze/url');
@@ -454,7 +454,7 @@ describe('HTTP errors before the stream', () => {
     await chooseFile();
     fireEvent.click(startButton());
     await errorHeading();
-    expect(screen.getByRole('alert')).toHaveTextContent('Файл больше 15 МБ. Сожмите его или загрузите часть материала.');
+    expect(screen.getByRole('alert')).toHaveTextContent('Файл больше 15 МБ. Сожмите его или загрузите часть лекции.');
     expect(screen.queryByRole('button', { name: 'Попробовать ещё раз' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Выбрать другой файл' }));
     await uploadScreen();
@@ -509,7 +509,7 @@ describe('timeouts and cancel', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Отменить' }));
     await uploadScreen();
     expect(lastSignal()?.aborted).toBe(true);
-    expect(screen.queryByRole('heading', { name: 'Анализ не завершён' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Разбор не завершён' })).not.toBeInTheDocument();
     await act(async () => new Promise(resolve => setTimeout(resolve, 30)));
     expect(s.inserts).toHaveLength(0);
     expect(s.increment).not.toHaveBeenCalled();
@@ -677,7 +677,7 @@ describe('demo text', () => {
     await loadDemo();
     fireEvent.click(startButton());
     await resultsHeading();
-    expect(await screen.findByText(/Этот результат не сохранён: демо-материал уже есть в библиотеке/)).toBeInTheDocument();
+    expect(await screen.findByText(/Этот результат не сохранён: пример лекции уже есть в «Лекциях»/)).toBeInTheDocument();
     expect(s.inserts).toHaveLength(0);
     expect(s.sync).not.toHaveBeenCalled();
     expect(s.activity).not.toHaveBeenCalled();
@@ -709,7 +709,7 @@ describe('demo text', () => {
     await loadDemo();
     fireEvent.click(startButton());
     expect(
-      await screen.findByText(/Этот результат не сохранён: демо-материал уже есть в библиотеке/, undefined, { timeout: 3000 }),
+      await screen.findByText(/Этот результат не сохранён: пример лекции уже есть в «Лекциях»/, undefined, { timeout: 3000 }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Изменить название' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
@@ -785,7 +785,7 @@ describe('pasted text', () => {
     expect(file.name).toBe('pasted-text.txt');
     expect(await file.text()).toBe(LECTURE);
     expect(s.inserts[0].title).toBe('Лекция 3. Эластичность спроса');
-    expect(s.verify).toHaveBeenCalledWith('user-1', 20, 'Анализ материала');
+    expect(s.verify).toHaveBeenCalledWith('user-1', 20, 'Разбор лекции');
   });
 
   it('an error keeps the text: «Попробовать ещё раз» resends it and «Изменить текст» shows it again', async () => {
@@ -826,12 +826,12 @@ describe('saving', () => {
     await chooseFile();
     fireEvent.click(startButton());
     await resultsHeading();
-    expect(await screen.findByText(/Результат не сохранён в библиотеку/)).toBeInTheDocument();
+    expect(await screen.findByText(/Результат не сохранён в «Лекции»/)).toBeInTheDocument();
     expect(s.increment).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Сохранить ещё раз' }));
     await waitFor(() => expect(s.inserts).toHaveLength(1));
     await waitFor(() => expect(s.increment).toHaveBeenCalledTimes(1));
-    expect(screen.queryByText(/Результат не сохранён в библиотеку/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Результат не сохранён в «Лекции»/)).not.toBeInTheDocument();
   });
 
   it('a slow save of the previous run does not block saving the next one', async () => {
@@ -933,7 +933,7 @@ describe('cost note', () => {
     renderAnalyze();
     await chooseFile();
     expect(
-      await screen.findByText('Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00.'),
+      await screen.findByText('Разбор лекции расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00.'),
     ).toBeInTheDocument();
     expect(s.checkLimit).toHaveBeenCalledWith('user-1', 0);
   });
@@ -941,14 +941,14 @@ describe('cost note', () => {
   it('falls back to a plain line when the balance could not be read, and shows nothing for PRO', async () => {
     s.checkLimit = vi.fn(async () => ({ allowed: true, isPro: false, count: 0, ok: false }));
     const view = renderAnalyze();
-    expect(await screen.findByText('Анализ расходует 20 единиц дневного лимита (100 в сутки).')).toBeInTheDocument();
+    expect(await screen.findByText('Разбор лекции расходует 20 единиц дневного лимита (100 в сутки).')).toBeInTheDocument();
     view.unmount();
 
     s.checkLimit = vi.fn(async () => ({ allowed: true, isPro: true, count: 0, ok: true }));
     renderAnalyze();
     await uploadScreen();
     await act(async () => new Promise(resolve => setTimeout(resolve, 20)));
-    expect(screen.queryByText(/Анализ расходует/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Разбор лекции расходует/)).not.toBeInTheDocument();
   });
 
   it('refreshes after a charge elsewhere (AI_USAGE_EVENT)', async () => {

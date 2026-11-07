@@ -10,7 +10,7 @@ export interface DrawnCardQuestion {
 }
 
 export const NONE_QUESTION_MESSAGE =
-  'Этого вопроса нет в ваших лекциях — оценить ответ не по чему. Добавьте материал или тяните ещё.';
+  'Этого вопроса нет в ваших лекциях — оценить ответ не по чему. Добавьте лекцию или тяните ещё.';
 /** «Как на экзамене» has no «Тянуть ещё»: the card only says what the question lacks. */
 export const NONE_QUESTION_EXAM_MESSAGE = 'Этого вопроса нет в ваших лекциях.';
 

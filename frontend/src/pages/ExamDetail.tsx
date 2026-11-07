@@ -854,7 +854,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     const question = selectedRow.question;
     const ok = await confirm({
       title: 'Отметить вручную?',
-      message: `Вопрос ${selectedRow.number} будет отмечен как «есть в лекции». Meldy это не проверял: на листе будет подпись «отмечено вами».`,
+      message: `Вопрос ${selectedRow.number} будет отмечен как «есть в лекции». Meldy это не проверял: на странице экзамена будет подпись «отмечено вами».`,
       confirmText: 'Отметить',
       cancelText: 'Отмена',
       type: 'info',
@@ -884,7 +884,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
         <p className="ex-loading" role="status">
-          Загружаем лист экзамена…
+          Загружаем экзамен…
         </p>
       </div>
     );
@@ -893,7 +893,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
         <div className="ex-error" role="alert">
-          <h2>{status === 'missing' ? 'Экзамен не найден' : 'Не удалось открыть лист экзамена'}</h2>
+          <h2>{status === 'missing' ? 'Экзамен не найден' : 'Не удалось открыть экзамен'}</h2>
           <p>{status === 'missing' ? 'Его удалили, или он принадлежит другому аккаунту.' : loadError}</p>
           {status === 'error' ? (
             <button type="button" className="sf-link" onClick={() => void load()}>
@@ -1255,7 +1255,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   ];
   const moreMenu = (
     <div className="ex-more" ref={moreRef}>
-      <MoreMenu items={moreItems} label="Ещё: лист экзамена" variant="round" />
+      <MoreMenu items={moreItems} label="Ещё: экзамен" variant="round" />
     </div>
   );
   const examLinks = (

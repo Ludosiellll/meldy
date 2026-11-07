@@ -70,7 +70,7 @@ describe('verifyEnergy', () => {
   it('lets an allowed action through with no dialog at all', async () => {
     h.check.mockResolvedValue({ allowed: true, isPro: false, count: 80, ok: true });
     const host = renderHookHost();
-    await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(true);
+    await expect(host.verify('user-1', 20, 'Разбор лекции')).resolves.toBe(true);
     expect(h.check).toHaveBeenCalledWith('user-1', 20);
     expect(h.confirm).not.toHaveBeenCalled();
     expect(h.alert).not.toHaveBeenCalled();
@@ -87,10 +87,10 @@ describe('verifyEnergy', () => {
   it('stops PRO at its daily 1000 too, without offering PRO', async () => {
     h.check.mockResolvedValue({ allowed: false, isPro: true, count: 995, ok: true, limit: 1000 });
     const host = renderHookHost();
-    await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
+    await expect(host.verify('user-1', 20, 'Разбор лекции')).resolves.toBe(false);
     const options = h.alert.mock.calls[0][0];
     expect(options.title).toBe('Не хватает дневного лимита');
-    expect(options.message).toMatch(/^Анализ материала расходует 20 единиц, а на сегодня осталось 5\./);
+    expect(options.message).toMatch(/^Разбор лекции расходует 20 единиц, а на сегодня осталось 5\./);
     expect(options.secondaryText).toBeUndefined();
   });
 
@@ -106,7 +106,7 @@ describe('verifyEnergy', () => {
   it('shows one plain alert and refuses when the remaining units are not enough', async () => {
     h.check.mockResolvedValue({ allowed: false, isPro: false, count: 90, ok: true });
     const host = renderHookHost();
-    await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
+    await expect(host.verify('user-1', 20, 'Разбор лекции')).resolves.toBe(false);
     expect(h.confirm).not.toHaveBeenCalled();
     expect(h.alert).toHaveBeenCalledTimes(1);
     const options = h.alert.mock.calls[0][0];
@@ -114,7 +114,7 @@ describe('verifyEnergy', () => {
     expect(resetAt).toMatch(/^\d{1,2}:\d{2}$/);
     // Осталось 10 из 100: лимит не «исчерпан», его не хватает на это действие.
     expect(options.title).toBe('Не хватает дневного лимита');
-    expect(options.message).toBe(`Анализ материала расходует 20 единиц, а на сегодня осталось 10. Лимит обновится в ${resetAt}.`);
+    expect(options.message).toBe(`Разбор лекции расходует 20 единиц, а на сегодня осталось 10. Лимит обновится в ${resetAt}.`);
     expect(options.confirmText).toBe('Понятно');
     // The second, quieter button opens the «Что даёт PRO» window (no payment on this screen).
     expect(options.secondaryText).toBe('Что даёт PRO');
@@ -129,7 +129,7 @@ describe('verifyEnergy', () => {
     try {
       h.check.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
       const host = renderHookHost();
-      await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
+      await expect(host.verify('user-1', 20, 'Разбор лекции')).resolves.toBe(false);
       const options = h.alert.mock.calls[0][0];
       expect(options.title).toBe('Дневной лимит исчерпан');
       expect(options.confirmText).toBe('Понятно');
@@ -143,10 +143,10 @@ describe('verifyEnergy', () => {
   it('says the limit is exhausted only when nothing is left', async () => {
     h.check.mockResolvedValue({ allowed: false, isPro: false, count: 100, ok: true });
     const host = renderHookHost();
-    await expect(host.verify('user-1', 20, 'Анализ материала')).resolves.toBe(false);
+    await expect(host.verify('user-1', 20, 'Разбор лекции')).resolves.toBe(false);
     const options = h.alert.mock.calls[0][0];
     expect(options.title).toBe('Дневной лимит исчерпан');
-    expect(options.message).toMatch(/^Анализ материала расходует 20 единиц, а на сегодня осталось 0\. Лимит обновится в \d{1,2}:\d{2}\. /);
+    expect(options.message).toMatch(/^Разбор лекции расходует 20 единиц, а на сегодня осталось 0\. Лимит обновится в \d{1,2}:\d{2}\. /);
     // A spent day also says what still works without units.
     expect(options.message.endsWith(` ${WITHOUT_UNITS}`)).toBe(true);
 

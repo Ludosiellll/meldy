@@ -321,7 +321,7 @@ describe('library', () => {
     const { container } = openAt('/library');
     expect(await screen.findByRole('heading', { level: 1, name: 'Микроэкономика' })).toBeInTheDocument();
     expect(screen.getByText('Экзамен 15 октября · 2 лекции: 1 разобрана, 1 загружена только текстом · 2 карточки')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-1');
+    expect(screen.getByRole('link', { name: 'Экзамен' })).toHaveAttribute('href', '/exams/exam-1');
     const rows = screen.getAllByRole('listitem');
     expect(rows.map((row) => within(row).getByRole('link').getAttribute('href'))).toEqual(['/library/m-1', '/library/m-2']);
     expect(within(rows[0]).getByText('конспект · 2 карточки · самопроверка · подкаст')).toBeInTheDocument();

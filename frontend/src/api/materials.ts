@@ -37,7 +37,7 @@ export async function deleteMaterial(id: string) {
 async function updateOwnMaterial(id: string, values: Record<string, unknown>): Promise<void> {
   const { data, error } = await supabase.from('materials').update(values).eq('id', id).select('id');
   if (error) throw error;
-  if (Array.isArray(data) && data.length === 0) throw new Error('Материал не изменён: нет прав на запись');
+  if (Array.isArray(data) && data.length === 0) throw new Error('Лекция не изменена: нет прав на запись');
 }
 
 export async function updateMaterialSubject(id: string, subject: string): Promise<void> {

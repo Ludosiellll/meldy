@@ -129,7 +129,7 @@ export function unmatchedLines(numbers: readonly string[], total: number): { lea
 
 /** Lectures past the server's text limit: they were not checked. */
 export function notCheckedText(count: number): string {
-  return `${count} ${pluralRu(count, ['старая лекция не проверена', 'старые лекции не проверены', 'старых лекций не проверены'])}: в библиотеке слишком много текста.`;
+  return `${count} ${pluralRu(count, ['старая лекция не проверена', 'старые лекции не проверены', 'старых лекций не проверены'])}: в «Лекциях» слишком много текста.`;
 }
 
 // ------------------------------------------------------------------ the request

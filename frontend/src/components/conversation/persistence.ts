@@ -25,7 +25,7 @@ export async function loadMaterialSnapshot(materialId: string): Promise<Material
     .select('summary_json, original_text')
     .eq('id', materialId)
     .single();
-  if (error || !data) throw new ConversationError('Не удалось открыть материал. Попробуйте ещё раз.');
+  if (error || !data) throw new ConversationError('Не удалось открыть лекцию. Попробуйте ещё раз.');
   return {
     summaryJson: isRecord(data.summary_json) ? data.summary_json : {},
     originalText: typeof data.original_text === 'string' ? data.original_text : '',
@@ -50,7 +50,7 @@ export function conversationTerms(snapshot: MaterialSnapshot, fallback?: Convers
     .map(item => ({ term: item.term, definition: item.definition }));
 }
 
-export const NOT_OWNER_MESSAGE = 'Этот материал нельзя изменить: он принадлежит другому пользователю.';
+export const NOT_OWNER_MESSAGE = 'Эту лекцию нельзя изменить: она принадлежит другому пользователю.';
 
 /**
  * Меняет в summary_json только ключи из patch. summary_json читается заново

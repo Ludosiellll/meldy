@@ -77,7 +77,7 @@ const SHEET_PREVIEW: Array<{ coverage: 'full' | 'partial' | 'none'; width: strin
 /** Under «Сверить с лекциями»: what the press does, with how many lectures. */
 function mapNext(lectures: number): string {
   const chosen = lectures % 10 === 1 && lectures % 100 !== 11 ? 'выбранной лекцией' : 'выбранными лекциями';
-  return `Meldy сверит каждый вопрос с ${lectures} ${chosen} — пометки появятся на листе экзамена.`;
+  return `Meldy сверит каждый вопрос с ${lectures} ${chosen} — пометки появятся на странице экзамена.`;
 }
 /** Why the title ticked the lectures as it did, until the student changes them (the questions' ticks: FIT_TICK_HINT). */
 const TICK_HINTS = {
@@ -577,8 +577,8 @@ export default function ExamEditor() {
     materialsState !== 'ready'
       ? 'Какие лекции брать, выберете на следующем шаге.'
       : libraryLectures > 0
-        ? `В библиотеке ${libraryLectures} ${pluralRu(libraryLectures, ['лекция', 'лекции', 'лекций'])}. На следующем шаге выберете нужные — Meldy подскажет, какие подходят к вопросам.`
-        : 'В библиотеке пока нет лекций с текстом. На следующем шаге их можно добавить — только текст, без расхода лимита (кроме распознавания сканов).';
+        ? `У вас ${libraryLectures} ${pluralRu(libraryLectures, ['лекция', 'лекции', 'лекций'])}. На следующем шаге выберете нужные — Meldy подскажет, какие подходят к вопросам.`
+        : 'Лекций с текстом пока нет. На следующем шаге их можно добавить — только текст, без расхода лимита (кроме распознавания сканов).';
   // Step 1 is the list alone: one card, its button right under the field. The button always answers:
   // with text it recognises it; on an empty field it puts the cursor there and says what to do.
   const recognizeStep = total === 0;
@@ -958,7 +958,7 @@ export default function ExamEditor() {
                 </p>
               )}
               {/* Not on a phone: the sheet's own button says «Тянуть вопрос». */}
-              {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta nx-wide">Один вопрос в билете: на листе будет «Тянуть вопрос».</p>}
+              {perTicket === 1 && layoutMode !== 'fixed' && <p className="ex-meta nx-wide">Один вопрос в билете: на странице экзамена будет «Тянуть вопрос».</p>}
             </div>
 
             {/* The main button is in the bar at the bottom of the window (below); the form ends with what the press

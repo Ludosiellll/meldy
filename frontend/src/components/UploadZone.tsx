@@ -449,16 +449,16 @@ export default function UploadZone({
     }
   };
 
-  let startLabel = 'Запустить анализ';
+  let startLabel = 'Разобрать лекцию';
   if (busy) startLabel = 'Запускаем…';
   else if (!isReady && !limited) {
     // A video link: the button says why it waits, as the other waiting starts do (QA 2026-10-11: it said «Запустить
-    // анализ» and did nothing); the line under the link says what to do instead.
+    // анализ», now «Разобрать лекцию», and did nothing); the line under the link says what to do instead.
     if (tab === 'url') {
       if (youtubeLink) startLabel = !video || video.state === 'reading' ? 'Узнаём длину видео…' : 'Видео не разобрать';
       else startLabel = videoLink ? 'Ссылку на видео не открыть' : 'Вставьте ссылку';
     }
-    else if (tab === 'text') startLabel = trimmedLength === 0 ? 'Вставьте текст' : 'Запустить анализ';
+    else if (tab === 'text') startLabel = trimmedLength === 0 ? 'Вставьте текст' : 'Разобрать лекцию';
     else startLabel = 'Сначала выберите файл';
   }
 
@@ -494,8 +494,8 @@ export default function UploadZone({
         <h1 className="az-h1">Разобрать лекцию</h1>
         <p className="az-lede">
           {phone
-            ? 'Meldy сделает конспект, карточки и тест.'
-            : ty('Загрузите файл или вставьте текст — Meldy сделает конспект, карточки и тест со ссылками на фрагменты лекции.')}
+            ? 'Meldy сделает конспект, карточки и самопроверку.'
+            : ty('Загрузите файл или вставьте текст — Meldy сделает конспект, карточки и самопроверку со ссылками на фрагменты лекции.')}
         </p>
       </header>
 

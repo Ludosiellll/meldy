@@ -14,7 +14,7 @@ function renderMenu(props: Partial<Parameters<typeof MoreMenu>[0]> = {}) {
           path="/exams/1"
           element={
             <MoreMenu
-              label="Ещё: лист экзамена"
+              label="Ещё: экзамен"
               items={[
                 { key: 'edit', label: 'Изменить список', to: '/exams/1/edit' },
                 { key: 'invite', label: 'Пригласить группу', onSelect: onInvite },
@@ -34,7 +34,7 @@ function renderMenu(props: Partial<Parameters<typeof MoreMenu>[0]> = {}) {
 describe('MoreMenu', () => {
   it('is a quiet «Ещё» with a name, closed at first', () => {
     renderMenu();
-    const button = screen.getByRole('button', { name: 'Ещё: лист экзамена' });
+    const button = screen.getByRole('button', { name: 'Ещё: экзамен' });
     expect(button).toHaveTextContent('Ещё');
     expect(button).toHaveAttribute('aria-haspopup', 'menu');
     expect(button).toHaveAttribute('aria-expanded', 'false');
@@ -43,7 +43,7 @@ describe('MoreMenu', () => {
 
   it('opens with the focus on the first item; arrows move, Escape closes and gives the focus back', () => {
     renderMenu();
-    const button = screen.getByRole('button', { name: 'Ещё: лист экзамена' });
+    const button = screen.getByRole('button', { name: 'Ещё: экзамен' });
     fireEvent.click(button);
     expect(button).toHaveAttribute('aria-expanded', 'true');
     const items = screen.getAllByRole('menuitem');
@@ -61,18 +61,18 @@ describe('MoreMenu', () => {
 
   it('runs an action and closes; a link goes to its page', () => {
     const { onInvite } = renderMenu();
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Пригласить группу' }));
     expect(onInvite).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('menu')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Изменить список' }));
     expect(screen.getByText('Редактор')).toBeInTheDocument();
   });
 
   it('gives the focus back to «Ещё» when an action runs, and Tab closes the menu', () => {
     renderMenu();
-    const button = screen.getByRole('button', { name: 'Ещё: лист экзамена' });
+    const button = screen.getByRole('button', { name: 'Ещё: экзамен' });
     fireEvent.click(button);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Пригласить группу' }));
     expect(button).toHaveFocus();
@@ -83,7 +83,7 @@ describe('MoreMenu', () => {
 
   it('closes on a click outside', () => {
     renderMenu();
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     expect(screen.getByRole('menu')).toBeInTheDocument();
     fireEvent.mouseDown(document.body);
     expect(screen.queryByRole('menu')).toBeNull();
@@ -91,7 +91,7 @@ describe('MoreMenu', () => {
 
   it('the round variant is the «⋯» circle', () => {
     renderMenu({ variant: 'round' });
-    expect(screen.getByRole('button', { name: 'Ещё: лист экзамена' })).toHaveClass('sf-more');
+    expect(screen.getByRole('button', { name: 'Ещё: экзамен' })).toHaveClass('sf-more');
   });
 
   it('draws nothing without items', () => {
@@ -119,7 +119,7 @@ describe('MoreMenu: where it opens (usability check 2026-10-10, n1)', () => {
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: viewHeight });
   }
   const openMenu = () => {
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё: лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     return screen.getByRole('menu');
   };
 

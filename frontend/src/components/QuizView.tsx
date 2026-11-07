@@ -253,7 +253,7 @@ function JournalLine({ state, onRetry }: { state: SaveState; onRetry: () => void
   if (state.status === 'no_material') {
     return (
       <p role="status" className="qz-journal-line">
-        Результат не сохранён: материал ещё не в библиотеке
+        Результат не сохранён: лекции ещё нет в «Лекциях»
       </p>
     );
   }
@@ -517,7 +517,7 @@ export default function QuizView({ data, sources = [], materialId, topic = '', s
         <div>
           <h3 className="qz-title">Самопроверка</h3>
           <p className="qz-sub">
-            {total} {pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])} по материалу
+            {total} {pluralRu(total, ['вопрос', 'вопроса', 'вопросов'])} по лекции
           </p>
         </div>
       </div>

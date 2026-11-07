@@ -140,7 +140,7 @@ function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?
   }, [userId]);
 
   if (!quota) return {};
-  if (!quota.ok) return quota.isPro ? {} : { costNote: `Анализ расходует ${cost} единиц дневного лимита (${FREE_DAILY_LIMIT} в сутки).` };
+  if (!quota.ok) return quota.isPro ? {} : { costNote: `Разбор лекции расходует ${cost} единиц дневного лимита (${FREE_DAILY_LIMIT} в сутки).` };
   const remaining = Math.max(0, quota.limit - quota.count);
   const resetAt = formatLimitReset(quota.resetsAt);
   if (remaining < cost) {
@@ -148,7 +148,7 @@ function useAnalysisQuota(userId: string | undefined, cost: number): { costNote?
   }
   if (quota.isPro) return {};
   return {
-    costNote: `Анализ расходует ${cost} из ${quota.limit} единиц дневного лимита. Осталось ${remaining}, лимит обновится в ${resetAt}.`,
+    costNote: `Разбор лекции расходует ${cost} из ${quota.limit} единиц дневного лимита. Осталось ${remaining}, лимит обновится в ${resetAt}.`,
   };
 }
 
@@ -355,7 +355,7 @@ export default function Analyze() {
     if (!demo && user?.id) {
       let allowed = true;
       try {
-        allowed = await verifyEnergy(user.id, ANALYSIS_COST, 'Анализ материала');
+        allowed = await verifyEnergy(user.id, ANALYSIS_COST, 'Разбор лекции');
       } catch {
         allowed = true;
       }
@@ -532,7 +532,7 @@ export default function Analyze() {
       {state.isDemo && save.status === 'saved' && <p>Демо-текст: лимит не списан.</p>}
       {save.status === 'existing' && save.materialId && (
         <p>
-          Этот результат не сохранён: демо-материал уже есть в библиотеке.{' '}
+          Этот результат не сохранён: пример лекции уже есть в «Лекциях».{' '}
           <Link to={`/library/${save.materialId}`} className="az-inline-act font-semibold text-[var(--sf-accent-fg)] underline-offset-4 hover:underline">
             Открыть его
           </Link>
@@ -540,7 +540,7 @@ export default function Analyze() {
       )}
       {save.status === 'failed' && (
         <p role="alert" className="flex flex-wrap items-center gap-x-3">
-          Результат не сохранён в библиотеку.
+          Результат не сохранён в «Лекции».
           <button type="button" onClick={retrySave} disabled={saveBusy} className={INLINE_ACTION}>
             Сохранить ещё раз
           </button>
@@ -625,7 +625,7 @@ export default function Analyze() {
                 }}
                 className="sf-secondary az-pill2"
               >
-                {state.savedMaterialId ?? state.demoMaterialId ? 'Открыть лекцию' : 'Открыть библиотеку'}
+                {state.savedMaterialId ?? state.demoMaterialId ? 'Открыть лекцию' : 'Все лекции'}
                 <span className="az-pill2-dot" aria-hidden="true">
                   <svg viewBox="0 0 24 24" focusable="false">
                     <path d="M5 12h14M13 6l6 6-6 6" />
@@ -653,7 +653,7 @@ export default function Analyze() {
             </div>
             <div className="az-fail-body">
               <h2 id="analysis-error-heading" className="az-fail-h">
-                Анализ не завершён
+                Разбор не завершён
               </h2>
               <p role="alert" className="az-fail-text">
                 {state.error.message}

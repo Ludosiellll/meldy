@@ -103,8 +103,8 @@ describe('lectureFit: what is asked and what is shown', () => {
     expect(unmatchedLines(['3', '7', '12'], 18)?.lead).toBe('Без подходящей лекции: вопросы 3, 7 и 12.');
     expect(unmatchedLines(['3', '7', '12'], 18)?.advice).toBe('Если лекции по ним есть, добавьте их — иначе сверка отметит, что их нет в лекциях.');
     expect(unmatchedLines(['1', '2'], 2)?.lead).toBe('Ни к одному вопросу не нашлось подходящей лекции.');
-    expect(notCheckedText(3)).toBe('3 старые лекции не проверены: в библиотеке слишком много текста.');
-    expect(notCheckedText(1)).toBe('1 старая лекция не проверена: в библиотеке слишком много текста.');
+    expect(notCheckedText(3)).toBe('3 старые лекции не проверены: в «Лекциях» слишком много текста.');
+    expect(notCheckedText(1)).toBe('1 старая лекция не проверена: в «Лекциях» слишком много текста.');
   });
 });
 

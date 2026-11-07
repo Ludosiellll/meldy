@@ -136,7 +136,7 @@ export default function FlashcardsView({ data, sources = [], reviewHref, followu
           <p className="fc-result-p">
             {knownCount === cards.length ? 'Вы знаете все карточки.' :
              knownCount >= cards.length / 2 ? 'Неплохо, но есть что подтянуть.' :
-             'Стоит повторить материал ещё раз.'}
+             'Стоит повторить лекцию ещё раз.'}
           </p>
           <div className="fc-result-acts">
             <button type="button" onClick={startStudy} className="fc-pill">

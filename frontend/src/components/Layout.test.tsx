@@ -211,7 +211,7 @@ describe('phones and tablets (spec 4.2)', () => {
     for (const [path, label, href] of [
       ['/exams/exam-1', 'Экзамены', '/exams'],
       ['/exams/new', 'Экзамены', '/exams'],
-      ['/exams/exam-1/edit', 'Лист экзамена', '/exams/exam-1'],
+      ['/exams/exam-1/edit', 'Экзамен', '/exams/exam-1'],
       ['/library/m1', 'Лекции', '/library'],
     ] as const) {
       renderAt(path);
@@ -405,7 +405,7 @@ describe('the exam container (spec decision 23)', () => {
   it('keeps every plain exam as it was, and ignores a ?from that is not a container id', () => {
     rememberAttachedExams({ [ORAL]: { containerId: C, title: 'Зимняя сессия' } });
     expect(backLinkFor('/exams/exam-1')).toEqual(EXAMS);
-    expect(backLinkFor('/exams/exam-1/edit')).toEqual({ to: '/exams/exam-1', label: 'Лист экзамена' });
+    expect(backLinkFor('/exams/exam-1/edit')).toEqual({ to: '/exams/exam-1', label: 'Экзамен' });
     expect(backLinkFor('/exams/exam-1/draw')).toBeNull();
     expect(backLinkFor('/exams/new', `?from=c:${C}`)).toEqual(EXAMS);
     for (const search of ['?from=c:', '?from=c:../../dashboard', '?from=c:a/b', `?from=x:${C}`, `?from=${C}`, '?from=c:%2Fevil']) {

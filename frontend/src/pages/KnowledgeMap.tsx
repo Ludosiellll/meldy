@@ -386,7 +386,7 @@ export default function KnowledgeMap() {
           </span>
         </span>
         <Link className="sf-link" to={`/exams/${exam.id}?filter=cov:none`}>
-          Показать на листе
+          Показать в экзамене
         </Link>
       </>
     ) : null;
@@ -440,7 +440,7 @@ export default function KnowledgeMap() {
         {/* A phone reaches the exam sheet from «Экзамены» (and «Показать на листе» under the map). */}
         {exam && !phone ? (
           <Link className="sf-secondary" to={`/exams/${exam.id}`}>
-            Лист экзамена
+            Экзамен
           </Link>
         ) : null}
       </header>

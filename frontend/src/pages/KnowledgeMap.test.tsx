@@ -125,7 +125,7 @@ describe('what the map shows', () => {
     expect(money.querySelector('[data-mark="wave"]')).not.toBeNull();
     // The questions that are in no lecture are named under the map.
     expect(screen.getByText('Нет ни в одной лекции: вопросы 23, 24')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Показать на листе' })).toHaveAttribute('href', '/exams/exam-macro?filter=cov:none');
+    expect(screen.getByRole('link', { name: 'Показать в экзамене' })).toHaveAttribute('href', '/exams/exam-macro?filter=cov:none');
   });
 
   it('shows the concepts shared by two or more lectures first, and all of them on request', async () => {
@@ -195,7 +195,7 @@ describe('the panel', () => {
     expect(within(panel).getByText(/Почему рост норм обязательных резервов/)).toBeInTheDocument();
     expect(within(panel).getByRole('link', { name: 'Открыть лекцию' })).toHaveAttribute('href', '/library/macro-3');
     expect(within(panel).getByRole('link', { name: /^Повторить 5\sкарточек$/ })).toHaveAttribute('href', '/review?material=macro-3');
-    expect(within(panel).getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-macro');
+    expect(within(panel).getByRole('link', { name: 'Экзамен' })).toHaveAttribute('href', '/exams/exam-macro');
     // The old oral exam (/exam) is not a way on any more (redesign spec 5.20).
     expect(document.querySelector('a[href="/exam"]')).toBeNull();
   });
@@ -339,7 +339,7 @@ describe('on a phone', () => {
     const head = document.querySelector('.km-head') as HTMLElement;
     // «21 октября, через 13 дней · 3 лекции»: the kind is named only when it is not an exam.
     expect(head.querySelector('.sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^\d{1,2} [а-я]+( \d{4})?, через 12 дней · \d+ лекци(я|и|й)$/);
-    expect(within(head).queryByRole('link', { name: 'Лист экзамена' })).toBeNull();
+    expect(within(head).queryByRole('link', { name: 'Экзамен' })).toBeNull();
   });
 
   it('puts the exam, the view and the search in one row; the exam is a choice that fits any name', async () => {
@@ -482,11 +482,11 @@ describe('states', () => {
 });
 
 describe('a computer keeps what a phone leaves out', () => {
-  it('has «Лист экзамена» in the header, the exams as a rail, the search field and the legend as filters', async () => {
+  it('has «Экзамен» in the header, the exams as a rail, the search field and the legend as filters', async () => {
     renderPage();
     await screen.findByRole('group', { name: /^Карта связей/ });
     const head = document.querySelector('.km-head') as HTMLElement;
-    expect(within(head).getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-macro');
+    expect(within(head).getByRole('link', { name: 'Экзамен' })).toHaveAttribute('href', '/exams/exam-macro');
     expect(head.querySelector('.sf-lede')?.textContent?.replace(/\s/g, ' ')).toMatch(/^Макроэкономика — экзамен .+, через 12 дней · /);
     expect(screen.getByRole('list', { name: 'Экзамен' })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: 'Экзамен' })).toBeNull();
@@ -519,7 +519,7 @@ describe('a computer window narrowed by its scrollbar', () => {
     await screen.findByRole('group', { name: /^Карта связей/ });
     expect(document.querySelector('.sf-page')).toHaveAttribute('data-frame', 's');
     const head = document.querySelector('.km-head') as HTMLElement;
-    expect(within(head).getByRole('link', { name: 'Лист экзамена' })).toBeInTheDocument();
+    expect(within(head).getByRole('link', { name: 'Экзамен' })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Экзамен' })).toBeInTheDocument();
     expect(document.querySelector('.km-bar-one')).toBeNull();
     expect(screen.getByRole('searchbox', { name: 'Найти лекцию или понятие' })).toBeInTheDocument();

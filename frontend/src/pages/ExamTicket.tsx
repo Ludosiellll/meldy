@@ -1424,7 +1424,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
               <p className="or-state-text">{state.loadError?.message}</p>
               <div className="or-acts">
                 <Link className="sf-link" to={withFrom(`/exams/${examId}`)}>
-                  Лист экзамена
+                  Экзамен
                 </Link>
               </div>
             </div>
@@ -1483,7 +1483,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
         {protocol === 'saved' ? <span className="or-saved">Сохранено</span> : null}
         <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
           <ArrowLeft className="or-back-icon" aria-hidden="true" strokeWidth={1.75} />
-          Лист экзамена
+          Экзамен
         </button>
       </>
     );
@@ -1519,7 +1519,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
                   Ответить ещё раз
                 </button>
                 <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
-                  Лист экзамена
+                  Экзамен
                 </button>
               </div>
             </section>
@@ -1677,7 +1677,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
   ) : null;
   const sheetLink = (
     <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
-      Лист экзамена
+      Экзамен
     </button>
   );
 
@@ -1781,10 +1781,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
           {rated.status === 'saving'
             ? 'Сохраняем…'
             : rated.status === 'saved' && rated.rating
-              ? `Отмечено «${SELF_RATING_LABELS[rated.rating]}». Отметка видна на листе экзамена.`
+              ? `Отмечено «${SELF_RATING_LABELS[rated.rating]}». Отметка видна на странице экзамена.`
               : rated.status === 'failed'
                 ? 'Отметка не сохранилась. Нажмите ещё раз.'
-                : 'Отметка появится на листе экзамена у этого вопроса.'}
+                : 'Отметка появится на странице экзамена у этого вопроса.'}
         </p>
         <div className="or-acts" data-wide="">
           {state.index + 1 < total ? (
@@ -1823,7 +1823,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     side = (
       <div className="or-acts" data-wide="">
         <button type="button" className="sf-primary" onClick={() => void leave(withFrom(`/exams/${examId}`))} data-anchor="">
-          Лист экзамена
+          Экзамен
         </button>
         {state.index + 1 < total ? nextLink : null}
       </div>
@@ -1856,7 +1856,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
           <p className="or-message or-message-muted">
             {ready
               ? 'Можно ответить без проверки. После ответа сравните его с пунктами из лекций сами.'
-              : 'Можно ответить без проверки, голосом или текстом. После ответа отметьте, как получилось. Отметка появится на листе экзамена.'}
+              : 'Можно ответить без проверки, голосом или текстом. После ответа отметьте, как получилось. Отметка появится на странице экзамена.'}
           </p>
         ) : (
           // What «Готово» leads to and what it costs, before the first answer (EX-32).
@@ -2321,7 +2321,7 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
   const sheetLink = (
     <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => navigate(sheetPath)}>
       <ArrowLeft className="or-back-icon" aria-hidden="true" strokeWidth={1.75} />
-      Лист экзамена
+      Экзамен
     </button>
   );
 
@@ -2388,7 +2388,7 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
                   </button>
                 ) : null}
                 <Link className="sf-link" to={`/exams/${examId}`}>
-                  Лист экзамена
+                  Экзамен
                 </Link>
               </div>
             </div>

@@ -421,7 +421,7 @@ describe('ExamTicket: before the answer', () => {
     expect(await screen.findByRole('heading', { name: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.' })).toBeInTheDocument();
     expect(screen.getByText('Функция активации определяет выход нейрона')).toBeInTheDocument();
     expect(screen.getByText('«Нейронные сети», фрагмент 7')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Лист экзамена' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Экзамен' }));
     await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
   });
 
@@ -482,7 +482,7 @@ describe('ExamTicket: answering without a check', () => {
     expect(screen.getByText('Энтропия — мера неопределённости, бит — её единица.')).toBeInTheDocument();
     const rate = screen.getByRole('group', { name: 'Как вы ответили?' });
     fireEvent.click(within(rate).getByRole('button', { name: 'с трудом' }));
-    await waitFor(() => expect(screen.getByText('Отмечено «с трудом». Отметка видна на листе экзамена.')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText('Отмечено «с трудом». Отметка видна на странице экзамена.')).toBeInTheDocument());
     expect(mocks.recordSelfRating).toHaveBeenCalledWith(
       expect.objectContaining({ questionHash: HASH, rating: 'unsure', examId: EXAM, examQuestionId: Q1, materialId: 'mat-1' }),
     );
@@ -1049,7 +1049,7 @@ describe('ExamTicket: answering by text', () => {
     await waitFor(() => expect(rpc).toHaveBeenCalledTimes(1));
 
     // The way back in the top line («‹ Лист экзамена» on a phone); the protocol has its own link too.
-    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Лист экзамена' }));
+    fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Экзамен' }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(SAVE_WAIT_MS + 100);
     });
@@ -1282,7 +1282,7 @@ describe('ExamTicket: answering by text', () => {
     expect(document.querySelector('.or-privacy')).toBeNull();
     const bar = screen.getByRole('banner');
     expect(bar).toHaveAttribute('data-back');
-    expect(within(bar).getByRole('button', { name: 'Лист экзамена' }).querySelector('svg')).not.toBeNull();
+    expect(within(bar).getByRole('button', { name: 'Экзамен' }).querySelector('svg')).not.toBeNull();
   });
 });
 
@@ -1784,7 +1784,7 @@ describe('ExamTicket: a saved protocol, read only', () => {
     expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
     expect(container.querySelector('.or-course')?.textContent?.replace(/\s+/g, ' ')).toBe('Зачёт по нейросетям, весна · ');
     // «Лист экзамена» once, in the top line (EX-33: it was there and under the result).
-    const links = screen.getAllByRole('button', { name: 'Лист экзамена' });
+    const links = screen.getAllByRole('button', { name: 'Экзамен' });
     expect(links).toHaveLength(1);
     // That exam has no such question: nothing to answer again.
     expect(screen.queryByRole('button', { name: 'Ответить на этот вопрос снова' })).toBeNull();
@@ -1799,7 +1799,7 @@ describe('ExamTicket: a saved protocol, read only', () => {
     const again = await screen.findByRole('button', { name: 'Ответить на этот вопрос снова' });
     expect(again).toHaveClass('sf-primary');
     expect(container.querySelectorAll('.sf-primary')).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Лист экзамена' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Экзамен' })).toHaveLength(1);
     fireEvent.click(again);
     // The same question's ticket, in training, ready to be answered.
     await readyToAnswer();
@@ -1815,7 +1815,7 @@ describe('ExamTicket: a saved protocol, read only', () => {
     expect(screen.queryByRole('button', { name: 'Ответить на этот вопрос снова' })).toBeNull();
     // No answer bar at all, so no room is kept for one on a phone; the top line's «Лист экзамена» leads back.
     expect(container.querySelector('.or-acts')).toBeNull();
-    expect(screen.getAllByRole('button', { name: 'Лист экзамена' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Экзамен' })).toHaveLength(1);
   });
 
   it('says the subject in the top line, not «Экзамен: …» once more', async () => {
@@ -1832,7 +1832,7 @@ describe('ExamTicket: a saved protocol, read only', () => {
     const { container } = await renderPage(`/exams/${EXAM}/ticket?session=${SESSION}`);
     expect(await screen.findByText('Ответ от 7 окт., 14:02')).toBeInTheDocument();
     expect(container.querySelector('.or-course')?.textContent?.replace(/\s+/g, ' ')).toBe('Удалённый зачёт · ');
-    fireEvent.click(screen.getAllByRole('button', { name: 'Лист экзамена' })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: 'Экзамен' })[0]);
     await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
   });
 
@@ -1840,7 +1840,7 @@ describe('ExamTicket: a saved protocol, read only', () => {
     seedDatabase({ sessions: [] });
     await renderPage(`/exams/${EXAM}/ticket?session=05000000-0000-4000-8000-00000000abcd`);
     expect(await screen.findByRole('heading', { name: 'Протокол не найден' })).toBeInTheDocument();
-    expect(screen.getAllByText('Лист экзамена').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Экзамен').length).toBeGreaterThan(0);
   });
 });
 
@@ -2416,11 +2416,11 @@ describe('ExamTicket from an exam container’s «занятие» (?from=c:<id>
     expect(search).toBe('');
   });
 
-  it('«‹ Лист экзамена» keeps ?from, so the oral page still leads back to the container', async () => {
+  it('«‹ Экзамен» keeps ?from, so the oral page still leads back to the container', async () => {
     seedDatabase({ rpc: vi.fn(async () => ({ data: SAVED, error: null })) });
     await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}&from=c:c-1`);
     await answerAndSave();
-    fireEvent.click(screen.getAllByRole('button', { name: /Лист экзамена/ })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Экзамен$/ })[0]);
     await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
     expect(search).toBe('?from=c:c-1');
   });
@@ -2468,7 +2468,7 @@ describe('ExamTicket from an exam container’s «занятие» (?from=c:<id>
     await renderFrom(`/exams/${EXAM}/ticket?q=${Q1}${from}`);
     await answerAndSave();
     expect(screen.queryByRole('button', { name: 'Вернуться к занятию' })).toBeNull();
-    fireEvent.click(screen.getAllByRole('button', { name: /Лист экзамена/ })[0]);
+    fireEvent.click(screen.getAllByRole('button', { name: /^Экзамен$/ })[0]);
     await waitFor(() => expect(location).toBe(`/exams/${EXAM}`));
     expect(search).toBe('');
   });

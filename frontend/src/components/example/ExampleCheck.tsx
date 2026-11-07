@@ -20,7 +20,7 @@ export const CHECK_SCALE_NOTE = 'Оценку ставит преподават�
 export const OWN_EXAM_LINE = 'В своём экзамене вы добавите вопросы кафедры и свои лекции. Meldy так же проверит каждый ответ.';
 
 /** The way to what Meldy made of the first lecture (/try/lecture), at the end of the story: a verb and what it shows. */
-export const LECTURE_AFTER_LINK = 'Посмотреть конспект и тест по лекции';
+export const LECTURE_AFTER_LINK = 'Посмотреть конспект и самопроверку по лекции';
 
 const MARKS: Record<RowStatus, MarkKind | null> = { named: 'tick', after: 'cup', partial: 'cup', wrong: 'cross', missing: 'dash', unrated: null };
 

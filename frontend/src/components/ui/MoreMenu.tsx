@@ -49,7 +49,7 @@ export interface MoreMenuItem {
 
 interface MoreMenuProps {
   items: MoreMenuItem[];
-  /** The accessible name of the button and the menu («Ещё: лист экзамена»). */
+  /** The accessible name of the button and the menu («Ещё: экзамен»). */
   label?: string;
   /** The visible word of the text button. */
   text?: string;

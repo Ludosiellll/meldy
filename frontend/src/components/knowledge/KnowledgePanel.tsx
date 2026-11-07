@@ -100,7 +100,7 @@ function LecturePanel({ view, lecture, now, onSelect }: { view: MapView; lecture
         ) : null}
         {view.exam ? (
           <Link className="sf-link" to={`/exams/${view.exam.id}`}>
-            Лист экзамена
+            Экзамен
           </Link>
         ) : null}
       </div>
@@ -260,7 +260,7 @@ function ConceptPanel({ view, concept, now, onSelect }: { view: MapView; concept
       {view.exam ? (
         <div className="km-panel-acts">
           <Link className="sf-link" to={`/exams/${view.exam.id}`}>
-            Лист экзамена
+            Экзамен
           </Link>
         </div>
       ) : null}
@@ -317,7 +317,7 @@ export function MapGuide({ view, onSelect }: { view: MapView; onSelect: (node: N
           встречаются в нескольких лекциях; линия ведёт к каждой такой лекции.
         </p>
         {view.exam ? (
-          <p>Номера на карточке — вопросы экзамена, которые сверка нашла в этой лекции. Пометка на номере — ваши ответы, как на листе экзамена.</p>
+          <p>Номера на карточке — вопросы экзамена, которые сверка нашла в этой лекции. Пометка на номере — ваши ответы, как на странице экзамена.</p>
         ) : null}
         <p className="km-fine">Понятия взяты из списков терминов в конспектах; одно понятие в разных лекциях узнаётся по основам слов.</p>
       </section>

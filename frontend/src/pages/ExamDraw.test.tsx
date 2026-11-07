@@ -553,7 +553,7 @@ describe('ExamDraw', () => {
     mocks.loadExamBundle.mockResolvedValue(null);
     renderDraw();
     expect(await screen.findByRole('heading', { name: 'Экзамен не найден' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Лист экзамена' })).toHaveAttribute('href', '/exams/exam-1');
+    expect(screen.getByRole('link', { name: 'Экзамен' })).toHaveAttribute('href', '/exams/exam-1');
   });
 
   it('still draws when the answer history could not be read', async () => {
