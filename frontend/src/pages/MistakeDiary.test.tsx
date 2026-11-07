@@ -298,7 +298,7 @@ describe('Mistake diary list', () => {
   it('says what the practice costs from the plan’s prices', async () => {
     api.from.mockReturnValue(listQuery({ data: rows, error: null }));
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
-    expect(await screen.findByText(/Это 2 единицы из дневного лимита ИИ, только если задания получились\./)).toBeInTheDocument();
+    expect(await screen.findByText(/Тратит 2 из дневного лимита ИИ, только если задания получились\./)).toBeInTheDocument();
   });
 
   it('keeps the right answer hidden until the row is opened', async () => {
@@ -512,7 +512,7 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
     render(<MemoryRouter><MistakeDiary /></MemoryRouter>);
     expect(await screen.findByText('Нажмите на строку, чтобы увидеть ответ.')).toBeInTheDocument();
     expect(screen.queryByText(/Ошибки из самопроверок и ответов на билеты/)).toBeNull();
-    expect(await screen.findByText('Задания по 2 ошибкам, 2 единицы ИИ')).toBeInTheDocument();
+    expect(await screen.findByText('Задания по 2 ошибкам, 2 из лимита ИИ')).toBeInTheDocument();
     // A phone does not draw «Обновить»: the diary reads itself when the app comes back to the screen.
     expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();
   });
@@ -572,10 +572,10 @@ describe('on a phone (10_Project/Phone_Declutter_2026-10-08)', () => {
   });
 
   it('words the price on a phone and on a computer', () => {
-    expect(practiceNote(17, true)).toBe('Задания по 5 ошибкам, 2 единицы ИИ');
-    expect(practiceNote(1, true)).toBe('Задания по 1 ошибке, 2 единицы ИИ');
-    expect(practiceNote(17, false)).toBe('Задания по 5 открытым ошибкам. Это 2 единицы из дневного лимита ИИ, только если задания получились.');
-    expect(practiceNote(1, false)).toBe('Задания по 1 открытой ошибке. Это 2 единицы из дневного лимита ИИ, только если задания получились.');
+    expect(practiceNote(17, true)).toBe('Задания по 5 ошибкам, 2 из лимита ИИ');
+    expect(practiceNote(1, true)).toBe('Задания по 1 ошибке, 2 из лимита ИИ');
+    expect(practiceNote(17, false)).toBe('Задания по 5 открытым ошибкам. Тратит 2 из дневного лимита ИИ, только если задания получились.');
+    expect(practiceNote(1, false)).toBe('Задания по 1 открытой ошибке. Тратит 2 из дневного лимита ИИ, только если задания получились.');
   });
 });
 

@@ -443,7 +443,9 @@ export const DONE = 'Готово';
 
 // ─────────────────────────────────────────────── «Как на экзамене» (decisions 20, 36, 53)
 
-export const MOCK_TITLE = 'Как на экзамене';
+// The button says «Проверить себя на время» (release 55); the sheet, the run and its line say the same thing (audit 07.11,
+// STAND-10: the sheet was still «Как на экзамене»). The oral exam's «Как на экзамене» is another mode and keeps its name.
+export const MOCK_TITLE = 'Проверка на время';
 export const MOCK_COUNT = 'Вопросов';
 export const MOCK_MINUTES = 'Минут';
 export const MOCK_NO_LIMIT = 'без времени';

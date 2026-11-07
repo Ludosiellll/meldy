@@ -171,8 +171,8 @@ const MISTAKE_FILTERS = ['all', 'open', 'resolved'] as const;
 export function practiceNote(open: number, phone: boolean): string {
   const n = Math.min(open, 5);
   const cost = AI_COSTS.mistakesPractice;
-  if (phone) return `Задания по ${n} ${n === 1 ? 'ошибке' : 'ошибкам'}, ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} ИИ`;
-  return `Задания по ${n} ${n === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Это ${cost} ${pluralRu(cost, ['единица', 'единицы', 'единиц'])} из дневного лимита ИИ, только если задания получились.`;
+  if (phone) return `Задания по ${n} ${n === 1 ? 'ошибке' : 'ошибкам'}, ${cost} из лимита ИИ`;
+  return `Задания по ${n} ${n === 1 ? 'открытой ошибке' : 'открытым ошибкам'}. Тратит ${cost} из дневного лимита ИИ, только если задания получились.`;
 }
 
 export default function MistakeDiary() {

@@ -270,7 +270,7 @@ describe('«Попробовать на примере» (/try): three steps —
     expect(currentStep()).toBe('Ответ');
     expect(screen.getByRole('link', { name: /Вопрос, пройден/ })).toHaveAttribute('href', '/try');
     expect(plain(document.querySelector('.tx-next')?.textContent)).toBe(plain(EXAMPLE_NEXT_LINE));
-    expect(plain(document.querySelector('.tx-pts-line')?.textContent)).toBe('В полном ответе 5 пунктов из лекций. Пока они скрыты.');
+    expect(plain(document.querySelector('.tx-pts-line')?.textContent)).toBe('В полном ответе 5 пунктов из лекций.');
     const points = screen.getByRole('list', { name: 'Пункты ответа' });
     expect(within(points).getAllByRole('listitem').map((row) => row.getAttribute('aria-label'))).toEqual([
       'Пункт 1, ещё не назван',

@@ -115,7 +115,7 @@ describe('/login: an address is checked for its form only (PUB-4)', () => {
 describe('/register', () => {
   it('says what the free account gives, from lib/plans.ts, under the heading (PUB-21)', () => {
     renderAt('/register');
-    expect(plain(document.querySelector('.au-free')?.textContent)).toBe('Аккаунт бесплатный: каждый день 100 единиц ИИ — это 5 лекций или 25 проверенных ответов.');
+    expect(plain(document.querySelector('.au-free')?.textContent)).toBe('Аккаунт бесплатный: лимит ИИ — 100 в день, это 5 лекций или 25 проверенных ответов.');
   });
 
   it.each(['student@mail.com', 'student@inbox.lv', 'student@mail.kz', 'student@yandex.ua'])('signs up %s: no hint, no refusal (PUB-4)', async (email) => {

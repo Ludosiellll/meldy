@@ -7,9 +7,9 @@ const plain = (text: string) => text.replace(/\u00a0/g, ' ');
 describe('freePlanLine', () => {
   it('says what the free account gives, in the numbers of lib/plans.ts', () => {
     expect(plain(freePlanLine())).toBe(
-      `Аккаунт бесплатный: каждый день ${FREE_DAILY_UNITS} единиц ИИ — это ${Math.floor(FREE_DAILY_UNITS / AI_COSTS.lecture)} лекций или ${Math.floor(FREE_DAILY_UNITS / AI_COSTS.answer)} проверенных ответов.`,
+      `Аккаунт бесплатный: лимит ИИ — ${FREE_DAILY_UNITS} в день, это ${Math.floor(FREE_DAILY_UNITS / AI_COSTS.lecture)} лекций или ${Math.floor(FREE_DAILY_UNITS / AI_COSTS.answer)} проверенных ответов.`,
     );
-    expect(plain(freePlanLine())).toBe('Аккаунт бесплатный: каждый день 100 единиц ИИ — это 5 лекций или 25 проверенных ответов.');
+    expect(plain(freePlanLine())).toBe('Аккаунт бесплатный: лимит ИИ — 100 в день, это 5 лекций или 25 проверенных ответов.');
     // Nothing about payment.
     expect(freePlanLine()).not.toMatch(/₽|руб|оплат|PRO|цена/i);
   });

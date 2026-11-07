@@ -165,7 +165,7 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     const base = summary({ mock_runs: [{ id: 'run-1', local_date: '2026-10-05', subject_ids: [SUBJECT_DB], items: 40, correct: 31 }] });
     renderPage(loaded(dbData({ summary: base })));
     fireEvent.click(screen.getByRole('button', { name: 'Проверить себя на время' }));
-    const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
+    const sheet = screen.getByRole('dialog', { name: 'Проверка на время' });
     expect(plain(sheet.textContent)).toContain('Ответы можно менять до конца. Результат покажем после «Завершить».');
     expect(plain(sheet.textContent)).toContain('Прошлая попытка 5 октября: 31 из 40.');
     expect(plain(sheet.textContent)).not.toMatch(/пробн/i);

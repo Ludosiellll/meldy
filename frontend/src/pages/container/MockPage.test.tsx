@@ -69,7 +69,7 @@ afterEach(() => {
 describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 53)', () => {
   it('without a size in the address opens the setup, which starts the try', () => {
     renderMock(`?s=${SUBJECT_DB}`);
-    const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
+    const sheet = screen.getByRole('dialog', { name: 'Проверка на время' });
     expect(plain(sheet.textContent)).toContain('Ответы можно менять до конца. Результат покажем после «Завершить».');
     fireEvent.click(within(sheet).getByRole('button', { name: 'Начать' }));
     // 240 questions in the subject: 40 by default, a minute each (the bank of this test holds three).
@@ -82,7 +82,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     renderMock(`?s=${SUBJECT_DB}&n=3&t=3`);
     expect(plain(screen.getByRole('banner').textContent)).toContain('1 из 3 · 3:00');
     expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Завершить' })).toBeInTheDocument();
-    expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Как на экзамене · Базы данных');
+    expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Проверка на время · Базы данных');
     expect(screen.queryByRole('button', { name: 'Не знаю' })).toBeNull();
     const first = lastSaved();
     expect(first.itemIds).toHaveLength(3);
@@ -123,7 +123,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     renderMock(`?s=${SUBJECT_DB}&n=3&t=40`);
     fireEvent.click(options()[0]);
     fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Завершить' }));
-    const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
+    const sheet = screen.getByRole('dialog', { name: 'Проверка на время' });
     expect(plain(sheet.textContent)).toContain('Ответили на 1 из 3. Вопросы 2 и 3 без ответа, они будут ошибками.');
     await act(async () => {
       fireEvent.click(within(sheet).getByRole('button', { name: 'Завершить' }));
@@ -135,7 +135,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     expect(run.answers.every((answer) => answer.mode === 'mock')).toBe(true);
     expect(run.answers.filter((answer) => answer.chosen === null || answer.text === null)).toHaveLength(2);
     expect(run.answers[0].client_event_id).toBe(`${run.client_run_id}:01`);
-    expect(page()).toMatch(/Как на экзамене · \d+ \S+/);
+    expect(page()).toMatch(/Проверка на время · \d+ \S+/);
     expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3');
     expect(page()).toContain('2 ошибки, из них 2 без ответа. Повторим их завтра.');
     expect(page()).not.toMatch(/%|оценк|прогноз/i);
@@ -152,10 +152,10 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
     fireEvent.click(options()[0]);
     fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Завершить' }));
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog', { name: 'Как на экзамене' })).getByRole('button', { name: 'Завершить' }));
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Проверка на время' })).getByRole('button', { name: 'Завершить' }));
     });
     await waitFor(() => expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3'));
-    expect(page()).toContain('Как на экзамене · 9 октября');
+    expect(page()).toContain('Проверка на время · 9 октября');
     expect(page()).toContain('2 ошибки, из них 2 без ответа. Повторим их в понедельник.');
   });
 
@@ -169,7 +169,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
       for (const index of entry.correct) fireEvent.click(options()[index]);
       fireEvent.click(within(document.querySelector('.ct-bar') as HTMLElement).getByRole('button', { name: i < 2 ? 'Дальше' : 'Завершить' }));
     }
-    const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
+    const sheet = screen.getByRole('dialog', { name: 'Проверка на время' });
     expect(plain(sheet.textContent)).toContain('Ответили на все 3 вопроса.');
     await act(async () => {
       fireEvent.click(within(sheet).getByRole('button', { name: 'Завершить' }));
@@ -272,7 +272,7 @@ describe('owner 21.10: a reload keeps the place in «Как на экзамен�
     fireEvent.click(options()[0]);
     fireEvent.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Завершить' }));
     await act(async () => {
-      fireEvent.click(within(screen.getByRole('dialog', { name: 'Как на экзамене' })).getByRole('button', { name: 'Завершить' }));
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Проверка на время' })).getByRole('button', { name: 'Завершить' }));
     });
     await waitFor(() => expect(plain(document.querySelector('.ct-score')?.textContent)).toBe('1 из 3'));
     expect(asked('n')).toBeNull();

@@ -2314,10 +2314,10 @@ describe('ExamTicket: what «Готово» leads to, its keys, and the tab’s 
     const line = container.querySelector('.or-next')?.textContent?.replace(/ /g, ' ');
     expect(line).toBe(nextStepLine());
     expect(nextStepLine()).toBe(
-      'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа стоит 4 единицы из дневного лимита ИИ.',
+      'После «Готово» экзаменатор спросит о пропущенном пункте, если он есть, а потом откроется протокол по пунктам из ваших лекций. Проверка ответа тратит 4 из дневного лимита ИИ.',
     );
-    expect(nextStepLine(1)).toMatch(/стоит 1 единицу из дневного/);
-    expect(nextStepLine(5)).toMatch(/стоит 5 единиц из дневного/);
+    expect(nextStepLine(1)).toMatch(/тратит 1 из дневного/);
+    expect(nextStepLine(5)).toMatch(/тратит 5 из дневного/);
     // Above the two ways to answer, in the same column.
     expect(container.querySelector('.or-next + .or-choice')).not.toBeNull();
     // Answering, it goes: the bar is the student's now.

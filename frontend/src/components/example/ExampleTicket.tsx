@@ -85,9 +85,10 @@ export const EXAMPLE_PASTE_REFUSED = `Сюда нельзя вставить г�
 /** The closed rows of the answer sheet, said in words: what they are and when they open. */
 export const BLANK_ROW_TEXT = 'откроется, когда вы его назовёте';
 
-/** Above the rows: what they are. */
+/** Above the rows: how many there are. Each closed row says it opens when named (BLANK_ROW_TEXT); «Пока они скрыты»
+ * stood beside «Открыто 3 пункта из 4» (audit 07.11, STAND-15). */
 export function examplePointsLine(question: ExampleQuestion, points: number): string {
-  const head = `В полном ответе ${points} ${plural(points, 'пункт', 'пункта', 'пунктов')} из лекций. Пока они скрыты.`;
+  const head = `В полном ответе ${points} ${plural(points, 'пункт', 'пункта', 'пунктов')} из лекций.`;
   return question.coverage === 'partial' && question.missing ? `${head} В лекциях нет ${question.missing}, поэтому об этом пунктов нет.` : head;
 }
 

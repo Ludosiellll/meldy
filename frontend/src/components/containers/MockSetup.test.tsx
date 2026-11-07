@@ -22,7 +22,7 @@ describe('«Как на экзамене» setup', () => {
   it('every size and every time can be chosen, the last ones too, and «Начать» takes them', () => {
     const onStart = vi.fn();
     render(<MockSetup keyed={160} last={null} onClose={() => undefined} onStart={onStart} />);
-    const sheet = screen.getByRole('dialog', { name: 'Как на экзамене' });
+    const sheet = screen.getByRole('dialog', { name: 'Проверка на время' });
     const count = within(sheet).getByRole('combobox', { name: 'Вопросов' });
     fireEvent.click(count);
     const sizes = within(sheet).getAllByRole('option');
@@ -57,6 +57,6 @@ describe('«Как на экзамене» setup', () => {
     fireEvent.keyDown(minutes, { key: 'Escape' });
     expect(screen.queryByRole('listbox')).toBeNull();
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole('dialog', { name: 'Как на экзамене' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Проверка на время' })).toBeInTheDocument();
   });
 });

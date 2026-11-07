@@ -6,13 +6,14 @@ import { perDay, plural } from '../pro/planCopy';
  * newcomer's first question). Every number comes from lib/plans.ts: the free day's units, and how many lecture
  * analyses or checked answers they pay for. Nothing about payment.
  *
- * «Аккаунт бесплатный: каждый день 100 единиц ИИ — это 5 лекций или 25 проверенных ответов.»
+ * «Аккаунт бесплатный: лимит ИИ — 100 в день, это 5 лекций или 25 проверенных ответов.» (no «единицы» since the audit of
+ * 07.11, as the limit window says it)
  */
 export function freePlanLine(): string {
   const lectures = perDay(FREE_DAILY_UNITS, 'lecture');
   const answers = perDay(FREE_DAILY_UNITS, 'answer');
   return (
-    `Аккаунт бесплатный: каждый день ${FREE_DAILY_UNITS}\u00a0${plural(FREE_DAILY_UNITS, ['единица', 'единицы', 'единиц'])} ИИ\u00a0— это ` +
+    `Аккаунт бесплатный: лимит ИИ\u00a0— ${FREE_DAILY_UNITS} в\u00a0день, это ` +
     `${lectures}\u00a0${plural(lectures, ['лекция', 'лекции', 'лекций'])} или\u00a0${answers}\u00a0${plural(answers, ['проверенный ответ', 'проверенных ответа', 'проверенных ответов'])}.`
   );
 }
