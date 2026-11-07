@@ -7,6 +7,9 @@ export const createImage = (url: string): Promise<HTMLImageElement> =>
     image.src = url
   })
 
+/** The longest side of an uploaded avatar, in pixels. */
+export const AVATAR_MAX_SIDE = 512
+
 export default async function getCroppedImg(
   imageSrc: string,
   pixelCrop: { x: number; y: number; width: number; height: number },
@@ -37,8 +40,11 @@ export default async function getCroppedImg(
     return null
   }
 
-  croppedCanvas.width = pixelCrop.width
-  croppedCanvas.height = pixelCrop.height
+  // An avatar is shown at most a few dozen pixels wide: the crop is scaled down to AVATAR_MAX_SIDE, so a phone photo
+  // fits the bucket's 2 MB limit (security audit 07.11, SEC-4) and loads fast.
+  const scale = Math.min(1, AVATAR_MAX_SIDE / Math.max(pixelCrop.width, pixelCrop.height))
+  croppedCanvas.width = Math.max(1, Math.round(pixelCrop.width * scale))
+  croppedCanvas.height = Math.max(1, Math.round(pixelCrop.height * scale))
 
   croppedCtx.drawImage(
     canvas,
@@ -48,8 +54,8 @@ export default async function getCroppedImg(
     pixelCrop.height,
     0,
     0,
-    pixelCrop.width,
-    pixelCrop.height
+    croppedCanvas.width,
+    croppedCanvas.height
   )
 
   return new Promise((resolve) => {
@@ -60,6 +66,6 @@ export default async function getCroppedImg(
       }
       const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' })
       resolve(file)
-    }, 'image/jpeg')
+    }, 'image/jpeg', 0.9)
   })
 }
