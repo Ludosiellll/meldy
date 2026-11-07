@@ -349,7 +349,6 @@ PODCAST_LINE = {"speaker": "Макс", "text": "О чём лекция?", "sourc
         ("/api/mistakes/practice", {"mistakes": [{"id": "m-1", "question": "Что такое инфляция?"}]}, "mistakesPractice", 2),
         ("/api/podcast/generate", {"context": "Инфляция — устойчивый рост цен.", "title": "Инфляция"}, "conversation", 5),
         ("/api/podcast/visuals", {"lines": [PODCAST_LINE], "context": "Инфляция — рост цен."}, "visuals", 2),
-        ("/api/academic/scan", {"text": "Оценки: 5, 4"}, "gradebookScan", 1),
         # Закрыто 2026-10-05: раньше эти вызовы модели ничего не стоили.
         ("/api/analyze/section", {"section": "quiz", "text": "Лекция про инфляцию. " * 20}, "analysisSection", 7),
     ],

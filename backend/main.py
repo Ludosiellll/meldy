@@ -2170,72 +2170,8 @@ async def podcast_visuals(request: Request, req: PodcastVisualsRequest):
 
 from typing import List, Dict, Optional, Any
 
-class AcademicScanRequest(BaseModel):
-    images_base64: List[str] = []
-    text: Optional[str] = None
-    mime_type: str = "image/jpeg"
-    chat_history: List[Dict[str, Any]] = []
-
-from agents.base import build_academic_scan_prompt
-
-@app.post("/api/academic/scan")
-@limiter.limit("10/minute")
-async def academic_scan(request: Request, req: AcademicScanRequest):
-    if not req.images_base64 and not req.text and not req.chat_history:
-        raise HTTPException(status_code=400, detail="Нужно передать текст, картинку или историю чата")
-        
-    # Собери все картинки из истории чата, если в текущем запросе их нет
-    all_images = list(req.images_base64)
-    if req.chat_history:
-        for msg in req.chat_history:
-            if "images_base64" in msg and msg["images_base64"]:
-                for img in msg["images_base64"]:
-                    if img not in all_images:
-                        all_images.append(img)
-                        
-    agent = BaseAgent(api_key=GROQ_API_KEY)
-    system_prompt = build_academic_scan_prompt()
-    
-    # Строим контекст из истории
-    history_text = ""
-    if req.chat_history:
-        for msg in req.chat_history:
-            role = "Пользователь" if msg.get("role") == "user" else "Ассистент"
-            history_text += f"[{role}]: {msg.get('content', '')}\n"
-            
-    # Добавляем текущий запрос пользователя
-    user_prompt = ""
-    if history_text:
-        user_prompt += f"ИСТОРИЯ ДИАЛОГА:\n{history_text}\n\n"
-        
-    if all_images:
-        user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Пожалуйста, распознай оценки с прикрепленных картинок.")
-    else:
-        user_prompt += "ТЕКУЩИЙ ЗАПРОС: " + (req.text if req.text else "Ответь на последнее сообщение пользователя.")
-    
-    raw = None
-    charge = await quota.charge(request, "gradebookScan", AI_COSTS["gradebookScan"])
-    try:
-        if all_images:
-            raw = await agent.run_with_images(system_prompt, user_prompt, all_images, req.mime_type)
-        else:
-            raw = await agent.run(system_prompt, user_prompt)
-
-        return parse_model_json(raw)
-    except Exception as e:
-        err_str = str(e)
-        print(f"Academic Scan Error: {err_str}")
-        if not raw:
-            await charge.refund()  # the model did not answer: nothing was recognised
-
-        if raw:
-            # Parsing failed, but we got a response from AI
-            return {"message": f"Я распознал текст, но не смог автоматически занести оценки в таблицу. Вот что удалось прочитать:\n\n{raw}", "grades": []}
-            
-        if "API_LIMIT_REACHED" in err_str or "429" in err_str:
-            return {"message": "Извините, сейчас ИИ-сервера перегружены (лимит запросов). Пожалуйста, подождите немного и попробуйте снова.", "grades": []}
-            
-        return {"message": f"Произошла техническая ошибка: {err_str}", "grades": []}
+# /api/academic/scan («Оценки из зачётки» by photo) was removed with its page (audit 07.11, CODE-4): nothing called it,
+# it spent AI quota on images and returned raw exception text.
 
 
 if __name__ == "__main__":
