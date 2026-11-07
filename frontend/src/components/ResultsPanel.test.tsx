@@ -510,7 +510,7 @@ describe('«Создать … заново»', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Создать карточки заново' }));
     expect(await screen.findByText('Карточки не добавлены в повторение.')).toBeInTheDocument();
     db.sync = vi.fn(async () => ({ inserted: 1, skipped: 0 }));
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     await waitFor(() => expect(screen.queryByText('Карточки не добавлены в повторение.')).not.toBeInTheDocument());
   });
 

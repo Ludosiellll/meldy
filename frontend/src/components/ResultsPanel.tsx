@@ -1111,7 +1111,7 @@ export default function ResultsPanel({
                     <p className="rp-sync" role="status">
                       {CARDS_SYNC_FAILED}
                       <button type="button" disabled={cardSyncRunning} onClick={() => void syncCards(cardSync.materialId, cardSync.cards)}>
-                        Повторить
+                        Попробовать ещё раз
                       </button>
                     </p>
                   )}
