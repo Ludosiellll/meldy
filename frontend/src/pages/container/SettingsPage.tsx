@@ -767,8 +767,8 @@ export default function SettingsPage() {
                           {subject.oral
                             ? oralOnly(subject)
                               ? SETTINGS.removeOralAsk(titleOf(subject))
-                              : SETTINGS.removeMixedAsk(titleOf(subject))
-                            : SETTINGS.removeSubjectAsk(titleOf(subject))}
+                              : SETTINGS.removeMixedAsk(titleOf(subject), summary?.owner?.members ?? 0)
+                            : SETTINGS.removeSubjectAsk(titleOf(subject), summary?.owner?.members ?? 0)}
                         </span>
                         <button type="button" className="sf-link" onClick={() => void removeSubject(subject)}>
                           {SETTINGS.removeSubjectYes}

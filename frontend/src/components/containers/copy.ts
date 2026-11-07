@@ -7,6 +7,7 @@
  * Numbers and the word after them are glued with a no-break space (`glue`), so «90 вопросов» never breaks.
  */
 import { ALL_QUESTIONS_MINUTES as ALL_QUESTIONS_MIN } from './allQuestionsMinutes';
+import { membersLoss } from './copyImport';
 
 export const NBSP = String.fromCharCode(0xa0);
 
@@ -218,6 +219,8 @@ export const MINUTES_MORE = 'Дни занятий и дату можно пом
 export const CANCEL = 'Отмена';
 export const removeSubjectTitle = (title: string) => `Убрать предмет «${title}»?`;
 export const REMOVE_SUBJECT_TEXT = 'Его вопросы и ответы по ним пропадут.';
+/** The confirmation of «Убрать предмет», with the group's loss when the exam has members (REL-2). */
+export const removeSubjectText = (members: number) => `${REMOVE_SUBJECT_TEXT}${membersLoss(members)}`;
 export const REMOVE_SUBJECT_CONFIRM = 'Убрать';
 
 export const CLOSE = 'Закрыть';

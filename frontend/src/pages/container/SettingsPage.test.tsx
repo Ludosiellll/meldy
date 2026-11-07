@@ -282,6 +282,14 @@ describe('SettingsPage: the one «Настройки» of an exam (§16 #44)', (
     await waitFor(() => expect(api.saveSettings).toHaveBeenCalledWith(ID, expect.objectContaining({ tempo: 'date' })));
   });
 
+  it('removing a subject of an exam with a group says the members\u2019 answers go too (audit 07.11, REL-2)', async () => {
+    api.state.summary = { ...SUMMARY, owner: { members: 19, doubts_open: 0, links: [] } };
+    renderAt();
+    fireEvent.click(screen.getByRole('button', { name: 'Ещё: История Беларуси' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Убрать предмет' }));
+    expect(screen.getByText(/Ответы 19 участников группы по этому предмету тоже пропадут\./)).toBeInTheDocument();
+  });
+
   it('renames and removes a subject; the last subject is removed only with the exam', async () => {
     renderAt();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: История Беларуси' }));

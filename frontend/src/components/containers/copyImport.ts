@@ -22,6 +22,15 @@ export function plural(count: number, one: string, few: string, many: string): s
 }
 
 /** A number and its word: «240 вопросов». */
+/**
+ * Removing a subject of an exam with a group (reliability audit 07.11, REL-2): the members' answers to its questions go
+ * with it, and the confirmation says so. Nothing when the exam has no members.
+ */
+export function membersLoss(members: number): string {
+  if (members <= 0) return '';
+  return ` Ответы ${count(members, 'участника', 'участников', 'участников')} группы по этому предмету тоже пропадут.`;
+}
+
 export function count(n: number, one: string, few: string, many: string): string {
   return `${n}${NBSP}${plural(n, one, few, many)}`;
 }
@@ -818,10 +827,10 @@ export const SETTINGS = {
   renameDone: 'Готово',
   renameCancel: 'Отмена',
   removeSubject: 'Убрать предмет',
-  removeSubjectAsk: (title: string) => `Убрать «${title}»? Его вопросы и ответы по ним пропадут.`,
+  removeSubjectAsk: (title: string, members = 0) => `Убрать «${title}»? Его вопросы и ответы по ним пропадут.${membersLoss(members)}`,
   removeOralAsk: (title: string) => `Убрать «${title}» из экзамена? Устный предмет останется в «Экзаменах» отдельно.`,
-  removeMixedAsk: (title: string) =>
-    `Убрать «${title}»? Вопросы с вариантами и ответы по ним пропадут, устная часть останется в «Экзаменах» отдельно.`,
+  removeMixedAsk: (title: string, members = 0) =>
+    `Убрать «${title}»? Вопросы с вариантами и ответы по ним пропадут, устная часть останется в «Экзаменах» отдельно.${membersLoss(members)}`,
   removeSubjectYes: 'Убрать',
   lastSubject: 'Это единственный предмет. Чтобы убрать его, удалите экзамен.',
   oralRow: 'устный',

@@ -256,7 +256,7 @@ export function useSubjectActions(p: { containerId: string; summary: ContainerSu
   const removeSubject = async () => {
     const ok = await confirm({
       title: copy.removeSubjectTitle(title),
-      message: copy.REMOVE_SUBJECT_TEXT,
+      message: copy.removeSubjectText(summary.owner?.members ?? 0),
       confirmText: copy.REMOVE_SUBJECT_CONFIRM,
       cancelText: copy.CANCEL,
       type: 'danger',
