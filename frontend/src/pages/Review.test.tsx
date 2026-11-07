@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
-import Review, { emptyQueueCopy, nextReviewWords, openMistakesLine, openMistakesShort } from './Review';
+import Review, { diaryShown, emptyQueueCopy, examPractice, nextReviewWords, openMistakesLine, openMistakesShort } from './Review';
 import { supabase } from '../lib/supabase';
 import { PHONE_QUERY } from '../lib/usePhone';
 
@@ -30,6 +30,15 @@ vi.mock('../lib/supabase', () => ({ supabase: { from: vi.fn(), rpc: vi.fn() } })
 
 vi.mock('../hooks/useAuth', () => ({
   useAuth: () => ({ user: { id: 'user-1' } }),
+}));
+
+// The exams of the account (package D1's hook): none unless a test gives some; a member's are role 'member'.
+const layer = vi.hoisted(() => ({ containers: null as null | Array<Record<string, unknown>> }));
+vi.mock('../lib/containers/hooks', () => ({
+  useContainersOverview: () =>
+    layer.containers
+      ? { data: { v: 1, day: '2026-10-03', containers: layer.containers, attached_exam_ids: [] }, loading: false, offline: false, unavailable: false, error: null, reload: () => undefined }
+      : { data: null, loading: false, offline: false, unavailable: true, error: null, reload: () => undefined },
 }));
 
 vi.mock('../hooks/useSound', () => ({
@@ -130,7 +139,7 @@ describe('Review answer persistence', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить карточки');
     expect(screen.queryByText('На сегодня всё')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Повторить загрузку' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
   });
 
   it('sends one review per answer, each with its own event id and the same session', async () => {
@@ -436,6 +445,86 @@ describe('an empty queue says what it means (LIB-14)', () => {
     expect(document.querySelector('.rv-empty .rv-art svg')).toBeNull();
   });
 
+  describe('a group student (every exam someone else’s, nothing of its own: UX audit of 06.11)', () => {
+    const subject = (id: string, openErrors: number) => ({
+      id, position: 1, title: 'Остеология', exam_date: '2026-11-27', oral_exam_id: null, has_oral: false, keyed: 15, no_key: 0,
+      seen: 6, two_days: 2, open_errors: openErrors, seen_today: 0, doubted: 0, stale: 0,
+    });
+    const anatomy = (overrides: Record<string, unknown> = {}) => ({
+      id: 'c-1', title: 'Анатомия', kind: 'exam', exam_date: '2026-11-27', created_at: '', role: 'member', items: 60, items_updated_at: null,
+      subjects: [subject('s-1', 0), subject('s-2', 2)], answers_today: 0, settings: null, ...overrides,
+    });
+    const account = (own: { lectures: number; exams: Array<{ id: string }> }) => {
+      vi.mocked(supabase.from).mockImplementation(((table: string) =>
+        table === 'flashcard_progress'
+          ? cardsQuery({ total: 0, later: 0, next: null })
+          : table === 'materials'
+            ? query({ count: own.lectures, error: null })
+            : table === 'exams'
+              ? query({ data: own.exams, error: null })
+              : query({ count: 0, error: null })) as unknown as typeof supabase.from);
+    };
+
+    afterEach(() => {
+      layer.containers = null;
+    });
+
+    it('keeps «Разобрать лекцию» and adds a quiet way to its exam’s mistakes', async () => {
+      layer.containers = [anatomy()];
+      account({ lectures: 0, exams: [] });
+      renderReview();
+      expect(await screen.findByRole('heading', { name: 'Карточек пока нет' })).toBeInTheDocument();
+      // A student can make lectures too (the owner, 07.11): the way stays, and stays the blue one.
+      expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveClass('sf-primary');
+      const practice = await screen.findByRole('link', { name: 'Повторить ошибки' });
+      expect(practice).toHaveAttribute('href', '/exams/c/c-1/study?s=s-2&only=errors');
+      expect(practice).toHaveClass('sf-link');
+      expect(practice).toHaveAttribute('data-muted');
+    });
+
+    it('without mistakes the way is «К экзамену»', async () => {
+      layer.containers = [anatomy({ subjects: [subject('s-1', 0)] })];
+      account({ lectures: 0, exams: [] });
+      renderReview();
+      expect(await screen.findByRole('link', { name: 'К экзамену' })).toHaveAttribute('href', '/exams/c/c-1');
+      expect(screen.getByRole('link', { name: 'Разобрать лекцию' })).toHaveAttribute('href', '/analyze');
+    });
+
+    it('an author, or a member with lectures of its own, gets the page as before', async () => {
+      layer.containers = [anatomy({ role: 'owner' })];
+      account({ lectures: 0, exams: [] });
+      renderReview();
+      expect(await screen.findByRole('link', { name: 'Разобрать лекцию' })).toBeInTheDocument();
+      await act(async () => undefined);
+      expect(screen.queryByRole('link', { name: /К экзамену|Повторить ошибки/ })).toBeNull();
+      cleanup();
+
+      layer.containers = [anatomy()];
+      account({ lectures: 2, exams: [] });
+      renderReview();
+      expect(await screen.findByRole('link', { name: 'Разобрать лекцию' })).toBeInTheDocument();
+      await act(async () => undefined);
+      expect(screen.queryByRole('link', { name: /К экзамену|Повторить ошибки/ })).toBeNull();
+    });
+
+    it('a new account (no exams at all) gets the page as before', async () => {
+      layer.containers = [];
+      account({ lectures: 0, exams: [] });
+      renderReview();
+      expect(await screen.findByRole('link', { name: 'Разобрать лекцию' })).toBeInTheDocument();
+      await act(async () => undefined);
+      expect(screen.queryByRole('link', { name: /К экзамену|Повторить ошибки/ })).toBeNull();
+    });
+
+    it('picks the exam: the nearest with mistakes, else the nearest ahead', () => {
+      const later = anatomy({ id: 'c-2', exam_date: '2027-01-12', subjects: [{ ...subject('s-9', 1), exam_date: '2027-01-12' }] });
+      const soon = anatomy({ subjects: [subject('s-1', 0)] });
+      expect(examPractice([later, soon] as never, '2026-11-07')).toEqual({ href: '/exams/c/c-2/study?s=s-9&only=errors', label: 'Повторить ошибки' });
+      expect(examPractice([{ ...later, subjects: [{ ...subject('s-9', 0), exam_date: '2027-01-12' }] }, soon] as never, '2026-11-07')).toEqual({ href: '/exams/c/c-1', label: 'К экзамену' });
+      expect(examPractice([], '2026-11-07')).toBeNull();
+    });
+  });
+
   it('says that more cards come later today, and when', async () => {
     const at = new Date();
     at.setHours(23, 40, 0, 0);
@@ -480,31 +569,55 @@ function query(result: unknown, calls: Array<[string, unknown[]]> = []) {
   return chain;
 }
 
+/** The diary's two HEAD counts: the open mistakes (with is_resolved = false) and all of them. */
+function diaryQuery(counts: { open: unknown; total: unknown }, log: Array<Array<[string, unknown[]]>> = []) {
+  const calls: Array<[string, unknown[]]> = [];
+  log.push(calls);
+  const chain: Record<string, unknown> = {};
+  for (const method of ['select', 'eq', 'in']) {
+    chain[method] = (...args: unknown[]) => {
+      calls.push([method, args]);
+      return chain;
+    };
+  }
+  chain.then = (resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) => {
+    const open = calls.some(([method, args]) => method === 'eq' && args[0] === 'is_resolved');
+    return Promise.resolve(open ? counts.open : counts.total).then(resolve, reject);
+  };
+  return chain;
+}
+
 describe('the mistakes diary in «Повторение»', () => {
-  const diaryCalls: Array<[string, unknown[]]> = [];
-  let openCount: { count: number | null; error: unknown } = { count: 5, error: null };
+  const diaryCalls: Array<Array<[string, unknown[]]>> = [];
+  let counts: { open: { count: number | null; error: unknown }; total: { count: number | null; error: unknown } };
 
   beforeEach(() => {
     diaryCalls.length = 0;
-    openCount = { count: 5, error: null };
+    counts = { open: { count: 5, error: null }, total: { count: 6, error: null } };
     api.getDueCards.mockResolvedValue([]);
     vi.mocked(supabase.from).mockImplementation(((table: string) =>
-      table === 'mistake_diary' ? query(openCount, diaryCalls) : query({ data: [], error: null })) as unknown as typeof supabase.from);
+      table === 'mistake_diary' ? diaryQuery(counts, diaryCalls) : query({ data: [], error: null })) as unknown as typeof supabase.from);
   });
 
   afterEach(cleanup);
 
-  it('is one card under the empty queue, with the open mistakes counted by a HEAD request', async () => {
+  it('is one card under the empty queue, with the open mistakes and all of them counted by HEAD requests', async () => {
     renderReview();
     // The card counts cannot be read here, so the page says only what is certain.
     expect(await screen.findByRole('heading', { name: 'Сейчас повторять нечего' })).toBeInTheDocument();
-    const diary = screen.getByRole('region', { name: 'Дневник ошибок' });
+    const diary = await screen.findByRole('region', { name: 'Дневник ошибок' });
     expect(await within(diary).findByText('5 открытых ошибок.')).toBeInTheDocument();
     expect(within(diary).getByRole('link', { name: 'Открыть дневник ошибок' })).toHaveAttribute('href', '/mistakes');
     expect(diaryCalls).toEqual([
-      ['select', ['id', { count: 'exact', head: true }]],
-      ['eq', ['user_id', 'user-1']],
-      ['eq', ['is_resolved', false]],
+      [
+        ['select', ['id', { count: 'exact', head: true }]],
+        ['eq', ['user_id', 'user-1']],
+        ['eq', ['is_resolved', false]],
+      ],
+      [
+        ['select', ['id', { count: 'exact', head: true }]],
+        ['eq', ['user_id', 'user-1']],
+      ],
     ]);
     // The section's word for lectures.
     expect(screen.getByRole('link', { name: 'Лекции' })).toHaveAttribute('href', '/library');
@@ -515,24 +628,43 @@ describe('the mistakes diary in «Повторение»', () => {
     api.getDueCards.mockResolvedValue(oneCard);
     renderReview();
     const flip = await screen.findByRole('button', { name: 'Перевернуть' });
-    const diary = screen.getByRole('region', { name: 'Дневник ошибок' });
+    const diary = await screen.findByRole('region', { name: 'Дневник ошибок' });
     expect(flip.compareDocumentPosition(diary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(await within(diary).findByText('5 открытых ошибок.')).toBeInTheDocument();
   });
 
-  it('says there are none, or shows no number when it cannot be counted', async () => {
-    openCount = { count: 0, error: null };
+  it('says there are none open once there were mistakes, or shows no number when it cannot be counted', async () => {
+    counts = { open: { count: 0, error: null }, total: { count: 3, error: null } };
     renderReview();
     expect(await screen.findByText('Открытых ошибок нет.')).toBeInTheDocument();
     cleanup();
 
-    openCount = { count: null, error: { message: 'offline' } };
+    counts = { open: { count: null, error: { message: 'offline' } }, total: { count: null, error: { message: 'offline' } } };
     renderReview();
     const diary = await screen.findByRole('region', { name: 'Дневник ошибок' });
     await act(async () => undefined);
     expect(within(diary).queryByText(/открыт/i, { selector: 'b' })).toBeNull();
     expect(diary.textContent).not.toMatch(/\d/);
     expect(within(diary).getByRole('link', { name: 'Открыть дневник ошибок' })).toBeInTheDocument();
+  });
+
+  it('is not there for an account that never had a mistake (UX audit of 06.11), neither under the queue nor in a session', async () => {
+    counts = { open: { count: 0, error: null }, total: { count: 0, error: null } };
+    renderReview();
+    expect(await screen.findByRole('heading', { name: 'Сейчас повторять нечего' })).toBeInTheDocument();
+    await act(async () => undefined);
+    expect(screen.queryByRole('region', { name: 'Дневник ошибок' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /Дневник ошибок/ })).toBeNull();
+    cleanup();
+
+    api.getDueCards.mockResolvedValue(oneCard);
+    renderReview();
+    await screen.findByRole('button', { name: 'Перевернуть' });
+    await act(async () => undefined);
+    expect(screen.queryByRole('region', { name: 'Дневник ошибок' })).toBeNull();
+    expect(diaryShown(0)).toBe(false);
+    expect(diaryShown(2)).toBe(true);
+    expect(diaryShown(null)).toBe(true);
   });
 
   it('words the number of open mistakes', () => {

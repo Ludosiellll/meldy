@@ -24,6 +24,9 @@ import { sessionTotalWords } from '../lib/learning/cardCounts';
 import { localDateKey } from '../utils/streak';
 import { ty } from '../components/landing/typo';
 import { usePhone } from '../lib/usePhone';
+import { isMemberOnly, readOwnWork } from '../lib/accountShape';
+import type { OverviewContainer } from '../types/container';
+import { containerDays, useContainerLayer, type ContainerLayer } from './containerLayer';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -109,19 +112,86 @@ function cardContext(card: DueCard, titles: Record<string, string>): { followUp:
   return { followUp, title, context };
 }
 
-/** Open entries of the mistakes diary: a HEAD request, no rows are transferred; null when it cannot be read. */
-export async function countOpenMistakes(userId: string): Promise<number | null> {
-  try {
-    const { count, error } = await supabase
-      .from('mistake_diary')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('is_resolved', false);
-    if (error || typeof count !== 'number') return null;
-    return Math.max(0, count);
-  } catch {
-    return null;
+/**
+ * Entries of the mistakes diary, the open ones and all of them (closed too): HEAD requests, no rows are transferred; a
+ * count is null when it cannot be read.
+ */
+export async function countMistakes(userId: string): Promise<{ open: number | null; total: number | null }> {
+  const count = async (openOnly: boolean): Promise<number | null> => {
+    try {
+      let query = supabase.from('mistake_diary').select('id', { count: 'exact', head: true }).eq('user_id', userId);
+      if (openOnly) query = query.eq('is_resolved', false);
+      const { count: value, error } = await query;
+      if (error || typeof value !== 'number') return null;
+      return Math.max(0, value);
+    } catch {
+      return null;
+    }
+  };
+  const [open, total] = await Promise.all([count(true), count(false)]);
+  return { open, total };
+}
+
+/**
+ * The diary has a place on the page only when the account has had a mistake, open or closed (UX audit of 06.11: 0 views,
+ * and an empty «Дневник ошибок» under every state of a group student's page). Unknown: shown, as before.
+ */
+export function diaryShown(total: number | null): boolean {
+  return total !== 0;
+}
+
+/**
+ * Where a group student's practice is (UX audit of 06.11): beside «Разобрать лекцию» on an empty «Повторение», a quiet
+ * way to its exam — «Повторить ошибки» of the first subject with open mistakes, else «К экзамену» of the nearest exam.
+ */
+export function examPractice(containers: ReadonlyArray<Pick<OverviewContainer, 'id' | 'exam_date' | 'subjects'>>, today: string): { href: string; label: string } | null {
+  if (containers.length === 0) return null;
+  const order = [...containers].sort((a, b) => {
+    const da = containerDays(a, today);
+    const db = containerDays(b, today);
+    const ka = !da.day ? 1 : da.past ? 2 : 0;
+    const kb = !db.day ? 1 : db.past ? 2 : 0;
+    if (ka !== kb) return ka - kb;
+    return (da.day ?? '') < (db.day ?? '') ? -1 : (da.day ?? '') > (db.day ?? '') ? 1 : 0;
+  });
+  for (const container of order) {
+    const subject = container.subjects.find((entry) => entry.open_errors > 0);
+    if (subject) {
+      const query = new URLSearchParams({ s: subject.id, only: 'errors' });
+      return { href: `/exams/c/${encodeURIComponent(container.id)}/study?${query.toString()}`, label: 'Повторить ошибки' };
+    }
   }
+  return { href: `/exams/c/${encodeURIComponent(order[0].id)}`, label: 'К экзамену' };
+}
+
+/**
+ * The quiet way to the exam on an empty «Повторение», for an account that is only a member of someone else's exams (it
+ * owns no exam, test or lecture: lib/accountShape). Nothing until that is certain; «Разобрать лекцию» stays for everyone
+ * (the owner, 07.11: a student can make lectures too).
+ */
+function MemberExamLink({ userId, layer }: { userId: string; layer: ContainerLayer }) {
+  const containers = layer.mode === 'on' ? layer.overview.containers : null;
+  const allTheirs = Boolean(containers && containers.length > 0 && containers.every((container) => container.role === 'member'));
+  const attached = layer.mode === 'on' ? layer.overview.attached_exam_ids.join(',') : '';
+  const [own, setOwn] = useState<{ lectures: number | null; ownExams: number | null } | null>(null);
+  useEffect(() => {
+    if (!allTheirs) return undefined;
+    let live = true;
+    void readOwnWork(userId, attached ? attached.split(',') : []).then((work) => {
+      if (live) setOwn(work);
+    });
+    return () => {
+      live = false;
+    };
+  }, [allTheirs, userId, attached]);
+  if (!containers || !own || !isMemberOnly({ containers, lectures: own.lectures, ownExams: own.ownExams })) return null;
+  const practice = examPractice(containers, localDateKey());
+  if (!practice) return null;
+  return (
+    <Link className="sf-link" data-muted="" to={practice.href}>
+      {practice.label}
+    </Link>
+  );
 }
 
 /** «5 открытых ошибок.», «Открытых ошибок нет.», or nothing when the count is not known. */
@@ -132,8 +202,9 @@ export function openMistakesLine(count: number | null): string {
 }
 
 /**
- * The mistakes diary lives in «Повторение»: one card at the foot of the page in every state, with
- * the number of open mistakes when it could be counted (a phone's session has the line below instead).
+ * The mistakes diary lives in «Повторение»: one card at the foot of the page in every state once the account has had a
+ * mistake (diaryShown), with the number of open mistakes when it could be counted (a phone's session has the line below
+ * instead).
  */
 function MistakesEntry({ count }: { count: number | null }) {
   const line = openMistakesLine(count);
@@ -346,14 +417,19 @@ export default function Review() {
   const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flipButtonRef = useRef<HTMLButtonElement | null>(null);
   const gradesRef = useRef<HTMLDivElement | null>(null);
-  /** Open mistakes for the diary's card; null until counted or when the count cannot be read. */
-  const [openMistakes, setOpenMistakes] = useState<number | null>(null);
+  /** The mistakes for the diary's card, open and all; null until counted or when a count cannot be read. */
+  const [mistakes, setMistakes] = useState<{ open: number | null; total: number | null } | null>(null);
+  const openMistakes = mistakes?.open ?? null;
+  // Not drawn until counted: an account that never had a mistake gets no diary at all (UX audit of 06.11).
+  const diary = mistakes !== null && diaryShown(mistakes.total);
+  // The exams of the account (containers_overview): a group student's empty page points at its exam too.
+  const { layer, probe } = useContainerLayer();
 
   useEffect(() => {
     if (!user?.id) return undefined;
     let cancelled = false;
-    void countOpenMistakes(user.id).then((value) => {
-      if (!cancelled) setOpenMistakes(value);
+    void countMistakes(user.id).then((value) => {
+      if (!cancelled) setMistakes(value);
     });
     return () => {
       cancelled = true;
@@ -561,7 +637,7 @@ export default function Review() {
             <p className="rv-quiet rv-gap-s">{loadError}</p>
           </div>
           <button type="button" className="sf-secondary rv-gap-m" onClick={() => void loadCards()}>
-            Повторить загрузку
+            Попробовать ещё раз
           </button>
         </div>
       </div>
@@ -601,11 +677,12 @@ export default function Review() {
                 ) : null}
               </div>
             ) : copy.kind === 'none' ? (
-              // A student without cards: the one way to get them.
+              // A student without cards: the one way to get them; a group student also its exam, quietly beside it.
               <div className="rv-acts">
                 <Link className="sf-primary" to="/analyze">
                   Разобрать лекцию
                 </Link>
+                {user?.id ? <MemberExamLink userId={user.id} layer={layer} /> : null}
               </div>
             ) : (
               <div className="rv-acts">
@@ -618,8 +695,9 @@ export default function Review() {
               </div>
             )}
           </section>
-          <MistakesEntry count={openMistakes} />
+          {diary ? <MistakesEntry count={openMistakes} /> : null}
         </div>
+        {probe}
       </div>
     );
   }
@@ -698,7 +776,7 @@ export default function Review() {
               </ol>
             </section>
           ) : null}
-          <MistakesEntry count={openMistakes} />
+          {diary ? <MistakesEntry count={openMistakes} /> : null}
         </div>
       </div>
     );
@@ -825,7 +903,7 @@ export default function Review() {
             </p>
           ) : null}
         </div>
-        {phone ? <MistakesLine count={openMistakes} /> : <MistakesEntry count={openMistakes} />}
+        {diary ? (phone ? <MistakesLine count={openMistakes} /> : <MistakesEntry count={openMistakes} />) : null}
       </div>
     </div>
   );
