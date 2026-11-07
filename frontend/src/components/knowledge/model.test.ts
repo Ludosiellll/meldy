@@ -147,7 +147,7 @@ describe('one map', () => {
     expect(all.groups.map((group) => [group.label, group.lectureIds.length])).toEqual([
       ['Макроэкономика', 9],
       ['Эконометрика', 4],
-      ['Другие материалы', 2],
+      ['Другие лекции', 2],
     ]);
     expect(all.exam).toBeNull();
     expect(all.lectures.every((lecture) => lecture.questions.length === 0)).toBe(true);

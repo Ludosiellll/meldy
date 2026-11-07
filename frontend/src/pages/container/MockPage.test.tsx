@@ -230,7 +230,7 @@ describe('«Как на экзамене» (Concept 1 §3.6, decisions 20, 36, 5
   it('a subject with nothing keyed cannot start a try', () => {
     const empty = summary({ subjects: summary().subjects.map((s) => (s.id === SUBJECT_DB ? { ...s, keyed: 0 } : s)) });
     renderMock(`?s=${SUBJECT_DB}`, containerData({ summary: empty, items: [] }));
-    expect(page()).toContain('В предмете пока нет вопросов с ключом.');
+    expect(page()).toContain('В предмете пока нет вопросов с ответами.');
     expect(screen.queryByRole('button', { name: nm('Начать') })).toBeNull();
   });
 });

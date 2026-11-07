@@ -74,7 +74,7 @@ describe('labels', () => {
       not_passed: 'ответ неполный',
     });
     for (const label of Object.values(READINESS_LABELS)) expect(label).not.toMatch(/засчит|зачт/);
-    expect(SELF_RATING_LABELS).toEqual({ know: 'знаю', unsure: 'плаваю', dont_know: 'не знаю' });
+    expect(SELF_RATING_LABELS).toEqual({ know: 'знаю', unsure: 'с трудом', dont_know: 'не знаю' });
     expect(SELF_RATING_CONFIDENCE).toEqual({ dont_know: 1, unsure: 2, know: 3 });
   });
 });

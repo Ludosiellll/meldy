@@ -517,8 +517,8 @@ describe('«Попробовать на примере» (/try): three steps —
     renderAt('/try');
     const bar = screen.getByRole('navigation', { name: 'Вход и регистрация' });
     expect(within(bar).getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
-    // Decision 5: the call to start with one's own list where there is room («Создать аккаунт» on a phone).
-    expect(within(bar).getByRole('link', { name: 'Начать со своего списка' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
+    // Decision 5: the call to sign up, «Создать аккаунт» on every width (UX audit 06.11: one name for signing up).
+    expect(within(bar).getByRole('link', { name: 'Создать аккаунт' })).toHaveAttribute('href', '/register?next=%2Fexams%2Fnew');
     expect(screen.getByRole('link', { name: 'Meldy, на главную' })).toHaveAttribute('href', '/');
   });
 
@@ -757,7 +757,7 @@ describe('the AI check of the example (/api/try/evaluate)', () => {
     renderAt('/try/ticket?q=q5');
     fireEvent.click(screen.getByRole('button', { name: 'Вставить готовый ответ' }));
     // Mid-answer the top line asks first (the answer would be lost), then goes — with the way back.
-    fireEvent.click(screen.getByRole('link', { name: /Начать со своего списка|Создать аккаунт/ }));
+    fireEvent.click(screen.getByRole('link', { name: 'Создать аккаунт' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Регистрация' })).toBeInTheDocument();
     expect(mocks.confirm).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('register-from').textContent).toBe(JSON.stringify(FROM_TRY));

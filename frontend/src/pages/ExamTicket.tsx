@@ -113,13 +113,13 @@ export const PRIVACY_LINE =
 
 /** An answer nobody checks goes nowhere: only the student's own rating is saved. */
 export const PRIVACY_UNCHECKED_LINE =
-  'Речь распознаёт браузер, в Chrome — через сервис Google. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
+  'Речь распознаёт браузер, в Chrome — через сервис Google. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «с трудом» или «не знаю».';
 
 /** The same two lines when the speech is recognised on the server (the browser could not, or there is no Web Speech). */
 export const PRIVACY_SERVER_LINE =
   'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись уходит туда кусками и не сохраняется. Текст ответа проверяет ИИ-сервис (Google Gemini, запасной — Groq); в истории остаются итоги проверки по пунктам и короткие отрывки ответа.';
 export const PRIVACY_SERVER_UNCHECKED_LINE =
-  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись не сохраняется. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «плаваю» или «не знаю».';
+  'Речь распознаёт сервер Meldy через сервис Groq (запасной — Google Gemini): запись не сохраняется. Ответ без проверки остаётся на этом устройстве: сохраняется только ваша отметка «знаю», «с трудом» или «не знаю».';
 
 export function privacyText(engine: VoiceEngine, checked: boolean): string {
   if (engine === 'server') return checked ? PRIVACY_SERVER_LINE : PRIVACY_SERVER_UNCHECKED_LINE;
@@ -1424,7 +1424,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
               <p className="or-state-text">{state.loadError?.message}</p>
               <div className="or-acts">
                 <Link className="sf-link" to={withFrom(`/exams/${examId}`)}>
-                  Лист экзамена
+                  Экзамен
                 </Link>
               </div>
             </div>
@@ -1483,7 +1483,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
         {protocol === 'saved' ? <span className="or-saved">Сохранено</span> : null}
         <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
           <ArrowLeft className="or-back-icon" aria-hidden="true" strokeWidth={1.75} />
-          Лист экзамена
+          Экзамен
         </button>
       </>
     );
@@ -1519,7 +1519,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
                   Ответить ещё раз
                 </button>
                 <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
-                  Лист экзамена
+                  Экзамен
                 </button>
               </div>
             </section>
@@ -1614,7 +1614,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
                   <p className="or-save-line" data-state="failed" role="alert">
                     Результат не сохранён.{' '}
                     <button type="button" className="sf-link" onClick={() => dispatch({ type: 'save_retry' })}>
-                      Повторить
+                      Попробовать ещё раз
                     </button>
                   </p>
                 )}
@@ -1677,7 +1677,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
   ) : null;
   const sheetLink = (
     <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
-      Лист экзамена
+      Экзамен
     </button>
   );
 
@@ -1781,10 +1781,10 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
           {rated.status === 'saving'
             ? 'Сохраняем…'
             : rated.status === 'saved' && rated.rating
-              ? `Отмечено «${SELF_RATING_LABELS[rated.rating]}». Отметка видна на листе экзамена.`
+              ? `Отмечено «${SELF_RATING_LABELS[rated.rating]}». Отметка видна на странице экзамена.`
               : rated.status === 'failed'
                 ? 'Отметка не сохранилась. Нажмите ещё раз.'
-                : 'Отметка появится на листе экзамена у этого вопроса.'}
+                : 'Отметка появится на странице экзамена у этого вопроса.'}
         </p>
         <div className="or-acts" data-wide="">
           {state.index + 1 < total ? (
@@ -1823,7 +1823,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     side = (
       <div className="or-acts" data-wide="">
         <button type="button" className="sf-primary" onClick={() => void leave(withFrom(`/exams/${examId}`))} data-anchor="">
-          Лист экзамена
+          Экзамен
         </button>
         {state.index + 1 < total ? nextLink : null}
       </div>
@@ -1833,7 +1833,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
       <>
         <div className="or-acts" data-wide="">
           <button type="button" className="sf-primary" onClick={retryRubric} data-anchor="">
-            Повторить
+            Попробовать ещё раз
           </button>
           <button type="button" className="sf-link" onClick={voiceFirst ? startVoice : startText}>
             Ответить без проверки
@@ -1856,7 +1856,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
           <p className="or-message or-message-muted">
             {ready
               ? 'Можно ответить без проверки. После ответа сравните его с пунктами из лекций сами.'
-              : 'Можно ответить без проверки, голосом или текстом. После ответа отметьте, как получилось. Отметка появится на листе экзамена.'}
+              : 'Можно ответить без проверки, голосом или текстом. После ответа отметьте, как получилось. Отметка появится на странице экзамена.'}
           </p>
         ) : (
           // What «Готово» leads to and what it costs, before the first answer (EX-32).
@@ -2321,7 +2321,7 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
   const sheetLink = (
     <button type="button" className="sf-link or-sheet-link" data-muted="" onClick={() => navigate(sheetPath)}>
       <ArrowLeft className="or-back-icon" aria-hidden="true" strokeWidth={1.75} />
-      Лист экзамена
+      Экзамен
     </button>
   );
 
@@ -2384,11 +2384,11 @@ function ReadOnlyProtocol({ examId, sessionId }: { examId: string; sessionId: st
               <div className="or-acts">
                 {view.status === 'failed' ? (
                   <button type="button" className="sf-link" onClick={() => setAttempt((value) => value + 1)}>
-                    Повторить
+                    Попробовать ещё раз
                   </button>
                 ) : null}
                 <Link className="sf-link" to={`/exams/${examId}`}>
-                  Лист экзамена
+                  Экзамен
                 </Link>
               </div>
             </div>

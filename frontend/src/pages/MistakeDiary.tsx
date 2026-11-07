@@ -694,7 +694,7 @@ export default function MistakeDiary() {
                 Не удалось загрузить дневник ошибок.
               </p>
               <button type="button" onClick={fetchMistakes} className="sf-secondary md-state-act">
-                Повторить
+                Попробовать ещё раз
               </button>
             </div>
           ) : filtered.length === 0 ? (

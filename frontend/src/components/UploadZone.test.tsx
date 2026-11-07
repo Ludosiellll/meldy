@@ -71,7 +71,7 @@ function Harness({
 const textarea = () => screen.getByLabelText('Текст лекции или конспекта') as HTMLTextAreaElement;
 const startButton = () =>
   screen.getByRole('button', {
-    name: /Запустить анализ|Вставьте текст|Сначала выберите файл|Вставьте ссылку|Ссылку на видео не открыть|Узнаём длину видео|Видео не разобрать|Запускаем/,
+    name: /Разобрать лекцию|Вставьте текст|Сначала выберите файл|Вставьте ссылку|Ссылку на видео не открыть|Узнаём длину видео|Видео не разобрать|Запускаем/,
   });
 const lecture = (length: number) => `Лекция 3. Эластичность спроса\n${'а'.repeat(Math.max(0, length - 30))}`;
 
@@ -177,7 +177,7 @@ describe('UploadZone text tab', () => {
 describe('UploadZone demo text', () => {
   it('«Попробовать на демо-тексте» fills the text tab and labels it until the text is edited', () => {
     const onDemo = vi.fn();
-    render(<Harness onUpload={vi.fn()} onDemo={onDemo} initialTab="file" costNote="Анализ расходует 20 из 100 единиц дневного лимита." />);
+    render(<Harness onUpload={vi.fn()} onDemo={onDemo} initialTab="file" costNote="Разбор лекции расходует 20 из 100 единиц дневного лимита." />);
     const demoButton = screen.getByRole('button', { name: 'Попробовать на демо-тексте' });
     expect(demoButton.textContent).not.toMatch(/▶/);
     fireEvent.click(demoButton);
@@ -186,7 +186,7 @@ describe('UploadZone demo text', () => {
     expect(textarea().value).toBe(DEMO_TEXT);
     expect(screen.getByText('Демо-текст: лимит не списывается')).toBeInTheDocument();
     // За демо-текст лимит не списывается, поэтому строки о расходе нет.
-    expect(screen.queryByText('Анализ расходует 20 из 100 единиц дневного лимита.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Разбор лекции расходует 20 из 100 единиц дневного лимита.')).not.toBeInTheDocument();
     // The demo is analysed with its own settings: step 2 says what will be made, why it cannot be changed, and waits.
     expect(screen.getByText('Конспект, 6 карточек и самопроверка из 5 вопросов')).toBeInTheDocument();
     const change = screen.getByRole('button', { name: 'Изменить' });
@@ -195,7 +195,7 @@ describe('UploadZone demo text', () => {
 
     fireEvent.change(textarea(), { target: { value: `${DEMO_TEXT} Мой абзац.` } });
     expect(screen.queryByText('Демо-текст: лимит не списывается')).not.toBeInTheDocument();
-    expect(screen.getByText('Анализ расходует 20 из 100 единиц дневного лимита.')).toBeInTheDocument();
+    expect(screen.getByText('Разбор лекции расходует 20 из 100 единиц дневного лимита.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Изменить' })).toBeEnabled();
     expect(screen.queryByText('Для демо-текста настройки не меняются.')).not.toBeInTheDocument();
   });
@@ -203,8 +203,8 @@ describe('UploadZone demo text', () => {
 
 describe('UploadZone start states', () => {
   it('shows the cost note under the start button and links it for screen readers', () => {
-    render(<Harness onUpload={vi.fn()} initialText={lecture(400)} costNote="Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00." />);
-    const note = screen.getByText('Анализ расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00.');
+    render(<Harness onUpload={vi.fn()} initialText={lecture(400)} costNote="Разбор лекции расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00." />);
+    const note = screen.getByText('Разбор лекции расходует 20 из 100 единиц дневного лимита. Осталось 80, лимит обновится в 3:00.');
     expect(startButton()).toHaveAttribute('aria-describedby', note.id);
   });
 
@@ -646,7 +646,7 @@ describe('«Разобрать лекцию» on a phone (10_Project/Phone_Declu
   it('leads with one line and picks the file with «Выбрать файл» in one frame: no drag line, the formats as text', async () => {
     const onUpload = vi.fn();
     render(<Harness onUpload={onUpload} initialTab="file" />);
-    expect(screen.getByText('Meldy сделает конспект, карточки и тест.')).toBeInTheDocument();
+    expect(screen.getByText('Meldy сделает конспект, карточки и самопроверку.')).toBeInTheDocument();
     expect(screen.queryByText(/Перетащите файл/)).toBeNull();
     expect(document.querySelectorAll('.az-format')).toHaveLength(0);
     expect(screen.getByText('PDF, DOCX, PPTX, HTML, TXT, MD, JPG, PNG · до 15 МБ')).toBeInTheDocument();

@@ -160,7 +160,7 @@ describe('runAnalyzeStream outcomes', () => {
   });
 
   it('error events map to kinds by code; a later done is ignored', async () => {
-    mockFetch(() => sseResponse([ev(TEXT), ev({ type: 'error', code: 'busy', message: 'Сервис ИИ сейчас занят. Материал не сохранён, лимит не списан. Попробуйте через минуту.' }), ev({ type: 'done' })]));
+    mockFetch(() => sseResponse([ev(TEXT), ev({ type: 'error', code: 'busy', message: 'Сервис ИИ сейчас занят. Лекция не сохранена, лимит не списан. Попробуйте через минуту.' }), ev({ type: 'done' })]));
     const error = await run().catch(e => e);
     expect(error).toMatchObject({ kind: 'busy', retryable: true });
     expect(error.message).toContain('лимит не списан');

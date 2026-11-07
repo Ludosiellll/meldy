@@ -219,7 +219,7 @@ describe('QuizView journal', () => {
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent('Результат не сохранён.');
     expect(alert).not.toHaveTextContent('offline');
-    fireEvent.click(within(alert).getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(within(alert).getByRole('button', { name: 'Попробовать ещё раз' }));
 
     expect(await screen.findByText('Результат сохранён')).toBeInTheDocument();
     expect(journal.record).toHaveBeenCalledTimes(2);
@@ -234,7 +234,7 @@ describe('QuizView journal', () => {
     answerTwoOfThree();
     fireEvent.click(screen.getByRole('button', { name: 'Проверить ответы' }));
 
-    expect(screen.getByText('Результат не сохранён: материал ещё не в библиотеке')).toBeInTheDocument();
+    expect(screen.getByText('Результат не сохранён: лекции ещё нет в «Лекциях»')).toBeInTheDocument();
     expect(journal.record).not.toHaveBeenCalled();
 
     rerenderQuiz({ materialId: MATERIAL_ID });

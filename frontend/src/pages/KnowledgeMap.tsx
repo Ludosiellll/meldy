@@ -308,7 +308,7 @@ export default function KnowledgeMap() {
             <h1 className="km-state-h">Не удалось загрузить карту</h1>
             <p className="km-state-text">Лекции на месте — повторите через минуту.</p>
             <button type="button" className="sf-secondary km-state-act" onClick={retry}>
-              Повторить
+              Попробовать ещё раз
             </button>
           </div>
         </div>
@@ -386,7 +386,7 @@ export default function KnowledgeMap() {
           </span>
         </span>
         <Link className="sf-link" to={`/exams/${exam.id}?filter=cov:none`}>
-          Показать на листе
+          Показать в экзамене
         </Link>
       </>
     ) : null;
@@ -440,7 +440,7 @@ export default function KnowledgeMap() {
         {/* A phone reaches the exam sheet from «Экзамены» (and «Показать на листе» under the map). */}
         {exam && !phone ? (
           <Link className="sf-secondary" to={`/exams/${exam.id}`}>
-            Лист экзамена
+            Экзамен
           </Link>
         ) : null}
       </header>
@@ -449,7 +449,7 @@ export default function KnowledgeMap() {
         <p className="km-note">
           {`Не удалось загрузить ${missingList}; карта показана без этих данных.`}
           <button type="button" className="sf-link" onClick={retry}>
-            Повторить
+            Попробовать ещё раз
           </button>
         </p>
       ) : null}

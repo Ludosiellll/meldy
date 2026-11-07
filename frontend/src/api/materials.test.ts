@@ -85,8 +85,8 @@ describe('renaming a lecture and changing its subject', () => {
 
   it('a write that changed no row (someone else’s lecture, a deleted one) is an error too', async () => {
     db.result = { data: [], error: null };
-    await expect(updateMaterialTitle('m1', 'Новое')).rejects.toThrow('Материал не изменён');
-    await expect(updateMaterialSubject('m1', 'Новый')).rejects.toThrow('Материал не изменён');
-    await expect(setMaterialVisibility('m1', true)).rejects.toThrow('Материал не изменён');
+    await expect(updateMaterialTitle('m1', 'Новое')).rejects.toThrow('Лекция не изменена');
+    await expect(updateMaterialSubject('m1', 'Новый')).rejects.toThrow('Лекция не изменена');
+    await expect(setMaterialVisibility('m1', true)).rejects.toThrow('Лекция не изменена');
   });
 });

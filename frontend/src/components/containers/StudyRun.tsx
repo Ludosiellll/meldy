@@ -640,7 +640,7 @@ export default function StudyRun(props: StudyRunProps) {
       verdict = pending.dontKnow ? copy.shortDontKnow(form, pending.again, back, item.key_source) : copy.verdictShortWrong(form, pending.again, back, item.key_source);
     } else {
       // The key in the file's own words: the screen's letters are shuffled, the key panel and «Ключи» use the file's.
-      // A key the author set is said as «Верный ответ — …», not «В файле — …» (release 47, M10).
+      // A key the author set is said as «Верный ответ: …», not «Ответ из файла: …» (release 47, M10).
       const names = keyNames(item);
       verdict = pending.dontKnow
         ? copy.verdictDontKnow(names, pending.again, back, item.key_source)

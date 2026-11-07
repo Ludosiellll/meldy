@@ -854,7 +854,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     const question = selectedRow.question;
     const ok = await confirm({
       title: 'Отметить вручную?',
-      message: `Вопрос ${selectedRow.number} будет отмечен как «есть в лекции». Meldy это не проверял: на листе будет подпись «отмечено вами».`,
+      message: `Вопрос ${selectedRow.number} будет отмечен как «есть в лекции». Meldy это не проверял: на странице экзамена будет подпись «отмечено вами».`,
       confirmText: 'Отметить',
       cancelText: 'Отмена',
       type: 'info',
@@ -884,7 +884,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
         <p className="ex-loading" role="status">
-          Загружаем лист экзамена…
+          Загружаем экзамен…
         </p>
       </div>
     );
@@ -893,11 +893,11 @@ function ExamSheetPage({ examId }: { examId: string }) {
     return (
       <div className="sf-page" ref={frame.ref} data-frame={frame.size}>
         <div className="ex-error" role="alert">
-          <h2>{status === 'missing' ? 'Экзамен не найден' : 'Не удалось открыть лист экзамена'}</h2>
+          <h2>{status === 'missing' ? 'Экзамен не найден' : 'Не удалось открыть экзамен'}</h2>
           <p>{status === 'missing' ? 'Его удалили, или он принадлежит другому аккаунту.' : loadError}</p>
           {status === 'error' ? (
             <button type="button" className="sf-link" onClick={() => void load()}>
-              Повторить
+              Попробовать ещё раз
             </button>
           ) : (
             <Link className="sf-link" to="/exams">
@@ -944,7 +944,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   if (reusedPart) statusNotes.push({ key: 'reused', text: reusedPart });
   if (skippedLectures > 0) statusNotes.push({ key: 'notext', text: `${lecturesPhrase(skippedLectures)} без текста не ${skippedLectures === 1 ? 'учтена' : 'учтены'}.` });
   if (limit && !pageStatus.blocked) statusNotes.push({ key: 'limit', text: mappingLimitLine({ remaining: limit.remaining, resetAt: formatClock(new Date(limit.resetAt).toISOString()) }, nextRunCost), live: true });
-  if (eventsState === 'error' && eventsError) statusNotes.push({ key: 'events', text: eventsError, action: { label: 'Повторить', run: () => void loadEvents(bundle.questions) } });
+  if (eventsState === 'error' && eventsError) statusNotes.push({ key: 'events', text: eventsError, action: { label: 'Попробовать ещё раз', run: () => void loadEvents(bundle.questions) } });
 
   const editLocked = running || job.phase === 'waiting' || (examFresh && exam.mapping_state === 'running' && isMappingLocked(exam));
   // Only «Все 40» until something is mapped: three filters showing 0 said nothing (redesign critique 7). A phone shows no
@@ -1255,7 +1255,7 @@ function ExamSheetPage({ examId }: { examId: string }) {
   ];
   const moreMenu = (
     <div className="ex-more" ref={moreRef}>
-      <MoreMenu items={moreItems} label="Ещё: лист экзамена" variant="round" />
+      <MoreMenu items={moreItems} label="Ещё: экзамен" variant="round" />
     </div>
   );
   const examLinks = (

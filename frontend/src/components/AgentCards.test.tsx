@@ -57,7 +57,7 @@ describe('AgentCards', () => {
 
   it('exposes the overall progress', () => {
     render(<AgentCards agents={agents} phase="analyzing" />);
-    const bar = screen.getByRole('progressbar', { name: 'Ход анализа' });
+    const bar = screen.getByRole('progressbar', { name: 'Ход разбора' });
     expect(Number(bar.getAttribute('aria-valuenow'))).toBeGreaterThan(50);
   });
 });

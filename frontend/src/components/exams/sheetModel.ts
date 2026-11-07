@@ -197,7 +197,7 @@ export const FILTER_NAMES: Record<SheetFilter, string> = {
   'rd:not_passed': READINESS_LABELS.not_passed,
   'rd:untested': 'ещё не отвечали',
   'sr:know': '«знаю»',
-  'sr:unsure': '«плаваю»',
+  'sr:unsure': '«с трудом»',
   'sr:dont_know': '«не знаю»',
   'sr:none': 'без самооценки',
 };
@@ -425,7 +425,7 @@ export function closePartialLine(partial: number, shares: LayoutShares, closed: 
     const q = perTicketOf(closed.low, 2);
     effect = q <= 1 ? `в лекциях будет ${value} вопросов.` : `${allQuestionsWord(q)} будут в лекциях в ${value} билетов.`;
   }
-  const rest = `: добавьте к ${them} материал — тогда ${effect}`;
+  const rest = `: добавьте к ${them} лекции — тогда ${effect}`;
   return { link, rest, text: `${link}${rest}` };
 }
 

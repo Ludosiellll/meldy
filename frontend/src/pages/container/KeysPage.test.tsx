@@ -439,7 +439,7 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     api.state.error = 'Failed to fetch';
     renderAt();
     expect(screen.getByText(new RegExp(KEYS.loadFailed))).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(api.reload).toHaveBeenCalled();
   });
 
@@ -450,6 +450,6 @@ describe('KeysPage: the author’s keys (spec decision 14, §16 #44)', () => {
     renderAt();
     expect(screen.getByText(`${GONE.title}. ${GONE.text}`)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Экзамены' })).toHaveAttribute('href', '/exams');
-    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Попробовать ещё раз' })).not.toBeInTheDocument();
   });
 });

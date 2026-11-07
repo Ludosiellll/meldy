@@ -61,10 +61,10 @@ export const GW = {
   right: 'Верно.',
   rightTwoDays: (n: number, of: number) => `Верно. Выучено ${n} из ${of}.`,
   // «завтра» even before the member's day off: bot_group_answer gives no member's days of the week.
-  wrongMember: (key: string) => `Неверно. В файле — ${key}. Повторим вопрос в ваших занятиях завтра.`,
-  wrongUnlinked: (key: string) => `Неверно. В файле — ${key}. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.`,
-  wrongOther: (key: string) => `Неверно. В файле — ${key}.`,
-  again: (mine: string, key: string) => `Вы уже ответили: ${mine}. В файле — ${key}.`,
+  wrongMember: (key: string) => `Неверно. Ответ из файла: ${key}. Повторим вопрос в ваших занятиях завтра.`,
+  wrongUnlinked: (key: string) => `Неверно. Ответ из файла: ${key}. Чтобы такие ответы попадали в ваш план, подключите Telegram в профиле Meldy.`,
+  wrongOther: (key: string) => `Неверно. Ответ из файла: ${key}.`,
+  again: (mine: string, key: string) => `Вы уже ответили: ${mine}. Ответ из файла: ${key}.`,
   // «Заниматься в Meldy» for someone linked but not in the exam
   notMemberTitle: (exam: string) => `Экзамен «${exam}»`,
   notMemberBody: 'Войти в него можно по ссылке группы, её даёт автор экзамена. Откройте ссылку на сайте, и план появится здесь.',

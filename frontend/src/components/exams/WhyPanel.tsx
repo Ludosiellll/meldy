@@ -79,7 +79,7 @@ interface Verdict {
  */
 export function unverifiedLead(reason: string | null | undefined): string {
   const cause = typeof reason === 'string' && reason.startsWith(UNVERIFIED_PREFIX) ? reason.slice(UNVERIFIED_PREFIX.length).trim() : '';
-  if (!cause) return 'Модель этот вопрос не проверила: он сопоставлен с лекциями только по совпадению слов.';
+  if (!cause) return 'ИИ этот вопрос не проверил: он сопоставлен с лекциями только по совпадению слов.';
   const sentence = `${cause.charAt(0).toUpperCase()}${cause.slice(1)}`.replace(/[.\s]+$/, '');
   return `${sentence}, поэтому вопрос сопоставлен с лекциями только по совпадению слов.`;
 }

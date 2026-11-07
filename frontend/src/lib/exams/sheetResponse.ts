@@ -42,7 +42,7 @@ export class SheetError extends Error {
   }
 }
 
-export const SHEET_LOAD_MESSAGE = 'Не получилось загрузить устные вопросы. Проверьте связь и нажмите «Повторить».';
+export const SHEET_LOAD_MESSAGE = 'Не получилось загрузить устные вопросы. Проверьте связь и нажмите «Попробовать ещё раз».';
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const HASH = /^[0-9a-f]{32}$/;

@@ -324,7 +324,7 @@ describe('Mistake diary list', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить дневник ошибок.');
     expect(screen.queryByText('Ошибок пока нет')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toBeInTheDocument();
   });
 });
 

@@ -64,7 +64,7 @@ export default function AgentCards({
         <div
           className="ag-bar"
           role="progressbar"
-          aria-label="Ход анализа"
+          aria-label="Ход разбора"
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={pct}

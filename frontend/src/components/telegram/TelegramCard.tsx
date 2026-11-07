@@ -68,7 +68,7 @@ export const TELEGRAM_COPY = {
   openChat: 'Открыть чат с ботом',
   settingsHint: 'Время и паузу можно поменять в боте: /settings.',
   readFailed: 'Не получилось узнать, подключён ли Telegram.',
-  retry: 'Повторить',
+  retry: 'Попробовать ещё раз',
   remind: 'Напоминать в Telegram',
   qr: 'QR-код ссылки на бота Meldy в Telegram',
   /** Spec §6.4, word for word. */

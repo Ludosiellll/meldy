@@ -124,9 +124,9 @@ export const SESSION = {
   key: 2,
   chosen: 1,
   /** copy.verdictWrong(['SERIALIZABLE'], true). */
-  verdict: `Неверно. В${NB}файле${NB}— SERIALIZABLE. Повторим через пару вопросов и${NB}завтра.`,
+  verdict: `Неверно. Ответ из${NB}файла: SERIALIZABLE. Повторим через пару вопросов и${NB}завтра.`,
   yours: 'Ваш ответ',
-  inFile: 'В файле',
+  inFile: 'Ответ из файла',
   finish: 'Закончить',
   next: 'Дальше',
 } as const;

@@ -367,11 +367,11 @@ describe('who sees it, and the empty states', () => {
     expect(mocks.loadExamBundle).toHaveBeenCalledWith('someone-else');
   });
 
-  it('a failed read says so and «Повторить» reads again', async () => {
+  it('a failed read says so and «Попробовать ещё раз» reads again', async () => {
     mocks.loadExamBundle.mockRejectedValueOnce(new Error('offline'));
     openReport();
     expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось собрать отчёт');
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByRole('article', { name: 'Макроэкономика' })).toBeInTheDocument();
     expect(mocks.loadExamBundle).toHaveBeenCalledTimes(2);
   });

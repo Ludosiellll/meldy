@@ -365,10 +365,10 @@ describe('the author’s own test opens as the test’s page (release 47.3)', ()
     expect(await screen.findByTestId('exams')).toHaveTextContent('/exams|Тест «Кислоты и основания» удалён.');
   });
 
-  it('a контрольные list that failed says so with «Повторить»', async () => {
+  it('a контрольные list that failed says so with «Попробовать ещё раз»', async () => {
     mocks.listQuizzes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([quiz({})]);
     renderPage(loaded(containerData({ summary: testSummary() })));
-    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Попробовать ещё раз' }));
     expect(await screen.findByRole('list', { name: 'Контрольные' })).toBeInTheDocument();
   });
 

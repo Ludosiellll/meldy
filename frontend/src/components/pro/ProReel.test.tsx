@@ -138,10 +138,10 @@ describe('the checked tickets of the PRO day', () => {
 
 describe('the words about the plans', () => {
   it('are computed from the plan numbers', () => {
-    expect(proGainLine()).toBe('До 1000 единиц ИИ в день вместо 100\u00a0— это примерно 250 проверок ответов или 50 лекций.');
+    expect(proGainLine()).toBe('Лимит ИИ до 1000 в день вместо 100\u00a0— это примерно 250 проверок ответов или 50 лекций.');
     expect(proLede()).toBe('Тот же Meldy, только дневной лимит ИИ в 10 раз больше.');
-    expect(unitsPerDay(FREE_DAILY_UNITS)).toBe('100 единиц ИИ в день');
-    expect(unitsPerDay(44)).toBe('44 единицы ИИ в день');
+    expect(unitsPerDay(FREE_DAILY_UNITS)).toBe('лимит ИИ 100 в день');
+    expect(unitsPerDay(44)).toBe('лимит ИИ 44 в день');
     expect([1, 2, 5, 11, 21, 22, 25].map((n) => plural(n, ['лекция', 'лекции', 'лекций']))).toEqual([
       'лекция',
       'лекции',

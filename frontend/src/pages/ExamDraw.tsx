@@ -246,7 +246,7 @@ export default function ExamDraw() {
         </span>
       </div>
       <Link className="sf-link dw-exit" to={exitHref}>
-        Лист экзамена
+        Экзамен
       </Link>
     </header>
   );
@@ -266,7 +266,7 @@ export default function ExamDraw() {
               <p>{status === 'missing' ? 'Его удалили, или он принадлежит другому аккаунту.' : error}</p>
               {status === 'error' && (
                 <button type="button" className="sf-link" onClick={() => void load()}>
-                  Повторить
+                  Попробовать ещё раз
                 </button>
               )}
             </div>

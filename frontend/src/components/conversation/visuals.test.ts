@@ -488,11 +488,11 @@ describe('provenance of pictures', () => {
     expect(visualLabel(result[0].visual, result[0].provenance)).toBe('Цитата');
     expect(visualLabel(result[1].visual, result[1].provenance)).toBe('Пересказ');
     expect(result.map(line => provenanceLead(line.provenance))).toEqual([
-      'Из материала',
+      'Из лекции',
       null,
       null,
-      'Числа — из материала',
-      'Даты — из материала',
+      'Числа — из лекции',
+      'Даты — из лекции',
       null,
       null,
     ]);
@@ -511,7 +511,7 @@ describe('provenance of pictures', () => {
         sources,
       },
     );
-    expect(result.map(line => provenanceLead(line.provenance))).toEqual(['Из конспекта', 'Из карточек', 'Из материала']);
+    expect(result.map(line => provenanceLead(line.provenance))).toEqual(['Из конспекта', 'Из карточек', 'Из лекции']);
     expect(result[2].provenance).toEqual({ kind: 'quote', ids: ['S01'] });
   });
 

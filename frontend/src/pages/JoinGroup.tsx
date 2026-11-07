@@ -312,7 +312,7 @@ export default function JoinGroup() {
               (user ? (
                 <p className="au-foot">
                   <Link className="au-link" to="/dashboard">
-                    На «Сегодня»
+                    На главную
                   </Link>
                 </p>
               ) : (

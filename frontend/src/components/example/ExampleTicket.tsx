@@ -596,7 +596,7 @@ function ExampleRoom({ question }: { question: ExampleQuestion }) {
   const heading = ticketHeading(null, 0, 1, String(question.number));
   const seedBase = `example:${question.id}`;
   const elapsed = answerTime(state, now);
-  // A guest signs up and lands on a new exam, as from the top line's «Начать со своего списка».
+  // A guest signs up and lands on a new exam, as from the top line's «Создать аккаунт».
   const createHref = ownExamHref(Boolean(user));
   const toList = () => void leave('/try');
 

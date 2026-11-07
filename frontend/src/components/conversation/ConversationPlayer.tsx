@@ -295,7 +295,7 @@ function JobError({ message, onRetry }: { message: string; onRetry: () => void }
     <p role="alert" className="cv-error">
       <span>{message}</span>
       <button type="button" onClick={onRetry} className="sf-link">
-        Повторить
+        Попробовать ещё раз
       </button>
     </p>
   );
@@ -1312,7 +1312,7 @@ export default function ConversationPlayer({
           <p role="status" className="cv-status">
             <span>{AUDIO_MESSAGES[audioProblem]}</span>
             <button type="button" onClick={retryAudio} className="sf-link">
-              Повторить
+              Попробовать ещё раз
             </button>
           </p>
         ) : (

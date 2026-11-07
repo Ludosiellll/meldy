@@ -627,8 +627,8 @@ export default function Library() {
   if (entries === null && loading) {
     return (
       <div className="sf-page lib-page">
-        <div className="sf-head lib-head lib-wait" role="status" aria-label="Загружаем библиотеку">
-          {loadingLine ? <p className="lib-loading-text">Загружаем библиотеку…</p> : null}
+        <div className="sf-head lib-head lib-wait" role="status" aria-label="Загружаем лекции">
+          {loadingLine ? <p className="lib-loading-text">Загружаем лекции…</p> : null}
         </div>
         {/* The page's one start on a phone does not wait for the list (the top line has no «+ Лекция» there). */}
         {phone ? (
@@ -659,11 +659,11 @@ export default function Library() {
       <div className="sf-page lib-page">
         <section className="lib-note-card" aria-labelledby="library-failed-title">
           <h1 id="library-failed-title" className="sf-h2">
-            Не удалось загрузить библиотеку
+            Не удалось загрузить лекции
           </h1>
           <p>Лекции на месте — повторите через минуту.</p>
           <button type="button" className="lib-pill" onClick={() => void load()}>
-            Повторить
+            Попробовать ещё раз
             <span className="lib-dot" aria-hidden="true">
               <RotateCcw strokeWidth={2} />
             </span>
@@ -726,13 +726,13 @@ export default function Library() {
             <AnalyzePill />
             {sheetLink ? (
               <Link className="sf-link lib-sheet" to={sheetLink}>
-                Лист экзамена
+                Экзамен
               </Link>
             ) : null}
           </div>
         ) : sheetLink ? (
           <Link className="lib-pill" to={sheetLink}>
-            Лист экзамена
+            Экзамен
             <span className="lib-dot" aria-hidden="true">
               <ArrowRight strokeWidth={2} />
             </span>
@@ -787,7 +787,7 @@ export default function Library() {
               <div className="lib-section-head">
                 <div className="min-w-0">
                   <h2 id={`library-group-${group.key}`} className="sf-h2">
-                    {group.exam ? subjectOf(group.exam.title) : 'Другие материалы'}
+                    {group.exam ? subjectOf(group.exam.title) : 'Другие лекции'}
                   </h2>
                   <p className="sf-lede">
                     {group.exam
@@ -799,7 +799,7 @@ export default function Library() {
                 </div>
                 {group.exam ? (
                   <Link className="lib-more" to={`/exams/${group.exam.id}`}>
-                    Лист экзамена
+                    Экзамен
                     <ArrowRight aria-hidden="true" strokeWidth={2} />
                   </Link>
                 ) : null}

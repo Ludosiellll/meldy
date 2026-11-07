@@ -769,11 +769,11 @@ export function fragmentWords(ids: readonly string[]): string {
 export function provenanceLead(provenance: Provenance): string | null {
   switch (provenance.kind) {
     case 'numbers':
-      return 'Числа — из материала';
+      return 'Числа — из лекции';
     case 'dates':
-      return 'Даты — из материала';
+      return 'Даты — из лекции';
     case 'quote':
-      return 'Из материала';
+      return 'Из лекции';
     case 'summary':
       return 'Из конспекта';
     case 'cards':

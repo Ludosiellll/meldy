@@ -52,26 +52,26 @@ describe('SharedMaterial (finding F5)', () => {
   it('says there is no summary instead of showing the lecture text', async () => {
     db.rpc.mockResolvedValue({ data: { id: 'm1', title: 'Только текст', summary_json: null }, error: null });
     renderShared();
-    expect(await screen.findByText('У этого материала пока нет конспекта.')).toBeInTheDocument();
+    expect(await screen.findByText('У этой лекции пока нет конспекта.')).toBeInTheDocument();
   });
 
-  it('a closed or missing material is «не найден», with the example as the way on and no «Общий материал» label', async () => {
+  it('a closed or missing material is «не найден», with the example as the way on and no «Общая лекция» label', async () => {
     db.rpc.mockResolvedValue({ data: null, error: null, status: 200 });
     renderShared('m2');
-    expect(await screen.findByRole('heading', { name: 'Материал не найден' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Лекция не найдена' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Попробовать на примере' })).toHaveAttribute('href', '/try');
     expect(screen.getByRole('link', { name: 'Что такое Meldy' })).toHaveAttribute('href', '/');
-    expect(screen.queryByText('Общий материал')).toBeNull();
+    expect(screen.queryByText('Общая лекция')).toBeNull();
     expect(screen.getByRole('button', { name: 'Создать аккаунт' })).toBeInTheDocument();
     // «Войти» is always there for a guest (decision 5).
     expect(screen.getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
-    expect(document.title).toBe('Общий материал — Meldy');
+    expect(document.title).toBe('Общая лекция — Meldy');
   });
 
   it('a malformed link is «не найден» too, not a failure (the server refuses the id: 400)', async () => {
     db.rpc.mockResolvedValue({ data: null, error: { code: '22P02', message: 'invalid input syntax for type uuid' }, status: 400 });
     renderShared('not-a-uuid');
-    expect(await screen.findByRole('heading', { name: 'Материал не найден' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Лекция не найдена' })).toBeInTheDocument();
   });
 
   it('a load that failed says so and loads again on «Обновить» (audit PUB-26)', async () => {
@@ -79,19 +79,19 @@ describe('SharedMaterial (finding F5)', () => {
       .mockResolvedValueOnce({ data: null, error: { code: '', message: 'TypeError: Failed to fetch' }, status: 0 })
       .mockResolvedValueOnce({ data: { id: 'm1', title: 'Денежный рынок', summary_json: { content: 'Спрос на деньги.' } }, error: null, status: 200 });
     renderShared();
-    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить материал' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Материал не найден' })).toBeNull();
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить лекцию' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Лекция не найдена' })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Обновить' }));
     expect(await screen.findByRole('heading', { level: 1, name: 'Денежный рынок' })).toBeInTheDocument();
     expect(db.rpc).toHaveBeenCalledTimes(2);
     // The label says which page this is, as plain text, and the tab is named after the material.
-    expect(screen.getByText('Общий материал')).toHaveClass('shm-bar-label');
+    expect(screen.getByText('Общая лекция')).toHaveClass('shm-bar-label');
     expect(document.title).toBe('Денежный рынок — Meldy');
   });
 
   it('a thrown request is a failed load as well', async () => {
     db.rpc.mockRejectedValue(new Error('offline'));
     renderShared();
-    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить материал' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Не удалось загрузить лекцию' })).toBeInTheDocument();
   });
 });

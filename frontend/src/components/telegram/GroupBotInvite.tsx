@@ -55,7 +55,7 @@ export const GROUP_BOT = {
   openProfile: 'Открыть профиль',
   needLink: 'Сначала создайте ссылку для группы.',
   loadFailed: 'Не получилось узнать, какие беседы подключены.',
-  retry: 'Повторить',
+  retry: 'Попробовать ещё раз',
   missing: 'Вопрос дня в Telegram пока недоступен.',
   listLabel: 'Подключённые беседы',
   chat: (title: string | null) => (title ? `«${title}»` : 'Беседа без названия'),

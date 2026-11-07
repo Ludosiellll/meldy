@@ -88,7 +88,7 @@ const SLIP_LIMIT = 420;
 const ROW_SLIP_LIMIT = 220;
 const NO_MARKS: ReadonlySet<number> = new Set();
 
-export const LOAD_OFFLINE_MESSAGE = 'Нет интернета, разговор не начался. Проверьте подключение и нажмите «Повторить».';
+export const LOAD_OFFLINE_MESSAGE = 'Нет интернета, разговор не начался. Проверьте подключение и нажмите «Попробовать ещё раз».';
 export const KEYS_LINE = 'Пробел — «Отвечать» и «Готово», Esc — остановить голос.';
 
 // ── Small helpers ─────────────────────────────────────────────────────────────────
@@ -961,7 +961,7 @@ function TalkRoom({ materialId }: { materialId: string }) {
           <div className="or-acts">
             {state.loadRetry ? (
               <button type="button" className="sf-primary" onClick={reload} data-anchor="">
-                Повторить
+                Попробовать ещё раз
               </button>
             ) : null}
             <Link className={state.loadRetry ? 'sf-link' : 'sf-primary'} to={back}>
@@ -1105,7 +1105,7 @@ function TalkRoom({ materialId }: { materialId: string }) {
         <>
           {' '}
           <button type="button" className="sf-link lt-inline" onClick={repeat}>
-            Повторить звук
+            Попробовать ещё раз
           </button>
         </>
       ) : null}
@@ -1145,12 +1145,12 @@ function TalkRoom({ materialId }: { materialId: string }) {
           </button>
         ) : (
           <button type="button" className="sf-primary" onClick={retry} data-anchor="">
-            Повторить
+            Попробовать ещё раз
           </button>
         )}
         {kind === 'other' ? (
           <button type="button" className="sf-link" onClick={retry}>
-            Повторить
+            Попробовать ещё раз
           </button>
         ) : null}
         <button type="button" className="sf-link" data-muted="" onClick={finish}>

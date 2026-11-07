@@ -182,14 +182,14 @@ describe('examStatus: before and during the mapping', () => {
     expect(done.text).toBe('Проверено 18 из 18, но сверка не успела завершиться. Запустите её ещё раз.');
   });
 
-  it('a failed run: the server’s first sentence as the headline, the rest under it, «Повторить сверку»', () => {
+  it('a failed run: the server’s first sentence as the headline, the rest under it, «Попробовать ещё раз»', () => {
     const status = examStatus(
       input({ coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Дневной лимит ИИ исчерпан: сверка с лекциями не запущена. Лимит обновится в 3:00.' } }),
     );
     expect(status.key).toBe('failed');
     expect(title(status)).toBe('Дневной лимит ИИ исчерпан: сверка с лекциями не запущена');
     expect(status.text).toBe('Лимит обновится в 3:00.');
-    expect(status.action).toEqual({ kind: 'map', label: 'Повторить сверку' });
+    expect(status.action).toEqual({ kind: 'map', label: 'Попробовать ещё раз' });
     const plain = examStatus(input({ coverage: { unmapped: 18 }, mapping: { phase: 'failed', message: 'Сервис ИИ перегружен' } }));
     expect(title(plain)).toBe('Сервис ИИ перегружен');
     expect(plain.text).toBe('Повторите сверку через минуту.');

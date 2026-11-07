@@ -168,7 +168,7 @@ export function backLinkFor(pathname: string, search = ''): { to: string; label:
   }
   if (/^\/library\/[^/]+\/?$/.test(pathname)) return { to: '/library', label: 'Лекции' };
   const edit = /^\/exams\/([^/]+)\/edit\/?$/.exec(pathname);
-  if (edit) return { to: `/exams/${edit[1]}`, label: 'Лист экзамена' };
+  if (edit) return { to: `/exams/${edit[1]}`, label: 'Экзамен' };
   if (/^\/exams\/[^/]+\/?$/.test(pathname)) return { to: '/exams', label: 'Экзамены' };
   if (/^\/knowledge-map\/?$/.test(pathname)) return { to: '/analytics', label: 'Прогресс' };
   if (/^\/mistakes\/?$/.test(pathname)) return { to: '/review', label: 'Повторение' };

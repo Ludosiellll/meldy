@@ -257,7 +257,7 @@ describe('summary_json writes do not overwrite each other', () => {
     state.material = makeMaterial({}, 'teacher-1');
     state.userId = 'user-1';
     renderPage('/library/m1?mode=express');
-    expect(await screen.findByText('Выжимку может создать только автор материала.')).toBeInTheDocument();
+    expect(await screen.findByText('Выжимку может создать только автор лекции.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Создать выжимку' })).not.toBeInTheDocument();
   });
 });
@@ -1037,7 +1037,7 @@ describe('text-only materials and review link', () => {
       flashcards_json: { flashcards: [{ id: 1, question: 'Что такое энтропия?', answer: 'Мера беспорядка' }] },
     };
     const { container } = renderPage('/library/m1?mode=express');
-    expect(await screen.findByText('Выжимку может создать только автор материала.')).toBeInTheDocument();
+    expect(await screen.findByText('Выжимку может создать только автор лекции.')).toBeInTheDocument();
     expect(container.querySelector('.md-page')).toHaveAttribute('data-bottom');
     expect(container.querySelector('.md-bottom')).not.toBeNull();
   });
@@ -1331,7 +1331,7 @@ describe('the lecture’s «⋯» moves it to a folder and deletes it (finding L
     // What the lecture has, and nothing else (QA 2026-10-11: «карточками и самопроверкой» was said of every lecture).
     expect(state.confirm.mock.calls[0][0]).toEqual({
       title: 'Удалить лекцию?',
-      message: '«Энтропия» исчезнет из библиотеки вместе с конспектом, карточками и выжимкой. Это нельзя отменить.',
+      message: '«Энтропия» исчезнет из «Лекций» вместе с конспектом, карточками и выжимкой. Это нельзя отменить.',
       confirmText: 'Удалить',
       cancelText: 'Оставить',
     });

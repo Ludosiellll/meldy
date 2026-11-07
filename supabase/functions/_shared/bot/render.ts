@@ -6,7 +6,7 @@
  *   code in `<pre>` (never inside `<b>`; no language label: the code may be C#, SQL or a shell), options on buttons or by letter (question.ts).
  *   No blue button: the answer is the action — except «Ответить» of several correct answers.
  * - After a wrong answer or «Не знаю» (Z7, Z8): the question loses its bold, the answer from the file takes it; only
- *   «В файле» («Верный ответ» for a key that is not the file's: the author's, the AI's) and «Ваш ответ» stay, then the
+ *   «Ответ из файла» («Верный ответ» for a key that is not the file's: the author's, the AI's) and «Ваш ответ» stay, then the
  *   verdict, the notes about the key and «№ 57 · Тема 3. …». «Нажали не
  *   туда?» (Z9), «Сомневаюсь в ключе» (Z11) and the author's «Ключ неверный?» (Z12) are edits of the same message.
  * - The words (container decisions 41, 42, 50 where they override the bot spec's older lines): «повтор — не в счёт»,
@@ -35,7 +35,7 @@ export const S = {
   answer: 'Ответить',
   next: 'Дальше',
   misclick: 'Нажали не туда?',
-  doubt: 'Сомневаюсь в ключе',
+  doubt: 'Сомневаюсь в ответе',
   keyWrong: 'Ключ неверный?',
   mark: 'Отметить',
   cancel: 'Отмена',
@@ -44,8 +44,8 @@ export const S = {
   /** Container decision 50 (over the bot spec's «Выберите все верные ответы.»). */
   multipleHint: 'Верных ответов несколько — отметьте все.',
   shortHint: 'Напишите ответ сообщением.',
-  inFile: 'В файле',
-  inFileMany: 'В файле верны',
+  inFile: 'Ответ из файла',
+  inFileMany: 'Ответы из файла',
   /** A key that is not the file's (the author's, a typed key list, the AI's), as the site says it (release 47, M10). */
   rightKey: 'Верный ответ',
   rightKeys: 'Верные ответы',
@@ -54,10 +54,10 @@ export const S = {
   wrong: 'Неверно.',
   markOne: 'Отметьте хотя бы один вариант.',
   doubtDone: 'Вопрос отложен. Когда автор ответит, он снова будет в занятиях.',
-  manualByAuthor: 'В файле ответ не был выделен. Ключ поставил автор.',
-  manualByYou: 'В файле ответ не был выделен. Ключ поставили вы.',
+  manualByAuthor: 'В файле ответ не был выделен, его отметил автор.',
+  manualByYou: 'В файле ответ не был выделен, его отметили вы.',
   /** A key from «Подобрать ключи с ИИ» (owner, 2026-11-04), as the site says it. */
-  aiKey: 'Ключ подобран ИИ, не из файла.',
+  aiKey: 'Ответ подобран ИИ, не из файла.',
   moved: 'Занятие продолжено ниже.',
 } as const;
 
@@ -72,8 +72,8 @@ export const misclickDone = (when = 'завтра') => `Ошибку не счи
 /** The longest `when` (a weekday of `comesBackOn`): what `fitsTelegram` measures a review with. */
 const LONGEST_WHEN = 'в воскресенье';
 export const doubtAsk = (no: string) =>
-  `Сомневаетесь в ключе к № ${no}? Автор увидит, сколько участников сомневаются, но не их имена. Вопрос отложим, пока автор не ответит.`;
-export const keyFixedOn = (day: string) => `Автор исправил ключ ${dayText(day)}.`;
+  `Сомневаетесь в ответе к № ${no}? Автор увидит, сколько участников сомневаются, но не их имена. Вопрос отложим, пока автор не ответит.`;
+export const keyFixedOn = (day: string) => `Автор исправил ответ ${dayText(day)}.`;
 /** «Верно.», «Верно: оба.», «Верно: все 3.» (several correct: the site's verdictRightAll). */
 export function rightLine(kind: QuestionItem['kind'], keyCount: number): string {
   if (kind !== 'multiple' || keyCount < 2) return S.right;
@@ -249,7 +249,7 @@ export function questionOut(v: QuestionView, mask = 0): Out {
 const NOT_FROM_FILE = new Set(['manual', 'key_text', 'none']);
 
 /**
- * «В файле — …» (or «Верный ответ — …» for a key that is not the file's: the author's, the AI's) and «Ваш ответ — …»
+ * «Ответ из файла: …» (or «Верный ответ: …» for a key that is not the file's: the author's, the AI's) and «Ваш ответ: …»
  * as the layout shows options (buttons, letters, code; several; short).
  */
 function answerBlock(v: QuestionView, shown: Shown, withYours: boolean): string {
@@ -261,15 +261,15 @@ function answerBlock(v: QuestionView, shown: Shown, withYours: boolean): string 
   if (item.kind === 'short') {
     const form = shown.forms[0] ?? '';
     return lines(
-      `${t(`${one} — `)}<b>${own(oneLine(form))}</b>`,
-      yours && shown.text !== null ? `${t(`${S.yours} — `)}${own(typedShown(oneLine(shown.text)))}` : null,
+      `${t(`${one}: `)}<b>${own(oneLine(form))}</b>`,
+      yours && shown.text !== null ? `${t(`${S.yours}: `)}${own(typedShown(oneLine(shown.text)))}` : null,
     );
   }
   const key = shown.key.filter((i) => i >= 0 && i < item.options.length);
   const chosen = shown.chosen.filter((i) => i >= 0 && i < item.options.length);
   const multiple = item.kind === 'multiple';
-  const keyHead = multiple && key.length > 1 ? `${fromFile ? S.inFileMany : S.rightKeys}: ` : `${one} — `;
-  const yoursHead = multiple ? `${S.yours}: ` : `${S.yours} — `;
+  const keyHead = multiple && key.length > 1 ? `${fromFile ? S.inFileMany : S.rightKeys}: ` : `${one}: `;
+  const yoursHead = `${S.yours}: `;
   if (layout.mode === 'buttons') {
     const labels = (indices: number[]) => indices.map((i) => optionLabel(item.options[i])).join(', ');
     return lines(

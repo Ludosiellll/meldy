@@ -229,7 +229,7 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     expect(screen.getByRole('menuitem', { name: 'Добавить предмет' }).getAttribute('href')).toBe(`/exams/import?from=c:${CONTAINER}`);
     expect(page()).toContain('В 3 вопросах сомневаются в ключе.');
-    expect(page()).toContain('4 вопроса без ключа не попадут в занятия.');
+    expect(page()).toContain('4 вопроса без ответа не попадут в занятия.');
     expect(screen.getByRole('link', { name: 'Отметить ответы' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
   });
 
@@ -240,7 +240,7 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     // Release 47.3: the way out is its confirm, here (ContainerPage.inPlace.test.tsx), not a link to «Настройки».
     expect(screen.getByRole('menuitem', { name: 'Выйти из экзамена' })).toHaveAttribute('aria-haspopup', 'dialog');
     expect(screen.getByRole('menuitem', { name: 'Выйти из экзамена' }).getAttribute('href')).toBeNull();
-    expect(page()).toContain('Автор исправил ключ в 2 вопросах. Их нужно выучить заново.');
+    expect(page()).toContain('Автор исправил ответ в 2 вопросах. Их нужно выучить заново.');
     expect(screen.queryByRole('link', { name: 'Отметить ответы' })).toBeNull();
   });
 });
@@ -482,7 +482,7 @@ describe('the states of the exam page (§3.3 table)', () => {
     data.planInput.items = data.planInput.items.filter((entry) => entry.id !== 'q-plain');
     const state = loaded(data);
     renderPage(state);
-    expect(page()).toContain('1 вопрос отложен, вы сомневаетесь в ключе.');
+    expect(page()).toContain('1 вопрос отложен, вы сомневаетесь в ответе.');
     fireEvent.click(screen.getByRole('button', { name: 'Вернуть в занятия' }));
     await waitFor(() => expect(mocks.withdrawDoubt).toHaveBeenCalledWith('q-plain'));
     await waitFor(() => expect(state.reload).toHaveBeenCalled());
@@ -640,11 +640,11 @@ describe('loading, failures, the guide', () => {
     await waitFor(() => expect(screen.getByRole('status').textContent).toBe('Загружаем экзамен…'));
   });
 
-  it('says a failure with «Повторить»', () => {
+  it('says a failure with «Попробовать ещё раз»', () => {
     const reload = vi.fn();
     renderPage({ data: null, loading: false, offline: false, unavailable: false, error: 'Нет связи с сервером.', reload });
     expect(screen.getByRole('alert').textContent).toContain('Нет связи с сервером.');
-    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Попробовать ещё раз' }));
     expect(reload).toHaveBeenCalled();
   });
 

@@ -7,12 +7,12 @@ afterEach(() => {
 });
 
 describe('SelfRating', () => {
-  it('offers «знаю · плаваю · не знаю» as a group of pressed buttons for one question', () => {
+  it('offers «знаю · с трудом · не знаю» as a group of pressed buttons for one question', () => {
     render(<SelfRating value="unsure" onChange={vi.fn()} questionLabel="вопрос 17" seedKey="exam-1:17" />);
     const group = screen.getByRole('group', { name: 'Самооценка, вопрос 17' });
     const buttons = within(group).getAllByRole('button');
-    expect(buttons.map((button) => button.textContent)).toEqual(['знаю', 'плаваю', 'не знаю']);
-    expect(within(group).getByRole('button', { name: 'плаваю' })).toHaveAttribute('aria-pressed', 'true');
+    expect(buttons.map((button) => button.textContent)).toEqual(['знаю', 'с трудом', 'не знаю']);
+    expect(within(group).getByRole('button', { name: 'с трудом' })).toHaveAttribute('aria-pressed', 'true');
     expect(within(group).getByRole('button', { name: 'знаю' })).toHaveAttribute('aria-pressed', 'false');
   });
 

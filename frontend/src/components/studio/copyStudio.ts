@@ -22,7 +22,7 @@ export const STUDIO = {
   device: { phone: 'Телефон', desktop: 'Компьютер' },
   deviceLabel: 'Показать как на экране',
   undo: 'Отменить',
-  redo: 'Повторить',
+  redo: 'Вернуть',
   undoKeys: 'Ctrl+Z',
   redoKeys: 'Ctrl+Shift+Z',
   check: 'Проверка теста',

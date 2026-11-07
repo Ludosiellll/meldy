@@ -560,7 +560,7 @@ export function buildMapView(base: KnowledgeBase, options: ScopeOptions): MapVie
     }
     // Lectures outside every exam: newest first, as the Library lists them.
     const rest = base.lectures.filter((lecture) => wanted(lecture.id)).reverse().map((lecture) => lecture.id);
-    if (rest.length) groups.push({ id: OTHER_GROUP, label: groups.length ? 'Другие материалы' : 'Все лекции', lectureIds: rest });
+    if (rest.length) groups.push({ id: OTHER_GROUP, label: groups.length ? 'Другие лекции' : 'Все лекции', lectureIds: rest });
   }
 
   const questions = exam ? base.questionsByExam.get(exam.id) ?? [] : [];

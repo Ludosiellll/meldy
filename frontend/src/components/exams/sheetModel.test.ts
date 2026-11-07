@@ -251,9 +251,9 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     expect(plain(noneTicketsLine(shares))).toBe('в 15 % билетов нет ни одного вопроса с отметкой «есть»');
     const line = closePartialLine(7, shares, closedPartialShares(seeded(), layout));
     // «Закройте 7 вопросов» read as «закройте окно» (audit 2026-10-08): the line says what to do, the link first.
-    expect(plain(line?.text ?? null)).toBe('7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(line?.text ?? null)).toBe('7 вопросов «частично»: добавьте к ним лекции — тогда оба вопроса будут в лекциях в 60 % билетов.');
     expect(line?.link).toBe('7 вопросов «частично»');
-    expect(plain(line?.rest ?? null)).toBe(': добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.');
+    expect(plain(line?.rest ?? null)).toBe(': добавьте к ним лекции — тогда оба вопроса будут в лекциях в 60 % билетов.');
   });
 
   it('one question per section: 13/20 × 11/20 → 36 %, «в 16 %», closing «частично» → 60 %', () => {
@@ -262,7 +262,7 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     expect(plain(shareText(shares, 'all'))).toBe('36 %');
     expect(plain(noneTicketsLine(shares))).toBe('в 16 % билетов нет ни одного вопроса с отметкой «есть»');
     expect(plain(closePartialLine(7, shares, closedPartialShares(seeded(), layout))?.text ?? null)).toBe(
-      '7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 60 % билетов.',
+      '7 вопросов «частично»: добавьте к ним лекции — тогда оба вопроса будут в лекциях в 60 % билетов.',
     );
   });
 
@@ -271,7 +271,7 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     const shares = coverageShares(seeded(), layout);
     expect(plain(noneTicketsLine(shares))).toBe('в 2 из 20 билетов нет ни одного вопроса с отметкой «есть»');
     expect(plain(closePartialLine(7, shares, closedPartialShares(seeded(), layout))?.text ?? null)).toBe(
-      '7 вопросов «частично»: добавьте к ним материал — тогда все вопросы будут в лекциях в 11 из 20 билетов.',
+      '7 вопросов «частично»: добавьте к ним лекции — тогда все вопросы будут в лекциях в 11 из 20 билетов.',
     );
   });
 
@@ -284,7 +284,7 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     expect(plain(noneTicketsLine(shares))).toBe('в 15–24 % билетов нет ни одного вопроса с отметкой «есть»');
     // With «частично» closed: C(27, 2) = 351 (45 %) to C(31, 2) = 465 (60 %).
     expect(plain(closePartialLine(7, shares, closedPartialShares(seeded(unknown), layout))?.text ?? null)).toBe(
-      '7 вопросов «частично»: добавьте к ним материал — тогда оба вопроса будут в лекциях в 45–60 % билетов.',
+      '7 вопросов «частично»: добавьте к ним лекции — тогда оба вопроса будут в лекциях в 45–60 % билетов.',
     );
     const fixed = coverageShares(seeded(unknown), { mode: 'fixed', per_ticket: 2, tickets });
     expect(plain(noneTicketsLine(fixed))).toMatch(/^в \d+–\d+ из 20 билетов нет ни одного вопроса с отметкой «есть»$/);
@@ -301,11 +301,11 @@ describe('peak 1: from the gap to an action (Jury_Check item 10)', () => {
     const singleShares = coverageShares(seeded(), single);
     expect(noneTicketsLine(singleShares)).toBeNull();
     expect(plain(closePartialLine(7, singleShares, closedPartialShares(seeded(), single))?.text ?? null)).toBe(
-      '7 вопросов «частично»: добавьте к ним материал — тогда в лекциях будет 78 % вопросов.',
+      '7 вопросов «частично»: добавьте к ним лекции — тогда в лекциях будет 78 % вопросов.',
     );
     const one = closePartialLine(1, singleShares, closedPartialShares(seeded(), single));
     expect(one?.link).toBe('1 вопрос «частично»');
-    expect(one?.rest.startsWith(': добавьте к нему материал — тогда')).toBe(true);
+    expect(one?.rest.startsWith(': добавьте к нему лекции — тогда')).toBe(true);
   });
 
   it('shows the question share as a range with unverified and unmapped questions: 17 «есть» and 10 «только по словам» of 40 → 43–68 %', () => {

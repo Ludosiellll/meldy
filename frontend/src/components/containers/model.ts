@@ -373,7 +373,7 @@ export function optionName(text: string | undefined, fileIndex: number): string 
 }
 
 /**
- * The key as the file has it, for the verdict «В файле — 7 12» (usability check, m2): the options' own words in the
+ * The key as the file has it, for the verdict «Ответ из файла: 7 12» (usability check, m2): the options' own words in the
  * file's order. Never the letters of the shuffled screen — the key panel and «Ключи» use the file's letters, and a
  * letter of one would contradict the other.
  */

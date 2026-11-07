@@ -139,8 +139,8 @@ describe('the PRO window', () => {
     const title = within(win).getByRole('heading', { name: 'PRO' });
     expect(reel.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // What PRO changes, in numbers from lib/plans.ts.
-    expect(within(win).getByText('До 1000 единиц ИИ в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.')).toBeInTheDocument();
-    expect(await within(win).findByText('Сейчас у вас бесплатный тариф: 100 единиц ИИ в день.')).toBeInTheDocument();
+    expect(within(win).getByText('Лимит ИИ до 1000 в день вместо 100 — это примерно 250 проверок ответов или 50 лекций.')).toBeInTheDocument();
+    expect(await within(win).findByText('Сейчас у вас бесплатный тариф: лимит ИИ 100 в день.')).toBeInTheDocument();
   });
 
   it('sells PRO plainly: «Купить PRO» and nothing under it — no price, no card, no notify button', async () => {
@@ -214,11 +214,11 @@ describe('the PRO window', () => {
     });
     expect(db.rpcs).toEqual(['start_pro_demo']);
     const done = within(win).getByText('Готово — у вас PRO');
-    expect(within(win).getByText('Дневной лимит теперь — 1000 единиц ИИ в день.')).toBeInTheDocument();
+    expect(within(win).getByText('Теперь лимит ИИ 1000 в день.')).toBeInTheDocument();
     expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
     // The focus goes to the line that replaced the button; screen readers hear the change.
     expect(done.closest('p')).toHaveFocus();
-    expect(within(win).getByText('Готово — у вас PRO. Дневной лимит теперь — 1000 единиц ИИ в день.')).toHaveAttribute('aria-live', 'polite');
+    expect(within(win).getByText('Готово — у вас PRO. Теперь лимит ИИ 1000 в день.')).toHaveAttribute('aria-live', 'polite');
     // The top line reads the limit (1000) and the profile again; the reel jumps to its PRO beat.
     expect(heard).toEqual(['ai_usage_updated', 'profile_updated']);
     expect(reel).toHaveAttribute('data-jump', '1');
@@ -292,14 +292,14 @@ describe('the PRO window', () => {
     renderApp();
     const win = await openFrom(screen.getByRole('button', { name: 'Что даёт PRO' }));
     expect(await within(win).findByText('У вас PRO')).toBeInTheDocument();
-    expect(within(win).getByText('Дневной лимит — 1000 единиц ИИ в день.')).toBeInTheDocument();
+    expect(within(win).getByText('У вас лимит ИИ 1000 в день.')).toBeInTheDocument();
     expect(within(win).queryByRole('button', { name: /Купить PRO/ })).toBeNull();
     expect(db.tables).toEqual(['profiles']);
     await act(async () => {
       fireEvent.click(within(win).getByRole('button', { name: 'Отключить PRO' }));
     });
     expect(db.rpcs).toEqual(['stop_pro_demo']);
-    expect(within(win).getByText('PRO отключён. Сейчас у вас бесплатный тариф: 100 единиц ИИ в день.')).toBeInTheDocument();
+    expect(within(win).getByText('PRO отключён. Сейчас у вас бесплатный тариф: лимит ИИ 100 в день.')).toBeInTheDocument();
     const buy = within(win).getByRole('button', { name: /Купить PRO/ });
     expect(buy).toHaveFocus();
     expect(heard).toEqual(['ai_usage_updated', 'profile_updated']);
