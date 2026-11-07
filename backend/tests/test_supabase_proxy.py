@@ -265,6 +265,25 @@ def test_the_buckets_are_counted_apart_by_the_real_limiter(proxy, monkeypatch):
     proxy.main.limiter.reset()
 
 
+def test_a_class_of_forty_reads_the_game_through_sb_from_one_address(proxy, monkeypatch):
+    """Load audit 07.11, LOAD-1: 40 guest phones on one hall Wi-Fi read live_state about 62 times a minute each — 2 480,
+    over the 600 that held 8 phones. The game's bucket holds 6 000, the duel's 3 000; the rest of the site stays at 600."""
+    monkeypatch.setattr(proxy.main.limiter, "enabled", True)
+    proxy.main.limiter.reset()
+    guest = {"apikey": "anon", "Authorization": "Bearer anon", "X-Forwarded-For": "203.0.113.78, 10.0.0.2"}
+    for _ in range(2480):
+        assert proxy.post("/sb/rest/v1/rpc/live_state", json={}, headers=guest).status_code == 200
+    assert supabase_proxy._proxy_limit("sb-ip:visitor:203.0.113.78:live") == "6000/minute"
+    assert supabase_proxy._proxy_limit("sb-ip:visitor:203.0.113.78:duel") == "3000/minute"
+    assert supabase_proxy._proxy_limit("sb-ip:visitor:203.0.113.78") == "600/minute"
+    proxy.main.limiter.reset()
+
+
+def test_the_database_retry_after_reaches_the_page(proxy):
+    """LOAD-9: a refusal's «wait this long» (live_fail ML005) is not dropped on the way."""
+    assert "retry-after" in supabase_proxy.RESPONSE_HEADERS
+
+
 def test_anonymous_visitors_behind_the_hf_proxy_each_get_their_own_limit(proxy):
     """The connection's address is the HF proxy (the same for everyone); the visitor is the address the HF proxy
     put before it in X-Forwarded-For (ratelimit.visitor_ip). An IPv6 visitor counts by their /64."""

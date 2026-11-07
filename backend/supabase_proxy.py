@@ -77,6 +77,8 @@ RESPONSE_HEADERS = (
     "etag",
     "location",
     "preference-applied",
+    # the database's own «wait this long» (live_fail's ML005 refusals) reaches the page (load audit 07.11, LOAD-9)
+    "retry-after",
     "x-supabase-api-version",
 )
 FILE_RESPONSE_HEADERS = RESPONSE_HEADERS + (
@@ -125,10 +127,25 @@ def _raw_target(request: Request) -> Optional[str]:
     return f"{rest}?{query}" if query else rest
 
 
-# The polls of a duel and of a live game have buckets of their own (600 a minute each, next to the 600 of
-# everything else): a class behind one address polling duels (docs/live/DUEL.md §9) or a battle must not use up
-# what the rest of the site's calls of that address need, nor the other way round.
+# The polls of a duel and of a live game have buckets of their own, next to the 600 a minute of everything else: a class
+# behind one address polling duels (docs/live/DUEL.md §9) or a battle must not use up what the rest of the site's calls
+# of that address need, nor the other way round. The window is per address (or session) and per path (slowapi's
+# key_style «url»): each RPC counts on its own.
 OWN_BUCKETS = (("rest/v1/rpc/duel_", ":duel"), ("rest/v1/rpc/live_", ":live"))
+# A guest phone of the class game reads live_state about 62 times a minute through /sb (no Realtime there): 600 held
+# about 8 phones of one hall Wi-Fi, and from 12 on they lost whole questions (load audit 07.11, LOAD-1: 40 phones → 76 %
+# of reads refused). 6000 holds a class of 90; the database measured 60 players at 0.11 of a CPU. A duel reads about
+# 30 a minute per device: 3000 holds 100 devices (LOAD-5: 30 broke the 20 s presence rule at 600).
+DEFAULT_LIMIT = "600/minute"
+BUCKET_LIMITS = {":live": "6000/minute", ":duel": "3000/minute"}
+
+
+def _proxy_limit(key: str) -> str:
+    """The limit of the caller's key (slowapi passes the key it computed with _caller_key)."""
+    for suffix, limit in BUCKET_LIMITS.items():
+        if key.endswith(suffix):
+            return limit
+    return DEFAULT_LIMIT
 
 
 def _bucket(request: Request) -> str:
@@ -155,7 +172,7 @@ def _caller_key(request: Request) -> str:
 
 
 @router.api_route("/sb/{path:path}", methods=METHODS, include_in_schema=False)
-@limiter.limit("600/minute", key_func=_caller_key)
+@limiter.limit(_proxy_limit, key_func=_caller_key)
 async def supabase_passthrough(request: Request, path: str) -> Response:
     upstream = _upstream()
     target = _raw_target(request)
