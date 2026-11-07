@@ -1,13 +1,13 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import type { MouseEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { FROM_TRY, withReturn } from '../../lib/returnTo';
 
 /**
- * The call to sign up (the orchestrator's decision 5, PUB-24): «Начать со своего списка» where there is room,
- * «Создать аккаунт» where space is short; «Войти» is always there for a guest, phones included.
+ * The call to sign up (the orchestrator's decision 5, PUB-24): «Создать аккаунт» on every width, the one name of
+ * signing up (UX audit 06.11: «Начать со своего списка» did not say which list); «Войти» is always there for a guest,
+ * phones included.
  */
-export const START_OWN_LABEL = 'Начать со своего списка';
 export const CREATE_ACCOUNT_LABEL = 'Создать аккаунт';
 /** A signed-in student goes straight to a new exam. */
 export const CREATE_EXAM_LABEL = 'Создать свой экзамен';
@@ -21,32 +21,6 @@ export const TRY_LECTURE_WHERE = 'Вернуться к примеру';
 export function ownExamHref(signedIn: boolean): string {
   return signedIn ? '/exams/new' : withReturn('/register', '/exams/new');
 }
-
-/** True while the window is at least this wide (`min-width` px); without matchMedia, by the window's width. */
-export function useMinWidth(px: number): boolean {
-  const query = `(min-width: ${px}px)`;
-  const read = () => {
-    if (typeof window === 'undefined') return true;
-    return typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : (window.innerWidth || 1280) >= px;
-  };
-  const [wide, setWide] = useState(read);
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return undefined;
-    const list = window.matchMedia(query);
-    const update = () => setWide(list.matches);
-    update();
-    if (typeof list.addEventListener === 'function') {
-      list.addEventListener('change', update);
-      return () => list.removeEventListener('change', update);
-    }
-    list.addListener?.(update);
-    return () => list.removeListener?.(update);
-  }, [query]);
-  return wide;
-}
-
-/** The long sign-up label fits the top line from this width (a phone gets the short one). */
-const LONG_LABEL_FROM = 640;
 
 interface TryBarProps {
   /** Where the visitor is: «Пример экзамена», or the way back to the example's sheet. */
@@ -64,7 +38,6 @@ interface TryBarProps {
  */
 export default function TryBar({ where, back, onLeave }: TryBarProps) {
   const { user } = useAuth();
-  const roomy = useMinWidth(LONG_LABEL_FROM);
   const go = (to: string) => (event: MouseEvent<HTMLAnchorElement>) => {
     if (!onLeave) return;
     event.preventDefault();
@@ -98,7 +71,7 @@ export default function TryBar({ where, back, onLeave }: TryBarProps) {
               Войти
             </Link>
             <Link className="tx-pill" data-blue="" to={start} state={FROM_TRY} onClick={go(start)}>
-              {roomy ? START_OWN_LABEL : CREATE_ACCOUNT_LABEL}
+              {CREATE_ACCOUNT_LABEL}
             </Link>
           </>
         )}

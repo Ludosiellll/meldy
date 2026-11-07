@@ -1053,7 +1053,7 @@ export const JOIN = {
   } as Record<string, string>,
   failed: 'Не получилось открыть экзамен. Попробуйте ещё раз.',
   retry: 'Попробовать ещё раз',
-  today: 'На «Сегодня»',
+  today: 'На главную',
   example: 'Попробовать на примере',
   what: 'Что такое Meldy',
 } as const;

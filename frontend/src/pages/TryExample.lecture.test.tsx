@@ -137,7 +137,7 @@ describe('/try/lecture: what Meldy made of the example’s first lecture, with n
     const bar = document.querySelector('.tx-bar') as HTMLElement;
     expect(within(bar).getByRole('link', { name: 'Вернуться к примеру' })).toHaveAttribute('href', '/try');
     expect(within(bar).getByRole('link', { name: 'Войти' })).toHaveAttribute('href', '/login');
-    expect(within(bar).getByRole('link', { name: 'Начать со своего списка' })).toHaveAttribute('href', expect.stringMatching(/^\/register/));
+    expect(within(bar).getByRole('link', { name: 'Создать аккаунт' })).toHaveAttribute('href', expect.stringMatching(/^\/register/));
 
     // The analysis page's header, as the student saw it after the run.
     expect(screen.getByText('Материал обработан')).toBeInTheDocument();
