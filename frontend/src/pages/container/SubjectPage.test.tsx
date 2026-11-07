@@ -203,6 +203,13 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     expect(page()).not.toMatch(/Шпаргалк/);
     expect(page()).toContain('В предмете есть 40 устных вопросов.');
     expect(screen.getByRole('link', { name: 'Открыть' }).getAttribute('href')).toBe(`/exams/${ORAL_EXAM}?from=c:${CONTAINER}`);
+    // UX audit 06.11: the draw itself is on the subject's card.
+    expect(screen.getByRole('link', { name: 'Тянуть билет' }).getAttribute('href')).toBe(`/exams/${ORAL_EXAM}/draw?from=c:${CONTAINER}`);
+  });
+
+  it('a subject without an oral part has no «Тянуть билет»', () => {
+    renderPage(loaded(dbData()));
+    expect(screen.queryByRole('link', { name: 'Тянуть билет' })).toBeNull();
   });
 
   it('an oral subject is today’s oral page, reached with the way back', () => {

@@ -22,6 +22,7 @@ import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
 import { lineViews, noDateText, planLineViews, planText, text as lineWords, titleText } from './planLines';
 import * as copy from './copy';
+import { DRAW_TICKET, drawHref } from './copyOral';
 import {
   answeredToday,
   errorCount,
@@ -169,6 +170,14 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
       <button key="move" type="button" className="sf-link" aria-haspopup="dialog" onClick={move.open}>
         {copy.MOVE_TITLE}
       </button>,
+    );
+  }
+  // The oral part's draw (its own page — decision 23): the subject's own way to «Тянуть билет» (UX audit 06.11).
+  if (oralExamId && oralCount(subject) > 0 && !passed) {
+    linkItems.push(
+      <Link key="draw" className="sf-link" to={drawHref(oralExamId, containerId)}>
+        {DRAW_TICKET}
+      </Link>,
     );
   }
   const planNew = lines.find((line) => line.action === 'more_new');

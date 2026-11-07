@@ -426,6 +426,17 @@ describe('the states of the exam page (§3.3 table)', () => {
       return data;
     };
 
+    it('«Тянуть билет» on the plan card: the oral exam is found on the exam’s page (UX audit 06.11)', () => {
+      renderPage(loaded(qaData()));
+      const draw = within(document.querySelector('.ct-plan-links') as HTMLElement).getByRole('link', { name: 'Тянуть билет' });
+      expect(draw.getAttribute('href')).toBe(`/exams/${ORAL_EXAM}/draw?from=c:${CONTAINER}`);
+    });
+
+    it('no oral part, no «Тянуть билет»', () => {
+      renderPage(loaded(containerData()));
+      expect(screen.queryByRole('link', { name: 'Тянуть билет' })).toBeNull();
+    });
+
     it('the oral subject’s row says «устный», as «Настройки» does (m7)', () => {
       renderPage(loaded(qaData()));
       const row = document.querySelector<HTMLAnchorElement>(`a.ct-row[href="/exams/${ORAL_EXAM}?from=c:${CONTAINER}"]`);

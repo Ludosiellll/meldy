@@ -19,6 +19,7 @@ import { useOralCopies } from './oralCopies';
 import { useLearnLeft } from '../../api/learnLeft';
 import { tally } from '../../lib/containers/topics';
 import { oralExamIds, subjectTopics } from './topicsOf';
+import { DRAW_TICKET, drawHref } from './copyOral';
 import { detailText, isDayOff, noDateText, paceNote, planLineViews, planText, text as lineWords, titleText, type LineView, type PaceNote } from './planLines';
 import * as copy from './copy';
 import {
@@ -307,6 +308,20 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
     title = copy.SUBJECT_DONE;
   }
   if (saved && !pill && !day.passed) pill = start;
+  // The oral part (one per exam, its own page — decision 23): «Тянуть билет» on the card while the exam is ahead, so the
+  // oral exam is found where the exam is (UX audit 06.11). Several oral subjects: each row leads to its own.
+  const drawIds = oralExamIds(summary.subjects.filter((subject) => oralCount(subject) > 0));
+  const drawOn = drawIds.length === 1 && !day.passed && state !== 'after' ? drawIds[0] : null;
+  if (drawOn) {
+    links = (
+      <>
+        {links}
+        <Link key="draw" className="sf-link" to={drawHref(drawOn, containerId)}>
+          {DRAW_TICKET}
+        </Link>
+      </>
+    );
+  }
 
   // ── the rows
   const rows: RowView[] = summary.subjects.map((subject) => {
