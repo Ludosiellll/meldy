@@ -279,6 +279,8 @@ describe('the challenge’s own cases', () => {
   it('an unknown link and a link of no shape say so', async () => {
     const { view } = await mount('zzzzzzzzzzzz');
     expect(plain(view.container.textContent)).toContain(CH.gone.noLink.title);
+    // Not a dead end (audit 07.11, STAND-7).
+    expect(screen.getByRole('link', { name: 'На главную' })).toHaveAttribute('href', '/');
     cleanup();
     const bad = await mount('../x');
     expect(plain(bad.view.container.textContent)).toContain(CH.gone.noLink.title);

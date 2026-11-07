@@ -49,12 +49,20 @@ export function ChallengeApp({ ctl, signInHref }: ChallengeAppProps) {
     );
   else if (s.step === 'gone')
     screen = (
-      <div className="lp-page">
-        <h1 className="lp-h1">{s.gone?.title}</h1>
-        <p className="lp-sub" role="alert">
-          {s.gone?.text}
-        </p>
-      </div>
+      <>
+        <div className="lp-page">
+          <h1 className="lp-h1">{s.gone?.title}</h1>
+          <p className="lp-sub" role="alert">
+            {s.gone?.text}
+          </p>
+        </div>
+        {/* A link that leads nowhere was a dead end with no button (audit 07.11, STAND-7). */}
+        <div className="lp-bar">
+          <a className="lp-btn lp-btn--second" href="/">
+            На главную
+          </a>
+        </div>
+      </>
     );
   else if (s.step === 'intro') screen = <Intro ctl={ctl} s={s} />;
   else if (s.step === 'builder')

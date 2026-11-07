@@ -67,6 +67,20 @@ describe('/play', () => {
     expect(where).toBe('/');
   });
 
+  it('«Назад» after a wrong PIN on a link opened anew still goes to the start, not out of the site (audit 07.11, STAND-6)', async () => {
+    await open('/play');
+    fireEvent.change(screen.getByLabelText('PIN игры'), { target: { value: '111111' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20);
+    });
+    expect(where).toBe('/play?pin=111111');
+    fireEvent.click(screen.getByRole('button', { name: 'Назад' }));
+    expect(where).toBe('/');
+  });
+
   it('a typed PIN goes into the address (a reload comes back to it)', async () => {
     await open('/play?fake=1');
     fireEvent.change(screen.getByLabelText('PIN игры'), { target: { value: '482913' } });

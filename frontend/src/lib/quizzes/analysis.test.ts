@@ -106,6 +106,12 @@ describe('the trap option', () => {
     expect(trapOf({ picks: [17, 1, 1, 1], answered: 20 }, item)).toBeNull();
     expect(trapOf({ picks: [1, 1, 0, 0], answered: 2 }, item)).toBeNull();
   });
+  it('none when the most chosen wrong options tie (audit 07.11, STAND-5)', () => {
+    expect(trapOf({ picks: [2, 2, 2, 2], answered: 8 }, item)).toBeNull();
+    expect(trapOf({ picks: [4, 6, 6, 4], answered: 20 }, item)).toBeNull();
+    // a tie below the leader does not matter
+    expect(trapOf({ picks: [6, 8, 3, 3], answered: 20 }, item)).toEqual({ index: 1, n: 8, answered: 20 });
+  });
   it('none for other kinds, no key, or picks that do not match the options', () => {
     expect(trapOf({ picks: [], answered: 5 }, { kind: 'order', options: ['А', 'Б'], correct: [] })).toBeNull();
     expect(trapOf({ picks: [1, 5], answered: 6 }, { ...item, options: ['А', 'Б'], correct: [] })).toBeNull();

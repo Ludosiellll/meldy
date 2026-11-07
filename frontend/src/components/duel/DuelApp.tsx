@@ -56,7 +56,8 @@ export function DuelApp({ ctl, signInHref, exitHref }: DuelAppProps) {
   let screen: ReactNode;
   const st = s.state;
   if (s.step === 'loading') screen = <Message text={s.backoff > 0 ? DU.loadingBusy : DU.loading} status />;
-  else if (s.step === 'gone') screen = <Message title={s.gone?.title} text={s.gone?.text} exitHref={exitHref} alert />;
+  else if (s.step === 'gone')
+    screen = <Message title={s.gone?.title} text={s.gone?.text} exitHref={exitHref} exitLabel={exitHref === '/games' ? DU.gone.toGames : DU.gone.toStart} alert />;
   else if (s.step === 'full')
     screen = (
       <>
@@ -107,7 +108,7 @@ export function DuelApp({ ctl, signInHref, exitHref }: DuelAppProps) {
   );
 }
 
-function Message({ title, text, exitHref, status, alert }: { title?: string; text?: string; exitHref?: string; status?: boolean; alert?: boolean }) {
+function Message({ title, text, exitHref, exitLabel, status, alert }: { title?: string; text?: string; exitHref?: string; exitLabel?: string; status?: boolean; alert?: boolean }) {
   return (
     <>
       <div className="lp-page du-msg">
@@ -119,7 +120,7 @@ function Message({ title, text, exitHref, status, alert }: { title?: string; tex
       {exitHref ? (
         <div className="lp-bar">
           <Link className="lp-btn lp-btn--second" to={exitHref}>
-            {DU.final.exit}
+            {exitLabel ?? DU.final.exit}
           </Link>
         </div>
       ) : null}

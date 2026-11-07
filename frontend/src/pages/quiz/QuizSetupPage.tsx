@@ -264,6 +264,13 @@ export default function QuizSetupPage() {
       (stored) => {
         if (!live) return;
         const doc = stored ? normalizeDoc(stored.doc).doc : null;
+        // A test never opened in the studio has no page (audit 07.11, STAND-2: 1 of 5 tests live): a new quiz asked
+        // «как в студии» takes the test's own questions instead of refusing with «В студии нет вопросов…».
+        if (!doc && !editing && designAsked) {
+          setPage(null);
+          setForm((current) => (current ? { ...current, design: false } : current));
+          return;
+        }
         setPage({ count: doc ? pageQuestionCount(doc.blocks, items) : 0, title: doc?.title ?? '' });
       },
       () => {
@@ -274,7 +281,7 @@ export default function QuizSetupPage() {
     return () => {
       live = false;
     };
-  }, [designOn, containerId, items]);
+  }, [designOn, containerId, items, editing, designAsked]);
   // A new quiz: the count is the page's (back to all of the subjects' when the switch goes off), the timer follows it
   // until the author picks one, and the name the exam gave becomes the page's own.
   const wasDesign = useRef(false);

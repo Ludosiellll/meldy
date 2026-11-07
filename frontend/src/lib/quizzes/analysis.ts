@@ -138,17 +138,25 @@ export interface Trap {
   answered: number;
 }
 
-/** The wrong option chosen most (single or multiple): at least 2 people and a fifth of those who answered. */
+/**
+ * The wrong option chosen most (single or multiple): at least 2 people and a fifth of those who answered. Two wrong
+ * options chosen equally often are no trap: none is named (audit 07.11, STAND-5: «Ловушка — вариант А» stood for А, В
+ * and Г chosen twice each).
+ */
 export function trapOf(stat: Pick<QuizItemStat, 'picks' | 'answered'>, item: Pick<TestItem, 'kind' | 'options' | 'correct'>): Trap | null {
   if (item.kind !== 'single' && item.kind !== 'multiple') return null;
   if (item.correct.length === 0 || stat.answered <= 0 || stat.picks.length !== item.options.length) return null;
   let best: Trap | null = null;
+  let tied = false;
   stat.picks.forEach((n, index) => {
     if (item.correct.includes(index)) return;
-    if (!best || n > best.n) best = { index, n, answered: stat.answered };
+    if (!best || n > best.n) {
+      best = { index, n, answered: stat.answered };
+      tied = false;
+    } else if (n === best.n) tied = true;
   });
   const found = best as Trap | null;
-  if (!found || found.n < 2 || found.n < stat.answered / 4) return null;
+  if (!found || tied || found.n < 2 || found.n < stat.answered / 4) return null;
   return found;
 }
 

@@ -45,12 +45,15 @@ export default function PlayPage() {
     [ctl, setParams],
   );
 
-  // «Назад» on the PIN screen: the page this one was opened from, or the site's start for a link opened anew.
+  // «Назад» on the PIN screen: the page this one was opened from, or the site's start for a link opened anew. The PIN is
+  // written into the address with `replace`, which gives the location a key of its own even on a fresh tab — so the key
+  // is read once, as the page opened (audit 07.11, STAND-6: «Назад» after a wrong PIN left the site).
   const navigate = useNavigate();
   const location = useLocation();
+  const openedAnew = useRef(location.key === 'default');
   const leave = () => {
-    if (location.key !== 'default') navigate(-1);
-    else navigate('/');
+    if (openedAnew.current) navigate('/');
+    else navigate(-1);
   };
 
   // Shared with the result: the game's own door on the site (a PIN from the teacher's screen), never a token.

@@ -29,6 +29,9 @@ export const DU = {
     other: { title: 'Дуэль открыта на другом устройстве', text: 'С этого устройства место уже не ваше. Вернитесь туда, где вы играли.' },
     freed: { title: 'Ваше место освободилось', text: 'Вас долго не было в зале ожидания. Откройте ссылку снова, если место ещё свободно.' },
     failedTitle: 'Не получилось открыть',
+    /** The way out of a link that leads nowhere: «Выйти» read as «log out» to a guest (audit 07.11, STAND-7). */
+    toGames: 'К играм',
+    toStart: 'На главную',
   },
   full: {
     title: 'Места заняты',

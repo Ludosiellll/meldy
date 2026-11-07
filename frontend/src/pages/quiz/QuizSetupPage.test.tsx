@@ -655,6 +655,16 @@ describe('QuizSetupPage: a quiz «как в студии» (?all=1&design=1, the
     expect(screen.queryByRole('combobox', { name: QA_SETUP.designCount })).toBeNull();
   });
 
+  it('a test never opened in the studio (no page): the quiz takes the test\u2019s questions, no refusal (audit 07.11, STAND-2)', async () => {
+    api.fetchDoc.mockResolvedValue(null);
+    renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: QA_SETUP.design })).not.toBeChecked());
+    expect(screen.queryByText(QA_SETUP.problems.page)).toBeNull();
+    expect(screen.getByRole('button', { name: QA_SETUP.create })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: QA_SETUP.create }));
+    await waitFor(() => expect(api.createQuiz).toHaveBeenCalledWith(EXAM, expect.objectContaining({ design: false })));
+  });
+
   it('a page without a keyed question says so before «Создать»', async () => {
     api.fetchDoc.mockResolvedValue(page(['nokey']));
     renderAt(`/exams/c/${EXAM}/quizzes/new?all=1&design=1`);

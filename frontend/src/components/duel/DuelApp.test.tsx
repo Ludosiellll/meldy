@@ -246,6 +246,25 @@ describe('the lobby and a full link', () => {
     ctl.dispose();
   });
 
+  it('a link that leads nowhere: «На главную» for a guest, «К играм» signed in — never «Выйти» (audit 07.11, STAND-7)', async () => {
+    for (const [exitHref, label] of [['/', DU.gone.toStart], ['/games', DU.gone.toGames]] as const) {
+      const ctl = new DuelController({ api: scripted(base()) });
+      render(
+        <MemoryRouter>
+          <DuelApp ctl={ctl} signInHref="/login" exitHref={exitHref} />
+        </MemoryRouter>,
+      );
+      await act(async () => {
+        await ctl.start('../x');
+      });
+      expect(screen.getByRole('heading', { name: DU.gone.noLink.title })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: label })).toHaveAttribute('href', exitHref);
+      expect(screen.queryByRole('link', { name: DU.final.exit })).toBeNull();
+      ctl.dispose();
+      cleanup();
+    }
+  });
+
   it('«Места заняты» for a third device', async () => {
     const info = { code: CODE, title: 'Базы данных', q_count: 3, time_s: 20, speed: true, stage: 'lobby' as const, round: 1, players: [], full: true };
     const ctl = new DuelController({ api: scripted(base(), { info: async () => info }) });
