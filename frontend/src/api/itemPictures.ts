@@ -7,6 +7,7 @@
  * (guestPictureUrl).
  */
 import { supabase, supabaseAnonKey, supabaseFetch, supabaseUrl } from '../lib/supabase';
+import { preferredRoute, PROXY_PREFIX } from '../lib/supabaseRoute';
 import type { BankPicture } from '../types/container';
 import { bytesOf, EXTENSIONS, preparePictureHere, type PictureRefusal, type PictureStage, type PreparedPicture } from './pictureDraw';
 import type { PictureAnswer, PictureAsk } from './pictureWorker';
@@ -115,9 +116,15 @@ export async function removeContainerPictures(containerId: string): Promise<numb
   return removed;
 }
 
-/** The address anyone can open of a saved cover (the bucket is public). */
+/**
+ * The address anyone can open of a saved cover (the bucket is public). Where *.supabase.co is blocked and the app goes
+ * through the site (lib/supabaseRoute: the route remembered as «proxy»), the cover goes that way too (reliability audit
+ * 07.11, REL-14: it showed as a broken picture).
+ */
 export function coverUrl(path: string): string {
-  return supabase.storage.from(COVER_BUCKET).getPublicUrl(path).data.publicUrl;
+  const direct = supabase.storage.from(COVER_BUCKET).getPublicUrl(path).data.publicUrl;
+  if (preferredRoute() !== 'proxy' || typeof window === 'undefined' || !direct.startsWith(`${supabaseUrl}/`)) return direct;
+  return `${window.location.origin}${PROXY_PREFIX}${direct.slice(supabaseUrl.length)}`;
 }
 
 /** Object URLs by storage path: a path names one picture (its sha256), however it was read. */

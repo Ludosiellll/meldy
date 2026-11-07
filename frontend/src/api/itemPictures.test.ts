@@ -12,6 +12,7 @@ vi.mock('../lib/supabase', () => ({
 
 import {
   COVER_BUCKET,
+  coverUrl,
   guestPictureUrl,
   isHeic,
   livePictureUrl,
@@ -25,7 +26,7 @@ import {
   uploadPicture,
 } from './itemPictures';
 import { supabase } from '../lib/supabase';
-import { createSupabaseFetch } from '../lib/supabaseRoute';
+import { createSupabaseFetch, ROUTE_STORAGE_KEY } from '../lib/supabaseRoute';
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 1]);
 const MB = 1024 * 1024;
@@ -528,5 +529,25 @@ describe('a picture the author adds is made in its own worker (the smoothness au
     );
     scope.onmessage?.({ data: { ask: 2, file: new Blob(['hello'], { type: 'text/plain' }) } });
     await vi.waitFor(() => expect(answers).toContainEqual({ ask: 2, done: 'type' }));
+  });
+});
+
+
+// Reliability audit 07.11, REL-14: on a network that blocks *.supabase.co the covers go through the site too.
+describe('coverUrl', () => {
+  beforeEach(() => {
+    vi.mocked(supabase.storage.from).mockReturnValue({
+      getPublicUrl: (path: string) => ({ data: { publicUrl: `https://ref.supabase.co/storage/v1/object/public/quiz-covers/${path}` } }),
+    } as never);
+  });
+  afterEach(() => window.localStorage.clear());
+
+  it('is the public address when the direct way works or is not known yet', () => {
+    expect(coverUrl('c-1/abc.jpg')).toBe('https://ref.supabase.co/storage/v1/object/public/quiz-covers/c-1/abc.jpg');
+  });
+
+  it('goes through /sb while the app remembers the site\u2019s way', () => {
+    window.localStorage.setItem(ROUTE_STORAGE_KEY, JSON.stringify({ route: 'proxy', at: Date.now() }));
+    expect(coverUrl('c-1/abc.jpg')).toBe(`${window.location.origin}/sb/storage/v1/object/public/quiz-covers/c-1/abc.jpg`);
   });
 });
