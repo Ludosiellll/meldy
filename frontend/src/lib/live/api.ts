@@ -5,7 +5,7 @@
  */
 import { createFakeServer, PICTURE_QUESTIONS, type FakeOptions } from './fake';
 import { createRealApi } from './real';
-import { POLL_FAST_MS, POLL_ONLY_ABOVE, POLL_SLOW_MS } from './rules';
+import { POLL_BUSY_MAX_MS, POLL_BUSY_STEP_MS, POLL_DONE_MS, POLL_FAST_MS, POLL_ONLY_ABOVE, POLL_SLOW_MS } from './rules';
 import { LiveError, isUnchanged, type LiveApi, type Unchanged } from './types';
 
 export function liveFakeWanted(): boolean {
@@ -73,7 +73,11 @@ export function watchState<S extends { rev: number; state: string; players?: num
   let again = false;
   const offsets: number[] = [];
 
+  // Reads refused for the rate in a row (429): the next waits longer, up to POLL_BUSY_MAX_MS (load audit 07.11, LOAD-4).
+  let busyRefusals = 0;
   const delay = () => {
+    if (busyRefusals > 0) return Math.min(POLL_BUSY_MAX_MS, POLL_BUSY_STEP_MS * busyRefusals);
+    if (current && (current.state === 'podium' || current.state === 'ended')) return POLL_DONE_MS;
     const fast = !linked || (current?.players ?? 0) > POLL_ONLY_ABOVE || (current && o.fastIn?.includes(current.state));
     return fast ? POLL_FAST_MS : POLL_SLOW_MS;
   };
@@ -92,6 +96,7 @@ export function watchState<S extends { rev: number; state: string; players?: num
     const sent = Date.now();
     try {
       const got = await o.read(rev);
+      busyRefusals = 0;
       const back = Date.now();
       const serverNow = Date.parse((got as { now?: string }).now ?? '');
       if (Number.isFinite(serverNow)) {
@@ -106,6 +111,7 @@ export function watchState<S extends { rev: number; state: string; players?: num
         o.onState(got);
       } else if (isUnchanged(got)) rev = got.rev;
     } catch (error) {
+      if (error instanceof LiveError && error.status === 429) busyRefusals += 1;
       if (!stopped) o.onError?.(error instanceof LiveError ? error : new LiveError('unknown', null, 0));
     } finally {
       busy = false;

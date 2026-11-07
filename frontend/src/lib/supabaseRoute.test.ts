@@ -4,6 +4,7 @@ import {
   DIRECT_READ_TIMEOUT_MS,
   PROBE_TIMEOUT_MS,
   PROXY_AFTER_FAILURE_TTL_MS,
+  SLOW_PROBE_TTL_MS,
   ROUTE_STORAGE_KEY,
   ROUTE_TTL_MS,
 } from './supabaseRoute';
@@ -75,6 +76,8 @@ describe('supabaseRoute', () => {
     await vi.advanceTimersByTimeAsync(PROBE_TIMEOUT_MS);
     await pending;
     expect(net.calls.map(call => call.url)).toEqual([`${BASE}/auth/v1/health`, VIA_SITE]);
+    // A probe that ran out of time keeps the site's way for an hour, not 12 (load audit 07.11, LOAD-2).
+    expect(JSON.parse(window.localStorage.getItem(ROUTE_STORAGE_KEY) ?? '{}')).toMatchObject({ route: 'proxy', ttl: SLOW_PROBE_TTL_MS });
   });
 
   it('uses a remembered way without a probe, and probes again after 12 hours', async () => {

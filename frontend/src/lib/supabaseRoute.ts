@@ -2,7 +2,8 @@
  * Путь браузера к Supabase: напрямую (`*.supabase.co`) или запасной — через сайт Meldy
  * (`/sb/…`, backend/supabase_proxy.py), если прямой адрес недоступен: часть операторов в России
  * его не пропускает. Путь выбирается один раз — пробным запросом `auth/v1/health` (до 4 с) — и
- * запоминается на 12 часов (localStorage `meldy_supabase_route`). Если позже прямой путь
+ * запоминается на 12 часов (localStorage `meldy_supabase_route`); если проба не дождалась ответа (а не получила
+ * отказ) — на час: это может быть и занятый Wi-Fi зала, когда класс разом открывает QR. Если позже прямой путь
  * обрывается сетевой ошибкой, клиент переходит на запасной: чтение повторяется сразу, запись — нет
  * (она могла дойти до базы), её повторит пользователь. Такой переход — на 10 минут, потом путь проверяется
  * снова: обрыв посреди работы чаще значит плохую связь, чем блокировку. Обрыв, пока страница уходит или браузер
@@ -29,6 +30,12 @@ export const ROUTE_TTL_MS = 12 * 60 * 60 * 1000;
 /** Запасной путь, выбранный из-за обрыва посреди работы (не пробой), — до новой проверки прямого. */
 export const PROXY_AFTER_FAILURE_TTL_MS = 10 * 60 * 1000;
 export const PROBE_TIMEOUT_MS = 4000;
+/**
+ * A probe that waited out PROBE_TIMEOUT_MS while the browser is online: a silent block, or a busy hall Wi-Fi as 40
+ * phones scan a QR at once (load audit 07.11, LOAD-2: that kept a whole class on the site's way for 12 hours). The
+ * fallback holds an hour, then the direct way is tried again; a probe refused at once (a real block) keeps 12 hours.
+ */
+export const SLOW_PROBE_TTL_MS = 60 * 60 * 1000;
 /** Чтение напрямую дольше этого — адрес, видимо, «молчит» (блокировка без отказа): на запасной путь. */
 export const DIRECT_READ_TIMEOUT_MS = 15000;
 export const PROXY_PREFIX = '/sb';
@@ -118,14 +125,22 @@ export function createSupabaseFetch(options: SupabaseFetchOptions): FetchLike {
     return next;
   };
 
+  // The last probe ran out of time (rather than being refused): its fallback holds SLOW_PROBE_TTL_MS, not 12 hours.
+  let probeSlow = false;
   async function probe(): Promise<SupabaseRoute> {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    let late = false;
+    const timer = setTimeout(() => {
+      late = true;
+      controller.abort();
+    }, PROBE_TIMEOUT_MS);
     try {
       // Любой ответ, даже ошибка, значит, что адрес доступен.
       await rawFetch(`${base}/auth/v1/health`, { headers: { apikey: options.anonKey }, signal: controller.signal });
+      probeSlow = false;
       return 'direct';
     } catch {
+      probeSlow = late;
       return 'proxy';
     } finally {
       clearTimeout(timer);
@@ -140,7 +155,9 @@ export function createSupabaseFetch(options: SupabaseFetchOptions): FetchLike {
       probing = null;
     }
     // Пробный запрос без сети ничего не говорит о блокировке: такой запасной путь — тоже до новой проверки.
-    probing ??= probe().then((next) => choose(next, next === 'proxy' && (leaving || !online()) ? PROXY_AFTER_FAILURE_TTL_MS : ROUTE_TTL_MS));
+    probing ??= probe().then((next) =>
+      choose(next, next === 'proxy' && (leaving || !online()) ? PROXY_AFTER_FAILURE_TTL_MS : next === 'proxy' && probeSlow ? SLOW_PROBE_TTL_MS : ROUTE_TTL_MS),
+    );
     return probing;
   }
 

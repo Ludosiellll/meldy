@@ -16,6 +16,12 @@ export const MAX_OPEN_GAMES = 3;
 export const NAME_MAX = 24;
 export const POLL_FAST_MS = 1000;
 export const POLL_SLOW_MS = 5000;
+/** After the game (podium, ended) a read every 10 s: a finished group's phones left open must not crowd the next group's
+ *  (load audit 07.11, LOAD-3). */
+export const POLL_DONE_MS = 10_000;
+/** A read refused for the rate (429): the next one after 3, 6, 9 s (LOAD-4), as the duel does. */
+export const POLL_BUSY_STEP_MS = 3000;
+export const POLL_BUSY_MAX_MS = 9000;
 export const POLL_ONLY_ABOVE = 80;
 
 export const BODIES: readonly BodyId[] = ['round', 'square', 'drop', 'bean', 'cloud'];
