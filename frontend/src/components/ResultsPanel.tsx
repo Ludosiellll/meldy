@@ -514,7 +514,7 @@ function SectionFailure({
           <button type="button" onClick={onRecreate} disabled={!materialId || !hasText || busy} className="sf-link">
             {running ? RECREATE_RUNNING[section as CoreSection] : RECREATE_LABEL[section as CoreSection]}
           </button>
-          {!materialId && <p>Станет доступно, когда материал сохранится в библиотеке.</p>}
+          {!materialId && <p>Станет доступно, когда лекция сохранится в «Лекциях».</p>}
           {materialId && !hasText && <p>У материала нет исходного текста.</p>}
           {error && <p role="alert">{error}</p>}
         </div>

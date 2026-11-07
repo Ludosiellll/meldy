@@ -13,7 +13,6 @@ import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../../lib/plans'
 import { SKIP_NOTE, dayRowText, dayText, lineText, startLabel } from '../../../lib/containers/words';
 import * as copy from '../../containers/copy';
 import { IMPORT, KEY_WORDS, nb } from '../../containers/copyImport';
-import { plural } from '../../pro/planCopy';
 import type { GuideChapterId } from '../chapters';
 import './scenes.css';
 
@@ -172,7 +171,7 @@ function Add() {
         </div>
         <span data-a="run" className="fm-btn fm-btn--blue gs-run">
           <span className="gs-run-t">
-            <span data-a="runa">Запустить анализ</span>
+            <span data-a="runa">Разобрать лекцию</span>
             <span data-a="runb" style={{ opacity: 0 }}>
               Запускаем…
             </span>
@@ -783,7 +782,8 @@ function Limit() {
     slideIn(one('night'), l, LIMIT_NIGHT, { dx: -60, dur: 640, smear: 12 });
     slideIn(one('pro'), l, LIMIT_PRO, { dx: -60, dur: 640, smear: 12 });
   });
-  const units = `${FREE_DAILY_UNITS} ${plural(FREE_DAILY_UNITS, ['единица', 'единицы', 'единиц'])}`;
+  // «Лимит ИИ — 100 в день»: the window's own words, no «единицы» (UX audit 06.11).
+  const units = `Лимит ИИ — ${FREE_DAILY_UNITS}`;
   return (
     <div ref={root} className="mr-scene">
       <Beat lines={[units, 'в день.']}>
@@ -808,7 +808,7 @@ function Limit() {
             </span>
           </div>
           <span data-a="press" className="fm-btn fm-btn--blue gs-lim-btn">
-            Запустить анализ
+            Разобрать лекцию
             <i>
               <Arrow />
             </i>

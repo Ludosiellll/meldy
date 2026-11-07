@@ -582,7 +582,7 @@ describe('«Создать … заново»', () => {
     const { rerender } = renderPanel({ materialId: undefined });
     fireEvent.click(screen.getByRole('button', { name: /^Самопроверка/ }));
     expect(await screen.findByRole('button', { name: 'Создать самопроверку заново' })).toBeDisabled();
-    expect(screen.getByText('Станет доступно, когда материал сохранится в библиотеке.')).toBeInTheDocument();
+    expect(screen.getByText('Станет доступно, когда лекция сохранится в «Лекциях».')).toBeInTheDocument();
 
     let release: (value: Response) => void = () => undefined;
     fetchMock.mockImplementation(() => new Promise<Response>(resolve => (release = resolve)));

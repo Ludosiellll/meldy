@@ -11,7 +11,6 @@
  */
 import { formatLimitReset, nextLimitReset } from '../../api/limits';
 import { AI_COSTS, FREE_DAILY_UNITS, PRO_DAILY_UNITS } from '../../lib/plans';
-import { plural } from '../pro/planCopy';
 import type { StepClipId } from '../clips/types';
 import { GUIDE_START } from '../quick/copyQuick';
 
@@ -81,7 +80,6 @@ export const GAME_STUDENT = {
   text: 'На паре преподаватель может провести игру на проекторе. Вы входите с телефона по QR-коду или через «Войти в игру по коду» в разделе «Игры». Свою игру можно провести по своему тесту.',
 } as const;
 
-const units = (n: number) => `${n} ${plural(n, ['единица', 'единицы', 'единиц'])}`;
 
 /**
  * «Лимит ИИ» in the words of the screens, every number from lib/plans.ts and the reset time in the
@@ -89,10 +87,10 @@ const units = (n: number) => `${n} ${plural(n, ['единица', 'единиц�
  */
 export function limitChapterText(resetAt: string = formatLimitReset(nextLimitReset())): string {
   return (
-    `Действия с ИИ тратят единицы дневного лимита: анализ лекции — ${AI_COSTS.lecture}, ` +
+    `Действия с ИИ тратят дневной лимит: разбор лекции — ${AI_COSTS.lecture}, ` +
     `проверка ответа — ${AI_COSTS.answer}, подкаст — ${AI_COSTS.conversation}. ` +
-    `В день — ${units(FREE_DAILY_UNITS)}, с PRO — ${PRO_DAILY_UNITS}; лимит обновляется ночью, в ${resetAt}, ` +
-    'а остаток виден вверху справа.'
+    `В день — ${FREE_DAILY_UNITS}, с PRO — ${PRO_DAILY_UNITS}; лимит обновляется ночью, в ${resetAt}, ` +
+    'а остаток виден вверху справа. Ответы на вопросы с вариантами лимит не тратят.'
   );
 }
 
@@ -113,7 +111,7 @@ export const GUIDE_CHAPTERS: readonly GuideChapter[] = [
     route: '/analyze',
     match: /^\/analyze\/?$/,
     title: 'Разобрать лекцию',
-    text: 'Файл, текст, ссылка или запись части пары. Meldy сделает конспект, карточки и самопроверку. Выжимку и подкаст добавьте через «Изменить». Затем нажмите «Запустить анализ».',
+    text: 'Файл, текст, ссылка или запись части пары. Meldy сделает конспект, карточки и самопроверку. Выжимку и подкаст добавьте через «Изменить». Затем нажмите «Разобрать лекцию».',
     phone: 'На телефоне — кнопка «+» вверху экрана.',
     narrow: 'На телефоне — «Разобрать лекцию» в начале «Лекций».',
     spot: 'cta',

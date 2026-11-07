@@ -397,7 +397,7 @@ describe('«Сегодня»: the exam on the desk', () => {
     const answers = within(block).getByText(byText('Выучено 2 вопроса из 4.'));
     const note = within(block).getByText(byText('Вчера: ответ на вопрос 7.'));
     const draw = within(block).getByRole('link', { name: named('Тянуть билет') });
-    const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
+    const sheet = within(block).getByRole('link', { name: named('Открыть экзамен') });
     expect(draw).toHaveAttribute('href', '/exams/e-1/draw');
     expect(draw).toHaveClass('sf-primary');
     expect(sheet).toHaveAttribute('href', '/exams/e-1');
@@ -581,7 +581,7 @@ describe('«Сегодня»: the exam on the desk', () => {
     db.tables.exam_questions = () => ({ data: questionRows(() => null) });
     renderDashboard();
     const again = (await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).closest('article')!;
-    const sheet = await within(again).findByRole('link', { name: named('Лист экзамена') });
+    const sheet = await within(again).findByRole('link', { name: named('Открыть экзамен') });
     expect(sheet).toHaveClass('sf-primary');
     expect(within(again).queryByRole('link', { name: named('Тянуть билет') })).toBeNull();
     expect(plain(again.textContent)).toContain('Сверки с лекциями ещё не было.');
@@ -650,7 +650,7 @@ describe('«Сегодня»: the exam on the desk', () => {
     expect(screen.queryByRole('img', { name: /Пометки/ })).not.toBeInTheDocument();
     expect(screen.queryByText(/без материала/)).not.toBeInTheDocument();
     expect(screen.queryByText(/0 из 40/)).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: named('Лист экзамена') })).toHaveAttribute('href', '/exams/e-1');
+    expect(screen.getByRole('link', { name: named('Открыть экзамен') })).toHaveAttribute('href', '/exams/e-1');
   });
 
   it('leaves out «без материала» when every question has material', async () => {
@@ -1320,7 +1320,7 @@ describe('«Сегодня» on a phone', () => {
     learning(learnExam({ 1: { state: 3 }, 2: { state: 3 }, 3: { state: 2, readyAt: Date.now() - 3_600_000 }, 4: { state: 2, readyAt: Date.now() - 3_600_000 } }));
   const examCard = async () => (await screen.findByRole('heading', { level: 2, name: named('Цифровая экономика — экзамен через 12 дней') })).closest('article')!;
 
-  it('gives the exam card one line of meta, one line about today, the one pill and «Лист экзамена» under it as a quiet link', async () => {
+  it('gives the exam card one line of meta, one line about today, the one pill and «Открыть экзамен» under it as a quiet link', async () => {
     exam();
     twoErasable();
     renderDashboard();
@@ -1335,7 +1335,7 @@ describe('«Сегодня» on a phone', () => {
     expect(draw).toHaveAttribute('href', '/exams/e-1/draw?mode=awaiting');
     expect(draw).toHaveClass('sf-primary');
     expect(document.getElementById(draw.getAttribute('aria-describedby') ?? '')).toBe(today);
-    const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
+    const sheet = within(block).getByRole('link', { name: named('Открыть экзамен') });
     expect(sheet).toHaveAttribute('href', '/exams/e-1');
     expect(sheet).toHaveClass('sf-link');
     expect(sheet).not.toHaveClass('sf-secondary');
@@ -1394,9 +1394,9 @@ describe('«Сегодня» on a phone', () => {
     renderDashboard();
     const block = await examCard();
     const line = within(block).getByText('Сверки с лекциями ещё не было.');
-    const sheet = within(block).getByRole('link', { name: named('Лист экзамена') });
+    const sheet = within(block).getByRole('link', { name: named('Открыть экзамен') });
     expect(sheet).toHaveClass('sf-primary');
-    expect(within(block).getAllByRole('link', { name: named('Лист экзамена') })).toHaveLength(1);
+    expect(within(block).getAllByRole('link', { name: named('Открыть экзамен') })).toHaveLength(1);
     expect(line.compareDocumentPosition(sheet) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(block).queryByRole('link', { name: named('Тянуть билет') })).toBeNull();
   });

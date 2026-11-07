@@ -67,7 +67,7 @@ import './containerScreens.css';
  * on an empty account).
  *
  * A phone (usePhone, max-width 639px; 10_Project/Phone_Declutter_2026-10-08) gets the same page cut to its core: the
- * exam card is the flag, the subject, a one-line meta, one line about today's step, the one blue pill and «Лист экзамена»
+ * exam card is the flag, the subject, a one-line meta, one line about today's step, the one blue pill and «Открыть экзамен»
  * as a quiet link, then the share in one line, «2 вопроса без материала» and the cheat sheet's count as quiet links. The
  * dots, the legend, the answers and the note stay on the exam's sheet, «Напоминать каждый день» in «Профиль». Today's
  * cards are «Повторение», «26 карточек · около 13 минут» and «Начать повторение» (a quiet link while another card holds
@@ -2095,7 +2095,7 @@ function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boo
   );
 
   if (phone) {
-    // A phone: one line about today's step over the one action, «Лист экзамена» under it as a quiet link (before the
+    // A phone: one line about today's step over the one action, «Открыть экзамен» under it as a quiet link (before the
     // first mapping the sheet is the action itself), then the share, the questions without material and the cheat
     // sheet's count as lines. The dots, the legend, the answers and the note are on the exam's sheet; the next erase
     // time in its status; «Напоминать каждый день» in «Профиль».
@@ -2128,12 +2128,12 @@ function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boo
           <div className="td-actions">
             {primary ?? (
               <ActionLink to={`/exams/${exam.id}`} blue={lead} quiet>
-                Лист экзамена
+                Открыть экзамен
               </ActionLink>
             )}
             {primary ? (
               <Link className="sf-link td-alt" to={`/exams/${exam.id}`}>
-                Лист экзамена
+                Открыть экзамен
               </Link>
             ) : null}
           </div>
@@ -2172,7 +2172,7 @@ function ExamBlock({ exam, narrow, phone, lead }: { exam: TodayExam; narrow: boo
       <div className="td-actions">
         {primary}
         <ActionLink to={`/exams/${exam.id}`} blue={lead && neverMapped}>
-          Лист экзамена
+          Открыть экзамен
         </ActionLink>
         {/* «Тянуть билет из них» leads; any ticket stays one quiet click away, as on the exam page. */}
         {erasable > 0 ? (

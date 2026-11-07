@@ -126,8 +126,9 @@ describe('the guide chapters', () => {
     const resetAt = formatLimitReset(nextLimitReset());
     expect(limit.text).toBe(limitChapterText(resetAt));
     expect(limit.text).toBe(
-      `Действия с ИИ тратят единицы дневного лимита: анализ лекции — ${AI_COSTS.lecture}, проверка ответа — ${AI_COSTS.answer}, подкаст — ${AI_COSTS.conversation}. ` +
-        `В день — ${FREE_DAILY_UNITS} единиц, с PRO — ${PRO_DAILY_UNITS}; лимит обновляется ночью, в ${resetAt}, а остаток виден вверху справа.`,
+      `Действия с ИИ тратят дневной лимит: разбор лекции — ${AI_COSTS.lecture}, проверка ответа — ${AI_COSTS.answer}, подкаст — ${AI_COSTS.conversation}. ` +
+        `В день — ${FREE_DAILY_UNITS}, с PRO — ${PRO_DAILY_UNITS}; лимит обновляется ночью, в ${resetAt}, а остаток виден вверху справа. ` +
+        'Ответы на вопросы с вариантами лимит не тратят.',
     );
     expect(limitChapterText('3:00')).toContain('лимит обновляется ночью, в 3:00,');
     // Decision 1 and finding LIB-20: the two-host audio is «Подкаст»; 15 МБ hold a part of a pair, not a whole one.
