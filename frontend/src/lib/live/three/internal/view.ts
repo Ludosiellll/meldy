@@ -65,6 +65,13 @@ export class ViewImpl {
       powerPreference: 'high-performance',
     });
     if (!this.renderer.capabilities.isWebGL2) throw new Error('WebGL 2 is needed for the 3D games');
+    // WebGL drawn by the CPU (no GPU, or one the browser blocks: SwiftShader, llvmpipe) gave the projector 2–3 frames a
+    // second at the best quality: the 2D board instead, which holds 60 (speed audit 07.11, PERF-5). A pinned quality
+    // (?q=0…5, a recording on a CPU-only browser) keeps 3D on purpose.
+    if (typeof options.quality !== 'number' && softwareRenderer(this.renderer)) {
+      this.renderer.dispose();
+      throw new Error('WebGL runs without a GPU here: the 2D board instead');
+    }
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setClearColor(0x000000, options.transparent ? 0 : 1);
@@ -373,3 +380,17 @@ export class ViewImpl {
     this.renderer.forceContextLoss();
   }
 }
+
+/** Whether the context is drawn by the CPU: SwiftShader, llvmpipe and the like (the renderer's name, where the browser tells it). */
+export function softwareRenderer(renderer: Pick<THREE.WebGLRenderer, 'getContext'>): boolean {
+  try {
+    const gl = renderer.getContext();
+    const info = gl.getExtension('WEBGL_debug_renderer_info') as { UNMASKED_RENDERER_WEBGL: number } | null;
+    const name = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER) ?? '');
+    return SOFTWARE_GL.test(name);
+  } catch {
+    return false;
+  }
+}
+
+const SOFTWARE_GL = /swiftshader|llvmpipe|softpipe|software rasterizer|microsoft basic render/i;

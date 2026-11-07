@@ -17,6 +17,11 @@ export default defineConfig({
   define: {
     __MELDY_BUILD__: JSON.stringify(buildVersion()),
   },
+  // One KaTeX for the whole site (speed audit 07.11, PERF-3): rehype-katex brought its own 0.16 beside the site's 0.17,
+  // ≈ 75 KB gz twice on every lecture page. The API they use (renderToString) is the same.
+  resolve: {
+    dedupe: ['katex'],
+  },
   plugins: [
     react(),
     VitePWA({

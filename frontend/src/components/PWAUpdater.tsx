@@ -15,6 +15,11 @@ export const UPDATE_TOAST_ID = 'meldy-update';
  * editor) there is neither the offer nor a reload. «Закрыть» puts the offer away for this page; the
  * update still comes unnoticed. Rendered once at the top of App.tsx, inside the router.
  */
+/** The pages a guest opens by a QR or a link: the class game, a duel, a competition, a test without sign-in, the example. */
+export function guestEntry(pathname: string): boolean {
+  return /^\/(play|tg\/play|d|s|k|try)(\/|$)/.test(pathname);
+}
+
 export default function PWAUpdater() {
   const { pathname } = useLocation();
   const path = useRef(pathname);
@@ -25,6 +30,9 @@ export default function PWAUpdater() {
 
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return undefined;
+    // A guest's first visit by a QR or a link does not download the whole app in the background (speed audit 07.11,
+    // PERF-1: +1.9 MB in 282 requests per phone over the stand's hotspot). A device the worker already serves keeps it.
+    if (!navigator.serviceWorker.controller && guestEntry(path.current)) return undefined;
     const current = createAppUpdate({
       container: navigator.serviceWorker,
       // A file of this page's release: the worker knows whether it precaches it.

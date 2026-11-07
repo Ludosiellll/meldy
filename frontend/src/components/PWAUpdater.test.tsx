@@ -8,7 +8,7 @@ import { UPDATE_MESSAGE } from '../lib/appUpdate';
 const mocks = vi.hoisted(() => ({ registerSW: vi.fn() }));
 vi.mock('../lib/pwaRegister', () => ({ registerSW: mocks.registerSW }));
 
-import PWAUpdater from './PWAUpdater';
+import PWAUpdater, { guestEntry } from './PWAUpdater';
 
 /** The file the component names as its release's: its own module (a file: or a dev server URL, as Vitest serves it). */
 const PAGE_FILE = /\/src\/components\/PWAUpdater\.tsx$/;
@@ -150,6 +150,22 @@ afterEach(() => {
 });
 
 describe('PWAUpdater', () => {
+  it('a guest\u2019s first visit by a QR or a link registers no worker; a device it already serves keeps it (audit 07.11, PERF-1)', () => {
+    expect(['/play', '/play?pin=123456', '/tg/play', '/d/abc', '/s/abc', '/k/abc', '/try', '/try/lecture'].every((path) => guestEntry(path.split('?')[0]))).toBe(true);
+    expect(['/', '/dashboard', '/exams', '/players', '/trying', '/live/new'].some((path) => guestEntry(path))).toBe(false);
+    (navigator.serviceWorker as unknown as { controller: unknown }).controller = null;
+    renderAt('/play');
+    expect(mocks.registerSW).not.toHaveBeenCalled();
+    cleanup();
+    renderAt('/dashboard');
+    expect(mocks.registerSW).toHaveBeenCalledTimes(1);
+    cleanup();
+    mocks.registerSW.mockReset();
+    (navigator.serviceWorker as unknown as { controller: unknown }).controller = new FakeWorker('activated', [PAGE_FILE]);
+    renderAt('/try');
+    expect(mocks.registerSW).toHaveBeenCalledTimes(1);
+  });
+
   it('registers the worker at once and keeps the plugin from reloading the page by itself', () => {
     renderAt('/dashboard');
     expect(mocks.registerSW).toHaveBeenCalledTimes(1);
