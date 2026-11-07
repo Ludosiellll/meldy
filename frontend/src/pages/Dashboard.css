@@ -760,6 +760,9 @@
   .td-grid[data-lectures='below'] > .td-side { grid-row: 1; }
   .td-grid[data-lectures='below'] > .td-lectures { grid-column: 1 / -1; margin-top: calc(56px - var(--td-gap)); }
   .td-grid[data-lectures='below'] .td-lecs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  /* No cards at all, so no task cards beside the exam (UX audit of 06.11): the lectures take the side column instead of
+     leaving it empty. */
+  .td-grid[data-side='none'] > .td-lectures { grid-column: 2; grid-row: 1; margin-top: 0; }
 }
 
 /* ---------------------------------------------------------------- sizes */

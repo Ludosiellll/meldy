@@ -300,7 +300,7 @@ const SCENARIOS: Record<string, Scenario> = {
       seededExam();
       db.tables.study_sessions = () => ({ data: null, error: { message: 'down' } });
     },
-    ready: () => screen.findByText('Не удалось загрузить данные'),
+    ready: () => screen.findByText('«Сегодня» не загрузилось'),
   },
 };
 
@@ -781,16 +781,16 @@ describe('«Сегодня» with exam containers: failures fall back', () => {
     expect(within(cardEl).getByRole('link', { name: 'Начать' })).toHaveClass('sf-primary');
   });
 
-  it('without network: the card from the device’s copy leads; the rest says it did not load, with a quiet «Повторить»', async () => {
+  it('without network: the card from the device’s copy leads; the rest says it did not load, with a quiet «Попробовать ещё раз»', async () => {
     seededExam();
     db.tables.study_sessions = () => ({ data: null, error: { message: 'Failed to fetch' } });
     withContainers([ACCR()], { 'c-1': dayPlan('study') }, [], true);
     await renderPage();
     const cardEl = await screen.findByTestId('today-card');
     expect(cardEl).toHaveAttribute('data-offline', '');
-    expect(screen.getByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(screen.getByText('«Сегодня» не загрузилось')).toBeInTheDocument();
     expect(blues()).toEqual([within(cardEl).getByRole('link', { name: 'Начать' })]);
-    expect(screen.getByRole('button', { name: 'Повторить' })).toHaveClass('sf-link');
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toHaveClass('sf-link');
   });
 
   it('without network the card from the device’s copy is drawn at once, while the page’s own reads still try (m5)', async () => {
@@ -805,15 +805,15 @@ describe('«Сегодня» with exam containers: failures fall back', () => {
     const cardEl = await screen.findByTestId('today-card');
     expect(cardEl).toHaveAttribute('data-offline', '');
     expect(screen.queryByText('Загружаем страницу…')).toBeNull();
-    expect(screen.queryByText('Не удалось загрузить данные')).toBeNull();
+    expect(screen.queryByText('«Сегодня» не загрузилось')).toBeNull();
     expect(blues()).toEqual([within(cardEl).getByRole('link', { name: 'Начать' })]);
     // The reads give up: the rest of the page says so under the card, with a quiet «Повторить».
     await act(async () => {
       fail(new TypeError('Failed to fetch'));
     });
-    expect(await screen.findByText('Не удалось загрузить данные')).toBeInTheDocument();
+    expect(await screen.findByText('«Сегодня» не загрузилось')).toBeInTheDocument();
     expect(screen.getByTestId('today-card')).toBe(cardEl);
-    expect(screen.getByRole('button', { name: 'Повторить' })).toHaveClass('sf-link');
+    expect(screen.getByRole('button', { name: 'Попробовать ещё раз' })).toHaveClass('sf-link');
   });
 
   it('with the network the page still waits for its reads, as before (m5 changes only the offline page)', async () => {
