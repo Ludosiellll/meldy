@@ -4,6 +4,31 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-07 — Release 55: plain words, a group student sees only theirs, one path per author task (from the commit of this entry)
+
+- **Why**: the owner's answer to the UX audit (07.11): «Б сделать надо, слова изнутри продукта тоже исправить», «технические
+  строки … убрать», «что студент видит ненужное, если уверен — убирай», «да, делай В», «устный экзамен вот хрен знает где он»
+  (meldy-notes 10_Project/UX_Audit_2026-11-06.md). The header and the phone's tabs are unchanged.
+- **Words (B)**: on a student's screens «ответ» instead of «ключ» («Сомневаюсь в ответе», «Ответ подобран ИИ, не из
+  файла»), «Ответ из файла: 7» instead of «В файле — 7», «С трудом» instead of «Плаваю», «Попробовать ещё раз» after a
+  failure, «Вернуть» in the studio, one name «Лекции» / «Разобрать лекцию», «Экзамен» for the oral exam's page,
+  «Проверить себя на время», «ИИ» instead of «модель», the AI-limit window without «единицы» and with «Ответы на
+  вопросы с вариантами — без ИИ, лимит не тратят», «Создать аккаунт» as the one sign-up button. The Telegram bot says the same words
+  (telegram function deployed with this release).
+- **A group student (A3–A6)**: an account that only studies someone else's exams gets «Сегодня» without empty card
+  tiles, «Прогресс» with its exams first and no empty lecture tiles, «Экзамены» without «Тесты 0» and the author's two
+  doors (one quiet «Создать свой экзамен или тест»), «Повторение» with a way to its exam and the mistakes diary only
+  once there were mistakes, and a 4-card guide after the first session (today's plan, «План по дням», Telegram, «Свои
+  лекции»; «?» opens the whole guide). «Разобрать лекцию» stays for everyone.
+- **A lecture's result**: «около 4 мин чтения · 11 заданий» instead of the characters, fragments and links line; no
+  «Материал обработан», no number on «Подкаст».
+- **One path per author task (C)**: the test's page has two pills («Открыть студию», «Отправить по ссылке»), «Провести
+  игру» as a quiet link, «Соревнование по ссылке» and «Дуэль» in «Ещё»; the account menu leaves out «Игры» and «Как
+  пользоваться Meldy» where the top line has them; /exams/c/:id/build opens the studio on «Список» (the old constructor
+  page is gone); «Тянуть билет» on the exam's and the subject's card when there is an oral part.
+- **Checked**: gate green on c8561720 (pytest 2833, bot 437, vitest 7319 + 3 skipped, build); the live bundle checked for
+  the new words after the deploy.
+
 ## 2026-11-06 — Release 54.2: no gradebook, plain words on the way in (from the commit of this entry)
 
 - **Why**: the owner (06.11): «разве есть смысл от оценок из зачетки? зачем это вообще», «интерфейс уже перегружен», and
