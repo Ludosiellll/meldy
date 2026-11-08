@@ -30,6 +30,10 @@ import { ArenaMap, mapHeight } from './map';
 import type { Backdrop } from './sprites';
 import type { StandSession, StandView } from './session';
 import { FloatingStick } from './stick';
+
+/** The hint under the resting stick until the first move. */
+export const FINGER_HINT = 'Ведите пальцем, чтобы бежать';
+export const KEYS_HINT = 'Стрелки или W A S D — бежать';
 import { Thumb } from './Thumb';
 import { LETTERS, lastFor, outcomeOf, placeLine, playersLine, points, secondsLeft, streakLine, zoneLine, ZONE_COLOURS, type Outcome } from './words';
 import { pinText } from '../../player/copy';
@@ -215,6 +219,12 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
 
   const [stick] = useState(() => new FloatingStick({ onMove: (x, y) => session.stick(x, y), onPress: () => hint.current?.setAttribute('data-gone', 'true') }));
   const hint = useRef<HTMLParagraphElement>(null);
+  // A laptop (a mouse and a keyboard) is told about the keys; a phone, about the finger.
+  const [hintText] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+      ? KEYS_HINT
+      : FINGER_HINT,
+  );
   const [arena, setArena] = useState<ArenaMap | null>(null);
 
   // What the loop needs from the last render (read each frame, never a reason to restart it).
@@ -246,6 +256,8 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
     const map = new ArenaMap(canvas);
     setArena(map);
     const detach = stick.attach(field, base, knob);
+    // The arrows and W A S D drive the same stick (A11Y-3): the round can be played without a finger or a mouse.
+    const detachKeys = stick.attachKeys(window);
     // Sizes come from the observer (after layout), never read in the loop. The map takes the box's width and as much
     // of its height as the arena's shape allows; the stick rests under it, the hint under the stick.
     let mapBottom = 0;
@@ -284,6 +296,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
     return () => {
       ro?.disconnect();
       detach();
+      detachKeys();
       field.removeEventListener('gesturestart', noGesture);
       placeRef.current = null;
     };
@@ -555,7 +568,7 @@ export function StandPlay({ session, view, fallbackPhase, look, name, pin, playe
           </span>
         </div>
         <p className="sp-hint" ref={hint}>
-          Ведите пальцем, чтобы бежать
+          {hintText}
         </p>
         <div className="sp-stick" ref={baseRef} data-state="rest" aria-hidden="true" />
         <div className="sp-knob" ref={knobRef} data-state="rest" aria-hidden="true" />

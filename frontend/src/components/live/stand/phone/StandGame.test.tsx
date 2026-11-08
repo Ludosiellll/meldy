@@ -6,7 +6,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeServer } from '../../../../lib/live/fake';
-import { encodeSnapshot, STAND_ARENA, type Welcome } from '../../../../lib/live/move/protocol';
+import { encodeSnapshot, MSG_INPUT, STAND_ARENA, type Welcome } from '../../../../lib/live/move/protocol';
 import type { LiveApi, PlayerState } from '../../../../lib/live/types';
 import { PlayerApp } from '../../player/PlayerApp';
 import { controller, newRecorder, recordingPlatform, type Recorder } from '../../player/testkit';
@@ -187,6 +187,49 @@ describe('«Встань на ответ» on the phone', () => {
     expect(screen.getByText('3 верных подряд')).toBeInTheDocument();
     await wait(200);
     expect(reads).toBe(atPodium + 1);
+  });
+
+  it('the keyboard plays the round: an arrow sends the room a move that way, letting go stops (audit 07.11, A11Y-3)', async () => {
+    render(<PlayerApp ctl={ctl} platform={recordingPlatform(rec)} shareUrl="x" />);
+    await act(async () => {
+      await ctl.start({ pin: '482913', mode: 'stand' });
+    });
+    await until(() => !!screen.queryByRole('heading', { name: 'Выберите героя' }));
+    fireEvent.change(screen.getByLabelText('Имя в игре'), { target: { value: 'Дима' } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Войти в игру' }));
+    });
+    await until(() => FakeSocket.all.length > 0);
+    sock().open();
+    await room(welcome);
+    await room(state({ phase: 'open', qi: 0, q: { text: 'Какая команда отменяет транзакцию?', options: ['COMMIT', 'ROLLBACK', 'GRANT'] }, opens: (tick - 20) * 50, closes: (tick + 300) * 50 }));
+    await room(me());
+    await snaps(3);
+    // the moves the phone sent: [jx, jy] of every command in its input frames
+    const moves = () =>
+      sock()
+        .sent.filter((d): d is ArrayBuffer => d instanceof ArrayBuffer && d.byteLength >= 9 && new DataView(d).getUint8(0) === MSG_INPUT)
+        .flatMap((d) => {
+          const v = new DataView(d);
+          const n = v.getUint8(1);
+          return Array.from({ length: n }, (_, i) => [v.getInt8(6 + 3 * i), v.getInt8(7 + 3 * i)] as [number, number]);
+        });
+    const sentBefore = moves().length;
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight', key: 'ArrowRight', bubbles: true, cancelable: true }));
+    });
+    await snaps(4);
+    const right = moves().slice(sentBefore);
+    expect(right.length).toBeGreaterThan(0);
+    expect(right.every(([jx, jy]) => jx > 100 && jy === 0)).toBe(true);
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowRight', key: 'ArrowRight', bubbles: true }));
+    });
+    await snaps(4);
+    const afterUp = moves().length;
+    await snaps(6);
+    // nothing is sent while the stick rests
+    expect(moves().length).toBe(afterUp);
   });
 
   it('a ghost who falls hears it calmly, with the way back', async () => {

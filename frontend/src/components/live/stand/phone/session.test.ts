@@ -195,6 +195,89 @@ describe('FloatingStick', () => {
     expect(stick.active).toBe(false);
   });
 
+  // Accessibility audit 07.11, A11Y-3: the round with the keyboard, on the same stick.
+  const key = (type: 'keydown' | 'keyup', code: string, extra: KeyboardEventInit = {}) =>
+    window.dispatchEvent(new KeyboardEvent(type, { code, key: code, bubbles: true, cancelable: true, ...extra }));
+
+  it('the arrows and W A S D move the character, two keys at once a diagonal at full speed, letting go stops it', () => {
+    const moves: Array<[number, number]> = [];
+    const pressed = vi.fn();
+    const stick = new FloatingStick({ radius: 50, onMove: (x, y) => moves.push([x, y]), onPress: pressed });
+    const { el, base, knob } = field();
+    stick.attach(el, base, knob);
+    const detach = stick.attachKeys(window);
+    key('keydown', 'ArrowRight');
+    expect(last(moves)).toEqual([1, 0]);
+    expect(pressed).toHaveBeenCalledTimes(1);
+    expect(stick.active).toBe(true);
+    key('keydown', 'ArrowRight', { repeat: true });
+    expect(moves).toHaveLength(1);
+    key('keydown', 'KeyW');
+    expect(last(moves)[0]).toBeCloseTo(Math.SQRT1_2);
+    expect(last(moves)[1]).toBeCloseTo(-Math.SQRT1_2);
+    stick.paint();
+    expect(base.dataset.state).toBe('on');
+    key('keyup', 'ArrowRight');
+    expect(last(moves)).toEqual([0, -1]);
+    key('keyup', 'KeyW');
+    expect(last(moves)).toEqual([0, 0]);
+    expect(stick.active).toBe(false);
+    // opposite keys cancel out; S and D (Ы and В on the Russian layout share the codes)
+    key('keydown', 'KeyA');
+    key('keydown', 'KeyD');
+    expect(last(moves)).toEqual([0, 0]);
+    key('keydown', 'KeyS');
+    expect(last(moves)).toEqual([0, 1]);
+    detach();
+    expect(last(moves)).toEqual([0, 0]);
+    key('keydown', 'ArrowUp');
+    expect(last(moves)).toEqual([0, 0]);
+  });
+
+  it('a key with Ctrl, in a text field, or of another kind is no move; the window losing the focus lets go', () => {
+    const moves: Array<[number, number]> = [];
+    const stick = new FloatingStick({ onMove: (x, y) => moves.push([x, y]) });
+    const { el, base, knob } = field();
+    stick.attach(el, base, knob);
+    const detach = stick.attachKeys(window);
+    key('keydown', 'ArrowLeft', { ctrlKey: true });
+    key('keydown', 'KeyQ');
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW', bubbles: true, cancelable: true }));
+    input.remove();
+    expect(moves).toEqual([]);
+    key('keydown', 'ArrowLeft');
+    expect(last(moves)).toEqual([-1, 0]);
+    window.dispatchEvent(new Event('blur'));
+    expect(last(moves)).toEqual([0, 0]);
+    detach();
+  });
+
+  it('a finger wins over the keys; the keys go on when it lets go; a still room ignores both', () => {
+    const moves: Array<[number, number]> = [];
+    const stick = new FloatingStick({ radius: 50, onMove: (x, y) => moves.push([x, y]) });
+    const { el, base, knob } = field();
+    stick.attach(el, base, knob);
+    const detach = stick.attachKeys(window);
+    el.dispatchEvent(ev('pointerdown', 190, 600));
+    el.dispatchEvent(ev('pointermove', 215, 600));
+    expect(last(moves)).toEqual([0.5, 0]);
+    const count = moves.length;
+    key('keydown', 'ArrowUp');
+    expect(moves).toHaveLength(count);
+    el.dispatchEvent(ev('pointerup', 215, 600));
+    expect(last(moves)).toEqual([0, -1]);
+    stick.setEnabled(false);
+    expect(last(moves)).toEqual([0, 0]);
+    key('keydown', 'ArrowDown');
+    expect(last(moves)).toEqual([0, 0]);
+    stick.setEnabled(true);
+    key('keydown', 'ArrowDown');
+    expect(last(moves)).toEqual([0, 1]);
+    detach();
+  });
+
   it('ignores the finger while the room holds everyone still', () => {
     const moves: Array<[number, number]> = [];
     const stick = new FloatingStick({ onMove: (x, y) => moves.push([x, y]) });
