@@ -254,6 +254,33 @@ describe('FloatingStick', () => {
     detach();
   });
 
+  it('lets every key go on ⌘ (macOS sends no keyup under it), a context menu and a hidden page; opposite keys rest (review of 08.11)', () => {
+    const moves: Array<[number, number]> = [];
+    const stick = new FloatingStick({ radius: 50, onMove: (x, y) => moves.push([x, y]) });
+    const { el, base, knob } = field();
+    stick.attach(el, base, knob);
+    const detach = stick.attachKeys(window);
+    key('keydown', 'ArrowRight');
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Meta', code: 'MetaLeft', metaKey: true, bubbles: true }));
+    expect(last(moves)).toEqual([0, 0]);
+    expect(stick.active).toBe(false);
+    key('keydown', 'KeyD');
+    window.dispatchEvent(new Event('contextmenu'));
+    expect(last(moves)).toEqual([0, 0]);
+    key('keydown', 'KeyS');
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    document.dispatchEvent(new Event('visibilitychange'));
+    hidden.mockRestore();
+    expect(last(moves)).toEqual([0, 0]);
+    key('keydown', 'KeyA');
+    key('keydown', 'KeyD');
+    expect(last(moves)).toEqual([0, 0]);
+    expect(stick.active).toBe(false);
+    stick.paint();
+    expect(base.dataset.state).toBe('rest');
+    detach();
+  });
+
   it('a finger wins over the keys; the keys go on when it lets go; a still room ignores both', () => {
     const moves: Array<[number, number]> = [];
     const stick = new FloatingStick({ radius: 50, onMove: (x, y) => moves.push([x, y]) });

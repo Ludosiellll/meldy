@@ -12,8 +12,9 @@
  * The keyboard drives the same stick (accessibility audit 07.11, A11Y-3: the round could only be played with a finger or
  * a mouse): the arrows and W A S D by their physical key (`code`, so Ц Ф Ы В on the Russian layout too), any two at
  * once for a diagonal at full speed; letting go of the last key stops the character, as letting go of the finger does.
- * A finger on the field wins over the keys; a key in a text field, or with Ctrl, Alt or ⌘, is not a move; the window
- * losing the focus lets every key go (no character running on by itself).
+ * A finger on the field wins over the keys; a key in a text field, or with Ctrl, Alt or ⌘, is not a move. Every key
+ * is let go when the window loses the focus or the page is hidden, when a context menu opens, and when ⌘ goes down
+ * (macOS sends no keyup for a key released while ⌘ is held: the character would run on by itself — review of 08.11).
  */
 const KEY_DIRS: Readonly<Record<string, readonly [number, number]>> = {
   ArrowUp: [0, -1],
@@ -67,7 +68,7 @@ export class FloatingStick {
   }
 
   get active(): boolean {
-    return this.pointer !== null || this.keys.size > 0;
+    return this.pointer !== null || this.keyX !== 0 || this.keyY !== 0;
   }
 
   /** Listens for the move keys on `target` (the window: the round has no text field to type in). */
@@ -75,10 +76,15 @@ export class FloatingStick {
     target.addEventListener('keydown', this.keyDown as EventListener);
     target.addEventListener('keyup', this.keyUp as EventListener);
     target.addEventListener('blur', this.letGoKeys);
+    target.addEventListener('contextmenu', this.letGoKeys);
+    const doc = typeof document !== 'undefined' ? document : null;
+    doc?.addEventListener('visibilitychange', this.hidden);
     return () => {
       target.removeEventListener('keydown', this.keyDown as EventListener);
       target.removeEventListener('keyup', this.keyUp as EventListener);
       target.removeEventListener('blur', this.letGoKeys);
+      target.removeEventListener('contextmenu', this.letGoKeys);
+      doc?.removeEventListener('visibilitychange', this.hidden);
       this.letGoKeys();
     };
   }
@@ -138,7 +144,8 @@ export class FloatingStick {
     if (!this.dirty || !this.base || !this.knob) return;
     this.dirty = false;
     const finger = this.pointer !== null;
-    const keyed = !finger && this.keys.size > 0;
+    // Opposite keys held together stand still: the stick rests (review of 08.11).
+    const keyed = !finger && (this.keyX !== 0 || this.keyY !== 0);
     const on = finger || keyed;
     const bx = finger ? this.bx : this.restX;
     const by = finger ? this.by : this.restY;
@@ -208,6 +215,10 @@ export class FloatingStick {
   };
 
   private readonly keyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Meta') {
+      this.letGoKeys();
+      return;
+    }
     const dir = KEY_DIRS[e.code];
     if (!dir || e.ctrlKey || e.altKey || e.metaKey || typingIn(e.target)) return;
     e.preventDefault();
@@ -221,6 +232,10 @@ export class FloatingStick {
   private readonly keyUp = (e: KeyboardEvent) => {
     if (!this.keys.delete(e.code)) return;
     this.emitKeys();
+  };
+
+  private readonly hidden = () => {
+    if (typeof document !== 'undefined' && document.hidden) this.letGoKeys();
   };
 
   private readonly letGoKeys = () => {

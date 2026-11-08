@@ -88,7 +88,7 @@ describe('loadDashboard', () => {
     const data = await loadDashboard('user-1', false, off);
     expect(data.exam?.events).toBeNull();
     expect(data.exam?.daysLeft).toBeNull();
-    expect(data.steps).toBeNull();
+    expect(data.examFailed).toBe(false);
   });
 
   it('with the exam container: an exam of the account inside a container is never the leading one; its questions count for step 1', async () => {
