@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-08 — Release 57: «Сегодня» reads in its own module, the movement round with the keyboard (from the commit of this entry)
+
+- **Why**: the owner (08.11): «хорошо делай, если это имеет смысл, главное не сломай ничего и перепроверь, а также
+  управление через клавиатуру делай как предлагал и все тестируй» — the code audit's CODE-5 and the accessibility
+  audit's A11Y-3 of 07.11.
+- **«Сегодня»**: what the page reads (the six readers, loadDashboard and its types) moved line for line from
+  pages/Dashboard.tsx (2 514 → 2 204 lines) to pages/today/loadToday.ts with its own tests. Nothing on the page
+  changes: its 147 tests and the «to the byte» snapshots pass untouched; 19 screenshots of the stand (author, group
+  student, new account, first run; 1532 and 390; light and dark; full pages) are pixel-identical before and after.
+- **«Встань на ответ» and the battle's movement rounds with the keyboard**: the arrows and W A S D (by the physical
+  key, so the Russian layout too) drive the same stick as the finger; a diagonal at full speed, letting go stops; ⌘,
+  a context menu, a hidden page or the window losing the focus let every key go (an independent review found the
+  macOS ⌘ case before the release); a laptop's hint says «Стрелки или W A S D — бежать»; «Поверните телефон» only on
+  a touch screen. Checked by unit tests, the round end to end over a fake room (it fails with the keys unplugged) and
+  real key presses in Chromium.
+- **Checked**: gate green on e7bdb779 (pytest 2842, bot 437, vitest 7344 + 3 skipped, build); an independent review
+  of both changes; the live bundle checked after the deploy.
+
 ## 2026-11-07 — Release 56: the audit's fixes — a class of 40 through /sb, safer avatars and links, focus, speed (from the commit of this entry)
 
 - **Why**: the owner (07.11): «Сможешь ли провести максимальный аудит всего проекта… проверяй все что нужно». Six
