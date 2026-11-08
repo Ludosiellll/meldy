@@ -8,7 +8,29 @@
  * - one layout read per press (the field's box at pointerdown), none while moving.
  *
  * The field has `touch-action: none` (no scroll, no zoom, no double-tap zoom under the stick).
+ *
+ * The keyboard drives the same stick (accessibility audit 07.11, A11Y-3: the round could only be played with a finger or
+ * a mouse): the arrows and W A S D by their physical key (`code`, so Ц Ф Ы В on the Russian layout too), any two at
+ * once for a diagonal at full speed; letting go of the last key stops the character, as letting go of the finger does.
+ * A finger on the field wins over the keys; a key in a text field, or with Ctrl, Alt or ⌘, is not a move; the window
+ * losing the focus lets every key go (no character running on by itself).
  */
+const KEY_DIRS: Readonly<Record<string, readonly [number, number]>> = {
+  ArrowUp: [0, -1],
+  KeyW: [0, -1],
+  ArrowDown: [0, 1],
+  KeyS: [0, 1],
+  ArrowLeft: [-1, 0],
+  KeyA: [-1, 0],
+  ArrowRight: [1, 0],
+  KeyD: [1, 0],
+};
+
+function typingIn(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Element).closest !== 'function') return false;
+  const el = target as HTMLElement;
+  return el.isContentEditable || el.closest('input, textarea, select, [contenteditable="true"]') !== null;
+}
 export interface StickOptions {
   /** The stick's reach in CSS px: a pull this long is full speed. */
   radius?: number;
@@ -35,13 +57,30 @@ export class FloatingStick {
   /** Where the resting stick waits (field px), so a newcomer sees what to press. */
   private restX = 0;
   private restY = 0;
+  /** The move keys held now (by `code`), and the direction they give (each axis in [-1, 1], length ≤ 1). */
+  private readonly keys = new Set<string>();
+  private keyX = 0;
+  private keyY = 0;
 
   constructor(private readonly o: StickOptions) {
     this.radius = o.radius ?? 56;
   }
 
   get active(): boolean {
-    return this.pointer !== null;
+    return this.pointer !== null || this.keys.size > 0;
+  }
+
+  /** Listens for the move keys on `target` (the window: the round has no text field to type in). */
+  attachKeys(target: Pick<Window, 'addEventListener' | 'removeEventListener'> = window): () => void {
+    target.addEventListener('keydown', this.keyDown as EventListener);
+    target.addEventListener('keyup', this.keyUp as EventListener);
+    target.addEventListener('blur', this.letGoKeys);
+    return () => {
+      target.removeEventListener('keydown', this.keyDown as EventListener);
+      target.removeEventListener('keyup', this.keyUp as EventListener);
+      target.removeEventListener('blur', this.letGoKeys);
+      this.letGoKeys();
+    };
   }
 
   attach(field: HTMLElement, base: HTMLElement, knob: HTMLElement): () => void {
@@ -81,6 +120,7 @@ export class FloatingStick {
   }
 
   release(): void {
+    this.letGoKeys();
     if (this.pointer === null) return;
     const id = this.pointer;
     this.pointer = null;
@@ -97,11 +137,14 @@ export class FloatingStick {
   paint(): void {
     if (!this.dirty || !this.base || !this.knob) return;
     this.dirty = false;
-    const on = this.pointer !== null;
-    const bx = on ? this.bx : this.restX;
-    const by = on ? this.by : this.restY;
-    const dx = on ? this.kx - this.bx : 0;
-    const dy = on ? this.ky - this.by : 0;
+    const finger = this.pointer !== null;
+    const keyed = !finger && this.keys.size > 0;
+    const on = finger || keyed;
+    const bx = finger ? this.bx : this.restX;
+    const by = finger ? this.by : this.restY;
+    // The keys show on the resting stick: its knob leans the way they go.
+    const dx = finger ? this.kx - this.bx : keyed ? this.keyX * this.radius * 0.8 : 0;
+    const dy = finger ? this.ky - this.by : keyed ? this.keyY * this.radius * 0.8 : 0;
     this.base.style.transform = `translate3d(${bx.toFixed(1)}px, ${by.toFixed(1)}px, 0)`;
     this.knob.style.transform = `translate3d(${(bx + dx).toFixed(1)}px, ${(by + dy).toFixed(1)}px, 0)`;
     const state = !this.enabled ? 'off' : on ? 'on' : 'rest';
@@ -159,8 +202,52 @@ export class FloatingStick {
     if (e.pointerId !== this.pointer) return;
     this.pointer = null;
     this.dirty = true;
-    this.o.onMove(0, 0);
+    // Keys still held take over from the finger; else the character stops.
+    if (this.keys.size > 0) this.emitKeys();
+    else this.o.onMove(0, 0);
   };
+
+  private readonly keyDown = (e: KeyboardEvent) => {
+    const dir = KEY_DIRS[e.code];
+    if (!dir || e.ctrlKey || e.altKey || e.metaKey || typingIn(e.target)) return;
+    e.preventDefault();
+    if (!this.enabled || this.keys.has(e.code)) return;
+    const first = this.keys.size === 0 && this.pointer === null;
+    this.keys.add(e.code);
+    if (first) this.o.onPress?.();
+    this.emitKeys();
+  };
+
+  private readonly keyUp = (e: KeyboardEvent) => {
+    if (!this.keys.delete(e.code)) return;
+    this.emitKeys();
+  };
+
+  private readonly letGoKeys = () => {
+    if (this.keys.size === 0) return;
+    this.keys.clear();
+    this.emitKeys();
+  };
+
+  /** The keys' direction: their sum, at full speed in any direction (a diagonal is not faster); a finger wins. */
+  private emitKeys(): void {
+    let x = 0;
+    let y = 0;
+    for (const code of this.keys) {
+      const dir = KEY_DIRS[code];
+      if (!dir) continue;
+      x += dir[0];
+      y += dir[1];
+    }
+    x = Math.max(-1, Math.min(1, x));
+    y = Math.max(-1, Math.min(1, y));
+    const d = Math.hypot(x, y);
+    this.keyX = d > 0 ? x / d : 0;
+    this.keyY = d > 0 ? y / d : 0;
+    this.dirty = true;
+    if (this.pointer !== null) return;
+    this.o.onMove(this.keyX, this.keyY);
+  }
 
   private emit(): void {
     const dx = this.kx - this.bx;
