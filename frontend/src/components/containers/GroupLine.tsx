@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { ContainerSummary, GroupSummary } from '../../types/container';
+import type { ContainerSummary } from '../../types/container';
+import type { GroupSummary } from '../../types/groupSummary';
 import { fetchGroupSummary } from '../../api/containers';
 import { useAuth } from '../../hooks/useAuth';
 import { NoteLine, Sheet } from './ui';

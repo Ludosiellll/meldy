@@ -18,15 +18,15 @@ import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
 import { notifyAIUsageChanged } from './limits';
 import {
-  GROUP_MIN_MEMBERS, ITEM_POINTS_MAX, NEW_KINDS, TEST_ITEM_COLUMNS,
+  ITEM_POINTS_MAX, NEW_KINDS, TEST_ITEM_COLUMNS,
   type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerKind, type ContainerRpc,
   type ContainerSettings, type ContainerSummary, type ContainersOverview, type CreateSubjectInput, type DayKey,
-  type DoubtRow, type GroupHardTopic, type GroupSummary, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated,
-  type LinkExtended, type LinkPreview,
+  type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkExtended, type LinkPreview,
   type MemberRow, type MockRunInput, type MockRunResult, type OralSyncResponse, type PlanInputsWire,
   type RecordAnswersResponse, type TestItem, type Uuid,
 } from '../types/container';
 import type { ExamMoveFor, ExamMoved, ExamRemind, TelegramExam, TelegramExamState } from '../types/container';
+import { GROUP_MIN_MEMBERS, type GroupHardTopic, type GroupSummary, type GroupSummaryRpc } from '../types/groupSummary';
 
 /** Russian text of every error code (spec §3 words: «экзамен», never «контейнер» or «тест»). */
 export const CONTAINER_ERROR_TEXT = {
@@ -151,7 +151,7 @@ function badShape(what: string): ContainerApiError {
 
 // ── Calls ──────────────────────────────────────────────────────────────────────────────────
 
-type Rpc = ContainerRpc;
+type Rpc = ContainerRpc & GroupSummaryRpc;
 type DbResult = { data: unknown; error: unknown; status?: number };
 
 /** One RPC by name; its error becomes a ContainerApiError. The data is narrowed by the caller. */

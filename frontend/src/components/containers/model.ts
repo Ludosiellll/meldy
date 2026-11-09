@@ -7,7 +7,8 @@
  * from lib/containers/words.ts. Day keys are 'YYYY-MM-DD'.
  */
 import { gradeAnswer } from '../../lib/kinds/answer';
-import { GROUP_MIN_MEMBERS, itemKeyed } from '../../types/container';
+import { itemKeyed } from '../../types/container';
+import { GROUP_MIN_MEMBERS } from '../../types/groupSummary';
 import type {
   AnswerResult,
   ContainerKind,

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ContainerData, Loadable } from '../../lib/containers/hooks';
-import type { GroupSummary } from '../../types/container';
+import type { GroupSummary } from '../../types/groupSummary';
 
 /**
  * The group's summary without names (owner, 2026-11-09; docs/answers-privacy.md). The author of an exam with 5 members

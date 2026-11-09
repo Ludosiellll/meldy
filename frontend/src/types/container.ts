@@ -442,42 +442,6 @@ export interface MemberRow {
   removed_at: string | null;
 }
 
-/**
- * The group's numbers for the exam's author, without names (container_group_summary, 20261109090000;
- * docs/answers-privacy.md): never a person's answers or progress, never a number about fewer than `min_members` people.
- */
-/** The smallest group the summary gives numbers about. The database decides (`min_members`); the site never takes less. */
-export const GROUP_MIN_MEMBERS = 5;
-export interface GroupHardTopic {
-  subject: string;
-  /** The topic's title; null — questions without a topic: the subject as a whole. */
-  topic: string | null;
-  /** The members' answers in the topic over the last 30 days, and the share of them that were wrong (a whole percent). */
-  answers: number;
-  wrong_pct: number;
-}
-export interface GroupNumbers {
-  /** Members with an answer of their own in the last 7 days, in the 7 days before those, and ever. */
-  studied_7d: number;
-  studied_prev_7d: number;
-  studied_ever: number;
-  /** The average over the members of «learned / questions that count», a whole percent; null — no question counts. */
-  learned_pct: number | null;
-  /** At most 3, the highest share of wrong answers first; a topic needs 5 different members and 30 answers. */
-  hard_topics: GroupHardTopic[];
-}
-/** What the function returns: the numbers come only from `min_members` members. */
-export interface GroupSummaryWire extends Partial<GroupNumbers> {
-  members: number;
-  min_members: number;
-}
-/** What the page reads (api/containers normalizeGroupSummary): `numbers` null — a group under `min_members`. */
-export interface GroupSummary {
-  members: number;
-  min_members: number;
-  numbers: GroupNumbers | null;
-}
-
 /** SQLSTATEs of the container functions (the API layer maps them to Russian copy). */
 export type ContainerErrorCode =
   | '28000' | '42501' | 'P0002' | '22023' | 'MC001' | 'MC002' | 'MC003' | 'MC004' | 'MC005' | 'MC006' | 'MC007' | 'MC008' | 'MC009';
@@ -511,8 +475,6 @@ export interface ContainerRpc {
   container_bind_copy: { args: { p_subject_id: Uuid; p_exam_id: Uuid }; returns: { subject_id: Uuid; exam_id: Uuid } };
   container_leave: { args: { p_container_id: Uuid }; returns: { container_id: Uuid; left: true } };
   container_members_list: { args: { p_container_id: Uuid }; returns: MemberRow[] };
-  /** The exam's author only (P0002 for a member or a stranger); 20261109090000. */
-  container_group_summary: { args: { p_container_id: Uuid }; returns: GroupSummaryWire };
   container_member_remove: { args: { p_container_id: Uuid; p_user_id: Uuid | null; p_restore?: boolean }; returns: { removed: number } };
   exam_date_move: { args: { p_container_id: Uuid; p_date: DayKey | null; p_for: ExamMoveFor; p_subject_id?: Uuid | null }; returns: ExamMoved };
   exam_remind_set: { args: { p_container_id: Uuid; p_on: boolean }; returns: ExamRemind };

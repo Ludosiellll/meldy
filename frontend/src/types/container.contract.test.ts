@@ -23,7 +23,6 @@ import {
   type ContainerSummary,
   type ContainersOverview,
   type DoubtRow,
-  type GroupSummaryWire,
   type ItemKind,
   type KeySource,
   type LinkPreview,
@@ -38,6 +37,7 @@ import {
   type SubjectFacts,
   type TestItem,
 } from './container';
+import type { GroupSummaryWire } from './groupSummary';
 import overviewJson from '../../../contracts/container/overview.json';
 import summaryJson from '../../../contracts/container/summary.json';
 import planInputsJson from '../../../contracts/container/plan_inputs.json';
