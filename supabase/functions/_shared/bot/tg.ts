@@ -194,7 +194,7 @@ export function inlineMarkup(keyboard: Keyboard): InlineKeyboardMarkup {
   };
 }
 
-export interface TgUser { id: number; is_bot?: boolean; language_code?: string; username?: string; first_name?: string }
+export interface TgUser { id: number; is_bot?: boolean; language_code?: string; username?: string; first_name?: string; last_name?: string }
 export interface TgChat { id: number; type: 'private' | 'group' | 'supergroup' | 'channel'; title?: string }
 export interface TgMessage {
   message_id: number;

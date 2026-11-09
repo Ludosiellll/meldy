@@ -62,6 +62,8 @@ const RPC_ALLOWED = new Set([
   'bot_picture_sweep', 'bot_picture_swept',
   // The authors' quiz messages and shares (quiz.ts; migration 20261105090100_quiz_telegram.sql).
   'bot_quiz_notices',
+  // Support through the bot (support.ts; migration 20261109090100_bot_support.sql).
+  'bot_support_add', 'bot_support_owner', 'bot_support_claim', 'bot_support_done', 'bot_support_reply', 'bot_support_answered',
 ]);
 
 test('data only through POST /rest/v1/rpc/bot_* (db.ts), names from the contract; no table reads', () => {

@@ -8,6 +8,8 @@ export const TEST_TOKEN = '123456:TEST_TOKEN_NOT_REAL_xxxxxxxxxxxxxxxxxxxxx';
 export const TEST_BOT = { id: 123456, is_bot: true, first_name: 'Meldy', username: 'Meldyteach_bot' };
 
 export type Failure =
+  /** No failure: this call goes through (to fail the one after it). */
+  | { kind: 'ok' }
   | { kind: '429'; retryAfter: number }
   | { kind: '403'; description?: string }
   | { kind: '400'; description: string }
@@ -66,7 +68,7 @@ export function fakeTelegram(options: { token?: string; now?: () => number; webh
     calls.push({ method, params, at: now() });
     const queue = failures.get(method);
     const failure = queue && queue.length > 0 ? queue.shift() : undefined;
-    if (failure) {
+    if (failure && failure.kind !== 'ok') {
       switch (failure.kind) {
         case 'abort': throw new DOMException('The signal has been aborted', 'AbortError');
         case 'timeout': throw new DOMException('The operation timed out.', 'TimeoutError');
