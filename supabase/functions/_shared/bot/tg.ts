@@ -221,15 +221,23 @@ export interface SendArgs {
   /** A ForceReply prompt (M4, S3 «Другая дата») instead of a keyboard. */
   forceReply?: { placeholder: string };
   replyTo?: number;
+  /**
+   * The owner's own support chat (support.ts): what arrives there is the owner's to copy — a person's message, the id of
+   * an account asked to be deleted. Every other message stays protected (decision 19).
+   */
+  open?: boolean;
 }
 
-/** The one way the bot posts a message (spec §3, decision 19): protect_content from the first send, no preview. */
+/**
+ * The one way the bot posts a message (spec §3, decision 19): protect_content from the first send, no preview. Only
+ * the support queue's notices to the owner's chat are open to copying (`open`).
+ */
 export function send(tg: Telegram, args: SendArgs): Promise<TgMessage> {
   const params: Record<string, unknown> = {
     chat_id: args.chatId,
     text: args.text,
     parse_mode: 'HTML',
-    protect_content: true,
+    protect_content: args.open !== true,
     link_preview_options: { is_disabled: true },
     disable_notification: args.sound !== true,
   };

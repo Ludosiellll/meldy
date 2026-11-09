@@ -151,8 +151,14 @@ test('every message goes through send() (tg.ts) with protect_content and no link
   }
   const tg = read(join(BOT, 'tg.ts'));
   const sendBody = tg.slice(tg.indexOf('export function send('), tg.indexOf('export type EditResult'));
-  assert.ok(sendBody.includes('protect_content: true'));
+  // Protected unless a caller says `open`, and only the support queue's notices to the owner's own chat do.
+  assert.ok(sendBody.includes('protect_content: args.open !== true'));
   assert.ok(sendBody.includes('link_preview_options: { is_disabled: true }'));
+  for (const path of sources) {
+    const opens = (code(path).match(/\bopen: true\b/g) ?? []).length;
+    if (name(path) === join('_shared', 'bot', 'support.ts')) assert.equal(opens, 1, 'one open send: the notice to the owner');
+    else assert.equal(opens, 0, `${name(path)} sends an unprotected message`);
+  }
 });
 
 test('Deno-only APIs stay in telegram/index.ts and env.ts; imports are relative .ts files only', () => {

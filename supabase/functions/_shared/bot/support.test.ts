@@ -409,7 +409,8 @@ test('nothing claimed: the sender is told «Передал…», the message wai
   const got = s.sentTo(OWNER).at(-1)!;
   assert.equal(words(got.text), 'Поддержка · Анна · @anna_p · аккаунт Meldy: нет\nКогда будет новый экзамен?\n\nОтветьте на это сообщение, и я перешлю ответ.');
   assert.equal(got.disable_notification, false, 'the author\'s chat rings');
-  assert.equal(got.protect_content, true);
+  // The one open message of the bot: the author copies a person's words or an account's id from their own chat.
+  assert.equal(got.protect_content, false);
   const row = s.sup.rows[0];
   assert.deepEqual([row.sentAt !== null, row.ownerChatId, row.ownerMessageId], [true, OWNER, s.lastIn(OWNER).message_id]);
   s.h.advance(MIN);

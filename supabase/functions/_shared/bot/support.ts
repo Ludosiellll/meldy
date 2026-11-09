@@ -366,7 +366,8 @@ export function createSupport(options: { limit?: number } = {}): SupportPort {
         let sent: TgMessage;
         try {
           await tools.pace();
-          sent = await send(ctx.tg, { chatId: claim.chatId, text: notice(row, claim.tz), sound: stats.sent === undefined });
+          // open: the owner copies an account's id or a person's words from their own chat (tg.ts SendArgs.open)
+          sent = await send(ctx.tg, { chatId: claim.chatId, text: notice(row, claim.tz), sound: stats.sent === undefined, open: true });
         } catch (error) {
           if (isRateLimited(error)) {
             add(stats, 'rate_limited'); // Telegram did nothing: the rows wait for a later tick
