@@ -302,7 +302,9 @@ describe('the author’s explanation in the review (release 47)', () => {
 });
 
 describe('«Повторить эти вопросы» (release 47)', () => {
-  const NOTE = 'Meldy будет возвращать вопросы, пока вы их не запомните. Автор увидит только, что вы присоединились.';
+  // Since the group's summary (owner, 2026-11-09): the author also sees the group's numbers, and the note says so.
+  const NOTE =
+    'Meldy будет возвращать вопросы, пока вы их не запомните. Автор увидит, что вы присоединились, и общие цифры группы без имён. Ваши ответы в тренировке не видит никто.';
   const offered = (over: Partial<QuizResult> = {}) => result({ practice: { exam_title: 'Зимняя сессия', member: false }, ...over });
 
   it('signed in: the note first, then the button; it joins and opens the exam', async () => {

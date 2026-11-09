@@ -1,0 +1,12 @@
+{
+  "members": 6,
+  "min_members": 5,
+  "studied_7d": 2,
+  "studied_prev_7d": 5,
+  "studied_ever": 6,
+  "learned_pct": 28,
+  "hard_topics": [
+    { "subject": "Основы программирования", "topic": "Тема 2. Делегаты и события", "answers": 48, "wrong_pct": 44 },
+    { "subject": "История Беларуси", "topic": null, "answers": 31, "wrong_pct": 39 }
+  ]
+}

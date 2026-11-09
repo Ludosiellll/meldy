@@ -874,6 +874,8 @@ export const INVITE = {
     n % 10 === 1 && n % 100 !== 11
       ? `${questions(n)} пока без ключа: участникам он придёт, когда вы отметите ответ.`
       : `${questions(n)} пока без ключа: участникам они придут, когда вы отметите ответ.`,
+  // «Мои ответы и прогресс никто не увидит» is the author's own: the group's summary (09.11) counts the members only,
+  // never the author, and only the author reads it — so this line stays true and stays as it is.
   consent: 'Делюсь с группой вопросами, ключами из файлов, текстом моих лекций и пунктами ответа. Мои ответы и прогресс никто не увидит.',
   create: 'Создать ссылку',
   creating: 'Создаём ссылку…',
@@ -901,6 +903,9 @@ export const INVITE = {
   // A link whose seats are all taken (decision 52 counted them under the link; the one group line now counts who is in):
   // nobody else can come in by it, so the way on is a new link.
   full: (seats: number) => `Мест по этой ссылке больше нет: заняты все ${seats}.`,
+  // The group's summary without names (owner, 09.11; docs/answers-privacy.md) gives no number about fewer than 5
+  // people: while 1–4 are in, the author reads here when it comes.
+  summarySoon: (min: number) => `Сводка группы появится, когда в ней будет ${count(min, 'участник', 'участника', 'участников')}.`,
   who: 'Кто вошёл',
   revoke: 'Закрыть ссылку',
   revokeAsk: 'По ней больше никто не войдёт. Кто уже вошёл, останется в экзамене.',
@@ -1015,8 +1020,10 @@ export const JOIN = {
       .filter(Boolean)
       .map((part) => (part as string).replace(/\s/g, NBSP))
       .join(`${NBSP}· `),
-  // UX audit 06.11: the first screen of most people — what it is and what to do, then who sees what.
-  lede: 'Вопросы с ответами уже загружены. Ваши ответы и прогресс не видит никто, автор увидит только ваше имя среди вошедших.',
+  // UX audit 06.11: the first screen of most people — what it is and what to do, then who sees what. Since the group's
+  // summary (owner, 09.11; docs/answers-privacy.md) the author sees more than the name, and the invitation says what:
+  // the group's numbers without names. «…и прогресс не видит никто» is no longer promised.
+  lede: 'Вопросы с ответами уже загружены. Ваши ответы не видит никто. Автор видит ваше имя среди вошедших и общие цифры группы без имён: сколько человек занимается и какие темы трудные.',
   /** Signed out: signing in is the way in. */
   signInLine: 'Войдите или создайте аккаунт — экзамен сразу откроется.',
   oral: 'С устными предметами придут текст лекций автора и пункты ответа.',
@@ -1029,7 +1036,8 @@ export const JOIN = {
   loading: 'Открываем приглашение…',
   failedTitle: 'Приглашение не открылось',
   own: 'Это ваша ссылка',
-  ownLede: 'Однокурсники, которые по ней войдут, получат весь экзамен. Их ответов и прогресса вы не увидите, только имена.',
+  // The author's side of the same (09.11): the names of who came in, and the group's numbers without names.
+  ownLede: 'Однокурсники, которые по ней войдут, получат весь экзамен. Их ответов вы не увидите: только имена вошедших и общие цифры группы без имён.',
   // The author's own link that lets nobody in (container_link_preview's link, 20261107090200).
   ownShut: {
     revoked: 'Вы закрыли эту ссылку: по ней никто не войдёт. Открыть её снова можно в «Пригласить группу» на странице экзамена.',

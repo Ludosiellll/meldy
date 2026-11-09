@@ -7,7 +7,7 @@
  * from lib/containers/words.ts. Day keys are 'YYYY-MM-DD'.
  */
 import { gradeAnswer } from '../../lib/kinds/answer';
-import { itemKeyed } from '../../types/container';
+import { GROUP_MIN_MEMBERS, itemKeyed } from '../../types/container';
 import type {
   AnswerResult,
   ContainerKind,
@@ -92,6 +92,18 @@ export function soloSubject(summary: ContainerSummary): SummarySubject | null {
   const only = summary.subjects[0];
   const kind = subjectKind(only);
   return kind === 'test' || kind === 'mixed' ? only : null;
+}
+
+/**
+ * The group's summary without names, for this exam's author (docs/answers-privacy.md): 'ready' from 5 members, 'soon'
+ * while fewer are in (at least one), 'none' for anyone but the author, for the author's own test (its page has no
+ * place for it) and for an exam without a question with a key (the numbers are of those questions; oral answers are
+ * not read).
+ */
+export function groupSummaryState(summary: ContainerSummary): 'none' | 'soon' | 'ready' {
+  const members = summary.owner?.members ?? 0;
+  if (!isAuthor(summary.role) || isOwnTest(summary) || members < 1 || !summary.subjects.some((subject) => subject.keyed > 0)) return 'none';
+  return members >= GROUP_MIN_MEMBERS ? 'ready' : 'soon';
 }
 
 /** The exam's size: all its questions, with variants (with a key or not) and oral — the one size every screen says. */

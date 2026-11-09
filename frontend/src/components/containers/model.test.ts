@@ -13,6 +13,7 @@ import {
   examQuestions,
   firstCountWhen,
   gradeLocal,
+  groupSummaryState,
   keyNames,
   laterToday,
   metaDay,
@@ -270,5 +271,24 @@ describe('the end of a session', () => {
     expect(laterToday(Date.parse('2026-10-10T15:00:00Z'), '2026-10-10', 'Europe/Minsk')).toBe('18:00');
     expect(laterToday(Date.parse('2026-10-10T20:58:00Z'), '2026-10-10', 'Europe/Minsk')).toBeNull(); // 23:58 → midnight
     expect(laterToday(null, '2026-10-10', 'Europe/Minsk')).toBeNull();
+  });
+});
+
+describe('the group’s summary without names: for whom and from when (owner, 2026-11-09)', () => {
+  const owner = (members: number) => ({ members, doubts_open: 0, links: [] });
+
+  it('the author: nothing before anyone is in, «soon» with 1–4 members, ready from 5', () => {
+    expect([0, 1, 4, 5, 19].map((members) => groupSummaryState(summary({ owner: owner(members) })))).toEqual(['none', 'soon', 'soon', 'ready', 'ready']);
+  });
+
+  it('never for a member, the author’s own test, or an exam without a question with a key', () => {
+    expect(groupSummaryState(summary({ role: 'member', owner: null }))).toBe('none');
+    // A member's summary never carries the author's part; one that did would still not count.
+    expect(groupSummaryState(summary({ role: 'member', owner: owner(19) }))).toBe('none');
+    expect(groupSummaryState(summary({ kind: 'test', owner: owner(19) }))).toBe('none');
+    const oralOnly = [subject({ id: SUBJECT_ORAL, keyed: 0, topics: [], oral: { exam_id: ORAL_EXAM, questions: 20 } })];
+    expect(groupSummaryState(summary({ subjects: oralOnly, owner: owner(19) }))).toBe('none');
+    // A member of someone's test studies it as an exam; its author is someone else.
+    expect(groupSummaryState(summary({ kind: 'test', role: 'member', owner: null }))).toBe('none');
   });
 });

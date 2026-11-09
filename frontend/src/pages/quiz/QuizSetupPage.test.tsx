@@ -341,7 +341,7 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     expect(document.body.textContent).not.toContain('по этому экзамену');
     expect(toggle).toHaveAccessibleDescription(
       'Кнопка появится после закрытия контрольной. В тренировке видны все ответы экзамена. ' +
-        'Кто согласится, появится в списке участников экзамена. Его прогресс вы не увидите.',
+        'Кто согласится, появится в списке участников экзамена. Его ответов вы не увидите — только общие цифры группы без имён.',
     );
     // No «Участник станет участником»: the words say what happens and when.
     expect(document.body.textContent).not.toContain('станет участником');
@@ -358,7 +358,7 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     const toggle = screen.getByRole('checkbox', { name: 'После сдачи предложить тренировать эти вопросы в Meldy' });
     expect(toggle).toHaveAccessibleDescription(
       'Кнопка появится после закрытия контрольной. В тренировке видны все ответы теста. ' +
-        'Кто согласится, появится в списке участников теста. Его прогресс вы не увидите.',
+        'Кто согласится, появится в списке участников теста. Его ответов вы не увидите — только общие цифры группы без имён.',
     );
     expect(screen.queryByText(QA_SETUP.practiceNote)).toBeNull();
     pick(QA_SETUP.who, QA_SETUP.whoOption('members', true));

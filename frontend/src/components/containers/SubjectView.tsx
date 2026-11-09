@@ -16,6 +16,7 @@ import { subjectTopics } from './topicsOf';
 import { PlanByDaysSheet, TopicSheet } from './Sheets';
 import MockSetup from './MockSetup';
 import { NoteLine } from './ui';
+import { useGroupLine, useGroupNotice } from './GroupLine';
 import { examLinks, startTarget, useExamActions, useSubjectActions } from './actions';
 import { lineLink, linkFor, noteLines, type LinkTargets, type ViewProps } from './ExamView';
 import { moveFacts, useExamMove } from './MoveExamDialog';
@@ -95,6 +96,10 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
   const moveSubject = solo ? null : subject.id;
   const facts = useMemo(() => moveFacts(summary, moveSubject), [summary, moveSubject]);
   const move = useExamMove({ containerId, role: summary.role, today, facts, subjectId: moveSubject, reload });
+  // A one-subject exam is the exam: the group's line for its author and the member's one-time note are here
+  // (GroupLine.tsx); a subject of several leaves both to the exam's page.
+  const group = useGroupLine(summary, solo && !offline);
+  const groupNotice = useGroupNotice(summary);
 
   // ── the plan card: a one-subject exam has the exam's plan; a subject of several says its own phase and lines
   // (lib/containers/plan.ts subjectInfo: its final days, its exam day, after its date, no date).
@@ -257,6 +262,8 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
       />,
     );
   }
+  if (solo && groupNotice) notes.push(groupNotice);
+  if (group.line) notes.push(group.line);
 
   const topic = topicOpen !== null ? subject.topics.find((entry) => entry.topic === topicOpen) ?? null : null;
   // «Начать N вопросов по теме»: the block the study engine takes now (lib/containers/session.ts freeSession, ≤ 20).
@@ -350,6 +357,7 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
       ) : null}
       {move.dialog}
       {solo ? exam.dialogs : null}
+      {group.sheet}
     </div>
   );
 }

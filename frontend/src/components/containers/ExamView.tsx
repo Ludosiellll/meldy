@@ -12,6 +12,7 @@ import FigureBlock from './FigureBlock';
 import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet } from './Sheets';
 import { NoteLine } from './ui';
+import { useGroupLine, useGroupNotice } from './GroupLine';
 import { examLinks, startTarget, useExamActions } from './actions';
 import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
@@ -209,6 +210,10 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
   const move = useExamMove({ containerId, role: summary.role, today, facts, reload });
   // A member's oral subject without their copy: asked for once; a shut link is said with the way on (audit of 04.11).
   const oralCopies = useOralCopies(summary, reload);
+  // The group's summary without names (owner, 09.11): the author's one line from 5 members with its sheet «Группа»,
+  // and a member's one-time note that the author now sees the group's numbers. Both are the last of the quiet lines.
+  const group = useGroupLine(summary, !offline);
+  const groupNotice = useGroupNotice(summary);
 
   // The oral part that waits for lectures (decision 35): its editor's lectures, back to this exam by ?from=c:.
   const lecturesSubject = summary.subjects.find((subject) => oralCount(subject) > 0 && subject.oral?.exam_id && !(planInput?.items ?? []).some((item) => item.f === 'o' && item.s === subject.id));
@@ -413,6 +418,8 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
     const words = lineWords({ key: 'oral_no_lectures', n: [oralWithoutPoints] });
     if (words) notes.push(<NoteLine key="lectures" text={words} action={linkFor('lectures', targets)} />);
   }
+  if (groupNotice) notes.push(groupNotice);
+  if (group.line) notes.push(group.line);
   const pillNode = pill ? (
     <Link className="sf-primary" to={pill.href}>
       {pill.label}
@@ -458,6 +465,7 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
       ) : null}
       {move.dialog}
       {dialogs}
+      {group.sheet}
     </div>
   );
 }

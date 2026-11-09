@@ -18,10 +18,11 @@ import { localDateKey } from '../utils/streak';
 import { httpErrorFromResponse } from './sseStream';
 import { notifyAIUsageChanged } from './limits';
 import {
-  ITEM_POINTS_MAX, NEW_KINDS, TEST_ITEM_COLUMNS,
+  GROUP_MIN_MEMBERS, ITEM_POINTS_MAX, NEW_KINDS, TEST_ITEM_COLUMNS,
   type AnswerInput, type AnswerResult, type BankParseResult, type ContainerCreated, type ContainerKind, type ContainerRpc,
   type ContainerSettings, type ContainerSummary, type ContainersOverview, type CreateSubjectInput, type DayKey,
-  type DoubtRow, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated, type LinkExtended, type LinkPreview,
+  type DoubtRow, type GroupHardTopic, type GroupSummary, type ItemImages, type ItemInput, type ItemPatch, type ItemUpdated, type ItemsAdded, type LinkCreated,
+  type LinkExtended, type LinkPreview,
   type MemberRow, type MockRunInput, type MockRunResult, type OralSyncResponse, type PlanInputsWire,
   type RecordAnswersResponse, type TestItem, type Uuid,
 } from '../types/container';
@@ -673,6 +674,51 @@ export async function leaveContainer(containerId: Uuid): Promise<void> {
 
 export async function fetchMembers(containerId: Uuid): Promise<MemberRow[]> {
   return list(await call('container_members_list', { p_container_id: containerId })).filter(isRecord) as unknown as MemberRow[];
+}
+
+export { GROUP_MIN_MEMBERS };
+/** Topics the summary names at most. */
+const GROUP_TOPICS_MAX = 3;
+
+/**
+ * The summary as the page may draw it: counts within the group, percents within 0–100, at most three topics, and only
+ * the fields of the contract (nothing else of the body is passed on). A group under the threshold has no numbers,
+ * whatever the body holds.
+ */
+export function normalizeGroupSummary(raw: unknown): GroupSummary {
+  if (!isRecord(raw) || typeof raw.members !== 'number') throw badShape('container_group_summary');
+  const members = Math.max(0, int(raw.members));
+  const min = Math.max(GROUP_MIN_MEMBERS, int(raw.min_members, GROUP_MIN_MEMBERS));
+  if (members < min || typeof raw.studied_7d !== 'number') return { members, min_members: min, numbers: null };
+  const count = (value: unknown) => Math.min(members, Math.max(0, int(value)));
+  const percent = (value: unknown) => Math.min(100, Math.max(0, Math.round(value as number)));
+  const topics: GroupHardTopic[] = [];
+  for (const row of list(raw.hard_topics)) {
+    if (topics.length >= GROUP_TOPICS_MAX) break;
+    if (!isRecord(row) || typeof row.subject !== 'string' || !row.subject.trim()) continue;
+    if (typeof row.answers !== 'number' || typeof row.wrong_pct !== 'number') continue;
+    const topic = typeof row.topic === 'string' && row.topic.trim() ? row.topic.trim() : null;
+    topics.push({ subject: row.subject.trim(), topic, answers: Math.max(0, int(row.answers)), wrong_pct: percent(row.wrong_pct) });
+  }
+  return {
+    members,
+    min_members: min,
+    numbers: {
+      studied_7d: count(raw.studied_7d),
+      studied_prev_7d: count(raw.studied_prev_7d),
+      studied_ever: count(raw.studied_ever),
+      learned_pct: typeof raw.learned_pct === 'number' && Number.isFinite(raw.learned_pct) ? percent(raw.learned_pct) : null,
+      hard_topics: topics,
+    },
+  };
+}
+
+/**
+ * The author's summary of the group, without names (container_group_summary, 20261109090000): who studied this week
+ * and the week before, the average share learned, the hard topics. P0002 for anyone but the exam's author.
+ */
+export async function fetchGroupSummary(containerId: Uuid): Promise<GroupSummary> {
+  return normalizeGroupSummary(await call('container_group_summary', { p_container_id: containerId }));
 }
 
 /** `userId` null removes (or with `restore`, restores) everyone; resolves with how many changed. */

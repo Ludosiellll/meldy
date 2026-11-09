@@ -87,6 +87,23 @@ describe('copyImport: the words of the import, keys, settings and group screens'
     expect(JOIN.lede).toMatch(/имя/);
   });
 
+  it('says who sees what since the group’s summary (owner, 2026-11-09): answers nobody, the group’s numbers the author', () => {
+    // docs/answers-privacy.md: the promise «Ваши ответы и прогресс не видит никто» is no longer made; what the author
+    // sees is said in plain words to the member on the invitation and to the author on their own link.
+    expect(JOIN.lede).toBe(
+      'Вопросы с ответами уже загружены. Ваши ответы не видит никто. Автор видит ваше имя среди вошедших и общие цифры группы без имён: сколько человек занимается и какие темы трудные.',
+    );
+    expect(JOIN.ownLede).toBe(
+      'Однокурсники, которые по ней войдут, получат весь экзамен. Их ответов вы не увидите: только имена вошедших и общие цифры группы без имён.',
+    );
+    expect(INVITE.summarySoon(5)).toBe(`Сводка группы появится, когда в ней будет 5${NBSP}участников.`);
+    // The author's own consent stays: it is about the author's answers, which the summary never counts.
+    expect(INVITE.consent).toContain('Мои ответы и прогресс никто не увидит.');
+    // Nowhere else on these screens is a progress promised to be seen by no one, or the author told «только имена».
+    const made = Object.values(copy).flatMap((value) => strings(value)).filter((line) => line !== INVITE.consent);
+    expect(made.filter((line) => /прогресс[^.]*не (видит|увидит)|прогресса вы не увидите|только имена\.|только ваше имя/i.test(line))).toEqual([]);
+  });
+
   it('has none of the banned words in the source either (a branch the samples miss)', () => {
     const found = literals(source).flatMap((line) => BANNED.filter((word) => line.toLowerCase().includes(word)).map((word) => `${word}: ${line}`));
     expect(found).toEqual([]);

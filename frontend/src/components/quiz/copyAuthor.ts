@@ -138,10 +138,12 @@ export const QA_SETUP = {
   practice: 'После сдачи предложить тренировать эти вопросы в Meldy',
   /** The button waits until no quiz of the exam is open or not yet open (20261018130000_quiz_guards). */
   practiceNote: 'Кнопка появится после закрытия контрольной. В тренировке видны все ответы экзамена.',
-  practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его прогресс вы не увидите.',
+  // Since the group's summary without names (owner, 09.11; docs/answers-privacy.md): who agrees is a member, and the
+  // author sees the group's numbers — never that person's answers.
+  practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его ответов вы не увидите — только общие цифры группы без имён.',
   /** The same of a test (containers.kind 'test', release 47.3). */
   practiceNoteTest: 'Кнопка появится после закрытия контрольной. В тренировке видны все ответы теста.',
-  practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его прогресс вы не увидите.',
+  practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его ответов вы не увидите — только общие цифры группы без имён.',
   partLook: 'Оформление',
   cover: 'Обложка',
   // Release 47.4 shrinks a big photo itself (api/itemPictures pictureFromFile): only a GIF keeps the 3 MB limit.

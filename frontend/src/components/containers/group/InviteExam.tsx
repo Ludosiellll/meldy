@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import { createLink, extendLink, fetchExamDays, revokeLink } from '../../../api/containers';
 import { copyText } from '../../../lib/clipboard';
 import { track } from '../../../lib/telemetry';
-import type { ContainerSummary, LinkCreated, Uuid } from '../../../types/container';
+import { GROUP_MIN_MEMBERS, type ContainerSummary, type LinkCreated, type Uuid } from '../../../types/container';
 import { dayText, errorText, INVITE, MEMBERS, nb } from '../copyImport';
+import { groupSummaryState } from '../model';
 import { useFocusAfter } from '../useFocusAfter';
 import MembersList from './MembersList';
 import GroupBotInvite from '../../telegram/GroupBotInvite';
@@ -20,7 +21,9 @@ import './group.css';
  * fingerprint — with «Скопировать» and a text for the group's chat; this device keeps the code to show it again, closed
  * links' codes too (opened again, the link is on screen again). Under it the link's end and «Продлить», the group's
  * one line, «В экзамене 12 участников · Кто вошёл», with the members (remove, return) and «Закрыть ссылку».
- * «Кто вошёл» stays while anyone ever came in, so a removed member can be returned (usability check M1).
+ * «Кто вошёл» stays while anyone ever came in, so a removed member can be returned (usability check M1). While 1–4
+ * members are in, one muted line under it says that the group's summary comes with 5 (owner, 09.11; the exam's page
+ * says nothing of the group until then).
  *
  * Several links can be open (owner, 04.11: a new link made on a device without the old one's code closed the link 19
  * members had joined by, and nothing said so). A new link closes nothing; every other open link is said in one line
@@ -345,6 +348,8 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
   const linkPlace = creating || linkShown;
   // The group's one line: who is in the exam now; «Пока никто не вошёл» only beside an open link nobody has used yet.
   const seatsLine = everJoined || open.length > 0 || creating ? MEMBERS.inExam(members, everJoined) : null;
+  // The group's summary gives no number about fewer than 5 people: with 1–4 in, when it comes is said here.
+  const summarySoon = groupSummaryState(summary) === 'soon';
   // Every seat of the link on screen taken: said under the group's line, with the way to a new link.
   const full = linkShown && shown && shown.members >= shown.max_members ? shown : null;
   // Open links whose code is not here, while nothing is on screen: said above the way to a new one.
@@ -541,6 +546,11 @@ function InviteDialog({ summary, onClose, onChanged }: Props) {
                   </>
                 ) : null}
               </p>
+              {summarySoon ? (
+                <p className="gr-line" data-muted="">
+                  {INVITE.summarySoon(GROUP_MIN_MEMBERS)}
+                </p>
+              ) : null}
               {full ? (
                 <p className="gr-line">
                   {nb(INVITE.full(full.max_members))}{' '}
