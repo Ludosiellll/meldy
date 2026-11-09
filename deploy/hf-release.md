@@ -4,6 +4,29 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-09 — Release 58: the group's summary for its author, support through the bot, «Данные и приватность» (from the commit of this entry)
+
+- **Why**: the live numbers of 09.11 (a group of 19: 16 people studying in its first week, 6 in the second, then 1 —
+  and its author could not see it; meldy-notes 10_Project/Product_Gaps_2026-11-09.md) and the owner's answer: «да, 2, 3
+  и 4 то что нужно, поддержку можно сделать через бота чтобы писали мне через основного бота».
+- **The group's summary without names**: the author of an exam with 5 or more members gets one quiet line — «Группа: на
+  этой неделе занимались 6 из 19, в среднем выучено 40 %. Подробнее» — and a sheet with the week before, «хотя бы раз»
+  and up to three hard topics (each from 5 different members and 30 answers). No name, no id, no number about fewer
+  than 5 people; after the author removes a member the summary pauses for 7 days and says so. The promise changes
+  where it is made: «Ваши ответы не видит никто. Автор видит ваше имя среди вошедших и общие цифры группы без имён»;
+  members who joined earlier are told once. docs/answers-privacy.md has the rule and its guards.
+- **Support through the bot**: «Написать автору Meldy» (the profile, /privacy) opens the bot with start=support; the bot
+  takes one message, passes it to the owner's own Telegram chat and brings the answer back. The owner's chat is bound
+  once, when the owner presses «Start» in the bot; the repository keeps only a hash of the username.
+- **«Данные и приватность»** (/privacy, open without signing in; linked from the landing, the sign-up page and the
+  profile): what is kept, who sees what, which services process it, how to delete, how to write.
+- **«Запросить удаление»** in the profile: a request that can be taken back, done by hand within 7 days (there is no
+  backup to undo a wrong press); the owner hears of it through the bot.
+- **Before this release**: migrations 20261109090000_group_summary and 20261109090100_bot_support, the telegram
+  function and its /setup (the «support» command).
+- **Checked**: gate green on f30ee7cf (pytest 2842, the bot 465, vitest 7409, the Docker layout build); each migration
+  rehearsed on a scratch PostgreSQL 16 (39 and 33 checks); the live bundle checked after the deploy.
+
 ## 2026-11-08 — Release 57: «Сегодня» reads in its own module, the movement round with the keyboard (from the commit of this entry)
 
 - **Why**: the owner (08.11): «хорошо делай, если это имеет смысл, главное не сломай ничего и перепроверь, а также
