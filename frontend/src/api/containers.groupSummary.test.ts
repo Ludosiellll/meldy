@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import groupSummaryJson from '../../../contracts/container/group_summary.json';
+import groupSummaryPausedJson from '../../../contracts/container/group_summary_paused.json';
 
 /**
  * The author's summary of the group (20261109090000, docs/answers-privacy.md): container_group_summary through the
@@ -54,6 +55,7 @@ describe('container_group_summary', () => {
     expect(read).toEqual({
       members: 6,
       min_members: 5,
+      paused_until: null,
       numbers: {
         studied_7d: 2,
         studied_prev_7d: 5,
@@ -69,7 +71,12 @@ describe('container_group_summary', () => {
 
   it('a group under five: how many are in it and nothing else', async () => {
     db.answer = () => ({ data: { members: 4, min_members: 5 }, error: null, status: 200 });
-    expect(await fetchGroupSummary(C1)).toEqual({ members: 4, min_members: 5, numbers: null });
+    expect(await fetchGroupSummary(C1)).toEqual({ members: 4, min_members: 5, numbers: null, paused_until: null });
+  });
+
+  it('the pause after the author removed a member: the day the numbers come back, and no number', async () => {
+    db.answer = () => ({ data: groupSummaryPausedJson, error: null, status: 200 });
+    expect(await fetchGroupSummary(C1)).toEqual({ members: 6, min_members: 5, numbers: null, paused_until: '2026-12-27' });
   });
 
   it('not the caller’s exam (a member, a stranger): P0002, as the other author’s reads', async () => {
@@ -98,13 +105,26 @@ describe('normalizeGroupSummary: what the page may draw', () => {
   it('never gives numbers about fewer than five people, whatever the body says', () => {
     expect(GROUP_MIN_MEMBERS).toBe(5);
     // Numbers that should not have come for 4 members are dropped.
-    expect(normalizeGroupSummary({ ...full, members: 4 })).toEqual({ members: 4, min_members: 5, numbers: null });
+    const none = { numbers: null, paused_until: null };
+    expect(normalizeGroupSummary({ ...full, members: 4 })).toEqual({ members: 4, min_members: 5, ...none });
     // A threshold lower than ours is not taken: 3 members stay without numbers.
-    expect(normalizeGroupSummary({ ...full, members: 3, min_members: 2 })).toEqual({ members: 3, min_members: 5, numbers: null });
+    expect(normalizeGroupSummary({ ...full, members: 3, min_members: 2 })).toEqual({ members: 3, min_members: 5, ...none });
     // A higher one is the server's to set.
-    expect(normalizeGroupSummary({ ...full, members: 7, min_members: 8 })).toEqual({ members: 7, min_members: 8, numbers: null });
+    expect(normalizeGroupSummary({ ...full, members: 7, min_members: 8 })).toEqual({ members: 7, min_members: 8, ...none });
     // Five members without the numbers (an older body): none are made up.
-    expect(normalizeGroupSummary({ members: 5, min_members: 5 })).toEqual({ members: 5, min_members: 5, numbers: null });
+    expect(normalizeGroupSummary({ members: 5, min_members: 5 })).toEqual({ members: 5, min_members: 5, ...none });
+  });
+
+  it('the pause: its day and never a number beside it; a day that is not one is no pause; none under five', () => {
+    const paused = { members: 19, min_members: 5, paused_until: '2026-11-16' };
+    expect(normalizeGroupSummary(paused)).toEqual({ members: 19, min_members: 5, numbers: null, paused_until: '2026-11-16' });
+    // Numbers that came beside a pause are not drawn: the pause is there so that they are not.
+    expect(normalizeGroupSummary({ ...full, paused_until: '2026-11-16' })).toEqual({ members: 19, min_members: 5, numbers: null, paused_until: '2026-11-16' });
+    for (const day of ['завтра', '16.11.2026', '2026-13-40', '2026-11-16T10:00:00Z', 20261116, null, '']) {
+      expect(normalizeGroupSummary({ ...paused, paused_until: day }).paused_until).toBeNull();
+    }
+    // Under five the page says nothing of the group, a pause included.
+    expect(normalizeGroupSummary({ ...paused, members: 4 })).toEqual({ members: 4, min_members: 5, numbers: null, paused_until: null });
   });
 
   it('keeps each count within the group and the percents within 0–100', () => {
@@ -139,7 +159,7 @@ describe('normalizeGroupSummary: what the page may draw', () => {
       names: ['Первая Выдуманная'],
       hard_topics: [{ subject: 'Сети', topic: null, answers: 30, wrong_pct: 67, user_id: '9a000000-0000-4000-8000-000000000001', name: 'Первая Выдуманная' }],
     });
-    expect(Object.keys(read).sort()).toEqual(['members', 'min_members', 'numbers']);
+    expect(Object.keys(read).sort()).toEqual(['members', 'min_members', 'numbers', 'paused_until']);
     expect(Object.keys(read.numbers ?? {}).sort()).toEqual(['hard_topics', 'learned_pct', 'studied_7d', 'studied_ever', 'studied_prev_7d']);
     expect(Object.keys(read.numbers?.hard_topics[0] ?? {}).sort()).toEqual(['answers', 'subject', 'topic', 'wrong_pct']);
     expect(JSON.stringify(read)).not.toMatch(/9a000000|Выдуманная/);

@@ -2,8 +2,9 @@
 -- nothing when every check holds (supabase/migrate.py); it raises the name of the first one that does not. Catalog only.
 -- Checks: public.container_group_summary(uuid) is there, returns jsonb, is STABLE, SECURITY DEFINER with an empty
 -- search_path; authenticated may run it, anon and the service role may not; its body keeps the guards of
--- docs/answers-privacy.md — the caller must be the exam's author (28000, P0002), no number under 5 members, a topic
--- only from 5 different members and 30 answers, members who left or were removed and the author left out, the rows of
+-- docs/answers-privacy.md — the caller must be the exam's author (28000, P0002), no number under 5 members, no number
+-- for 7 days after the author removed a member (the pause, decided before any number is read), a topic only from 5
+-- different members and 30 answers, members who left or were removed and the author left out, the rows of
 -- quiz_send_mistakes (source 'quiz') left out — and builds no key that could say who (no account id, no name, no read
 -- of public.profiles or auth.users). The behaviour is rehearsed locally: supabase/tests/local/group_summary_run.sh.
 DO $check$
@@ -14,6 +15,7 @@ DECLARE
   v_src text;
   v_need text;
   v_ban text;
+  v_pause text;
 BEGIN
   IF v_fn IS NULL THEN
     RAISE EXCEPTION 'function_missing';
@@ -61,6 +63,11 @@ BEGIN
     'if v_members < c_min then',
     'return pg_catalog.jsonb_build_object(''members'', v_members, ''min_members'', c_min);',
     'm.left_at is null and m.removed_at is null and m.user_id <> v_user',
+    'v_week timestamptz := v_now - pg_catalog.make_interval(hours => 168);',
+    'select pg_catalog.max(m.removed_at) into v_removed',
+    'where m.container_id = p_container_id and m.removed_at > v_week;',
+    'if v_removed is not null then',
+    '''paused_until'', ((v_removed + pg_catalog.make_interval(hours => 168)) at time zone ''Europe/Minsk'')::date);',
     'c_topic_answers constant integer := 30;',
     'having pg_catalog.count(distinct a.user_id) >= c_min and pg_catalog.count(*) >= c_topic_answers',
     'on i.id = st.item_id and i.rev = st.item_rev and i.keyed',
@@ -71,6 +78,16 @@ BEGIN
       RAISE EXCEPTION 'guard_missing: %', v_need;
     END IF;
   END LOOP;
+  -- The pause is decided before any number is read: its return stands before the statement that counts.
+  IF pg_catalog.strpos(v_src, 'if v_removed is not null then') > pg_catalog.strpos(v_src, 'with mem as materialized')
+     OR pg_catalog.strpos(v_src, 'if v_members < c_min then') > pg_catalog.strpos(v_src, 'if v_removed is not null then') THEN
+    RAISE EXCEPTION 'pause_before_the_numbers';
+  END IF;
+  -- And it gives no number: between its «if» and its «end if» nothing of the numbers is built.
+  v_pause := pg_catalog.substring(v_src, 'if v_removed is not null then(.*?)end if;');
+  IF v_pause IS NULL OR v_pause ~ 'studied|learned|hard_topics|test_answers|test_item_states' THEN
+    RAISE EXCEPTION 'pause_gives_no_numbers';
+  END IF;
   -- Both reads of the answers leave out the rows the author's «send the mistakes» wrote, and take the members' only.
   IF (pg_catalog.length(v_src) - pg_catalog.length(pg_catalog.replace(v_src, 'a.source <> ''quiz''', ''))) / pg_catalog.length('a.source <> ''quiz''') <> 2 THEN
     RAISE EXCEPTION 'quiz_rows_left_out_twice';

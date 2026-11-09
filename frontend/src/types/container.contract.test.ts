@@ -48,6 +48,7 @@ import linkPreviewJson from '../../../contracts/container/link_preview.json';
 import doubtsJson from '../../../contracts/container/doubts.json';
 import oralSyncJson from '../../../contracts/container/oral_sync.json';
 import groupSummaryJson from '../../../contracts/container/group_summary.json';
+import groupSummaryPausedJson from '../../../contracts/container/group_summary_paused.json';
 import parseTwoSubjectsJson from '../../../contracts/container/parse_bank_two_subjects.json';
 import parseOpenJson from '../../../contracts/container/parse_bank_open.json';
 
@@ -99,6 +100,7 @@ const preview = sample<LinkPreview>()(linkPreviewJson, true);
 const doubts = sample<DoubtRow[]>()(doubtsJson, true);
 const oralSync = sample<OralSyncResponse>()(oralSyncJson, true);
 const groupSummary = sample<GroupSummaryWire>()(groupSummaryJson, true);
+const groupSummaryPaused = sample<GroupSummaryWire>()(groupSummaryPausedJson, true);
 const parseTwoSubjects = sample<BankParseResult>()(parseTwoSubjectsJson, true);
 const parseOpen = sample<BankParseResult>()(parseOpenJson, true);
 
@@ -465,6 +467,18 @@ describe('one container across the samples', () => {
     }
     expect(topics.map((t) => t.wrong_pct)).toEqual([...topics.map((t) => t.wrong_pct)].sort((a, b) => b - a));
     expect(JSON.stringify(groupSummaryJson)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-|user|name/);
+  });
+
+  it('pauses the group’s numbers for 7 days after the author removed a member: a day, and nothing else', () => {
+    // 20261109090000: before and after a removal the numbers would differ by one person
+    expect(Object.keys(groupSummaryPausedJson).sort()).toEqual(['members', 'min_members', 'paused_until']);
+    expect(groupSummaryPaused.members).toBe(summary.owner?.members);
+    expect(groupSummaryPaused.min_members).toBe(groupSummary.min_members);
+    expect(groupSummaryPaused.paused_until).toMatch(DAY);
+    const left = daysFrom(groupSummaryPaused.paused_until ?? '', summary.day);
+    expect(left >= 0 && left <= 8).toBe(true);
+    // The numbers and the pause never come together.
+    expect(groupSummary.paused_until).toBeUndefined();
   });
 
   it('previews the group link with the same subjects and their questions with a key', () => {

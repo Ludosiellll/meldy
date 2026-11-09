@@ -3,6 +3,7 @@ import type { ContainerSummary } from '../../types/container';
 import type { GroupSummary } from '../../types/groupSummary';
 import { fetchGroupSummary } from '../../api/containers';
 import { useAuth } from '../../hooks/useAuth';
+import { dayText } from '../../lib/containers/words';
 import { NoteLine, Sheet } from './ui';
 import * as copy from './copy';
 import { groupSummaryState } from './model';
@@ -16,6 +17,10 @@ import { GROUP_NOTE_JOINED_BEFORE, groupNoteSeen, markGroupNoteSeen } from './se
  * 19, в среднем выучено 40 %. Подробнее» — and «Подробнее» opens the sheet «Группа»: this week, the week before, ever,
  * the average share learned, the hard topics. No card and no button of the page's own (the owner finds the page full
  * already). The numbers are the group's: never a name, never a person's answers.
+ *
+ * For 7 days after the author removed a member the database gives no numbers (before and after they would differ by
+ * that one person; «Вернуть» ends it at once). The line then says when the summary is there again and why — «Сводка
+ * группы снова появится 16 ноября: состав группы менялся.» — with nothing to open.
  *
  * The read is lazy: only for the author, only from 5 members, only for an exam with questions that count, and not
  * without network. Its failure is quiet: no line. The line's place is kept from the first paint (a hidden line of the
@@ -94,6 +99,9 @@ export function useGroupLine(summary: ContainerSummary, enabled: boolean): { lin
   // Another exam in the same page (the address changed): its own last numbers, or its place kept.
   const current = state.id === id ? state : { id, value: last.get(id) ?? null, done: last.has(id) };
   const numbers = current.value?.numbers ?? null;
+  const pausedDay = current.value?.paused_until ? pausedDayText(current.value.paused_until) : '';
+  // The pause: one line with nothing to press; an open sheet goes with the numbers it showed.
+  if (pausedDay) return { line: <NoteLine key="group" text={copy.groupPaused(pausedDay)} />, sheet: null };
   if (!current.value || !numbers) {
     if (current.done) return { line: null, sheet: null };
     return {
@@ -125,6 +133,15 @@ export function useGroupLine(summary: ContainerSummary, enabled: boolean): { lin
     />
   ) : null;
   return { line, sheet };
+}
+
+/** «16 ноября» of the pause's day; '' for a day the words cannot read (then the page says nothing). */
+function pausedDayText(day: string): string {
+  try {
+    return dayText(day);
+  } catch {
+    return '';
+  }
 }
 
 /** «Группа»: the counts, the share, the hard topics, and that it has no names. Nothing to do in it but read. */

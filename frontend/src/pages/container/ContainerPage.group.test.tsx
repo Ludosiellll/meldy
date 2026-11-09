@@ -69,6 +69,7 @@ const group = (members: number): Parameters<typeof summary>[0] => ({ owner: { me
 const numbers = (overrides: Partial<NonNullable<GroupSummary['numbers']>> = {}, members = 19): GroupSummary => ({
   members,
   min_members: 5,
+  paused_until: null,
   numbers: {
     studied_7d: 6,
     studied_prev_7d: 16,
@@ -222,6 +223,79 @@ describe('«Подробнее»: the sheet «Группа»', () => {
   });
 });
 
+describe('the pause after the author removed a member', () => {
+  const PAUSED = 'Сводка группы снова появится 16 ноября: состав группы менялся.';
+  const paused = (members = 18): GroupSummary => ({ members, min_members: 5, numbers: null, paused_until: '2026-11-16' });
+
+  it('one quiet line says when the summary comes back and why; no numbers, no «Подробнее», no sheet', async () => {
+    mocks.fetchGroupSummary.mockResolvedValue(paused());
+    renderPage(loaded(containerData({ summary: summary(group(18)) })));
+    await waitFor(() => expect(notes()).toContain(PAUSED));
+    const shown = notes();
+    expect(shown[shown.length - 1]).toBe(PAUSED);
+    expect(page()).not.toContain('Группа:');
+    expect(page()).not.toContain('занимал');
+    expect(screen.queryByRole('button', { name: 'Подробнее' })).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.querySelector('[data-wait]')).toBeNull();
+    // A line of the page like the others, with nothing to press.
+    const line = Array.from(document.querySelectorAll<HTMLElement>('.ct-notes .ct-note')).find((node) => plain(node.textContent) === PAUSED);
+    expect(line?.querySelector('button, a')).toBeNull();
+    // The day stays with its month.
+    expect(line?.textContent).toContain(`16${NB}ноября`);
+  });
+
+  it('the member removed while the numbers were on the page: they give way to the pause, and come back with the member', async () => {
+    // A new element each time: the same one again would not draw the page anew.
+    const route = () => (
+      <MemoryRouter initialEntries={[`/exams/c/${CONTAINER}`]}>
+        <Routes>
+          <Route path="/exams/c/:id" element={<ContainerPage />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const view = renderPage(loaded(containerData({ summary: summary(group(19)) })));
+    await screen.findByRole('button', { name: 'Подробнее' });
+    // «Убрать»: the page reads its summary again with 18 members, and the group's numbers are asked for anew.
+    mocks.fetchGroupSummary.mockResolvedValue(paused());
+    mocks.state = loaded(containerData({ summary: summary(group(18)) }));
+    view.rerender(route());
+    await waitFor(() => expect(notes()).toContain(PAUSED));
+    expect(screen.queryByRole('button', { name: 'Подробнее' })).toBeNull();
+    // «Вернуть»: 19 again, and the numbers as they were.
+    mocks.fetchGroupSummary.mockResolvedValue(numbers());
+    mocks.state = loaded(containerData({ summary: summary(group(19)) }));
+    view.rerender(route());
+    await waitFor(() => expect(notes()).toContain(`${LINE} Подробнее`));
+    expect(notes()).not.toContain(PAUSED);
+    expect(mocks.fetchGroupSummary).toHaveBeenCalledTimes(3);
+  });
+
+  it('the sheet open when the pause comes: it closes with the numbers', async () => {
+    const view = renderPage(loaded(containerData({ summary: summary(group(19)) })));
+    fireEvent.click(await screen.findByRole('button', { name: 'Подробнее' }));
+    expect(screen.getByRole('dialog', { name: 'Группа' })).toBeTruthy();
+    mocks.fetchGroupSummary.mockResolvedValue(paused());
+    mocks.state = loaded(containerData({ summary: summary(group(18)) }));
+    view.rerender(
+      <MemoryRouter initialEntries={[`/exams/c/${CONTAINER}`]}>
+        <Routes>
+          <Route path="/exams/c/:id" element={<ContainerPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(notes()).toContain(PAUSED));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('a one-subject exam says the pause on the subject’s page', async () => {
+    mocks.fetchGroupSummary.mockResolvedValue(paused());
+    renderPage(loaded(containerData({ summary: summary({ subjects: [subject()], owner: { members: 18, doubts_open: 0, links: [] } }) })));
+    await waitFor(() => expect(notes()).toContain(PAUSED));
+    expect(document.querySelector('[data-view="subject"]')).not.toBeNull();
+  });
+});
+
 describe('fewer than five, a failure, a member: nothing on the page', () => {
   it.each([0, 1, 4])('%i members: no line and no read', async (members) => {
     renderPage(loaded(containerData({ summary: summary(group(members)) })));
@@ -233,7 +307,7 @@ describe('fewer than five, a failure, a member: nothing on the page', () => {
   });
 
   it('the server gives no numbers (the group fell under five since the page was read): no line', async () => {
-    mocks.fetchGroupSummary.mockResolvedValue({ members: 4, min_members: 5, numbers: null });
+    mocks.fetchGroupSummary.mockResolvedValue({ members: 4, min_members: 5, numbers: null, paused_until: null });
     renderPage(loaded(containerData({ summary: summary(group(5)) })));
     await waitFor(() => expect(mocks.fetchGroupSummary).toHaveBeenCalledTimes(1));
     await act(async () => {});

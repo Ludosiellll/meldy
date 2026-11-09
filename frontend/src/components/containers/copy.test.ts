@@ -251,6 +251,9 @@ describe('copy.ts: the words of the exam screens', () => {
     expect(copy.groupLine(6, 19, 40)).toContain(`40${copy.NBSP}%`);
     // the line's place while the numbers are read: the same words, no number made up
     expect(plain(copy.groupLinePlace(19))).toBe('Группа: на этой неделе занимались – из 19, в среднем выучено – %.');
+    // the pause after the author removed a member: when the numbers come back, and why
+    expect(plain(copy.groupPaused('16 ноября'))).toBe('Сводка группы снова появится 16 ноября: состав группы менялся.');
+    expect(copy.groupPaused(`16${copy.NBSP}ноября`)).toContain(`16${copy.NBSP}ноября`);
     expect(copy.GROUP_MORE).toBe('Подробнее');
     expect(copy.GROUP_TITLE).toBe('Группа');
     expect(plain(copy.groupWeekRow(6, 19))).toBe('Занимались на этой неделе: 6 из 19');

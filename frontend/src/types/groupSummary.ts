@@ -7,7 +7,7 @@
  * In a file of its own, not in ./container.ts: that file is copied byte for byte to the Telegram bot
  * (scripts/sync_bot_plan.mjs), and the bot has nothing to do with the summary.
  */
-import type { Uuid } from './container';
+import type { DayKey, Uuid } from './container';
 
 /** The smallest group the summary gives numbers about. The database decides (`min_members`); the site never takes less. */
 export const GROUP_MIN_MEMBERS = 5;
@@ -30,16 +30,26 @@ export interface GroupNumbers {
   /** At most 3, the highest share of wrong answers first; a topic needs 5 different members and 30 answers. */
   hard_topics: GroupHardTopic[];
 }
-/** What the function returns: the numbers come only from `min_members` members. */
+/**
+ * What the function returns: the numbers come only from `min_members` members, and not while it is paused. The pause:
+ * for 7 days after the author removed a member (and has not restored them) there is no number, only `paused_until`,
+ * the day they come back (the Europe/Minsk day) — before and after a removal the numbers would differ by that one
+ * person. contracts/container/group_summary_paused.json is a sample.
+ */
 export interface GroupSummaryWire extends Partial<GroupNumbers> {
   members: number;
   min_members: number;
+  paused_until?: DayKey;
 }
-/** What the page reads (api/containers normalizeGroupSummary): `numbers` null — a group under `min_members`. */
+/**
+ * What the page reads (api/containers normalizeGroupSummary): `numbers` null — a group under `min_members`, or a pause;
+ * `paused_until` — the day the numbers come back, null when there is no pause (never beside numbers).
+ */
 export interface GroupSummary {
   members: number;
   min_members: number;
   numbers: GroupNumbers | null;
+  paused_until: DayKey | null;
 }
 /** The RPC, as ContainerRpc lists the others: the exam's author only (P0002 for a member or a stranger). */
 export interface GroupSummaryRpc {

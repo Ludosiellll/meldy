@@ -10,7 +10,8 @@
 #      of the base's catalog changes or goes; exactly one line is new, the function, SECURITY DEFINER, STABLE, with an
 #      empty search_path, run by authenticated and by no other API role → the contract (supabase/tests/group_summary.sql)
 #      → group_summary_behaviour.sql (who may read; 4 members no numbers, 5 the numbers counted by hand; a topic of 4
-#      members never shown; left and removed members; no id and no name in the answer);
+#      members never shown; left and removed members; the pause of 7 days after the author removes a member, ended by
+#      restoring them; no id and no name in the answer);
 #   3. the time: an exam of 960 questions with 20 members and 10 000 answers of theirs beside 40 000 answers of another
 #      group, seeded in a transaction that is rolled back; the function is run five times (the median is printed and
 #      must stay under GROUP_SUMMARY_MAX_MS, 250) and its plan must read the answers through the exam's index and the
@@ -242,7 +243,7 @@ ACL=$(q "select coalesce(proacl::text, 'default') from pg_proc where oid = 'publ
 if echo "$ACL" | grep -q 'authenticated=X/' && ! echo "$ACL" | grep -Eq '(^\{|,)=X/|anon=|service_role='; then ok "it runs for authenticated and no other API role" "$ACL"
 else bad "the function's grants" "$ACL"; fi
 step "contract: supabase/tests/group_summary.sql" "$CONTRACT"
-if behaviour; then ok "behaviour: who may read, 4 and 5 members, the numbers by hand, no names" "GROUP SUMMARY CHECKS PASSED"
+if behaviour; then ok "behaviour: who may read, 4 and 5 members, the numbers by hand, the pause, no names" "GROUP SUMMARY CHECKS PASSED"
 else bad "behaviour" "$(why)"; fi
 
 echo "3. the time"

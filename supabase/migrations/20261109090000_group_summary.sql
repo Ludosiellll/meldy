@@ -13,9 +13,11 @@
 --
 -- What this file adds: public.container_group_summary(p_container_id) → jsonb, for the exam's author only.
 --   {members, min_members}                           while fewer than 5 members are in the exam: no other number;
+--   {members, min_members, paused_until}             from 5 members, for 7 days after the author removed one;
 --   {members, min_members, studied_7d, studied_prev_7d, studied_ever, learned_pct, hard_topics}   from 5 members.
 --   members          who is in the exam now: not left, not removed (the number container_summary gives its author);
 --   min_members      5: under it the function gives no number about the group;
+--   paused_until     'YYYY-MM-DD': the day the numbers come back; see «The pause» below;
 --   studied_7d       members with at least one answer of their own in this exam in the last 7 days (168 hours);
 --   studied_prev_7d  the same for the 7 days before those;
 --   studied_ever     the same for any time;
@@ -38,6 +40,17 @@
 -- Oral answers are not read at all (they live in the journal of the member's own copy, docs/answers-privacy.md).
 -- What never leaves: an account id, a name, a row or a number about one person. No number is given about fewer than 5
 -- people: the whole answer needs 5 members, a topic 5 different members who answered in it.
+-- The pause. The author decides who is in the group («Убрать», «Вернуть»: container_member_remove), so two answers,
+-- one before a member is removed and one after, would differ by exactly that member: a number about one person. So
+-- while any member of the exam was removed by the author in the last 7 days (removed_at within 168 hours) and has not
+-- been restored, the function gives no number: only members, min_members and paused_until, the day the latest such
+-- removal is 7 days old. Restoring the member (removed_at back to null) ends the pause at once, with the numbers as
+-- they were: remove, read, restore shows nothing. A member who left on their own (left_at) starts no pause: that is
+-- theirs to decide and not the author's to repeat. The day is the Europe/Minsk day, the product's zone, as
+-- meldy_private.first_plan_day takes its days (the server does not know the device's zone). Under 5 members the
+-- answer is members and min_members only, pause or not. What the pause does not close is said in
+-- docs/answers-privacy.md: an author who keeps a member out for a week can still compare, across that week, the numbers
+-- that do not move in a group that has stopped.
 -- Errors (SQLSTATE), as container_members_list: 28000 not signed in; P0002 not the caller's exam (a member and a
 -- stranger read the same «not found»).
 -- Time: every window is counted in hours from now(), so the session's TimeZone never matters. The scan of the last 30
@@ -77,6 +90,7 @@ declare
   v_prev timestamptz := v_now - pg_catalog.make_interval(hours => 336);
   v_month timestamptz := v_now - pg_catalog.make_interval(hours => 720);
   v_members integer;
+  v_removed timestamptz;
   v_out jsonb;
 begin
   if v_user is null then
@@ -90,6 +104,15 @@ begin
    where m.container_id = p_container_id and m.left_at is null and m.removed_at is null and m.user_id <> v_user;
   if v_members < c_min then
     return pg_catalog.jsonb_build_object('members', v_members, 'min_members', c_min);
+  end if;
+  -- The pause: the author removed a member in the last 7 days and has not restored them. No number meanwhile, or the
+  -- answers before and after would differ by that one member.
+  select pg_catalog.max(m.removed_at) into v_removed
+    from public.container_members m
+   where m.container_id = p_container_id and m.removed_at > v_week;
+  if v_removed is not null then
+    return pg_catalog.jsonb_build_object('members', v_members, 'min_members', c_min,
+      'paused_until', ((v_removed + pg_catalog.make_interval(hours => 168)) at time zone 'Europe/Minsk')::date);
   end if;
 
   with mem as materialized (
@@ -173,7 +196,7 @@ begin
 end;
 $fn$;
 comment on function public.container_group_summary(uuid) is
-  'The exam''s author only: the group''s numbers without names (members, who studied in the last 7 days, the 7 days before and ever, the average share of learned questions, up to 3 hard topics). No number about fewer than 5 people; no account id, no name. 20261109090000_group_summary, docs/answers-privacy.md.';
+  'The exam''s author only: the group''s numbers without names (members, who studied in the last 7 days, the 7 days before and ever, the average share of learned questions, up to 3 hard topics). No number about fewer than 5 people, and none for 7 days after the author removed a member (paused_until); no account id, no name. 20261109090000_group_summary, docs/answers-privacy.md.';
 
 -- Grants. PostgreSQL gives PUBLIC EXECUTE on a new function and Supabase's default privileges give anon,
 -- authenticated and service_role more: taken back here. The function runs for authenticated only (it asks auth.uid()

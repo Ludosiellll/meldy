@@ -8,8 +8,10 @@
 -- without a key, a question set aside by an open doubt, a state of an older key); the topics (5 different members and
 -- 30 answers, a topic 4 members answered never shows, «Нажали не туда?», a repeat, an older key and an answer older
 -- than 30 days do not count, a topic without a title, questions without a topic, the top 3); members who left or were
--- removed (their numbers go, a topic that loses its fifth member goes); an exam without a question that counts; and
--- that nothing in the answer is an account id or a name.
+-- removed (their numbers go, a topic that loses its fifth member goes); the pause after the author removes a member (no
+-- number and the day they come back; «Вернуть» brings the same numbers back at once; 167 and 169 hours; two removals;
+-- a member who left on their own starts none; under five there is nothing to pause); an exam without a question that
+-- counts; and that nothing in the answer is an account id or a name.
 -- One transaction, rolled back. A failure raises (FAILED: …); success prints GROUP SUMMARY CHECKS PASSED. Roles as
 -- PostgREST sets them: authenticated (request.jwt.claim.sub); postgres for the fixtures (answers of a known age and
 -- learned states cannot be made through the functions: they stamp now()).
@@ -103,6 +105,25 @@ returns void language sql as $fn$
          now() - interval '3 days', current_date - 3, now() - interval '1 day', current_date - 1,
          now() - interval '1 day', now() - interval '1 day'
     from public.test_items i where i.id = pg_temp.c(p_item)::uuid
+$fn$;
+-- The author removes a member of the exam `c` («Убрать»), or takes them back («Вернуть»).
+create or replace function pg_temp.remove(p_who text, p_restore boolean default false) returns void language plpgsql as $fn$
+begin
+  perform pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
+  perform public.container_member_remove(pg_temp.c('c')::uuid, pg_temp.c(p_who)::uuid, p_restore);
+  perform pg_temp.as_role('postgres');
+end;
+$fn$;
+-- Time passes: p_who was removed p_age ago.
+create or replace function pg_temp.removed_ago(p_who text, p_age interval) returns void language sql as $fn$
+  update public.container_members set removed_at = now() - p_age
+   where container_id = pg_temp.c('c')::uuid and user_id = pg_temp.c(p_who)::uuid
+$fn$;
+-- The answer during a pause: p_members in the exam, the numbers back 168 hours after a removal made p_age ago, said
+-- as the Europe/Minsk day of that moment (counted here on its own: the session's zone is another one).
+create or replace function pg_temp.paused(p_members integer, p_age interval) returns jsonb language sql stable as $fn$
+  select jsonb_build_object('members', p_members, 'min_members', 5, 'paused_until',
+           to_char((now() - p_age + interval '168 hours') at time zone 'Europe/Minsk', 'YYYY-MM-DD'))
 $fn$;
 -- The hard topics of an answer as text: «Предмет/Тема answers wrong_pct», in the answer's order.
 create or replace function pg_temp.topics(p_r jsonb) returns text language sql as $fn$
@@ -308,36 +329,77 @@ select pg_temp.as_role('authenticated', pg_temp.c('m7')::uuid);
 select public.container_leave(pg_temp.c('c')::uuid);
 select pg_temp.as_role('postgres');
 select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '6 2 2 5 15', 'a member who left is not counted', pg_temp.summary());
+-- Leaving is the member's own: it starts no pause (the numbers above came at once).
+select pg_temp.check(not (pg_temp.summary() ? 'paused_until'), 'a member who left on their own starts no pause', pg_temp.summary());
 select pg_temp.check(pg_temp.topics(pg_temp.summary())
                      = 'Базы данных/Индексы 41 73; Сети/(весь предмет) 30 67; Базы данных/Транзакции 40 45',
                      'their answers leave the topics', pg_temp.summary());
 
--- 9. An eighth member studies; the author removes them. Then the author removes M5, the fifth member of every topic.
+-- 9. The pause. An eighth member studies and counts; then the author removes them.
+select pg_temp.put('before_m8', pg_temp.summary()::text);
 select pg_temp.join('m8');
 select pg_temp.answers('m8', 't1a', 4, 4, '1 hour');
 select pg_temp.learned('m8', 't1a'), pg_temp.learned('m8', 't1b'), pg_temp.learned('m8', 't1c');
 -- Learned: (0.8736 + 3/14) / 7 = 0.1554 → 16.
 select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '7 3 2 6 16', '7 members again: the eighth counts', pg_temp.summary());
-select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
-select public.container_member_remove(pg_temp.c('c')::uuid, pg_temp.c('m8')::uuid);
-select pg_temp.as_role('postgres');
-select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '6 2 2 5 15', 'a removed member is not counted', pg_temp.summary());
-select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
-select public.container_member_remove(pg_temp.c('c')::uuid, pg_temp.c('m5')::uuid);
-select pg_temp.as_role('postgres');
+select pg_temp.put('with_m8', pg_temp.summary()::text);
+-- 9a. «Убрать»: no number at all, only how many are in and the day the numbers come back, 7 days from the removal.
+--     Before and after would differ by M8 alone: 3 and 2 this week, 6 and 5 ever.
+select pg_temp.remove('m8');
+select pg_temp.check(pg_temp.summary() = pg_temp.paused(6, '0 hours'), 'a member removed: no numbers, the day they come back', pg_temp.summary());
+select pg_temp.check((pg_temp.summary() ->> 'paused_until') ~ '^\d{4}-\d{2}-\d{2}$', 'paused_until is a day', pg_temp.summary());
+-- 9b. «Вернуть»: the numbers are back at once and are what they were. Remove, read, restore shows nothing.
+select pg_temp.remove('m8', true);
+select pg_temp.check(pg_temp.summary()::text = pg_temp.c('with_m8'), 'the member restored: the same numbers as before the removal', pg_temp.summary());
+-- 9c. Removed again, and time passes. 167 hours: still no numbers, the same day as the removal set. 169 hours and 8
+--     days: the numbers, without the removed member — exactly those of the group before M8 came in.
+select pg_temp.remove('m8');
+select pg_temp.removed_ago('m8', '167 hours');
+select pg_temp.check(pg_temp.summary() = pg_temp.paused(6, '167 hours'), 'removed 167 hours ago: still paused, until the same day', pg_temp.summary());
+-- The day is the Europe/Minsk day of the moment the pause ends: one that ends at 22:30 UTC ends on the next day there
+-- (01:30). The removal is put 168 hours before the next 22:30 UTC, so it is always inside the pause.
+do $t$
+declare
+  v_end timestamptz := date_trunc('day', now() at time zone 'utc') at time zone 'utc' + interval '22 hours 30 minutes';
+begin
+  if v_end <= now() then v_end := v_end + interval '24 hours'; end if;
+  update public.container_members set removed_at = v_end - interval '168 hours'
+   where container_id = pg_temp.c('c')::uuid and user_id = pg_temp.c('m8')::uuid;
+  perform pg_temp.check(pg_temp.summary() ->> 'paused_until' = to_char((v_end at time zone 'utc')::date + 1, 'YYYY-MM-DD'),
+                        'the day is counted in Europe/Minsk, not in UTC and not in the session''s zone', pg_temp.summary());
+end;
+$t$;
+select pg_temp.removed_ago('m8', '169 hours');
+select pg_temp.check(pg_temp.summary()::text = pg_temp.c('before_m8'), 'removed 169 hours ago: the numbers, the removed member not counted', pg_temp.summary());
+select pg_temp.removed_ago('m8', '8 days');
+select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '6 2 2 5 15' and not (pg_temp.summary() ? 'paused_until'),
+                     'a removal 8 days ago: no pause, a removed member is not counted', pg_temp.summary());
+-- 9d. Two removals: the day is the later one's. M8 three days ago, then M5 now (the fifth member of every topic).
+select pg_temp.removed_ago('m8', '72 hours');
+select pg_temp.remove('m5');
+select pg_temp.check(pg_temp.summary() = pg_temp.paused(5, '0 hours'), 'two removals: paused until 7 days from the later one', pg_temp.summary());
+-- M5's removal grows old first: M8's still holds the pause, until its own day.
+select pg_temp.removed_ago('m5', '8 days');
+select pg_temp.check(pg_temp.summary() = pg_temp.paused(5, '72 hours'), 'the older removal still pauses, until its own day', pg_temp.summary());
+select pg_temp.removed_ago('m8', '8 days');
 -- M1…M4 and M6 are left: 5 members, 4 of them ever answered. Learned: 0.8736 / 5 → 17. No topic has a fifth member.
 select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '5 2 2 4 17', 'without M5: 5 members, 4 ever', pg_temp.summary());
 select pg_temp.check(pg_temp.summary() -> 'hard_topics' = '[]'::jsonb, 'a topic that lost its fifth member is not shown', pg_temp.summary());
-select pg_temp.as_role('authenticated', pg_temp.c('a')::uuid);
-select public.container_member_remove(pg_temp.c('c')::uuid, pg_temp.c('m5')::uuid, true);
-select pg_temp.as_role('postgres');
-select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '6 2 2 5 15', 'M5 is back', pg_temp.summary());
+select pg_temp.remove('m5', true);
+select pg_temp.check(pg_temp.summary()::text = pg_temp.c('before_m8'), 'M5 is back: the numbers of the six', pg_temp.summary());
 
--- 10. The group falls under five again: the numbers go.
+-- 10. The group falls under five again: the numbers go. Leaving on one's own pauses nothing on the way.
 select pg_temp.as_role('authenticated', pg_temp.c('m6')::uuid);
 select public.container_leave(pg_temp.c('c')::uuid);
 select pg_temp.as_role('postgres');
-select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '5 2 2 5 17', '5 members: still the numbers', pg_temp.summary());
+select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '5 2 2 5 17' and not (pg_temp.summary() ? 'paused_until'),
+                     '5 members after one left on their own: still the numbers, no pause', pg_temp.summary());
+-- Under five there is nothing to pause: a removal that leaves 4 gives members and min_members only, and the member
+-- restored brings the five's numbers back.
+select pg_temp.remove('m5');
+select pg_temp.check(pg_temp.summary() = '{"members": 4, "min_members": 5}'::jsonb, '4 members after a removal: no numbers, no day', pg_temp.summary());
+select pg_temp.remove('m5', true);
+select pg_temp.check(pg_temp.numbers(pg_temp.summary()) = '5 2 2 5 17', 'restored: the five again', pg_temp.summary());
 select pg_temp.as_role('authenticated', pg_temp.c('m1')::uuid);
 select public.container_leave(pg_temp.c('c')::uuid);
 select pg_temp.as_role('postgres');

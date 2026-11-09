@@ -271,6 +271,13 @@ export function groupLine(studied: number, members: number, learnedPct: number |
 }
 /** The line's place while its numbers are read: the same words, so it takes as many lines; never shown. */
 export const groupLinePlace = (members: number) => glue(`Группа: на этой неделе занимались – из ${members}, в среднем выучено – %.`);
+/**
+ * The pause: for 7 days after the author removed a member the summary gives no numbers (before and after they would
+ * differ by that one person). The line says when it is there again and why; `day` is «16 ноября». «Снова появится»,
+ * as «Пригласить группу» says «появится»: copy.test.ts keeps the word «вернётся» off these screens (the owner's plain
+ * words of 2026-10-21).
+ */
+export const groupPaused = (day: string) => glue(`Сводка группы снова появится ${day}: состав группы менялся.`);
 export const GROUP_MORE = 'Подробнее';
 export const GROUP_TITLE = 'Группа';
 export const groupWeekRow = (n: number, members: number) => glue(`Занимались на этой неделе: ${outOf(n, members)}`);
