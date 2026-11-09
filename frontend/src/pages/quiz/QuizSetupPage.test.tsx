@@ -358,7 +358,8 @@ describe('QuizSetupPage: who writes, the look, the offer to train (release 47, s
     const toggle = screen.getByRole('checkbox', { name: 'После сдачи предложить тренировать эти вопросы в Meldy' });
     expect(toggle).toHaveAccessibleDescription(
       'Кнопка появится после закрытия контрольной. В тренировке видны все ответы теста. ' +
-        'Кто согласится, появится в списке участников теста. Его ответов вы не увидите — только общие цифры группы без имён.',
+        // A test's page shows its author no numbers of the group, so none are promised (main session, 09.11).
+        'Кто согласится, появится в списке участников теста. Его ответов вы не увидите.',
     );
     expect(screen.queryByText(QA_SETUP.practiceNote)).toBeNull();
     pick(QA_SETUP.who, QA_SETUP.whoOption('members', true));

@@ -143,7 +143,8 @@ export const QA_SETUP = {
   practiceSeen: 'Кто согласится, появится в списке участников экзамена. Его ответов вы не увидите — только общие цифры группы без имён.',
   /** The same of a test (containers.kind 'test', release 47.3). */
   practiceNoteTest: 'Кнопка появится после закрытия контрольной. В тренировке видны все ответы теста.',
-  practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его ответов вы не увидите — только общие цифры группы без имён.',
+  // A test's own page shows its author no numbers of the group (TestHome), so none are promised here.
+  practiceSeenTest: 'Кто согласится, появится в списке участников теста. Его ответов вы не увидите.',
   partLook: 'Оформление',
   cover: 'Обложка',
   // Release 47.4 shrinks a big photo itself (api/itemPictures pictureFromFile): only a GIF keeps the 3 MB limit.
