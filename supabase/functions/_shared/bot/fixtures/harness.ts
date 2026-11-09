@@ -91,7 +91,11 @@ export function recordingPorts(calls: PortCall[], options: { sessionTakesText?: 
   };
 }
 
-export function harness(options: { now?: number; ports?: 'stubs' | 'record'; sessionTakesText?: boolean; filesTake?: boolean; region?: string | null } = {}) {
+export function harness(options: {
+  now?: number; ports?: 'stubs' | 'record'; sessionTakesText?: boolean; filesTake?: boolean; region?: string | null;
+  /** Real ports beside the recording ones (support.test.ts: the tick's step «support»). */
+  extraPorts?: Partial<Ports>;
+} = {}) {
   let t = options.now ?? NOW;
   const now = () => t;
   const tg = fakeTelegram({ now, webhookUrl: `${TEST_FUNCTION_URL}?forceFunctionRegion=eu-central-1` });
@@ -107,7 +111,7 @@ export function harness(options: { now?: number; ports?: 'stubs' | 'record'; ses
     region: options.region === undefined ? 'eu-central-1' : options.region,
     waitUntil: (work) => waits.push(work),
     now,
-    ports: options.ports === 'stubs' ? undefined : recordingPorts(portCalls, options),
+    ports: options.ports === 'stubs' ? options.extraPorts : { ...recordingPorts(portCalls, options), ...(options.extraPorts ?? {}) },
     sleep: async (ms) => {
       sleeps.push(ms);
       t += ms;

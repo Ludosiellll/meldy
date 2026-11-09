@@ -25,7 +25,9 @@ function everyString(): string[] {
     W.unpaused('сегодня', '20:00'), W.examGone('Экзамен'),
     // release 47: «Экзамены», «Перенести экзамен»
     W.examToday('Экзамен'), W.examsInPlan(['Экзамен', 'Зачёт']), W.examChoice(true, 'Экзамен', '2026-11-03'), W.examChoice(false, 'Экзамен', null),
-    W.moveAsk('Экзамен', '2026-10-25'), W.examMoved('Экзамен', '2026-10-25'));
+    W.moveAsk('Экзамен', '2026-10-25'), W.examMoved('Экзамен', '2026-10-25'),
+    // support (support.ts): the header of a message in the author's chat
+    W.supportHead('Анна', 'anna_p', true), W.supportHead('Анна', null, false));
   return out.filter((s) => s.length > 0);
 }
 
@@ -41,6 +43,21 @@ test('release 47: the words of «Экзамены» and «Перенести э�
   assert.equal(W.K3_MOVE, 'Экзамен перенесли? Нажмите «Перенести экзамен», и план обновится.');
   assert.deepEqual([W.MOVE_EXAM, W.MOVE_WEEK, W.MOVE_2_WEEKS, W.MOVE_DATE, W.MOVE_FOR_ALL, W.MOVE_FOR_ME],
     ['Перенести экзамен', 'Перенести на неделю', 'На 2 недели', 'Другая дата', 'Для всех участников', 'Только для меня']);
+});
+
+test('support: the sentences as the owner gave them, word for word', () => {
+  assert.equal(W.SUPPORT_PROMPT, 'Напишите одним сообщением, что случилось или что хотите спросить. Я передам это автору Meldy, ответ придёт сюда.');
+  assert.equal(W.SUPPORT_SENT, 'Передал. Ответ придёт сюда.');
+  assert.equal(W.SUPPORT_TEXT_ONLY, 'Пока принимаю только текст.');
+  assert.equal(W.SUPPORT_GROUP, 'Напишите мне в личные сообщения.');
+  assert.equal(W.SUPPORT_CLAIMED, 'Сюда будут приходить сообщения в поддержку Meldy. Чтобы ответить человеку, ответьте на его сообщение.');
+  assert.equal(W.supportHead('Анна', 'anna_p', true), 'Поддержка · Анна · @anna_p · аккаунт Meldy: есть');
+  assert.equal(W.supportHead('Анна', null, false), 'Поддержка · Анна · аккаунт Meldy: нет');
+  assert.equal(W.SUPPORT_REPLY_HINT, 'Ответьте на это сообщение, и я перешлю ответ.');
+  assert.equal(W.SUPPORT_ANSWER, 'Ответ автора Meldy:');
+  assert.deepEqual([W.SUPPORT_DELIVERED, W.SUPPORT_NOT_DELIVERED], ['Отправлено.', 'Не доставлено: человек остановил бота.']);
+  assert.deepEqual([W.SUPPORT_DELETION, W.SUPPORT_DELETION_CANCEL], ['Запрос на удаление аккаунта', 'Запрос на удаление аккаунта отменён']);
+  assert.equal(W.SUPPORT_SERVICE, 'Это служебное сообщение, ответить на него нельзя.');
 });
 
 test('every string of the bot passes the copy rules (forbidden words, emoji, «!», capitals, «не X, а Y»)', () => {

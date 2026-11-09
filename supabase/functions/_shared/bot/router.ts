@@ -16,6 +16,11 @@
  * - `monitor` (monitor.ts): the tick's step «monitor», the site's outage monitor, after the other steps;
  * - `sweep` (sweep.ts, optional): the tick's step «sweep», the pictures of deleted exams and tests, before «monitor».
  * - `quiz` (quiz.ts, optional): the tick's step «quiz», the authors' quiz messages and shares, before «sweep».
+ * - `support` (support.ts, optional): the tick's step «support», what waits for the author of Meldy, before «quiz».
+ *
+ * Support (support.ts) is read here, not through a port: `/support` and `/start support` in a private chat, `/support`
+ * in a group, and — before anything else reads a private message — a reply to one of the bot's support messages. Before
+ * an update is dispatched, `ownerClaim` binds the author's chat once (it remembers the answer: no call per update).
  */
 import { decode, type Callback, type GoMode } from './codec.ts';
 import { dayCard, examList } from './card.ts';
@@ -36,6 +41,7 @@ import {
 } from './tg.ts';
 import { typo } from './html.ts';
 import { gameStub, type GamePort } from './game.ts';
+import { ownerClaim, supportCommand, supportInGroup, supportReply } from './support.ts';
 import * as W from './words.ts';
 
 // ─────────────────────────────────────────── what handlers get ───────────────────────────────────────────
@@ -47,7 +53,10 @@ export interface Ctx {
   site: string;
   botUsername: string;
   now: () => number;
-  /** Once an hour per chat for someone not linked (M1 for stray text); linked chats use the database's stamp. */
+  /**
+   * Once an hour per chat for someone not linked (M1 for stray text) and per group (where to write to support); linked
+   * chats use the database's stamp.
+   */
   hourly: (chatId: number) => boolean;
 }
 
@@ -184,6 +193,14 @@ export interface QuizPort {
   tick(ctx: Ctx, tools: TickTools): Promise<StepStats>;
 }
 
+/**
+ * Support (support.ts, 2026-11-09): the tick's step «support» — the messages and the account deletion requests that
+ * wait for the author of Meldy, before «quiz». Optional: without it the step does nothing.
+ */
+export interface SupportPort {
+  tick(ctx: Ctx, tools: TickTools): Promise<StepStats>;
+}
+
 export interface Ports {
   session: SessionPort;
   group: GroupPort;
@@ -193,6 +210,7 @@ export interface Ports {
   monitor: MonitorPort;
   sweep?: SweepPort;
   quiz?: QuizPort;
+  support?: SupportPort;
   /** The live game (game.ts): /telegram/game/join, /game/post, /game/sync. */
   game: GamePort;
 }
@@ -317,10 +335,17 @@ export async function todayCommand(ctx: Ctx, msg: TgMessage, tgUserId: number): 
   await remove(ctx.tg, chatId, msg.message_id);
 }
 
+/** `/support`, or `/start support` as the site's link sends it. */
+const isSupport = (command: { name: string; payload: string }) =>
+  command.name === 'support' || (command.name === 'start' && command.payload === 'support');
+
 async function onCommand(ctx: Ctx, ports: Ports, msg: TgMessage, command: { name: string; payload: string }): Promise<void> {
   const tgUserId = (msg.from as TgUser).id;
   const chatId = msg.chat.id;
   if (command.name === 'help') return helpCommand(ctx, msg);
+  // Support: the command, and the site's deep link (t.me/<bot>?start=support), linked or not. Before the link codes:
+  // every other payload counts as a code there.
+  if (isSupport(command)) return supportCommand(ctx, msg);
   // The live game (live.ts): `play_<PIN>` and `r_<game>` answer with the Mini App's button, linked or not.
   if (command.name === 'start' && (await liveStart(ctx, msg, command.payload))) return;
   if (command.name === 'start' && command.payload && !/^g/.test(command.payload)) return claimLink(ctx, msg, command.payload);
@@ -346,6 +371,9 @@ async function onPrivateMessage(ctx: Ctx, ports: Ports, msg: TgMessage): Promise
   const from = msg.from as TgUser;
   const command = parseCommand(msg.text, ctx.botUsername);
   if (command) return onCommand(ctx, ports, msg, command);
+  // A reply to one of the bot's support messages (support.ts), linked or not: before anything else reads the message,
+  // so it is never a file, a voice answer or a typed answer of a study question.
+  if (await supportReply(ctx, msg)) return;
   const who = await ctx.db.whoami(from.id);
   // Anything sent that is neither text nor voice: a document gets F1, other media the «Не документ» line (§4.7).
   if (typeof msg.text !== 'string' && !msg.voice && (await ports.files.document(ctx, msg, who))) return;
@@ -379,6 +407,8 @@ async function onGroupMessage(ctx: Ctx, ports: Ports, msg: TgMessage): Promise<v
   const command = parseCommand(msg.text, ctx.botUsername);
   // The bot keeps nothing of a group's talk: only `/start G<code>` (the author's «Подключить беседу») is read.
   if (command && command.name === 'start' && msg.from && /^G/.test(command.payload)) return ports.group.startGroup(ctx, msg, command.payload);
+  // Support is written in private: the group gets one line saying so, and nothing of the message is kept.
+  if (command && isSupport(command)) return supportInGroup(ctx, msg);
 }
 
 async function onTap(ctx: Ctx, ports: Ports, tap: Tap): Promise<void> {
@@ -481,6 +511,8 @@ export function createApp(deps: AppDeps): (req: Request) => Promise<Response> {
   const ports: Ports = { ...STUBS, ...(deps.ports ?? {}) };
   const ctx: Ctx = { tg, db: deps.db, site: deps.site ?? W.SITE, botUsername: deps.botUsername ?? W.BOT_USERNAME, now, hourly: hourlyGate(now) };
   const tickCtx: Ctx = { ...ctx, tg: tg.with({ wait429Sec: 0 }) };
+  // Support's one-time claim of the author's chat: what this instance knows of it.
+  const claimOwner = ownerClaim(now);
   let lastSetup = Number.NEGATIVE_INFINITY;
 
   async function webhook(req: Request): Promise<Response> {
@@ -503,7 +535,10 @@ export function createApp(deps: AppDeps): (req: Request) => Promise<Response> {
       return empty(200);
     }
     const tap = update.callback_query ? makeTap(ctx.tg, update.callback_query) : null;
-    return empty(await processUpdate(ctx, update, updateKind(update), tap, () => dispatch(ctx, ports, update, tap), started));
+    return empty(await processUpdate(ctx, update, updateKind(update), tap, async () => {
+      await claimOwner(ctx, update);
+      await dispatch(ctx, ports, update, tap);
+    }, started));
   }
 
   async function tick(req: Request): Promise<Response> {

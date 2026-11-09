@@ -183,6 +183,7 @@ export const HELP = [
   '',
   '/today — план на сегодня',
   '/settings — время и пауза',
+  '/support — написать в поддержку',
   '/stop — отключить бота',
 ];
 export const BUTTONS_ONLY = 'Здесь отвечают кнопками. План на сегодня: /today.';
@@ -247,6 +248,40 @@ export const ITEM_GONE = 'Этого вопроса больше нет в эк�
 export const examGone = (title: string) => `Экзамен «${title}» больше недоступен. Занятие закрыто.`;
 export const NOT_LINKED = 'Telegram отключён от Meldy. Подключить снова можно в профиле.';
 
+// ─────────────────────────────────────────── support (support.ts) ───────────────────────────────────────────
+
+/** `/support` and the site's `?start=support`: a ForceReply prompt; a text reply to it goes to the author of Meldy. */
+export const SUPPORT_PROMPT = 'Напишите одним сообщением, что случилось или что хотите спросить. Я передам это автору Meldy, ответ придёт сюда.';
+export const SUPPORT_PLACEHOLDER = 'Ваше сообщение';
+export const SUPPORT_SENT = 'Передал. Ответ придёт сюда.';
+export const SUPPORT_TEXT_ONLY = 'Пока принимаю только текст.';
+/** The longest message kept, in characters; SUPPORT_TOO_LONG names it. */
+export const SUPPORT_TEXT_MAX = 2000;
+export const SUPPORT_TOO_LONG = 'Сообщение длиннее 2\u00a0000 знаков. Сократите его и отправьте ещё раз.';
+export const SUPPORT_SLOW_HOUR = 'За час можно отправить пять сообщений. Напишите, пожалуйста, через час.';
+export const SUPPORT_SLOW_DAY = 'За сутки можно отправить двадцать сообщений. Напишите, пожалуйста, завтра.';
+/** In a group chat: nothing is kept there; the button opens the private chat with the prompt. */
+export const SUPPORT_GROUP = 'Напишите мне в личные сообщения.';
+export const SUPPORT_WRITE = 'Написать в поддержку';
+/** The author's answer in the sender's chat: this line, then the answer as written. */
+export const SUPPORT_ANSWER = 'Ответ автора Meldy:';
+// The author's own chat: the one-time line when the chat is bound, what came, and what became of a reply.
+export const SUPPORT_CLAIMED = 'Сюда будут приходить сообщения в поддержку Meldy. Чтобы ответить человеку, ответьте на его сообщение.';
+export const SUPPORT_HEAD = 'Поддержка';
+export const supportHead = (name: string, username: string | null, linked: boolean) =>
+  `${SUPPORT_HEAD} · ${name}${username ? ` · @${username}` : ''} · аккаунт Meldy: ${linked ? 'есть' : 'нет'}`;
+export const SUPPORT_NO_NAME = 'без имени';
+export const SUPPORT_REPLY_HINT = 'Ответьте на это сообщение, и я перешлю ответ.';
+export const SUPPORT_DELETION = 'Запрос на удаление аккаунта';
+export const SUPPORT_DELETION_CANCEL = 'Запрос на удаление аккаунта отменён';
+export const SUPPORT_DELIVERED = 'Отправлено.';
+export const SUPPORT_NOT_DELIVERED = 'Не доставлено: человек остановил бота.';
+export const SUPPORT_SERVICE = 'Это служебное сообщение, ответить на него нельзя.';
+export const SUPPORT_GONE = 'Этого сообщения уже нет в очереди, ответ не отправлен.';
+/** The longest answer relayed (Telegram takes 4096 characters with the line above it). */
+export const SUPPORT_REPLY_MAX = 4000;
+export const SUPPORT_REPLY_LONG = 'Ответ длиннее 4\u00a0000 знаков. Сократите его и ответьте ещё раз.';
+
 // ─────────────────────────────────────────── §5 the profile ───────────────────────────────────────────
 
 export const PROFILE = {
@@ -261,6 +296,7 @@ export const PROFILE = {
     { command: 'today', description: 'План на сегодня' },
     { command: 'settings', description: 'Время и пауза' },
     { command: 'help', description: 'Как это работает' },
+    { command: 'support', description: 'Написать в поддержку' },
   ],
   /** The menu button (setChatMenuButton, type web_app): Meldy inside Telegram. The commands stay a «/» away. */
   menuButton: 'Открыть Meldy',

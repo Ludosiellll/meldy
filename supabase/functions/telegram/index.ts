@@ -17,6 +17,7 @@ import { createAuthAdmin, createWebApp } from '../_shared/bot/webapp.ts';
 import { createMonitor } from '../_shared/bot/monitor.ts';
 import { createSweep } from '../_shared/bot/sweep.ts';
 import { createQuizNotices } from '../_shared/bot/quiz.ts';
+import { createSupport } from '../_shared/bot/support.ts';
 import { createGame } from '../_shared/bot/game.ts';
 import { liveTexts } from '../_shared/bot/live.ts';
 import { readEnv } from '../_shared/bot/env.ts';
@@ -49,6 +50,8 @@ const ports: Ports = {
   sweep: env.supabaseUrl && env.serviceKey ? createSweep({ url: env.supabaseUrl, key: env.serviceKey, fetch: http }) : undefined,
   // The authors' quiz messages and shares (the tick's step «quiz», release 49).
   quiz: createQuizNotices(),
+  // Support (the tick's step «support»): the messages and deletion requests that wait for the author of Meldy.
+  support: createSupport(),
   // The live game: the Mini App's join, the database's post and sync, with the bot's texts of live.ts.
   game: createGame({ token: () => env.token, texts: liveTexts, waitUntil }),
 };
