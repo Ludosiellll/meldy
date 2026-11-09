@@ -53,3 +53,4 @@ failed checks, never row data.
 - 2026-11-05 — apply: supabase/migrations/20261107090600_live_no_ai_keys.sql; check: supabase/tests/live_no_ai_keys.sql, supabase/tests/ai_key_flag.sql, supabase/tests/live_challenge.sql, supabase/tests/live_duel.sql, supabase/tests/live_ranges.sql
 - 2026-11-05 — apply: supabase/migrations/20261107090700_item_points.sql; check: supabase/tests/item_points.sql, supabase/tests/containers.sql, supabase/tests/ai_key_flag.sql, supabase/tests/question_kinds.sql, supabase/tests/quiz_protection.sql, supabase/tests/test_docs.sql, supabase/tests/item_update_images.sql
 - 2026-11-07 — apply: supabase/migrations/20261107090800_avatars_owner.sql; check: supabase/tests/avatars_owner.sql
+- 2026-11-09 — apply: supabase/migrations/20261109090000_group_summary.sql, supabase/migrations/20261109090100_bot_support.sql; check: supabase/tests/group_summary.sql, supabase/tests/bot_support.sql, supabase/tests/telegram_bot.sql, supabase/tests/containers.sql
