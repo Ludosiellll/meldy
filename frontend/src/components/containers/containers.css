@@ -255,6 +255,9 @@
 .ct-note .sf-link { color: var(--sf-ink); }
 .ct-plan .ct-note { font-size: 15px; color: var(--sf-muted); }
 .ct-plan .ct-note .sf-link { color: var(--sf-ink); }
+/* The place of a line whose numbers are still being read (the group's summary): its room is kept from the first paint,
+   so nothing moves when they come; nothing is shown or read out meanwhile. */
+.ct-note[data-wait] { visibility: hidden; }
 
 /* ---------------------------------------------------------------- the phone and tablet bar */
 /* A phone and a tablet: the page's one pill in a bar pinned to the bottom of the window, as the oral pages pin theirs
@@ -317,6 +320,11 @@
   }
   .ct-sheet-t { font-size: 22px; }
 }
+
+/* A small heading inside a sheet («Трудные темы» of «Группа»), over its rows. */
+.ct-sheet-h { margin: 20px 0 0; font-size: 15px; line-height: 1.4; font-weight: 500; color: var(--sf-muted); }
+.ct-sheet-h + .ct-days { margin-top: 6px; }
+.ct-sheet-h + p { margin-top: 6px; }
 
 /* Day rows and choices in sheets. */
 .ct-days { display: grid; gap: 0; margin: 12px 0 0; padding: 0; list-style: none; }

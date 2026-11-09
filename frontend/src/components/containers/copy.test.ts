@@ -238,6 +238,45 @@ describe('copy.ts: the words of the exam screens', () => {
     expect(copy.todayMeta(null, null)).toBe('');
   });
 
+  it('the group’s summary: numbers of the group in plain words, never a name (owner, 2026-11-09)', () => {
+    const plain = (text: string) => text.split(copy.NBSP).join(' ');
+    expect(plain(copy.groupLine(6, 19, 40))).toBe('Группа: на этой неделе занимались 6 из 19, в среднем выучено 40 %.');
+    expect(plain(copy.groupLine(1, 19, 40))).toBe('Группа: на этой неделе занимался 1 из 19, в среднем выучено 40 %.');
+    expect(plain(copy.groupLine(21, 30, 7))).toBe('Группа: на этой неделе занимался 21 из 30, в среднем выучено 7 %.');
+    expect(plain(copy.groupLine(0, 19, 12))).toBe('Группа: на этой неделе не занимался никто из 19, в среднем выучено 12 %.');
+    // no question that counts: no share is said
+    expect(plain(copy.groupLine(6, 19, null))).toBe('Группа: на этой неделе занимались 6 из 19.');
+    // the numbers never break from their words
+    expect(copy.groupLine(6, 19, 40)).toContain(`6${copy.NBSP}из${copy.NBSP}19`);
+    expect(copy.groupLine(6, 19, 40)).toContain(`40${copy.NBSP}%`);
+    // the line's place while the numbers are read: the same words, no number made up
+    expect(plain(copy.groupLinePlace(19))).toBe('Группа: на этой неделе занимались – из 19, в среднем выучено – %.');
+    // the pause after the author removed a member: when the numbers come back, and why
+    expect(plain(copy.groupPaused('16 ноября'))).toBe('Сводка группы снова появится 16 ноября: состав группы менялся.');
+    expect(copy.groupPaused(`16${copy.NBSP}ноября`)).toContain(`16${copy.NBSP}ноября`);
+    expect(copy.GROUP_MORE).toBe('Подробнее');
+    expect(copy.GROUP_TITLE).toBe('Группа');
+    expect(plain(copy.groupWeekRow(6, 19))).toBe('Занимались на этой неделе: 6 из 19');
+    expect(plain(copy.groupPrevRow(16, 19))).toBe('Неделей раньше: 16 из 19');
+    expect(plain(copy.groupEverRow(17, 19))).toBe('Хотя бы раз: 17 из 19');
+    expect(plain(copy.groupLearnedRow(40))).toBe('В среднем выучено: 40 %');
+    expect(plain(copy.GROUP_HARD)).toBe('Трудные темы за последние 30 дней');
+    const topic = { subject: 'Базы данных', topic: 'Индексы', answers: 320, wrong_pct: 41 };
+    expect(plain(copy.groupTopicRow(topic, true))).toBe('Базы данных: Индексы — 41 % неверных ответов из 320');
+    expect(plain(copy.groupTopicRow(topic, false))).toBe('Индексы — 41 % неверных ответов из 320');
+    expect(plain(copy.groupTopicRow({ ...topic, topic: null }, true))).toBe('Базы данных — 41 % неверных ответов из 320');
+    expect(plain(copy.GROUP_NO_HARD)).toBe('Пока мало ответов, чтобы назвать трудные темы.');
+    expect(plain(copy.GROUP_NO_NAMES)).toBe('Сводка без имён: чьи это ответы, не видно никому.');
+    expect(plain(copy.GROUP_NO_ORAL)).toBe('Устные ответы в неё не входят.');
+    // what a member who came in under the old promise reads once
+    expect(plain(copy.GROUP_MEMBER_NOTE)).toBe(
+      'Автор экзамена теперь видит общие цифры группы без имён: сколько человек занимается и какие темы трудные. Ваши ответы по-прежнему не видит никто.',
+    );
+    expect(copy.GROUP_MEMBER_OK).toBe('Понятно');
+    // The old promise is gone from the exam's screens: nobody is told that their progress is seen by no one.
+    expect(source).not.toMatch(/прогресс[^.]*не (видит|увидит) никто|никто не (видит|увидит)[^.]*прогресс/i);
+  });
+
   it('a mistake comes back on the next study day: every day the same bytes as «завтра» always said, else its day', () => {
     // Every day (127): exactly the lines as they were before the days of the week.
     const tomorrow = comesBackWhen('2026-10-09', 127);

@@ -249,7 +249,11 @@ export const RESULT = {
   /** «Повторить эти вопросы» (release 47, spec §47.5): the author offers the exam the quiz was drawn from. */
   practiceTitle: 'Повторить эти вопросы',
   practiceJoin: 'Тренировать эти вопросы',
-  practiceNote: glue('Meldy будет возвращать вопросы, пока вы их не запомните. Автор увидит только, что вы присоединились.'),
+  // Who agrees becomes a member of the exam: since the group's summary (owner, 09.11; docs/answers-privacy.md) its
+  // author sees the group's numbers without names. «В тренировке»: the answers of this контрольная the author does see.
+  practiceNote: glue(
+    'Meldy будет возвращать вопросы, пока вы их не запомните. Автор увидит, что вы присоединились, и общие цифры группы без имён. Ваши ответы в тренировке не видит никто.',
+  ),
   practiceMember: (exam: string) => glue(`Вы уже участник экзамена «${exam}».`),
   practiceOpen: 'Открыть экзамен',
   practiceGuest: 'Создать аккаунт и тренироваться',

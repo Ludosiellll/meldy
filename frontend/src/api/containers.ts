@@ -26,6 +26,7 @@ import {
   type RecordAnswersResponse, type TestItem, type Uuid,
 } from '../types/container';
 import type { ExamMoveFor, ExamMoved, ExamRemind, TelegramExam, TelegramExamState } from '../types/container';
+import { GROUP_MIN_MEMBERS, type GroupHardTopic, type GroupSummary, type GroupSummaryRpc } from '../types/groupSummary';
 
 /** Russian text of every error code (spec §3 words: «экзамен», never «контейнер» or «тест»). */
 export const CONTAINER_ERROR_TEXT = {
@@ -150,7 +151,7 @@ function badShape(what: string): ContainerApiError {
 
 // ── Calls ──────────────────────────────────────────────────────────────────────────────────
 
-type Rpc = ContainerRpc;
+type Rpc = ContainerRpc & GroupSummaryRpc;
 type DbResult = { data: unknown; error: unknown; status?: number };
 
 /** One RPC by name; its error becomes a ContainerApiError. The data is narrowed by the caller. */
@@ -673,6 +674,63 @@ export async function leaveContainer(containerId: Uuid): Promise<void> {
 
 export async function fetchMembers(containerId: Uuid): Promise<MemberRow[]> {
   return list(await call('container_members_list', { p_container_id: containerId })).filter(isRecord) as unknown as MemberRow[];
+}
+
+export { GROUP_MIN_MEMBERS };
+/** Topics the summary names at most. */
+const GROUP_TOPICS_MAX = 3;
+
+/** A whole day 'YYYY-MM-DD' that exists (not '2026-13-40', not a moment), or null. */
+function wholeDay(value: unknown): DayKey | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const at = Date.parse(`${value}T00:00:00Z`);
+  return Number.isFinite(at) && new Date(at).toISOString().slice(0, 10) === value ? value : null;
+}
+
+/**
+ * The summary as the page may draw it: counts within the group, percents within 0–100, at most three topics, and only
+ * the fields of the contract (nothing else of the body is passed on). A group under the threshold has no numbers,
+ * whatever the body holds; nor has a paused one (the author removed a member in the last 7 days): its day, and never
+ * a number beside it.
+ */
+export function normalizeGroupSummary(raw: unknown): GroupSummary {
+  if (!isRecord(raw) || typeof raw.members !== 'number') throw badShape('container_group_summary');
+  const members = Math.max(0, int(raw.members));
+  const min = Math.max(GROUP_MIN_MEMBERS, int(raw.min_members, GROUP_MIN_MEMBERS));
+  if (members < min) return { members, min_members: min, numbers: null, paused_until: null };
+  const paused = wholeDay(raw.paused_until);
+  if (paused || typeof raw.studied_7d !== 'number') return { members, min_members: min, numbers: null, paused_until: paused };
+  const count = (value: unknown) => Math.min(members, Math.max(0, int(value)));
+  const percent = (value: unknown) => Math.min(100, Math.max(0, Math.round(value as number)));
+  const topics: GroupHardTopic[] = [];
+  for (const row of list(raw.hard_topics)) {
+    if (topics.length >= GROUP_TOPICS_MAX) break;
+    if (!isRecord(row) || typeof row.subject !== 'string' || !row.subject.trim()) continue;
+    if (typeof row.answers !== 'number' || typeof row.wrong_pct !== 'number') continue;
+    const topic = typeof row.topic === 'string' && row.topic.trim() ? row.topic.trim() : null;
+    topics.push({ subject: row.subject.trim(), topic, answers: Math.max(0, int(row.answers)), wrong_pct: percent(row.wrong_pct) });
+  }
+  return {
+    members,
+    min_members: min,
+    paused_until: null,
+    numbers: {
+      studied_7d: count(raw.studied_7d),
+      studied_prev_7d: count(raw.studied_prev_7d),
+      studied_ever: count(raw.studied_ever),
+      learned_pct: typeof raw.learned_pct === 'number' && Number.isFinite(raw.learned_pct) ? percent(raw.learned_pct) : null,
+      hard_topics: topics,
+    },
+  };
+}
+
+/**
+ * The author's summary of the group, without names (container_group_summary, 20261109090000): who studied this week
+ * and the week before, the average share learned, the hard topics; or, for 7 days after the author removed a member,
+ * only the day the numbers come back. P0002 for anyone but the exam's author.
+ */
+export async function fetchGroupSummary(containerId: Uuid): Promise<GroupSummary> {
+  return normalizeGroupSummary(await call('container_group_summary', { p_container_id: containerId }));
 }
 
 /** `userId` null removes (or with `restore`, restores) everyone; resolves with how many changed. */

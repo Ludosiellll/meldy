@@ -211,6 +211,19 @@ export function markPaceTold(containerId: string, stage: number): void {
   }
 }
 
+/**
+ * «Автор экзамена теперь видит общие цифры группы без имён…» (owner, 2026-11-09): said to a member who came in while
+ * the invitation still promised that nobody sees their progress, once per account and exam on this device, until
+ * «Понятно». A member who came in on this day or later read the new words on the invitation itself (the day is the
+ * Europe/Minsk day of coming in, summary.first_plan_day). The release goes out on 09–10.11: a member who comes in on
+ * the release day reads the new invitation and may see this once as well — told twice loses nothing; never told would
+ * have been promised more than is kept.
+ */
+export const GROUP_NOTE_JOINED_BEFORE: LocalDay = '2026-11-11';
+const GROUP_NOTE_PREFIX = 'meldy_group_note:';
+export const groupNoteSeen = (userId: string, containerId: string) => flag(`${GROUP_NOTE_PREFIX}${userId}:${containerId}`);
+export const markGroupNoteSeen = (userId: string, containerId: string) => setFlag(`${GROUP_NOTE_PREFIX}${userId}:${containerId}`);
+
 /** A fresh uuid (session ids, mock runs): crypto.randomUUID, else getRandomValues, else time and Math.random. */
 export function newId(): string {
   const cryptoApi = (globalThis as { crypto?: Crypto }).crypto;

@@ -37,6 +37,7 @@ import {
   type SubjectFacts,
   type TestItem,
 } from './container';
+import type { GroupSummaryWire } from './groupSummary';
 import overviewJson from '../../../contracts/container/overview.json';
 import summaryJson from '../../../contracts/container/summary.json';
 import planInputsJson from '../../../contracts/container/plan_inputs.json';
@@ -46,6 +47,8 @@ import mockResultJson from '../../../contracts/container/mock_result.json';
 import linkPreviewJson from '../../../contracts/container/link_preview.json';
 import doubtsJson from '../../../contracts/container/doubts.json';
 import oralSyncJson from '../../../contracts/container/oral_sync.json';
+import groupSummaryJson from '../../../contracts/container/group_summary.json';
+import groupSummaryPausedJson from '../../../contracts/container/group_summary_paused.json';
 import parseTwoSubjectsJson from '../../../contracts/container/parse_bank_two_subjects.json';
 import parseOpenJson from '../../../contracts/container/parse_bank_open.json';
 
@@ -96,6 +99,8 @@ const mock = sample<MockRunResult>()(mockResultJson, true);
 const preview = sample<LinkPreview>()(linkPreviewJson, true);
 const doubts = sample<DoubtRow[]>()(doubtsJson, true);
 const oralSync = sample<OralSyncResponse>()(oralSyncJson, true);
+const groupSummary = sample<GroupSummaryWire>()(groupSummaryJson, true);
+const groupSummaryPaused = sample<GroupSummaryWire>()(groupSummaryPausedJson, true);
 const parseTwoSubjects = sample<BankParseResult>()(parseTwoSubjectsJson, true);
 const parseOpen = sample<BankParseResult>()(parseOpenJson, true);
 
@@ -438,6 +443,42 @@ describe('one container across the samples', () => {
       expect(doubt.file_no).toBe(page.get(doubt.item_id)!.file_no);
     }
     expect(summary.owner?.doubts_open).toBe(doubts.filter((d) => d.doubts > 0).length);
+  });
+
+  it('gives the author the group’s numbers: counts of its members and its subjects’ topics, nobody’s name or id', () => {
+    // 20261109090000 (docs/answers-privacy.md): no number about fewer than 5 people, a topic from 5 members and 30 answers
+    expect(groupSummary.members).toBe(summary.owner?.members);
+    expect(groupSummary.min_members).toBe(5);
+    expect(groupSummary.members).toBeGreaterThanOrEqual(groupSummary.min_members);
+    for (const n of [groupSummary.studied_7d, groupSummary.studied_prev_7d, groupSummary.studied_ever]) {
+      expect(isInt(n) && n >= 0 && n <= groupSummary.members).toBe(true);
+    }
+    expect(groupSummary.studied_ever).toBeGreaterThanOrEqual(Math.max(groupSummary.studied_7d ?? 0, groupSummary.studied_prev_7d ?? 0));
+    expect(isInt(groupSummary.learned_pct) && groupSummary.learned_pct >= 0 && groupSummary.learned_pct <= 100).toBe(true);
+    const topics = groupSummary.hard_topics ?? [];
+    expect(topics.length).toBeGreaterThan(0);
+    expect(topics.length).toBeLessThanOrEqual(3);
+    for (const topic of topics) {
+      const subject = summary.subjects.find((s) => s.title === topic.subject);
+      expect(subject).toBeDefined();
+      if (topic.topic !== null) expect(subject!.topic_titles).toContain(topic.topic);
+      expect(isInt(topic.answers) && topic.answers >= 30).toBe(true);
+      expect(isInt(topic.wrong_pct) && topic.wrong_pct >= 1 && topic.wrong_pct <= 100).toBe(true);
+    }
+    expect(topics.map((t) => t.wrong_pct)).toEqual([...topics.map((t) => t.wrong_pct)].sort((a, b) => b - a));
+    expect(JSON.stringify(groupSummaryJson)).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-|user|name/);
+  });
+
+  it('pauses the group’s numbers for 7 days after the author removed a member: a day, and nothing else', () => {
+    // 20261109090000: before and after a removal the numbers would differ by one person
+    expect(Object.keys(groupSummaryPausedJson).sort()).toEqual(['members', 'min_members', 'paused_until']);
+    expect(groupSummaryPaused.members).toBe(summary.owner?.members);
+    expect(groupSummaryPaused.min_members).toBe(groupSummary.min_members);
+    expect(groupSummaryPaused.paused_until).toMatch(DAY);
+    const left = daysFrom(groupSummaryPaused.paused_until ?? '', summary.day);
+    expect(left >= 0 && left <= 8).toBe(true);
+    // The numbers and the pause never come together.
+    expect(groupSummary.paused_until).toBeUndefined();
   });
 
   it('previews the group link with the same subjects and their questions with a key', () => {

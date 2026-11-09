@@ -332,6 +332,32 @@ describe('InviteExam: «Пригласить группу» (spec decisions 24, 
     expect(api.revokeLink).not.toHaveBeenCalled();
   });
 
+  it('1–4 members: one quiet line that the group’s summary comes with 5; none before anyone is in, none from 5 (owner, 09.11)', () => {
+    const SOON = /Сводка группы появится, когда в ней будет 5\sучастников\./;
+    const withMembers = (members: number, extra: Partial<ContainerSummary> = {}) =>
+      render(<InviteExam summary={{ ...TEST_ONLY, owner: { members, doubts_open: 0, links: [{ ...LINK, members }] }, ...extra }} onClose={() => undefined} />);
+    for (const members of [1, 4]) {
+      const view = withMembers(members);
+      const line = screen.getByText(SOON);
+      // A line of the group's part, under «В экзамене N участников», muted: no button, no link of its own.
+      expect(line.closest('.gr-seats')).not.toBeNull();
+      expect(line).toHaveAttribute('data-muted');
+      expect(line.querySelector('button, a')).toBeNull();
+      view.unmount();
+    }
+    for (const members of [0, 5, 19]) {
+      const view = withMembers(members);
+      expect(screen.queryByText(SOON)).not.toBeInTheDocument();
+      view.unmount();
+    }
+    // The author's own test has no page for the summary; an exam without a question with a key has no numbers to give.
+    const test = withMembers(3, { kind: 'test' });
+    expect(screen.queryByText(SOON)).not.toBeInTheDocument();
+    test.unmount();
+    withMembers(3, { subjects: TEST_ONLY.subjects.map((subject) => ({ ...subject, keyed: 0 })) });
+    expect(screen.queryByText(SOON)).not.toBeInTheDocument();
+  });
+
   it('a link with seats left says nothing about seats', () => {
     keepLink(SUMMARY.id, 'link-1', 'qrst2vwxyz01');
     render(<InviteExam summary={{ ...TEST_ONLY, owner: { members: 12, doubts_open: 0, links: [LINK] } }} onClose={() => undefined} />);

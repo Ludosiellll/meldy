@@ -259,6 +259,50 @@ export function topicSheetMeta(p: { keyed: number; twoDays: number; errors: numb
 export const topicStart = (n: number) => glue(`Начать ${q(n)} по теме`);
 export const TOPIC_EMPTY = 'Эту тему сегодня уже прошли. Продолжим завтра.';
 
+// ─────────────────────────────────────────────── the group's summary without names (owner, 2026-11-09)
+
+// What the exam's author reads about the group (docs/answers-privacy.md): numbers of the group, never a name. One line
+// under the rows from 5 members, and the sheet «Группа» behind «Подробнее».
+const outOf = (n: number, members: number) => `${n} из ${members}`;
+/** «Группа: на этой неделе занимались 6 из 19, в среднем выучено 40 %.»; nobody — in words; no share — without it. */
+export function groupLine(studied: number, members: number, learnedPct: number | null): string {
+  const week = studied > 0 ? `${pl(studied, 'занимался', 'занимались', 'занимались')} ${outOf(studied, members)}` : `не занимался никто из ${members}`;
+  return glue(`Группа: на этой неделе ${week}${learnedPct === null ? '' : `, в среднем выучено ${learnedPct} %`}.`);
+}
+/** The line's place while its numbers are read: the same words, so it takes as many lines; never shown. */
+export const groupLinePlace = (members: number) => glue(`Группа: на этой неделе занимались – из ${members}, в среднем выучено – %.`);
+/**
+ * The pause: for 7 days after the author removed a member the summary gives no numbers (before and after they would
+ * differ by that one person). The line says when it is there again and why; `day` is «16 ноября». «Снова появится»,
+ * as «Пригласить группу» says «появится»: copy.test.ts keeps the word «вернётся» off these screens (the owner's plain
+ * words of 2026-10-21).
+ */
+export const groupPaused = (day: string) => glue(`Сводка группы снова появится ${day}: состав группы менялся.`);
+export const GROUP_MORE = 'Подробнее';
+export const GROUP_TITLE = 'Группа';
+export const groupWeekRow = (n: number, members: number) => glue(`Занимались на этой неделе: ${outOf(n, members)}`);
+export const groupPrevRow = (n: number, members: number) => glue(`Неделей раньше: ${outOf(n, members)}`);
+export const groupEverRow = (n: number, members: number) => glue(`Хотя бы раз: ${outOf(n, members)}`);
+export const groupLearnedRow = (pct: number) => glue(`В среднем выучено: ${pct} %`);
+export const GROUP_HARD = glue('Трудные темы за последние 30 дней');
+/**
+ * «Базы данных: Индексы — 41 % неверных ответов из 320»: the topic alone in a one-subject exam, the subject alone for
+ * questions without a topic.
+ */
+export function groupTopicRow(p: { subject: string; topic: string | null; answers: number; wrong_pct: number }, severalSubjects: boolean): string {
+  const name = p.topic === null ? p.subject : severalSubjects ? `${p.subject}: ${p.topic}` : p.topic;
+  return glue(`${name} — ${p.wrong_pct} % неверных ответов из ${p.answers}`);
+}
+export const GROUP_NO_HARD = glue('Пока мало ответов, чтобы назвать трудные темы.');
+export const GROUP_NO_NAMES = glue('Сводка без имён: чьи это ответы, не видно никому.');
+/** An exam with an oral subject: its numbers are of the questions with variants only. */
+export const GROUP_NO_ORAL = glue('Устные ответы в неё не входят.');
+/** Said once to a member who came in while the exam's page promised that nobody sees their progress. */
+export const GROUP_MEMBER_NOTE = glue(
+  'Автор экзамена теперь видит общие цифры группы без имён: сколько человек занимается и какие темы трудные. Ваши ответы по-прежнему не видит никто.',
+);
+export const GROUP_MEMBER_OK = 'Понятно';
+
 // ─────────────────────────────────────────────── the «занятие»
 
 export const FINISH = 'Закончить';
