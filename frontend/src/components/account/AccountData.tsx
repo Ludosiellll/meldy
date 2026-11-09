@@ -32,6 +32,8 @@ export const ACCOUNT = {
   requestedToast: 'Запрос на удаление отправлен.',
   takenBackToast: 'Запрос на удаление отменён.',
   failedToast: 'Не получилось. Попробуйте ещё раз.',
+  /** The database lets an account ask five times a day (MA001): asking and taking back in a loop would flood the owner's chat. */
+  tooManyToast: 'Слишком много запросов за сутки. Попробуйте завтра.',
 } as const;
 
 /** «9 ноября» of an ISO time, in the device's zone. */
@@ -79,8 +81,8 @@ export default function AccountData() {
       const status = await requestDeletion();
       setRequestedAt(status.requestedAt ?? new Date().toISOString());
       toast.success(ACCOUNT.requestedToast);
-    } catch {
-      toast.error(ACCOUNT.failedToast);
+    } catch (error) {
+      toast.error((error as { code?: unknown } | null)?.code === 'MA001' ? ACCOUNT.tooManyToast : ACCOUNT.failedToast);
     } finally {
       setBusy(false);
     }

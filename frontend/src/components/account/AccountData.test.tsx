@@ -84,6 +84,14 @@ describe('«Аккаунт и данные»', () => {
     expect(screen.getByRole('button', { name: ACCOUNT.takeBack })).toBeInTheDocument();
   });
 
+  it('the day\'s sixth request is refused in its own words (MA001)', async () => {
+    mocks.request.mockRejectedValue({ code: 'MA001', message: 'too many deletion requests' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: ACCOUNT.removeGo }));
+    await waitFor(() => expect(mocks.toastBad).toHaveBeenCalledWith(ACCOUNT.tooManyToast));
+    expect(screen.getByRole('button', { name: ACCOUNT.removeGo })).toBeInTheDocument();
+  });
+
   it('a database without the request: the two links only', async () => {
     mocks.status.mockRejectedValue(new Error('no function'));
     open();
