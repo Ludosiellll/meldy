@@ -26,6 +26,7 @@ vi.mock('./pages/MistakeDiary', () => ({ default: () => <h1>Дневник ош�
 vi.mock('./pages/LectureTalk', () => ({ default: () => <h1>Разговор о лекции</h1> }));
 vi.mock('./pages/Landing', () => ({ default: () => <h1>Главная</h1> }));
 vi.mock('./pages/TryExample', () => ({ default: () => <h1>Пример экзамена</h1> }));
+vi.mock('./pages/Privacy', () => ({ default: () => <h1>Данные и приватность</h1> }));
 vi.mock('./pages/JoinGroup', () => ({ default: () => <h1>Приглашение в группу</h1> }));
 vi.mock('./pages/Dashboard', () => ({ default: () => <h1>Сегодня</h1> }));
 // The exam container's pages (packages D3a and D3b build them): here each is its heading, which names the route.
@@ -340,6 +341,19 @@ describe('library', () => {
     expect(within(rows[0]).getByText('конспект · 2 карточки · самопроверка · подкаст')).toBeInTheDocument();
     expect(container.innerHTML).not.toMatch(/uppercase|tracking-wider|Только для меня|Пакетный выбор|Статистика/);
     expect(screen.queryByText('Экономика')).toBeNull();
+  });
+});
+
+describe('«Данные и приватность» (/privacy)', () => {
+  it.each([
+    ['a guest', null],
+    ['a signed-in student', { id: 'user-1', email: 'student@example.com', user_metadata: {} }],
+  ])('opens for %s without the sign-in wall and outside the app layout', async (_who, user) => {
+    auth.value = { user, loading: false };
+    openAt('/privacy');
+    expect(await screen.findByRole('heading', { name: 'Данные и приватность' })).toBeInTheDocument();
+    expect(screen.queryByTestId('layout')).toBeNull();
+    expect(window.location.pathname).toBe('/privacy');
   });
 });
 

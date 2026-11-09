@@ -44,6 +44,8 @@ vi.mock('../api/social', () => ({
 vi.mock('../components/oral/AnswerTextsSetting', () => ({ default: () => null }));
 vi.mock('../components/reminders/DailyReminder', () => ({ default: () => null }));
 vi.mock('../components/telegram/TelegramCard', () => ({ default: () => null }));
+// «Аккаунт и данные» has its own tests (components/account/AccountData.test.tsx): here it is its heading.
+vi.mock('../components/account/AccountData', () => ({ default: () => <h2>Аккаунт и данные</h2> }));
 vi.mock('../components/UniversitySelect', () => ({ default: () => null }));
 vi.mock('../components/ImageCropper', () => ({ default: () => null }));
 vi.mock('../lib/telemetry', () => ({ TELEMETRY_NOTE: 'Meldy считает только посещения страниц.' }));
@@ -244,6 +246,12 @@ describe('«Уведомления»', () => {
     const card = (await screen.findByRole('heading', { name: 'Уведомления' })).closest('section') as HTMLElement;
     expect(within(card).queryByText('Напоминания о повторении')).toBeNull();
     expect(within(card).queryByRole('button', { name: 'Включить' })).toBeNull();
+  });
+
+  it('has «Аккаунт и данные»: the privacy page, the bot\'s support chat and the deletion request (audit 07.11)', async () => {
+    db.answer = liveRows(new Date());
+    render(<MemoryRouter><Profile /></MemoryRouter>);
+    expect(await screen.findByRole('heading', { name: 'Аккаунт и данные' })).toBeInTheDocument();
   });
 });
 

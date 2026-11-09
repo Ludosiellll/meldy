@@ -1,0 +1,25 @@
+/* «Данные и приватность» (/privacy): one column of white cards with plain lists, in the language of «Проверка перед
+   показом» (pages/Check.css): Onest, large radii, no pictures. */
+.sf-page.pv-page { max-width: calc(760px + 2 * var(--sf-g)); padding-bottom: 72px; }
+.pv-head { padding-top: 48px; }
+.pv-card {
+  margin-top: 20px;
+  padding: 28px 32px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line), var(--m-card-shadow);
+}
+.pv-h2 { margin: 0 0 14px; font: 600 22px/1.2 var(--ph-sans); letter-spacing: -.02em; color: var(--sf-ink); }
+.pv-list { margin: 0; padding: 0; list-style: none; }
+.pv-list li { position: relative; padding-left: 20px; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.pv-list li + li { margin-top: 10px; }
+.pv-list li::before { content: ''; position: absolute; left: 2px; top: .62em; width: 6px; height: 6px; border-radius: 50%; background: var(--sf-muted); }
+.pv-p { margin: 14px 0 0; font-size: 16px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.pv-h2 + .pv-p { margin-top: 0; }
+.pv-p + .pv-list { margin-top: 12px; }
+.pv-updated { margin: 20px 4px 0; font-size: 14px; line-height: 1.4; color: var(--sf-muted); }
+@media (max-width: 639px) {
+  .pv-head { padding-top: 28px; }
+  .pv-card { padding: 22px 20px; border-radius: 28px; }
+  .pv-h2 { font-size: 20px; }
+}

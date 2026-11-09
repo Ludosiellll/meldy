@@ -12,7 +12,7 @@ import { LANDING_ORAL } from '../../lib/footage';
 import { prefetchLink } from '../../lib/prefetch';
 import Footage from '../film/Footage';
 import Builder from './Builder';
-import { CTA, FINAL, FOOTER, FOOTER_NOTE, bind } from './copy3';
+import { CTA, FINAL, FOOTER, FOOTER_NOTE, FOOTER_PRIVACY, bind } from './copy3';
 import HeroTop, { ArrowIcon } from './HeroTop';
 import { Tiles } from './Sections';
 import './hero3.css';
@@ -125,7 +125,12 @@ export default function Landing3() {
             Meldy
           </a>
           <span>{FOOTER}</span>
-          <p className="p3-foot-note">{FOOTER_NOTE}</p>
+          <p className="p3-foot-note">
+            {FOOTER_NOTE}{' '}
+            <a className="p3-foot-link" href="/privacy">
+              {FOOTER_PRIVACY}
+            </a>
+          </p>
         </footer>
       ) : null}
     </div>

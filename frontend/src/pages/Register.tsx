@@ -391,6 +391,12 @@ export default function Register() {
               </Link>
               {' — без регистрации.'}
             </p>
+            <p className="au-foot">
+              <Link to="/privacy" className="au-link">
+                Данные и приватность
+              </Link>
+              {': что Meldy хранит и как это удалить.'}
+            </p>
           </div>
         </section>
 

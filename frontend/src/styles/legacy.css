@@ -756,6 +756,8 @@
   transition: box-shadow .6s var(--m-ease), background-color .4s ease, transform .7s var(--m-ease);
 }
 .ac-btn svg { flex: none; width: 18px; height: 18px; }
+/* A link that looks like the page's buttons («Аккаунт и данные»: the privacy page, the bot's chat). */
+a.ac-btn { text-decoration: none; }
 @media (hover: hover) {
   .ac-btn:hover { box-shadow: 0 0 0 1px var(--sf-ink), 0 14px 30px -18px rgba(16, 41, 90, .4); }
 }

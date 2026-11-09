@@ -50,6 +50,7 @@ const ExamReport = lazy(() => import('./pages/ExamReport'));
 // sheet's file too (lib/idle.ts screenFile).
 const TryExample = lazy(() => screenFile(import('./pages/TryExample')));
 const Check = lazy(() => import('./pages/Check'));
+const Privacy = lazy(() => import('./pages/Privacy'));
 const JoinGroup = lazy(() => import('./pages/JoinGroup'));
 // The exam container (meldy-notes 10_Project/Exam_Container_Spec_2026-10-09.md §7): an exam for a whole session.
 const ImportPage = lazy(() => import('./pages/container/ImportPage'));
@@ -218,6 +219,7 @@ export default function App() {
         <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/try/*" element={<TryExample />} />
         <Route path="/check" element={<Check />} />
+        <Route path="/privacy" element={<Privacy />} />
         <Route path="/exams/new" element={<ExamsNewRedirect />} />
         {/* The Mini App's door: Telegram's sign-in, then «Сегодня» and the session (pages/TelegramMiniApp.tsx). */}
         <Route path={MINI_APP_PATH} element={<TelegramMiniApp />} />

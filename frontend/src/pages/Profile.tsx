@@ -8,6 +8,7 @@ import ImageCropper from '../components/ImageCropper';
 import AnswerTextsSetting from '../components/oral/AnswerTextsSetting';
 import DailyReminder from '../components/reminders/DailyReminder';
 import TelegramCard from '../components/telegram/TelegramCard';
+import AccountData from '../components/account/AccountData';
 import { TELEMETRY_NOTE } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
@@ -383,6 +384,8 @@ export default function Profile() {
       </section>
 
       <AnswerTextsSetting />
+
+      <AccountData />
 
       <p className="ac-levelline">{TELEMETRY_NOTE}</p>
 

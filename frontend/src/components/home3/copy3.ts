@@ -190,3 +190,5 @@ export const FINAL = {
 export const FOOTER = 'Meldy помогает готовиться к экзамену и собирать тесты.';
 /** lib/telemetry's note in the page's words (the same facts; the profile keeps its own line). */
 export const FOOTER_NOTE = 'Meldy собирает статистику использования и отчёты об ошибках. Тексты лекций и ответы туда не попадают.';
+/** The link to /privacy after the note (audit of 07.11: the site said nowhere what it keeps and how to delete it). */
+export const FOOTER_PRIVACY = 'Данные и приватность';

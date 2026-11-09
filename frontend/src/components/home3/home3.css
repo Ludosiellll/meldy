@@ -498,6 +498,7 @@
   margin: 0;
   font-size: 12.5px;
 }
+.p3-foot-link { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 
 /* ——— a narrower screen ——— */
 @media (max-width: 1100px) {
