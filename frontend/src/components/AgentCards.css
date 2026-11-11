@@ -14,19 +14,22 @@
 .ag-lede { margin: 10px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .ag-demo { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
 
-/* The bar with «Точка» on it: the dot stands on the bar at the end of the fill and goes along with it. */
+/* The bar with «Точка» on it: the dot stands on the bar at the end of the fill and goes along with it. The runner is
+   as wide as the bar and is moved by a transform (a percentage of its own width is a percentage of the bar), so the
+   compositor does the move — no transition of a position (scripts/css-smooth-lint.mjs). */
 .ag-track { position: relative; margin-top: 18px; padding-top: 24px; }
 .ag-runner {
   --ag-at: 0%;
   position: absolute;
   top: 3px;
-  left: clamp(11px, var(--ag-at), calc(100% - 11px));
-  display: block;
-  width: 22px;
+  left: 0;
+  right: 0;
   height: 22px;
-  margin-left: -11px;
-  transition: left .6s var(--m-ease);
+  pointer-events: none;
+  transform: translateX(clamp(11px, var(--ag-at), calc(100% - 11px)));
+  transition: transform .6s var(--m-ease);
 }
+.ag-runner .md { position: absolute; top: 0; left: -11px; }
 .ag-bar {
   position: relative;
   height: 12px;
