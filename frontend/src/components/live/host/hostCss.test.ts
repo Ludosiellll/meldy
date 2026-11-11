@@ -50,7 +50,7 @@ describe('host.css', () => {
     expect(css).toMatch(/\.lvh-lobby-foot \.lvh-tg-pop \{ left: var\(--tg-pop-x/);
   });
 
-  it('the post’s note wraps inside its bubble on every host screen and stays on the screen (owner, 12.11)', async () => {
+  it('the post’s note wraps inside its bubble on every host screen and stays on the screen (owner, 11.11)', async () => {
     const css = await read('host.css');
     const stand = await read('../stand/stand.css');
     // the 3D lobby's bar keeps its own words on one line; the note must not inherit that
