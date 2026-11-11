@@ -174,4 +174,19 @@ describe('TopicClosed: the end of a session', () => {
     expect(plain(screen.getByText(/Все 20/).textContent)).toBe('Все 20 вопросов выучены.');
     expect(plain(screen.getByText(/Осталась/).textContent)).toBe('Осталась 1 тема из 2. Почти готова тема «Массивы и коллекции», в ней ещё 3 вопроса.');
   });
+
+  it('the dot lands at the end of the topic as its full stop; a title with its own stop gets none', () => {
+    const unit: UnitState = { seen: 1, wrong: 0, firstDay: null, lastDay: null, seriesAt: null, seriesDay: null,
+      twoDaysAt: NOW, namedAt: null, checks: 0, peekDay: null, wasTwoDays: false, cleanOkAt: null };
+    const items: PlanItem[] = [
+      { id: 'a', s: 's', f: 't' as const, tp: 1, o: 1, u: unit },
+      { id: 'b', s: 's', f: 't' as const, tp: 2, o: 2, u: unit },
+    ];
+    const topics = buildTopics({ subjectId: 's', items, titles: ['Массивы и коллекции', 'Что такое транзакция?'] }).topics;
+    render(<TopicClosed closed={topics} left={0} total={2} near={null} />);
+    const [first, second] = screen.getAllByRole('heading');
+    expect(first).toHaveAccessibleName('Массивы и коллекции');
+    expect(first.querySelector('.md')).toHaveAttribute('data-move', 'land');
+    expect(second.querySelector('.md')).toBeNull();
+  });
 });

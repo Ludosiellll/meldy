@@ -60,4 +60,14 @@ describe('AgentCards', () => {
     const bar = screen.getByRole('progressbar', { name: 'Ход разбора' });
     expect(Number(bar.getAttribute('aria-valuenow'))).toBeGreaterThan(50);
   });
+  it('the dot stands on the bar where the progress is, and is not read out', () => {
+    const { container } = render(<AgentCards agents={agents} phase="analyzing" />);
+    const runner = container.querySelector('.ag-runner') as HTMLElement;
+    const bar = screen.getByRole('progressbar', { name: 'Ход разбора' });
+    expect(runner.style.getPropertyValue('--ag-at')).toBe(`${bar.getAttribute('aria-valuenow')}%`);
+    const dot = runner.querySelector('.md') as HTMLElement;
+    expect(dot).toHaveAttribute('aria-hidden', 'true');
+    expect(dot).toHaveAttribute('data-move', 'hop');
+    expect(bar.contains(runner)).toBe(false);
+  });
 });

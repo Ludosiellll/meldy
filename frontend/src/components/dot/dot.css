@@ -1,0 +1,66 @@
+/* «Точка» (MeldyDot): the yellow dot of the wordmark with two eyes. Its key frames `m-dot-hop` are in index.css, shared
+ * with the places that draw the dot from `--m-dot-face`. */
+
+.md {
+  --md-size: 22px;
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--md-size);
+  height: var(--md-size);
+  vertical-align: middle;
+}
+.md-b {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  background: var(--m-yellow, #f4c45b);
+  transform-origin: 50% 100%;
+}
+/* The eyes are dark in both themes: they sit on the yellow, not on the page. */
+.md-b b {
+  position: absolute;
+  top: 30%;
+  width: 15%;
+  height: 24%;
+  border-radius: 50%;
+  background: #0b121c;
+  animation: md-blink 5.6s infinite;
+}
+.md-b b:first-child { left: 26%; }
+.md-b b:last-child { right: 26%; }
+.md[data-look='ahead'] .md-b b:first-child { left: 36%; }
+.md[data-look='ahead'] .md-b b:last-child { right: 16%; }
+@keyframes md-blink {
+  0%, 95.5%, 100% { transform: scaleY(1); }
+  97.5% { transform: scaleY(.1); }
+}
+
+.md[data-move='hop'] .md-b { animation: m-dot-hop 1.4s cubic-bezier(.3, 0, .3, 1) infinite; }
+
+/* A landing dot is a full stop of the text it ends: it comes down three times that size with its eyes open, squashes
+ * on the line, and shrinks into the stop; the eyes close. It grows to the right of its place, off the last letter. */
+.md[data-move='land'] {
+  --md-size: .3em;
+  margin-left: .1em;
+  vertical-align: baseline;
+}
+.md[data-move='land'] .md-b { transform-origin: 0 100%; animation: md-land 1s cubic-bezier(.3, .6, .3, 1) .45s both; }
+.md[data-move='land'] .md-b b { opacity: 0; animation: md-shut 1s linear .45s both; }
+@keyframes md-land {
+  0% { transform: translateY(-460%) scale(3.2); opacity: 0; }
+  14% { opacity: 1; }
+  52% { transform: translateY(0) scale(3.2); }
+  62% { transform: translateY(0) scale(3.8, 2.4); }
+  76% { transform: translateY(0) scale(3.2); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes md-shut {
+  0%, 74% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-b, .md-b b { animation: none !important; }
+}

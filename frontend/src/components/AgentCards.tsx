@@ -1,6 +1,8 @@
 import { Check, Loader2, X } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import type { AgentStatus, SectionName } from '../types';
 import { SECTION_ACCUSATIVE, isSectionName } from '../utils/analysisSections';
+import MeldyDot from './dot/MeldyDot';
 import './AgentCards.css';
 
 const STATUS_TEXT: Record<AgentStatus['status'], string> = {
@@ -25,7 +27,8 @@ function StatusMark({ status }: { status: AgentStatus['status'] }) {
 /**
  * Ход анализа: какие разделы готовятся, какие готовы и какие не получились — строки со статусами-пилюлями
  * в белом окне на синей панели (язык Meldy 2026-10-04). Под прогрессом — простая «Отменить», без
- * сохранения и без списания.
+ * сохранения и без списания. На полосе стоит «Точка» (MeldyDot) и прыгает на месте, пока идёт разбор:
+ * она там, где прогресс, и скрыта от программ чтения — ход называет сама полоса.
  */
 export default function AgentCards({
   agents,
@@ -61,15 +64,20 @@ export default function AgentCards({
         </p>
         {isDemo && <p className="ag-demo">Демо-текст: лимит не списывается.</p>}
 
-        <div
-          className="ag-bar"
-          role="progressbar"
-          aria-label="Ход разбора"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={pct}
-        >
-          <div className="ag-bar-fill" style={{ width: `${pct}%` }} />
+        <div className="ag-track">
+          <span className="ag-runner" style={{ '--ag-at': `${pct}%` } as CSSProperties}>
+            <MeldyDot size={22} move="hop" look="ahead" />
+          </span>
+          <div
+            className="ag-bar"
+            role="progressbar"
+            aria-label="Ход разбора"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={pct}
+          >
+            <div className="ag-bar-fill" style={{ width: `${pct}%` }} />
+          </div>
         </div>
 
         <div className="ag-panel">

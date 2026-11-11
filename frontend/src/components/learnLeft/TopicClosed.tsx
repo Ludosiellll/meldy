@@ -1,10 +1,12 @@
 import { closedRibbon, closedTopicLine, nearestLine, topicsLeftLine, type Topic } from '../../lib/containers/topics';
+import MeldyDot, { endsWithStop } from '../dot/MeldyDot';
 import './learnLeft.css';
 
 /**
  * The end of a session when it closed a topic (design learn-left §3, mock end-1536): the ribbon «Тема выучена», the
  * topic, its bar full, then what is left of the exam and the topic closest to closing. Nothing else: the headline above
- * is the figure, the paragraph under it the session's numbers.
+ * is the figure, the paragraph under it the session's numbers. «Точка» comes down at the end of the topic and stays
+ * as its full stop («Выучил — и точка»); a title that ends with its own stop gets none.
  */
 export default function TopicClosed({ closed, left, total, near }: { closed: Topic[]; left: number; total: number; near: Topic | null }) {
   if (closed.length === 0) return null;
@@ -15,6 +17,7 @@ export default function TopicClosed({ closed, left, total, near }: { closed: Top
       {closed.map((topic) => (
         <h2 key={topic.key} className="ll-won-t">
           {topic.title}
+          {endsWithStop(topic.title) ? null : <MeldyDot move="land" />}
         </h2>
       ))}
       <span className="ll-segs ll-won-segs" aria-hidden="true">

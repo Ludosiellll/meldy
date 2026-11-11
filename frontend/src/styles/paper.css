@@ -1010,6 +1010,14 @@ html[data-stage] section[aria-label='Разговор по материалу'] 
   margin-left: .08em;
   border-radius: 50%;
   background: var(--m-yellow);
+  transform-origin: 50% 100%;
+}
+/* «Точка» is alive: it hops once when the wordmark is pointed at or focused (index.css, m-dot-hop). */
+.sf-wordmark:hover::after,
+.sf-wordmark:focus-visible::after { animation: m-dot-hop 1.1s cubic-bezier(.3, 0, .3, 1) 1; }
+@media (prefers-reduced-motion: reduce) {
+  .sf-wordmark:hover::after,
+  .sf-wordmark:focus-visible::after { animation: none; }
 }
 .sf-bar-nav { gap: 2px; }
 .sf-bar-link {

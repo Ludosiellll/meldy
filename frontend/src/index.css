@@ -24,6 +24,9 @@
      (styles/telegram.css). Every bottom bar adds this variable, never env(safe-area-inset-bottom) itself. */
   --sf-safe-b: 0px;
   --m-yellow: #f4c45b;
+  /* «Точка»: the yellow dot of the wordmark with its two eyes, for a ::before or a background where no markup can
+     go (the oral answer's status pill). In markup it is components/dot/MeldyDot. */
+  --m-dot-face: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='10' fill='%23f4c45b'/%3E%3Cellipse cx='7.1' cy='8.4' rx='1.5' ry='2.4' fill='%230b121c'/%3E%3Cellipse cx='12.9' cy='8.4' rx='1.5' ry='2.4' fill='%230b121c'/%3E%3C/svg%3E");
   --m-green: #8acb97;
   --m-green-soft: #e2f2e5;
   --m-green-ink: #2c6b3a;
@@ -310,3 +313,16 @@ h1, h2, h3 { text-wrap: balance; }
 .tracking-wider,
 .tracking-widest,
 [class*="tracking-[0."] { letter-spacing: normal; }
+
+/* «Точка» hops in place and rests: a squash, a jump of two thirds of its height, a squash on landing, then it stands
+   for the last third of the cycle — a living thing, not a bouncing ball. One set of key frames for the component
+   (components/dot) and for the places that draw the dot themselves. Its origin is the bottom centre; a place with
+   little room above sets a lower jump in --m-dot-rise. */
+@keyframes m-dot-hop {
+  0% { transform: translateY(0) scale(1, 1); }
+  6% { transform: translateY(0) scale(1.12, .86); }
+  26% { transform: translateY(var(--m-dot-rise, -66%)) scale(.94, 1.08); }
+  45% { transform: translateY(0) scale(1, 1); }
+  51% { transform: translateY(0) scale(1.14, .84); }
+  62%, 100% { transform: translateY(0) scale(1, 1); }
+}

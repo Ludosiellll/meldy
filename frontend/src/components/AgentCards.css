@@ -14,10 +14,22 @@
 .ag-lede { margin: 10px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
 .ag-demo { margin: 6px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); }
 
+/* The bar with «Точка» on it: the dot stands on the bar at the end of the fill and goes along with it. */
+.ag-track { position: relative; margin-top: 18px; padding-top: 24px; }
+.ag-runner {
+  --ag-at: 0%;
+  position: absolute;
+  top: 3px;
+  left: clamp(11px, var(--ag-at), calc(100% - 11px));
+  display: block;
+  width: 22px;
+  height: 22px;
+  margin-left: -11px;
+  transition: left .6s var(--m-ease);
+}
 .ag-bar {
   position: relative;
   height: 12px;
-  margin-top: 24px;
   overflow: hidden;
   border-radius: 999px;
   background: var(--sf-surface-soft);

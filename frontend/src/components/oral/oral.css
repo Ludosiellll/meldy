@@ -343,13 +343,14 @@
 .sf-page .or-count-fine { margin: 2px 0 0; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
 .sf-page .or-line { margin: 28px 0 0; font-size: 18px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
 .sf-page .or-line-ink { color: var(--sf-ink); }
-/* «Экзаменатор слушает ответ…», «Проверяем ответ по пунктам эталона…»: a soft pill with a breathing dot. */
+/* «Экзаменатор слушает ответ…», «Проверяем ответ по пунктам эталона…»: a soft pill with «Точка» hopping in it — the
+   examiner's face while it listens and checks (the same dot as components/dot, drawn from --m-dot-face). */
 .sf-page .or-line[role='status'] {
   display: inline-flex;
   align-items: center;
   gap: 12px;
   min-height: 48px;
-  padding: 0 22px 0 18px;
+  padding: 0 22px 0 14px;
   border-radius: 999px;
   background: var(--sf-accent-soft);
   color: var(--sf-ink);
@@ -357,11 +358,12 @@
 .sf-page .or-line[role='status']::before {
   content: '';
   flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--sf-accent);
-  animation: or-breathe 1.6s ease-in-out infinite;
+  width: 22px;
+  height: 22px;
+  background: var(--m-dot-face) center / contain no-repeat;
+  transform-origin: 50% 100%;
+  --m-dot-rise: -34%; /* the pill is 48 px high: a full jump would leave it */
+  animation: m-dot-hop 1.4s cubic-bezier(.3, 0, .3, 1) infinite;
 }
 .sf-page .or-hint { margin: 12px 0 0; font-size: 16px; line-height: 23px; color: var(--sf-muted); }
 .sf-page .or-readonly-note { margin: 0 0 18px; font-size: 15px; line-height: 22px; color: var(--sf-muted); }
