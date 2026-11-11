@@ -4,6 +4,21 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-11 — Release 59.1: «Отправить в беседу» on the 3D host screens (from the commit of this entry)
+
+- **Why**: the owner's screenshot of 11.11 — in the 3D lobby of a battle the note «К этому тесту не подключена ни одна
+  беседа…» ran in one line out of its white bubble and under the cross.
+- **The cause**: the lobby's bar keeps its own words on one line (`white-space: nowrap` on `.lvbt-lobby-foot`), and the
+  note, opened inside the bar, inherited it.
+- **Fixed**: the note wraps wherever the control stands (`.lvh-tg-pop`); in the battle's 3D lobby it opens over the
+  middle of the bar, in «Встань на ответ» to the left of the pill's right edge (it stood 4 px from the screen's edge).
+- **Found by the same check**: the post's refusal beside the pill («Пост уже отправлен. Следующий можно через 55 с.»)
+  was bare dark-brown words — 1.3:1 on the 3D lobby's dark bar, and on one line it made the bar wider than a 1280
+  screen. It is now a warm chip with its own ground (7.7:1), over the control on the 3D screens.
+- **Checked**: in a browser on the real control and stylesheets — three host bars, none and three chats, two refusals,
+  1532 and 1280 wide: 10 of 24 cases red before, 24 green after; the new tests go red on the old styles; gate green on
+  9be26289 (pytest 2842, the bot 465, vitest 7423, the Docker layout build). Not checked in a live game with a bound chat: that needs the author's account.
+
 ## 2026-11-11 — Release 59: «Точка», Meldy's own face (from the commit of this entry)
 
 - **Why**: the owner on 11.11 — the project «тупо приложение», «у нас нет своего лица». Of the ideas shown
