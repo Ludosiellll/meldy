@@ -50,6 +50,24 @@ describe('host.css', () => {
     expect(css).toMatch(/\.lvh-lobby-foot \.lvh-tg-pop \{ left: var\(--tg-pop-x/);
   });
 
+  it('the post’s note wraps inside its bubble on every host screen and stays on the screen (owner, 12.11)', async () => {
+    const css = await read('host.css');
+    const stand = await read('../stand/stand.css');
+    // the 3D lobby's bar keeps its own words on one line; the note must not inherit that
+    expect(/\.lvbt-lobby-foot \{([^}]*)\}/.exec(stand)![1]).toMatch(/white-space: nowrap/);
+    const pop = /^\.lvh-tg-pop \{([^}]*)\}/m.exec(css)![1];
+    expect(pop).toMatch(/white-space: normal/);
+    expect(pop).toMatch(/--lvh-tg-pop-w: 500px/);
+    expect(pop).toMatch(/width: var\(--lvh-tg-pop-w\)/);
+    // the room the cross takes on the right is not the note's
+    expect(pop).toMatch(/padding: 20px 56px 20px 22px/);
+    // «Битва» in 3D: over the middle of the bar, whatever its width
+    expect(stand).toMatch(/\.lvbt-lobby-foot \.lvh-tg \{ position: static; \}/);
+    expect(stand).toMatch(/\.lvbt-lobby-foot \.lvh-tg-pop \{ left: 50%; margin-left: calc\(var\(--lvh-tg-pop-w\) \/ -2\); \}/);
+    // «Встань на ответ»: the pill is at the right of the screen, the note opens to the left of its right edge
+    expect(stand).toMatch(/\.lvst-actions \.lvh-tg-pop \{ left: auto; right: 0; \}/);
+  });
+
   it('a top-bar tool over the arena stays readable under the mouse: dark on the white hover circle', async () => {
     const css = await read('host.css');
     // the arena whitens the tools with a more specific selector than the plain hover's

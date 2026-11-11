@@ -178,6 +178,9 @@
 .lvst-tool:focus-visible, .lvst-go:focus-visible { outline: 3px solid #ffc531; outline-offset: 3px; }
 .lvst-warn { margin-left: 8px; padding: 9px 14px; border-radius: 999px; background: #fff3d6; color: #6b4300; font: 600 16px/1 var(--ph-sans, system-ui); }
 .lvst-actions { display: flex; align-items: center; gap: 14px; }
+/* «Отправить в беседу» stands at the right of the screen here: its note opens to the left of the pill's right edge,
+   not off the screen. */
+.lvst-actions .lvh-tg-pop { left: auto; right: 0; }
 .lvst-settings { font: 500 17px/1.2 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.75); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
 .lvst-go { box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3); }
 .lvst .lvh-tg { pointer-events: auto; }
@@ -277,6 +280,10 @@
   padding: 10px 14px 10px 22px; border-radius: 999px; background: rgba(20, 22, 54, 0.66); pointer-events: auto;
 }
 .lvbt-lobby-foot .lvst-settings { text-shadow: none; }
+/* «Отправить в беседу»: its note and list open over the middle of the bar, which is the middle of the screen — on the
+   screen whatever the bar's width and wherever the pill is in it. */
+.lvbt-lobby-foot .lvh-tg { position: static; }
+.lvbt-lobby-foot .lvh-tg-pop { left: 50%; margin-left: calc(var(--lvh-tg-pop-w) / -2); }
 
 /* the five best and the end, over a darkened arena */
 .lvbt-veil { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; padding-top: 64px; pointer-events: none; }
