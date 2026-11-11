@@ -14,7 +14,7 @@ import { BossView, CrowdCount, FxDefs, HpBar, UnderBar, byJoin } from './Arena';
 import { BANNER, MIXED, MODE, NEXT } from './copy';
 import { Crowd, type CrowdView, type Place } from './Crowd';
 import { Director, strikeOf, type BannerSpec, type Cue } from './director';
-import { logState, readLog, readSeats, saveSeats, type HostInfo } from './hostSession';
+import { logState, readLog, readSeats, saveSeats, testHref, type HostInfo } from './hostSession';
 import { NO_SEATS, arenaSlots, lobbySlots, podiumSlots, podiumTopSlots, seats as seatsFor, type LobbyLayout, type Seats, type Slot } from './layout';
 import { Lobby } from './Lobby';
 import { QuestionPanel, TopFive, type Closing } from './Panel';
@@ -573,9 +573,10 @@ export function HostScreen({ gameId, api, game, state: s, info, joinUrl, onAgain
           onReview={() => setSheet('review')}
           onAgain={onAgain}
           onFinish={next}
+          testHref={testHref(info)}
         />
       ) : null}
-      {closed ? <ClosedScreen testHref={info?.containerId ? `/exams/c/${info.containerId}` : '/exams'} onAgain={onAgain} /> : null}
+      {closed ? <ClosedScreen testHref={testHref(info)} onAgain={onAgain} /> : null}
       <Crowd view={view} rows={closed ? NO_ROWS : visible} places={crowd.places} store={store} onPick={pickId} first={top[0]?.player_id ?? null} />
       <FxDefs defsRef={defsRef} />
       {banner ? <Banner key={banner.id} banner={banner} /> : null}

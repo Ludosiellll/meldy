@@ -77,9 +77,11 @@ export interface PodiumProps {
   onReview: () => void;
   onAgain: (() => void) | null;
   onFinish: () => void;
+  /** «К тесту», shown once the game is ended. */
+  testHref: string;
 }
 
-export function Podium({ state, top, drawn, more, width, busy, onReview, onAgain, onFinish }: PodiumProps) {
+export function Podium({ state, top, drawn, more, width, busy, onReview, onAgain, onFinish, testHref }: PodiumProps) {
   const ended = state.state === 'ended';
   const outcome = gameOutcome(state);
   const won = outcome === 'won';
@@ -120,6 +122,11 @@ export function Podium({ state, top, drawn, more, width, busy, onReview, onAgain
       )}
       {more > 0 ? <div className="lvh-pod-more">+{nb(more)}</div> : null}
       <div className="lvh-pod-actions">
+        {ended ? (
+          <Link className="lvh-btn lvh-btn--white" to={testHref}>
+            {PODIUM.back}
+          </Link>
+        ) : null}
         <button type="button" className="lvh-btn lvh-btn--white" onClick={onReview}>
           {PODIUM.review}
         </button>

@@ -47,6 +47,11 @@ export interface HostInfo {
   settings: Settings | null;
 }
 
+/** Where «К тесту» leads from a game's screen: the exam the test is in, or the exams when the tab does not know it. */
+export function testHref(info: HostInfo | null): string {
+  return info?.containerId ? `/exams/c/${info.containerId}` : '/exams';
+}
+
 export function readHostInfo(gameId: string): HostInfo | null {
   const raw = read(INFO(gameId));
   if (!raw) return null;

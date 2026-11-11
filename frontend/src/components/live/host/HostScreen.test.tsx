@@ -155,6 +155,8 @@ describe('teacher screen against the fake server', () => {
     await tick(50);
     expect((await server()).state).toBe('ended');
     expect(screen.getByText(/Игра закончена\. Разбор у каждого/)).toBeInTheDocument();
+    // the game is over: a way back to the test
+    expect(screen.getByRole('link', { name: 'К тесту' })).toHaveAttribute('href', expect.stringMatching(/^\/exams(\/c\/[^/]+)?$/));
   });
 
   it('kicks a player from the lobby after a confirmation', async () => {

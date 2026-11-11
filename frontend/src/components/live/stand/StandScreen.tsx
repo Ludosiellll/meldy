@@ -9,6 +9,7 @@
  * here renders: the scene writes the timer, the counts and alive/ghosts into their elements through StandHud.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Link } from 'react-router-dom';
 import { Maximize, Minimize, Users, Volume2, VolumeX } from 'lucide-react';
 import { useLivePictures } from '../../../lib/live/pictures';
 import { sharedPlaces } from '../../../lib/live/rules';
@@ -28,7 +29,7 @@ import { Stage, useStageFit } from '../host/Stage';
 import { STAGE_H } from '../host/layout';
 import { EndConfirm, KickConfirm, PlayersSheet, ReviewSheet } from '../host/Sheets';
 import { TelegramPost, type Chat } from '../host/TelegramPost';
-import { logState, readHostToken, readLog, type HostInfo } from '../host/hostSession';
+import { logState, readHostToken, readLog, testHref, type HostInfo } from '../host/hostSession';
 import { hostSound } from '../host/sound';
 import { NEXT, nb } from '../host/copy';
 import type { HostGame } from '../host/useHostGame';
@@ -584,6 +585,11 @@ export function StandScreen({ gameId, api, game, state: s, info, joinUrl, onAgai
             </div>
           ) : phase === 'podium' || phase === 'ended' ? (
             <div className="lvst-actions">
+              {phase === 'ended' ? (
+                <Link className="lvh-btn lvh-btn--white" to={testHref(info)}>
+                  {STAND.back}
+                </Link>
+              ) : null}
               <button type="button" className="lvh-btn lvh-btn--white" onClick={() => setSheet('review')}>
                 {STAND.review}
               </button>

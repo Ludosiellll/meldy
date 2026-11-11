@@ -266,6 +266,8 @@ export const PODIUM = {
   review: 'Разбор',
   again: 'Ещё раз',
   finish: 'Закончить игру',
+  /** The way out of an ended game (owner, 11.11: «вернуться назад нельзя»). */
+  back: 'К тесту',
   finished: 'Игра закончена. Разбор у каждого ученика в игре ещё 7 дней.',
 };
 

@@ -26,7 +26,7 @@ import { classAccuracy, gameOutcome, podiumTop, questionsClosed } from '../host/
 import { EndConfirm, KickConfirm, PlayersSheet, ReviewSheet } from '../host/Sheets';
 import { TelegramPost, type Chat } from '../host/TelegramPost';
 import { TopBar } from '../host/TopBar';
-import { logState, readHostToken, readLog } from '../host/hostSession';
+import { logState, readHostToken, readLog, testHref } from '../host/hostSession';
 import { STAGE_H } from '../host/layout';
 import { hostSound, type HostSound } from '../host/sound';
 import { Stage, useStageFit, useStageWidth } from '../host/Stage';
@@ -904,6 +904,11 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
         <div className="lvst-foot lvbt-foot">
           <span />
           <div className="lvst-actions">
+            {s.state === 'ended' ? (
+              <Link className="lvh-btn lvh-btn--white" to={testHref(info)}>
+                {PODIUM.back}
+              </Link>
+            ) : null}
             <button type="button" className="lvh-btn lvh-btn--white" onClick={() => setSheet('review')}>
               {PODIUM.review}
             </button>
@@ -928,7 +933,7 @@ export default function BattleHost({ syncRef, ...props }: BattleHostProps) {
             <h1>{CLOSED.title}</h1>
             <p>{CLOSED.why}</p>
             <div className="lvh-msg-actions">
-              <Link className="lvh-btn" to={info?.containerId ? `/exams/c/${info.containerId}` : '/exams'}>
+              <Link className="lvh-btn" to={testHref(info)}>
                 {CLOSED.back}
               </Link>
               {onAgain ? (

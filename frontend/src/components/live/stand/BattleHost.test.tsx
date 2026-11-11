@@ -170,6 +170,15 @@ describe('the battle on the 3D projector', () => {
     expect(calls('cheer').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Разбор' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Закончить игру/ })).toBeInTheDocument();
+    // while the podium is up the teacher's next step is «Закончить игру»: no way out beside it yet
+    expect(screen.queryByRole('link', { name: 'К тесту' })).toBeNull();
+    await api.next(g.game_id, g.host_token, 'podium');
+    await tick(1500);
+    expect((await server()).state).toBe('ended');
+    // the game is over: a way back (owner, 11.11: «вернуться назад нельзя»)
+    expect(screen.getByRole('link', { name: 'К тесту' })).toHaveAttribute('href', expect.stringMatching(/^\/exams(\/c\/[^/]+)?$/));
+    expect(screen.getByRole('button', { name: 'Разбор' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Закончить игру/ })).toBeNull();
   });
 
   it('a mixed game: its movement round leaves the ring for the arena, the next button question brings the class back', async () => {

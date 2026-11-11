@@ -84,6 +84,12 @@ describe('host.css', () => {
     expect(arena).toMatch(/position: absolute; right: 0; bottom: calc\(100% \+ 12px\)/);
   });
 
+  it('the podium’s name is white on its dark chip by its own rule, wherever the podium stands (owner, 11.11)', async () => {
+    const stand = await read('../stand/stand.css');
+    expect(/\.lvst-pod-label \{([^}]*)\}/.exec(stand)![1]).toMatch(/background: rgba\(18, 16, 40, 0\.86\)/);
+    expect(/\.lvst-pod-name \{([^}]*)\}/.exec(stand)![1]).toMatch(/color: #fff/);
+  });
+
   it('a top-bar tool over the arena stays readable under the mouse: dark on the white hover circle', async () => {
     const css = await read('host.css');
     // the arena whitens the tools with a more specific selector than the plain hover's
