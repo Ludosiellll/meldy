@@ -181,6 +181,8 @@
 /* «Отправить в беседу» stands at the right of the screen here: its note opens to the left of the pill's right edge,
    not off the screen. */
 .lvst-actions .lvh-tg-pop { left: auto; right: 0; }
+/* Its refusal is a chip over the pill, by the same edge: in the row it was squeezed into a column of words. */
+.lvst-actions .lvh-tg-note { position: absolute; right: 0; bottom: calc(100% + 12px); width: max-content; max-width: 420px; }
 .lvst-settings { font: 500 17px/1.2 var(--ph-sans, system-ui); color: rgba(255, 255, 255, 0.75); text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
 .lvst-go { box-shadow: 0 5px 0 rgba(0, 0, 0, 0.3); }
 .lvst .lvh-tg { pointer-events: auto; }
@@ -284,6 +286,9 @@
    screen whatever the bar's width and wherever the pill is in it. */
 .lvbt-lobby-foot .lvh-tg { position: static; }
 .lvbt-lobby-foot .lvh-tg-pop { left: 50%; margin-left: calc(var(--lvh-tg-pop-w) / -2); }
+/* …and so does its refusal («Пост уже отправлен…»): a chip over the bar, not one more thing in it — in the bar it made
+   the bar wider than a 1280 screen. */
+.lvbt-lobby-foot .lvh-tg-note { position: absolute; left: 50%; bottom: calc(100% + 12px); transform: translateX(-50%); width: max-content; max-width: 500px; white-space: normal; }
 
 /* the five best and the end, over a darkened arena */
 .lvbt-veil { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; padding-top: 64px; pointer-events: none; }

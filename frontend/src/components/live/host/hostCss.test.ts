@@ -68,6 +68,22 @@ describe('host.css', () => {
     expect(stand).toMatch(/\.lvst-actions \.lvh-tg-pop \{ left: auto; right: 0; \}/);
   });
 
+  it('the post’s refusal reads on every host screen: a chip with its own ground, over the control on the 3D ones', async () => {
+    const css = await read('host.css');
+    const stand = await read('../stand/stand.css');
+    const note = /^\.lvh-tg-note \{([^}]*)\}/m.exec(css)![1];
+    // dark-brown words on their own warm ground (7.7:1), never bare on the dark bar of the 3D lobby (1.3:1)
+    expect(note).toMatch(/background: #fff1cf/);
+    expect(note).toMatch(/color: #6b4300/);
+    // over the bar and over the pill, so the bar keeps its width and the row its words
+    const battle = /\.lvbt-lobby-foot \.lvh-tg-note \{([^}]*)\}/.exec(stand)![1];
+    expect(battle).toMatch(/position: absolute/);
+    expect(battle).toMatch(/white-space: normal/);
+    expect(battle).toMatch(/max-width: 500px/);
+    const arena = /\.lvst-actions \.lvh-tg-note \{([^}]*)\}/.exec(stand)![1];
+    expect(arena).toMatch(/position: absolute; right: 0; bottom: calc\(100% \+ 12px\)/);
+  });
+
   it('a top-bar tool over the arena stays readable under the mouse: dark on the white hover circle', async () => {
     const css = await read('host.css');
     // the arena whitens the tools with a more specific selector than the plain hover's
