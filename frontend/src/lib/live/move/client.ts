@@ -4,9 +4,9 @@
  *
  * - Connects, says hello with the live game's player or host token, reconnects after drops with backoff (the server
  *   resumes the same character); stops for good on a final close (bad token, kicked, room closed, game ended).
- * - A player makes one command per server tick (20 Hz) and sends them in batches at `sendHz` (15 Hz); nothing is sent
- *   while the stick rests. Its own character is predicted (predict.ts); everyone else is interpolated ~100 ms behind
- *   (interp.ts).
+ * - A player makes one command per server tick (20 Hz) — on the drawn frame its tick falls in — and sends them in
+ *   batches at `sendHz` (15 Hz); nothing is sent while the stick rests. Its own character is predicted (predict.ts),
+ *   each command's step drawn over the tick that follows it; everyone else is interpolated ~100 ms behind (interp.ts).
  * - Pings every 2 s (the server closes a socket silent for 15 s; the pong gives the round trip); a socket that brought
  *   nothing for `staleMs` is dropped and opened again.
  * - A mode's messages: mode A «Встань на ответ» (docs/live/MODE_STAND.md) keeps its latest `hello`, `state` and `me` in
@@ -105,6 +105,10 @@ export class MoveClient {
   private axes: [number, number] = [0, 0];
   private buttons = 0;
   private lastIdle = true;
+  /** Commands made and not yet sent (they go in frames at `sendHz`). */
+  private outbox: Command[] = [];
+  /** A command was made for the tick the clock is in: its step is being drawn (Predictor.render). */
+  private stepping = false;
   private myFlags = 0;
   private attempt = 0;
   private lastRx = 0;
@@ -186,7 +190,9 @@ export class MoveClient {
     let me: RenderState['me'] = null;
     const you = this.welcome?.you;
     if (you !== undefined && this.predictor && this.buffer.latest()) {
-      const p = this.predictor.render(nowMs);
+      // the commands owed by this frame are made now, not at the next send: the character moves on every frame
+      this.pump(nowMs);
+      const p = this.predictor.render(nowMs, this.stepping ? this.cmdClock.phase(nowMs) : 1);
       me = { id: you, x: p.x, y: p.y, flags: this.myFlags };
       others.delete(you);
     }
@@ -298,6 +304,8 @@ export class MoveClient {
     this.clock.reset();
     this.seq = 0;
     this.lastIdle = true;
+    this.outbox = [];
+    this.stepping = false;
     const rules = { tickHz: w.hz, speed: w.speed, r: w.r };
     this.cmdClock = new CommandClock(1000 / w.hz);
     if (w.role === 'player') {
@@ -351,22 +359,38 @@ export class MoveClient {
       this.onClosed(CLOSE.TIMEOUT);
       return;
     }
+    this.pump(now);
+    if (this.outbox.length === 0) return;
+    const cmds = this.outbox;
+    this.outbox = [];
+    for (let i = 0; i < cmds.length; i += MAX_CMDS_PER_MSG) ws.send(encodeInput(cmds.slice(i, i + MAX_CMDS_PER_MSG)));
+  }
+
+  /**
+   * Makes the commands owed by `now` — one per server tick — and moves the own character by them at once; they wait
+   * in the outbox for the next send. Called from every drawn frame (frame()) and from the send timer (a tab that
+   * draws nothing), so a command is made within a frame of its tick, not up to a send period late: made in the
+   * timer alone, 15 times a second, one or two at once, the character stood and jumped by turns (11.11).
+   */
+  private pump(now: number): void {
+    const ws = this.ws;
+    if (!ws || ws.readyState !== 1) return;
     if (!this.predictor || !this.buffer.latest()) return; // commands start from the first known position
     const n = this.cmdClock.due(now);
     if (n <= 0) return;
+    this.stepping = false;
     const [jx, jy] = this.holding(now) ? [0, 0] : this.axes;
     const idle = jx === 0 && jy === 0 && this.buttons === 0;
     if (idle && this.lastIdle) return;
     const count = idle ? 1 : n; // one still command tells the server the stick and buttons were let go
     this.lastIdle = idle;
     const frozen = this.frozen || (this.myFlags & F_FROZEN) !== 0;
-    const cmds: Command[] = [];
     for (let i = 0; i < count; i++) {
       const cmd = { seq: ++this.seq, jx, jy, buttons: this.buttons };
       this.predictor.apply(cmd, frozen);
-      cmds.push(cmd);
+      this.outbox.push(cmd);
     }
-    for (let i = 0; i < cmds.length; i += MAX_CMDS_PER_MSG) ws.send(encodeInput(cmds.slice(i, i + MAX_CMDS_PER_MSG)));
+    this.stepping = true;
   }
 
   private ping(): void {

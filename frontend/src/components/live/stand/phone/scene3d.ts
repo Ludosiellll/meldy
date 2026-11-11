@@ -17,6 +17,7 @@ import { F_AWAY, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, resKeys, type S
 import type { MapJson } from '../../../../lib/live/move/sim';
 import { easeOutBack } from '../plan';
 import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
+import { gaitStep, newGait, type Gait } from './gait';
 import { LIGHT_LEVEL, PHONE_LEVELS, PHONE_PIXEL_RATIO, PhoneGovernor } from './quality';
 import type { Backdrop, FrameInput } from './sprites';
 import { BossCopies } from '../bossCopies';
@@ -55,10 +56,12 @@ interface Tracked {
   iced: boolean;
   /** Not drawn yet: its ice is shown as it is, without growing. */
   fresh: boolean;
+  /** Running or standing, over the frames (gait.ts). */
+  gait: Gait;
 }
 
 function tracked(player: Player, x: number, y: number, seen: number): Tracked {
-  return { player, x, y, seen, fallAt: Infinity, riseAt: Infinity, fx: x, fy: y, iced: false, fresh: true };
+  return { player, x, y, seen, fallAt: Infinity, riseAt: Infinity, fx: x, fy: y, iced: false, fresh: true, gait: newGait() };
 }
 
 export class PhoneScene implements Backdrop {
@@ -438,8 +441,9 @@ export class PhoneScene implements Backdrop {
     }
     p.setGhost(isGhost(flags));
     p.setAway((flags & F_AWAY) !== 0);
-    // in ice a character slides, it does not run
-    p.setPose(speed > RUN_SPEED && !t.iced ? 'run' : 'idle');
+    // in ice a character slides, it does not run; a run ends after a short stillness, not on one frame without a step
+    const running = gaitStep(t.gait, speed > RUN_SPEED, dt);
+    p.setPose(running && !t.iced ? 'run' : 'idle');
     if (speed > RUN_SPEED) p.setFacing(Math.atan2(dx, dy));
     p.setPosition(x, y, isGhost(flags) ? 0 : Math.min(0, arena.floorAt(x, y)));
   }

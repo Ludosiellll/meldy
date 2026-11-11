@@ -69,6 +69,13 @@ Other codes (1006 network drop, 1001, 1011, …) retry with backoff 0.5 s → 8 
 - **Ack.** Each snapshot tells the phone the seq of its last applied command. The phone replays its later commands
   through the same movement code (`sim.ts`), so the prediction lands where the server will. Both sides compute the
   same doubles: `contracts/live/move_cases.json` is checked by `test_live_move.py` and `sim.test.ts`.
+- **Drawing the own character.** A command moves it a whole tick's way (13 units), and a screen draws three frames in
+  a tick. Each command is made on the drawn frame its tick falls in (`MoveClient.frame()` → `pump`; the send timer
+  makes it only when nothing is drawn) and its step is drawn over the tick that follows: from where the command before
+  left the character to where this one put it (`Predictor.render(now, phase)`, `CommandClock.phase`). Every frame
+  moves the character the same share of the way; it is drawn at most one tick behind its prediction. Until 11.11 the
+  commands were made in the send timer alone (15 times a second, one or two at once) and drawn at once: the character
+  stood for three frames of four and jumped 13 or 26 units, and its run's clip started again on every jump.
 - **Collision:** circles against rectangles and circles of the map, two passes (rectangles, then circles, in map
   order), then clamped to the map. Players pass through each other.
 - **NPC stub:** `{"t":"cmd","op":"npc","on":true,"n":1}` adds a chaser that runs at the nearest connected player who

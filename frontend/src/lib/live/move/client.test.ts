@@ -168,12 +168,70 @@ describe('MoveClient', () => {
     advance(200); // 4 commands made, none acked yet
     const f = c.frame(now);
     expect(f.me).toMatchObject({ id: 7, y: 450 });
-    expect(f.me!.x).toBeCloseTo(800 + 4 * 13, 6);
+    // the fourth command was made this instant: its step is drawn over the tick that follows
+    expect(f.me!.x).toBeCloseTo(800 + 3 * 13, 6);
+    expect(c.frame(now + 25).me!.x).toBeCloseTo(800 + 3.5 * 13, 6);
+    expect(c.frame(now + 49.999).me!.x).toBeCloseTo(800 + 4 * 13, 2);
     expect(f.others.get(8)).toEqual({ x: 100, y: 100, flags: 0 });
     expect(f.others.has(7)).toBe(false);
     // The server applied 2 of them: the replay of the other 2 lands on the same spot, nothing to correct.
     ws.binary(snapshot(102, 2, 826, 450));
-    expect(c.frame(now).me!.x).toBeCloseTo(852, 6);
+    expect(c.frame(now + 49.999).me!.x).toBeCloseTo(852, 2);
+  });
+
+  it('the own character glides between commands: an even step on every frame, 60 and 30 a second (owner’s video, 11.11)', () => {
+    for (const fps of [60, 30]) {
+      FakeSocket.all = [];
+      const c = client();
+      c.connect();
+      const ws = FakeSocket.all[0];
+      ws.open();
+      ws.text(welcome());
+      ws.binary(snapshot(100, 0, 200, 450));
+      c.setJoystick(1, 0);
+      const xs: number[] = [];
+      for (let i = 0; i < fps * 2; i++) {
+        now += 1000 / fps;
+        vi.advanceTimersByTime(1000 / fps);
+        xs.push(c.frame(now).me!.x);
+      }
+      // the second second, when the run is under way: 260 units a second, the same share of it on every frame
+      const steps = xs.slice(fps + 1).map((x, i) => x - xs[fps + i]);
+      const even = 260 / fps;
+      expect(Math.min(...steps), `${fps} fps`).toBeGreaterThan(even * 0.8);
+      expect(Math.max(...steps), `${fps} fps`).toBeLessThan(even * 1.2);
+      // what goes to the server is as before: a command a tick, in frames at ~15 Hz, seqs in a row
+      const sent = ws.inputs();
+      expect(sent.length).toBeGreaterThanOrEqual(27);
+      expect(sent.length).toBeLessThanOrEqual(32);
+      const seqs = sent.flatMap((m) => m.cmds.map((_, i) => m.first + i));
+      expect(seqs).toEqual(seqs.map((_, i) => i + 1));
+      expect(seqs.length).toBeGreaterThanOrEqual(38);
+      expect(seqs.length).toBeLessThanOrEqual(41);
+      c.close();
+    }
+  });
+
+  it('stands where the prediction is once the stick rests, and starts from there', () => {
+    const c = client();
+    c.connect();
+    const ws = FakeSocket.all[0];
+    ws.open();
+    ws.text(welcome());
+    ws.binary(snapshot(100, 0, 800, 450));
+    c.setJoystick(1, 0);
+    advance(200);
+    c.frame(now);
+    c.setJoystick(0, 0);
+    advance(200);
+    const rest = c.frame(now).me!.x;
+    expect(rest).toBeCloseTo(800 + 4 * 13, 6);
+    // every frame of the rest shows the same place: no drift back and forth with the ticks
+    for (let i = 0; i < 12; i++) {
+      now += 1000 / 60;
+      vi.advanceTimersByTime(1000 / 60);
+      expect(c.frame(now).me!.x).toBeCloseTo(rest, 6);
+    }
   });
 
   it('stops predicting when the server freezes the player', () => {
