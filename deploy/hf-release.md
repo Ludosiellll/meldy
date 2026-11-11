@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-11 — Release 59.2: the own character runs evenly on the phone; «К тесту» on an ended game (from the commit of this entry)
+
+- **Why**: the owner's video of a movement round on a phone (11.11, «посмотри какое движение убогое») and a
+  screenshot of an ended battle («вернуться назад нельзя»).
+- **The movement's cause**: a phone made its commands in the send timer alone — 15 times a second, one or two at
+  once — and drew its character at the last command's place. On a 60 Hz screen it stood for three frames of four and
+  jumped 13 or 26 units; and the pose, told from one frame alone, went «стоит» / «бежит» by turns, so the run's clip
+  started again on every jump and the legs never ran.
+- **Fixed** (`lib/live/move/predict.ts`, `client.ts`, `components/live/stand/phone/gait.ts`; docs/live/MOVE.md): a
+  command is made on the drawn frame its tick falls in, and its step is drawn over the tick that follows, so every
+  frame moves the character the same share of the way; a run ends only after 0.12 s without a step. What goes to the
+  server is the same (one command a tick, frames at ~15 Hz): no server change.
+- **The end screen**: an ended game has «К тесту» on the three host screens (the battle in 3D, «Встань на ответ», the
+  flat one); the winner's name is white on its dark chip (it was dark on the battle's 3D end screen).
+- **Checked**: tests on the real classes — at 60 and at 30 frames a second every frame moves the character within
+  20 % of the even step (before: frames with no step); the run's clip starts once in two seconds, not 30 times; gate
+  green on a716cbeb (pytest 2842, the bot 465, vitest 7432, the Docker layout build). Not checked on a real phone in a live game: the owner's eyes are the last check.
+
 ## 2026-11-11 — Release 59.1: «Отправить в беседу» on the 3D host screens (from the commit of this entry)
 
 - **Why**: the owner's screenshot of 11.11 — in the 3D lobby of a battle the note «К этому тесту не подключена ни одна
