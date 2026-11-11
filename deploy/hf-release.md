@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-11 — Release 59: «Точка», Meldy's own face (from the commit of this entry)
+
+- **Why**: the owner on 11.11 — the project «тупо приложение», «у нас нет своего лица». Of the ideas shown
+  (meldy-notes 10_Project/Face_and_Final_Ideas_2026-11-11.md) the owner took the first: the yellow dot of the wordmark,
+  which already opens and closes the films, becomes a character with two eyes.
+- **Where it lives** (`components/dot/MeldyDot`, key frames and `--m-dot-face` in `index.css`):
+  - on the progress bar while a lecture is read: it stands at the end of the fill, hops and rests;
+  - at the end of a topic that was just learned (the end of a session, «Тема выучена»): it comes down and stays as the
+    topic's full stop; a title that ends with its own stop gets none;
+  - in the status pill of the oral answer — «Экзаменатор слушает ответ…», «Проверяем ответ по пунктам из лекций…»,
+    and the example at /try: the breathing blue dot is now the same face;
+  - the wordmark's dot hops once under the pointer.
+- **How**: CSS only, no timers and no state; hidden from screen readers (the words beside it carry the state); stands
+  still under «меньше движения». The 2 000-line oral page is not touched: its pill is restyled in `oral.css`.
+- **Not in this release**: the dot does not move with the voice while the student speaks; «Дедлайн» is still only in
+  the games, not on the plan by days.
+- **Checked**: gate green on 257469f4 (pytest 2842, the bot 465, vitest 7421, the Docker layout build); the three places shot at 1100 and 390, light and dark, and the
+  motion frame by frame; the live bundle checked after the deploy.
+
 ## 2026-11-09 — Release 58: the group's summary for its author, support through the bot, «Данные и приватность» (from the commit of this entry)
 
 - **Why**: the live numbers of 09.11 (a group of 19: 16 people studying in its first week, 6 in the second, then 1 —
