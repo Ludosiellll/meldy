@@ -103,8 +103,7 @@ html, body { background: #0b0f16; }
   function placeCaption(el, text, opacity, lift) {
     el.querySelector('span').textContent = text;
     el.style.opacity = String(opacity);
-    const w = el.offsetWidth;
-    el.style.left = `${Math.round((1437 - w) / 2)}px`;
+    el.style.left = '88px';   // on the slide's left margin, as in the other films of the stage copy
     el.style.top = `${740 + lift}px`;
   }
 

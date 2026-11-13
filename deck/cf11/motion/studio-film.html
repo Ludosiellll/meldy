@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>studio-film — преподаватель собирает тест и отправляет ссылку</title>
+<link rel="stylesheet" href="clip.css">
+<link rel="stylesheet" href="screen-film.css">
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script src="clip.js"></script>
+<script src="screen-film.js"></script>
+<script>
+/* The stage version's slide 11 (13.11). The recording of the live site (account A, October 2026;
+   media/product/masters/11-master.mp4, 1920 × 1200): a test is named, a heading and a text are typed, a picture is
+   dragged in, a video is pasted by its link, four questions are added, points, a theme, then the test as a pupil
+   sees it, «Отправить по ссылке», the link and its QR code. Real time; the pupil's view and the QR hold for reading.
+   The tab with the messages for different scores (19.1–21.8 s of the recording) is left out. Few camera moves: the
+   recording itself is busy.
+   Frames: ffmpeg -i media/product/masters/11-master.mp4 -vf fps=30 -q:v 2 media/gen/footage/studio/m-%04d.jpg
+   Rendered: node deck/cf11/motion/render.mjs studio-film --fps 30 --blur 4 --jobs 4 --crf 18 */
+const K = 1.5;
+const T = 27.1;
+const f1 = (m) => m - 0.5;               // the first piece
+const f2 = (m) => 18.5 + (m - 21.77);    // the pupil's view
+const f3 = (m) => 21.6 + (m - 23.5);     // the link
+const tap = (f, x, y) => ({ f, x: x * K, y: y * K });
+screenFilm({
+  footage: '../media/gen/footage/studio/', frames: 816, fps: 30, src: [1920, 1200],
+  T, seam: 0.5,
+  pieces: [
+    { f0: 0, m0: 0.5, m1: 19.0 },
+    { f0: 18.5, m0: 21.77, m1: 23.5, fade: 0.35 },
+    { f0: 21.6, m0: 23.5, m1: 26.65 },
+  ],
+  cam0: [300, 258, 1320],
+  moves: [
+    { at: f1(2.45), dur: 0.7, box: [0, 114, 1920] },      // the studio opens
+    { at: f1(3.3), dur: 0.9, box: [0, 225, 1400] },       // a heading and a text
+    { at: f1(5.6), dur: 0.9, box: [330, 250, 1590] },     // a picture is dragged in
+    { at: f1(7.75), dur: 0.9, box: [0, 520, 1620] },      // the video and the questions
+    { at: f1(14.45), dur: 0.8, box: [420, 410, 1500] },   // points, then the theme
+    { at: 18.35, dur: 0.7, box: [0, 200, 1920] },         // as a pupil sees it
+    { at: 19.3, dur: 2.2, box: [200, 260, 1520] },
+    { at: 21.45, dur: 0.7, box: [0, 150, 1920] },         // «Отправить по ссылке», the link
+    { at: f3(25.45), dur: 0.6, box: [0, 80, 1920] },      // the QR code (its address under it stays out: it does not fit)
+  ],
+  caps: [
+    { from: 0.3, to: 2.3, text: 'Тест начинается с названия' },
+    { from: 2.8, to: 4.8, text: 'Страницу собирают из блоков' },
+    { from: 5.2, to: 9.8, text: 'Картинку перетаскивают, видео вставляют ссылкой' },
+    { from: 10.2, to: 13.7, text: 'Вопрос добавляют одним нажатием' },
+    { from: 14.1, to: 15.3, text: 'У вопроса свои баллы' },
+    { from: 15.7, to: 18.2, text: 'Оформление выбирают из готовых тем' },
+    { from: 18.8, to: 21.4, text: 'Так тест увидит ученик' },
+    { from: 21.9, to: T, text: 'Ученики получают ссылку и QR-код' },
+  ],
+  taps: [
+    tap(f1(2.351), 449.9, 489.9), tap(f1(3.313), 117.7, 398.7), tap(f1(5.297), 117.7, 446.7), tap(f1(7.552), 574, 368.4),
+    tap(f1(8.733), 117.7, 542.7), tap(f1(9.762), 780.9, 565.9), tap(f1(11.062), 117.7, 606.2), tap(f1(12.095), 117.7, 654.2),
+    tap(f1(13.027), 117.7, 702.2), tap(f1(13.938), 117.7, 750.2), tap(f1(15.029), 1226, 321.3), tap(f1(15.684), 1226, 321.3),
+    tap(f1(16.495), 1181.7, 460.2), tap(f1(17.579), 996.7, 573.4), tap(f1(18.478), 1057.2, 674.4),
+    tap(f3(24.016), 1139.1, 110), tap(f3(24.645), 1107.1, 738), tap(f3(25.362), 139.8, 442.6),
+  ],
+  poster: 8400,
+});
+</script>
+</body>
+</html>

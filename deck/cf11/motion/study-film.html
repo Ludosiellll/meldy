@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>study-film — по материалам лекцию учат: карточки, самопроверка, подкаст</title>
+<link rel="stylesheet" href="clip.css">
+<link rel="stylesheet" href="screen-film.css">
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script src="clip.js"></script>
+<script src="screen-film.js"></script>
+<script>
+/* The stage version's slide 08 (13.11). The same recording as the lecture's film (media/product/masters/
+   lecture-master.mp4), its second half: a card is turned over, a question of the self-check is answered and
+   explained, the podcast plays. Each piece runs in real time and then holds its last frame for reading; between
+   the explanation and the podcast the recording shows «Выжимка», which this film leaves out (a crossfade). The
+   camera keeps the tabs and the heading «Проверочный тест» out of the frame: the self-check's name before 22.10.
+   Rendered: node deck/cf11/motion/render.mjs study-film --fps 30 --blur 4 --jobs 4 --crf 18 */
+const K = 1.5;
+const T = 18.8;
+screenFilm({
+  footage: '../media/gen/footage/lecture/', frames: 900, fps: 30, src: [1536, 1200],
+  T, seam: 0.5,
+  pieces: [
+    { f0: 0, m0: 19.95, m1: 21.7 },                 // a card, turned over at 20.5
+    { f0: 4.6, m0: 22.1, m1: 23.2, fade: 0.35 },    // the self-check: an answer at 22.5
+    { f0: 7.0, m0: 23.2, m1: 24.9 },                // its explanation (the recording's own crossfade)
+    { f0: 12.0, m0: 26.8, m1: 29.4, fade: 0.35 },   // the podcast, ▶ at 27.87
+  ],
+  cam0: [0, 380, 1536],
+  moves: [
+    { at: 0.5, dur: 3.6, box: [60, 400, 1416] },
+    { at: 4.5, dur: 0.7, box: [0, 400, 1536] },
+    { at: 7.1, dur: 0.9, box: [0, 560, 1536] },
+    { at: 8.4, dur: 3.0, box: [40, 600, 1456] },   // a slow push to the explanation
+    { at: 11.9, dur: 0.7, box: [40, 610, 1456] },  // the podcast: its subtitles and its controls
+  ],
+  caps: [
+    { from: 0.3, to: 4.4, text: 'По карточкам лекцию повторяют' },
+    { from: 4.8, to: 11.7, text: 'Самопроверка сразу объясняет ответ' },
+    { from: 12.2, to: T, text: 'В подкасте лекцию обсуждают двое ведущих' },
+  ],
+  taps: [
+    { f: 20.395 - 19.95, x: 358.5 * K, y: 306.2 * K }, { f: 4.6 + (22.409 - 22.1), x: 329.6 * K, y: 433 * K },
+    { f: 12.0 + (27.872 - 26.8), x: 142 * K, y: 754.2 * K },
+  ],
+  poster: 9500,
+});
+</script>
+</body>
+</html>

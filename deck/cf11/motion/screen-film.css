@@ -1,0 +1,14 @@
+/* The screen films of the stage copy (screen-film.js): the recording in a rounded window across the film, the
+   caption under it on the slide's canvas, 88 px in so it stands on the slide's left margin. */
+html, body { background: #0b0f16; }
+.stage { width: 1840px; height: 808px; background: #0b0f16; color: #f3f3f0; }
+.win { left: 0; top: 0; width: 1840px; height: 728px; overflow: hidden; border-radius: 22px; background: #f3f3f0; }
+.win img { left: 0; top: 0; transform-origin: 0 0; will-change: transform, opacity; }
+.spot { left: 0; top: 0; width: 10px; height: 10px; box-shadow: 0 0 0 3000px rgba(11, 15, 22, 0); will-change: box-shadow; }
+.tap { left: 0; top: 0; width: 84px; height: 84px; margin: -42px 0 0 -42px; border-radius: 50%; background: rgba(40, 105, 221, .3); opacity: 0; will-change: transform, opacity; }
+.cap {
+  left: 88px; top: 740px; display: flex; align-items: center; gap: 18px; height: 64px; color: #f3f3f0; font-size: 40px; font-weight: 600;
+  letter-spacing: -.015em; white-space: nowrap; opacity: 0; will-change: opacity, transform;
+}
+.cap i { position: static; flex: none; width: 18px; height: 18px; border-radius: 50%; background: #f4c45b; }
+.cap span { position: static; }

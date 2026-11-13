@@ -14,35 +14,21 @@
 
 <div class="sec" data-pptx="title">Представление блоков проекта</div>
 <div class="nav" data-pptx="text" data-name="!!nav">Лекции · <b>Экзамены 1/2</b> · Конструктор · Контрольные</div>
+<div class="mark-dot" data-pptx="shape" data-name="!!navdot" style="left:1224px;top:96px;width:12px;height:12px;border-radius:6px"></div>
 
-<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">Meldy читает вопросы кафедры из&nbsp;файла<br>и&nbsp;составляет план по&nbsp;дням до&nbsp;экзамена</div>
+<div class="claim" data-pptx="text" data-anim="rise" data-anim-dur="700" data-anim-order="1">По&nbsp;вопросам кафедры Meldy составляет план по&nbsp;дням</div>
 
-<!-- The import of the department's file (the live site, 22.10.2026, release 47.26: «Программирование на C#», 240
-     questions, the key in bold; nothing saved) and «План по дням» of the exam made from that file on 11.10 (account A,
-     19.10.2026). -->
-<img class="shot" data-pptx="image" data-name="!!s2" data-src="../media/product/v2/exam-found.png" src="../media/product/v2/exam-found.png" aria-label="Новый экзамен из файла" alt="" style="left:128px;top:344px;width:840px;height:474px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="2">
-<img class="shot lift2" data-pptx="image" data-src="../media/product/v2/exam-days.png" src="../media/product/v2/exam-days.png" aria-label="План по дням" alt="" style="left:1000px;top:380px;width:792px;height:587px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="3">
+<!-- The stage copy (13.11): the film takes the slide (motion/plan-film.html). The recording of the live site
+     (account A, October 2026; media/product/masters/07-master.mp4) across the slide, a camera over it: the
+     department's file is chosen, «Нашли 240 вопросов», the exam's date and the minutes a day, «Сохранить», the exam's
+     page with today's task, «План по дням» read from top to bottom. Real time, the plan holds at the end. The camera
+     keeps the app's top bar out of the frame. The film starts with the slide and loops; its poster is the plan by
+     days. -->
+<img data-pptx="video" data-name="!!s3" data-src="../media/motion/plan-film.mp4" data-poster="../media/motion/plan-film.jpg" data-loop src="../media/motion/plan-film.jpg" aria-label="Файл с вопросами кафедры, 240 вопросов, дата экзамена и план по дням" alt="" style="left:40px;top:236px;width:1840px;height:808px">
 
-<div class="mk" data-pptx="shape" style="left:356px;top:478px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="4">1</div>
-<div class="mk" data-pptx="shape" style="left:1466px;top:498px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">2</div>
-<div class="mk" data-pptx="shape" style="left:968px;top:880px" data-anim="settle" data-anim-trigger="after" data-anim-dur="400" data-anim-order="6">3</div>
+<template data-pptx="notes">Теперь экзамены. Преподаватель выдаёт список вопросов к экзамену. Студент загружает этот файл, и Meldy находит в нём вопросы. Здесь их двести сорок. Студент ставит дату экзамена и время, которое готов учить в день. Meldy делит вопросы по дням и каждый день говорит, сколько учить сегодня. Если день пропущен, его вопросы переходят на следующие. Так студент заранее видит, успевает он к экзамену или нет.
 
-<div class="mk s" data-pptx="shape" style="left:128px;top:850px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">1</div>
-<div class="t32" data-pptx="text" style="left:196px;top:852px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">240 вопросов, верные ответы выделены жирным</div>
-<div class="mk s" data-pptx="shape" style="left:128px;top:902px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">2</div>
-<div class="t32" data-pptx="text" style="left:196px;top:904px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="5">Студент сам выбирает, сколько минут в&nbsp;день</div>
-<div class="mk s" data-pptx="shape" style="left:128px;top:954px" data-anim="settle" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">3</div>
-<div class="t32" data-pptx="text" style="left:196px;top:956px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="6">Пропущенный день переносится на&nbsp;следующие</div>
-
-<div class="t28m" data-pptx="text" style="left:1000px;top:996px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="7">Ещё перенос экзамена, ссылка для&nbsp;группы и&nbsp;Telegram</div>
-
-<template data-pptx="notes">Теперь экзамены. Студент загружает файл с вопросами кафедры в Word, Excel, TXT или PDF. Meldy находит в нём вопросы. Если у вопроса есть варианты, верный ответ Meldy берёт прямо из файла, по жирному шрифту или пометке. В кадре так нашлись 240 вопросов.
-
-Потом студент указывает дату экзамена и сколько минут в день готов заниматься. Meldy раскладывает вопросы по дням. В последние дни остаётся только повторение. Вопросы пропущенного дня переходят на следующие.
-
-Если дата сдвинулась, есть кнопка «Перенести экзамен», для всей группы или только для себя. Группа получает экзамен по одной ссылке. План на день приходит в Telegram, и вопросы можно решать прямо в чате.
-
-О кадрах: слева живой сайт 22 октября 2026 года. Справа «План по дням» экзамена из того же файла, 19 октября.</template>
+О записи: живой сайт, октябрь 2026 года, поэтому в кадре октябрьские даты. Запись идёт в настоящем темпе.</template>
 </main>
 </body>
 </html>
