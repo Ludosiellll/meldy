@@ -9,45 +9,44 @@
 <body>
 <div class="stage" id="stage"></div>
 <script src="clip.js"></script>
-<script src="screen-film.js"></script>
+<script src="../media/gen/footage/plan-take/take.js"></script>
+<script src="take-film.js"></script>
 <script>
-/* The stage version's slide 09 (13.11). The recording of the live site of 21.10.2026 (account A;
-   media/product/masters/07-master.mp4, 1792 × 1400): the department's file is chosen, «Нашли 240 вопросов», the exam's
-   date and the minutes a day, «Сохранить», the exam's page with today's task, «План по дням». It runs in real time
-   from 0.3 s to its end and then holds; the camera keeps the app's top bar (the account's initial) out of the frame.
-   Frames: ffmpeg -i media/product/masters/07-master.mp4 -vf fps=30 -q:v 2 media/gen/footage/plan/m-%04d.jpg
+/* The stage version's slide 09, re-shot on today's app (13.11, the owner: «ролики нужны актуальные»). A take of the
+   local copy of today's code (tools/record/local.cjs; the take's script and its mock are kept with the take): the
+   department's file «Программирование на C#.docx» — the repository's own bank
+   backend/tests/fixtures/banks/synthetic/csharp_table.docx, 240 questions in 12 topics, the right answers in bold — is
+   chosen, the page's answer is what today's backend/bank_parse.py gives for it, «Нашли 240 вопросов», the exam's date
+   04.12.2026 typed by hand, 45 minutes a day, «Сохранить», the exam's page with today's task, «План по дням». Every
+   number on the exam's page and in the plan is the app's own, counted from the 240 saved questions.
+   The film opens on the whole screen and then goes to the part the talk is about; it runs in real time and holds on
+   the plan. Footage: media/gen/footage/plan-take (take_footage.py; ignored by git).
    Rendered: node deck/cf11/motion/render.mjs plan-film --fps 30 --blur 4 --jobs 4 --crf 18 */
-const M0 = 0.3;                      // the film's second 0 is the master's 0.3
-const f = (m) => m - M0;
-const K = 1.75;                      // the master's px per point of the page (the presses are in points)
-screenFilm({
-  footage: '../media/gen/footage/plan/', frames: 708, fps: 30, src: [1792, 1400],
-  T: 26.6, seam: 0.5,
-  pieces: [{ f0: 0, m0: M0, m1: 23.0 }],                  // the master's last half second dissolves into its start
-  cam0: [0, 410, 1792],
+const { fit, whole, mark } = takeFilmTools;
+const T = 37.2;
+takeFilm({
+  footage: '../media/gen/footage/plan-take/', T, seam: 0.5,
+  pieces: [{ f0: 0, m0: 0, m1: mark('plan-close') - 0.1 }],
   moves: [
-    { at: f(1.0), dur: 1.5, box: [60, 440, 1100] },       // to «Выбрать файлы»: the card's left half
-    { at: f(3.0), dur: 0.9, box: [0, 390, 1500] },        // «Нашли 240 вопросов»
-    { at: f(5.9), dur: 1.2, box: [500, 660, 1292] },      // the form: the exam's date
-    { at: f(10.1), dur: 1.0, box: [500, 720, 1292] },     // the minutes a day
-    { at: f(14.3), dur: 1.0, box: [500, 846, 1292] },     // «Сохранить»
-    { at: f(16.35), dur: 1.0, box: [0, 250, 1792] },      // the exam's page
-    { at: f(17.6), dur: 2.6, box: [40, 330, 1712], ease: window.M.E.inOut3 },   // a slow push to today's task
-    { at: f(20.3), dur: 1.1, box: [410, 348, 980] },      // «План по дням», its top
-    { at: f(22.2), dur: 3.4, box: [410, 650, 980] },      // down the days
+    { at: 1.4, dur: 1.4, box: fit([268, 144, 1572, 594], { pad: 40 }) },      // the upload card
+    { at: 5.6, dur: 1.2, box: fit([268, 144, 1144, 344], { pad: 48 }) },      // «Нашли 240 вопросов» and the file's row
+    { at: 8.6, dur: 1.4, box: fit([268, 144, 1572, 704], { pad: 40 }) },      // what was found and the form, together
+    // the form closer: the camera's left edge stands in the empty part of the file's row (x 900), so no word is cut;
+    // while the year is typed the page asks to check it, in the bar under the form: the camera stays above that bar
+    { at: 11.6, dur: 1.2, box: [900, 262, 940] },                             // the date
+    { at: 17.4, dur: 0.9, box: [900, 200, 940] },                             // the minutes' menu opens upward
+    { at: 20.3, dur: 1.2, box: [900, 356, 940] },                             // 45 minutes, the note, «Сохранить»
+    { at: 24.9, dur: 1.3, box: whole() },                                     // saved: the exam's page, whole
+    { at: 27.4, dur: 1.4, box: fit([268, 76, 1572, 474], { pad: 40 }) },      // the title and today's task
+    { at: 30.6, dur: 1.1, box: fit([660, 184, 1180, 544], { pad: 18 }) },     // «План по дням»
   ],
   caps: [
-    { from: 0.3, to: f(3.0), text: 'Студент загружает файл с вопросами кафедры' },
-    { from: f(3.5), to: f(6.9), text: 'Meldy находит в файле 240 вопросов' },
-    { from: f(7.3), to: f(16.2), text: 'Студент ставит дату экзамена и время в день' },
-    { from: f(16.8), to: f(20.2), text: 'Сразу видно, сколько учить сегодня' },
-    { from: f(20.7), to: 26.6, text: 'План расписан по дням до экзамена' },
+    { from: 0.4, to: 5.4, text: 'Студент загружает файл с вопросами кафедры' },
+    { from: 6.1, to: 8.6, text: 'Meldy находит в файле 240 вопросов' },
+    { from: 9.2, to: 24.6, text: 'Студент ставит дату экзамена и время в день' },
+    { from: 26.2, to: 30.4, text: 'Сразу видно, сколько учить сегодня' },
+    { from: 31.2, to: T, text: 'План расписан по дням до экзамена' },
   ],
-  taps: [
-    { f: f(2.715), x: 180.3 * K, y: 409.2 * K }, { f: f(7.76), x: 691.6 * K, y: 518.7 * K }, { f: f(11.761), x: 731.8 * K, y: 610.7 * K },
-    { f: f(13.411), x: 760 * K, y: 465 * K }, { f: f(15.962), x: 896 * K, y: 756 * K }, { f: f(20.343), x: 283.9 * K, y: 380 * K },
-  ],
-  poster: 25800,
 });
 </script>
 </body>

@@ -5,21 +5,24 @@
 <title>oral-film — ответ вслух: телефон и то, что на нём происходит, крупно</title>
 <link rel="stylesheet" href="clip.css">
 <style>
-/* The stage version's slide 10 (13.11): one spoken answer, the phone on the right and, on the left, what happens on
-   it in the deck's own type, large enough for the back of the hall. The phone is the recording of the live site of
-   21.10.2026 (media/product/masters/08-master.mp4: a synthetic voice fed to the browser's microphone, the examiner's
-   reply is the service's own); every word on the left is copied from that recording, nothing is added. Four parts:
-   the student speaks and the transcript grows; the examiner asks about the point named only partly; the result;
-   one point with the student's words and the lecture's quote, the words they share underlined.
+/* The stage version's slide 10, re-shot on today's app (13.11, the owner: «ролики нужны актуальные»). One spoken
+   answer: the phone on the right and, on the left, what happens on it in the deck's own type, large enough for the
+   back of the hall. The phone is a take of the local copy of today's code (tools/record/local.cjs; phone 390 × 844;
+   the recognition and the check are answered by the take's mock with what the live site answered on 21.10: the two
+   sentences, the examiner's question, the result, point 1 with both quotes). Every word on the left is on the phone.
+   Parts: the question; the student speaks and the transcript grows; «Экзаменатор слушает ответ…» with the yellow dot;
+   the examiner's question about the point named only partly; the result; one point with the student's words and the
+   lecture's quote, the words they share underlined.
 
    The film lies on the slide at 40 px from its left edge, so the text (88 px in) and the phone (88 px from the right)
    stand on the slide's own margins, under the claim and the parts.
 
-   The footage runs in real time and holds its last frame where the left side needs reading time; the two places
-   where the recording itself jumps are crossfades. It loops: the last half second dissolves into the first frame.
+   The footage runs in real time and holds its last frame where the left side needs reading time; a stretch of plain
+   listening is left out (a crossfade), and two crossfades cover moments where the page draws its bottom bar out of
+   place for a few frames. It loops: the last half second dissolves into the first frame, which is also the poster
+   (PowerPoint shows the poster before the film starts).
 
-   Frames: media/gen/footage/oral/m-<n>.jpg (ignored by git), the master at 30 fps, 780 × 1688:
-     ffmpeg -i media/product/masters/08-master.mp4 -vf fps=30 -q:v 2 media/gen/footage/oral/m-%04d.jpg
+   Frames: media/gen/footage/oral-take/m-<n>.jpg (take_footage.py; ignored by git), 30 fps, 780 × 1688.
    Rendered: node deck/cf11/motion/render.mjs oral-film --fps 30 --blur 4 --jobs 4 --crf 18 */
 html, body { background: #0b0f16; }
 .stage { width: 1840px; height: 808px; background: #0b0f16; color: #f3f3f0; }
@@ -36,6 +39,17 @@ html, body { background: #0b0f16; }
 .stage .words span { position: static; display: inline-block; margin-right: .27em; will-change: transform, opacity; }
 .stage .words span.m { position: relative; margin-right: 0; }
 .words span.m i { left: 0; bottom: -3px; height: 5px; width: 0; border-radius: 3px; background: #f4c45b; }
+
+/* 0: the question */
+#s0 .lab { left: 0; top: 150px; font-size: 36px; }
+.qn { left: 0; top: 210px; width: 1240px; font-size: 72px; line-height: 88px; font-weight: 600; letter-spacing: -.022em; }
+
+/* 1b: the examiner listens, with the yellow dot */
+.dotface { left: 0; top: 300px; width: 76px; height: 76px; border-radius: 50%; background: #f4c45b; transform-origin: 50% 100%; will-change: transform; }
+.dotface i { top: 25px; width: 9px; height: 17px; border-radius: 5px; background: #0b121c; }
+.dotface i:first-child { left: 24px; }
+.dotface i:last-child { left: 43px; }
+.listen { left: 112px; top: 296px; font-size: 64px; line-height: 84px; font-weight: 600; letter-spacing: -.02em; white-space: nowrap; }
 
 /* 1: the answer */
 .bars { left: 0; top: 62px; width: 70px; height: 48px; }
@@ -81,6 +95,14 @@ html, body { background: #0b0f16; }
 </head>
 <body>
 <div class="stage" id="stage">
+  <div class="scene" id="s0">
+    <div class="lab blue">Вопрос 18</div>
+    <div class="qn">Параллельное выполнение транзакций: аномалии и&nbsp;уровни изоляции</div>
+  </div>
+  <div class="scene" id="s1b">
+    <div class="dotface" id="dotface"><i></i><i></i></div>
+    <div class="listen">Экзаменатор слушает ответ…</div>
+  </div>
   <div class="scene" id="s1">
     <div class="bars" id="bars"><b></b><b></b><b></b><b></b><b></b></div>
     <div class="lab">Ваш ответ</div>
@@ -120,35 +142,38 @@ html, body { background: #0b0f16; }
 (() => {
   const { clamp, E, seg, mix, mixc } = window.M;
   const $ = (id) => document.getElementById(id);
-  const FOOTAGE = '../media/gen/footage/oral/';
+  const FOOTAGE = '../media/gen/footage/oral-take/';
   const FPS = 30;                        // the master's frame rate
-  const FRAMES = 772;
-  const T = 28.1;                        // s
-  const S4 = 21.8;                       // the last part comes in, s
+  const FRAMES = 1098;
+  const T = 34.2;                        // s
+  const S4 = 25.5;                       // the last part comes in, s
   const SEAM = 0.5;
   // The footage: from film second f0 the master runs from m0 to m1 in real time, then its last frame holds until the
   // next piece. `fade`: the recording jumps there, the piece comes in over that long.
   const PIECES = [
-    { f0: 0.0, m0: 2.9, m1: 8.0 },                   // speaking; the first sentence lands at m 7.0
-    { f0: 4.8, m0: 9.4, m1: 14.95, fade: 0.3 },      // the second sentence at m 12.5, «Готово» at m 14.42
-    { f0: 10.9, m0: 15.45, m1: 17.3, fade: 0.35 },   // the examiner's question
-    { f0: 16.0, m0: 17.3, m1: 20.5 },                // «Не знаю» at m 17.59, the result
-    { f0: 21.6, m0: 20.5, m1: 25.15 },               // the page scrolls to the points
+    { f0: 0.0, m0: 0.8, m1: 8.9 },                  // the card, «Отвечать голосом» at m 1.98, the first sentence lands at m 7.10
+    { f0: 7.9, m0: 11.2, m1: 19.45, fade: 0.3 },    // the second sentence at m 14.36, «Готово» at m 16.79, the pill with the dot
+    { f0: 16.3, m0: 19.9, m1: 23.6, fade: 0.35 },   // the examiner's question
+    { f0: 21.0, m0: 23.6, m1: 23.93 },              // «Не знаю» at m 23.86
+    { f0: 21.33, m0: 24.3, m1: 36.5, fade: 0.3 },   // the result, the page dragged up (m 27.98–31.79), point 1 from m 32.29
   ];
   // Taps of the recording (the master's seconds, the phone's 390 × 844 points).
-  const TAPS = [{ m: 14.424, piece: 1, x: 312.5, y: 806 }, { m: 17.586, piece: 3, x: 125.7, y: 806 }];
+  const TAPS = [{ m: 1.98, piece: 0, x: 268.5, y: 806 }, { m: 16.79, piece: 1, x: 312.5, y: 806 }, { m: 23.86, piece: 3, x: 125.7, y: 806 }];
   for (const tp of TAPS) tp.f = PIECES[tp.piece].f0 + (tp.m - PIECES[tp.piece].m0);
 
   // The part of the phone's screen each scene is about (the glass's px) and when it is lit, film seconds.
   const SPOTS = [
-    { from: 11.5, to: 15.9, box: [8, 462, 357, 268] },     // the examiner's bubble
-    { from: 17.2, to: 21.3, box: [8, 68, 357, 456] },      // «Итог»
-    { from: S4 + 2.1, to: T - SEAM, box: [8, 258, 357, 434] }, // the point with both quotes
+    { from: 14.3, to: 16.0, box: [9, 506, 325, 58] },          // «Экзаменатор слушает ответ…»
+    { from: 16.9, to: 20.8, box: [9, 458, 355, 265] },         // the examiner's card
+    { from: 22.0, to: 24.8, box: [9, 68, 355, 436] },          // «Итог»
+    { from: 29.6, to: T - SEAM, box: [16, 62, 341, 530] },     // point 1 with both quotes
   ];
   const CAPS = [
-    { from: 0.3, to: 10.3, text: 'Студент отвечает голосом' },
-    { from: 10.95, to: 15.95, text: 'Если пункт назван не полностью, Meldy переспрашивает' },
-    { from: 16.55, to: 21.45, text: 'В конце видно, что сказано и что пропущено' },
+    { from: -1, to: 1.6, text: 'Студент получает вопрос билета' },
+    { from: 1.95, to: 13.8, text: 'Студент отвечает голосом' },
+    { from: 14.15, to: 16.05, text: 'Meldy сверяет ответ с лекциями студента' },
+    { from: 16.4, to: 20.85, text: 'Если пункт назван не полностью, Meldy переспрашивает' },
+    { from: 21.6, to: 25.1, text: 'В конце видно, что сказано и что пропущено' },
     { from: S4, to: T, text: 'К каждому пункту есть цитата из лекции' },
   ];
 
@@ -183,8 +208,8 @@ html, body { background: #0b0f16; }
     return spans.map((s, i) => { const at = from + ((to - from) * run) / all; run += len[i]; return { s, at }; });
   }
   const SENT = [
-    { text: 'При параллельном выполнении транзакций возникают аномалии.', from: 0.9, to: 3.9 },
-    { text: 'Чтобы с ними бороться, в стандарте SQL есть четыре уровня изоляции.', from: 4.75, to: 7.75 },
+    { text: 'При параллельном выполнении транзакций возникают аномалии.', from: 2.6, to: 6.1 },
+    { text: 'Чтобы с ними бороться, в стандарте SQL есть четыре уровня изоляции.', from: 6.9, to: 10.9 },
   ];
   const said = SENT.flatMap((q) => spoken(words($('say'), q.text), q.from, q.to));
   const SHARED = ['параллельном', 'аномалии'];
@@ -264,10 +289,30 @@ html, body { background: #0b0f16; }
       Object.assign(spot.style, { left: `${x}px`, top: `${y}px`, width: `${w}px`, height: `${h}px`, boxShadow: `0 0 0 1200px rgba(11, 15, 22, ${a.toFixed(4)})` });
     } else spot.style.boxShadow = '0 0 0 1200px rgba(11, 15, 22, 0)';
 
+    // 0: the question (the film's first frame, so it stands whole at t = 0 and the seam dissolves into it)
+    const s0 = $('s0');
+    if (seam) { s0.style.opacity = String(seam); s0.style.transform = 'none'; }
+    else if (t < 1.85) { const o = seg(t, 1.45, 1.8, E.in3); s0.style.opacity = String(1 - o); s0.style.transform = `translate3d(0, ${(-26 * o).toFixed(2)}px, 0)`; }
+    else s0.style.opacity = '0';
+
+    // 1b: the examiner listens: the wordmark's yellow dot hops on the phone and here
+    if (scene($('s1b'), t, 14.1, 16.0, 16.3)) {
+      rise($('s1b').querySelector('.listen'), t, 14.2, 0.7, 24);
+      const d = $('dotface');
+      const inK = clamp((t - 14.1) / 0.3);
+      const ph = ((t - 14.3) % 1.15 + 1.15) % 1.15 / 1.15;          // the site's m-dot-hop
+      const K = [[0, 0, 1, 1], [0.06, 0, 1.12, 0.86], [0.26, -0.66, 0.94, 1.08], [0.45, 0, 1, 1], [0.51, 0, 1.14, 0.84], [0.62, 0, 1, 1], [1, 0, 1, 1]];
+      let k = 0; while (k + 2 < K.length && K[k + 1][0] <= ph) k += 1;
+      const q = clamp((ph - K[k][0]) / (K[k + 1][0] - K[k][0]));
+      const y = mix(K[k][1], K[k + 1][1], q), sx = mix(K[k][2], K[k + 1][2], q), sy = mix(K[k][3], K[k + 1][3], q);
+      d.style.opacity = String(inK);
+      d.style.transform = `translate3d(0, ${(y * 76).toFixed(2)}px, 0) scale(${sx.toFixed(4)}, ${sy.toFixed(4)})`;
+    }
+
     // 1: the answer
-    if (scene($('s1'), t, 0.3, 10.25, 10.6)) {
-      rise($('s1').querySelector('.lab'), t, 0.35, 0.6, 18);
-      $('bars').style.opacity = String(clamp((t - 0.35) / 0.3));
+    if (scene($('s1'), t, 1.9, 13.75, 14.05)) {
+      rise($('s1').querySelector('.lab'), t, 1.95, 0.6, 18);
+      $('bars').style.opacity = String(clamp((t - 1.95) / 0.3));
       const talking = SENT.some((q) => t > q.from - 0.12 && t < q.to + 0.1);
       const env = Math.max(...SENT.map((q) => Math.min(clamp((t - (q.from - 0.15)) / 0.25), clamp((q.to + 0.25 - t) / 0.3))));
       bars.forEach((b, i) => {
@@ -281,10 +326,10 @@ html, body { background: #0b0f16; }
         s.style.transform = `translate3d(0, ${((1 - p) * 20).toFixed(2)}px, 0)`;
         s.style.color = mixc('#f4c45b', '#f3f3f0', clamp((t - at - 0.18) / 0.5));
       }
-      rise($('kw'), t, 1.1, 0.7, 22);
-      const n = t < 4.2 ? 0 : t < 8.0 ? 1 : 2;
+      rise($('kw'), t, 2.5, 0.7, 22);
+      const n = t < 6.4 ? 0 : t < 11.15 ? 1 : 2;
       $('kwn').textContent = `${n} из 4`;
-      [[0, 4.2], [2, 8.0]].forEach(([i, at]) => {
+      [[0, 6.4], [2, 11.15]].forEach(([i, at]) => {
         const on = t >= at;
         kwDots[i].style.background = on ? '#f4c45b' : 'transparent';
         kwDots[i].style.borderColor = on ? '#f4c45b' : '#3a4353';
@@ -293,35 +338,35 @@ html, body { background: #0b0f16; }
     }
 
     // 2: the examiner
-    if (scene($('s2'), t, 10.95, 15.85, 16.2)) {
-      rise($('s2').querySelector('.ava'), t, 11.0, 0.6, 18);
-      rise($('s2').querySelector('.lab'), t, 11.06, 0.6, 18);
+    if (scene($('s2'), t, 16.35, 20.75, 21.05)) {
+      rise($('s2').querySelector('.ava'), t, 16.4, 0.6, 18);
+      rise($('s2').querySelector('.lab'), t, 16.46, 0.6, 18);
       lines.forEach((l, i) => {
-        const p = seg(t, 11.2 + i * 0.13, 11.2 + i * 0.13 + 0.85, E.meldy);
+        const p = seg(t, 16.6 + i * 0.13, 16.6 + i * 0.13 + 0.85, E.meldy);
         l.style.transform = `translate3d(0, ${((1 - p) * 102).toFixed(2)}%, 0)`;
       });
     }
 
     // 3: the result
-    if (scene($('s3'), t, 16.55, 21.35, 21.7)) {
+    if (scene($('s3'), t, 21.6, 24.95, 25.3)) {
       const s3 = $('s3');
-      rise(s3.querySelector('.lab'), t, 16.6, 0.6, 18);
-      rise(s3.querySelector('.pre'), t, 16.68, 0.7, 24);
+      rise(s3.querySelector('.lab'), t, 21.65, 0.6, 18);
+      rise(s3.querySelector('.pre'), t, 21.73, 0.7, 24);
       const hero = $('hero');
-      const hp = seg(t, 16.8, 17.6, E.meldy);
-      hero.style.opacity = String(clamp((t - 16.8) / 0.25));
+      const hp = seg(t, 21.85, 22.65, E.meldy);
+      hero.style.opacity = String(clamp((t - 21.85) / 0.25));
       hero.style.transform = `translate3d(0, ${((1 - hp) * 46).toFixed(2)}px, 0) scale(${mix(0.93, 1, hp).toFixed(4)})`;
       const x0 = hero.offsetWidth + 44;
       big.forEach((d, i) => {
-        const at = 17.3 + i * 0.16;
+        const at = 22.35 + i * 0.16;
         d.style.left = `${x0 + i * 108}px`;
         const named = i < 2;
         d.style.background = named ? '#f4c45b' : 'transparent';
         d.style.borderColor = named ? '#f4c45b' : '#3a4353';
         pop(d, t, at, 0.55);
       });
-      rise(s3.querySelector('.post'), t, 17.1, 0.7, 24);
-      rise(s3.querySelector('.det'), t, 17.9, 0.7, 20);
+      rise(s3.querySelector('.post'), t, 22.15, 0.7, 24);
+      rise(s3.querySelector('.det'), t, 22.95, 0.7, 20);
     }
 
     // 4: one point
@@ -346,6 +391,12 @@ html, body { background: #0b0f16; }
     const now = CAPS.filter((c) => t >= c.from && t < c.to + 0.26);
     caps.forEach((el, k) => {
       const c = now[k];
+      if (!c && k === 1 && seam) {           // the loop: the first caption comes back with the first frame
+        el.querySelector('span').textContent = CAPS[0].text;
+        el.style.opacity = String(seam);
+        el.style.transform = 'none';
+        return;
+      }
       if (!c) { el.style.opacity = '0'; return; }
       const inP = seg(t, c.from, c.from + 0.5, E.meldy);
       const out = c.to >= T ? 1 - seam : 1 - clamp((t - c.to) / 0.24);
@@ -355,7 +406,7 @@ html, body { background: #0b0f16; }
     });
   }
 
-  window.__clip = { T: T * 1000, seek, width: 1840, height: 808, poster: 13600, loop: true };
+  window.__clip = { T: T * 1000, seek, width: 1840, height: 808, poster: 0, loop: true };
   seek(window.__clip.poster);
 })();
 </script>
