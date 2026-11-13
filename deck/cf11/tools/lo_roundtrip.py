@@ -11,6 +11,7 @@ after the builds of its click group (data-play="after"), and the loop.
 """
 from __future__ import annotations
 
+import shutil
 import json
 import os
 import subprocess
@@ -42,6 +43,8 @@ DEFAULT_SOFFICE = '/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b
 
 def to_odp(pptx: Path, out: Path) -> Path:
     soffice = os.environ.get('SOFFICE', DEFAULT_SOFFICE)
+    if not os.path.exists(soffice):
+        soffice = shutil.which('soffice') or soffice    # the portable 26.8 is gone: the system's LibreOffice
     with tempfile.TemporaryDirectory() as prof:
         subprocess.run([soffice, f'-env:UserInstallation=file://{prof}', '--headless', '--norestore', '--convert-to', 'odp',
                         '--outdir', str(out), str(pptx)], env={**os.environ, 'SAL_USE_VCLPLUGIN': 'svp'},

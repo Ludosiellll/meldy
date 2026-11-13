@@ -5,7 +5,7 @@
  *
  *   cd frontend && GL=mesa LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x1024x24" \
  *     node ../deck/cf11/tools/record/stand_phone_replay.mjs <game-rec.json> <out dir> --follow <entity id> \
- *     --windows 13400-22200,28400-35800 [--end 36000] [--dpr 2] [--fps 25]
+ *     --windows 13400-22200,28400-35800 [--end 36000] [--dpr 2] [--fps 25] [--no-focus-ring]
  *
  * Slide 12 (tools/record/cut-12.json): --follow 23 (Лиза) --end 35800 --windows 13400-22200,28400-35800. Run from
  * frontend/ (Tailwind reads its content paths from there). Environment: FRONT (the frontend folder, default this
@@ -390,7 +390,9 @@ async function main() {
       await sleep(150);
     }
     console.log('the phone is in the game; replaying');
-    await page.addStyleTag({ content: '[class*="tsqd"]{display:none!important}' });
+    // --no-focus-ring: a film has no keyboard, and the ring the page draws round the heading it moves the focus to
+    // (the end's «Игра окончена») reads as a defect in a still picture
+    await page.addStyleTag({ content: `[class*="tsqd"]{display:none!important}${argv.includes('--no-focus-ring') ? ' *:focus,*:focus-visible{outline:none!important;box-shadow:none!important}' : ''}` });
     const now = await page.evaluate(() => Date.now());
     await page.clock.pauseAt(now + 200);
     await page.evaluate(() => {

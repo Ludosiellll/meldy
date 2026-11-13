@@ -13,7 +13,10 @@
  *                                                     frame by frame on a stopped clock into <dir>/stand-WxH.mp4
  *                                                     (25 fps, smooth however slow the machine) and key frames;
  *                                                     SOUNDLOG=<file.json> also keeps the projector's sound calls
- *                                                     on the video's clock (scripts/sound-render.mjs soundtrack)
+ *                                                     on the video's clock (scripts/sound-render.mjs soundtrack);
+ *                                                     FPS=25, START_MS / END_MS (a stretch of the recording),
+ *                                                     TITLE and JOIN_URL (what the lobby shows), CRF=21,
+ *                                                     PRESET=veryfast, JPEG_Q=90 (a film's master: 14, slow, 96)
  *
  * It starts backend/scripts/live_stand_local.py (the room with the database in memory and the bots; MELDY_PY names
  * the Python with the backend's packages), then Vite with VITE_SUPABASE_URL pointing at it and /api proxied with
@@ -324,11 +327,11 @@ async function replay(recPath, dir, W, H) {
   try {
     const context = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: 'ru-RU' });
     await context.addInitScript(
-      ([g, t]) => {
+      ([g, t, info]) => {
         sessionStorage.setItem(`meldy.live.host.${g}`, t);
-        sessionStorage.setItem(`meldy.live.hostinfo.${g}`, JSON.stringify({ title: 'Повторение', joinUrl: 'https://meldy.ru/play?pin=123456', containerId: null, quizId: null, source: null, settings: null }));
+        sessionStorage.setItem(`meldy.live.hostinfo.${g}`, JSON.stringify({ title: info.title, joinUrl: info.joinUrl, containerId: null, quizId: null, source: null, settings: null }));
       },
-      [rec.game, rec.host_token],
+      [rec.game, rec.host_token, { title: env('TITLE', 'Повторение'), joinUrl: env('JOIN_URL', 'https://meldy.ru/play?pin=123456') }],
     );
     await context.addInitScript(replayScript, rec);
     const page = await context.newPage();
@@ -367,7 +370,7 @@ async function replay(recPath, dir, W, H) {
     const startAt = Number(env('START_MS', 0));
     const keys = keyFrames(rec);
     const out = join(dir, `stand-${W}x${H}.mp4`);
-    const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '21', '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', out], { stdio: ['pipe', 'inherit', 'inherit'] });
+    const ff = spawn('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'image2pipe', '-framerate', String(fps), '-i', '-', '-c:v', 'libx264', '-preset', env('PRESET', 'veryfast'), '-crf', env('CRF', '21'), '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', out], { stdio: ['pipe', 'inherit', 'inherit'] });
     const t0 = Date.now();
     let k = 0;
     if (startAt > 0) await page.clock.runFor(startAt);
@@ -383,10 +386,10 @@ async function replay(recPath, dir, W, H) {
     };
     // a frame the browser failed to capture (a slow, crowded machine) is asked for once more
     const frame = () =>
-      page.screenshot({ type: 'jpeg', quality: 90 }).catch(async (e) => {
+      page.screenshot({ type: 'jpeg', quality: Number(env('JPEG_Q', 90)) }).catch(async (e) => {
         console.log('frame retried:', String(e.message).split('\n')[0]);
         await sleep(1000);
-        return page.screenshot({ type: 'jpeg', quality: 90 });
+        return page.screenshot({ type: 'jpeg', quality: Number(env('JPEG_Q', 90)) });
       });
     try {
       for (let t = startAt, f = 0; t <= end; t += step, f++) {

@@ -18,6 +18,9 @@ PPTX="$(realpath "${1:-$DECK/out/meldy-codingfest11.pptx}")"
 OUT="${2:-$DECK/out/render}"
 TITLES="${3:-$DECK/out/build/slides.json}"
 SOFFICE="${SOFFICE:-/tmp/claude-0/-home-user/bdd6a3db-98b1-55d9-a278-b6d3039b029b/scratchpad/deck-refs/tech/lo268/root/opt/libreoffice26.8/program/soffice}"
+# that portable 26.8 lived in a session's scratch folder; without it the system's LibreOffice does (it renders Onest
+# only when the deck's fonts are installed: cp design/fonts/*.ttf ~/.fonts && fc-cache -f)
+[ -x "$SOFFICE" ] || SOFFICE="$(command -v soffice || true)"
 PYTHON="${PYTHON:-$TOOLS/.venv/bin/python}"
 VALIDATE="${VALIDATE:-/mnt/skills/public/pptx/scripts/office/validate.py}"
 status=0
@@ -67,11 +70,13 @@ groups = {}
 for i in z.infolist():
     k = 'media' if i.filename.startswith('ppt/media/') else 'fonts' if i.filename.startswith('ppt/fonts/') else 'xml+other'
     groups[k] = groups.get(k, 0) + i.compress_size
-print(f"   {b/1e6:.3f} MB  = {b/2**20:.3f} MiB   (budget 9.5 MB: {'OK' if b <= 9_500_000 else 'OVER'}, "
-      f"headroom {(9_500_000-b)/1e6:.3f} MB)")
+import os
+budget = float(os.environ.get('DECK_BUDGET_MB', '9.5')) * 1e6
+print(f"   {b/1e6:.3f} MB  = {b/2**20:.3f} MiB   (budget {budget/1e6:g} MB: {'OK' if b <= budget else 'OVER'}, "
+      f"headroom {(budget-b)/1e6:.3f} MB)")
 print('   ' + ', '.join(f'{k} {v/1e6:.3f} MB' for k, v in sorted(groups.items(), key=lambda kv: -kv[1])))
 EOF
-[ "$bytes" -le 9500000 ] || status=1
+[ "$bytes" -le "$(awk -v m="${DECK_BUDGET_MB:-9.5}" 'BEGIN { printf "%d", m * 1000000 }')" ] || status=1
 
 echo "== validate.py (pptx skill)"
 if [ -f "$VALIDATE" ]; then

@@ -17,6 +17,7 @@ preview (tools/preview) reads the PPTX and takes the pixels of live text from ex
 """
 from __future__ import annotations
 
+import os
 import argparse
 import io
 import json
@@ -590,8 +591,10 @@ def main(argv=None) -> int:
         print(f'build failed: {len(res["errors"])} error(s); {a.out} not written')
         return 1
     size = res['size']
-    print(f'saved {a.out}: {size / 1e6:.3f} MB ({size / 2 ** 20:.3f} MiB), budget 9.5 MB -> '
-          f'{"OK" if size <= 9_500_000 else "OVER BUDGET"}')
+    # 9.5 MB is the contest's limit for the file the jury gets; the stage copy (make.sh stage) names its own
+    budget = float(os.environ.get('DECK_BUDGET_MB', '9.5'))
+    print(f'saved {a.out}: {size / 1e6:.3f} MB ({size / 2 ** 20:.3f} MiB), budget {budget:g} MB -> '
+          f'{"OK" if size <= budget * 1e6 else "OVER BUDGET"}')
     problems = mandatory_order_problems(res['titles'])
     for p in problems:
         print(('  ✗ ' if a.deck_rules else '  · ') + p)

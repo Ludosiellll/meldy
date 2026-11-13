@@ -8,7 +8,8 @@ fallback); timing (entrance effects, media play + loop) exactly where the HTML a
 outer shadow (a:outerShdw) per object whose box-shadow the HTML carries natively; every live text run in
 an embedded Onest face with a language; media and picture relationships resolvable; embedded fonts present, EOT
 headers readable and naming the faces the runs use; no hidden slides; core properties without personal data.
---deck-rules adds the contest rules: 10 mandatory names in order, at most 15 slides, file <= 9.5 MB.
+--deck-rules adds the contest rules: 10 mandatory names in order, at most 15 slides, file <= 9.5 MB
+(DECK_BUDGET_MB names another budget: the stage copy, which is not sent to anyone).
 Lint (warnings, the exit status stays 0): an object with an entrance animation that would morph in from the
 previous slide - by its "!!" name, or by PowerPoint's automatic matching (the same shape with the same text, the same
 picture; deckpptx/morph.py). It takes no part in the Morph: its partner fades out and it builds in afterwards.
@@ -17,6 +18,7 @@ Exit status 1 on any failure.
 """
 from __future__ import annotations
 
+import os
 import argparse
 import json
 import sys
@@ -234,7 +236,8 @@ def main() -> int:
         for p in mandatory_order_problems(titles):
             c.ok(False, p)
         size = path.stat().st_size
-        c.ok(size <= 9_500_000, f'file is {size / 1e6:.2f} MB, budget 9.5 MB')
+        budget = float(os.environ.get('DECK_BUDGET_MB', '9.5'))
+        c.ok(size <= budget * 1e6, f'file is {size / 1e6:.2f} MB, budget {budget:g} MB')
     lint = morph_lint(path)
     print(f'{path.name}: {len(slides)} slides, titles: ' + ' | '.join(titles))
     print(f'embedded fonts: ' + ', '.join(f'{k} ({"+".join(sorted(v))})' for k, v in sorted(embedded.items())))

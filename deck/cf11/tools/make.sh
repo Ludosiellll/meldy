@@ -4,6 +4,9 @@
 #   tools/make.sh            the deck: slides/ -> out/meldy-codingfest11.pptx (+ out/render/, PDF copy), no speaker
 #                            notes and no hidden metadata (the file the jury gets); DECK_NOTES=1 keeps the notes
 #   tools/make.sh fixtures   the compiler's own fixtures: tools/fixtures/ -> out/fixtures/
+#   tools/make.sh stage      the copy for the stage (13.11): slides-stage/ -> out/stage/meldy-codingfest11-stage.pptx.
+#                            The same rules except the size: it is shown from the file, not sent, so its budget is
+#                            DECK_BUDGET_MB (default 80) and its films are large
 #
 # Steps: [fixture media] -> extract.mjs -> build.py -> clean.py pptx -> check_pptx.py -> render.sh -> compare.py
 #        -> lo_roundtrip.py -> clean.py pdf -> clean.py check
@@ -19,6 +22,11 @@ if [ "$mode" = fixtures ]; then
   SLIDES="$TOOLS/fixtures"; OUT="$DECK/out/fixtures"; PPTX="$OUT/cf11-fixtures.pptx"; RULES=""
   FILL="$TOOLS/fixtures/fill.json"          # fake values; the deck reads deck/cf11/private/fill.json (git-ignored)
   node "$TOOLS/fixtures/make_media.mjs" || exit 1
+elif [ "$mode" = stage ]; then
+  SLIDES="$DECK/slides-stage"; OUT="$DECK/out/stage"; PPTX="$OUT/meldy-codingfest11-stage.pptx"; RULES="--deck-rules"
+  FILL="$DECK/private/fill.json"
+  export DECK_BUDGET_MB="${DECK_BUDGET_MB:-80}"
+  [ "${DECK_NOTES:-0}" = 1 ] || NOTES="--no-notes"
 else
   SLIDES="$DECK/slides"; OUT="$DECK/out"; PPTX="$OUT/meldy-codingfest11.pptx"; RULES="--deck-rules"
   FILL="$DECK/private/fill.json"

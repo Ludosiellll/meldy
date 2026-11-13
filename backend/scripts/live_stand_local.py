@@ -368,11 +368,16 @@ async def main() -> None:
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--auto", action="store_true", help="play the teacher (start, next, the end)")
     ap.add_argument("--record", default="", help="write what a projector receives to this file (with --auto)")
+    ap.add_argument("--questions-file", default="", help='the game\'s own questions: a JSON list of [text, [options], right index]')
     a = ap.parse_args()
     if not a.local:
         raise SystemExit("live_stand_local.py is a local tool: pass --local")
     os.environ.setdefault("LIVE_MOVE_ORIGINS", "http://127.0.0.1:3000,http://localhost:3000")
-    qs = QUESTIONS[: a.questions]
+    if a.questions_file:
+        # a film's own questions (the deck's game clip): every one of them is played
+        qs = [(str(t), [str(o) for o in opts], int(k)) for t, opts, k in json.loads(Path(a.questions_file).read_text(encoding="utf-8"))]
+    else:
+        qs = QUESTIONS[: a.questions]
     db = FakeLiveDb(GAME, HOST, [(len(o), k) for _t, o, k in qs], time_s=a.time, boss=a.boss)
     for q, (text, options, _k) in zip(db.questions, qs):
         q["text"] = text
