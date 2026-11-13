@@ -44,20 +44,22 @@
 <!-- The autotests: how many times they ran over the whole development (every recorded test run since 02.10.2026,
      each run counted once: 2 425 795 test executions in 3 998 runs), and today's suite at meldy 67a3e9f (21.10.2026):
      The stage copy (13.11): 7 432 site (Vitest) + 2 842 server (pytest) + 465 bot = 10 739, the gate of release 59.2
-     (11.11.2026); the 2,4 млн runs are the count of 21.10: they left the slide and are said only if asked. The row of the test
-     tools left the slide too (the notes name them). -->
+     (11.11.2026); the owner (13.11) wants the count over all the development back as the number. It is a lower bound: 2 425 795
+     on 21.10 plus 265 170 in the release checks of 1–13.11 (their logs: 23 pytest, 26 Vitest and 26 bot runs)
+     = 2 690 965; the logs of 22–31.10 are lost and not counted. The row of the test tools left the slide (the notes
+     name them). -->
 <div class="panel" data-pptx="shape" style="left:1312px;top:400px;width:480px;height:452px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4"></div>
-<div class="big" data-pptx="text" style="left:1354px;top:440px;font-size:112px;line-height:116px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">10&nbsp;739</div>
-<div class="t32" data-pptx="text" style="left:1360px;top:572px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">автотестов у&nbsp;сайта,<br>сервера и&nbsp;бота</div>
-<div class="t28m" data-pptx="text" style="left:1360px;top:728px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">7&nbsp;432 + 2&nbsp;842 + 465</div>
+<div class="big" data-pptx="text" style="left:1354px;top:440px;font-size:112px;line-height:116px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">2,6&nbsp;млн</div>
+<div class="t32" data-pptx="text" style="left:1360px;top:572px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">запусков автотестов<br>за&nbsp;время разработки</div>
+<div class="t28m" data-pptx="text" style="left:1360px;top:728px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Сейчас 10&nbsp;739 автотестов<br>у&nbsp;сайта, сервера и&nbsp;бота</div>
 
-<template data-pptx="notes">Требования простые. Нужен браузер на телефоне или компьютере, устанавливать ничего не нужно. Для ответов вслух нужен микрофон. Сайт сделан на React и TypeScript, сервер на Python и FastAPI, база данных Supabase. Языковые модели Gemini и Groq. Как мы проверяем работу: у сайта, сервера и бота сейчас 10 739 автотестов. Новая версия выходит, только если прошли все.
+<template data-pptx="notes">Требования простые. Нужен браузер на телефоне или компьютере, устанавливать ничего не нужно. Для ответов вслух нужен микрофон. Сайт сделан на React и TypeScript, сервер на Python и FastAPI, база данных Supabase. Языковые модели Gemini и Groq. Как мы проверяем работу. За время разработки автотесты запускались больше 2,6 миллиона раз. Сейчас у сайта, сервера и бота 10 739 автотестов. Новая версия выходит, только если прошли все.
 
 Если спросят, чем написаны тесты: сайт Vitest и React Testing Library, сервер pytest и httpx, бот node:test, живой сайт Playwright, выпуск GitHub Actions.
 
 Если спросят, откуда версии браузеров: так настроена сборка сайта. Сайт собирает Vite 6 под стандарт es2020, а это Chrome 87, Edge 88, Firefox 78 и Safari 14.
 
-Если спросят, откуда 2,4 миллиона: это 2 425 795 запусков тестов. Посчитано по журналам работы с 2 октября. Это 3 998 прогонов, каждый прогон учтён один раз. Vitest запускал тесты 1 876 041 раз в 2 857 прогонах. pytest 485 080 раз в 836 прогонах. Тесты бота 64 674 раза в 305 прогонах.
+Если спросят, откуда 2,6 миллиона: это не меньше 2 690 965 запусков тестов. До 21 октября по журналам работы насчитано 2 425 795 запусков в 3 998 прогонах. С 1 по 13 ноября в проверках перед выпусками ещё 265 170 запусков в 75 прогонах. Журналы с 22 по 31 октября не сохранились, они в число не вошли. Каждый прогон учтён один раз.
 
 Если спросят, из чего 10 739: 7 432 теста сайта в Vitest, 2 842 теста сервера в pytest и 465 тестов бота. Посчитано 11 ноября 2026 года. Число запусков, 2,4 миллиона, посчитано 21 октября; с тех пор их стало больше.
 

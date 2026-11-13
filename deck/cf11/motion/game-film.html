@@ -146,7 +146,7 @@ html, body { background: #0b0f16; }
     else caps[1].style.opacity = '0';
   }
 
-  window.__clip = { T, seek, width: 1840, height: 808, poster: BEATS[1].start + 4600, loop: true, beats: BEATS.map((b) => [b.start, b.len, b.cap]) };
+  window.__clip = { T, seek, width: 1840, height: 808, poster: 0, loop: true, beats: BEATS.map((b) => [b.start, b.len, b.cap]) };
   seek(window.__clip.poster);
 })();
 </script>

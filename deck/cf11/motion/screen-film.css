@@ -12,3 +12,5 @@ html, body { background: #0b0f16; }
 }
 .cap i { position: static; flex: none; width: 18px; height: 18px; border-radius: 50%; background: #f4c45b; }
 .cap span { position: static; }
+/* take-film.js: the film's own pointer (the screencast draws none), a constant size on the slide whatever the zoom */
+.ptr { left: 0; top: 0; width: 26px; height: 37px; margin: -2px 0 0 -3px; opacity: 0; will-change: transform, opacity; filter: drop-shadow(0 2px 3px rgba(11, 18, 28, .35)); }
