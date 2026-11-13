@@ -9,61 +9,70 @@
 <body>
 <div class="stage" id="stage"></div>
 <script src="clip.js"></script>
-<script src="screen-film.js"></script>
+<script src="../media/gen/footage/studio-take/take.js"></script>
+<script src="take-film.js"></script>
 <script>
-/* The stage version's slide 11 (13.11). The recording of the live site (account A, October 2026;
-   media/product/masters/11-master.mp4, 1920 × 1200): a test is named, a heading and a text are typed, a picture is
-   dragged in, a video is pasted by its link, four questions are added, points, a theme, then the test as a pupil
-   sees it, «Отправить по ссылке», the link and its QR code. Real time; the pupil's view and the QR hold for reading.
-   The tab with the messages for different scores (19.1–21.8 s of the recording) is left out. Few camera moves: the
-   recording itself is busy.
-   Frames: ffmpeg -i media/product/masters/11-master.mp4 -vf fps=30 -q:v 2 media/gen/footage/studio/m-%04d.jpg
+/* The stage version's slide 11, re-shot on today's app (13.11; the owner on the old film: «очень быстро видео идёт,
+   все действия слишком быстрые, слишком всё приближённо, момент, где должно показывать, как будет выглядеть для
+   ученика, слишком приближённо»). A take of the local copy of today's code (tools/record/local.cjs): the test is
+   named, the constructor opens on a page with a heading, a line of text and two questions from the lecture's
+   self-check, a picture file is dragged onto the page, a «Верно / неверно» question is added and typed, a ready
+   theme is chosen, the test is opened as a pupil sees it, «Отправить по ссылке», the link and its QR code.
+   The camera stays wide: the whole constructor is seen, and the pupil's view is never cropped. The take is 79 s;
+   the film leaves out the waits and the scrolling of panels (crossfades), every action itself runs in real time.
+   Footage: media/gen/footage/studio-take (take_footage.py; ignored by git).
    Rendered: node deck/cf11/motion/render.mjs studio-film --fps 30 --blur 4 --jobs 4 --crf 18 */
-const K = 1.5;
-const T = 27.1;
-const f1 = (m) => m - 0.5;               // the first piece
-const f2 = (m) => 18.5 + (m - 21.77);    // the pupil's view
-const f3 = (m) => 21.6 + (m - 23.5);     // the link
-const tap = (f, x, y) => ({ f, x: x * K, y: y * K });
-screenFilm({
-  footage: '../media/gen/footage/studio/', frames: 816, fps: 30, src: [1920, 1200],
-  T, seam: 0.5,
-  pieces: [
-    { f0: 0, m0: 0.5, m1: 19.0 },
-    { f0: 18.5, m0: 21.77, m1: 23.5, fade: 0.35 },
-    { f0: 21.6, m0: 23.5, m1: 26.65 },
-  ],
-  cam0: [300, 258, 1320],
+const { fit, whole, mark } = takeFilmTools;
+// The film's pieces, as stretches of the take: [from, to, fade]. A piece with no fade follows the one before it.
+const CUTS = [
+  [0.2, mark('name-typed') + 0.5],                                   // the name is typed
+  [mark('create') + 0.4, mark('studio-open') - 0.15, 0.3],          // «Создать тест»
+  [mark('studio-open') + 0.9, mark('picture-whole') + 1.8, 0.35],   // the constructor, whole; the picture is dragged in
+  [mark('question-pick') - 0.6, mark('question-added') + 1.4, 0.3], // a question from the palette
+  [mark('question-typing') - 0.4, mark('question-typed') + 1.0, 0.3],
+  [mark('question-saved') + 0.9, mark('design-tab') + 1.9, 0.3],    // saved; the tab «Оформление»
+  [mark('themes') - 0.2, mark('theme-chosen') + 2.7, 0.3],          // a ready theme
+  [mark('preview-press') + 0.75, mark('preview-close') - 0.2, 0.3], // as a pupil sees it
+  [mark('send') + 0.9, mark('get-link') + 1.6, 0.3],                // «Отправить по ссылке»
+  [mark('get-link') + 1.6, mark('end') - 0.1],                      // the link and its QR code
+];
+const pieces = [];
+let at = 0;
+for (const [m0, m1, fade] of CUTS) {
+  const f0 = fade ? at - fade : at;
+  pieces.push({ f0, m0, m1, fade });
+  at = f0 + (m1 - m0);
+}
+const T = at + 1.0;                       // the QR holds a second more, then the loop's dissolve
+const F = (i, m) => pieces[i].f0 + (m - pieces[i].m0);   // the film second of take second m inside piece i
+// A close view of the page alone: its left and right edges stand in the empty strips between the palette, the page
+// and the settings (x 236–354 and 1354–1472), so no word of a panel is cut. Everything else is the whole screen.
+const page = (y) => [290, y, 1130];
+takeFilm({
+  footage: '../media/gen/footage/studio-take/', T, seam: 0.5, pieces,
   moves: [
-    { at: f1(2.45), dur: 0.7, box: [0, 114, 1920] },      // the studio opens
-    { at: f1(3.3), dur: 0.9, box: [0, 225, 1400] },       // a heading and a text
-    { at: f1(5.6), dur: 0.9, box: [330, 250, 1590] },     // a picture is dragged in
-    { at: f1(7.75), dur: 0.9, box: [0, 520, 1620] },      // the video and the questions
-    { at: f1(14.45), dur: 0.8, box: [420, 410, 1500] },   // points, then the theme
-    { at: 18.35, dur: 0.7, box: [0, 200, 1920] },         // as a pupil sees it
-    { at: 19.3, dur: 2.2, box: [200, 260, 1520] },
-    { at: 21.45, dur: 0.7, box: [0, 150, 1920] },         // «Отправить по ссылке», the link
-    { at: f3(25.45), dur: 0.6, box: [0, 80, 1920] },      // the QR code (its address under it stays out: it does not fit)
+    { at: 1.2, dur: 1.3, box: fit([600, 76, 1240, 492], { pad: 40 }) },         // the card «Новый тест»
+    { at: pieces[2].f0 - 0.2, dur: 0.9, box: whole() },                         // the constructor, whole
+    { at: F(2, mark('file-drag')) - 0.6, dur: 1.2, box: page(170) },            // the page: the file comes and is dropped
+    { at: F(2, mark('picture-in')) + 0.5, dur: 1.3, box: whole() },             // the picture stands on the page
+    { at: pieces[5].f0 - 0.2, dur: 0.9, box: page(220) },                       // the new question, saved
+    { at: F(5, mark('design-tab')) + 0.3, dur: 1.1, box: whole() },             // the tab «Оформление», the themes
+    { at: F(6, mark('theme-chosen')) + 0.9, dur: 1.2, box: page(190) },         // the page in its new look
+    { at: pieces[7].f0 - 0.2, dur: 0.9, box: whole() },                         // as a pupil sees it: the whole screen
+    { at: F(9, mark('link-open')) + 0.2, dur: 1.2, box: fit([268, 144, 1572, 414], { pad: 40 }) },   // the link
+    { at: F(9, mark('qr-open')) - 0.5, dur: 1.0, box: whole() },                // the QR code
   ],
   caps: [
-    { from: 0.3, to: 2.3, text: 'Тест начинается с названия' },
-    { from: 2.8, to: 4.8, text: 'Страницу собирают из блоков' },
-    { from: 5.2, to: 9.8, text: 'Картинку перетаскивают, видео вставляют ссылкой' },
-    { from: 10.2, to: 13.7, text: 'Вопрос добавляют одним нажатием' },
-    { from: 14.1, to: 15.3, text: 'У вопроса свои баллы' },
-    { from: 15.7, to: 18.2, text: 'Оформление выбирают из готовых тем' },
-    { from: 18.8, to: 21.4, text: 'Так тест увидит ученик' },
-    { from: 21.9, to: T, text: 'Ученики получают ссылку и QR-код' },
+    { from: 0.4, to: pieces[2].f0 - 0.1, text: 'Тест начинается с названия' },
+    { from: pieces[2].f0 + 0.4, to: F(2, mark('file-drag')) - 0.3, text: 'Страницу собирают из блоков' },
+    { from: F(2, mark('file-drag')) + 0.1, to: pieces[3].f0 - 0.1, text: 'Картинку перетаскивают с компьютера' },
+    { from: pieces[3].f0 + 0.4, to: pieces[5].f0 + 2.2, text: 'Вопрос добавляют одним нажатием' },
+    { from: F(5, mark('design-tab')) + 0.9, to: pieces[7].f0 - 0.1, text: 'Оформление выбирают из готовых тем' },
+    { from: pieces[7].f0 + 0.4, to: pieces[8].f0 - 0.1, text: 'Так тест увидит ученик' },
+    { from: pieces[8].f0 + 0.4, to: T, text: 'Ученики получают ссылку и QR-код' },
   ],
-  taps: [
-    tap(f1(2.351), 449.9, 489.9), tap(f1(3.313), 117.7, 398.7), tap(f1(5.297), 117.7, 446.7), tap(f1(7.552), 574, 368.4),
-    tap(f1(8.733), 117.7, 542.7), tap(f1(9.762), 780.9, 565.9), tap(f1(11.062), 117.7, 606.2), tap(f1(12.095), 117.7, 654.2),
-    tap(f1(13.027), 117.7, 702.2), tap(f1(13.938), 117.7, 750.2), tap(f1(15.029), 1226, 321.3), tap(f1(15.684), 1226, 321.3),
-    tap(f1(16.495), 1181.7, 460.2), tap(f1(17.579), 996.7, 573.4), tap(f1(18.478), 1057.2, 674.4),
-    tap(f3(24.016), 1139.1, 110), tap(f3(24.645), 1107.1, 738), tap(f3(25.362), 139.8, 442.6),
-  ],
-  poster: 8400,
 });
+window.__film = { T, pieces };
 </script>
 </body>
 </html>
