@@ -7,6 +7,9 @@
 //   --zones: x264 zones (frame ranges) — fewer bits while the camera moves, where motion hides them.
 //   --ss: supersampling — frames are taken at ss× the output's pixels and averaged down (area filter), so fine
 //         detail that moves (a field of small dots, tiny phones) does not shimmer. The poster is unaffected.
+//   --jobs J: J pages shoot the frames side by side (a clip is a pure function of time, so the order does not matter).
+//   --blur N [--shutter 0.5]: motion blur — every frame is the average of N moments spread over `shutter` of the
+//         frame's time (0.5 = a 180° shutter), so a fast move smears like a filmed one instead of stepping.
 //
 // Output in deck/cf11/media/gen/: <name>.mp4 (H.264 High, yuv420p, BT.709 tags, +faststart, no audio),
 // <name>.png (the poster, 2×: the meaningful frame the PDF and a reader see), <name>.gif (with --gif).
@@ -29,6 +32,9 @@ const fps = Number(opt('fps', 30));
 const crf = Number(opt('crf', 23));
 const scale = Number(opt('scale', 1));
 const ss = Number(opt('ss', 1));
+const blur = Math.max(1, Math.round(Number(opt('blur', 1))));
+const shutter = Number(opt('shutter', 0.5));
+const jobs = Math.max(1, Math.round(Number(opt('jobs', 1))));
 const framesDir = path.join(GEN, 'frames', name);
 fs.rmSync(framesDir, { recursive: true, force: true });
 fs.mkdirSync(framesDir, { recursive: true });
@@ -62,8 +68,11 @@ async function shoot(page, t, file) {
 function encodeMp4(dir, rate, out, info) {
   const W = Math.round(info.width * scale / 2) * 2;
   const H = Math.round(info.height * scale / 2) * 2;
-  execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-framerate', String(rate), '-i', path.join(dir, 'f%04d.png'),
-    '-vf', `scale=${W}:${H}:flags=${ss > 1 ? 'area' : 'lanczos'}:out_color_matrix=bt709:out_range=tv,format=yuv420p`,
+  // with --blur the files are the moments: `blur` of them make one frame (tmix averages a group, select keeps its last)
+  const smear = blur > 1 ? `tmix=frames=${blur},select='eq(mod(n\\,${blur})\\,${blur - 1})',setpts=N/(${rate}*TB),` : '';
+  execFileSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-framerate', String(rate * blur), '-i', path.join(dir, 'f%05d.png'),
+    '-vf', `${smear}scale=${W}:${H}:flags=${ss > 1 ? 'area' : 'lanczos'}:out_color_matrix=bt709:out_range=tv,format=yuv420p`,
+    '-r', String(rate),
     '-c:v', 'libx264', '-preset', 'slow', '-crf', String(crf), ...(opt('tune', '') ? ['-tune', opt('tune', '')] : []), ...(opt('zones', '') ? ['-x264-params', `zones=${opt('zones', '')}`] : []), '-profile:v', 'high', '-level:v', '4.0',
     '-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv',
     '-movflags', '+faststart', '-an', out]);
@@ -73,9 +82,17 @@ const t0 = Date.now();
 const { page, info } = await openClip(scale * ss);
 const span = info.loop ? info.T : info.T + 1; // a loop excludes its end (= its start); a one-shot includes it
 const n = Math.round((span * fps) / 1000 - (info.loop ? 0 : 0));
-for (let i = 0; i < n; i += 1) await shoot(page, (i * 1000) / fps, path.join(framesDir, `f${String(i).padStart(4, '0')}.png`));
-if (!info.loop) await shoot(page, info.T, path.join(framesDir, `f${String(n).padStart(4, '0')}.png`));
-console.log(`${name}: ${n} frames at ${fps} fps (${info.width}×${info.height}) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+const file = (k) => path.join(framesDir, `f${String(k).padStart(5, '0')}.png`);
+const total = n + (info.loop ? 0 : 1);
+const pages = [page];
+while (pages.length < jobs) pages.push((await openClip(scale * ss)).page);
+await Promise.all(pages.map(async (pg, j) => {
+  for (let i = j; i < total; i += pages.length) {
+    const at = i === n ? info.T : (i * 1000) / fps;
+    for (let k = 0; k < blur; k += 1) await shoot(pg, at + (i === n ? 0 : (k * shutter * 1000) / (fps * blur)), file(i * blur + k));
+  }
+}));
+console.log(`${name}: ${n} frames at ${fps} fps${blur > 1 ? `, ${blur} moments each` : ''} (${info.width}×${info.height}) in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
 
 if (!flag('no-mp4')) {
   const out = path.join(GEN, `${name}.mp4`);
