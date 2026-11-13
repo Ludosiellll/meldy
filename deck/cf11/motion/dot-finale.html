@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>dot-finale — «Выучил — и точка»: точка выпрыгивает, врезается в слово и возвращается</title>
+<link rel="stylesheet" href="clip.css">
+<style>
+/* The last slide's phrase (the owner, 13.11): «точка (с глазками) выпрыгивала, поотскакивала, проехалась, врезалась в
+   слово "точка", это слово сжалось немного и упруго откинуло точку, то глазами потрясло и вернулось на место к
+   слову точка». The clip is the slide's bottom band, edge to edge (1920 × 266, on the slide at left 0, top 814, right under the
+   rule: a video's dark ground never matches a slide's canvas to the last level, and the rule hides that seam): the phrase
+   in the slide's own type and the wordmark's yellow dot with the face the app draws (index.css --m-dot-face).
+   Its first and last frames are the same and are the slide's still picture: the phrase with the dot as its full stop.
+   From there the dot blinks, crouches, jumps out and bounces away four times, looks back, rolls at the word and hits
+   it; the word is pressed and springs back, the dot flies off, lands, wobbles with its eyes shaking, blinks, hops
+   home in three small hops and settles. While it is out of the phrase it is 1.4 times its size as a full stop.
+   One play, no loop.
+   Rendered: node deck/cf11/motion/render.mjs dot-finale --fps 30 --blur 4 --jobs 3 --crf 16 */
+html, body { background: #0b0f16; }
+.stage { width: 1920px; height: 266px; background: #0b0f16; color: #f3f3f0; }
+.phrase { left: 128px; top: 42px; font-size: 104px; line-height: 116px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
+.stage .phrase span { position: static; display: inline-block; transform-origin: 0 100%; will-change: transform; }
+.dot { left: 0; top: 0; width: 40px; height: 40px; margin: -20px 0 0 -20px; transform-origin: 50% 100%; will-change: transform; }
+.dot svg { left: 0; top: 0; width: 40px; height: 40px; overflow: visible; will-change: transform; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="phrase" id="phrase">Выучил — и&nbsp;<span id="word">точка</span></div>
+  <div class="dot" id="dot"><svg id="face" viewBox="0 0 20 20">
+    <circle cx="10" cy="10" r="10" fill="#f4c45b"/>
+    <ellipse id="eL" cx="7.1" cy="8.4" rx="1.5" ry="2.4" fill="#0b121c"/>
+    <ellipse id="eR" cx="12.9" cy="8.4" rx="1.5" ry="2.4" fill="#0b121c"/>
+  </svg></div>
+</div>
+<script src="clip.js"></script>
+<script>
+(() => {
+  const { clamp, E, seg, mix } = window.M;
+  const $ = (id) => document.getElementById(id);
+  const T = 8.8;                       // s
+  const D = 40, R = D / 2;             // the dot
+  const FLOOR = 134;                   // the phrase's baseline in the clip: the dot stands and bounces on it
+  const GAP = 5;                       // between the word's last letter and the dot at rest
+
+  // --- the dot's way: pieces of [from, to] with a position, a squash and a turn each -----------------------------
+  // x is measured from the dot's place of rest (0), to the right. A hop is a parabola over its time.
+  const hop = (t, a, b, x0, x1, h) => { const p = clamp((t - a) / (b - a)); return { x: mix(x0, x1, p), up: 4 * h * p * (1 - p), p }; };
+  // the bounces away: [start, end, from x, to x, height]
+  const AWAY = [[1.15, 1.75, 0, 190, 78], [1.87, 2.37, 190, 360, 70], [2.45, 2.85, 360, 490, 44], [2.91, 3.19, 490, 580, 22]];
+  const FAR = 580;                     // where it stops and looks back
+  const DASH = [3.75, 4.5];            // the roll at the word
+  const HIT = DASH[1];                 // the moment it hits the word
+  const BACK = 14;                     // leaning back before the roll
+  const CONTACT = -GAP - 3;            // the dot's place when it presses into the word's last letter
+  const FLY = [HIT + 0.09, HIT + 0.69, CONTACT, 330, 80];   // thrown off by the word
+  const SKID = [FLY[1] + 0.06, FLY[1] + 0.36, 330, 392, 26];
+  const DIZZY = [SKID[1], SKID[1] + 1.25];
+  const HOME = [[DIZZY[1] + 0.05, DIZZY[1] + 0.43, 392, 242, 40], [DIZZY[1] + 0.48, DIZZY[1] + 0.86, 242, 108, 34], [DIZZY[1] + 0.91, DIZZY[1] + 1.27, 108, 0, 26]];
+  const SETTLED = HOME[2][1];
+  /** A landing's squash: the dot is pressed for a moment after it touches the floor at `at`. */
+  const land = (t, at, k = 0.22) => { const p = (t - at) / 0.13; return p < 0 || p > 1 ? 0 : k * Math.sin(Math.PI * p); };
+
+  function pose(t) {
+    let x = 0, up = 0, sx = 1, sy = 1, rot = 0;
+    const all = [...AWAY, FLY, SKID, ...HOME];
+    // crouch before the first jump
+    const c = seg(t, 0.9, 1.12, E.inOut3) * (1 - seg(t, 1.12, 1.2, E.out3));
+    sx += 0.2 * c; sy -= 0.24 * c;
+    for (const [a, b, x0, x1, h] of all) {
+      if (t >= a && t < b) {
+        const j = hop(t, a, b, x0, x1, h);
+        x = j.x; up = j.up;
+        const st = 0.1 * Math.sin(Math.PI * j.p) * Math.min(1, h / 60);   // a stretch in the air
+        sx -= st * 0.6; sy += st;
+      } else if (t >= b) x = x1;
+      const q = land(t, b, Math.min(0.24, 0.1 + h / 500));
+      sx += q; sy -= q * 0.9;
+    }
+    // the pause far away: a lean back, then the roll at the word (it speeds up), turning as it rolls
+    if (t >= AWAY[3][1] && t < DASH[0]) x = FAR + BACK * seg(t, 3.45, DASH[0], E.inOut3);
+    if (t >= DASH[0] && t < HIT) {
+      const p = E.in3(clamp((t - DASH[0]) / (HIT - DASH[0])) ** 0.85);
+      x = mix(FAR + BACK, CONTACT, p);
+      rot = -((FAR + BACK - x) / R);
+    }
+    if (t >= HIT && t < FLY[0]) {                       // pressed into the word
+      const p = (t - HIT) / (FLY[0] - HIT);
+      x = CONTACT - 4 * Math.sin(Math.PI * p);
+      const q = Math.sin(Math.PI * Math.min(1, p * 1.2));
+      sx -= 0.3 * q; sy += 0.22 * q;
+      rot = -((FAR + BACK - CONTACT) / R);
+    }
+    if (t >= FLY[0] && t < SKID[1]) {                   // thrown off: it tumbles and comes to rest upright
+      const from = -((FAR + BACK - CONTACT) / R);
+      const to = Math.round((from + 2 * Math.PI * 1.5) / (2 * Math.PI)) * 2 * Math.PI;
+      rot = mix(from, to, E.out3(clamp((t - FLY[0]) / (SKID[1] - FLY[0]))));
+    }
+    // dizzy: the body rocks, less and less
+    if (t >= DIZZY[0] && t < DIZZY[1] + 0.2) {
+      const u = t - DIZZY[0];
+      rot = (15 * Math.PI / 180) * Math.exp(-2.4 * u) * Math.sin(2 * Math.PI * 2.4 * u);
+    }
+    // home: a last soft settle
+    const s = t - SETTLED;
+    if (s >= 0 && s < 0.6) { const w = 0.1 * Math.exp(-6 * s) * Math.sin(2 * Math.PI * 3.2 * s + Math.PI); sx += w; sy -= w; }
+    // out of the phrase the dot is its own size, larger than a full stop; it shrinks back as it comes home
+    const g = 1 + 0.4 * seg(t, AWAY[0][0], AWAY[0][1], E.out3) * (1 - seg(t, HOME[2][0], HOME[2][1], E.inOut3));
+    return { x, up, sx: sx * g, sy: sy * g, rot };
+  }
+
+  /** The eyes: where they look (−1 left … 1 right), how open they are (1 open, 0 shut) and their shake. */
+  function eyes(t) {
+    let look = 0, open = 1, shake = 0;
+    const blink = (at) => { const p = (t - at) / 0.14; return p < 0 || p > 1 ? 0 : Math.sin(Math.PI * p); };
+    for (const at of [0.45, 3.3, DIZZY[1] - 0.42, DIZZY[1] - 0.16, SETTLED + 0.45]) open -= 0.92 * blink(at);
+    look += seg(t, 0.95, 1.2) * (1 - seg(t, 3.2, 3.4));                 // to the right, where it jumps
+    look -= seg(t, 3.42, 3.62) * (1 - seg(t, DIZZY[0], DIZZY[0] + 0.2)); // back at the word
+    if (t >= DIZZY[0] && t < DIZZY[1]) {
+      const u = t - DIZZY[0];
+      shake = Math.exp(-1.7 * u) * Math.sin(2 * Math.PI * 8.5 * u);
+      open = Math.min(open, mix(0.55, 1, clamp(u / 0.9)));
+    }
+    look -= 0.8 * seg(t, DIZZY[1], DIZZY[1] + 0.2) * (1 - seg(t, SETTLED + 0.1, SETTLED + 0.35));   // home is to the left
+    return { look, open: clamp(open, 0.06, 1), shake };
+  }
+
+  /** The word under the blow: pressed from the right, then a spring. */
+  function squash(t) {
+    const u = t - HIT;
+    if (u < 0) return 1;
+    if (u < 0.09) return 1 - 0.085 * E.out3(u / 0.09);
+    const v = u - 0.09;
+    return 1 - 0.085 * Math.exp(-7.5 * v) * Math.cos(2 * Math.PI * 3.1 * v);
+  }
+
+  let rest = null;
+  function seek(ms) {
+    const t = clamp(ms / 1000, 0, T);
+    if (!rest || rest.w !== $('word').offsetWidth) {
+      const st = $('stage').getBoundingClientRect(), w = $('word').getBoundingClientRect();
+      rest = { w: $('word').offsetWidth, x: w.right - st.left + GAP + R };
+    }
+    const k = squash(t);
+    $('word').style.transform = `scale(${k.toFixed(4)}, ${(1 + (1 - k) * 0.55).toFixed(4)})`;
+    const p = pose(t);
+    $('dot').style.transform = `translate3d(${(rest.x + p.x).toFixed(2)}px, ${(FLOOR - R - p.up).toFixed(2)}px, 0) scale(${p.sx.toFixed(4)}, ${p.sy.toFixed(4)})`;
+    $('face').style.transform = `rotate(${p.rot.toFixed(4)}rad)`;
+    const e = eyes(t);
+    for (const [id, cx] of [['eL', 7.1], ['eR', 12.9]]) {
+      const el = $(id);
+      el.setAttribute('cx', (cx + 1.15 * e.look + 1.25 * e.shake).toFixed(3));
+      el.setAttribute('ry', (2.4 * e.open).toFixed(3));
+    }
+  }
+
+  window.__clip = { T: T * 1000, seek, width: 1920, height: 266, poster: 0, loop: false };
+  document.fonts.ready.then(() => seek(0));
+  seek(0);
+})();
+</script>
+</body>
+</html>
