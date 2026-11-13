@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>game-film — игра на паре: проектор и телефон одного игрока</title>
+<link rel="stylesheet" href="clip.css">
+<style>
+/* The stage version's slide 12 (13.11, deck «для сцены»): one game of «Встань на ответ» on today's code, the
+   projector and one player's phone side by side, both drawn frame by frame from the same recorded game
+   (frontend/scripts/stand-local.mjs replay; tools/record/stand_phone_replay.mjs), so a pair of frames is one moment
+   on both screens. Recorded on the local stand: 28 players, 4 questions about demand and supply, the second and the
+   fourth a chase («Убеги от Дедлайна»); the phone is Катя's, who wins.
+
+   The film is cut from four stretches of the game (BEATS: ms of the recording). What lies between them is waiting and
+   is cut; a cut is a crossfade, nothing is sped up. A caption under the projector's picture says what is going on, in
+   words a juror reads once from the back of the hall. The projector's picture keeps its top nine tenths: the bottom
+   strip is the teacher's buttons, which the hall does not need, and the caption stands there on the stage's canvas.
+   It loops: the last half second dissolves into the first frame.
+
+   Frames come from media/gen/footage/game/ (ignored by git): h-<ms>.jpg the projector at 1920 × 1080, p-<ms>.jpg the
+   phone at 780 × 1688; tools/record/game_film_frames.py cuts them from the two renders. seek() waits for both
+   pictures to decode, so a frame is whole when render.mjs shoots it.
+
+   Rendered: node deck/cf11/motion/render.mjs game-film --fps 25 --crf 20 */
+html, body { background: #0b0f16; }
+.stage { width: 1840px; height: 808px; background: #0b0f16; }
+.host { left: 0; top: 0; width: 1437px; height: 728px; overflow: hidden; border-radius: 22px; background: #151634; }
+.host img { left: 0; top: 0; width: 1437px; height: 808px; transform-origin: 50% 6%; will-change: transform, opacity; }
+.phone { left: 1461px; top: 0; width: 379px; height: 808px; border-radius: 40px; background: #262e3b; }
+.phone .glass { left: 3px; top: 3px; width: 373px; height: 802px; overflow: hidden; border-radius: 37px; background: #151634; }
+.phone img { left: 0; top: -3px; width: 373px; height: 808px; will-change: opacity; }
+.cap {
+  left: 0; top: 0; display: flex; align-items: center; gap: 18px; height: 64px; color: #f3f3f0; font-size: 40px; font-weight: 600;
+  letter-spacing: -.015em; white-space: nowrap; will-change: opacity, transform;
+}
+.cap i { position: static; flex: none; width: 18px; height: 18px; border-radius: 50%; background: #f4c45b; }
+.cap span { position: static; }
+.preload { left: -9999px; top: 0; width: 4px; height: 4px; opacity: 0; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="host"><img id="hA" alt=""><img id="hB" alt=""></div>
+  <div class="phone"><div class="glass"><img id="pA" alt=""><img id="pB" alt=""></div></div>
+  <div class="cap" id="capA"><i></i><span></span></div>
+  <div class="cap" id="capB"><i></i><span></span></div>
+</div>
+<script src="clip.js"></script>
+<script>
+(() => {
+  const { clamp, E, seg } = window.M;
+  const FOOTAGE = '../media/gen/footage/game/';
+  const STEP = 40;                       // the renders' frame, ms (25 fps)
+  const FADE = 480;                      // a cut's crossfade, ms
+  const CAP_FADE = 260;
+  // A stretch of the game: [from, to] ms of the recording; `cut`: it follows the one before without a pause in the
+  // game (no crossfade). The picture is not pushed in: a push-in about the top middle cut the wordmark in the corner
+  // («ldy.»), and the game moves enough by itself.
+  const BEATS = [
+    { from: 5400, to: 9800, cap: 'Класс заходит с телефонов по QR-коду' },
+    { from: 19800, to: 25800, cap: 'Каждый бежит к своему ответу' },
+    { from: 25800, to: 30000, cut: true, cap: 'Пол под неверными ответами проваливается' },
+    { from: 42300, to: 50500, cap: 'Каждый второй раунд за классом гонится Дедлайн' },
+    { from: 112300, to: 118900, cap: 'Трое лучших поднимаются на пьедестал' },
+  ];
+  // The film's timeline: a crossfaded cut overlaps the two stretches by FADE.
+  let at = 0;
+  for (const [i, b] of BEATS.entries()) {
+    b.len = b.to - b.from;
+    b.start = i === 0 ? 0 : b.cut ? at : at - FADE;
+    at = b.start + b.len;
+  }
+  const T = at;                          // the loop's length: the last FADE dissolves into the first frame
+  const snap = (ms) => Math.round(ms / STEP) * STEP;
+  const name = (ms) => String(snap(ms)).padStart(6, '0');
+  const $ = (id) => document.getElementById(id);
+  const layers = { hA: $('hA'), hB: $('hB'), pA: $('pA'), pB: $('pB') };
+  const caps = [$('capA'), $('capB')];
+  const shown = { hA: '', hB: '', pA: '', pB: '' };
+
+  async function show(id, file) {
+    const img = layers[id];
+    if (shown[id] !== file) {
+      shown[id] = file;
+      img.src = FOOTAGE + file;
+    }
+    if (!img.complete || img.naturalWidth === 0) await img.decode().catch(() => undefined);
+  }
+
+  /** What the film shows at t: the stretch under way and, inside a crossfade, the one coming in. */
+  function plan(t) {
+    const out = [];
+    for (const [i, b] of BEATS.entries()) {
+      if (t < b.start || t >= b.start + b.len) continue;
+      const fadeIn = i > 0 && !b.cut ? clamp((t - b.start) / FADE) : 1;
+      out.push({ b, i, local: t - b.start, w: fadeIn });
+    }
+    // the loop's seam: the first frame comes in over the last FADE
+    if (t >= T - FADE) out.push({ b: BEATS[0], i: 0, local: 0, w: clamp((t - (T - FADE)) / FADE), seam: true });
+    return out;
+  }
+
+  function placeCaption(el, text, opacity, lift) {
+    el.querySelector('span').textContent = text;
+    el.style.opacity = String(opacity);
+    const w = el.offsetWidth;
+    el.style.left = `${Math.round((1437 - w) / 2)}px`;
+    el.style.top = `${740 + lift}px`;
+  }
+
+  async function seek(ms) {
+    const t = ((ms % T) + T) % T;
+    const now = plan(t);
+    const base = now[0];
+    const over = now[1] ?? null;
+    const put = async (slot, part) => {
+      const h = slot === 'A' ? 'hA' : 'hB';
+      const p = slot === 'A' ? 'pA' : 'pB';
+      if (!part) {
+        layers[h].style.opacity = '0';
+        layers[p].style.opacity = '0';
+        return;
+      }
+      const src = part.b.from + part.local;
+      await Promise.all([show(h, `h-${name(src)}.jpg`), show(p, `p-${name(src)}.jpg`)]);
+      layers[h].style.opacity = String(slot === 'A' ? 1 : part.w);
+      layers[p].style.opacity = String(slot === 'A' ? 1 : part.w);
+    };
+    await put('A', base);
+    await put('B', over);
+    // the captions: the stretch's words come in over CAP_FADE and leave with it; a cut keeps the bar and swaps words
+    const capOf = (part) => {
+      if (!part) return null;
+      const inK = seg(part.local, 0, CAP_FADE + (part.i === 0 ? 300 : 0), E.out3);
+      const end = part.b.len - part.local;
+      const next = BEATS[part.i + 1];
+      const outK = next && next.cut ? 1 : clamp(end / CAP_FADE);
+      const prevCut = part.b.cut;
+      return { text: part.b.cap, o: (prevCut ? 1 : inK) * outK, lift: prevCut ? 0 : (1 - inK) * 10 };
+    };
+    const a = capOf(base);
+    const b = over && !over.seam ? capOf(over) : null;
+    if (a) placeCaption(caps[0], a.text, over && !over.seam ? a.o * (1 - over.w) : over && over.seam ? a.o * (1 - over.w) : a.o, a.lift);
+    else caps[0].style.opacity = '0';
+    if (b) placeCaption(caps[1], b.text, b.o * over.w, b.lift);
+    else if (over && over.seam) placeCaption(caps[1], BEATS[0].cap, 0, 0);
+    else caps[1].style.opacity = '0';
+  }
+
+  window.__clip = { T, seek, width: 1840, height: 808, poster: BEATS[1].start + 4600, loop: true, beats: BEATS.map((b) => [b.start, b.len, b.cap]) };
+  seek(window.__clip.poster);
+})();
+</script>
+</body>
+</html>
