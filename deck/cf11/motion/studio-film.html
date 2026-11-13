@@ -26,7 +26,7 @@ const { fit, whole, mark } = takeFilmTools;
 // The film's pieces, as stretches of the take: [from, to, fade]. A piece with no fade follows the one before it.
 const CUTS = [
   [0.2, mark('name-typed') + 0.5],                                   // the name is typed
-  [mark('create') + 0.4, mark('studio-open') - 0.15, 0.3],          // «Создать тест»
+  [mark('create') + 0.4, mark('studio-open') - 0.3, 0.3],           // «Создать тест» (the loading screen after it is left out)
   [mark('studio-open') + 0.9, mark('picture-whole') + 1.8, 0.35],   // the constructor, whole; the picture is dragged in
   [mark('question-pick') - 0.6, mark('question-added') + 1.4, 0.3], // a question from the palette
   [mark('question-typing') - 0.4, mark('question-typed') + 1.0, 0.3],

@@ -19,7 +19,8 @@
 //                                               // so it must be the film's first frame
 //   })
 // Helpers for a film's config: takeFilm.whole() (the whole screen), takeFilm.fit(rect, { pad, minW, maxW }) (the
-// camera's box around a rectangle of the page, inside the screen), takeFilm.mark(name), takeFilm.box(name).
+// camera's box around a rectangle of the page, inside the screen), mark(name), box(name), cuts(list): all in
+// window.takeFilmTools.
 (() => {
   const W = 1840, WIN_H = 728, H = 808, ASPECT = W / WIN_H;
   const take = () => window.TAKE;
@@ -156,5 +157,18 @@
     seek(window.__clip.poster);
   };
   Object.assign(window.takeFilm ?? {}, {});
-  window.takeFilmTools = { whole, fit, mark, box, ASPECT };
+  /** A film's pieces from stretches of the take, [from, to, fade]: a stretch with no fade follows the one before
+   *  it without a seam. Gives the pieces, the film second where the last one ends, and F(i, m): the film second of
+   *  take second m inside piece i. */
+  function cuts(list) {
+    const pieces = [];
+    let at = 0;
+    for (const [m0, m1, fade] of list) {
+      const f0 = fade ? at - fade : at;
+      pieces.push({ f0, m0, m1, fade });
+      at = f0 + (m1 - m0);
+    }
+    return { pieces, end: at, F: (i, m) => pieces[i].f0 + (m - pieces[i].m0) };
+  }
+  window.takeFilmTools = { whole, fit, mark, box, cuts, ASPECT };
 })();

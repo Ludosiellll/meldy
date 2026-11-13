@@ -9,52 +9,53 @@
 <body>
 <div class="stage" id="stage"></div>
 <script src="clip.js"></script>
-<script src="screen-film.js"></script>
+<script src="../media/gen/footage/lecture-take/take.js"></script>
+<script src="take-film.js"></script>
 <script>
-/* The stage version's slide 07 (13.11). The recording of the live site (account A, October 2026;
-   media/product/masters/lecture-master.mp4, 1536 × 1200): «Разобрать лекцию», the four ways in, the lecture's video is
-   chosen, the five materials are ticked, «Запустить анализ», the five rows get ready, the summary opens: its key
-   points, then a section with the chip of the lecture's fragment it is taken from. Real time from 1.6 s; the key points and the
-   section hold for reading. The results' top with its tabs is left out: there the self-check is still called
-   «Тест», its name before 22.10 (the tile and the row «Тест» of the upload stay, they are the same thing).
-   Frames: ffmpeg -i media/product/masters/lecture-master.mp4 -vf fps=30 -q:v 2 media/gen/footage/lecture/m-%04d.jpg
+/* The stage version's slide 07, re-shot on today's app (13.11, the owner: «ролики нужны актуальные», «хотелось бы,
+   чтобы больше видно было, а потом уже приближал к нужному»). A take of the local copy of today's code
+   (tools/record/local.cjs): «Разобрать лекцию», the way in «Аудио и видео», the lecture's video is chosen, all five
+   materials are ticked, the start, the five rows get ready while the yellow dot runs along the track, the result with
+   its key points, a section and the lecture's fragment it is taken from. The analysis is answered by the take's mock
+   with what the live site made of this lecture in October (the key points, the first section, the terms, card 1,
+   question 1, «Выжимка», the podcast's first line); what the October recording does not show was written from the
+   lecture's own text and is listed in the project's notes.
+   The film opens on the whole screen and then goes to the part the talk is about. The waits between the steps are
+   left out (crossfades); every step itself runs in real time.
+   Footage: media/gen/footage/lecture-take (take_footage.py; ignored by git).
    Rendered: node deck/cf11/motion/render.mjs lecture-film --fps 30 --blur 4 --jobs 4 --crf 18 */
-const M0 = 1.6;
-const f = (m) => m - M0;
-const K = 1.5;
-const T = 22.0;
-screenFilm({
-  footage: '../media/gen/footage/lecture/', frames: 900, fps: 30, src: [1536, 1200],
-  T, seam: 0.5,
-  pieces: [
-    { f0: 0, m0: M0, m1: 14.05 },                 // from the ways in to the five rows, all ready
-    { f0: 13.0, m0: 16.0, m1: 17.0, fade: 0.4 },  // the summary's key points (the page's top, with the tabs, is left out)
-    { f0: 15.6, m0: 17.5, m1: 18.5, fade: 0.4 },  // a section and its fragment chip
-  ],
-  cam0: [0, 150, 1536],
+const { fit, whole, mark, cuts } = takeFilmTools;
+const { pieces, end, F } = cuts([
+  [0.2, mark('file-chosen') + 1.9],                              // the ways in, the lecture's video is chosen
+  [mark('plan') + 0.9, mark('five') + 2.0, 0.3],                 // «Изменить»: the five materials, all ticked
+  [mark('go') - 0.3, mark('results') + 3.4, 0.3],                // the start, the five rows and the dot, the result
+  [mark('section') - 0.5, mark('fragment-open') + 3.0, 0.35],    // a section and the lecture's fragment
+]);
+const T = end + 0.9;
+const ROWS = 337;                                                 // the progress card's close view: x of a 1167-wide box
+takeFilm({
+  footage: '../media/gen/footage/lecture-take/', T, seam: 0.5, pieces,
   moves: [
-    { at: 0.4, dur: 3.8, box: [60, 290, 1416] },            // a slow push to the ways in and the chosen file
-    { at: f(7.15), dur: 0.9, box: [0, 380, 1536] },         // the five materials
-    { at: f(10.25), dur: 0.8, box: [0, 200, 1536] },        // «Запустить анализ»
-    { at: f(12.0), dur: 0.9, box: [130, 390, 1280] },       // the five rows getting ready
-    { at: 12.9, dur: 0.7, box: [60, 380, 1416] },           // the key points
-    { at: 15.5, dur: 0.6, box: [60, 200, 1416] },           // a section
-    { at: 17.0, dur: 1.4, box: [60, 400, 1416] },           // down to its fragment chip
+    { at: 1.5, dur: 1.4, box: [262, 250, 930] },                                  // «Что разобрать»: the ways in, the file
+    { at: pieces[1].f0 - 0.2, dur: 0.9, box: whole() },                           // «Изменить»
+    { at: F(1, mark('plan-open')) + 0.1, dur: 1.2, box: [296, 70, 1248] },                                  // the five materials (under the top bar)
+    { at: pieces[2].f0 - 0.2, dur: 0.9, box: whole() },                           // the start button
+    { at: F(2, mark('progress')) + 0.2, dur: 1.1, box: [ROWS, 128, 1167] },       // the progress: its heading and the track
+    { at: F(2, mark('text-read')) + 0.3, dur: 1.3, box: [ROWS, 250, 1167] },      // the track with the dot and the five rows
+    { at: F(2, mark('results')) - 1.55, dur: 1.0, box: whole() },                 // back to the whole screen before the result comes (0.25 s before the mark)
+    { at: F(2, mark('results')) + 1.5, dur: 1.2, box: [392, 110, 1056] },         // its title and tabs
+    { at: pieces[3].f0 - 0.2, dur: 0.9, box: fit([488, 92, 1352, 591], { pad: 20 }) },   // a section
+    { at: F(3, mark('chip')) + 0.9, dur: 1.1, box: whole() },                     // its fragment chip: the lecture's place opens
   ],
   caps: [
-    { from: 0.3, to: f(7.1), text: 'Лекцию загружают файлом, текстом, ссылкой или записью' },
-    { from: f(7.5), to: f(10.9), text: 'Студент выбирает, что сделать из лекции' },
-    { from: f(11.4), to: 12.8, text: 'Meldy читает лекцию и готовит материалы' },
-    { from: 13.2, to: 15.4, text: 'Сначала конспект с главными тезисами' },
-    { from: 15.9, to: T, text: 'У каждого раздела видно, откуда в лекции он взят' },
+    { from: 0.4, to: pieces[1].f0 - 0.1, text: 'Лекцию загружают файлом, текстом, ссылкой или записью' },
+    { from: pieces[1].f0 + 0.4, to: pieces[2].f0 - 0.1, text: 'Студент выбирает, что сделать из лекции' },
+    { from: pieces[2].f0 + 0.4, to: F(2, mark('results')) - 0.2, text: 'Meldy читает лекцию и готовит материалы' },
+    { from: F(2, mark('results')) + 0.3, to: pieces[3].f0 - 0.1, text: 'Сначала конспект с главными тезисами' },
+    { from: pieces[3].f0 + 0.4, to: T, text: 'У каждого раздела видно, откуда в лекции он взят' },
   ],
-  taps: [
-    { f: f(3.1), x: 853.8 * K, y: 316.9 * K }, { f: f(5.247), x: 512 * K, y: 528.3 * K }, { f: f(7.633), x: 222.7 * K, y: 538 * K },
-    { f: f(9.699), x: 512 * K, y: 538 * K }, { f: f(11.039), x: 512 * K, y: 185.8 * K },
-  ],
-  spots: [{ from: 18.5, to: T - 0.5, box: [128, 806, 196, 56], radius: 28, a: 0.12 }],
-  poster: 8600,
 });
+window.__film = { T, pieces };
 </script>
 </body>
 </html>
