@@ -7,8 +7,10 @@
 <style>
 /* The last slide's phrase (the owner, 13.11): «точка (с глазками) выпрыгивала, поотскакивала, проехалась, врезалась в
    слово "точка", это слово сжалось немного и упруго откинуло точку, то глазами потрясло и вернулось на место к
-   слову точка». The clip is the slide's bottom band, edge to edge (1920 × 266, on the slide at left 0, top 814, right under the
-   rule: a video's dark ground never matches a slide's canvas to the last level, and the rule hides that seam): the phrase
+   слову точка». The clip is a card of the slide (1664 × 208, on the slide at left 128, top 836), drawn on the deck's surface
+   colour with rounded corners: in PowerPoint on the owner's machine a video's dark ground comes out lighter than the
+   slide's canvas (TV levels shown as they are; measured on the owner's screen recording of 13.11), so a video never
+   lies on the bare canvas unseen, and the clip brings its own ground that is meant to be seen. In it the phrase
    in the slide's own type and the wordmark's yellow dot with the face the app draws (index.css --m-dot-face).
    Its first and last frames are the same and are the slide's still picture: the phrase with the dot as its full stop.
    From there the dot blinks, crouches, jumps out and bounces away four times, looks back, rolls at the word and hits
@@ -17,8 +19,9 @@
    One play, no loop.
    Rendered: node deck/cf11/motion/render.mjs dot-finale --fps 30 --blur 4 --jobs 3 --crf 16 */
 html, body { background: #0b0f16; }
-.stage { width: 1920px; height: 266px; background: #0b0f16; color: #f3f3f0; }
-.phrase { left: 128px; top: 42px; font-size: 104px; line-height: 116px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
+.stage { width: 1664px; height: 208px; background: #0b0f16; color: #f3f3f0; }
+.card { left: 0; top: 0; width: 1664px; height: 208px; border-radius: 32px; background: #141a24; }
+.phrase { left: 56px; top: 42px; font-size: 104px; line-height: 116px; font-weight: 600; letter-spacing: -.03em; white-space: nowrap; }
 .stage .phrase span { position: static; display: inline-block; transform-origin: 0 100%; will-change: transform; }
 .dot { left: 0; top: 0; width: 40px; height: 40px; margin: -20px 0 0 -20px; transform-origin: 50% 100%; will-change: transform; }
 .dot svg { left: 0; top: 0; width: 40px; height: 40px; overflow: visible; will-change: transform; }
@@ -26,6 +29,7 @@ html, body { background: #0b0f16; }
 </head>
 <body>
 <div class="stage" id="stage">
+  <div class="card"></div>
   <div class="phrase" id="phrase">Выучил — и&nbsp;<span id="word">точка</span></div>
   <div class="dot" id="dot"><svg id="face" viewBox="0 0 20 20">
     <circle cx="10" cy="10" r="10" fill="#f4c45b"/>
@@ -154,7 +158,7 @@ html, body { background: #0b0f16; }
     }
   }
 
-  window.__clip = { T: T * 1000, seek, width: 1920, height: 266, poster: 0, loop: false };
+  window.__clip = { T: T * 1000, seek, width: 1664, height: 208, poster: 0, loop: false };
   document.fonts.ready.then(() => seek(0));
   seek(0);
 })();
