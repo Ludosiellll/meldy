@@ -43,11 +43,12 @@
 
 <!-- The autotests: how many times they ran over the whole development (every recorded test run since 02.10.2026,
      each run counted once: 2 425 795 test executions in 3 998 runs), and today's suite at meldy 67a3e9f (21.10.2026):
-     6 633 site (Vitest) + 2 472 server (pytest) + 393 bot = 9 498. -->
+     The stage copy (13.11): 7 432 site (Vitest) + 2 842 server (pytest) + 465 bot = 10 739, the gate of release 59.2
+     (11.11.2026); the 2,4 млн runs are the count of 21.10 and have only grown. -->
 <div class="panel" data-pptx="shape" style="left:1312px;top:340px;width:480px;height:452px" data-anim="settle" data-anim-trigger="after" data-anim-dur="600" data-anim-order="4"></div>
 <div class="big" data-pptx="text" style="left:1354px;top:380px;font-size:112px;line-height:116px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">2,4&nbsp;млн</div>
 <div class="t32" data-pptx="text" style="left:1360px;top:512px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">запусков автотестов<br>за&nbsp;время разработки</div>
-<div class="t28m" data-pptx="text" style="left:1360px;top:668px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Сейчас 9&nbsp;498 автотестов<br>у&nbsp;сайта, сервера и&nbsp;бота</div>
+<div class="t28m" data-pptx="text" style="left:1360px;top:668px" data-anim="fade" data-anim-trigger="with" data-anim-dur="400" data-anim-order="4">Сейчас 10&nbsp;739 автотестов<br>у&nbsp;сайта, сервера и&nbsp;бота</div>
 
 <!-- The test tools really used in this repository (names only; what each one checks is in the notes). -->
 <div class="grp" data-pptx="text" style="left:128px;top:872px" data-anim="fade" data-anim-trigger="after" data-anim-dur="400" data-anim-order="5">Тесты</div>
@@ -64,13 +65,13 @@
 
 Сайт сделан на React и TypeScript. Сервер на Python и FastAPI. База данных Supabase. Языковые модели Gemini и Groq. Бот работает через Telegram Bot API.
 
-Как мы проверяем работу. За время разработки автотесты запускались 2,4 миллиона раз. Сейчас у сайта, сервера и бота 9 498 автотестов. Новая версия выходит, только если прошли все. После выхода мы проверяем живой сайт.
+Как мы проверяем работу. За время разработки автотесты запускались 2,4 миллиона раз. Сейчас у сайта, сервера и бота 10 739 автотестов. Новая версия выходит, только если прошли все. После выхода мы проверяем живой сайт.
 
 Если спросят, откуда версии браузеров: так настроена сборка сайта. Сайт собирает Vite 6 под стандарт es2020, а это Chrome 87, Edge 88, Firefox 78 и Safari 14.
 
 Если спросят, откуда 2,4 миллиона: это 2 425 795 запусков тестов. Посчитано по журналам работы с 2 октября. Это 3 998 прогонов, каждый прогон учтён один раз. Vitest запускал тесты 1 876 041 раз в 2 857 прогонах. pytest 485 080 раз в 836 прогонах. Тесты бота 64 674 раза в 305 прогонах.
 
-Если спросят, из чего 9 498: 6 633 теста сайта в Vitest, 2 472 теста сервера в pytest и 393 теста бота. Посчитано 21 октября 2026 года.
+Если спросят, из чего 10 739: 7 432 теста сайта в Vitest, 2 842 теста сервера в pytest и 465 тестов бота. Посчитано 11 ноября 2026 года. Число запусков, 2,4 миллиона, посчитано 21 октября; с тех пор их стало больше.
 
 Если спросят, чем тестируем:
 Vitest. Тесты сайта: расчёты, логика и экраны.
