@@ -10,20 +10,21 @@
    from «d» down to its place at the end of the word, looks at the hall, blinks and shuts its eyes: now it is the
    logo's plain dot. The last slide answers it: there the dot jumps out of «Выучил — и точка» and comes back.
 
-   This clip is NOT a video. In PowerPoint on the owner's machine a video's dark ground comes out lighter than the
-   slide's canvas (TV levels shown as they are: #0b0f16 reads 25, 29, 33 against 10, 15, 21 — measured on the owner's
-   screen recording of 13.11), so a video over the bare canvas shows as a rectangle. The clip is rendered with a
-   transparent ground and saved as a GIF (tools/dot_gif.py): only the dot is drawn, its edge matted on the canvas
-   colour, so it lies over the slide with no ground of its own. The wordmark itself stays the slide's live text
-   (here it is laid out invisibly, with the slide's own type, only to find the tops of the letters; ?word=1 shows it).
+   In PowerPoint on the owner's machine a video's dark ground comes out lighter than the slide's canvas (TV levels
+   shown as they are: #0b0f16 reads 25, 29, 33 against 10, 15, 21 — measured on the owner's screen recordings of
+   13.11), so a video over a part of the bare canvas shows as a rectangle. First this was a transparent GIF; the owner
+   found it not smooth (25 frames a second, no blur, PowerPoint's own GIF clock). Now it is a video again, 30 frames
+   with motion blur, and it is the WHOLE slide's ground: 1920 × 1080 of the canvas colour with only the dot drawn,
+   placed under every live object of the slide, so where levels are lifted they are lifted over the whole slide and
+   no edge shows. The wordmark itself stays the slide's live text (here it is laid out invisibly, with the slide's
+   own type, only to find the tops of the letters; ?word=1 shows it).
 
-   The clip is the slide's top left corner, 1040 × 480 at (0, 0). It starts with the slide: nothing for 0.9 s while
-   the live word rises, the dot's way until 3.6 s, its eyes shut by 5.1 s; from 6.6 s the frame is empty again (by
-   then the slide's own dot shape has come in over it), and the GIF's last, empty frame stands for ten minutes, so
-   PowerPoint never plays it a second time.
-   GIF: tools/.venv/bin/python -I tools/dot_gif.py dot-intro (25 frames a second). */
-html, body { background: transparent; }
-.stage { width: 1040px; height: 480px; background: transparent; }
+   It starts with the slide: nothing for 0.9 s while the live word rises, the dot's way until 3.6 s, its eyes shut by
+   5.1 s; the plain dot stays to the end (the slide's own dot comes in over it at 5.3 s). The title's video is this
+   clip with the answer card of the right side laid over it (tools/title_video.sh).
+   Rendered: node deck/cf11/motion/render.mjs dot-intro --fps 30 --blur 4 --jobs 3 --crf 16 */
+html, body { background: #0b0f16; }
+.stage { width: 1920px; height: 1080px; background: #0b0f16; }
 .word { left: 112px; top: 176px; font-size: 280px; line-height: 280px; font-weight: 600; letter-spacing: -.055em; white-space: nowrap; color: #f3f3f0; visibility: hidden; }
 .stage .word span { position: static; }
 .stage .word i { position: static; display: inline-block; width: 0; height: 0; vertical-align: baseline; }
@@ -45,10 +46,9 @@ html, body { background: transparent; }
   const { clamp, E, seg, mix } = window.M;
   const $ = (id) => document.getElementById(id);
   if (new URLSearchParams(location.search).get('word')) $('word').style.visibility = 'visible';
-  const T = 6.64;                      // s: 166 frames at 25 a second
+  const T = 6.6;                       // s
   const R = 39;                        // the dot: 78 px, as the slide's own
   const HOME = { x: 899, y: 370 };     // the slide's dot: left 860, top 331, 78 × 78
-  const GONE = 6.6;                    // the frame is empty from here
 
   // --- where the letters' tops are (the slide's own type, measured here) ----------------------------------------
   let way = null;
@@ -117,7 +117,7 @@ html, body { background: transparent; }
     const t = clamp(ms / 1000, 0, T);
     if (!way) measure();
     const dot = $('dot');
-    if (t < FALL[0] || t >= GONE) { dot.style.opacity = '0'; return; }
+    if (t < FALL[0]) { dot.style.opacity = '0'; return; }
     dot.style.opacity = '1';
     const p = pose(t);
     // the dot is placed by its centre; its squash is about its foot
@@ -130,7 +130,7 @@ html, body { background: transparent; }
     }
   }
 
-  window.__clip = { T: T * 1000, seek, width: 1040, height: 480, poster: 0, loop: false, fps: 25 };
+  window.__clip = { T: T * 1000, seek, width: 1920, height: 1080, poster: 0, loop: false };
   document.fonts.load("600 280px 'Onest'").then(() => { way = null; seek(0); });
 })();
 </script>

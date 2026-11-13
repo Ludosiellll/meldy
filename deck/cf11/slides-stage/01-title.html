@@ -11,15 +11,19 @@
 
 <!-- No «Титульный» label on the cover (owner, 23.10): Приложение 2 asks for a title slide with the project name and the
      nomination, not for the word on it. The mandatory check counts a first slide without a title as «Титульный». -->
+<!-- The slide's ground is a video (the owner, 13.11: the dot arrives in the wordmark; «кадров чуток не хватает…
+     не плавная» about the GIF that did it first). 1920 × 1080 of the canvas colour under every live object of the
+     slide (motion/dot-intro.html, tools/title_video.sh): the dot with the eyes drops onto «M», hops along the
+     letters' tops to its place, blinks and shuts its eyes; the slide's own dot comes in over it at 5.3 s. The answer
+     card of the right side is in the same video: still on its first frame, the whole answer, until 6.2 s, then its
+     loop (question 18 of «Базы данных»: the words come in, the points are checked, the examiner asks) for three
+     minutes. The whole ground and not a part of it: where PowerPoint shows a video's levels lifted, they are lifted
+     over the whole slide and no edge shows. It starts with the slide; its poster is its first frame. -->
+<img data-pptx="video" data-src="../media/motion/title-intro.mp4" data-poster="../media/motion/title-intro.jpg" src="../media/motion/title-intro.jpg" aria-label="Точка приходит в логотип по верхушкам букв; справа ответ вслух на вопрос билета" alt="" style="left:0px;top:0px;width:1920px;height:1080px">
+
 <div class="cf" data-pptx="text">CodingFest-11</div>
 
 <div class="word" data-pptx="text" data-name="!!word" style="left:112px;top:176px" data-anim="rise" data-anim-dur="800" data-anim-order="1">Meldy</div>
-<!-- The dot arrives (the owner, 13.11): a transparent GIF over the slide's top left corner (motion/dot-intro.html,
-     tools/dot_gif.py), under the slide's own dot. It starts with the slide: nothing while the word rises, then the
-     dot with the eyes drops onto «M», hops along the letters' tops to its place, blinks and shuts its eyes. The
-     slide's own dot comes in over it at 5.3 s, and from 6.6 s the GIF is empty. A GIF, not a video: its ground is
-     transparent and its colours exact, so nothing of it shows on the canvas (motion/dot-intro.html says why). -->
-<img data-pptx="gif" data-src="../media/motion/dot-intro.gif" src="../media/motion/dot-intro.png" aria-label="Точка приходит в логотип по верхушкам букв" alt="" style="left:0px;top:0px;width:1040px;height:480px">
 
 <div class="t48" data-pptx="text" style="left:128px;top:540px" data-anim="rise" data-anim-trigger="after" data-anim-delay="2900" data-anim-dur="600" data-anim-order="3">Конспекты из&nbsp;лекций<br>Подготовка к&nbsp;экзамену<br>Конструктор тестов<br>Контрольные по&nbsp;ссылке</div>
 
@@ -27,13 +31,6 @@
 <div class="t40s" data-pptx="text" style="left:128px;top:916px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="4">Образование, культура</div>
 <div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:860px;top:331px;width:78px;height:78px;border-radius:38px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1000" data-anim-dur="400" data-anim-order="4"></div>
 
-<!-- The card on the right: one oral answer in Meldy, on the app's light paper (motion/title-cover.html, rendered to
-     media/motion/title-cover.gif, 752 × 880 at 1:1, its corners the stage's canvas). Question 18 of the oral exam
-     «Базы данных», the answer and the points of the recording of 21.10 (slide 10's clip): the voice records, the words
-     come in phrase by phrase, the check opens the points one by one, «Сами назвали 2 из 3 главных пунктов», and the
-     examiner asks about the point named only in part. PowerPoint plays the GIF in a loop by itself; its first frame,
-     the whole answer at once, is what the PDF, LibreOffice and a reader see (the poster PNG here). -->
-<img data-pptx="video" data-src="../media/motion/title-cover.mp4" data-poster="../media/motion/title-cover.jpg" data-loop src="../media/motion/title-cover.jpg" aria-label="Ответ вслух на вопрос билета" alt="" style="left:1040px;top:136px;width:752px;height:880px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="5">
 
 <template data-pptx="notes">Здравствуйте. Наш проект называется Meldy. В нём четыре части: лекции, экзамены, конструктор тестов и контрольные. Из лекции Meldy делает конспект, карточки, самопроверку и подкаст. По вопросам кафедры составляет план до экзамена и проверяет ответы вслух. В конструкторе преподаватель собирает свой тест, а потом даёт его группе как контрольную: по ссылке или игрой на паре. Справа ответ вслух: Meldy слушает студента и переспрашивает о том, что он пропустил.
 
