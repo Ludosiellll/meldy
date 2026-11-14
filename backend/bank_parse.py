@@ -1671,9 +1671,34 @@ class Reader:
             blocks[-1].append(line)
         return [block for block in blocks if block]
 
+    @staticmethod
+    def _list_place(line: Line) -> Optional[int]:
+        """Номер строки в нумерации вопросов: набранный («7. Текст») или автонумерации Word («7.»)."""
+        label = re.match(r"^(\d{1,3})[.)]$", line.para.label.strip()) if line.para.label else None
+        if label:
+            return int(label.group(1))
+        number = question_number(line.text)
+        return number[1] if number else None
+
+    def numbered_list_lines(self, blocks: list[list[Line]]) -> int:
+        """Строк в блоках, которые целиком — нумерованный список вопросов (не меньше 4 строк, номера идут подряд:
+        n, n+1, n+2…). Вопрос с вариантами так не выглядит: у вопроса блоком нет номера, а варианты «1. 2. 3.» стоят
+        под ним, или нумерация вариантов начинается заново («3. Вопрос», «1) …», «2) …»)."""
+        total = 0
+        for block in blocks:
+            places = [self._list_place(line) for line in block]
+            if len(block) >= 4 and places[0] is not None \
+                    and all(p is not None and p == places[0] + k for k, p in enumerate(places)):
+                total += len(block)
+        return total
+
     def block_mode(self, body: list[Line]) -> bool:
         blocks = self.blocks_of(body)
         if len(blocks) < 3:
+            return False
+        # Список вопросов к экзамену под шапкой бланка (гриф «УТВЕРЖДАЮ», заголовок, разделы — блоками через пустые
+        # строки, вопросы сплошным списком; стенд финала, 14.11): короткие блоки шапки не делают его тестом блоками.
+        if self.numbered_list_lines(blocks) * 5 >= sum(len(block) for block in blocks) * 2:
             return False
         sizes = sorted(len(block) for block in blocks)
         median = sizes[len(sizes) // 2]

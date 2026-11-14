@@ -2095,3 +2095,49 @@ def test_gift_numeric_question_carries_number_beside_its_answer():
     assert first["kind"] == "open" and first["answer"] == "9.8"
     assert first["number"] == {"answers": ["9.8"], "tolerance": "0.1"}
     assert second["number"] == {"answers": ["3.14"], "tolerance": None}
+
+
+# ── Список вопросов к экзамену с шапкой бланка (стенд финала, 14.11) ─────────────────────────────────────────────
+# «Вопросы к экзамену» кафедры: гриф «УТВЕРЖДАЮ», заголовок и разделы стоят блоками через пустые строки, а сами
+# вопросы — сплошным нумерованным списком. Шапка давала короткие блоки, и файл читался как тест «вопрос + варианты»:
+# 4 вопроса («УТВЕРЖДАЮ» с вариантами «Заведующий кафедрой», «____»…) вместо 20 открытых.
+LIVE_LIST = Path(__file__).resolve().parent / "fixtures" / "live_course" / "questions_databases.txt"
+
+
+def _list_docx(auto_number: bool) -> bytes:
+    import re
+    doc = Document()
+    for line in LIVE_LIST.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"^(\d+)\.\s+(.*)$", line)
+        if auto_number and m:
+            doc.add_paragraph(m.group(2), style="List Number")
+        else:
+            doc.add_paragraph(line)
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("source", ["text", "docx", "docx_auto_number"])
+def test_exam_question_list_under_a_title_form_is_a_list_not_a_test(source):
+    if source == "text":
+        result = parse_bank_text(LIVE_LIST.read_text(encoding="utf-8"))
+    else:
+        result = parse_bank_file(_list_docx(source == "docx_auto_number"), "Вопросы.docx")
+    items = result["items"]
+    assert result["layout"] != "blocks"
+    assert len(items) == 20
+    assert {q["kind"] for q in items} == {"open"}
+    assert items[0]["text"].startswith("Реляционная модель данных")
+    assert items[17]["text"].startswith("Параллельное выполнение транзакций")
+    assert items[18]["text"].startswith("Составьте SQL-запрос")
+    assert not any(q["text"].startswith(("УТВЕРЖДАЮ", "ВОПРОСЫ К ЭКЗАМЕНУ", "Кафедра")) for q in items)
+
+
+def test_blocks_test_with_numbered_options_stays_blocks():
+    # Тест блоками, где варианты пронумерованы «1. 2. 3. 4.» под ненумерованным вопросом: это не список вопросов.
+    text = "\n\n".join(
+        f"Вопрос {chr(0x410 + k)} про что-то?\n1. первый\n2. второй\n3. третий\n4. четвёртый" for k in range(5))
+    result = parse_bank_text(text)
+    assert len(result["items"]) == 5
+    assert all(len(q["options"]) == 4 for q in result["items"])

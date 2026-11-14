@@ -4,6 +4,25 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-14 — Release 59.3: a list of exam questions under a form's header is read as a list (from the commit of this entry)
+
+- **Why**: found while preparing the stand for the final (the owner plans to load the college's own question file in
+  front of the curators). A department's «Вопросы к экзамену» list — the approval block «УТВЕРЖДАЮ», the title and
+  the parts («Теоретические вопросы», «Практические задания») as blocks between empty lines, the questions as one
+  numbered list — loaded through «Новый экзамен» came out as a test of 4 questions with options («УТВЕРЖДАЮ» with
+  the options «Заведующий кафедрой», «____»…) instead of 20 open questions. The same in Word, typed numbers or
+  Word's own numbering.
+- **The cause**: `bank_parse.block_mode` took the header's short blocks for questions with options (median block
+  size 2, every block starting with a non-option line), so the whole file went to the «question + options» reader.
+- **Fixed** (`backend/bank_parse.py`): when at least 40 % of the lines are whole numbered lists (a block of 4 lines or
+  more, numbers running on by one, typed or Word's), the file is not read as blocks. A test in blocks whose options
+  are numbered «1. 2. 3. 4.» under an unnumbered question stays blocks (the numbers do not start at the block's
+  first line).
+- **Checked**: new tests on the live list as text, Word and Word numbering, and a blocks test with numbered options;
+  the parser's ten test files (466 passed); the sample set of real-life layouts (`fixtures/banks/wild`) unchanged:
+  165 of 173 files with the right number of questions, keys 1210 of 1243, the same 8 misses as before; the whole
+  pytest suite (2846 passed, 1 skipped). No frontend change.
+
 ## 2026-11-11 — Release 59.2: the own character runs evenly on the phone; «К тесту» on an ended game (from the commit of this entry)
 
 - **Why**: the owner's video of a movement round on a phone (11.11, «посмотри какое движение убогое») and a
