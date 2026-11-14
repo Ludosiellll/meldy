@@ -17,27 +17,34 @@
      blinks and shuts its eyes; the slide's own dot comes in over it at 5.3 s. The whole ground and not a part of it:
      where PowerPoint shows a video's levels lifted, they are lifted over the whole slide and no edge shows. It
      starts with the slide, plays once (5.4 s) and holds its last frame; its poster is its first frame, the empty
-     ground. -->
+     ground.
+     Timing (the owner, 14.11: «всё остальное появляется после следующего клика и притом моментально… сначала анимация
+     заканчивается, а потом начинают появляться другие данные»): every build of this slide starts WITH the first one,
+     at its own delay from the slide's start. PowerPoint holds an «after previous» build that follows a video's play
+     until the video stops, and a video that holds its last frame stops only when the slide is left, so those builds
+     waited for a click and then ran all at once. Now: the word rises at 0, the dot lands by 3.6 s and shuts its eyes
+     by 5.1 s, the slide's own dot at 5.3 s, the four lines at 5.8 s, the nomination at 6.5 s, the answer card at
+     7.1 s. -->
 <img data-pptx="video" data-src="../media/motion/dot-intro.mp4" data-poster="../media/motion/dot-intro.jpg" src="../media/motion/dot-intro.jpg" aria-label="Точка приходит в логотип по верхушкам букв" alt="" style="left:0px;top:0px;width:1920px;height:1080px">
 
 <div class="cf" data-pptx="text">CodingFest-11</div>
 
 <div class="word" data-pptx="text" data-name="!!word" style="left:112px;top:176px" data-anim="rise" data-anim-dur="800" data-anim-order="1">Meldy</div>
 
-<div class="t48" data-pptx="text" style="left:128px;top:540px" data-anim="rise" data-anim-trigger="after" data-anim-delay="2900" data-anim-dur="600" data-anim-order="3">Конспекты из&nbsp;лекций<br>Подготовка к&nbsp;экзамену<br>Конструктор тестов<br>Контрольные по&nbsp;ссылке</div>
+<div class="t48" data-pptx="text" style="left:128px;top:540px" data-anim="rise" data-anim-trigger="with" data-anim-delay="5800" data-anim-dur="600" data-anim-order="3">Конспекты из&nbsp;лекций<br>Подготовка к&nbsp;экзамену<br>Конструктор тестов<br>Контрольные по&nbsp;ссылке</div>
 
-<div class="t32m" data-pptx="text" style="left:128px;top:872px" data-anim="fade" data-anim-trigger="after" data-anim-dur="500" data-anim-order="4">Номинация</div>
-<div class="t40s" data-pptx="text" style="left:128px;top:916px" data-anim="fade" data-anim-trigger="with" data-anim-dur="500" data-anim-order="4">Образование, культура</div>
-<div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:860px;top:331px;width:78px;height:78px;border-radius:38px" data-anim="fade" data-anim-trigger="with" data-anim-delay="1000" data-anim-dur="400" data-anim-order="4"></div>
+<div class="t32m" data-pptx="text" style="left:128px;top:872px" data-anim="fade" data-anim-trigger="with" data-anim-delay="6500" data-anim-dur="500" data-anim-order="4">Номинация</div>
+<div class="t40s" data-pptx="text" style="left:128px;top:916px" data-anim="fade" data-anim-trigger="with" data-anim-delay="6500" data-anim-dur="500" data-anim-order="4">Образование, культура</div>
+<div class="word-dot" data-pptx="shape" data-name="!!dot" style="left:860px;top:331px;width:78px;height:78px;border-radius:38px" data-anim="fade" data-anim-trigger="with" data-anim-delay="5300" data-anim-dur="400" data-anim-order="2"></div>
 
 
 <!-- The card on the right: one oral answer in Meldy, on the app's light paper (motion/title-cover.html, 752 × 880 at
      1:1, its corners the stage's canvas). Question 18 of the oral exam «Базы данных»: the voice records, the words
      come in phrase by phrase, the check opens the points one by one, «Сами назвали 2 из 3 главных пунктов», and the
-     examiner asks about the point named only in part. It comes in last, after the dot has taken its place (the
+     examiner asks about the point named only in part. It comes in last, at 7.1 s, after the dot has taken its place (the
      owner, 13.11: with the card inside the ground video it stood there before the wordmark, «видео сразу есть даже
      без появления»), and loops; its first frame, the whole answer at once, is its poster. -->
-<img data-pptx="video" data-src="../media/motion/title-cover.mp4" data-poster="../media/motion/title-cover.jpg" data-loop src="../media/motion/title-cover.jpg" aria-label="Ответ вслух на вопрос билета" alt="" style="left:1040px;top:136px;width:752px;height:880px" data-anim="rise" data-anim-trigger="after" data-anim-dur="700" data-anim-order="5">
+<img data-pptx="video" data-src="../media/motion/title-cover.mp4" data-poster="../media/motion/title-cover.jpg" data-loop src="../media/motion/title-cover.jpg" aria-label="Ответ вслух на вопрос билета" alt="" style="left:1040px;top:136px;width:752px;height:880px" data-anim="rise" data-anim-trigger="with" data-anim-delay="7100" data-anim-dur="700" data-anim-order="5">
 
 <template data-pptx="notes">Здравствуйте. Наш проект называется Meldy. В нём четыре части: лекции, экзамены, конструктор тестов и контрольные. Из лекции Meldy делает конспект, карточки, самопроверку и подкаст. По вопросам кафедры составляет план до экзамена и проверяет ответы вслух. В конструкторе преподаватель собирает свой тест, а потом даёт его группе как контрольную: по ссылке или игрой на паре. Справа ответ вслух: Meldy слушает студента и переспрашивает о том, что он пропустил.
 

@@ -188,6 +188,17 @@ def main() -> int:
                         loops = xp(timing, './/p:video/p:cMediaNode/p:cTn[@repeatCount="indefinite"]')
                         if v['src'].get('loop'):
                             c.ok(len(loops) >= 1, f'{tag}: looping video without repeatCount=indefinite')
+                    # PowerPoint holds an «after previous» build that follows a video's play in the same click group
+                    # until the video stops, and a video that holds its last frame (or loops) stops only when the
+                    # slide is left: such builds wait for a click and then all run at once (the owner's title slide,
+                    # 14.11). After a play, a click group may only go on «with» it, at a delay.
+                    for grp in xp(timing, './/p:cTn[@nodeType="mainSeq"]/p:childTnLst/p:par/p:cTn'):
+                        played = False
+                        for sub in xp(grp, './p:childTnLst/p:par'):
+                            c.ok(not played, f'{tag}: a build comes «after previous» behind a video\'s play in the same click group; '
+                                             'PowerPoint holds it until a click (start it «with» the first build, at a delay)')
+                            if xp(sub, './/p:cTn[@presetClass="mediacall"]'):
+                                played = True
             else:
                 c.ok(timing is None, f'{tag}: p:timing present although the HTML has no animation or video')
         # z-order: the background first
