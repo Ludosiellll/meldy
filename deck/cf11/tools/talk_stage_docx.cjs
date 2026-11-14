@@ -65,6 +65,14 @@ for (const [i, s] of talk.slides.entries()) {
       children: [new TextRun({ text: a, font: FONT, size: 18, color: GREY })] }));
   }
 }
+for (const a of talk.appendix || []) {
+  kids.push(new Paragraph({ pageBreakBefore: true, spacing: { after: 160 }, children: [new TextRun({ text: a.title, font: FONT, size: 30, bold: true })] }));
+  for (const line of a.lines) {
+    const label = line.endsWith(':');
+    kids.push(new Paragraph({ keepNext: label, spacing: { before: label ? 220 : 0, after: label ? 80 : 140, line: label ? 240 : 320 },
+      children: label ? [new TextRun({ text: line.slice(0, -1), font: FONT, size: 22, bold: true, color: GREY })] : runs(line, 26) }));
+  }
+}
 const doc = new Document({
   creator: 'Meldy', title: talk.title,
   sections: [{ properties: { page: { size: { width: 11906, height: 16838 }, margin: { top: 1134, bottom: 1134, left: 1134, right: 1134 } } }, children: kids }],

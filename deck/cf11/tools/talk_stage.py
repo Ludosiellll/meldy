@@ -4,6 +4,7 @@
 
 talk/stage-talk.md has one section per slide («## 07-lectures»): «screen:» says what the hall sees, plain lines are what
 the speaker says, a line «@a–b text» is said while the slide's film shows its seconds a–b, [brackets] are actions.
+A section «## +Title» is an appendix (answers to likely questions): it goes after the slides in the Word file only.
 1. Each slide's notes in slides-stage/ get the speech as their talk paragraphs (the timing marks dropped); the
    paragraphs «Если спросят…», «О записи…» stay; «Докладчику…» goes (the cues are in the talk now).
 2. With --docx: talk/stage-talk.json (the talk, the slides' names, the «если спросят» paragraphs, the clock at --wpm
@@ -29,10 +30,13 @@ def arg(name, default=None):
 wpm = float(arg('wpm', 135))
 text = re.sub(r'<!--.*?-->', '', SRC.read_text(encoding='utf-8'), flags=re.S)
 title = re.search(r'^# (.+)$', text, re.M).group(1).strip()
-slides = []
+slides, appendix = [], []
 for sec in re.split(r'\n## ', text)[1:]:
     head, body = sec.split('\n', 1)
     key = head.strip()
+    if key.startswith('+'):          # «## +Если спросят…»: an appendix after the slides, a line ending in «:» is a label
+        appendix.append({'title': key[1:].strip(), 'lines': [l.strip() for l in body.split('\n') if l.strip()]})
+        continue
     screen, parts = '', []
     for line in body.split('\n'):
         line = line.strip()
@@ -72,7 +76,7 @@ for s in slides:
     clock += n / wpm * 60 + WAITS.get(s['key'], 0)
     s['end'] = clock
 total = sum(s['words'] for s in slides)
-out = {'title': title, 'wpm': wpm, 'words': total, 'seconds': clock, 'slides': slides}
+out = {'title': title, 'wpm': wpm, 'words': total, 'seconds': clock, 'slides': slides, 'appendix': appendix}
 (DECK / 'talk' / 'stage-talk.json').write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding='utf-8')
 print(f'{len(slides)} slides, {total} words, {clock / 60:.1f} min at {wpm:g} words a minute; notes updated')
 docx = arg('docx')
