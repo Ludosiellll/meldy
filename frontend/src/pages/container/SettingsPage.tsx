@@ -34,6 +34,7 @@ import type { ContainerSummary, PlanInput, SummarySubject, Tempo, Uuid } from '.
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './SettingsPage.css';
+import DateField from '../../components/ui/DateField';
 
 /**
  * /exams/c/:id/settings — the one «Настройки» of an exam (spec §16 #44, design critique I9): the name, the date (or a
@@ -503,9 +504,8 @@ export default function SettingsPage() {
         {SETTINGS.ownDate}
       </label>
       <div className="st-own">
-        <input
+        <DateField
           id={`${formId}-own`}
-          type="date"
           className="im-input im-date"
           value={ownDate}
           min={today || undefined}
@@ -648,8 +648,7 @@ export default function SettingsPage() {
                     {oralOnly(subject) ? (
                       <span className="st-oral-date">{SETTINGS.oralDate}</span>
                     ) : (
-                      <input
-                        type="date"
+                      <DateField
                         className="im-input im-date"
                         data-subject-date={subject.id}
                         min={today || undefined}
@@ -667,9 +666,8 @@ export default function SettingsPage() {
                 <label className="im-label" htmlFor={`${formId}-date`}>
                   {SETTINGS.date}
                 </label>
-                <input
+                <DateField
                   id={`${formId}-date`}
-                  type="date"
                   className="im-input im-date"
                   min={today || undefined}
                   max={today ? addDay(today, MOVE_MAX_DAYS) : undefined}

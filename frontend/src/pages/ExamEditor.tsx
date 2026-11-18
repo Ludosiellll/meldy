@@ -59,6 +59,7 @@ import { addDay } from '../components/containers/model';
 import '../styles/paper.css';
 import '../components/exams/exams.css';
 import './ExamEditor.css';
+import DateField from '../components/ui/DateField';
 
 const PARSE_ACCEPT = '.docx,.pdf,.txt,.md';
 const QUESTION_FORMS = ['вопрос', 'вопроса', 'вопросов'] as const;
@@ -867,9 +868,8 @@ export default function ExamEditor() {
                     Дата экзамена
                   </label>
                   <span className="nx-sel">
-                    <input
+                    <DateField
                       id={DATE_ID}
-                      type="date"
                       aria-describedby="exam-date-hint"
                       min={dateMin}
                       max={dateMax}

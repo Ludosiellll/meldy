@@ -69,6 +69,7 @@ import { bestSource, joinPlans, joinTargets, planUpdate, updateItemInputs, updat
 import '../../components/exams/exams.css';
 import '../../components/containers/import/import.css';
 import './ImportPage.css';
+import DateField from '../../components/ui/DateField';
 
 /**
  * /exams/import — one door for every file (spec decision 21; Concept 1 §3.2 with spec v2.2 and both critiques):
@@ -1542,8 +1543,7 @@ export default function ImportPage() {
           {active.map((subject) => (
             <label key={subject.key} className="im-date-row">
               <span className="im-date-name">{subject.title}</span>
-              <input
-                type="date"
+              <DateField
                 className="im-input im-date"
                 value={subject.date ?? ''}
                 min={today}
@@ -1560,9 +1560,8 @@ export default function ImportPage() {
           <label className="im-label" htmlFor={`${formId}-date`}>
             {IMPORT.date}
           </label>
-          <input
+          <DateField
             id={`${formId}-date`}
-            type="date"
             className="im-input im-date"
             value={date}
             min={today}

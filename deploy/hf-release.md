@@ -4,6 +4,31 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-18 — Release 59.5: the site's own calendar on the exam date fields (from the commit of this entry)
+
+- **Why**: the owner's screenshot of 18.11 — «Дата экзамена» on the import form opens the browser's default calendar
+  (Chrome on Windows): a grey square that is no part of the site, over the «Сохранить» button. The owner sets this date
+  in front of the curators at the final.
+- **What**: `components/ui/DateField` — the field stays the browser's `<input type="date">` (the date is typed part by
+  part as before, the value is «ГГГГ-ММ-ДД», the same props), and on a computer with a Chromium browser the browser's
+  calendar mark is hidden and ours is drawn in its place. A press on it (or Alt+↓, F4) opens the site's calendar: a
+  card with the month, the weeks from Monday, today under the wordmark's yellow dot, the chosen day in the accent,
+  Saturday and Sunday quieter, the days outside the field's min and max switched off. Under the grid a line says the
+  day in words and how far it is («27 ноября, пятница · через 9 дней»), and «Через неделю · 2 недели · месяц» set a
+  day counted from today in one press.
+- **Keys**: arrows walk the days (over a month's end too), Page Up / Page Down a month, Home / End the month's ends,
+  Enter presses, Escape closes and gives the focus back to the field.
+- **Where it stands**: in a portal, fixed to the window against its field (under it, or over it when there is no room
+  below), inside the dialog when the field is in one (PaperSelect's way), so nothing cuts it.
+- **Where nothing changes**: a phone and a browser whose own calendar cannot be switched off (Firefox, Safari) keep
+  the system's picker; `datetime-local` fields (a test's deadline) are not touched.
+- **Used in** every exam date field: the import form (one date and the dates by subject), the exam's settings (own
+  date, subjects' dates), «Перенести экзамен», the oral exam's editor.
+- **Checked**: tests of the calendar's days and of the field (opens, sets the field through the page's own onChange,
+  min and max, keys, the dialog); the pages that use the field (873 tests); in a real Chromium at 2× in both themes:
+  the mark, the calendar under and over the field, a press on a day. Not checked on the owner's Windows Chrome: there
+  the last check is the owner's.
+
 ## 2026-11-18 — Release 59.4: «Изменить текст» on the import's «Сомнительные места» (from the commit of this entry)
 
 - **Why**: the owner, 18.11 — where the import is unsure of a question, the person should be able to change «ключи и сам

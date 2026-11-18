@@ -7,6 +7,7 @@ import MoveExamTip from '../tips/MoveExamTip';
 import { addDay, dayDiff, examDates } from './model';
 import * as copy from './copy';
 import './moveExam.css';
+import DateField from '../ui/DateField';
 
 /**
  * «Перенести экзамен» (release 47; owner, 2026-10-18: «при окончании экзамена нельзя продлить кнопкой и выбрать до
@@ -211,8 +212,7 @@ export default function MoveExamDialog({ containerId, role, today, facts = null,
         {choice === 'own' ? (
           <label className="mv-field">
             <span>{copy.MOVE_DATE}</span>
-            <input
-              type="date"
+            <DateField
               value={own}
               min={today}
               max={max}
