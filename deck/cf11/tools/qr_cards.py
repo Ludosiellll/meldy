@@ -96,13 +96,11 @@ html,body{{margin:0;background:#fff;font-family:Onest,sans-serif;color:{INK};-we
 .qr{{display:block;width:52mm;height:52mm;margin:6mm auto 0}}
 .h{{margin-top:5.6mm;font-size:5.6mm;line-height:1.1;font-weight:600;letter-spacing:-.02em}}
 .p{{margin-top:1.7mm;font-size:3.2mm;line-height:1.4;color:{MUTED}}}
-/* where to cut: hairlines between the cards */
-.cut{{position:absolute;background-image:linear-gradient(90deg,#aeb2b9 55%,transparent 0);background-size:2.2mm .2mm}}
-.cut.h{{left:0;right:0;top:105mm;height:.2mm;margin:0}}
-.cut.v{{top:0;bottom:0;width:.2mm;background-image:linear-gradient(#aeb2b9 55%,transparent 0);background-size:.2mm 2.2mm}}
+/* where to cut: hairlines between the cards (one drawing: thin boxes of their own were dropped by the PDF printer) */
+.cuts{{position:absolute;left:0;top:0;width:297mm;height:210mm}}
 </style></head><body><svg width="0" height="0" style="position:absolute"><defs><g id="code">{body}</g></defs></svg>
 <div class="sheet">{card * 8}
-<div class="cut h"></div><div class="cut v" style="left:74.25mm"></div><div class="cut v" style="left:148.5mm"></div><div class="cut v" style="left:222.75mm"></div>
+<svg class="cuts" viewBox="0 0 297 210" aria-hidden="true"><path d="M74.25 0V210M148.5 0V210M222.75 0V210M0 105H297" fill="none" stroke="#aeb2b9" stroke-width=".2" stroke-dasharray="1.2 1"/></svg>
 </div></body></html>'''
 
 
