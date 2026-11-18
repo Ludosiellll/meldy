@@ -4,6 +4,34 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-18 — Release 59.6: «Дедлайн» runs three ways and deals blows in a chase (from the commit of this entry)
+
+- **Why**: the owner, 18.11, on the game film of the deck: how «Дедлайн» moves when it runs after a character —
+  «может стоит сделать красивые анимации атаки и бега? разных видов».
+- **A bug found on the way**: at its first catch the boss was put into «roar» and nothing took it out of it, so for the
+  rest of the chase it slid over the floor with its arms up and its legs still (both bosses, the projector's scene).
+- **The run** (the clock, `lib/live/three/internal/clockPose.ts`): three ways, one for each hunter of a chase — the
+  boss sprints (it leans into the run, the foot that comes forward is pulled up, the fists pump against the legs, it
+  lands heavy and stretches in the air), the copies stomp with their fists over their heads and the bells ringing, or
+  go in leaps (a crouch, a flight with the fists thrown forward, a landing on both feet). Before: one stiff swing of
+  the legs for all.
+- **The blows**: its arms are short, so a blow is a move of the whole body, read from the far side of a classroom —
+  the pounce (a jump and a crash down), the whirl (it coils and spins round once), the ram (it pulls back and drives
+  forward); they come in turn, the bells ring from the blow on. A hunter lunges when a character it may catch is
+  near (at most once in 1.5 s), and at a catch the blow comes down at once on the hunter next to the caught one. While
+  the room rests it for its second it rings over its catch, then runs on.
+- **The skeleton**: the same rules with what its model has — its one run faster or slower by the hunter, the jump
+  chop as its blow.
+- **Where**: `stand/hunt.ts` (the rules, shared by the projector's scene and the phone's), `Boss.setGait`,
+  `Boss.strike`, `Boss.striking` (`lib/live/three`); docs/live/MODE_RUN.md §3. No server change: the room still says
+  only where a hunter is and whom it caught.
+- **Checked**: the poses as numbers (a run has no jump in it — the test found one in the leap's landing and a too
+  fast throw of the fists, both fixed; a blow starts and ends in the run; the whirl is one whole turn); the rules on a
+  fake boss (a lunge, the pause between blows, the blow at a catch, ringing while held, back to the run); the recorded
+  game of the deck's film replayed on the new code, the projector and the phone, and its frames looked at; the 3D
+  preview `?scene=chase`; the live game's tests (542 passed), `tsc -b`. Not played by people on real phones: frames
+  were looked at, the motion itself was not watched.
+
 ## 2026-11-18 — Release 59.5: the site's own calendar on the exam date fields (from the commit of this entry)
 
 - **Why**: the owner's screenshot of 18.11 — «Дата экзамена» on the import form opens the browser's default calendar

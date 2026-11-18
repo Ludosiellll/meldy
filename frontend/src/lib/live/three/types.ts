@@ -62,6 +62,18 @@ export interface Boss {
    * stunned (the skeleton falls apart and gets up again when the phase changes; the clock reels); chase (runs).
    */
   setPhase(phase: BossPhase): void;
+  /**
+   * How it runs in a chase: 0 the sprint, 1 the stomp with its fists up, 2 the leaps (the skeleton: the same run,
+   * faster or slower). Hunters of one chase get different ones.
+   */
+  setGait(gait: number): void;
+  /**
+   * A blow in a chase, played once over the run (a different blow each time); it runs on by itself. `landed`: it has
+   * just caught someone, so the blow comes down at once; without it the boss winds up first (a lunge at someone near).
+   */
+  strike(landed?: boolean): void;
+  /** A blow is being dealt. */
+  readonly striking: boolean;
   /** Map units. Default: its stage (Arena.stage). */
   setPosition(x: number, y: number): void;
   setFacing(rad: number): void;

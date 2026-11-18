@@ -35,6 +35,14 @@ zone a character stands in at zero; the database, its write (`live_stand_close`)
   frame and froze the chase with 13 players or more); with none out it runs back to its stage. Cues `hunt` (it leaves: a roar) and `caught` (a
   slam; the caught character plays its hit pose). The board says «Убегайте от Дедлайна и встаньте на верный ответ.»
   and a pill «Поймал N».
+- What a hunter does with its body is the same on both screens (`stand/hunt.ts`, release 59.6): the room says only
+  where it is. Each hunter of a chase runs its own way (`Boss.setGait`: the boss sprints, the copies stomp with their
+  fists up or leap); within `LUNGE_RANGE` of a character it may catch it deals a blow (`Boss.strike`, a different one
+  each time: the pounce, the whirl, the ram), at most once in `LUNGE_EVERY`; at a catch the blow comes down at once on
+  the hunter next to the caught character; while the room rests the hunter for its second it rings over its catch,
+  and runs on when it moves again. (Before, the boss was put into «roar» at its first catch and kept it to the end of
+  the chase: it slid with its arms up.) The phone is not sent the `caught` event for others: it sees a character's
+  `F_CAUGHT` rise.
 - Phone: the 3D view draws the boss the same way (scene3d.ts `hunt`), the small map a red dot; the question card
   carries «Дедлайн гонится!»; a catch vibrates and the line says «Дедлайн поймал вас. Бегите обратно».
 

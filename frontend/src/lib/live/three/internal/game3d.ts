@@ -51,8 +51,17 @@ class BossFacade implements Boss {
   get stompImpactS(): number {
     return this.impl.stompImpactS;
   }
+  get striking(): boolean {
+    return this.impl.striking;
+  }
   setPhase(phase: BossPhase): void {
     this.impl.setPhase(phase);
+  }
+  setGait(gait: number): void {
+    this.impl.setGait(gait);
+  }
+  strike(landed?: boolean): void {
+    this.impl.strike(landed);
   }
   setPosition(x: number, y: number): void {
     this.impl.setPosition(x, y);

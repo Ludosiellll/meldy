@@ -11,6 +11,7 @@ import { canvasTexture, FONT, hullMaterial, toon, type SharedUniforms } from './
 import { UNITS } from './crowd';
 
 import type { BossKind, BossPhase } from '../types';
+import { GAITS, STRIKES, STRIKE_BLOW, STRIKE_S, mixPose, runPose, smooth, strikePose, whirl, type ClockPose } from './clockPose';
 
 /** Seconds from setPhase('stomp') to the blow on the floor. */
 export const STOMP_IMPACT: Record<BossKind, number> = { skeleton: 0.7, clock: 0.85 };
@@ -238,6 +239,11 @@ export class BossImpl {
   private body: THREE.Bone | null = null;
   private legs: THREE.Bone[] = [];
   private arms: THREE.Bone[] = [];
+  // a chase: how it runs (GAITS) and the blow it is dealing (seconds since it began; -1 — none)
+  private gait = 0;
+  private strikeT = -1;
+  private strikeKind = 0;
+  private strikes = 0;
 
   constructor(
     readonly kind: BossKind,
@@ -420,7 +426,29 @@ export class BossImpl {
     this.target = rad;
   }
 
+  get striking(): boolean {
+    return this.strikeT >= 0;
+  }
+
+  setGait(gait: number): void {
+    this.gait = ((Math.trunc(gait) % GAITS) + GAITS) % GAITS;
+    if (this.kind === 'skeleton' && this.phase === 'chase' && this.current && !this.striking) this.current.timeScale = SKELETON_GAIT[this.gait];
+  }
+
+  strike(landed = false): void {
+    if (this.phase !== 'chase') this.setPhase('chase');
+    this.strikeKind = this.strikes++ % STRIKES;
+    if (this.kind === 'skeleton') {
+      // its one blow: the jump chop, from the swing (a lunge) or from just before it comes down (a catch)
+      this.strikeT = 0;
+      this.play(SKELETON_CLIPS.stomp.clip, false, landed ? 0.52 : 0.3, 1.45);
+    } else {
+      this.strikeT = landed ? STRIKE_BLOW - 0.05 : 0;
+    }
+  }
+
   setPhase(phase: BossPhase): void {
+    if (phase !== 'chase') this.strikeT = -1;
     if (this.kind === 'skeleton') {
       if (phase === this.phase && this.current && phase !== 'stomp') return;
       if (this.phase === 'stunned' && phase !== 'stunned') {
@@ -435,17 +463,19 @@ export class BossImpl {
       this.phase = phase;
       this.phaseT = 0;
       this.rising = false;
-      this.play(SKELETON_CLIPS[phase].clip, SKELETON_CLIPS[phase].loop);
+      this.play(SKELETON_CLIPS[phase].clip, SKELETON_CLIPS[phase].loop, 0, phase === 'chase' ? SKELETON_GAIT[this.gait] : 1);
     } else {
       this.phase = phase;
       this.phaseT = 0;
     }
   }
 
-  private play(name: string, loop: boolean): void {
+  private play(name: string, loop: boolean, from = 0, speed = 1): void {
     const next = this.actions.get(name);
     if (!next) return;
     next.reset();
+    next.time = from;
+    next.timeScale = speed;
     next.setLoop(loop ? THREE.LoopRepeat : THREE.LoopOnce, loop ? Infinity : 1);
     next.clampWhenFinished = !loop;
     next.enabled = true;
@@ -468,6 +498,10 @@ export class BossImpl {
     const step = dt > 0 ? dt : 0;
     this.t += step;
     this.phaseT += step;
+    if (this.strikeT >= 0 && this.kind === 'clock') {
+      this.strikeT += step;
+      if (this.strikeT >= STRIKE_S) this.strikeT = -1;
+    }
     const t = this.t;
     // place
     let d = this.target - this.facing;
@@ -479,15 +513,16 @@ export class BossImpl {
     const c = this.clock;
     c.minute.rotation.z = -t * 6;
     c.hour.rotation.z = -t * 0.5;
-    const ringing = this.phase === 'warn' || this.phase === 'roar';
+    // it rings while it threatens, and in a chase as its run or its blow says (the clock's pose; the skeleton: at a blow)
+    const ring = this.phase === 'warn' || this.phase === 'roar' ? 1 : this.phase === 'chase' ? (this.kind === 'clock' ? this.chasePose().ring : this.striking ? 1 : 0) : 0;
     const r = Math.sin(t * 70);
-    c.bells[0].rotation.x = ringing ? Math.sin(t * 70) * 0.16 : 0;
-    c.bells[1].rotation.x = ringing ? Math.sin(t * 70 + 1) * 0.16 : 0;
-    c.hammer.rotation.z = ringing ? r * 0.6 : 0;
+    c.bells[0].rotation.x = Math.sin(t * 70) * 0.16 * ring;
+    c.bells[1].rotation.x = Math.sin(t * 70 + 1) * 0.16 * ring;
+    c.hammer.rotation.z = r * 0.6 * ring;
     // how hot the stage glows
     const pulse = Math.abs(Math.sin(t * 9));
     this.alarm =
-      this.phase === 'warn' ? 0.55 + 0.45 * pulse : this.phase === 'stomp' ? 1 : this.phase === 'roar' ? 0.6 + 0.3 * pulse : this.phase === 'stunned' ? 0.05 : this.phase === 'chase' ? 0.5 : 0.25;
+      this.phase === 'warn' ? 0.55 + 0.45 * pulse : this.phase === 'stomp' ? 1 : this.phase === 'roar' ? 0.6 + 0.3 * pulse : this.phase === 'stunned' ? 0.05 : this.phase === 'chase' ? (this.striking ? 0.9 : 0.5) : 0.25;
     (this.glow.material as THREE.SpriteMaterial).opacity = 0.25 + 0.5 * this.alarm;
     if (this.kind === 'skeleton') this.updateSkeleton(step);
     else this.updateClock();
@@ -496,6 +531,14 @@ export class BossImpl {
   private updateSkeleton(step: number): void {
     const mixer = this.mixer as THREE.AnimationMixer;
     if (this.phase === 'stomp' && this.current && !this.current.isRunning() && this.phaseT > 0.3) this.setPhase('idle');
+    if (this.strikeT >= 0) {
+      this.strikeT += step;
+      // the chop came down (or its clip is over): it runs on
+      if (this.strikeT > 0.15 && (!this.current || !this.current.isRunning() || this.strikeT > SKELETON_STRIKE_S)) {
+        this.strikeT = -1;
+        if (this.phase === 'chase') this.play(SKELETON_CLIPS.chase.clip, true, 0, SKELETON_GAIT[this.gait]);
+      }
+    }
     if (this.rising && this.current && !this.current.isRunning()) {
       this.rising = false;
       const next = this.pending ?? 'idle';
@@ -569,14 +612,30 @@ export class BossImpl {
         break;
       }
       case 'chase': {
-        const s = Math.sin(t * 9);
-        body.position.y = Math.abs(s) * 0.18;
-        body.rotation.x = 0.12;
-        this.legs.forEach((l, i) => (l.rotation.x = (i ? 1 : -1) * 0.6 * s));
-        this.arms.forEach((a, i) => (a.rotation.x = (i ? -1 : 1) * 0.5 * s));
+        const pose = this.chasePose();
+        body.position.set(0, pose.y, pose.z);
+        body.rotation.set(pose.rx, pose.ry, pose.rz);
+        body.scale.set(pose.sx, pose.sy, pose.sx);
+        this.legs.forEach((l, i) => {
+          l.rotation.x = pose.legs[i];
+          l.scale.y = 1 - 0.3 * pose.lift[i];
+        });
+        this.arms.forEach((a, i) => a.rotation.set(pose.ax[i], (i ? -1 : 1) * pose.ay[i], (i ? 1 : -1) * pose.az[i]));
         break;
       }
     }
+    if (this.phase !== 'chase') this.legs.forEach((l) => (l.scale.y = 1));
+  }
+
+  /** The clock's pose in a chase: its run, and over it the blow it is dealing (in softly, out softly into the run). */
+  private chasePose(): ClockPose {
+    const run = runPose(this.gait, this.phaseT);
+    const k = this.strikeT;
+    if (k < 0) return run;
+    const weight = smooth(k / 0.06) * (1 - smooth((k - (STRIKE_S - 0.2)) / 0.2));
+    const pose = mixPose(run, strikePose(this.strikeKind, k), weight);
+    pose.ry += whirl(this.strikeKind, k, this.strikes % 2 === 0);
+    return pose;
   }
 
   dispose(): void {
@@ -586,6 +645,10 @@ export class BossImpl {
   }
 }
 
+/** The skeleton runs its one clip faster or slower by its gait; its blow is cut off after this long. */
+const SKELETON_GAIT = [1.15, 0.92, 1.35];
+const SKELETON_STRIKE_S = 0.9;
+
 const SKELETON_CLIPS: Record<BossPhase, { clip: string; loop: boolean }> = {
   idle: { clip: 'Idle_Combat', loop: true },
   warn: { clip: 'Taunt', loop: true },
@@ -594,8 +657,3 @@ const SKELETON_CLIPS: Record<BossPhase, { clip: string; loop: boolean }> = {
   stunned: { clip: 'Death_C_Skeletons', loop: false },
   chase: { clip: 'Running_C', loop: true },
 };
-
-function smooth(k: number): number {
-  const x = Math.max(0, Math.min(1, k));
-  return x * x * (3 - 2 * x);
-}

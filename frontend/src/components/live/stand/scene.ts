@@ -23,6 +23,7 @@ import { FALL_S, FloorShow, changeOf, easeOutBack, fallFrame, tally, timerFace, 
 import { facing, leapAt, leapPoint, ringSpots, type Spot } from './formation';
 import type { StandRoom } from './room';
 import { BossCopies } from './bossCopies';
+import { Hunter, nearestHunter, nearestPrey } from './hunt';
 
 /** The moments the screen plays sounds on: the last seconds' ticks, the alarm, the boss's jump and blow, the first
  * ghost rising, the first cheer of those who stood, the floor coming back; freeze and thaw: a mixed game's ice formed or
@@ -194,12 +195,12 @@ export class StandScene {
    * Mode B (MODE_RUN.md): the boss follows the room's first hunter, smaller copies the others; off its stage `away`,
    * where it is drawn now.
    */
-  private readonly hunters = new Map<number, { model: Boss; x: number; y: number }>();
+  private readonly hunters = new Map<number, Hunter>();
+  /** The boss as the chase's first hunter (hunt.ts); made when it leaves its stage. */
+  private lead: Hunter | null = null;
   /** Smaller copies of the boss for the other hunters (mode B). */
   private readonly copies: BossCopies;
   private bossAway = false;
-  private bossX = 0;
-  private bossY = 0;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -530,6 +531,7 @@ export class StandScene {
     this.boss?.dispose();
     for (const h of this.hunters.values()) h.model.dispose();
     this.hunters.clear();
+    this.lead = null;
     this.bossAway = false;
     this.map = kitMap(world.map);
     this.floor = world.floor;
@@ -890,19 +892,23 @@ export class StandScene {
     const arena = this.arena;
     const kit = this.kit;
     if (!boss || !arena || !kit) return;
+    if (!this.lead || this.lead.model !== boss) this.lead = new Hunter(boss, 0, arena.stage.x, arena.stage.y);
+    const head = this.lead;
+    const everyone = [...this.poses.values()];
     let lead = true;
     const seen = new Set<number>();
     for (const [id, pose] of this.poses) {
       if ((pose.flags & 3) !== KIND_NPC) continue;
+      const prey = nearestPrey(pose.x, pose.y, everyone);
       if (lead) {
         lead = false;
         if (!this.bossAway) {
           this.bossAway = true;
-          this.bossX = arena.stage.x;
-          this.bossY = arena.stage.y;
+          head.x = arena.stage.x;
+          head.y = arena.stage.y;
           this.hud.cue('hunt');
         }
-        this.runBoss(boss, pose.x, pose.y);
+        head.frame(pose.x, pose.y, dt, prey);
         continue;
       }
       seen.add(id);
@@ -911,15 +917,11 @@ export class StandScene {
         const model = this.copies.make();
         if (!model) continue;
         model.setPhase('chase');
-        h = { model, x: pose.x, y: pose.y };
+        // each copy runs its own way: the stomp, the leaps, the stomp…
+        h = new Hunter(model, 1 + (this.hunters.size % 2), pose.x, pose.y);
         this.hunters.set(id, h);
       }
-      const dx = pose.x - h.x;
-      const dy = pose.y - h.y;
-      if (dx * dx + dy * dy > 0.25) h.model.setFacing(Math.atan2(dx, dy));
-      h.x = pose.x;
-      h.y = pose.y;
-      h.model.setPosition(pose.x, pose.y);
+      h.frame(pose.x, pose.y, dt, prey);
     }
     for (const [id, h] of this.hunters) {
       if (seen.has(id)) continue;
@@ -928,37 +930,31 @@ export class StandScene {
     }
     if (lead && this.bossAway) {
       // back to the stage at a run
-      const dx = arena.stage.x - this.bossX;
-      const dy = arena.stage.y - this.bossY;
+      const dx = arena.stage.x - head.x;
+      const dy = arena.stage.y - head.y;
       const d = Math.hypot(dx, dy);
       const step = BOSS_HOME_SPEED * Math.max(dt, 0);
       if (d <= step || d < 1) {
         this.bossAway = false;
+        head.x = arena.stage.x;
+        head.y = arena.stage.y;
         boss.setPosition(arena.stage.x, arena.stage.y);
         boss.setFacing(0);
         const st = this.state;
         const alarm = this.hello?.alarm_ms ?? 3000;
         boss.setPhase(st && st.phase === 'open' && st.closes !== null && t !== null && t >= st.closes - alarm ? 'warn' : 'idle');
       } else {
-        this.runBoss(boss, this.bossX + (dx / d) * step, this.bossY + (dy / d) * step);
+        head.frame(head.x + (dx / d) * step, head.y + (dy / d) * step, dt, null);
       }
     }
   }
 
-  private runBoss(boss: Boss, x: number, y: number): void {
-    const dx = x - this.bossX;
-    const dy = y - this.bossY;
-    if (dx * dx + dy * dy > 0.25) boss.setFacing(Math.atan2(dx, dy));
-    if (boss.phase !== 'chase' && boss.phase !== 'roar') boss.setPhase('chase');
-    this.bossX = x;
-    this.bossY = y;
-    boss.setPosition(x, y);
-  }
-
-  /** «Дедлайн» caught a character: it roars, the character is thrown (the room moves it) with a hit pose. */
+  /** «Дедлайн» caught a character: the hunter next to it deals its blow, the character is thrown (the room moves it) with a hit pose. */
   private onCaught(id: number): void {
     this.hud.cue('caught');
-    this.boss?.setPhase('roar');
+    const pose = this.poses.get(id);
+    const hunters = this.lead && this.bossAway ? [this.lead, ...this.hunters.values()] : [...this.hunters.values()];
+    (pose ? nearestHunter(pose.x, pose.y, hunters) : this.lead)?.caught();
     this.actors.get(id)?.player?.setPose('hit');
   }
 

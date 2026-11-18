@@ -13,7 +13,7 @@
  */
 import type { Arena, ArenaShape, Boss, BossKind, Kit, MoveMap, Player, View } from '../../../../lib/live/three';
 import { STAGE_BOSS_HEIGHT, loadKit, toPlayerLook } from '../../../../lib/live/three';
-import { F_AWAY, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, resKeys, type StandState } from '../../../../lib/live/move/protocol';
+import { F_AWAY, F_CAUGHT, isGhost, isIced, kindOf, KIND_NPC, KIND_PLAYER, resKeys, type StandState } from '../../../../lib/live/move/protocol';
 import type { MapJson } from '../../../../lib/live/move/sim';
 import { easeOutBack } from '../plan';
 import { DEFAULT_TOPS, FollowCam, type Screen } from './camera';
@@ -21,6 +21,7 @@ import { gaitStep, newGait, type Gait } from './gait';
 import { LIGHT_LEVEL, PHONE_LEVELS, PHONE_PIXEL_RATIO, PhoneGovernor } from './quality';
 import type { Backdrop, FrameInput } from './sprites';
 import { BossCopies } from '../bossCopies';
+import { Hunter, nearestHunter, nearestPrey } from '../hunt';
 import { describeError } from './arenaLoader';
 
 export { PHONE_PIXEL_RATIO };
@@ -311,7 +312,7 @@ export class PhoneScene implements Backdrop {
       }
       this.move(this.me, input.me.x, input.me.y, input.me.flags, dt, now, arena);
     }
-    this.hunt(input.others, dt);
+    this.hunt(input.others, input.me, dt);
     this.placeCamera(dt, input.me, now);
     // Characters gone from the room (a kicked player).
     if (f % 30 === 0) {
@@ -327,31 +328,41 @@ export class PhoneScene implements Backdrop {
   }
 
   // ── mode B: «Дедлайн» hunting (MODE_RUN.md) ──
-  private readonly hunters = new Map<number, { model: Boss; x: number; y: number }>();
+  private readonly hunters = new Map<number, Hunter>();
   /** Smaller copies of the boss for the other hunters (mode B). */
   private readonly copies: BossCopies;
   private bossAway = false;
-  private bossX = 0;
-  private bossY = 0;
+  /** The boss as the chase's first hunter (hunt.ts). */
+  private lead: Hunter | null = null;
+  /** Characters seen as caught: a new one means a hunter has just made a catch (the phone is not told of it apart). */
+  private readonly caughtSeen = new Set<number>();
 
-  /** The boss runs where the room's first hunter is, smaller copies where the others are; then back to its stage. */
-  private hunt(others: FrameInput['others'], dt: number): void {
+  /**
+   * The boss runs where the room's first hunter is, smaller copies where the others are; then back to its stage. Each
+   * runs its own way, lunges at a character near it and deals a blow at a catch (hunt.ts, as on the projector).
+   */
+  private hunt(others: FrameInput['others'], me: FrameInput['me'], dt: number): void {
     const boss = this.boss;
     const arena = this.arena;
     if (!boss || !arena) return;
+    if (!this.lead || this.lead.model !== boss) this.lead = new Hunter(boss, 0, arena.stage.x, arena.stage.y);
+    const head = this.lead;
     let lead = true;
     const seen = new Set<number>();
     if (others) {
+      // the phone's own character is not among the others: a hunter is after it too
+      const everyone: Array<{ x: number; y: number; flags: number }> = me ? [...others.values(), me] : [...others.values()];
       for (const [id, p] of others) {
         if (kindOf(p.flags) !== KIND_NPC) continue;
+        const prey = nearestPrey(p.x, p.y, everyone);
         if (lead) {
           lead = false;
           if (!this.bossAway) {
             this.bossAway = true;
-            this.bossX = arena.stage.x;
-            this.bossY = arena.stage.y;
+            head.x = arena.stage.x;
+            head.y = arena.stage.y;
           }
-          this.runBoss(boss, p.x, p.y);
+          head.frame(p.x, p.y, dt, prey);
           continue;
         }
         seen.add(id);
@@ -360,13 +371,21 @@ export class PhoneScene implements Backdrop {
           const model = this.copies.make();
           if (!model) continue;
           model.setPhase('chase');
-          h = { model, x: p.x, y: p.y };
+          h = new Hunter(model, 1 + (this.hunters.size % 2), p.x, p.y);
           this.hunters.set(id, h);
         }
-        if ((p.x - h.x) ** 2 + (p.y - h.y) ** 2 > 0.25) h.model.setFacing(Math.atan2(p.x - h.x, p.y - h.y));
-        h.x = p.x;
-        h.y = p.y;
-        h.model.setPosition(p.x, p.y);
+        h.frame(p.x, p.y, dt, prey);
+      }
+      // a character newly caught: the hunter next to it deals its blow
+      const out = lead ? [] : [head, ...this.hunters.values()];
+      const players: Array<[number, { x: number; y: number; flags: number }]> = me ? [...others, [me.id, me]] : [...others];
+      for (const [id, p] of players) {
+        if (kindOf(p.flags) !== KIND_PLAYER) continue;
+        if ((p.flags & F_CAUGHT) === 0) this.caughtSeen.delete(id);
+        else if (!this.caughtSeen.has(id)) {
+          this.caughtSeen.add(id);
+          nearestHunter(p.x, p.y, out)?.caught();
+        }
       }
     }
     for (const [id, h] of this.hunters) {
@@ -375,27 +394,21 @@ export class PhoneScene implements Backdrop {
       this.hunters.delete(id);
     }
     if (lead && this.bossAway) {
-      const dx = arena.stage.x - this.bossX;
-      const dy = arena.stage.y - this.bossY;
+      const dx = arena.stage.x - head.x;
+      const dy = arena.stage.y - head.y;
       const d = Math.hypot(dx, dy);
       const step = BOSS_HOME_SPEED * Math.max(dt, 0);
       if (d <= step || d < 1) {
         this.bossAway = false;
+        head.x = arena.stage.x;
+        head.y = arena.stage.y;
         boss.setPosition(arena.stage.x, arena.stage.y);
         boss.setFacing(0);
         boss.setPhase(this.alarm ? 'warn' : 'idle');
       } else {
-        this.runBoss(boss, this.bossX + (dx / d) * step, this.bossY + (dy / d) * step);
+        head.frame(head.x + (dx / d) * step, head.y + (dy / d) * step, dt, null);
       }
     }
-  }
-
-  private runBoss(boss: Boss, x: number, y: number): void {
-    if ((x - this.bossX) ** 2 + (y - this.bossY) ** 2 > 0.25) boss.setFacing(Math.atan2(x - this.bossX, y - this.bossY));
-    if (boss.phase !== 'chase' && boss.phase !== 'roar') boss.setPhase('chase');
-    this.bossX = x;
-    this.bossY = y;
-    boss.setPosition(x, y);
   }
 
   private move(t: Tracked, x: number, y: number, flags: number, dt: number, now: number, arena: Arena): void {

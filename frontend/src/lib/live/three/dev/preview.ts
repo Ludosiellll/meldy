@@ -7,6 +7,8 @@
  *   ?scene=bench&players=40    the perf scene: players run about, the floor drops and comes back
  *     &grid                    on the server's map and floor grid (MODE_STAND §3) instead of the style board's
  *     &look=phone              the phone's arena: smaller signs, simpler tiles (stand/phone/scene3d.ts)
+ *   ?scene=chase&boss=clock    mode B's hunters up close: three bosses, one of each run (Boss.setGait), running on
+ *                              the spot; each deals a blow in turn, the first a catch (it comes down at once)
  *   ?scene=thumbs              renders the phone's pictures (scripts/game-thumbs.mjs drives it)
  *   ?scene=bossthumbs          renders the bosses' pictures for the game's setup (game-kit.mjs bosses)
  *   &capture                   no loop: window.__render(t) draws the state at t seconds (screenshots)
@@ -163,6 +165,47 @@ async function lineup(): Promise<void> {
   void tagsHtml;
   void players;
   finish(kit, view, () => undefined);
+}
+
+// ------------------------------------------------------------------ the hunters of a chase, up close
+async function chase(): Promise<void> {
+  const bossKind = (Q.get('boss') as BossKind) ?? 'clock';
+  const kit = (await KitImpl.load({ boss: bossKind })) as KitImpl;
+  window.__kit = kit;
+  const view = kit.mount(canvas, { preserveDrawingBuffer: CAPTURE, quality: 0 });
+  const scene = kit.scene;
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(30, 64), toon('#f6dfc8', kit.ramp));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(16, 0, 9);
+  scene.add(floor);
+  scene.fog = null;
+  const cx = 800;
+  // one skeleton is loaded: with it, one boss; the clock is built from primitives, so three
+  const count = bossKind === 'clock' ? 3 : 1;
+  const turn = Number(Q.get('turn') ?? 0.7);
+  const bosses = Array.from({ length: count }, (_, k) => {
+    const boss = kit.createBoss(bossKind, { height: 5.4 });
+    boss.setPosition(cx + (k - (count - 1) / 2) * 360, 420);
+    boss.setFacing(turn);
+    boss.setGait(k);
+    boss.setPhase('chase');
+    return boss;
+  });
+  view.setCamera({ eye: { x: cx, y: 2050, z: 520 }, target: { x: cx, y: 420, z: 130 }, fov: 30 });
+  hud.innerHTML = '';
+  // a blow every 1.6 s from each in turn: the first a catch, then lunges
+  let next = 1.0;
+  let dealt = 0;
+  finish(kit, view, () => {
+    if (kit.now() < next) return;
+    bosses[dealt % count].strike(dealt === 0);
+    if (count === 3) {
+      bosses[(dealt + 1) % count].strike(false);
+      bosses[(dealt + 2) % count].strike(false);
+    }
+    dealt += 1;
+    next += 1.6;
+  });
 }
 
 // ------------------------------------------------------------------ every body with every hat (QA)
@@ -559,6 +602,7 @@ function finish(kit: KitImpl, view: View, onFrame: (dt: number, now: number) => 
     else if (SCENE === 'thumbs') await thumbs();
     else if (SCENE === 'bossthumbs') await bossThumbs();
     else if (SCENE === 'hats') await hats();
+    else if (SCENE === 'chase') await chase();
     else if (SCENE === 'thumbsheet') await thumbSheet();
     void ACCESSORIES;
   } catch (e) {
