@@ -418,6 +418,16 @@ class SlideBuilder:
             from deckpptx.units import angle
             spr.find(f'{A}xfrm').set('rot', str(angle(e['rot'])))
         self.shadow(pic, e, frame)
+        soft = float(e['src'].get('soft') or 0)
+        if soft > 0:
+            # Soft edges (data-soft, px): the clip fades into the slide over its rim. A clip whose dark ground must
+            # match the canvas cannot rely on its colour: some machines show video with its levels lifted (16–235 as
+            # they are), and a clip on the bare canvas then stands as a lighter rectangle. With soft edges it is at
+            # most a haze round what moves (the owner's screenshots of 18.11: slides 1 and 15 all grey).
+            lst = spr.find(f'{A}effectLst')
+            if lst is None:
+                lst = etree.SubElement(spr, A + 'effectLst')
+            etree.SubElement(lst, A + 'softEdge', rad=str(emu(soft)))
         eff = self.animate(e, Target(spid), [])
         self.media.append(Media(spid=spid, dur_ms=info['durMs'], loop=e['src'].get('loop', False),
                                 autoplay=e['src'].get('autoplay', True), shown_by=eff,

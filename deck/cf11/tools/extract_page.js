@@ -567,6 +567,8 @@
           loop: type === 'video' && el.hasAttribute('data-loop') && !/^(false|0|no|off)$/i.test(el.dataset.loop || ''),
           autoplay: type === 'video' ? !/^(false|0|no|off)$/i.test(el.dataset.autoplay || '') : true,
           play: (el.dataset.play || 'with').trim(),
+          // data-soft="64": the clip's edges fade out over this many px (PowerPoint's soft edges on a video)
+          soft: type === 'video' ? Math.max(0, Number(el.dataset.soft) || 0) : 0,
           fit: (el.localName === 'img' || el.localName === 'video') ? cs.objectFit : 'cover',
           position: cs.objectPosition,
         };
