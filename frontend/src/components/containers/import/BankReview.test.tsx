@@ -198,4 +198,92 @@ describe('«Сомнительные места»', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(onDone).not.toHaveBeenCalled();
   });
+
+  // «Изменить текст» (the owner, 18.11): the words of the question and of its options, typed on this screen.
+  it('«Изменить текст» opens the words as fields; a save changes the question and checks it, undo brings the file’s words back', () => {
+    const { onDone } = show();
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editText }));
+    // while the words are typed the one-press fixes are away: the two cannot be mixed up
+    expect(screen.queryByRole('button', { name: REVIEW.notQuestion })).toBeNull();
+    expect((screen.getByLabelText(REVIEW.editStem) as HTMLTextAreaElement).value).toBe('Вопрос 2?');
+    fireEvent.change(screen.getByLabelText(REVIEW.editStem), { target: { value: 'Какой газ самый лёгкий?' } });
+    fireEvent.change(screen.getByLabelText(REVIEW.editOption('Б')), { target: { value: 'кислород' } });
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editSave }));
+    expect(screen.getByText('Какой газ самый лёгкий?')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /кислород$/ })).toBeTruthy();
+    // the words are settled, the key is not: the card still asks for it
+    expect(screen.queryByText(REVIEW.doubts.option_merged)).toBeNull();
+    expect(screen.getByText(REVIEW.doubts.no_key)).toBeTruthy();
+    expect(screen.queryByText(REVIEW.checked)).toBeNull();
+    expect(plain(screen.getByRole('status').textContent)).toBe('3 вопроса · сомнительных: 1');
+    // the key is then one press, as before
+    fireEvent.click(screen.getByRole('button', { name: /водород/ }));
+    expect(screen.getByText(REVIEW.checked)).toBeTruthy();
+    expect(plain(screen.getByRole('status').textContent)).toBe('3 вопроса · сомнительных: 0 · проверено: 1');
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.done }));
+    const fixed = (onDone.mock.calls[0][0] as BankParseResult).items[1];
+    expect([fixed.text, fixed.options, fixed.correct, fixed.reviewed]).toEqual(['Какой газ самый лёгкий?', ['азот', 'кислород', 'водород'], [2], true]);
+    // undo twice: the key, then the words
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.undo }));
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.undo }));
+    expect(screen.getByText('Вопрос 2?')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /кислород Ответ: б/ })).toBeTruthy();
+  });
+
+  it('an option is taken out and one is typed in; «Отмена» and a save with nothing changed leave the question as it was', () => {
+    const { onDone } = show();
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editText }));
+    fireEvent.change(screen.getByLabelText(REVIEW.editStem), { target: { value: 'Другое' } });
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editCancel }));
+    expect(screen.getByText('Вопрос 2?')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editText }));
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editSave }));
+    expect(screen.queryByRole('button', { name: REVIEW.undo })).toBeNull();
+    expect(screen.queryByText(REVIEW.checked)).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editText }));
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editRemoveOption('Б') }));
+    // the letters follow the rows: «водород» is Б now
+    expect((screen.getByLabelText(REVIEW.editOption('Б')) as HTMLTextAreaElement).value).toBe('водород');
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.editAdd }));
+    fireEvent.change(screen.getByLabelText(REVIEW.editOption('В')), { target: { value: 'гелий' } });
+    // an empty text cannot be saved
+    fireEvent.change(screen.getByLabelText(REVIEW.editStem), { target: { value: '  ' } });
+    expect((screen.getByRole('button', { name: REVIEW.editSave }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText(REVIEW.editStem), { target: { value: 'Вопрос 2?' } });
+    // Shift+Enter in an option is a new line, Enter saves
+    fireEvent.keyDown(screen.getByLabelText(REVIEW.editOption('В')), { key: 'Enter', shiftKey: true });
+    expect(screen.getByLabelText(REVIEW.editStem)).toBeTruthy();
+    fireEvent.keyDown(screen.getByLabelText(REVIEW.editOption('В')), { key: 'Enter' });
+    expect(screen.queryByLabelText(REVIEW.editStem)).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.done }));
+    const fixed = (onDone.mock.calls[0][0] as BankParseResult).items[1];
+    expect([fixed.options, fixed.correct, fixed.kind]).toEqual([['азот', 'водород', 'гелий'], [], 'single']);
+    expect(fixed.flags).toContain('no_key');
+  });
+
+  it('the form says which option holds the key; an order question has no «Убрать» and «Добавить вариант», a cloze no «Изменить текст»', () => {
+    const onDone = vi.fn();
+    const result = bank([
+      item(1, { confidence: 0.2, doubts: ['structure'] }),
+      item(2, { kind: 'order', options: ['утро', 'день'], correct: [], order: [0, 1], evidence: 'order_numbers', marks: {}, confidence: 0.2, doubts: ['structure'] }),
+      item(3, { kind: 'cloze', text: 'Столица ___.', options: [], correct: [], gaps: [['Минск']], marks: {}, confidence: 0.2, doubts: ['structure'] }),
+    ]);
+    render(<BankReview result={result} fileName="Тест.docx" onDone={onDone} onBack={vi.fn()} />);
+    const cards = screen.getAllByRole('listitem').filter((node) => node.classList.contains('br-card'));
+    expect(cards).toHaveLength(3);
+    expect(within(cards[2]).queryByRole('button', { name: REVIEW.editText })).toBeNull();
+    fireEvent.click(within(cards[0]).getByRole('button', { name: REVIEW.editText }));
+    expect(within(cards[0]).getByLabelText(`${REVIEW.editOption('Б')}, ${REVIEW.editKeyHere}`)).toBeTruthy();
+    expect(within(cards[0]).getByText(REVIEW.editHint)).toBeTruthy();
+    fireEvent.click(within(cards[0]).getByRole('button', { name: REVIEW.editCancel }));
+    fireEvent.click(within(cards[1]).getByRole('button', { name: REVIEW.editText }));
+    expect(within(cards[1]).queryByRole('button', { name: REVIEW.editAdd })).toBeNull();
+    expect(within(cards[1]).queryByRole('button', { name: REVIEW.editRemoveOption('А') })).toBeNull();
+    fireEvent.change(within(cards[1]).getByLabelText(REVIEW.editOption('Б')), { target: { value: 'вечер' } });
+    fireEvent.click(within(cards[1]).getByRole('button', { name: REVIEW.editSave }));
+    fireEvent.click(screen.getByRole('button', { name: REVIEW.done }));
+    const fixed = (onDone.mock.calls[0][0] as BankParseResult).items[1];
+    expect([fixed.options, fixed.order, fixed.kind]).toEqual([['утро', 'вечер'], [0, 1], 'order']);
+  });
 });

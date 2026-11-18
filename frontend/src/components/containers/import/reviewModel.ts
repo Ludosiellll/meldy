@@ -15,7 +15,14 @@ export type ReviewOp =
   | { op: 'split'; id: string; at: number }
   | { op: 'drop'; id: string }
   | { op: 'keep'; id: string }
-  | { op: 'alt'; id: string };
+  | { op: 'alt'; id: string }
+  | { op: 'edit'; id: string; text: string; options: EditedOption[] };
+
+/** An option of «Изменить текст»: its words, and the place it had before the edit (null — typed in by the student). */
+export interface EditedOption {
+  from: number | null;
+  text: string;
+}
 
 export interface ReviewItem extends BankItem {
   id: string;
@@ -248,6 +255,89 @@ function takeAlt(item: ReviewItem): ReviewItem {
   return checked(out);
 }
 
+/**
+ * What «Изменить текст» may change in a question: 'full' — its words and its options (added, taken out); 'words' — the
+ * words only (an order question's key is the options' order, a match question keeps its pairs); null — nothing (the
+ * gaps of a cloze sit in its text).
+ */
+export function editMode(item: BankItem): 'full' | 'words' | null {
+  if (item.kind === 'cloze') return null;
+  return item.kind === 'order' || item.kind === 'match' ? 'words' : 'full';
+}
+
+/** Words typed over the old ones, trimmed; words left as they were stay to the letter; nothing typed — the old ones. */
+const typed = (next: string, old: string) => (next === old ? old : next.replace(/\r\n?/g, '\n').trim());
+
+/**
+ * «Изменить текст»: the student's words for the question and its options. An option keeps its key, its marks and its
+ * pictures by the place it had (`from`); one taken out takes them with it, one typed in has none. What the parse
+ * doubted in the text is settled by the student's own words, and the question is checked — unless its key is still an
+ * open matter (a doubt about the key, or a choice question the edit left without one): that waits for a press on an
+ * option or «Оставить как есть», as before.
+ */
+function editText(item: ReviewItem, text: string, options: readonly EditedOption[]): ReviewItem {
+  const mode = editMode(item);
+  if (!mode) return item;
+  const out = cloneItem(item);
+  out.text = typed(text, item.text) || item.text;
+  const held = (from: number | null): from is number => from !== null && Number.isInteger(from) && from >= 0 && from < item.options.length;
+  let lostKey = false; // the edit itself left a choice question without a key
+  if (mode === 'words') {
+    out.options = item.options.map((old, index) => {
+      const mine = options.find((option) => option.from === index);
+      return mine ? typed(mine.text, old) : old;
+    });
+  } else {
+    const seen = new Set<number>();
+    const list: Array<{ from: number | null; text: string }> = [];
+    for (const option of options) {
+      if (held(option.from)) {
+        if (seen.has(option.from)) continue;
+        seen.add(option.from);
+        list.push({ from: option.from, text: typed(option.text, item.options[option.from]) });
+      } else if (option.from === null && option.text.trim()) {
+        list.push({ from: null, text: option.text.trim() });
+      }
+    }
+    out.options = list.map((option) => option.text);
+    const moved = list.length !== item.options.length || list.some((option, index) => option.from !== index);
+    if (moved) {
+      const place = (old: number) => list.findIndex((option) => option.from === old);
+      out.correct = item.correct.map(place).filter((index) => index >= 0).sort((a, b) => a - b);
+      out.order = item.order.map(place).filter((index) => index >= 0);
+      out.marks = Object.fromEntries(
+        Object.entries(item.marks ?? {}).map(([signal, shares]) => [signal, list.map((option) => (option.from === null ? 0 : shares[option.from] ?? 0))]),
+      );
+      out.images = item.images
+        ? { stem: [...item.images.stem], options: list.map((option) => (option.from === null ? [] : [...(item.images?.options[option.from] ?? [])])) }
+        : item.images;
+      if (!list.length) out.kind = 'open';
+      else if (out.correct.length > 1) out.kind = 'multiple';
+      else if (item.kind === 'multiple') out.kind = out.correct.length === 1 ? 'single' : 'multiple';
+      else if (item.kind === 'truefalse') out.kind = list.length === 2 ? 'truefalse' : 'single';
+      else out.kind = 'single';
+      if (item.correct.length && !out.correct.length) out.evidence = '';
+      out.flags = out.flags.filter((flag) => !COUNT_FLAGS.has(flag));
+      if (!CHOICE.has(out.kind)) out.flags = out.flags.filter((flag) => !KEY_FLAGS.has(flag));
+      else if (!out.correct.length) {
+        lostKey = true;
+        out.flags = [...out.flags.filter((flag) => !KEY_FLAGS.has(flag)), 'no_key'];
+      }
+    }
+  }
+  out.flags = out.flags.filter((flag) => flag !== 'joined_lines');
+  const asksKey = CHOICE.has(out.kind) || mode === 'words';
+  const doubts = asksKey ? (out.doubts ?? []).filter((doubt) => doubt === 'key' || doubt === 'key_split') : [];
+  if (lostKey) {
+    if (!doubts.includes('key')) doubts.push('key');
+    out.confidence = Math.min(out.confidence ?? 0, PART_DOUBT);
+    delete out.reviewed;
+  }
+  out.doubts = doubts;
+  const keyOpen = doubts.length > 0 || out.flags.some((flag) => flag === 'key_conflict' || flag === 'ai_key_rejected');
+  return keyOpen ? out : checked(out);
+}
+
 /** The parse with the student's operations applied, renumbered, with its counts recomputed. */
 export function applyReview(result: BankParseResult, ops: readonly ReviewOp[]): BankParseResult {
   return reviewed(result, ops).result;
@@ -273,6 +363,9 @@ export function reviewed(result: BankParseResult, ops: readonly ReviewOp[]): { r
         break;
       case 'alt':
         next[index] = takeAlt(item);
+        break;
+      case 'edit':
+        next[index] = editText(item, step.text, step.options);
         break;
       case 'merge':
         if (index + 1 >= items.length) continue;

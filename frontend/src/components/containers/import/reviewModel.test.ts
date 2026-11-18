@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BankItem, BankParseResult } from '../../../types/container';
-import { applyReview, fragmentOf, looksLikeStem, needsLook, reviewCounts, reviewed, type ReviewOp } from './reviewModel';
+import { applyReview, editMode, fragmentOf, looksLikeStem, needsLook, reviewCounts, reviewed, type ReviewOp } from './reviewModel';
 
 function item(position: number, patch: Partial<BankItem> = {}): BankItem {
   return {
@@ -221,5 +221,114 @@ describe('the review of a parse', () => {
     expect(fragmentOf(result, { ...result.items[0], lines: null })).toEqual([]);
     expect(looksLikeStem('Б. Самая длинная река Европы?')).toBe(true);
     expect(looksLikeStem('Л. Н. Толстой')).toBe(false);
+  });
+});
+
+// «Изменить текст» (the owner, 18.11): the student types the question's words and its options on the review screen.
+describe('«Изменить текст»: the words of a question and its options, typed by hand', () => {
+  const same = (options: string[]) => options.map((text, from) => ({ from, text }));
+  const doubtful = (patch: Partial<BankItem> = {}) =>
+    bank([
+      item(1, {
+        text: 'Скольок будет 2 + 2?',
+        options: ['три', 'четыре Ответ: б', 'пять'],
+        flags: ['joined_lines'],
+        confidence: 0.2,
+        doubts: ['option_merged', 'key'],
+        images: { stem: ['p1'], options: [[], ['p2'], []] },
+        ...patch,
+      }),
+      item(2),
+    ]);
+
+  it('new words keep the key, the kind, the marks and the pictures; the question is checked and its text doubts go', () => {
+    const ops: ReviewOp[] = [{ op: 'edit', id: '1', text: ' Сколько будет 2 + 2? ', options: same(['три', 'четыре', 'пять']) }];
+    const base = doubtful({ doubts: ['option_merged', 'structure'] });
+    const result = applyReview(base, ops);
+    const fixed = result.items[0];
+    expect([fixed.text, fixed.options]).toEqual(['Сколько будет 2 + 2?', ['три', 'четыре', 'пять']]);
+    expect([fixed.correct, fixed.kind, fixed.evidence]).toEqual([[1], 'single', 'bold']);
+    expect(fixed.marks).toEqual({ bold: [0, 1, 0] });
+    expect(fixed.images).toEqual({ stem: ['p1'], options: [[], ['p2'], []] });
+    expect([fixed.reviewed, fixed.doubts, fixed.flags]).toEqual([true, [], []]);
+    expect(needsLook(fixed)).toBe(false);
+    expect(reviewCounts(result)).toMatchObject({ total: 2, doubtful: 0, checked: 1 });
+    // the question beside it is not touched, and the parse the review began from is not changed
+    expect(result.items[1]).toEqual(item(2));
+    expect(base.items[0].text).toBe('Скольок будет 2 + 2?');
+  });
+
+  it('a doubt about the key is not settled by new words: the question still waits for a press on an option', () => {
+    const ops: ReviewOp[] = [{ op: 'edit', id: '1', text: 'Сколько будет 2 + 2?', options: same(['три', 'четыре', 'пять']) }];
+    const result = applyReview(doubtful(), ops);
+    const fixed = result.items[0];
+    expect([fixed.text, fixed.reviewed, fixed.doubts]).toEqual(['Сколько будет 2 + 2?', undefined, ['key']]);
+    expect(needsLook(fixed)).toBe(true);
+    expect(reviewCounts(result)).toMatchObject({ doubtful: 1, checked: 0 });
+    // the press checks it, and one kept earlier stays kept after new words
+    const pressed = applyReview(doubtful(), [...ops, { op: 'key', id: '1', correct: [1] }]).items[0];
+    expect([pressed.reviewed, pressed.doubts, pressed.text]).toEqual([true, [], 'Сколько будет 2 + 2?']);
+    expect(applyReview(doubtful(), [{ op: 'keep', id: '1' }, ...ops]).items[0].reviewed).toBe(true);
+    // the same for a key the rules and the file's key list read differently
+    const conflict = applyReview(doubtful({ doubts: ['structure'], flags: ['key_conflict'], confidence: 1 }), ops).items[0];
+    expect([conflict.reviewed, needsLook(conflict)]).toEqual([undefined, true]);
+  });
+
+  it('an option taken out takes its key, mark and picture with it; the keys of the rest follow their options', () => {
+    const base = doubtful({ kind: 'multiple', correct: [1, 2], marks: { bold: [0, 1, 1] } });
+    const drop = applyReview(base, [{ op: 'edit', id: '1', text: 'Скольок будет 2 + 2?', options: [{ from: 0, text: 'три' }, { from: 2, text: 'пять' }] }]).items[0];
+    expect([drop.options, drop.correct, drop.kind]).toEqual([['три', 'пять'], [1], 'single']);
+    expect(drop.marks).toEqual({ bold: [0, 1] });
+    expect(drop.images).toEqual({ stem: ['p1'], options: [[], []] });
+    // the only right option is taken out: no key is left, and the question says so
+    const none = applyReview(doubtful(), [{ op: 'edit', id: '1', text: 'Скольок будет 2 + 2?', options: [{ from: 0, text: 'три' }, { from: 2, text: 'пять' }] }]).items[0];
+    expect([none.correct, none.evidence, none.kind]).toEqual([[], '', 'single']);
+    expect(none.flags).toContain('no_key');
+    // a question the edit left without a key is not «Проверено»: it waits for its key, even one the parse was sure of
+    const sure = applyReview(doubtful({ confidence: 1, doubts: [] }), [{ op: 'edit', id: '1', text: 'x', options: [{ from: 0, text: 'три' }, { from: 2, text: 'пять' }] }]).items[0];
+    expect([sure.reviewed, sure.doubts, needsLook(sure)]).toEqual([undefined, ['key'], true]);
+    expect(applyReview(doubtful(), [{ op: 'edit', id: '1', text: 'x', options: [{ from: 0, text: 'три' }, { from: 2, text: 'пять' }] }]).stats).toMatchObject({ no_key: 1, with_key: 1 });
+  });
+
+  it('an option added by hand goes where it was put, without a key; an empty added one is nothing', () => {
+    const ops: ReviewOp[] = [
+      { op: 'edit', id: '1', text: 'Скольок будет 2 + 2?', options: [{ from: 0, text: 'три' }, { from: null, text: ' шесть ' }, { from: 1, text: 'четыре' }, { from: 2, text: 'пять' }, { from: null, text: '  ' }] },
+    ];
+    const fixed = applyReview(doubtful(), ops).items[0];
+    expect([fixed.options, fixed.correct, fixed.kind]).toEqual([['три', 'шесть', 'четыре', 'пять'], [2], 'single']);
+    expect(fixed.marks).toEqual({ bold: [0, 0, 1, 0] });
+    expect(fixed.images).toEqual({ stem: ['p1'], options: [[], [], ['p2'], []] });
+  });
+
+  it('options added to a question without options make it a choice question that waits for its key', () => {
+    const open = bank([item(1, { kind: 'open', options: [], correct: [], evidence: '', marks: {}, confidence: 0.2, doubts: ['options_unread'] })]);
+    const fixed = applyReview(open, [{ op: 'edit', id: '1', text: 'Вопрос 1?', options: [{ from: null, text: 'да' }, { from: null, text: 'нет' }] }]).items[0];
+    expect([fixed.kind, fixed.options, fixed.correct, fixed.reviewed]).toEqual(['single', ['да', 'нет'], [], undefined]);
+    expect(fixed.flags).toContain('no_key');
+    expect(needsLook(fixed)).toBe(true);
+    // and the other way: every option taken out leaves an open question, with no key flags
+    const bare = applyReview(doubtful({ flags: ['no_key'], correct: [], evidence: '' }), [{ op: 'edit', id: '1', text: 'Назовите столицу.', options: [] }]).items[0];
+    expect([bare.kind, bare.options, bare.flags, bare.doubts, bare.reviewed]).toEqual(['open', [], [], [], true]);
+  });
+
+  it('an empty text keeps the old one; words left as they were are kept to the letter', () => {
+    const base = doubtful({ options: ['три ', 'четыре\nстрока', 'пять'] });
+    const fixed = applyReview(base, [{ op: 'edit', id: '1', text: '   ', options: same(['три ', 'четыре\nстрока', 'шесть']) }]).items[0];
+    expect(fixed.text).toBe('Скольок будет 2 + 2?');
+    expect(fixed.options).toEqual(['три ', 'четыре\nстрока', 'шесть']);
+  });
+
+  it('an order question takes new words only: its options are not added or taken out; a cloze is not edited at all', () => {
+    const order = bank([item(1, { kind: 'order', options: ['утро', 'день', 'вечер'], correct: [], order: [0, 1, 2], evidence: 'order_numbers', marks: {} })]);
+    const fixed = applyReview(order, [{ op: 'edit', id: '1', text: 'Расставьте по порядку.', options: [{ from: 2, text: 'ночь' }, { from: null, text: 'лишний' }] }]).items[0];
+    expect([fixed.text, fixed.options, fixed.order, fixed.kind]).toEqual(['Расставьте по порядку.', ['утро', 'день', 'ночь'], [0, 1, 2], 'order']);
+    const cloze = bank([item(1, { kind: 'cloze', text: 'Столица ___.', options: [], correct: [], gaps: [['Минск']], marks: {} })]);
+    expect(applyReview(cloze, [{ op: 'edit', id: '1', text: 'Столица.', options: [] }]).items[0]).toEqual(cloze.items[0]);
+    expect([editMode(order.items[0]), editMode(cloze.items[0]), editMode(item(1)), editMode(item(1, { kind: 'match' }))]).toEqual(['words', null, 'full', 'words']);
+  });
+
+  it('undo is the list without the last operation: the question is as the file gave it', () => {
+    const ops: ReviewOp[] = [{ op: 'edit', id: '1', text: 'Новый текст?', options: same(['а', 'б', 'в']) }];
+    expect(applyReview(doubtful(), ops.slice(0, -1)).items[0]).toEqual(doubtful().items[0]);
   });
 });

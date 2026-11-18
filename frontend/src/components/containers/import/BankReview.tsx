@@ -1,15 +1,17 @@
-import { useId, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import type { BankItem, BankParseResult, BankSourceLine } from '../../../types/container';
+import FitTextarea from '../../exams/share/FitTextarea';
 import { KEY_WORDS, REVIEW, letter, lettersText, nb } from '../copyImport';
-import { altDifference, fragmentOf, hasKey, looksLikeStem, needsLook, type ReviewOp } from './reviewModel';
+import { OPTIONS_MAX } from './importModel';
+import { altDifference, editMode, fragmentOf, hasKey, looksLikeStem, needsLook, type EditedOption, type ReviewOp } from './reviewModel';
 import { useBankReview, type BankReview as ReviewState, type ShownItem } from './useBankReview';
 import './bankReview.css';
 
 /**
  * «Сомнительные места» of one file: each question the importer is unsure of, next to the lines of the file it came
  * from, with one-press fixes (the key, «Соединить со следующим», «Это вариант вопроса выше», «Отсюда новый вопрос», «Это
- * не вопрос», «Оставить как есть», the other version after the model pass). On top: the counts, the filter and the model
- * pass with its price.
+ * не вопрос», «Оставить как есть», the other version after the model pass) and «Изменить текст» — the question's words
+ * and its options typed by hand. On top: the counts, the filter and the model pass with its price.
  *
  * Reusable: `BankReview` takes a parse and gives back the fixed one (onDone); `BankReviewView` draws a state of
  * `useBankReview` for a page that keeps the state itself.
@@ -108,6 +110,105 @@ function sourceBadge(item: BankItem): string | null {
   return null;
 }
 
+interface EditProps {
+  item: BankItem;
+  /** 'full' — options can be added and taken out; 'words' — only their words change (reviewModel.editMode). */
+  mode: 'full' | 'words';
+  onSave: (text: string, options: EditedOption[]) => void;
+  onCancel: () => void;
+}
+
+/**
+ * «Изменить текст» (the owner, 18.11: «изменить человеку вручную прямо на сайте в этот момент ключи и сам вопрос»):
+ * the question's words and its options as fields, next to the file's lines. The key is not set here: it stays with
+ * its option (the row says which one holds it) and is changed by a press on an option once the words are saved.
+ */
+function EditForm({ item, mode, onSave, onCancel }: EditProps) {
+  const stemId = useId();
+  const [text, setText] = useState(item.text);
+  const [options, setOptions] = useState(() => item.options.map((option, index) => ({ key: index, from: index as number | null, text: option })));
+  const nextKey = useRef(item.options.length);
+  /** The option «Добавить вариант» made last: the cursor goes to it. */
+  const [added, setAdded] = useState<number | null>(null);
+  const full = mode === 'full';
+  const changed =
+    text !== item.text || options.length !== item.options.length || options.some((option, index) => option.from !== index || option.text !== item.options[index]);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    if (!text.trim()) return;
+    if (!changed) return onCancel();
+    onSave(text, options.map(({ from, text: words }) => ({ from, text: words })));
+  };
+  const add = () => {
+    const key = nextKey.current++;
+    setOptions((list) => [...list, { key, from: null, text: '' }]);
+    setAdded(key);
+  };
+  // An option is one line as a rule: Enter saves (as in a one-line field), Shift+Enter makes a new line.
+  const enterSaves = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    event.currentTarget.form?.requestSubmit();
+  };
+  return (
+    <form className="br-edit" onSubmit={submit}>
+      <label className="br-edit-l" htmlFor={stemId}>
+        {REVIEW.editStem}
+      </label>
+      <FitTextarea id={stemId} className="br-input" rows={2} value={text} autoFocus onChange={(event) => setText(event.target.value)} />
+      {options.length > 0 ? (
+        <ol className="br-edit-opts">
+          {options.map((option, index) => {
+            const holdsKey = option.from !== null && item.correct.includes(option.from);
+            const name = REVIEW.editOption(letter(index));
+            return (
+              <li key={option.key} className="br-edit-row" data-key={holdsKey ? '' : undefined}>
+                <span className="br-opt-l" aria-hidden="true">
+                  {letter(index)}
+                </span>
+                <FitTextarea
+                  className="br-input"
+                  rows={1}
+                  aria-label={holdsKey ? `${name}, ${REVIEW.editKeyHere}` : name}
+                  value={option.text}
+                  autoFocus={option.key === added}
+                  onKeyDown={enterSaves}
+                  onChange={(event) => setOptions((list) => list.map((row) => (row.key === option.key ? { ...row, text: event.target.value } : row)))}
+                />
+                {holdsKey ? <span className="br-edit-key">{REVIEW.editKeyHere}</span> : null}
+                {full ? (
+                  <button
+                    type="button"
+                    className="sf-link br-edit-x"
+                    aria-label={REVIEW.editRemoveOption(letter(index))}
+                    onClick={() => setOptions((list) => list.filter((row) => row.key !== option.key))}
+                  >
+                    {REVIEW.editRemove}
+                  </button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : null}
+      {full && options.length < OPTIONS_MAX ? (
+        <button type="button" className="sf-link br-edit-add" onClick={add}>
+          {REVIEW.editAdd}
+        </button>
+      ) : null}
+      {full && options.length > 0 ? <p className="br-hint">{REVIEW.editHint}</p> : null}
+      <div className="br-edit-acts">
+        <button type="submit" className="sf-secondary" disabled={!text.trim()}>
+          {REVIEW.editSave}
+        </button>
+        <button type="button" className="br-act" data-quiet="" onClick={onCancel}>
+          {REVIEW.editCancel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 interface CardProps {
   entry: ShownItem;
   result: BankParseResult;
@@ -123,6 +224,15 @@ function ReviewCard({ entry, result, apply }: CardProps) {
   const badge = sourceBadge(item);
   const lines = fragmentOf(result, item);
   const merged = (item.doubts ?? []).includes('option_merged');
+  const mode = editMode(item);
+  const [editing, setEditing] = useState(false);
+  const editButton = useRef<HTMLButtonElement>(null);
+  const wasEditing = useRef(false);
+  // the form closed (saved or cancelled): the focus goes back to the button that opened it
+  useEffect(() => {
+    if (wasEditing.current && !editing) editButton.current?.focus();
+    wasEditing.current = editing;
+  }, [editing]);
   const pick = (index: number) => {
     if (!many) return apply({ op: 'key', id, correct: [index] });
     const next = item.correct.includes(index) ? item.correct.filter((at) => at !== index) : [...item.correct, index];
@@ -147,70 +257,93 @@ function ReviewCard({ entry, result, apply }: CardProps) {
             ))}
           </ul>
         ) : null}
-        <p className="br-stem">{item.text || '—'}</p>
-        {item.options.length > 0 ? (
+        {editing && mode ? (
+          <EditForm
+            // the question changed under the open form (an undo, the model pass): the fields start from what it is now
+            key={JSON.stringify([item.text, item.options])}
+            item={item}
+            mode={mode}
+            onCancel={() => setEditing(false)}
+            onSave={(text, options) => {
+              apply({ op: 'edit', id, text, options });
+              setEditing(false);
+            }}
+          />
+        ) : (
           <>
-            {choice ? <p className="br-hint">{many ? REVIEW.pickKeys : REVIEW.pickKey}</p> : null}
-            <ol className="br-opts">
-              {item.options.map((option, index) => (
-                <li key={index} className="br-opt-row">
-                  {choice ? (
-                    <button type="button" className="br-opt" aria-pressed={item.correct.includes(index)} onClick={() => pick(index)}>
-                      <span className="br-opt-l" aria-hidden="true">
-                        {letter(index)}
-                      </span>
-                      <span className="br-opt-t">{option || '—'}</span>
-                    </button>
-                  ) : (
-                    <p className="br-opt" data-static="">
-                      <span className="br-opt-l" aria-hidden="true">
-                        {letter(index)}
-                      </span>
-                      <span className="br-opt-t">{option || '—'}</span>
-                    </p>
-                  )}
-                  {index > 0 && (looksLikeStem(option) || (merged && option.length > 40)) ? (
-                    <button type="button" className="sf-link br-split" onClick={() => apply({ op: 'split', id, at: index })}>
-                      {REVIEW.splitHere}
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
+            <p className="br-stem">{item.text || '—'}</p>
+            {item.options.length > 0 ? (
+              <>
+                {choice ? <p className="br-hint">{many ? REVIEW.pickKeys : REVIEW.pickKey}</p> : null}
+                <ol className="br-opts">
+                  {item.options.map((option, index) => (
+                    <li key={index} className="br-opt-row">
+                      {choice ? (
+                        <button type="button" className="br-opt" aria-pressed={item.correct.includes(index)} onClick={() => pick(index)}>
+                          <span className="br-opt-l" aria-hidden="true">
+                            {letter(index)}
+                          </span>
+                          <span className="br-opt-t">{option || '—'}</span>
+                        </button>
+                      ) : (
+                        <p className="br-opt" data-static="">
+                          <span className="br-opt-l" aria-hidden="true">
+                            {letter(index)}
+                          </span>
+                          <span className="br-opt-t">{option || '—'}</span>
+                        </p>
+                      )}
+                      {index > 0 && (looksLikeStem(option) || (merged && option.length > 40)) ? (
+                        <button type="button" className="sf-link br-split" onClick={() => apply({ op: 'split', id, at: index })}>
+                          {REVIEW.splitHere}
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              </>
+            ) : null}
+            <p className="br-key">{keyLine}</p>
+            {item.alt ? <p className="br-alt">{otherLine(item)}</p> : null}
           </>
-        ) : null}
-        <p className="br-key">{keyLine}</p>
-        {item.alt ? <p className="br-alt">{otherLine(item)}</p> : null}
+        )}
       </div>
       <figure className="br-src">
         <figcaption className="br-src-h">{REVIEW.inFile}</figcaption>
         <SourceLines lines={lines} />
       </figure>
-      <div className="br-acts">
-        {item.alt ? (
-          <button type="button" className="br-act" onClick={() => apply({ op: 'alt', id })}>
-            {item.alt.source === 'ai' ? REVIEW.takeModel : REVIEW.takeRules}
+      {editing ? null : (
+        <div className="br-acts">
+          {item.alt ? (
+            <button type="button" className="br-act" onClick={() => apply({ op: 'alt', id })}>
+              {item.alt.source === 'ai' ? REVIEW.takeModel : REVIEW.takeRules}
+            </button>
+          ) : null}
+          {hasPrev && item.options.length === 0 && !/[?:…]\s*$/.test(item.text) ? (
+            <button type="button" className="br-act" onClick={() => apply({ op: 'up', id })}>
+              {REVIEW.joinUp}
+            </button>
+          ) : null}
+          {hasNext ? (
+            <button type="button" className="br-act" onClick={() => apply({ op: 'merge', id })}>
+              {REVIEW.mergeNext}
+            </button>
+          ) : null}
+          {mode ? (
+            <button type="button" className="br-act" ref={editButton} onClick={() => setEditing(true)}>
+              {REVIEW.editText}
+            </button>
+          ) : null}
+          <button type="button" className="br-act" onClick={() => apply({ op: 'drop', id })}>
+            {REVIEW.notQuestion}
           </button>
-        ) : null}
-        {hasPrev && item.options.length === 0 && !/[?:…]\s*$/.test(item.text) ? (
-          <button type="button" className="br-act" onClick={() => apply({ op: 'up', id })}>
-            {REVIEW.joinUp}
-          </button>
-        ) : null}
-        {hasNext ? (
-          <button type="button" className="br-act" onClick={() => apply({ op: 'merge', id })}>
-            {REVIEW.mergeNext}
-          </button>
-        ) : null}
-        <button type="button" className="br-act" onClick={() => apply({ op: 'drop', id })}>
-          {REVIEW.notQuestion}
-        </button>
-        {!item.reviewed ? (
-          <button type="button" className="br-act" data-quiet="" onClick={() => apply({ op: 'keep', id })}>
-            {REVIEW.keep}
-          </button>
-        ) : null}
-      </div>
+          {!item.reviewed ? (
+            <button type="button" className="br-act" data-quiet="" onClick={() => apply({ op: 'keep', id })}>
+              {REVIEW.keep}
+            </button>
+          ) : null}
+        </div>
+      )}
     </li>
   );
 }

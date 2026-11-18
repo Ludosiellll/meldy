@@ -4,6 +4,31 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-18 — Release 59.4: «Изменить текст» on the import's «Сомнительные места» (from the commit of this entry)
+
+- **Why**: the owner, 18.11 — where the import is unsure of a question, the person should be able to change «ключи и сам
+  вопрос» by hand right there. The key was already one press on an option; the words of the question and of its
+  options could only be changed after saving («Вопросы и ключи» → «Изменить»). The owner lifted the release freeze of
+  17.11 for this («не бойся, ничего не сломается»).
+- **What**: a card of «Сомнительные места» has «Изменить текст». It opens the question's words and its options as
+  fields next to the file's lines; an option can be taken out («Убрать») or typed in («Добавить вариант», up to the
+  import's 8). «Сохранить» is one operation of the review, so «Отменить правку» takes it back and «Готово» hands the
+  changed parse to the import as before. Enter in an option saves, Shift+Enter is a new line.
+- **The key follows its option**: an option keeps its key, its marks and its pictures by the place it had; one taken
+  out takes them with it. The form says which option holds the key («сейчас верный»); the key itself is still set by a
+  press on an option after the save.
+- **What an edit settles**: the parse's doubts about the text (glued options, a split stem…) go, and the question is
+  «Проверено» — unless its key is still open (a doubt about the key, a key conflict, or a choice question the edit left
+  without a key): that one keeps waiting for a press on an option or «Оставить как есть».
+- **Limits**: an order question and a match question take new words only (their key is the options' order / the
+  pairs); a cloze has no «Изменить текст» (its gaps sit in the text).
+- **Files**: `components/containers/import/reviewModel.ts` (the operation `edit`, `editMode`), `BankReview.tsx` (the
+  form), `bankReview.css`, `copyImport.ts`; `importModel.OPTIONS_MAX` is exported. No server change, no migration.
+- **Checked**: model and screen tests (new words, an option out and in, the key's place, undo, the kinds); the form in
+  a real browser on the parse of a sample file at 1532×734 and 390×844, light and dark, no page overflow; the whole
+  vitest suite (7443 passed, 3 skipped), `tsc -b` and `vite build` in the Docker layout. Not checked on the live site
+  with an account: the owner's upload of a file is the last check.
+
 ## 2026-11-14 — Release 59.3: a list of exam questions under a form's header is read as a list (from the commit of this entry)
 
 - **Why**: found while preparing the stand for the final (the owner plans to load the college's own question file in
