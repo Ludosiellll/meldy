@@ -40,7 +40,7 @@
 /* product pictures */
 .shot { border-radius: 28px; object-fit: cover; object-position: top left; }
 .shot.r20 { border-radius: 20px; }
-.bezel { background: #000000; border-radius: 52px; border: 3px solid #262e3b; }
+.bezel { background: #000000; border-radius: 52px; border: 3px solid var(--line); }
 .screen { border-radius: 40px; object-fit: cover; object-position: top center; }
 .panel { background: var(--surface); border-radius: 40px; }
 .panel.soft { background: var(--surface-soft); }
@@ -65,3 +65,20 @@
 /* placeholders the owner fills before the file is sent */
 .ph { color: var(--yellow); }
 .ph-frame { border: 3px dashed rgba(244, 196, 91, .7); border-radius: 14px; }
+
+/* The stage deck's ground is charcoal, not the app's navy (the owner, 18.11: on their PC the slides with a clip came
+   out grey, they liked it more and asked for the whole deck to be so «по дефолту, а не менялась с синего на серый»).
+   #1b1d23 is that grey, measured on their screenshots. The panels and lines keep their distance from the ground.
+
+   A clip's dark ground cannot be the same colour as a still slide on every machine: one that shows video with lifted
+   levels (16–235 as they are) shows it about 13 levels lighter than one that does not. So the clips with a dark
+   ground (dot-intro, dot-finale, title-cover, oral-film-full, game-film-full, relevance-zoom-full) are graded to
+   #14171d, half-way: about 6 levels darker than the slides on a machine without the lift, about 6 lighter on one
+   with it. The grade lifts only the darkest tones and touches nothing above 100 (tools/grade_clip.sh). */
+.slide.dark {
+  --canvas: #1b1d23;
+  --surface: #24272f;
+  --surface-soft: #2a2e39;
+  --line: #343944;
+  --shadow: 0 0 0 2px #343944;
+}
