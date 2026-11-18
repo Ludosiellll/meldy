@@ -86,8 +86,14 @@ const file = (k) => path.join(framesDir, `f${String(k).padStart(5, '0')}.png`);
 const total = n + (info.loop ? 0 : 1);
 const pages = [page];
 while (pages.length < jobs) pages.push((await openClip(scale * ss)).page);
+// Each page takes a run of frames in a row, not every Nth frame. Two pages do not draw the same still text to the
+// pixel: a text layer keeps the sub-pixel place it was first drawn at, and that depends on what the page showed before.
+// With frames taken from the pages in turn, still text trembled with a period of N frames (oral-film with --jobs 4;
+// the owner saw it on the big screen, 18.11; motion/check_cycle.py measures it). With runs a difference can show only
+// once, where one page's run meets the next; a film with large text is rendered with --jobs 1.
+const per = Math.ceil(total / pages.length);
 await Promise.all(pages.map(async (pg, j) => {
-  for (let i = j; i < total; i += pages.length) {
+  for (let i = j * per; i < Math.min(total, (j + 1) * per); i += 1) {
     const at = i === n ? info.T : (i * 1000) / fps;
     for (let k = 0; k < blur; k += 1) await shoot(pg, at + (i === n ? 0 : (k * shutter * 1000) / (fps * blur)), file(i * blur + k));
   }
