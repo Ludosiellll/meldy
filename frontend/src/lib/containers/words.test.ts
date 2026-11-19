@@ -146,9 +146,9 @@ describe('lineText', () => {
   it('says exactly what the spec says', () => {
     const t = (line: DayPlan['lines'][number]) => ru(lineText(line));
     expect(t({ key: 'later', n: [12], time: '17:00' })).toBe('Ещё 12 вопросов после 17:00'); // #32
-    expect(t({ key: 'first_count', n: [1], day: '2026-10-11', time: '17:00' })).toBe('Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены'); // #40
-    expect(t({ key: 'first_count', n: [0], day: '2026-10-10', time: '19:00' })).toBe('Ответьте верно ещё раз сегодня после 19:00, и первые вопросы будут выучены');
-    expect(t({ key: 'first_count', n: [4], day: '2026-10-14' })).toBe('Ответьте верно ещё раз 14 октября, и первые вопросы будут выучены');
+    expect(t({ key: 'first_count', n: [1], day: '2026-10-11', time: '17:00' })).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00'); // #40
+    expect(t({ key: 'first_count', n: [0], day: '2026-10-10', time: '19:00' })).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — сегодня после 19:00');
+    expect(t({ key: 'first_count', n: [4], day: '2026-10-14' })).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — 14 октября');
     expect(t({ key: 'skip', n: [1, 60] })).toBe('Вчера занятий не было. Сегодня те же 60 минут, но больше знакомых вопросов.'); // #39, #55
     expect(t({ key: 'skip', n: [2, 45] })).toBe('2 дня без занятий. Сегодня те же 45 минут, но больше знакомых вопросов.');
     // a study day missed before days off: not «Вчера» (yesterday was a day off)
@@ -280,10 +280,10 @@ describe('figure lines', () => {
   it('N = 0 after answers: no big zero; the dated first-count line (decision 40)', () => {
     const f = { inPlan: 960, twoDays: 0, seen: 60, errors: 9, selfKnow: 0 };
     expect(figureLines(f, '2026-10-11', { today: '2026-10-10', time: '17:00' })).toEqual({
-      big: '', of: '', label: 'Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены', under: 'Видели 60 · 9 ошибок',
+      big: '', of: '', label: 'Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00', under: 'Видели 60 · 9 ошибок',
     });
-    expect(ru(figureLines(f, '2026-10-11').label)).toBe('Ответьте верно ещё раз 11 октября, и первые вопросы будут выучены');
-    expect(figureLines(f, '2026-10-10', { today: '2026-10-10' }).label).toBe('Ответьте верно ещё раз сегодня, и первые вопросы будут выучены');
+    expect(ru(figureLines(f, '2026-10-11').label)).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — 11 октября');
+    expect(figureLines(f, '2026-10-10', { today: '2026-10-10' }).label).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — сегодня');
     expect(figureLines(f, null).label).toBe(RULE_LINE);
   });
 

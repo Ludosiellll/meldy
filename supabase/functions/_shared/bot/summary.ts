@@ -90,7 +90,7 @@ export interface SummaryInput {
   end: 'done' | 'stopped';
   /** The figure after the session: «теперь 147 из 960». */
   figure: { twoDays: number; inPlan: number } | null;
-  /** While the figure is 0: the plan's line «Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены». */
+  /** While the figure is 0: the plan's line «Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00». */
   firstCount: string | null;
   /** When the too-early ones can count today («19:00»), or null for `back`. */
   tooEarlyAt: string | null;

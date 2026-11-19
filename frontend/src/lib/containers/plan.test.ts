@@ -499,7 +499,7 @@ describe('oral questions', () => {
 describe('first count, next, lines', () => {
   const subjects = [{ id: 'a', date: addDays(DAY1, 20) }];
 
-  it('after the first evening: «Ответьте верно ещё раз завтра после 17:00…»; the next morning «сегодня после 17:00»; at 18:00 «сегодня»', () => {
+  it('after the first evening: «… Второй раз — завтра после 17:00»; the next morning «сегодня после 17:00»; at 18:00 «сегодня»', () => {
     const items = withStates(testItems('a', 30), (_, i) => (i < 20 ? stateAfter([{ at: at(DAY1, '21:00') + i * 30_000, correct: true }]) : undefined));
     const evening = planDay(makeInput({ now: at(DAY1, '21:30'), firstAt: at(DAY1, '21:00'), doneSec: 700, subjects, items, firstPlanDay: DAY1 }));
     expect(evening.firstCountDay).toBe(addDays(DAY1, 1));

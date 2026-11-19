@@ -10,8 +10,8 @@ import type { Figure } from './model';
  * The one figure (decision 8, 46) in the plan's words (lib/containers/words.ts figureLines): «143» large with «из 960 /
  * выучено» in two lines beside it, and «Видели 410 · 37 ошибок · Как считается» under it.
  * - Before any answer: no zeros — the rule in one line (phone rule 9).
- * - Answered, nothing counts yet: no big zero — the dated line («Ответьте верно ещё раз завтра после 17:00, и первые
- *   вопросы будут выучены», decision 40, its time from the plan's `first_count` line) in ink, and the seen line.
+ * - Answered, nothing counts yet: no big zero — the dated line («Чтобы выучить вопрос, ответьте на него верно дважды.
+ *   Второй раз — завтра после 17:00», decision 40, its time from the plan's `first_count` line) in ink, and the seen line.
  */
 export default function FigureBlock({ figure, plan, today }: { figure: Figure; plan: DayPlan | null; today: LocalDay }) {
   const [open, setOpen] = useState(false);

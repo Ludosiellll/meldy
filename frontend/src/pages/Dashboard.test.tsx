@@ -1102,7 +1102,8 @@ describe('«Сегодня»: «Первые шаги»', () => {
     expect(views[1].wait).toBe('Их добавляют в новом экзамене, сразу после списка вопросов.');
     // The step adds a lecture's text for free: it promises no summary and no cards.
     expect(views[1].text).not.toMatch(/конспект|карточ/i);
-    expect(views[1].text).toMatch(/Это бесплатно/);
+    // owner 19.11: no «Это бесплатно», the step says what lectures are for
+    expect(views[1].text).toBe('PDF, DOCX, PPTX, TXT или MD с текстом. По лекциям Meldy проверяет устные ответы.');
     const withList = firstStepViews({ ...steps, list: true, drawExamId: 'e-7' });
     expect(withList[1].action).toEqual({ to: '/exams/e-7/edit#lectures', label: 'Добавить лекции' });
     expect(withList[2].action).toEqual({ to: '/exams/e-7/draw', label: 'Тянуть билет' });

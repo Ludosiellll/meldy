@@ -43,7 +43,7 @@ test('every record (I1, I2 and their lines by occasion) passes the linter and ma
     i1_next_long_subject: check('i1l', { ...I1, rest: rest({ line: I1.rest.line, ...(() => { const l = nextLabels(false, longName, 20); return { next: { label: l.label, data: go('p') }, extra: [l.line as string] }; })() }) }, [longName]),
     i1_dropped: check('i1d', { ...I1, counts: counts({ ...I1.counts, dropped: 2 }) }),
     i1_not_moved: check('i1n', { ...I1, counts: counts({ ...I1.counts, gained: 0, started: 6 }) }),
-    i1_first_count: check('i1f', { ...I1, counts: counts({ ...I1.counts, gained: 0, started: 6 }), figure: { twoDays: 0, inPlan: 960 }, firstCount: 'Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены' }),
+    i1_first_count: check('i1f', { ...I1, counts: counts({ ...I1.counts, gained: 0, started: 6 }), figure: { twoDays: 0, inPlan: 960 }, firstCount: 'Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00' }),
     i1_too_early: check('i1t', { ...I1, counts: counts({ questions: 20, right: 20, tooEarly: 3 }), tooEarlyAt: '19:00', rest: rest({ line: 'На сегодня всё: 112 вопросов за 50 минут.' }) }),
     i1_skipped: check('i1k', { ...I1, counts: counts({ ...I1.counts, skipped: 1 }) }),
     i1_day_done: check('i1x', { ...I1, rest: rest({ line: 'На сегодня всё: 90 вопросов за 45 минут. Ещё 20 новых можно пройти сейчас. Тогда завтра их будет меньше.', moreNew: { label: 'Ещё 20 новых', data: go('x') } }) }),

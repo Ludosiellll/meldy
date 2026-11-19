@@ -4,6 +4,36 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.7: «Добавить предмет» on the row, a name changed in place, plainer words (from the commit of this entry)
+
+- **Why**: the owner, 19.11, with screenshots of the exam page, a subject's page, «Первые шаги» and «Как считается»:
+  «"добавить предметы" стоит вынести из этих трех точек, это важнее чем "вопросы и ключи 1 ждут"»; «почему нельзя
+  изменить название предмета… например дважды кликнув на название»; «зачем там "Это бесплатно. Meldy проверит, есть ли
+  каждый вопрос в лекциях"»; «текст не человеческий, очень тяжело читать и понимать».
+- **The exam's row** (`components/containers/actions.tsx`, `EXAM_PILLS = 4`): «Пригласить группу», «Добавить предмет»,
+  «Вопросы и ключи», «Контрольные», then «Ещё» with «Студия», «Время в день», «Настройки», «Удалить». The count by
+  «Вопросы и ключи» reads «· проверить 1» («· 1 ждут» read as a slip).
+- **The name changed in place** (`PageHead` `onRename`, the exam's page, a subject's page, the author's own test): a
+  double click on the name or the pencil beside it (a computer), «Переименовать» in the «⋯» (a phone) turn the name
+  into a field in the same letters; Enter or a click away saves, Esc leaves it, an error stays under the field. The
+  author only, not offline. The tables' own limit (200 characters). «Настройки» keeps its own rename.
+- **Words**: «Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — сегодня после 11:30» in place of
+  «Ответьте верно ещё раз сегодня после 11:30, и первые вопросы будут выучены» (the figure's line, the end of a
+  session, the Telegram bot's card and summary — `lib/containers/words.ts` and its copy for the bot); «Как считается»
+  in four shorter lines; «Первые шаги» says what lectures are for («По лекциям Meldy проверяет устные ответы») and no
+  «Это бесплатно»; the start button names its subject only when the name fits a button (28 characters): a subject
+  named after its file made «Начать: 01 Таблица, ответ жирным — 12 вопросов, 4 вопроса».
+- **One more model provider, switched off** (`agents/base.py` `extra_provider`): a service with the OpenAI chat format
+  is asked only when `AI_EXTRA_BASE_URL`, `AI_EXTRA_API_KEY` and `AI_EXTRA_MODEL` are in the Space's settings (the key
+  as a secret); `AI_EXTRA_ORDER=first` puts it before Gemini, else it is the last spare after Gemini and Groq. A
+  failure rests it for two minutes and the call goes on as before. Nothing changes until the settings are there:
+  no key is in the repository.
+- **Checked**: the rename in a real browser on a local page (double click, pencil, Enter, Esc, an error, a phone's
+  field) and by tests; vitest (the full run, then the 12 tests that named the old words or the old row, rerun);
+  `tsc -b`; the bot's tests (465) and `sync_bot_plan --check`; the backend's tests with the new provider's (a fake
+  service: off without settings, last, first, a failure, an empty answer, no key in errors or logs). Not checked: the
+  extra provider against the real service (its key is the owner's and is not in this repository or its tests).
+
 ## 2026-11-18 — Release 59.6: «Дедлайн» runs three ways and deals blows in a chase (from the commit of this entry)
 
 - **Why**: the owner, 18.11, on the game film of the deck: how «Дедлайн» moves when it runs after a character —

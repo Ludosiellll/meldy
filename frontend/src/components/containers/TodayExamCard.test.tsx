@@ -122,7 +122,7 @@ describe('the «Сегодня» card of an exam (decision 47)', () => {
         lines: [{ key: 'first_count', n: [1], day: '2026-10-11', time: '17:00' }],
       }),
     });
-    expect(plain(screen.getByRole('link', { name: (name) => plain(name).startsWith('Ответьте верно') }).textContent)).toBe('Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены');
+    expect(plain(screen.getByRole('link', { name: (name) => plain(name).startsWith('Чтобы выучить вопрос') }).textContent)).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00');
     expect(text()).not.toContain('Видели 60');
   });
 

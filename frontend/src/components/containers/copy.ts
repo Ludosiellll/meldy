@@ -105,10 +105,11 @@ export const HOW_COUNTED = 'Как считается';
 export function howCounted(dueDays: readonly number[]): string[] {
   const days = dueDays.length > 1 ? `${dueDays.slice(0, -1).join(', ')} и ${dueDays[dueDays.length - 1]}` : String(dueDays[0] ?? 5);
   return [
-    'Вопрос выучен, когда вы ответили на него верно в два разных дня. Между ответами должно пройти 20 часов. После ошибки вопрос учим заново.',
-    'В вопросе с вариантами верен ответ из файла. Устный вопрос выучен, когда в двух проверках в разные дни вы назвали все главные пункты из лекций. Оценку себя не считаем.',
-    `Выученные вопросы повторяем через ${days} дней. В последние дни перед экзаменом повторяем все.`,
-    '«Видели» — вы ответили хотя бы раз. «Ошибки» — последний ответ был неверным.',
+    // owner 19.11: «текст не человеческий, очень тяжело читать» — the same rule in a speaker's words
+    'Вопрос выучен, когда вы дважды ответили на него верно, а между ответами прошло не меньше 20 часов. Ошиблись — учим заново.',
+    'Где есть варианты, верным считаем ответ, отмеченный в файле. В устном вопросе нужно назвать все главные пункты ответа, тоже дважды и в разные дни. Ваши «знаю» и «не знаю» в счёт не идут.',
+    `Выученное повторяем через ${days} дней, а перед самым экзаменом — всё подряд.`,
+    '«Видели» — вопросы, на которые вы уже отвечали. «Ошибки» — те, где последний ответ неверный.',
   ].map(glue);
 }
 
@@ -193,7 +194,8 @@ export const MENU_LABEL_EXAM = 'Ещё: экзамен';
 export const MENU_LABEL_SUBJECT = 'Ещё: предмет';
 export const MENU_INVITE = 'Пригласить группу';
 export const MENU_KEYS = 'Вопросы и ключи';
-export const menuKeysWaiting = (n: number) => glue(`Вопросы и ключи · ${n} ждут`);
+// «· 1 ждут» read as a slip (owner 19.11): the count goes after the verb of the queue it opens, «Проверить».
+export const menuKeysWaiting = (n: number) => glue(`Вопросы и ключи · проверить ${n}`);
 export const MENU_MINUTES = 'Время в день';
 export const MENU_ADD_SUBJECT = 'Добавить предмет';
 export const MENU_SETTINGS = 'Настройки';
@@ -202,6 +204,10 @@ export const MENU_REFRESH = 'Обновить из файла';
 export const MENU_REMOVE_SUBJECT = 'Убрать предмет';
 /** The computer's «Ещё» after the first pills (release 47.3: at most three pills, the rest in it, as on a phone). */
 export const MENU_MORE = 'Ещё';
+// The page's name changed in place (PageHead, owner 19.11).
+export const RENAME = 'Переименовать';
+export const RENAME_FIELD = 'Название';
+export const RENAME_HOW = 'Двойной щелчок — переименовать';
 /** The line on «Экзамены» after «Удалить» on the exam's page, and after «Выйти из экзамена». */
 export const examDeleted = (title: string) => `Экзамен «${title}» удалён.`;
 export const examLeft = (title: string) => `Вы вышли из «${title}».`;
@@ -471,7 +477,7 @@ export function tooEarlyLine(n: number, time: string | null, day = 'завтра
 }
 /** While nothing counts yet (decision 40): what to do, and when, for the first questions to be learned. */
 export const firstCountLine = (time: string | null, when = 'завтра') =>
-  glue(`Ответьте верно ещё раз ${when}${time ? ` после ${time}` : ''}, и первые вопросы будут выучены.`);
+  glue(`Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — ${when}${time ? ` после ${time}` : ''}.`);
 export function selfCheckLine(know: number, unsure: number, dontKnow: number): string {
   return glue(`«Знаю» — ${know}, «с трудом» — ${unsure}, «не знаю» — ${dontKnow}. ${SELF_CHECK_NOTE}`);
 }
@@ -481,8 +487,14 @@ export function leftToday(questions: number, minutes: number): string {
 export const moreQuestions = (n: number) => glue(`Ещё ${q(n)}`);
 export const nextSubject = (subject: string, n: number) => glue(`Дальше: ${subject}, ${q(n)}`);
 /** The exam page's pill when more than one subject has work today: the subject named, as the end screen names it. */
-export const startSubject = (subject: string, n: number) => glue(`Начать: ${subject}, ${q(n)}`);
-export const aloudSubject = (subject: string, n: number) => glue(`Ответить вслух: ${subject}, ${q(n)}`);
+/**
+ * A name too long for a button (owner 19.11: «Начать: 01 Таблица, ответ жирным — 12 вопросов, 4 вопроса», the subject
+ * named after its file): the button then says only what it starts, the subject is the list's row under it.
+ */
+export const PILL_SUBJECT_MAX = 28;
+const named = (subject: string) => (subject.trim().length <= PILL_SUBJECT_MAX ? `${subject.trim()}, ` : '');
+export const startSubject = (subject: string, n: number) => glue(`Начать: ${named(subject)}${q(n)}`);
+export const aloudSubject = (subject: string, n: number) => glue(`Ответить вслух: ${named(subject)}${q(n)}`);
 export const DONE = 'Готово';
 
 // ─────────────────────────────────────────────── «Как на экзамене» (decisions 20, 36, 53)

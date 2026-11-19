@@ -128,10 +128,13 @@ function inPlan(line: Line, count: number, size: number): string {
   return nth(line, size) > nth(line, count) ? ' в плане' : '';
 }
 
-/** «Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены» (decision 40). */
+/**
+ * «Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00» (decision 40; the words of
+ * 19.11, the owner: «Ответьте верно ещё раз…, и первые вопросы будут выучены» did not read as a person's).
+ */
 export function firstCountText(when: string, time: string | null | undefined): string {
   const at = time ? ` после ${time}` : '';
-  return `Ответьте верно ещё раз ${when}${at}, и первые вопросы будут выучены`;
+  return `Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — ${when}${at}`;
 }
 
 /** One of `DayPlan.lines` as text ('' for an unknown key). */

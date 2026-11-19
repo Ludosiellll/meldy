@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../api/containers', () => ({ containerErrorText: vi.fn(), deleteSubject: vi.fn() }));
 
-import { examActions, examLinks, removeWords, testActions } from './actions';
+import { EXAM_PILLS, examActions, examLinks, removeWords, testActions } from './actions';
 import { splitActions } from './PageHead';
 import { REMOVE_TEST } from '../test/copyTest';
 import { SETTINGS } from './copyImport';
@@ -25,7 +25,7 @@ describe('examActions: the exam’s «⋯»', () => {
 
   it('the author: no way out, «Удалить» at the delete confirm', () => {
     const actions = examActions(summary({ owner: { members: 0, doubts_open: 0, links: [] } }));
-    expect(actions.map((action) => action.key)).toEqual(['invite', 'keys', 'quizzes', 'studio', 'minutes', 'add', 'settings', 'delete']);
+    expect(actions.map((action) => action.key)).toEqual(['invite', 'add', 'keys', 'quizzes', 'studio', 'minutes', 'settings', 'delete']);
     // «Студия» (spec 2026-10-18 §47.6, release 47.2) in place of «Конструктор», beside «Вопросы и ключи»; a member has neither.
     expect(actions.find((action) => action.key === 'studio')).toMatchObject({ label: 'Студия', to: `/exams/c/${CONTAINER}/studio` });
     expect(actions.some((action) => action.key === 'build')).toBe(false);
@@ -41,7 +41,7 @@ describe('examActions: the exam’s «⋯»', () => {
       owner: { members: 0, doubts_open: 0, links: [] },
       subjects: [subject({ title: 'Вопросы', exam_date: null, oral: null, topic_titles: [], topics: [] })],
     });
-    expect(examActions(test).map((action) => action.key)).toEqual(['invite', 'keys', 'quizzes', 'studio', 'minutes', 'add', 'settings', 'delete']);
+    expect(examActions(test).map((action) => action.key)).toEqual(['invite', 'add', 'keys', 'quizzes', 'studio', 'minutes', 'settings', 'delete']);
   });
 
   it('acts in place when the page gives handlers (release 47.3): «Пригласить группу», «Время в день», «Удалить» are dialogs', () => {
@@ -62,10 +62,11 @@ describe('examActions: the exam’s «⋯»', () => {
     expect(member.find((entry) => entry.key === 'leave')).toMatchObject({ danger: true, haspopup: 'dialog' });
   });
 
-  it('a computer shows three pills — «Пригласить группу», «Вопросы и ключи», «Контрольные» — and the rest in «Ещё»', () => {
-    const { shown, more } = splitActions(examActions(summary({ owner: { members: 0, doubts_open: 0, links: [] } })));
-    expect(shown.map((action) => action.key)).toEqual(['invite', 'keys', 'quizzes']);
-    expect(more.map((action) => action.key)).toEqual(['studio', 'minutes', 'add', 'settings', 'delete']);
+  it('a computer shows four pills — «Пригласить группу», «Добавить предмет», «Вопросы и ключи», «Контрольные» — and the rest in «Ещё»', () => {
+    // owner 19.11: «Добавить предмет» was in «Ещё», under «Вопросы и ключи · 1 ждут», and it matters more
+    const { shown, more } = splitActions(examActions(summary({ owner: { members: 0, doubts_open: 0, links: [] } })), EXAM_PILLS);
+    expect(shown.map((action) => action.key)).toEqual(['invite', 'add', 'keys', 'quizzes']);
+    expect(more.map((action) => action.key)).toEqual(['studio', 'minutes', 'settings', 'delete']);
     // A member's three: two pills, the way out in «Ещё» (a danger item is never a pill).
     const member = splitActions(examActions(summary({ role: 'member', owner: null })));
     expect(member.shown.map((action) => action.key)).toEqual(['minutes', 'settings']);

@@ -46,6 +46,49 @@
   .ct-crumb { display: none; }
 }
 .ct-titlerow { display: flex; align-items: flex-start; gap: 12px; }
+/* The name with its pencil (a computer, the author): the pencil stands by the last letters and shows on hover or focus */
+.ct-titleline { display: flex; align-items: center; gap: 10px; }
+.ct-titleline > .ct-h1 { flex: 0 1 auto; }
+.ct-titleline[data-editing] > .ct-h1 { flex: 1 1 auto; }
+.ct-rename {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--sf-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms ease, background-color 140ms ease;
+}
+.ct-rename svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ct-titleline:hover .ct-rename,
+.ct-rename:focus-visible { opacity: 1; }
+.ct-rename:hover { background: var(--sf-surface-soft); color: var(--sf-ink); }
+.ct-rename:focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 2px; }
+@media (hover: none) {
+  .ct-rename { opacity: .7; }
+}
+.ct-h1-input {
+  box-sizing: border-box;
+  width: calc(100% + 24px);
+  margin: -6px -12px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 18px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  outline: none;
+}
+.ct-h1-input:focus { box-shadow: 0 0 0 2px var(--sf-accent); }
+.ct-rename-error { margin: 10px 0 0; font-size: 15px; color: var(--sf-danger, #c0392b); }
 .ct-h1 {
   flex: 1 1 auto;
   min-width: 0;
@@ -381,6 +424,9 @@
 @media (max-width: 639px) {
   .ct-head { padding-top: 18px; }
   .ct-h1 { font-size: min(36px, calc((100vw - 2 * var(--sf-g, 16px) - 60px) / (var(--ct-h1-word, 1) * .6))); line-height: 1.06; letter-spacing: -.035em; }
+  /* the name being typed: letters small enough for a whole name to stay in sight on a phone */
+  .ct-h1[data-editing] { font-size: 22px; line-height: 1.25; letter-spacing: -.01em; }
+  .ct-h1-input { width: 100%; margin: 0; padding: 10px 12px; border-radius: 14px; }
   .ct-meta { margin-top: 8px; font-size: 16px; line-height: 1.4; }
   .ct-plan { margin-top: 18px; padding: 16px 20px 18px; }
   .ct-plan-t { font-size: 22px; line-height: 1.25; letter-spacing: -.018em; }

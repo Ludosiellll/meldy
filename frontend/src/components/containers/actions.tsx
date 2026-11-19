@@ -81,11 +81,12 @@ function act(key: string, label: string, to: string, handler: (() => void) | und
 /**
  * The exam's «⋯» (decision 44, the critique's I9; release 47.3, owner 18.10: «Удалить» and the others only led to
  * «Настройки» — «нужно чтобы они сразу давали возможность сделать то, чего ты хочешь»). The author's «Пригласить группу»
- * (the invite dialog), «Вопросы и ключи» (with what waits), «Контрольные» — the computer's three pills, the most used —
- * then in «Ещё» «Студия», «Время в день» (a dialog), «Добавить предмет», «Настройки» and «Удалить» (its confirm, here);
- * a member's «Время в день», «Настройки» and «Выйти из экзамена» (its confirm, here). On a phone all of them are the
- * round «⋯».
+ * (the invite dialog), «Добавить предмет» (owner 19.11: «это важнее чем "вопросы и ключи 1 ждут"» — it was in «Ещё»),
+ * «Вопросы и ключи» (with what waits), «Контрольные» — the computer's four pills (EXAM_PILLS) — then in «Ещё» «Студия»,
+ * «Время в день» (a dialog), «Настройки» and «Удалить» (its confirm, here); a member's «Время в день», «Настройки» and
+ * «Выйти из экзамена» (its confirm, here). On a phone all of them are the round «⋯».
  */
+export const EXAM_PILLS = 4;
 export function examActions(summary: ContainerSummary, handlers: ExamHandlers = {}): HeadAction[] {
   const links = examLinks(summary.id);
   if (!isAuthor(summary.role)) {
@@ -98,13 +99,13 @@ export function examActions(summary: ContainerSummary, handlers: ExamHandlers = 
   const waiting = summary.subjects.reduce((sum, subject) => sum + subject.no_key, 0) + (summary.owner?.doubts_open ?? 0);
   return [
     act('invite', copy.MENU_INVITE, links.invite, handlers.invite),
+    { key: 'add', label: copy.MENU_ADD_SUBJECT, to: `/exams/import?from=c:${summary.id}` },
     { key: 'keys', label: waiting > 0 ? copy.menuKeysWaiting(waiting) : copy.MENU_KEYS, to: links.keys },
     { key: 'quizzes', label: QUIZ.names, to: `/exams/c/${summary.id}/quizzes` },
     // «Студия» (spec 2026-10-18 §47.6, release 47.2) in place of «Конструктор»: the test built like a site; its «Список»
     // is the constructor's cards (the old /build address still opens them).
     { key: 'studio', label: STUDIO.label, to: `/exams/c/${summary.id}/studio` },
     act('minutes', copy.MENU_MINUTES, links.minutes, handlers.minutes),
-    { key: 'add', label: copy.MENU_ADD_SUBJECT, to: `/exams/import?from=c:${summary.id}` },
     { key: 'settings', label: copy.MENU_SETTINGS, to: links.settings },
     act('delete', copy.MENU_DELETE, links.remove, handlers.remove, { danger: true }),
   ];
@@ -123,6 +124,22 @@ export function testActions(summary: ContainerSummary, handlers: ExamHandlers = 
     act('invite', copy.MENU_INVITE, links.invite, handlers.invite),
     act('delete', copy.MENU_DELETE, links.remove, handlers.remove, { danger: true }),
   ];
+}
+
+/**
+ * The page name's own rename (PageHead `onRename`, owner 19.11): saves, has the page read again; the words of an error
+ * go back to the field.
+ */
+export function renamer(save: (title: string) => Promise<void>, reload: () => void): (title: string) => Promise<string | null> {
+  return async (title) => {
+    try {
+      await save(title);
+    } catch (error) {
+      return containerErrorText(error);
+    }
+    reload();
+    return null;
+  };
 }
 
 /** «Удалить» says the same here and in «Настройки»: the exam's words, or the test's. */

@@ -146,16 +146,16 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('the exam page acts in place (release 47.3)', () => {
-  it('a computer: three pills — «Пригласить группу», «Вопросы и ключи», «Контрольные» — and «Ещё» with the rest', () => {
+  it('a computer: four pills — «Пригласить группу», «Добавить предмет», «Вопросы и ключи», «Контрольные» — and «Ещё» with the rest', () => {
     renderPage(loaded(containerData({ summary: summary({ owner: { members: 0, doubts_open: 0, links: [] } }) })));
     const row = document.querySelector('.ct-links') as HTMLElement;
     const pills = Array.from(row.querySelectorAll('.ct-pill-link')).map((node) => plain(node.textContent).split(' · ')[0]);
-    expect(pills).toEqual(['Пригласить группу', 'Вопросы и ключи', 'Контрольные']);
+    // owner 19.11: «Добавить предмет» out of «Ещё» («это важнее чем "вопросы и ключи 1 ждут"»)
+    expect(pills).toEqual(['Пригласить группу', 'Добавить предмет', 'Вопросы и ключи', 'Контрольные']);
     fireEvent.click(within(row).getByRole('button', { name: 'Ещё: экзамен' }));
     expect(within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => node.textContent)).toEqual([
       'Студия',
       'Время в день',
-      'Добавить предмет',
       'Настройки',
       'Удалить',
     ]);

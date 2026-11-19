@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { ContainerData } from '../../lib/containers/hooks';
+import { updateContainer } from '../../api/containers';
 import { listQuizzes } from '../../api/quizzes';
 import { quizStateWords } from '../../lib/quizzes/quizModel';
 import { usePhone } from '../../lib/usePhone';
 import type { QuizListRow } from '../../types/quiz';
 import PageHead from './PageHead';
-import { useExamActions } from './actions';
+import { renamer, useExamActions } from './actions';
 import { Chevron } from './ui';
 import { useWide } from './useWide';
 import { glue, TO_EXAMS } from './copy';
@@ -164,6 +165,7 @@ export default function TestHome({ containerId, data, reload }: { containerId: s
         phone={phone}
         pills={0}
         lead={lead}
+        onRename={renamer((title) => updateContainer(containerId, { title }), reload)}
       />
       {why ? (
         <p id={whyId} className="th-why">

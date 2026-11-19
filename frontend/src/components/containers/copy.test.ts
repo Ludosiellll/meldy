@@ -164,8 +164,8 @@ describe('copy.ts: the words of the exam screens', () => {
     const ends = (text: string) => text.split(copy.NBSP).join(' ');
     expect(ends(copy.errorsBack(1))).toBe('1 ошибку повторим завтра.');
     expect(ends(copy.errorsBack(3, '12 октября'))).toBe('3 ошибки повторим 12 октября.');
-    expect(ends(copy.firstCountLine('17:00'))).toBe('Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены.');
-    expect(ends(copy.firstCountLine(null, '12 октября'))).toBe('Ответьте верно ещё раз 12 октября, и первые вопросы будут выучены.');
+    expect(ends(copy.firstCountLine('17:00'))).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00.');
+    expect(ends(copy.firstCountLine(null, '12 октября'))).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — 12 октября.');
     expect(ends(copy.tooEarlyLine(2, null, '12 октября'))).toBe('2 вопроса ещё не выучены, с прошлого верного ответа не прошло 20 часов. Ответьте ещё раз 12 октября.');
     expect(ends(copy.tooEarlyLine(1, '18:05'))).toBe('1 вопрос ещё не выучен, с прошлого верного ответа не прошло 20 часов. Ответьте ещё раз после 18:05.');
     expect(ends(copy.studyDaysRow(31))).toBe('Дни занятий: Пн–Пт');
@@ -188,6 +188,11 @@ describe('copy.ts: the words of the exam screens', () => {
     expect(plain(copy.verdictDontKnow(['DHCP'], false, undefined, 'key_list'))).toBe('Ответ из файла: DHCP. Повторим завтра.');
     expect(plain(copy.startSubject('Базы данных', 17))).toBe('Начать: Базы данных, 17 вопросов');
     expect(plain(copy.aloudSubject('Гражданское право', 3))).toBe('Ответить вслух: Гражданское право, 3 вопроса');
+    // owner 19.11: a subject named after its file made «Начать: 01 Таблица, ответ жирным — 12 вопросов, 4 вопроса»;
+    // a name longer than a button holds is left to the list's row
+    expect(plain(copy.startSubject('01 Таблица, ответ жирным — 12 вопросов', 4))).toBe('Начать: 4 вопроса');
+    expect(plain(copy.aloudSubject('Теория государства и права, часть первая', 3))).toBe('Ответить вслух: 3 вопроса');
+    expect(plain(copy.startSubject('x'.repeat(copy.PILL_SUBJECT_MAX), 1))).toBe(`Начать: ${'x'.repeat(copy.PILL_SUBJECT_MAX)}, 1 вопрос`);
   });
 
   it('a key the author set is no file’s: «Верный ответ: …» (release 47, M10)', () => {

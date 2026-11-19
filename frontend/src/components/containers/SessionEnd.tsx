@@ -33,7 +33,7 @@ import './room.css';
  * paragraph, then what is left today and the one pill: the next session, or «Готово» when the day is done. The headline
  * and the paragraph say the server's results once every answer of the session has come back; what is left is the exam
  * page's own count, from the plan read again then (useReplan), so the page after the screen says the same (usability
- * check 2026-10-11, D2), and so is the paragraph's «Ответьте верно ещё раз …» while the figure is 0. Each appears once —
+ * check 2026-10-11, D2), and so is the paragraph's «Чтобы выучить вопрос, … Второй раз — …» while the figure is 0. Each appears once —
  * held in its place, invisible, for at most LEFT_WAIT.ms while its numbers come — and never changes under the finger;
  * the headline takes the focus when it is shown. After the first session ever: the daily reminder (the calendar until
  * the Telegram bot), and «Готово» opens the guide (decision 33). No confetti: the figure's change is the reward.
@@ -57,7 +57,7 @@ interface LeftToday {
 
 /** What the end screen says from the plan: what is left today, and while the figure is 0 the first count. */
 interface Said extends LeftToday {
-  /** «Ответьте верно ещё раз сегодня после 14:35, и первые вопросы будут выучены.» (decision 40), the last sentence. */
+  /** «Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — сегодня после 14:35.» (decision 40), the last sentence. */
   first: string | null;
 }
 

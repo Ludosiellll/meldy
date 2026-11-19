@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { ContainerSettings, DayPlan } from '../../types/container';
 import type { ContainerData } from '../../lib/containers/hooks';
-import { containerErrorText, saveSettings, withdrawDoubt } from '../../api/containers';
+import { containerErrorText, saveSettings, updateContainer, withdrawDoubt } from '../../api/containers';
 import { dayText } from '../../lib/containers/words';
 import { usePhone } from '../../lib/usePhone';
 import { useAuth } from '../../hooks/useAuth';
@@ -13,7 +13,7 @@ import Rows, { type RowView } from './Rows';
 import { PlanByDaysSheet } from './Sheets';
 import { NoteLine } from './ui';
 import { useGroupLine, useGroupNotice } from './GroupLine';
-import { examLinks, startTarget, useExamActions } from './actions';
+import { EXAM_PILLS, examLinks, renamer, startTarget, useExamActions } from './actions';
 import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
 import { useOralCopies } from './oralCopies';
@@ -433,7 +433,16 @@ export default function ExamView({ containerId, data, plan, offline, reload, pla
 
   return (
     <div className="sf-page ct-page" data-view="exam">
-      <PageHead title={summary.title} meta={meta} crumb={{ to: '/exams', label: copy.TO_EXAMS }} actions={actions} menuLabel={copy.MENU_LABEL_EXAM} phone={phone} />
+      <PageHead
+        title={summary.title}
+        meta={meta}
+        crumb={{ to: '/exams', label: copy.TO_EXAMS }}
+        actions={actions}
+        menuLabel={copy.MENU_LABEL_EXAM}
+        phone={phone}
+        pills={EXAM_PILLS}
+        onRename={author && !offline ? renamer((title) => updateContainer(containerId, { title }), reload) : undefined}
+      />
       <PlanCard
         id={`ct-plan-${containerId}`}
         title={title}

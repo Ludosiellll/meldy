@@ -176,12 +176,14 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     const menu = screen.getByRole('menu');
     expect(within(menu).getAllByRole('menuitem').map((node) => plain(node.textContent))).toEqual([
       'Пригласить группу',
-      'Вопросы и ключи · 4 ждут',
+      'Добавить предмет',
+      'Вопросы и ключи · проверить 4',
       'Контрольные',
       'Студия',
       'Время в день',
-      'Добавить предмет',
       'Настройки',
+      // a phone has no pencil by the name: «Переименовать» is here (owner 19.11)
+      'Переименовать',
       'Удалить',
     ]);
   });
@@ -220,14 +222,18 @@ describe('the exam page: a normal day (Concept 1 §3.3, decision 46)', () => {
     expect(notes()).toEqual(['С 24 октября новых вопросов не будет.']);
   });
 
-  it('shows the author «Ключи · 7 ждут» when keys or doubts wait, and the laptop’s row of the same actions', () => {
+  it('shows the author «Вопросы и ключи · проверить 7» when keys or doubts wait, and the laptop’s row of the same actions', () => {
     const base = summary({ owner: { members: 3, doubts_open: 3, links: [] } });
     renderPage(loaded(containerData({ summary: base })));
-    expect(screen.getByRole('link', { name: nm('Вопросы и ключи · 7 ждут') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
-    // Release 47.3: «Пригласить группу» opens its dialog here; «Добавить предмет» waits in «Ещё».
+    expect(screen.getByRole('link', { name: nm('Вопросы и ключи · проверить 7') }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
+    // Release 47.3: «Пригласить группу» opens its dialog here. Owner 19.11: «Добавить предмет» is a pill of the row,
+    // not an item of «Ещё» («это важнее чем "вопросы и ключи 1 ждут"»).
     expect(screen.getByRole('button', { name: 'Пригласить группу' })).toHaveAttribute('aria-haspopup', 'dialog');
+    expect(screen.getByRole('link', { name: 'Добавить предмет' }).getAttribute('href')).toBe(`/exams/import?from=c:${CONTAINER}`);
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
-    expect(screen.getByRole('menuitem', { name: 'Добавить предмет' }).getAttribute('href')).toBe(`/exams/import?from=c:${CONTAINER}`);
+    expect(screen.queryByRole('menuitem', { name: 'Добавить предмет' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Переименовать' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Переименовать' })).toBeInTheDocument();
     expect(page()).toContain('В 3 вопросах сомневаются в ключе.');
     expect(page()).toContain('4 вопроса без ответа не попадут в занятия.');
     expect(screen.getByRole('link', { name: 'Отметить ответы' }).getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys`);
@@ -276,11 +282,11 @@ describe('the states of the exam page (§3.3 table)', () => {
     });
     renderPage(loaded(containerData({ plan })));
     const figure = screen.getByRole('region', { name: 'Выученные вопросы' });
-    expect(plain(figure.textContent)).toContain('Ответьте верно ещё раз завтра после 17:00, и первые вопросы будут выучены');
+    expect(plain(figure.textContent)).toContain('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 17:00');
     expect(plain(figure.textContent)).toContain('Видели 60 · 9 ошибок');
     expect(figure.querySelector('.ct-fig-n')).toBeNull();
     // The line is the figure's, not a note of the card.
-    expect(page().match(/первые вопросы будут выучены/g)).toHaveLength(1);
+    expect(page().match(/Чтобы выучить вопрос/g)).toHaveLength(1);
   });
 
   it('interrupted today: «Продолжить: ещё 8 вопросов»', () => {
@@ -629,7 +635,7 @@ describe('a one-subject exam is its subject page (decision 44)', () => {
     expect(screen.getByRole('list', { name: 'Темы' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: экзамен' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem').map((node) => plain(node.textContent));
-    expect(items).toEqual(['Пригласить группу', 'Вопросы и ключи', 'Контрольные', 'Студия', 'Время в день', 'Добавить предмет', 'Настройки', 'Удалить']);
+    expect(items).toEqual(['Пригласить группу', 'Добавить предмет', 'Вопросы и ключи', 'Контрольные', 'Студия', 'Время в день', 'Настройки', 'Переименовать', 'Удалить']);
   });
 });
 

@@ -16,7 +16,7 @@ vi.mock('../../api/social', () => ({
   markOnboardingTourSeen: (...args: unknown[]) => mocks.markSeen(...args),
 }));
 vi.mock('../../hooks/useAuth', () => ({ useAuth: () => ({ user: { id: 'user-1' } }) }));
-vi.mock('./actions', () => ({ useExamActions: () => ({ actions: [], dialogs: null }) }));
+vi.mock('./actions', () => ({ useExamActions: () => ({ actions: [], dialogs: null }), renamer: () => async () => null }));
 vi.mock('../../lib/usePhone', () => ({ usePhone: () => false }));
 vi.mock('./useWide', () => ({ useWide: () => true }));
 vi.mock('../guide/GuideContext', async (importOriginal) => ({

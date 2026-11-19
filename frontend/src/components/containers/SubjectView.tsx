@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { SummarySubject } from '../../types/container';
-import { withdrawDoubt } from '../../api/containers';
+import { updateContainer, updateSubject, withdrawDoubt } from '../../api/containers';
 import { subjectInfo } from '../../lib/containers/plan';
 import { freeSession } from '../../lib/containers/session';
 import { usePhone } from '../../lib/usePhone';
@@ -17,7 +17,7 @@ import { PlanByDaysSheet, TopicSheet } from './Sheets';
 import MockSetup from './MockSetup';
 import { NoteLine } from './ui';
 import { useGroupLine, useGroupNotice } from './GroupLine';
-import { examLinks, startTarget, useExamActions, useSubjectActions } from './actions';
+import { EXAM_PILLS, examLinks, renamer, startTarget, useExamActions, useSubjectActions } from './actions';
 import { lineLink, linkFor, noteLines, type LinkTargets, type ViewProps } from './ExamView';
 import { moveFacts, useExamMove } from './MoveExamDialog';
 import { useWide } from './useWide';
@@ -297,6 +297,12 @@ export default function SubjectView({ containerId, data, plan, offline, reload, 
         actions={actions}
         menuLabel={solo ? copy.MENU_LABEL_EXAM : copy.MENU_LABEL_SUBJECT}
         phone={phone}
+        pills={solo ? EXAM_PILLS : undefined}
+        onRename={
+          author && !offline
+            ? renamer((title) => (solo ? updateContainer(containerId, { title }) : updateSubject(subject.id, { title })), reload)
+            : undefined
+        }
       />
       <PlanCard
         id={`ct-plan-${subject.id}`}

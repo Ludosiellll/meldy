@@ -863,8 +863,8 @@ describe('the end of a session says what the exam page says next (usability chec
     await answerRight(7);
     // The page right after: its figure line (FigureBlock), the plan's first count — the 4 confirmations after 14:35.
     const pageFirst = plain(firstCountText(planDay(b.read().planInput)));
-    expect(pageFirst).toBe('Ответьте верно ещё раз сегодня после 14:35, и первые вопросы будут выучены');
-    // Before the fix: «… Ответьте верно ещё раз завтра после 6:50, и первые вопросы будут выучены.», from this session's
+    expect(pageFirst).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — сегодня после 14:35');
+    // Before the fix: «… Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 6:50.», from this session's
     // answers alone (each counts from tomorrow), though the plan's confirmations count earlier.
     await waitFor(() => expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(`${pageFirst}.`));
   });
@@ -887,7 +887,7 @@ describe('the end of a session says what the exam page says next (usability chec
       for (const go of waiting.splice(0)) go();
     });
     await spoken();
-    expect(paragraph()).toBe('Ответьте верно ещё раз сегодня после 14:35, и первые вопросы будут выучены.');
+    expect(paragraph()).toBe('Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — сегодня после 14:35.');
     expect(document.querySelector('.ct-end-p span')).not.toHaveAttribute('aria-hidden');
     expect(screen.getByRole('button', { name: 'Напоминать каждый день' })).toBeInTheDocument();
     // A later reading (here one whose first count is tomorrow) does not change it.
@@ -911,7 +911,7 @@ describe('the end of a session says what the exam page says next (usability chec
     await answerRight(7);
     await spoken();
     expect(plain(document.querySelector('.ct-end-p')?.textContent)).toBe(
-      'Ответьте верно ещё раз завтра после 6:50, и первые вопросы будут выучены.',
+      'Чтобы выучить вопрос, ответьте на него верно дважды. Второй раз — завтра после 6:50.',
     );
   });
 

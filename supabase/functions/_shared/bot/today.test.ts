@@ -147,7 +147,7 @@ test('an exam that is not the user\'s any more: no plan lines; examOf goes throu
 
 test('while the figure is 0, the plan\'s own «Первые войдут в счёт…» line', () => {
   const zero = examOf(todayOf([{ id: CID, title: 'Осенняя сессия', date: '2026-11-03', started: 60, errors: 5 }]), CID)!;
-  assert.match((firstCountText(zero) ?? '').replace(/\u00a0/g, ' '), /^Ответьте верно ещё раз /);
+  assert.match((firstCountText(zero) ?? '').replace(/\u00a0/g, ' '), /^Чтобы выучить вопрос, /);
   assert.equal(firstCountText(examOf(todayOf([AUTUMN]), CID)), null, 'the figure is not 0');
 });
 

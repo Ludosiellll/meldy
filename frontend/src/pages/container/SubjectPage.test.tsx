@@ -177,9 +177,10 @@ describe('a subject with variants (Concept 1 §3.4, decision 46)', () => {
     renderPage(loaded(dbData()), SUBJECT_DB, true);
     fireEvent.click(screen.getByRole('button', { name: 'Ещё: предмет' }));
     const items = within(screen.getByRole('menu')).getAllByRole('menuitem');
-    expect(items.map((node) => node.textContent)).toEqual(['Вопросы и ключи', 'Обновить из файла', 'Настройки', 'Убрать предмет']);
+    // a phone: «Переименовать» is in the «⋯» (owner 19.11), before the danger item
+    expect(items.map((node) => node.textContent)).toEqual(['Вопросы и ключи', 'Обновить из файла', 'Настройки', 'Переименовать', 'Убрать предмет']);
     expect(items[0].getAttribute('href')).toBe(`/exams/c/${CONTAINER}/keys?s=${SUBJECT_DB}`);
-    fireEvent.click(items[3]);
+    fireEvent.click(items[4]);
     await waitFor(() => expect(mocks.deleteSubject).toHaveBeenCalledWith(SUBJECT_DB));
     expect(mocks.confirm.mock.calls[0][0].title).toBe('Убрать предмет «Базы данных»?');
     await waitFor(() => expect(screen.getByTestId('where').textContent).toBe(`/exams/c/${CONTAINER}`));

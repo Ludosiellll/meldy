@@ -663,6 +663,104 @@ def get_groq_client(key: str) -> Any:
     return client
 
 
+# --- one more provider with the OpenAI chat format: off unless its settings are in the environment ---
+# AI_EXTRA_BASE_URL (https://…/v1), AI_EXTRA_API_KEY and AI_EXTRA_MODEL switch it on; AI_EXTRA_FAST_MODEL is the
+# model of the quick calls (else the same one). AI_EXTRA_ORDER=first asks it before Gemini (a share of the call's
+# budget, the rest stays with Gemini and Groq); anything else — last, after both, as one more spare.
+# AI_EXTRA_JSON_MODE=1 sends response_format (not every service of this kind takes it; the prompts ask for JSON
+# and parse_model_json reads it). Requests with pictures never go to it. A failed call rests it for
+# EXTRA_REST_SECONDS, so a service that is down costs one wait, not one per call.
+EXTRA = "extra"
+EXTRA_REST_SECONDS = 120.0
+EXTRA_DEFAULT_TIMEOUT = 45.0
+EXTRA_FIRST_SHARE = 0.5
+_EXTRA_CLIENTS: dict[str, Any] = {}
+
+
+@dataclass(frozen=True)
+class ExtraProvider:
+    base_url: str
+    key: str
+    model: str
+    fast_model: str
+    first: bool
+    json_mode: bool
+    timeout: float
+
+
+def extra_provider() -> Optional[ExtraProvider]:
+    """The extra provider of the environment, or None when any of its three settings is missing."""
+    base = os.getenv("AI_EXTRA_BASE_URL", "").strip().rstrip("/")
+    key = os.getenv("AI_EXTRA_API_KEY", "").strip()
+    model = os.getenv("AI_EXTRA_MODEL", "").strip()
+    if not (base.startswith("https://") and key and model):
+        return None
+    return ExtraProvider(
+        base_url=base,
+        key=key,
+        model=model,
+        fast_model=os.getenv("AI_EXTRA_FAST_MODEL", "").strip() or model,
+        first=os.getenv("AI_EXTRA_ORDER", "").strip().lower() == "first",
+        json_mode=os.getenv("AI_EXTRA_JSON_MODE", "").strip().lower() in ("1", "true", "yes", "on"),
+        timeout=_env_float("AI_EXTRA_TIMEOUT", EXTRA_DEFAULT_TIMEOUT),
+    )
+
+
+class ExtraProviderError(Exception):
+    """A refusal of the extra provider: its HTTP status only (the body may quote the request)."""
+
+    def __init__(self, status_code: int):
+        super().__init__(f"extra provider answered {status_code}")
+        self.status_code = status_code
+
+
+def get_extra_client(base_url: str) -> Any:
+    client = _EXTRA_CLIENTS.get(base_url)
+    if client is None:
+        client = httpx.AsyncClient(follow_redirects=False)
+        _EXTRA_CLIENTS[base_url] = client
+    return client
+
+
+async def _extra_generate(
+    extra: ExtraProvider,
+    model: str,
+    messages: list[dict[str, Any]],
+    *,
+    temperature: float,
+    max_tokens: int,
+    json_mode: bool,
+    timeout: float,
+) -> tuple[str, Optional[str]]:
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+    if json_mode and extra.json_mode:
+        body["response_format"] = {"type": "json_object"}
+    response = await asyncio.wait_for(
+        get_extra_client(extra.base_url).post(
+            f"{extra.base_url}/chat/completions",
+            json=body,
+            headers={"Authorization": f"Bearer {extra.key}"},
+            timeout=timeout,
+        ),
+        timeout=timeout,
+    )
+    if response.status_code != 200:
+        raise ExtraProviderError(response.status_code)
+    data = response.json()
+    choices = data.get("choices") if isinstance(data, dict) else None
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+        return "", None
+    message = choices[0].get("message")
+    content = message.get("content") if isinstance(message, dict) else None
+    return (content if isinstance(content, str) else ""), _finish_reason_name(choices[0].get("finish_reason"))
+
+
 # --- models that answered not_found / permission are skipped for a while ---------------
 _MODEL_SKIP: dict[tuple[str, str, str], float] = {}
 
@@ -1627,7 +1725,48 @@ class BaseAgent:
 
         result: Optional[tuple[str, str, str, str, Optional[str]]] = None  # text, provider, model, thinking, finish
 
-        if keys:
+        # The extra provider (extra_provider): only for an agent on the environment's own keys (one given its
+        # keys — /try, a Groq-only spare — keeps to them) and never with pictures.
+        extra = extra_provider() if images is None and self.own_gemini_keys is None else None
+        if extra is not None:
+            secrets.append(extra.key)
+
+        async def ask_extra(share: float) -> Optional[tuple[str, str, str, str, Optional[str]]]:
+            assert extra is not None
+            model = extra.fast_model if fast else extra.model
+            if pair_resting(EXTRA, extra.key, model):
+                return None
+            left = min(remaining() * share, extra.timeout)
+            if left <= MIN_ATTEMPT_SECONDS:
+                outcome.note("timeout")
+                return None
+            messages = [
+                {"role": "system", "content": _groq_system_prompt(system_prompt, text, json_flag)},
+                {"role": "user", "content": text},
+            ]
+            outcome.attempts += 1
+            outcome.provider, outcome.model = EXTRA, model
+            try:
+                answer, finish = await _extra_generate(
+                    extra, model, messages, temperature=temp, max_tokens=limit, json_mode=json_flag, timeout=left,
+                )
+            except Exception as exc:
+                kind = classify_error(exc)
+                outcome.note(kind)
+                _log_failure(EXTRA, None, model, kind, exc, secrets)
+                rest_pair(EXTRA, extra.key, model, EXTRA_REST_SECONDS)
+                return None
+            if answer and answer.strip():
+                return (answer, EXTRA, model, "default", finish)
+            outcome.note("empty")
+            print(f"AI extra call returned empty text: model={model} finish_reason={finish}")
+            rest_pair(EXTRA, extra.key, model, EXTRA_REST_SECONDS)
+            return None
+
+        if extra is not None and extra.first:
+            result = await ask_extra(EXTRA_FIRST_SHARE if (keys or self.groq_api_key) else 1.0)
+
+        if result is None and keys:
             full_prompt = f"{system_prompt}\n\nЗАПРОС:\n{text}"
             if images is not None:
                 try:
@@ -1708,8 +1847,11 @@ class BaseAgent:
                         outcome.note("empty")
                         print(f"AI groq call returned empty text: model={model} finish_reason={finish}")
 
+        if result is None and extra is not None and not extra.first:
+            result = await ask_extra(1.0)
+
         if result is None:
-            error = outcome.error(configured=bool(keys or self.groq_api_key))
+            error = outcome.error(configured=bool(keys or self.groq_api_key or extra is not None))
             ms = elapsed_ms()
             _fill_meta(meta, provider=None, model=None, ms=ms, cached=False, thinking=thinking_label,
                        finish_reason=None, error=outcome.last_kind or error.code)

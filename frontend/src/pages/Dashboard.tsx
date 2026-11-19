@@ -1029,7 +1029,7 @@ export function firstStepViews(steps: FirstSteps): StepView[] {
   const list: StepView = {
     key: 'list',
     title: 'Добавьте вопросы к экзамену',
-    text: 'Один общий файл или по файлу на предмет. Если у вопросов есть варианты, ключ Meldy возьмёт из файла.',
+    text: 'Один файл на всё или по файлу на предмет. Если это тест, верные ответы Meldy возьмёт из файла.',
     done: steps.list,
     action: { to: '/exams/import', label: 'Новый экзамен' },
   };
@@ -1048,7 +1048,8 @@ function todaysStepViews(steps: FirstSteps): StepView[] {
     {
       key: 'lecture',
       title: 'Добавьте лекции',
-      text: 'Файлы лекций с текстом: PDF, DOCX, PPTX, TXT или MD. Это бесплатно. Meldy проверит, есть ли каждый вопрос в лекциях.',
+      // owner 19.11: «зачем там „Это бесплатно. Meldy проверит, есть ли каждый вопрос в лекциях“» — what lectures are for
+      text: 'PDF, DOCX, PPTX, TXT или MD с текстом. По лекциям Meldy проверяет устные ответы.',
       done: steps.lecture,
       // Free and straight to the core: the lectures of the exam in its editor, with their text-only import — not
       // the analysis (/analyze: 20 units a lecture, live run of 07.10 — three answers left on FREE after it).
