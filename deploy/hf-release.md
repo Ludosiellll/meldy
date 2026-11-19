@@ -4,6 +4,19 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.16: the example for the jury asks Groq first, the extra provider last (from the commit of this entry)
+
+- **Why**: the owner put the GLM key into the Space and asked to check it. The Space's log: the extra provider timed
+  out in its 4.5 s, Gemini timed out after it, Groq answered — 7.8 s. Measured directly the same evening on a
+  ticket-sized check: glm-5.3-flash 8–12 s (and an empty answer with max_tokens 400: the thinking takes them all),
+  glm-5.3 4–12 s and once 22, glm-5.2 4–9 s; Groq 0.3–0.5 s on the health probe all day; Gemini timed out or was
+  «unavailable» for hours. The owner: «давай».
+- **What**: /api/try/evaluate asks Groq alone first (3.5 s; 2 s for the reply to the examiner), then the example's
+  Gemini keys, with the extra provider behind them as the last spare. A call to the extra provider never asks for
+  fewer than 2000 output tokens. The example's daily caps for a hall: 300 calls on the shared keys (was 60) and 300
+  Groq answers (was 150); TRY_AI_DAILY_CAP_SHARED and TRY_GROQ_DAILY_CAP still override them.
+- **Checked**: the backend suite (2882 passed). The frontend is unchanged.
+
 ## 2026-11-19 — Release 59.15: «Разложить по темам» for a file without headings (from the commit of this entry)
 
 - **Why**: the owner, 19.11, of the offered «Название предмета и темы при загрузке файла. ИИ предлагает человеческое

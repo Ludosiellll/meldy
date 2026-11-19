@@ -81,21 +81,22 @@ GUARD_SECONDS = 0.5  # жёсткий потолок поверх бюджета
 MAX_BODY_BYTES = 32 * 1024
 TRANSCRIPT_CHARS = 4000
 DEFAULT_DAILY_CAP = 400
-DEFAULT_SHARED_DAILY_CAP = 60
+DEFAULT_SHARED_DAILY_CAP = 300  # was 60: thirty runs a day for a hall at the final (19.11); Groq answers first now
 # A hall on one address (the final of 20.11: the jury and the stand's QR cards behind one Wi-Fi) — every visitor there
 # shares this limit, and a run of the example is two calls. Was «12/10 minutes;40/day»: six runs in ten minutes for the
 # whole room. The day's own cap (TRY_AI_DAILY_CAP) still bounds what the example can spend.
 DEFAULT_CLIENT_LIMIT = "80/10 minutes;400/day"
 # Who checks an answer of the example (19.11: Gemini's main model timed out all afternoon and the example fell to key
 # words, «ИИ не успел проверить ответ»; the owner: «по умолчанию ставь glm, там токенов куча»):
-#   1. the server's extra provider (agents/base.py extra_provider), when the server has one — alone, for its share of
-#      the time; an answer that does not pass the same checks as any other is not taken;
+#   1. Groq, alone, for its share of the time, at most DEFAULT_GROQ_SPARE_CAP answers a day (the app's own spare is
+#      the same key). Measured the same evening: Groq answered in 0.3–0.5 s all day, Gemini timed out or was
+#      «unavailable» for hours, and the owner's GLM took 4–12 s (once 22) — first, it cost every answer 4.5 s;
 #   2. then the example's own Gemini keys for their share of what is left;
-#   3. then Groq as the spare, at most DEFAULT_GROQ_SPARE_CAP answers a day (the app's own spare is the same key);
+#   3. then the server's extra provider (agents/base.py extra_provider), when it has one, as the last spare;
 #   4. then key words, as before.
-DEFAULT_GROQ_SPARE_CAP = 150
-EXTRA_SHARE_SECONDS = 4.5
-FOLLOWUP_EXTRA_SHARE_SECONDS = 2.5
+DEFAULT_GROQ_SPARE_CAP = 300
+FIRST_SHARE_SECONDS = 3.5
+FOLLOWUP_FIRST_SHARE_SECONDS = 2.0
 GEMINI_SHARE_SECONDS = 4.0
 FOLLOWUP_GEMINI_SHARE_SECONDS = 2.5
 MIN_SPARE_SECONDS = 1.2
@@ -265,21 +266,21 @@ class _ExampleAgent(BaseAgent):
                 _groq_spare.note()
 
 
-def extra_agent() -> BaseAgent | None:
-    """Дополнительный провайдер сервера один, без Gemini и Groq: его пример спрашивает первым. None — на сервере его нет."""
-    if ai_base.extra_provider() is None:
-        return None
-    return _ExampleAgent(api_key="", gemini_api_keys=[], extra=True)
+def first_agent() -> BaseAgent | None:
+    """Groq один, без Gemini и дополнительного провайдера: его пример спрашивает первым. None — ключа нет или доля
+    Groq на сегодня вышла."""
+    key = _groq_spare.key()
+    return _ExampleAgent(api_key=key, gemini_api_keys=[], extra=False) if key else None
 
 
 def example_agent(pool: "Pool") -> BaseAgent:
-    """Ключи пула примера и запасной Groq в пределах его доли на сутки. Дополнительный провайдер здесь не участвует:
-    его спрашивают отдельно и раньше (extra_agent)."""
-    return _ExampleAgent(api_key=_groq_spare.key(), gemini_api_keys=pool.keys, extra=False)
+    """Ключи пула примера и, последним запасным, дополнительный провайдер сервера (если он настроен). Groq здесь не
+    участвует: его спрашивают отдельно и раньше (first_agent)."""
+    return _ExampleAgent(api_key="", gemini_api_keys=pool.keys, extra=True)
 
 
 def _shares(first: BaseAgent | None, spent: float, total: float, gemini_share: float) -> tuple[float, float]:
-    """(бюджет, доля Gemini) для ключей примера и запасного после попытки дополнительного провайдера."""
+    """(бюджет, доля Gemini) для ключей примера и запасного после попытки Groq."""
     budget = total - spent if first is not None else total
     return budget, min(gemini_share, budget * 0.6)
 
@@ -514,16 +515,16 @@ async def _judge_followup(question: ExampleQuestion, points: list[dict], point_i
         return None if statuses is None else statuses[point_id]
 
     asked_at = time.monotonic()
-    first = extra_agent()
+    first = first_agent()
     if first is not None:
         try:
-            status = await judged(first, FOLLOWUP_EXTRA_SHARE_SECONDS, None)
+            status = await judged(first, FOLLOWUP_FIRST_SHARE_SECONDS, None)
         except Exception as exc:  # текст исключения может цитировать ответ: в журнал — только класс
             status = None
-            print(f"Try evaluate: the extra provider gave no status ({type(exc).__name__})")
+            print(f"Try evaluate: Groq gave no status ({type(exc).__name__})")
         if status is not None:
             _keep_protocol(key, {"status": status})
-            _log(where, "ai", "extra", pool, transcript, started)
+            _log(where, "ai", "groq", pool, transcript, started)
             return {"mode": "ai", "status": status}
     budget, gemini_share = _shares(first, time.monotonic() - asked_at, FOLLOWUP_TIMEOUT_SECONDS, FOLLOWUP_GEMINI_SHARE_SECONDS)
     if budget < MIN_SPARE_SECONDS:
@@ -588,20 +589,20 @@ async def try_evaluate(request: Request):
     if not _calls.take(pool):
         _log(question.id, "keywords", "day_cap", pool, transcript, started)
         return _keywords("day_cap")
-    # Сначала дополнительный провайдер сервера, если он есть; затем ключи примера и запасной Groq (см. выше).
+    # Сначала Groq один; затем ключи примера и, последним, дополнительный провайдер сервера (см. выше).
     asked_at = time.monotonic()
-    first = extra_agent()
+    first = first_agent()
     if first is not None:
         try:
             result = await asyncio.wait_for(
-                oral_api.judge_answer(question.text, points, transcript, budget=EXTRA_SHARE_SECONDS, agent=first, use_cache=False),
-                timeout=EXTRA_SHARE_SECONDS + GUARD_SECONDS,
+                oral_api.judge_answer(question.text, points, transcript, budget=FIRST_SHARE_SECONDS, agent=first, use_cache=False),
+                timeout=FIRST_SHARE_SECONDS + GUARD_SECONDS,
             )
         except Exception as exc:  # текст исключения может цитировать ответ: в журнал — только класс
-            print(f"Try evaluate: the extra provider gave no protocol ({type(exc).__name__})")
+            print(f"Try evaluate: Groq gave no protocol ({type(exc).__name__})")
         else:
             _keep_protocol(key, result)
-            _log(question.id, "ai", "extra", pool, transcript, started)
+            _log(question.id, "ai", "groq", pool, transcript, started)
             return {"mode": "ai", "evaluation": result}
     budget, gemini_share = _shares(first, time.monotonic() - asked_at, TIMEOUT_SECONDS, GEMINI_SHARE_SECONDS)
     if budget < MIN_SPARE_SECONDS:

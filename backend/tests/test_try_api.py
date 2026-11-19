@@ -338,9 +338,9 @@ def test_with_its_own_key_the_example_uses_that_key_and_groq_only_as_the_spare(c
     assert body["evaluation"]["points"][0]["student_quote"] == "насколько спрос реагирует на цену"
     assert body["evaluation"]["verdict"] == "Вы назвали главное."
     (call,) = model.calls
-    # the example's own Gemini keys first; Groq stands behind them as the spare, with Gemini's share of the time
-    assert call["keys"] == ["try-key-1", "try-key-2"] and call["groq"] == "groq-key"
-    assert call["gemini_timeout"] == try_api.GEMINI_SHARE_SECONDS < try_api.TIMEOUT_SECONDS
+    # Groq first and alone, for its share of the time (19.11: it answered in half a second while Gemini timed out)
+    assert call["keys"] == [] and call["groq"] == "groq-key" and call["extra"] is False
+    assert call["timeout"] == try_api.FIRST_SHARE_SECONDS < try_api.TIMEOUT_SECONDS and "gemini_timeout" not in call
     assert try_api.health_view()["key"] == "own" and try_api.health_view()["calls"] == 1
 
 
@@ -374,25 +374,23 @@ def extra_on(monkeypatch):
     monkeypatch.setenv("AI_EXTRA_MODEL", "glm-flash")
 
 
-def test_the_servers_extra_provider_is_asked_first_and_alone(client, model, monkeypatch):
-    """The owner, 19.11: «по умолчанию ставь glm». It gets its share of the time with no Gemini or Groq beside it; its
-    answer goes through the same checks as any other."""
+def test_groq_is_asked_first_and_the_extra_provider_stands_last(client, model, monkeypatch):
+    """19.11, measured: Groq 0.3–0.5 s, the owner's GLM 4–12 s. Groq alone gets the first share; what is left goes
+    to the example's Gemini keys with the extra provider behind them."""
     monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
     monkeypatch.setenv("GROQ_API_KEY", "groq-key")
     extra_on(monkeypatch)
     model.answer(protocol("covered", "covered", "partial", "missing", "missing"))
-    body = evaluate(client).json()
-    assert body["mode"] == "ai" and body["evaluation"]["points"][0]["status"] == "covered"
+    assert evaluate(client).json()["mode"] == "ai"
     (call,) = model.calls
-    assert call["extra"] is True and call["keys"] == [] and call["groq"] == ""
-    assert call["timeout"] == try_api.EXTRA_SHARE_SECONDS and "gemini_timeout" not in call
+    assert call["extra"] is False and call["keys"] == [] and call["groq"] == "groq-key"
     # the reply to the examiner goes the same way
     model.answer({"statuses": {"p3": "covered"}})
     assert followup(client).json() == {"mode": "ai", "status": "covered"}
-    assert model.calls[-1]["extra"] is True and model.calls[-1]["timeout"] == try_api.FOLLOWUP_EXTRA_SHARE_SECONDS
+    assert model.calls[-1]["keys"] == [] and model.calls[-1]["timeout"] == try_api.FOLLOWUP_FIRST_SHARE_SECONDS
 
 
-def test_an_extra_provider_that_fails_or_answers_badly_leaves_the_rest_of_the_time_to_gemini_and_groq(client, model, monkeypatch):
+def test_a_groq_that_fails_or_answers_badly_leaves_the_rest_of_the_time_to_gemini_and_the_extra_provider(client, model, monkeypatch):
     monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
     monkeypatch.setenv("GROQ_API_KEY", "groq-key")
     extra_on(monkeypatch)
@@ -400,15 +398,15 @@ def test_an_extra_provider_that_fails_or_answers_badly_leaves_the_rest_of_the_ti
     model.answer({"points": "нет"}, protocol("covered", "missing", "missing", "missing", "missing"))
     assert evaluate(client).json()["mode"] == "ai"
     first, second = model.calls
-    assert first["extra"] is True and first["keys"] == []
-    assert second["extra"] is False and second["keys"] == ["try-key-1"] and second["groq"] == "groq-key"
+    assert first["groq"] == "groq-key" and first["keys"] == []
+    assert second["extra"] is True and second["keys"] == ["try-key-1"] and second["groq"] == ""
     assert 0 < second["timeout"] <= try_api.TIMEOUT_SECONDS and second["gemini_timeout"] <= try_api.GEMINI_SHARE_SECONDS
-    # a failure of the extra provider: the same
+    # a failure of Groq: the same
     try_api.reset_state()
     model.calls.clear()
     model.answer(AIError.timeout(), protocol("covered", "missing", "missing", "missing", "missing"))
     assert evaluate(client, transcript=Q5_ANSWER + " Ещё.").json()["mode"] == "ai"
-    assert [call["extra"] for call in model.calls] == [True, False]
+    assert [call["groq"] for call in model.calls] == ["groq-key", ""]
     # both fail: key words, as before
     try_api.reset_state()
     model.calls.clear()
@@ -422,8 +420,8 @@ def test_without_its_own_key_the_example_uses_the_main_gemini_keys(client, model
     model.answer(protocol("covered", "missing", "missing", "missing", "missing"))
     assert evaluate(client).json()["mode"] == "ai"
     (call,) = model.calls
-    assert call["keys"] == ["main-key-1", "main-key-2"] and call["groq"] == "groq-key"
-    assert try_api.health_view() == {"key": "shared", "day": try_api.health_view()["day"], "calls": 1, "cap": 60, "keywords": 0}
+    assert call["keys"] == [] and call["groq"] == "groq-key"  # Groq first; the main keys stand behind it
+    assert try_api.health_view() == {"key": "shared", "day": try_api.health_view()["day"], "calls": 1, "cap": 300, "keywords": 0}
 
 
 def test_without_any_gemini_key_the_answer_goes_to_key_words(client, model, monkeypatch):
@@ -445,7 +443,7 @@ def test_the_shared_keys_stop_at_their_own_daily_cap(client, model, monkeypatch)
 
 
 def test_the_own_key_has_its_own_cap_and_the_default_is_400_shared_60(client, model, monkeypatch):
-    assert try_api.daily_cap() == 400 and try_api.shared_daily_cap() == 60
+    assert try_api.daily_cap() == 400 and try_api.shared_daily_cap() == 300
     monkeypatch.setenv("TRY_AI_DAILY_CAP", "nonsense")
     assert try_api.daily_cap() == 400
     monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
@@ -594,9 +592,8 @@ def test_a_reply_to_the_examiner_is_judged_by_the_point_as_a_real_ticket_judges_
     assert "ДОЛЖНО ПРОЗВУЧАТЬ: Эластичным — когда модуль эластичности больше единицы, неэластичным — когда меньше." in call["text"]
     # A quick check: no thinking, 200 tokens, the check's 4,5 s, no cache of BaseAgent, the example's key only.
     assert call["temperature"] == 0 and call["max_tokens"] == 200 and call["thinking"] == "off" and call["json_mode"] is True
-    assert call["timeout"] == try_api.FOLLOWUP_TIMEOUT_SECONDS == 4.5 and call["use_cache"] is False
-    assert call["keys"] == ["try-key-1"] and call["groq"] == "groq-key"
-    assert call["gemini_timeout"] == try_api.FOLLOWUP_GEMINI_SHARE_SECONDS
+    assert call["timeout"] == try_api.FOLLOWUP_FIRST_SHARE_SECONDS < try_api.FOLLOWUP_TIMEOUT_SECONDS == 4.5 and call["use_cache"] is False
+    assert call["keys"] == [] and call["groq"] == "groq-key"
     # Inside the same daily cap as the protocol.
     assert try_api.health_view()["calls"] == 1
 

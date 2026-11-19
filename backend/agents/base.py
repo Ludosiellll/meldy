@@ -674,6 +674,9 @@ EXTRA = "extra"
 EXTRA_REST_SECONDS = 120.0
 EXTRA_DEFAULT_TIMEOUT = 45.0
 EXTRA_FIRST_SHARE = 0.5
+# Models of this kind may think before they answer, and the thinking counts as output: measured 19.11, glm-5.3-flash
+# with max_tokens 400 spent them all on thinking and returned an empty answer. So a call never asks for fewer.
+EXTRA_MIN_TOKENS = 2000
 _EXTRA_CLIENTS: dict[str, Any] = {}
 
 
@@ -736,7 +739,7 @@ async def _extra_generate(
         "model": model,
         "messages": messages,
         "temperature": temperature,
-        "max_tokens": max_tokens,
+        "max_tokens": max(max_tokens, EXTRA_MIN_TOKENS),
         "stream": False,
     }
     if json_mode and extra.json_mode:
