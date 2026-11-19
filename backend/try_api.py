@@ -82,7 +82,23 @@ MAX_BODY_BYTES = 32 * 1024
 TRANSCRIPT_CHARS = 4000
 DEFAULT_DAILY_CAP = 400
 DEFAULT_SHARED_DAILY_CAP = 60
-DEFAULT_CLIENT_LIMIT = "12/10 minutes;40/day"
+# A hall on one address (the final of 20.11: the jury and the stand's QR cards behind one Wi-Fi) — every visitor there
+# shares this limit, and a run of the example is two calls. Was «12/10 minutes;40/day»: six runs in ten minutes for the
+# whole room. The day's own cap (TRY_AI_DAILY_CAP) still bounds what the example can spend.
+DEFAULT_CLIENT_LIMIT = "80/10 minutes;400/day"
+# Who checks an answer of the example (19.11: Gemini's main model timed out all afternoon and the example fell to key
+# words, «ИИ не успел проверить ответ»; the owner: «по умолчанию ставь glm, там токенов куча»):
+#   1. the server's extra provider (agents/base.py extra_provider), when the server has one — alone, for its share of
+#      the time; an answer that does not pass the same checks as any other is not taken;
+#   2. then the example's own Gemini keys for their share of what is left;
+#   3. then Groq as the spare, at most DEFAULT_GROQ_SPARE_CAP answers a day (the app's own spare is the same key);
+#   4. then key words, as before.
+DEFAULT_GROQ_SPARE_CAP = 150
+EXTRA_SHARE_SECONDS = 4.5
+FOLLOWUP_EXTRA_SHARE_SECONDS = 2.5
+GEMINI_SHARE_SECONDS = 4.0
+FOLLOWUP_GEMINI_SHARE_SECONDS = 2.5
+MIN_SPARE_SECONDS = 1.2
 CACHE_ENTRIES = 64
 # Протокол ответа — id вопроса и ответ; ответ на вопрос экзаменатора — ещё id пункта. Других полей нет.
 BODY_KEYS = frozenset({"question_id", "transcript", "point_id"})
@@ -198,6 +214,74 @@ def daily_cap() -> int:
 def shared_daily_cap() -> int:
     """TRY_AI_DAILY_CAP_SHARED (по умолчанию 60): вызовов на основных ключах за сутки, когда своего нет."""
     return _env_count("TRY_AI_DAILY_CAP_SHARED", DEFAULT_SHARED_DAILY_CAP)
+
+
+def groq_spare_cap() -> int:
+    """TRY_GROQ_DAILY_CAP (по умолчанию 150): сколько ответов в сутки пример может взять у запасного Groq; 0 — ни одного."""
+    return _env_count("TRY_GROQ_DAILY_CAP", DEFAULT_GROQ_SPARE_CAP)
+
+
+class _GroqSpare:
+    """Сколько раз за сутки (по тихоокеанскому дню, как у потолков примера) запасной Groq ответил примеру."""
+
+    def __init__(self) -> None:
+        self.day: date | None = None
+        self.answers = 0
+
+    def _roll(self) -> None:
+        today = pacific_day(_now())
+        if self.day != today:
+            self.day, self.answers = today, 0
+
+    def key(self) -> str:
+        """Ключ запасного Groq, пока его доля на сегодня не вышла; иначе пусто."""
+        self._roll()
+        key = os.getenv("GROQ_API_KEY", "").strip()
+        return key if key and self.answers < groq_spare_cap() else ""
+
+    def note(self) -> None:
+        self._roll()
+        self.answers += 1
+
+    def reset(self) -> None:
+        self.day, self.answers = None, 0
+
+
+_groq_spare = _GroqSpare()
+
+
+class _ExampleAgent(BaseAgent):
+    """Агент примера: считает ответы, которые дал запасной Groq (его доля в сутки ограничена)."""
+
+    async def run(self, *args: Any, **kwargs: Any) -> str:
+        meta = kwargs.get("meta")
+        if not isinstance(meta, dict):
+            meta = {}
+            kwargs["meta"] = meta
+        try:
+            return await super().run(*args, **kwargs)
+        finally:
+            if meta.get("provider") == "groq":
+                _groq_spare.note()
+
+
+def extra_agent() -> BaseAgent | None:
+    """Дополнительный провайдер сервера один, без Gemini и Groq: его пример спрашивает первым. None — на сервере его нет."""
+    if ai_base.extra_provider() is None:
+        return None
+    return _ExampleAgent(api_key="", gemini_api_keys=[], extra=True)
+
+
+def example_agent(pool: "Pool") -> BaseAgent:
+    """Ключи пула примера и запасной Groq в пределах его доли на сутки. Дополнительный провайдер здесь не участвует:
+    его спрашивают отдельно и раньше (extra_agent)."""
+    return _ExampleAgent(api_key=_groq_spare.key(), gemini_api_keys=pool.keys, extra=False)
+
+
+def _shares(first: BaseAgent | None, spent: float, total: float, gemini_share: float) -> tuple[float, float]:
+    """(бюджет, доля Gemini) для ключей примера и запасного после попытки дополнительного провайдера."""
+    budget = total - spent if first is not None else total
+    return budget, min(gemini_share, budget * 0.6)
 
 
 def client_limit() -> str:
@@ -327,6 +411,7 @@ def reset_state() -> None:
     """Тесты: потолки суток, кэш протоколов и копия примера — с нуля."""
     global _example, _example_failure_reported
     _calls.reset()
+    _groq_spare.reset()
     _protocols.clear()
     _example, _example_failure_reported = None, False
 
@@ -396,10 +481,12 @@ async def _judge_followup(question: ExampleQuestion, points: list[dict], point_i
     if not _calls.take(pool):
         _log(where, "keywords", "day_cap", pool, transcript, started)
         return _keywords("day_cap")
-    agent = BaseAgent(api_key="", gemini_api_keys=pool.keys)
     asked = next(point for point in points if point["id"] == point_id)["followup"]
-    meta: dict = {}
-    try:
+    ids = [point["id"] for point in points]
+
+    async def judged(agent: BaseAgent, budget: float, gemini_share: float | None) -> str | None:
+        """Статус пункта от модели этого агента, или None — ответ оборван или не разобран."""
+        meta: dict = {}
         raw = await asyncio.wait_for(
             oral_api._run_model(
                 oral.build_check_prompt(point_id),
@@ -411,7 +498,7 @@ async def _judge_followup(question: ExampleQuestion, points: list[dict], point_i
                     followup_question=asked["question"],
                     followup_expected=asked["expected"],
                 ),
-                budget=FOLLOWUP_TIMEOUT_SECONDS,
+                budget=budget,
                 agent=agent,
                 thinking="off",
                 temperature=0,
@@ -419,9 +506,31 @@ async def _judge_followup(question: ExampleQuestion, points: list[dict], point_i
                 json_mode=True,
                 meta=meta,
                 use_cache=False,
+                **({} if gemini_share is None else {"gemini_timeout": gemini_share}),
             ),
-            timeout=FOLLOWUP_TIMEOUT_SECONDS + GUARD_SECONDS,
+            timeout=budget + GUARD_SECONDS,
         )
+        statuses = None if oral_api._cut_off(meta) else oral.validate_statuses(oral_api._parsed(raw), ids, point_id)
+        return None if statuses is None else statuses[point_id]
+
+    asked_at = time.monotonic()
+    first = extra_agent()
+    if first is not None:
+        try:
+            status = await judged(first, FOLLOWUP_EXTRA_SHARE_SECONDS, None)
+        except Exception as exc:  # текст исключения может цитировать ответ: в журнал — только класс
+            status = None
+            print(f"Try evaluate: the extra provider gave no status ({type(exc).__name__})")
+        if status is not None:
+            _keep_protocol(key, {"status": status})
+            _log(where, "ai", "extra", pool, transcript, started)
+            return {"mode": "ai", "status": status}
+    budget, gemini_share = _shares(first, time.monotonic() - asked_at, FOLLOWUP_TIMEOUT_SECONDS, FOLLOWUP_GEMINI_SHARE_SECONDS)
+    if budget < MIN_SPARE_SECONDS:
+        _log(where, "keywords", "timeout", pool, transcript, started)
+        return _keywords("timeout")
+    try:
+        status = await judged(example_agent(pool), budget, gemini_share)
     except asyncio.TimeoutError:
         reason = why = "timeout"
     except AIError as exc:
@@ -431,12 +540,10 @@ async def _judge_followup(question: ExampleQuestion, points: list[dict], point_i
     except Exception as exc:  # текст исключения может цитировать ответ: в журнал — только класс
         reason, why = "failed", f"failed: {type(exc).__name__}"
     else:
-        ids = [point["id"] for point in points]
-        statuses = None if oral_api._cut_off(meta) else oral.validate_statuses(oral_api._parsed(raw), ids, point_id)
-        if statuses is not None:
-            _keep_protocol(key, {"status": statuses[point_id]})
+        if status is not None:
+            _keep_protocol(key, {"status": status})
             _log(where, "ai", "model", pool, transcript, started)
-            return {"mode": "ai", "status": statuses[point_id]}
+            return {"mode": "ai", "status": status}
         reason = why = "failed"
     _log(where, "keywords", why, pool, transcript, started)
     return _keywords(reason)
@@ -481,12 +588,32 @@ async def try_evaluate(request: Request):
     if not _calls.take(pool):
         _log(question.id, "keywords", "day_cap", pool, transcript, started)
         return _keywords("day_cap")
-    # Только ключи пула и без Groq: api_key пустой — запасного провайдера у примера нет.
-    agent = BaseAgent(api_key="", gemini_api_keys=pool.keys)
+    # Сначала дополнительный провайдер сервера, если он есть; затем ключи примера и запасной Groq (см. выше).
+    asked_at = time.monotonic()
+    first = extra_agent()
+    if first is not None:
+        try:
+            result = await asyncio.wait_for(
+                oral_api.judge_answer(question.text, points, transcript, budget=EXTRA_SHARE_SECONDS, agent=first, use_cache=False),
+                timeout=EXTRA_SHARE_SECONDS + GUARD_SECONDS,
+            )
+        except Exception as exc:  # текст исключения может цитировать ответ: в журнал — только класс
+            print(f"Try evaluate: the extra provider gave no protocol ({type(exc).__name__})")
+        else:
+            _keep_protocol(key, result)
+            _log(question.id, "ai", "extra", pool, transcript, started)
+            return {"mode": "ai", "evaluation": result}
+    budget, gemini_share = _shares(first, time.monotonic() - asked_at, TIMEOUT_SECONDS, GEMINI_SHARE_SECONDS)
+    if budget < MIN_SPARE_SECONDS:
+        _log(question.id, "keywords", "timeout", pool, transcript, started)
+        return _keywords("timeout")
     try:
         result = await asyncio.wait_for(
-            oral_api.judge_answer(question.text, points, transcript, budget=TIMEOUT_SECONDS, agent=agent, use_cache=False),
-            timeout=TIMEOUT_SECONDS + GUARD_SECONDS,
+            oral_api.judge_answer(
+                question.text, points, transcript, budget=budget, agent=example_agent(pool), use_cache=False,
+                gemini_timeout=gemini_share,
+            ),
+            timeout=budget + GUARD_SECONDS,
         )
     except asyncio.TimeoutError:
         reason = why = "timeout"

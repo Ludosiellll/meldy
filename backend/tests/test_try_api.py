@@ -52,7 +52,7 @@ class FakeModel:
 
     async def run(self, agent, system_prompt, user_text, **kwargs):
         self.calls.append({"system": system_prompt, "text": user_text, "keys": agent.own_gemini_keys,
-                           "groq": agent.groq_api_key, **kwargs})
+                           "groq": agent.groq_api_key, "extra": agent.use_extra, **kwargs})
         if self.delay:
             await asyncio.sleep(self.delay)
         if not self.answers:
@@ -60,6 +60,8 @@ class FakeModel:
         item = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
         if isinstance(item, BaseException):
             raise item
+        if callable(item):
+            item = item(agent, kwargs)
         return item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)
 
 
@@ -321,7 +323,7 @@ def test_an_answer_of_exactly_4000_characters_is_checked(client, model, monkeypa
 # ── Свой ключ, общие ключи, потолки ──────────────────────────────────────────────
 
 
-def test_with_its_own_key_the_example_uses_only_that_key_and_never_groq(client, model, monkeypatch):
+def test_with_its_own_key_the_example_uses_that_key_and_groq_only_as_the_spare(client, model, monkeypatch):
     monkeypatch.setenv("TRY_GEMINI_API_KEY", " try-key-1 , try-key-2 ")
     monkeypatch.setenv("GEMINI_API_KEY", "main-key")
     monkeypatch.setenv("GROQ_API_KEY", "groq-key")
@@ -336,22 +338,96 @@ def test_with_its_own_key_the_example_uses_only_that_key_and_never_groq(client, 
     assert body["evaluation"]["points"][0]["student_quote"] == "насколько спрос реагирует на цену"
     assert body["evaluation"]["verdict"] == "Вы назвали главное."
     (call,) = model.calls
-    assert call["keys"] == ["try-key-1", "try-key-2"] and call["groq"] == ""
+    # the example's own Gemini keys first; Groq stands behind them as the spare, with Gemini's share of the time
+    assert call["keys"] == ["try-key-1", "try-key-2"] and call["groq"] == "groq-key"
+    assert call["gemini_timeout"] == try_api.GEMINI_SHARE_SECONDS < try_api.TIMEOUT_SECONDS
     assert try_api.health_view()["key"] == "own" and try_api.health_view()["calls"] == 1
 
 
-def test_without_its_own_key_the_example_uses_the_main_gemini_keys_without_groq(client, model, monkeypatch):
+def test_the_groq_spare_has_its_own_share_of_the_day(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    monkeypatch.setenv("TRY_GROQ_DAILY_CAP", "1")
+    good = protocol("covered", "covered", "partial", "missing", "missing")
+
+    def groq_answers(agent, kwargs):
+        kwargs["meta"].update(provider="groq", model="spare")
+        return good
+
+    model.answer(groq_answers)
+    assert evaluate(client, transcript=Q5_ANSWER + " Раз.").json()["mode"] == "ai"
+    assert model.calls[-1]["groq"] == "groq-key"
+    # Groq answered once: its share of the day is spent, the next call has no spare
+    model.answer(good)
+    assert evaluate(client, transcript=Q5_ANSWER + " Два.").json()["mode"] == "ai"
+    assert model.calls[-1]["groq"] == ""
+    # TRY_GROQ_DAILY_CAP=0: the example never has Groq
+    try_api.reset_state()
+    monkeypatch.setenv("TRY_GROQ_DAILY_CAP", "0")
+    assert evaluate(client, transcript=Q5_ANSWER + " Три.").json()["mode"] == "ai"
+    assert model.calls[-1]["groq"] == ""
+
+
+def extra_on(monkeypatch):
+    monkeypatch.setenv("AI_EXTRA_BASE_URL", "https://models.example/v1")
+    monkeypatch.setenv("AI_EXTRA_API_KEY", "extra-key")
+    monkeypatch.setenv("AI_EXTRA_MODEL", "glm-flash")
+
+
+def test_the_servers_extra_provider_is_asked_first_and_alone(client, model, monkeypatch):
+    """The owner, 19.11: «по умолчанию ставь glm». It gets its share of the time with no Gemini or Groq beside it; its
+    answer goes through the same checks as any other."""
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    extra_on(monkeypatch)
+    model.answer(protocol("covered", "covered", "partial", "missing", "missing"))
+    body = evaluate(client).json()
+    assert body["mode"] == "ai" and body["evaluation"]["points"][0]["status"] == "covered"
+    (call,) = model.calls
+    assert call["extra"] is True and call["keys"] == [] and call["groq"] == ""
+    assert call["timeout"] == try_api.EXTRA_SHARE_SECONDS and "gemini_timeout" not in call
+    # the reply to the examiner goes the same way
+    model.answer({"statuses": {"p3": "covered"}})
+    assert followup(client).json() == {"mode": "ai", "status": "covered"}
+    assert model.calls[-1]["extra"] is True and model.calls[-1]["timeout"] == try_api.FOLLOWUP_EXTRA_SHARE_SECONDS
+
+
+def test_an_extra_provider_that_fails_or_answers_badly_leaves_the_rest_of_the_time_to_gemini_and_groq(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    extra_on(monkeypatch)
+    # an answer that is not a protocol, then the example's own keys answer
+    model.answer({"points": "нет"}, protocol("covered", "missing", "missing", "missing", "missing"))
+    assert evaluate(client).json()["mode"] == "ai"
+    first, second = model.calls
+    assert first["extra"] is True and first["keys"] == []
+    assert second["extra"] is False and second["keys"] == ["try-key-1"] and second["groq"] == "groq-key"
+    assert 0 < second["timeout"] <= try_api.TIMEOUT_SECONDS and second["gemini_timeout"] <= try_api.GEMINI_SHARE_SECONDS
+    # a failure of the extra provider: the same
+    try_api.reset_state()
+    model.calls.clear()
+    model.answer(AIError.timeout(), protocol("covered", "missing", "missing", "missing", "missing"))
+    assert evaluate(client, transcript=Q5_ANSWER + " Ещё.").json()["mode"] == "ai"
+    assert [call["extra"] for call in model.calls] == [True, False]
+    # both fail: key words, as before
+    try_api.reset_state()
+    model.calls.clear()
+    model.answer(AIError.failed())
+    assert evaluate(client, transcript=Q5_ANSWER + " И ещё.").json() == {"mode": "keywords", "reason": "failed"}
+
+
+def test_without_its_own_key_the_example_uses_the_main_gemini_keys(client, model, monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "main-key-1,main-key-2")
     monkeypatch.setenv("GROQ_API_KEY", "groq-key")
     model.answer(protocol("covered", "missing", "missing", "missing", "missing"))
     assert evaluate(client).json()["mode"] == "ai"
     (call,) = model.calls
-    assert call["keys"] == ["main-key-1", "main-key-2"] and call["groq"] == ""
+    assert call["keys"] == ["main-key-1", "main-key-2"] and call["groq"] == "groq-key"
     assert try_api.health_view() == {"key": "shared", "day": try_api.health_view()["day"], "calls": 1, "cap": 60, "keywords": 0}
 
 
 def test_without_any_gemini_key_the_answer_goes_to_key_words(client, model, monkeypatch):
-    monkeypatch.setenv("GROQ_API_KEY", "groq-key")  # Groq у примера не используется
+    monkeypatch.setenv("GROQ_API_KEY", "groq-key")  # Groq у примера только запасной: без ключа Gemini пример модель не зовёт
     response = evaluate(client)
     assert response.json() == {"mode": "keywords", "reason": "no_key"}
     assert model.calls == []
@@ -519,7 +595,8 @@ def test_a_reply_to_the_examiner_is_judged_by_the_point_as_a_real_ticket_judges_
     # A quick check: no thinking, 200 tokens, the check's 4,5 s, no cache of BaseAgent, the example's key only.
     assert call["temperature"] == 0 and call["max_tokens"] == 200 and call["thinking"] == "off" and call["json_mode"] is True
     assert call["timeout"] == try_api.FOLLOWUP_TIMEOUT_SECONDS == 4.5 and call["use_cache"] is False
-    assert call["keys"] == ["try-key-1"] and call["groq"] == ""
+    assert call["keys"] == ["try-key-1"] and call["groq"] == "groq-key"
+    assert call["gemini_timeout"] == try_api.FOLLOWUP_GEMINI_SHARE_SECONDS
     # Inside the same daily cap as the protocol.
     assert try_api.health_view()["calls"] == 1
 
@@ -663,6 +740,7 @@ def test_a_slow_judgement_of_the_reply_is_cut_at_its_own_time_limit(client, mode
 
 
 def test_the_reply_counts_in_the_visitors_limit(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_AI_CLIENT_LIMIT", "12/10 minutes;40/day")
     monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
     model.answer(protocol("covered", "missing", "missing", "missing", "missing"), {"statuses": {"p2": "covered"}})
     monkeypatch.setattr(client.main.limiter, "enabled", True)
@@ -705,6 +783,7 @@ def test_a_429_on_the_examples_key_rests_only_that_key(client, monkeypatch):
                            keys="main-key")
     groq_calls = install_groq(monkeypatch, lambda kwargs: good)
     monkeypatch.setenv("GROQ_API_KEY", "groq-key")
+    monkeypatch.setenv("TRY_GROQ_DAILY_CAP", "0")  # the spare is another test's; here the example has its key only
     monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key")
 
     response = evaluate(client)
@@ -758,6 +837,7 @@ def test_no_units_and_no_database_writes_even_for_a_signed_in_visitor(client, mo
 
 
 def test_a_visitor_gets_12_checks_in_10_minutes_by_their_own_address(client, model, monkeypatch):
+    monkeypatch.setenv("TRY_AI_CLIENT_LIMIT", "12/10 minutes;40/day")
     monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
     model.answer(protocol("covered", "missing", "missing", "missing", "missing"))
     monkeypatch.setattr(client.main.limiter, "enabled", True)
@@ -778,9 +858,10 @@ def test_a_visitor_gets_12_checks_in_10_minutes_by_their_own_address(client, mod
 
 
 def test_a_visitor_gets_40_checks_a_day_and_the_limit_can_be_raised_in_the_space(client, model, monkeypatch):
-    assert try_api.client_limit() == "12/10 minutes;40/day"
+    # the default lets a hall on one address through (the final of 20.11): a run of the example is two calls
+    assert try_api.client_limit() == "80/10 minutes;400/day"
     monkeypatch.setenv("TRY_AI_CLIENT_LIMIT", "not a limit")
-    assert try_api.client_limit() == "12/10 minutes;40/day"
+    assert try_api.client_limit() == "80/10 minutes;400/day"
     monkeypatch.setenv("TRY_AI_CLIENT_LIMIT", "100/minute;3/day")
     monkeypatch.setenv("TRY_GEMINI_API_KEY", "try-key-1")
     model.answer(protocol("covered", "missing", "missing", "missing", "missing"))

@@ -4,6 +4,32 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.12: the example for the jury no longer falls to key words when Gemini is slow (from the commit of this entry)
+
+- **Why**: the owner, 19.11: «я надеюсь в /try для жюри тоже нет подписей сложных». Walked on the live site as a jury
+  member would: the three steps are plain, but the last screen said «ИИ не успел проверить ответ. Ответ проверен по
+  ключевым словам». The server's own daily check showed why: Gemini's main model timed out all afternoon and its
+  second answered in five seconds, and the example had Gemini only, with eight seconds for the whole check. Then the
+  owner: «по умолчанию ставь glm, там токенов куча».
+- **Who checks an answer of the example now** (`backend/try_api.py`):
+  1. the server's extra provider, when the Space has its three settings (release 59.7) — asked first and alone, for
+     4.5 s of the 8 (2.5 s of the 4.5 for a reply to the examiner); what it writes goes through the same checks as
+     any other answer, and an answer that does not pass is not taken;
+  2. the example's own Gemini keys, for their share of the time that is left;
+  3. Groq as the spare — at most 150 answers a day (`TRY_GROQ_DAILY_CAP`; the app's own spare is the same key), counted
+     by the answers Groq really gave;
+  4. key words, as before.
+  Before: Gemini only, and nothing behind it.
+- **A hall on one address** (the final: the jury and the stand's QR cards behind one Wi-Fi): the limit for one
+  visitor's address is «80/10 minutes;400/day» by default (was «12/10 minutes;40/day» — six runs of the example in
+  ten minutes for the whole room). `TRY_AI_CLIENT_LIMIT` still sets it; the example's daily cap still bounds the spend.
+- **`agents/base.py`**: an agent can be given the extra provider (`extra=True`) or kept from it; Gemini's share of the
+  time now also applies when the extra provider stands behind it.
+- **Checked**: the example's tests (the spare, its share of the day, the extra provider first, a bad or failed answer
+  of it leaves the rest of the time to Gemini and Groq, both failing gives key words; the limits), the backend's full
+  run. Not checked: the extra provider against the real service — its key is the owner's and is not on the server
+  until the owner adds it; and after this release, the example against a slow Gemini on the live site.
+
 ## 2026-11-19 — Release 59.11: «Почему так?» after a mistake; «Назвать по вопросам» on a new file (from the commit of this entry)
 
 - **Why**: the owner, 19.11, on the list of where else the model could help: «первое и второе точно нужно» — an

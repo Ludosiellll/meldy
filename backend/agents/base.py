@@ -1569,8 +1569,12 @@ class BaseAgent:
             cls._run_cache.pop(key, None)
             cls._cache_info.pop(key, None)
 
-    def __init__(self, api_key: str = "", model: Optional[str] = None, gemini_api_keys: Optional[list[str]] = None):
+    def __init__(self, api_key: str = "", model: Optional[str] = None, gemini_api_keys: Optional[list[str]] = None,
+                 extra: Optional[bool] = None):
         self.groq_api_key = (api_key or "").strip()
+        # The extra provider (extra_provider): by default an agent on the environment's own keys has it and one given
+        # its keys does not; `extra` says otherwise (the /try example takes it as its spare, try_api.py).
+        self.use_extra = (gemini_api_keys is None) if extra is None else bool(extra)
         # An explicit model overrides GROQ_MODEL for this agent (normal calls only).
         self.model = model
         # Explicit Gemini keys replace GEMINI_API_KEY for this agent (the /try example's own project,
@@ -1705,16 +1709,23 @@ class BaseAgent:
         else:
             groq_model_name = self.model or groq_model()
 
-        # Gemini's share of the budget: only when Groq can take over (a key, its pair neither skipped nor
-        # resting) does a slow Gemini stop at gemini_timeout and leave the rest to Groq.
-        gemini_deadline = deadline
-        if (
-            gemini_timeout is not None
-            and keys
-            and self.groq_api_key
+        # The extra provider (extra_provider): for an agent that has it (use_extra) and never with pictures.
+        extra = extra_provider() if images is None and self.use_extra else None
+        if extra is not None:
+            secrets.append(extra.key)
+
+        # Gemini's share of the budget: only when a spare can take over — Groq (a key, its pair neither skipped nor
+        # resting) or the extra provider standing last — does a slow Gemini stop at gemini_timeout and leave the rest.
+        groq_ready = bool(
+            self.groq_api_key
             and not model_skipped("groq", self.groq_api_key, groq_model_name)
             and not pair_resting("groq", self.groq_api_key, groq_model_name)
-        ):
+        )
+        extra_ready = bool(
+            extra is not None and not extra.first and not pair_resting(EXTRA, extra.key, extra.fast_model if fast else extra.model)
+        )
+        gemini_deadline = deadline
+        if gemini_timeout is not None and keys and (groq_ready or extra_ready):
             gemini_deadline = min(deadline, started + max(0.0, float(gemini_timeout)))
 
         def remaining() -> float:
@@ -1724,12 +1735,6 @@ class BaseAgent:
             return gemini_deadline - loop.time()
 
         result: Optional[tuple[str, str, str, str, Optional[str]]] = None  # text, provider, model, thinking, finish
-
-        # The extra provider (extra_provider): only for an agent on the environment's own keys (one given its
-        # keys — /try, a Groq-only spare — keeps to them) and never with pictures.
-        extra = extra_provider() if images is None and self.own_gemini_keys is None else None
-        if extra is not None:
-            secrets.append(extra.key)
 
         async def ask_extra(share: float) -> Optional[tuple[str, str, str, str, Optional[str]]]:
             assert extra is not None
