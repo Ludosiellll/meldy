@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>landing-exam — «Вопросы кафедры → план по дням» on the landing page</title>
+<link rel="stylesheet" href="clip.css">
+<link rel="stylesheet" href="landing-film.css">
+<style>.cap { --cap-size: 40px; --cap-n: 58px; --cap-gap: 18px; }</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script src="clip.js"></script>
+<script src="../media/gen/footage/plan-take/take.js"></script>
+<script src="landing-film.js"></script>
+<script>
+/* The landing's exam tile (owner 19.11: the clips there were «резко и ничего не понятно»). The tile is the narrow one
+   of its row (about 520 px), so the clip is nearly square and the camera stays closer still. Four steps of the take
+   the deck's slide 09 is cut from (plan-take: the department's file «Программирование на C#.docx», 240 questions with
+   the right answers in bold): the file is read; «Нашли 240 вопросов»; the exam's date is typed; «План по дням».
+   The camera keeps off the parts of those screens that have changed since the take (the row of the exam's buttons,
+   the links under the found file).
+   Rendered: node deck/cf11/motion/render.mjs landing-exam --fps 25 --blur 3 --jobs 1 --crf 20, then encoded for the
+   page and cut into parts (frontend/scripts/footage-parts.mjs). */
+const STAGE = [1000, 940], WIN = [28, 24, 944, 760];
+const { box, mark, cuts } = landingFilmTools(WIN);
+const { pieces, end, F } = cuts([
+  [mark('file-chosen') - 0.5, mark('found') + 2.5],          // 1, 2: the file is read; «Нашли 240 вопросов»
+  [mark('date') - 0.3, mark('dated') + 1.2, 0.45],           // 3: the exam's date
+  [mark('plan-open') - 2.2, mark('plan-open') + 0.45, 0.45], // 4: today's task, «План по дням» is pressed
+  [mark('plan') - 0.15, mark('plan') + 3.3, 0.4],            //    the plan, open
+]);
+const T = end + 0.7;
+landingFilm({
+  footage: '../media/gen/footage/plan-take/', stage: STAGE, win: WIN, T, seam: 0.55, pieces,
+  cam0: box(248, 0, 440),
+  moves: [
+    { at: pieces[1].f0, cut: true, box: box(1150, 180, 520) },                      // the form: the name, the date, the minutes
+    { at: pieces[2].f0, cut: true, box: box(248, 285, 520) },                       // the exam's page: today's task
+    { at: pieces[3].f0, cut: true, box: box(640, 150, 560) },                       // «План по дням», open (no travel across the page)
+  ],
+  steps: [
+    { from: -1, to: F(0, mark('found')) - 0.1, text: 'Загружаете файл с вопросами' },
+    { from: F(0, mark('found')) + 0.2, to: pieces[1].f0 + 0.05, text: 'Meldy находит вопросы и ответы' },
+    { from: pieces[1].f0 + 0.3, to: pieces[2].f0 + 0.05, text: 'Ставите дату экзамена' },
+    { from: pieces[2].f0 + 0.3, to: T, text: 'План по дням готов' },   // over both of its pieces
+  ],
+});
+window.__film = { T, pieces };
+</script>
+</body>
+</html>

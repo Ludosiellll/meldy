@@ -173,8 +173,11 @@ describe('the landing’s tiles (layout «D — Плитки», owner 22.10)', (
     ]) {
       expect(phone).not.toBe(wide);
       expect(phone.width / phone.height).toBeCloseTo(4 / 5, 3);
-      expect(wide.width / wide.height).toBeGreaterThan(1.5);
+      // a computer's cut is never the tall one (the phone's): wide for the lecture's broad tile, nearly square for the
+      // exam's narrow one (re-cut 19.11, so the two frames of the row come out the same height)
+      expect(wide.width / wide.height).toBeGreaterThan(1);
     }
+    expect(LANDING_LECTURE_WIDE.width / LANDING_LECTURE_WIDE.height).toBeGreaterThan(1.5);
     expect(LANDING_ORAL.height / LANDING_ORAL.width).toBeGreaterThan(2);
   });
 });

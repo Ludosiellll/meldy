@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>landing-exam-phone — the exam tile on a phone</title>
+<link rel="stylesheet" href="clip.css">
+<link rel="stylesheet" href="landing-film.css">
+<style>.cap { --cap-size: 31px; --cap-n: 46px; --cap-gap: 14px; } .win { border-radius: 26px; }</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script src="clip.js"></script>
+<script src="../media/gen/footage/landing-exam-phone/take.js"></script>
+<script src="landing-film.js"></script>
+<script>
+/* The landing's exam tile on a phone (owner 19.11: the clips there were «резко и ничего не понятно»).
+   The footage is the phone cut that stood on the landing before (a recording of the app's own phone layout, joined
+   from frontend/public/game/footage/landing-exam-phone-*.bin and split into frames: media/gen/footage/landing-exam-phone, ignored by
+   git): nine screens in fourteen seconds with hard cuts. Here four of its screens are kept, each named and held
+   long enough to read, one dissolving into the next. No camera move: a phone's screen is shown whole.
+   Rendered: node deck/cf11/motion/render.mjs landing-exam-phone --fps 25 --jobs 1 --crf 16 */
+const STAGE = [680, 850], WIN = [40, 14, 600, 750];
+const { box } = landingFilmTools(WIN);
+// [the take's seconds from, to, how long the step stands (its last frame held), the dissolve it comes in with]
+const SHOTS = [
+  [0.1, 1.0, 2.6],            // «Новый экзамен»: the file is chosen
+  [1.15, 3.1, 3.3, 0.45],     // «Нашли 240 вопросов»
+  [3.3, 5.1, 3.5, 0.45],      // «План по дням»
+  [7.75, 10.5, 4.0, 0.45],    // a question of the day, answered
+];
+const pieces = [];
+let at = 0;
+for (const [m0, m1, stand, fade] of SHOTS) {
+  const f0 = fade ? at - fade : at;
+  pieces.push({ f0, m0, m1, fade });
+  at = f0 + stand;
+}
+const T = at + 0.3;
+landingFilm({
+  footage: '../media/gen/footage/landing-exam-phone/', stage: STAGE, win: WIN, T, seam: 0.55, pieces, pointer: false,
+  cam0: box(0, 0, 680),
+  steps: [
+    { from: -1, to: pieces[1].f0 + 0.05, text: 'Загружаете файл вопросов' },
+    { from: pieces[1].f0 + 0.3, to: pieces[2].f0 + 0.05, text: 'Вопросы и ответы найдены' },
+    { from: pieces[2].f0 + 0.3, to: pieces[3].f0 + 0.05, text: 'План по дням готов' },
+    { from: pieces[3].f0 + 0.3, to: T, text: 'Отвечаете на вопросы дня' },
+  ],
+});
+window.__film = { T, pieces };
+</script>
+</body>
+</html>

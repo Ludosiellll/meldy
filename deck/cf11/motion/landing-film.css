@@ -1,0 +1,17 @@
+/* The landing page's clips (landing-film.js): the page's own light canvas, the recording in a white rounded window
+   with a soft lift, under it the step's number in a blue circle with its words, and the steps as dots at the right. */
+html, body { background: #f2f3ee; }
+.stage { background: #f2f3ee; color: #0b121c; }
+.win { overflow: hidden; border-radius: 30px; background: #f3f3f0; box-shadow: 0 0 0 1px #e1e2dc, 0 34px 60px -38px rgba(16, 41, 90, .42); }
+.win img { left: 0; top: 0; transform-origin: 0 0; will-change: transform, opacity; }
+.spot { left: 0; top: 0; width: 10px; height: 10px; box-shadow: 0 0 0 3000px rgba(11, 15, 22, 0); will-change: box-shadow; }
+.tap { left: 0; top: 0; width: 84px; height: 84px; margin: -42px 0 0 -42px; border-radius: 50%; background: rgba(40, 105, 221, .3); opacity: 0; will-change: transform, opacity; }
+.ptr { left: 0; top: 0; width: 26px; height: 37px; margin: -2px 0 0 -3px; opacity: 0; will-change: transform, opacity; filter: drop-shadow(0 2px 3px rgba(11, 18, 28, .35)); }
+.cap { display: flex; align-items: center; gap: var(--cap-gap, 18px); font-size: var(--cap-size, 36px); font-weight: 600; letter-spacing: -.02em; white-space: nowrap; opacity: 0; will-change: opacity, transform; }
+.cap b {
+  position: static; flex: none; display: grid; place-items: center; width: var(--cap-n, 52px); height: var(--cap-n, 52px); border-radius: 50%;
+  background: #2869dd; color: #fff; font-size: calc(var(--cap-size, 36px) * .72); font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums;
+}
+.cap span { position: static; }
+.dots { display: flex; align-items: center; gap: 8px; transform: translateY(-50%); }
+.dots i { position: static; flex: none; display: block; width: 10px; height: 10px; border-radius: 999px; background: rgba(11, 18, 28, .16); }

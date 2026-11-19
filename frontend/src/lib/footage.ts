@@ -91,44 +91,58 @@ export const LANDING_ORAL: Footage = {
   backdrop: '#f1f2ed',
 };
 
-/** «Лекция → конспект, карточки, самопроверка» on a computer. 1280 × 800, 14.8 s, 585 KB in 7 parts. */
+/**
+ * «Лекция → конспект, карточки, самопроверка» on a computer. 1280 × 800, 19.88 s, 804 KB in 9 parts.
+ * Re-cut 19.11 (the owner: «там все резко и ничего не понятно» — a whole page shrunk into the tile, seven hard cuts in
+ * fifteen seconds): four numbered steps, the camera close enough for the words to read at the tile's size, one step
+ * dissolving into the next. Made in deck/cf11/motion (landing-lecture.html, landing-film.js) from the take of today's
+ * app the deck's films are cut from.
+ */
 export const LANDING_LECTURE_WIDE: Footage = {
-  ...files('landing-lecture-wide', '1201809487', 7),
+  ...files('landing-lecture-wide', 'f0e4944a17', 9),
   width: 1280,
   height: 800,
-  duration: 14.8,
+  duration: 19.88,
   type: 'video/mp4; codecs="avc1.640029"',
-  backdrop: 'linear-gradient(#f2f3ee 50%, #e4e5e5 50%)',
+  backdrop: '#f1f2ed',
 };
 
-/** The lecture on a phone. 680 × 850, 14.57 s, 436 KB in 5 parts. */
+/**
+ * The lecture on a phone. 680 × 850, 13.04 s, 458 KB in 5 parts. Re-cut 19.11 from the phone cut that stood here (nine
+ * screens in fourteen seconds): four of its screens, each numbered, named and held long enough to read
+ * (deck/cf11/motion/landing-lecture-phone.html).
+ */
 export const LANDING_LECTURE_PHONE: Footage = {
-  ...files('landing-lecture-phone', 'ccceb79097', 5),
+  ...files('landing-lecture-phone', '6ea92a2940', 5),
   width: 680,
   height: 850,
-  duration: 14.57,
+  duration: 13.04,
   type: 'video/mp4; codecs="avc1.640029"',
-  backdrop: '#f2f3ee',
+  backdrop: '#f1f2ed',
 };
 
-/** «Вопросы кафедры → план по дням» on a computer. 1280 × 800, 14.27 s, 506 KB in 6 parts. */
+/**
+ * «Вопросы кафедры → план по дням» on a computer. 1000 × 940, 14.2 s, 341 KB in 4 parts. Re-cut 19.11 with the lecture's
+ * clip (deck/cf11/motion/landing-exam.html): its tile is the narrow one of the row, so the clip is nearly square and
+ * the camera stays closer still.
+ */
 export const LANDING_EXAM_WIDE: Footage = {
-  ...files('landing-exam-wide', '08ac94b57d', 6),
-  width: 1280,
-  height: 800,
-  duration: 14.27,
+  ...files('landing-exam-wide', '066a502f2c', 4),
+  width: 1000,
+  height: 940,
+  duration: 14.2,
   type: 'video/mp4; codecs="avc1.640029"',
-  backdrop: 'linear-gradient(#f2f3ee 50%, #f0f1ec 50%)',
+  backdrop: '#f1f2ed',
 };
 
-/** The exam on a phone. 680 × 850, 14.1 s, 417 KB in 5 parts. */
+/** The exam on a phone. 680 × 850, 12.36 s, 370 KB in 4 parts. Re-cut 19.11 as the lecture's (landing-exam-phone.html). */
 export const LANDING_EXAM_PHONE: Footage = {
-  ...files('landing-exam-phone', '87ce2206c9', 5),
+  ...files('landing-exam-phone', '65ab9ca29c', 4),
   width: 680,
   height: 850,
-  duration: 14.1,
+  duration: 12.36,
   type: 'video/mp4; codecs="avc1.640029"',
-  backdrop: 'linear-gradient(#fdfdfd 50%, #f2f3ee 50%)',
+  backdrop: '#f1f2ed',
 };
 
 /** Every cut a page uses (the files in public/game/footage/ are exactly these; lib/footage.test.ts). */

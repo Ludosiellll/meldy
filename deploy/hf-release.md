@@ -4,6 +4,33 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.9: the landing's clips of the lecture and the exam, re-cut (from the commit of this entry)
+
+- **Why**: the owner, 19.11, on the clips of the landing page that show what the app has: the one in a phone's shape
+  (the oral answer) «выглядит неплохо, а вот остальные ужасно, там все резко и ничего не понятно»; then: make them as
+  you see fit, as clear as they can be.
+- **What was wrong**: a computer's clip was a whole 1280 × 800 page in a tile that shows it at half that size or less
+  (the exam's tile is about 450 px wide: a word of the page came out six pixels tall), with six or seven hard cuts in
+  fourteen seconds and no word of what each screen is. A phone's clip was legible (the app's own phone layout) but had
+  nine screens in fourteen seconds.
+- **Now**: every clip is four steps, each with its number and its name under the picture and the steps as dots at the
+  right; one step dissolves into the next; the loop closes with a dissolve too.
+  - *Lecture, a computer* (1280 × 800, 19.9 s): the file is chosen; the five materials get ready one by one; the
+    summary with its key points; a section and the lecture's fragment it is taken from. The camera is close (the page
+    enlarged 1.2–1.5 times) and moves with an eased push.
+  - *Exam, a computer* (1000 × 940, 14.2 s — nearly square for its narrow tile, so the two frames of the row come out
+    the same height): the file is read; «Нашли 240 вопросов»; the date is typed; today's task and «План по дням».
+  - *Both on a phone* (680 × 850, about 13 s): four screens of the cut that stood there, each held long enough to read.
+- **How**: `deck/cf11/motion/landing-film.js` (the deck's film engine with a frame of any shape, numbered captions and
+  a camera that changes its view with the step, never travelling across a page) and four films beside it; the
+  computer's clips are cut from the takes of today's app the deck's films use, kept off the parts of those screens
+  that have changed since (the exam's row of buttons, the links under a found file). Encoded for the page and cut into
+  parts under 100 KB (`scripts/footage-parts.mjs`): 1.97 MB for the four, 1.94 MB before.
+- **Checked**: frames of every step looked at before rendering; the landing opened locally at 1532 × 734 with both
+  clips playing (the frames 672 × 457 and 452 × 425, the words legible); the files' own tests (every part under
+  100 KB, the definitions match the files), the landing's tests, vitest (the full run), `tsc -b`. Not checked: the
+  clips on a real phone.
+
 ## 2026-11-19 — Release 59.8: «Где в файле верные ответы?» in one screen; an oral exam without lectures (from the commit of this entry)
 
 - **Why**: the owner, 19.11, with screenshots of the import: «перегруженность, не все понятно что к чему, а особенно

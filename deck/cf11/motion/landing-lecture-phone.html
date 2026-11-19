@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>landing-lecture-phone — the lecture tile on a phone</title>
+<link rel="stylesheet" href="clip.css">
+<link rel="stylesheet" href="landing-film.css">
+<style>.cap { --cap-size: 31px; --cap-n: 46px; --cap-gap: 14px; } .win { border-radius: 26px; }</style>
+</head>
+<body>
+<div class="stage" id="stage"></div>
+<script src="clip.js"></script>
+<script src="../media/gen/footage/landing-lec-phone/take.js"></script>
+<script src="landing-film.js"></script>
+<script>
+/* The landing's lecture tile on a phone (owner 19.11: the clips there were «резко и ничего не понятно»).
+   The footage is the phone cut that stood on the landing before (a recording of the app's own phone layout, joined
+   from frontend/public/game/footage/landing-lecture-phone-*.bin and split into frames: media/gen/footage/landing-lec-phone, ignored by
+   git): nine screens in fourteen seconds with hard cuts. Here four of its screens are kept, each named and held
+   long enough to read, one dissolving into the next. No camera move: a phone's screen is shown whole.
+   Rendered: node deck/cf11/motion/render.mjs landing-lecture-phone --fps 25 --jobs 1 --crf 16 */
+const STAGE = [680, 850], WIN = [40, 14, 600, 750];
+const { box } = landingFilmTools(WIN);
+// [the take's seconds from, to, how long the step stands (its last frame held), the dissolve it comes in with]
+const SHOTS = [
+  [0.2, 2.2, 3.3],            // the lecture's text is pasted, «Запустить анализ»
+  [2.4, 3.6, 3.2, 0.45],      // the result: its title and tabs
+  [4.75, 6.25, 3.5, 0.45],    // a section's fragment of the lecture
+  [8.4, 11.4, 4.1, 0.45],     // a self-check question, answered, with its explanation
+];
+const pieces = [];
+let at = 0;
+for (const [m0, m1, stand, fade] of SHOTS) {
+  const f0 = fade ? at - fade : at;
+  pieces.push({ f0, m0, m1, fade });
+  at = f0 + stand;
+}
+const T = at + 0.3;
+landingFilm({
+  footage: '../media/gen/footage/landing-lec-phone/', stage: STAGE, win: WIN, T, seam: 0.55, pieces, pointer: false,
+  cam0: box(0, 0, 680),
+  steps: [
+    { from: -1, to: pieces[1].f0 + 0.05, text: 'Загружаете лекцию' },
+    { from: pieces[1].f0 + 0.3, to: pieces[2].f0 + 0.05, text: 'Конспект и карточки готовы' },
+    { from: pieces[2].f0 + 0.3, to: pieces[3].f0 + 0.05, text: 'Видно, откуда взят раздел' },
+    { from: pieces[3].f0 + 0.3, to: T, text: 'Проверяете себя вопросами' },
+  ],
+});
+window.__film = { T, pieces };
+</script>
+</body>
+</html>
