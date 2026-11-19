@@ -673,6 +673,79 @@ def test_rubric_without_lecture_text_says_why_422(api):
     assert api.model.calls == []
 
 
+AI_POINTS = {
+    "points": [
+        {
+            "title": "Центральный банк отвечает за ценовую стабильность",
+            "essential": True,
+            "answer": "Главная цель центрального банка — удерживать инфляцию низкой и предсказуемой.",
+            "anchors": [["инфляц", "цен"], ["стабильн"]],
+            "followup": {"question": "А какая главная цель у центрального банка?", "expected": "Ценовая стабильность."},
+        },
+        {
+            "title": "Ключевая ставка — основной инструмент",
+            "essential": True,
+            "answer": "Ключевая ставка задаёт цену денег в экономике: её повышают, чтобы сдержать инфляцию.",
+            "anchors": [["ставк"], ["повыш", "сниж"]],
+            "followup": {"question": "Какой инструмент у него основной?", "expected": "Ключевая ставка."},
+        },
+        {
+            "title": "Операции на открытом рынке меняют ликвидность",
+            "essential": False,
+            "answer": "Покупая и продавая ценные бумаги, центральный банк добавляет банкам ликвидность или забирает её.",
+            "anchors": [["ликвидн"], ["бумаг", "облигац"]],
+            "followup": {"question": "Как он влияет на ликвидность банков?", "expected": "Покупает и продаёт ценные бумаги."},
+        },
+        {"title": "Без ответа", "essential": False, "anchors": [["резерв"]], "followup": {"question": "А резервы?", "expected": ""}},
+    ]
+}
+
+
+def test_an_exam_without_lectures_gets_points_from_the_model_only_when_asked(api):
+    """Без лекций и без просьбы — как раньше, 422 no_lectures. С просьбой ai пункты пишет модель: помечены
+    origin "ai", без цитат и лекций, в базу не записаны; пункт без ответа выброшен."""
+    fake = api.fake
+    exam_id = fake.exam()
+    question_id = fake.question(exam_id, ECON_QUESTION)
+    assert_plain_russian(post_rubric(api, exam_id, question_id), 422, oral_api.NO_LECTURES_DETAIL, "no_lectures")
+    assert api.model.calls == []
+
+    api.model.answer(AI_POINTS)
+    response = post_rubric(api, exam_id, question_id, ai=True)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rubric_id"] is None and body["saved"] is False and body["cached"] is False
+    rubric = body["rubric"]
+    assert rubric["origin"] == "ai" and rubric["materials"] == [] and rubric["coverage"] == "full"
+    assert [point["id"] for point in rubric["points"]] == ["p1", "p2", "p3"]
+    assert all(point["source_ids"] == [] and len(point["source_quote"]) >= 20 for point in rubric["points"])
+    assert rubric["points"][0]["anchors"][0][0] == "инфляц"
+    call = api.model.calls[0]
+    assert "Лекций студента нет" in call["system"] and call["text"].startswith("ВОПРОС: ")
+    assert "ЛЕКЦИИ" not in call["text"]
+
+
+def test_with_lectures_the_ai_request_changes_nothing(api):
+    fake = api.fake
+    material_id = fake.material("Скан", "   ")
+    exam_id = fake.exam()
+    fake.link(exam_id, material_id)
+    question_id = fake.question(exam_id, ECON_QUESTION, materials_fingerprint="fp")
+    assert_plain_russian(post_rubric(api, exam_id, question_id, ai=True), 422, oral_api.NO_TEXT_DETAIL, "no_text")
+    assert api.model.calls == []
+
+
+def test_ai_points_that_do_not_come_together_are_422_and_a_bad_flag_is_400(api):
+    fake = api.fake
+    exam_id = fake.exam()
+    question_id = fake.question(exam_id, ECON_QUESTION)
+    api.model.answer({"points": []})
+    assert_plain_russian(post_rubric(api, exam_id, question_id, ai=True), 422, oral_api.AI_POINTS_FAILED_DETAIL, "ai_points_failed")
+    assert len(api.model.calls) == 2  # one retry
+    assert post_rubric(api, exam_id, question_id, ai="yes").status_code == 400
+    assert post_rubric(api, exam_id, "00000000-0000-4000-8000-000000000000", ai=True).status_code == 404
+
+
 def test_unknown_foreign_or_malformed_questions_are_404(api):
     exam_id, question_id, _ = econ_exam(api.fake)
     detail = oral_api.QUESTION_NOT_FOUND_DETAIL

@@ -102,6 +102,8 @@ export interface Rubric {
   materials: RubricMaterial[];
   points: RubricPoint[];
   nearest: RubricNearest[];
+  /** 'ai' — the model wrote the points without lectures (an exam that has none): no quotes, said over them. */
+  origin?: 'ai';
 }
 
 export interface RubricResponse {
@@ -273,6 +275,7 @@ export function parseRubricResponse(value: unknown): RubricResponse {
       materials,
       points: coverage === 'none' ? [] : points,
       nearest,
+      ...(raw.origin === 'ai' ? { origin: 'ai' as const } : {}),
     },
   };
 }
@@ -314,10 +317,10 @@ export function parseEvaluation(value: unknown, pointIds: readonly string[]): Ev
 
 /** The rubric of an exam question: cached in oral_rubrics, or built by the model and checked by code. */
 export async function fetchRubric(
-  input: { examId: string; questionId: string; force?: boolean },
+  input: { examId: string; questionId: string; force?: boolean; /** Without lectures: let the model write the points. */ ai?: boolean },
   options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<RubricResponse> {
-  const body = { exam_id: input.examId, question_id: input.questionId, force: input.force === true };
+  const body = { exam_id: input.examId, question_id: input.questionId, force: input.force === true, ...(input.ai ? { ai: true } : {}) };
   const json = await postOral('/api/oral/rubric', body, options.timeoutMs ?? RUBRIC_TIMEOUT_MS, options.signal);
   return parseRubricResponse(json);
 }

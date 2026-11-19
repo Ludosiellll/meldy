@@ -109,6 +109,8 @@ RUBRIC_UNVERIFIABLE_DETAIL = (
 NO_TEXT_DETAIL = "В лекциях этого экзамена нет текста"
 # Причина видна студенту: экзамен без лекций и лекции без текста исправляются по-разному.
 NO_LECTURES_DETAIL = "К экзамену не выбраны лекции"
+# Эталон без лекций (ai в запросе): модель не дала трёх пригодных пунктов.
+AI_POINTS_FAILED_DETAIL = "Не получилось составить пункты ответа к этому вопросу без лекций. Попробуйте другой вопрос."
 BAD_BODY_DETAIL = "Неверный формат запроса."
 BODY_TOO_LARGE_DETAIL = "Запрос слишком большой."
 CHECK_TOO_LONG_DETAIL = "Ответ слишком длинный: для проверки можно до 4000 знаков."
@@ -739,6 +741,73 @@ async def _build_rubric(job: RubricJob, lectures: ExamLectures | None = None) ->
         return BuiltRubric(body, created_at, charge)
 
 
+async def _ai_rubric_from_model(question: str, *, use_cache: bool) -> tuple[dict, str]:
+    """Эталон без лекций (oral.validate_ai_rubric) и имя модели. Непригодный ответ — один повтор."""
+    failure = "unusable"
+    for attempt in range(2):
+        meta: dict = {}
+        async with heavy_slot():
+            raw = await _run_model(
+                oral.build_ai_rubric_prompt(retry=attempt > 0),
+                oral.build_ai_rubric_input(question),
+                budget=RUBRIC_TIMEOUT_SECONDS,
+                temperature=0,
+                max_tokens=RUBRIC_MAX_TOKENS,
+                json_mode=True,
+                thinking="low",
+                use_cache=use_cache,
+                meta=meta,
+            )
+        outcome = oral.validate_ai_rubric(_parsed(raw), question)
+        if outcome.status == "ok" and outcome.rubric is not None:
+            return outcome.rubric, _model_name(meta)
+        BaseAgent.forget(raw)
+        failure = outcome.status
+        print(f"Oral AI rubric attempt {attempt + 1} rejected: {outcome.status} ({', '.join(outcome.dropped)[:300]})")
+    if failure == "unverifiable":
+        raise AIError(422, "ai_points_failed", AI_POINTS_FAILED_DETAIL)
+    raise AIError.failed()
+
+
+async def _build_ai_rubric(job: RubricJob) -> BuiltRubric:
+    """Пункты без лекций: та же цена, что у пунктов по лекциям (answerPoints), в базу не пишутся —
+    oral_rubrics привязана к лекции (material_id), у такого экзамена её нет. Клиент хранит их у себя."""
+    charge = await quota.reserve(job.token, "answerPoints", AI_COSTS["answerPoints"])
+    async with quota.refund_on_failure(charge, keep=False):
+        rubric, _model = await _ai_rubric_from_model(job.question_text, use_cache=not job.force)
+    return BuiltRubric(_rubric_response(None, rubric, cached=False, saved=False, job=job), None, charge)
+
+
+async def _ai_rubric_for(token: str, user_id: str | None, exam_id: str, question_id: str, force: bool) -> dict | None:
+    """Ответ /api/oral/rubric для просьбы ai, или None, когда у экзамена есть лекции (тогда — обычный путь,
+    по лекциям: просьба ничего не меняет)."""
+    try:
+        async with SupabaseRest(token) as db:
+            if await _exam_material_ids(db, exam_id):
+                return None
+            question = await db.select_one(
+                "exam_questions", {"select": _QUESTION_COLUMNS, "id": f"eq.{question_id}", "exam_id": f"eq.{exam_id}"}
+            )
+    except SupabaseRestError as exc:
+        raise _read_error(exc) from None
+    if question is None or not _HASH_RE.match(str(question.get("question_hash") or "")):
+        raise HTTPException(status_code=404, detail=QUESTION_NOT_FOUND_DETAIL)
+    job = RubricJob(
+        token=token,
+        user_id=user_id,
+        exam_id=exam_id,
+        question=question,
+        key=oral.rubric_key(question, []),
+        material_ids=[],
+        force=force,
+    )
+    flight = (flight_owner(user_id, token), job.question_hash, "ai", "force" if force else "build")
+    built = await _single_flight(flight, lambda: _build_ai_rubric(job))
+    if built.charge is not None:
+        built.charge.keep()
+    return built.body
+
+
 @router.post("/api/oral/rubric")
 @limiter.limit("20/minute", key_func=user_or_ip_key)
 async def oral_rubric(request: Request):
@@ -751,11 +820,21 @@ async def oral_rubric(request: Request):
         force = False
     if not isinstance(force, bool):
         raise _bad()
+    # ai: «у экзамена нет лекций — пусть пункты составит ИИ» (owner 19.11). Только для экзамена без лекций.
+    ai = body.get("ai", False)
+    if ai is None:
+        ai = False
+    if not isinstance(ai, bool):
+        raise _bad()
     exam_id, question_id = exam_id.strip(), question_id.strip()
     if not _UUID_RE.match(exam_id) or not _UUID_RE.match(question_id):
         raise HTTPException(status_code=404, detail=QUESTION_NOT_FOUND_DETAIL)
     token = bearer_token(request)
     user_id = _user_id(request)
+    if ai:
+        without_lectures = await _ai_rubric_for(token, user_id, exam_id, question_id, force)
+        if without_lectures is not None:
+            return without_lectures
 
     try:
         async with SupabaseRest(token) as db:

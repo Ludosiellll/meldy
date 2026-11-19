@@ -16,6 +16,7 @@ import { isTTSReady, playTTS, prefetchTTS, stopTTS } from '../utils/tts';
 import { Mark, seedFrom } from '../components/marks';
 import TicketCard, { ticketHeading } from '../components/oral/TicketCard';
 import RubricSlots from '../components/oral/RubricSlots';
+import { AI_POINTS_NOTE, aiPointsOn, saveAiPoints, savedAiPoints, setAiPointsOn } from '../lib/oral/aiPoints';
 import LiveTranscript from '../components/oral/LiveTranscript';
 import ExaminerLine, { ExaminerThinking } from '../components/oral/ExaminerLine';
 import PrivacySheet from '../components/oral/PrivacySheet';
@@ -554,8 +555,17 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     async (run: number, target: TicketQuestion, signal: AbortSignal) => {
       dispatch({ type: 'rubric_loading', run });
       let rubric: RubricState;
+      // An exam without lectures whose student asked for the model's points (lib/oral/aiPoints.ts): the points kept
+      // on this device, else built now. With lectures the server answers as ever.
+      const ai = aiPointsOn(examId);
+      const kept = ai ? savedAiPoints(examId, target.id) : null;
+      if (kept) {
+        if (alive(run)) dispatch({ type: 'rubric', run, rubric: { status: 'ready', response: kept } });
+        return;
+      }
       try {
-        const response = await fetchRubric({ examId, questionId: target.id }, { signal });
+        const response = await fetchRubric({ examId, questionId: target.id, ai }, { signal });
+        saveAiPoints(examId, target.id, response);
         rubric =
           response.rubric.coverage === 'none' || response.rubric.points.length === 0
             ? { status: 'not_in_lectures', message: 'Этого вопроса нет в ваших лекциях, поэтому оценить ответ не по чему.', nearest: nearestFromRubric(response.rubric) }
@@ -1324,6 +1334,11 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
     if (!question || !controllerRef.current) return;
     void loadRubric(state.run, question, controllerRef.current.signal);
   };
+  // «Составить пункты с ИИ»: the exam has no lectures; from now on its points are the model's (on this device).
+  const buildAiPoints = () => {
+    setAiPointsOn(examId);
+    retryRubric();
+  };
 
   const retryEvaluation = async () => {
     const current = stateRef.current;
@@ -1675,6 +1690,9 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
       {why.fix}
     </button>
   ) : null;
+  // No lectures at all: the model can write the points instead (asked for, never by itself).
+  const noLectures = rubric.status === 'unverifiable' && rubric.code === 'no_lectures';
+  const aiPoints = rubric.status === 'ready' && rubric.response.rubric.origin === 'ai';
   const sheetLink = (
     <button type="button" className="sf-link or-acts-extra" data-muted="" onClick={() => void leave(withFrom(`/exams/${examId}`))}>
       Экзамен
@@ -1686,7 +1704,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
   if (rubric.status === 'loading') {
     leftState = (
       <p className="or-message or-message-muted" role="status">
-        Собираем пункты ответа по лекциям…
+        {aiPointsOn(examId) ? 'ИИ составляет пункты ответа…' : 'Собираем пункты ответа по лекциям…'}
       </p>
     );
   } else if (rubric.status !== 'ready' && !answering) {
@@ -1698,8 +1716,22 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
             {why.text}
           </p>
         ) : null}
+        {noLectures ? (
+          <p className="or-state-ai">
+            <button type="button" className="or-alt" onClick={buildAiPoints}>
+              Составить пункты с ИИ
+            </button>
+            <span className="or-state-ai-note">Лекций нет? ИИ напишет пункты ответа сам. Он может ошибаться.</span>
+          </p>
+        ) : null}
         {rubric.status === 'not_in_lectures' ? <NearestList items={rubric.nearest} /> : null}
       </div>
+    );
+  } else if (aiPoints && !answering) {
+    leftState = (
+      <p className="or-message or-message-muted or-ai-note" role="note">
+        {AI_POINTS_NOTE}
+      </p>
     );
   }
 

@@ -143,7 +143,8 @@ describe('copyImport: the words of the import, keys, settings and group screens'
   it('uses the corrected lines of the design table, not the concept’s', () => {
     expect(IMPORT.lede).toBe('Один общий файл или по файлу на предмет.');
     expect(IMPORT.problems(11)).toBe(`Проверьте 11${NBSP}вопросов. Можно и после сохранения.`);
-    expect(IMPORT.spotCheck).toBe('Сверить ключ на трёх вопросах');
+    // owner 19.11: «не все понятно что к чему» — the card says what it shows
+    expect(IMPORT.spotCheck).toBe('Проверить ответы на трёх вопросах');
     expect(IMPORT.minutes).toBe('Время в день');
     expect(IMPORT.readAsOral).toBe('Прочитать как устные вопросы ›');
     expect(IMPORT.partTitle('Гражданское право', 2)).toBe('Гражданское право, часть 2');

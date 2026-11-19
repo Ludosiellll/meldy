@@ -4,6 +4,35 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.8: «Где в файле верные ответы?» in one screen; an oral exam without lectures (from the commit of this entry)
+
+- **Why**: the owner, 19.11, with screenshots of the import: «перегруженность, не все понятно что к чему, а особенно
+  пункт "Отмечен по-другому?" — при открытии не понятно что от тебя требуют, да и снизу не видно кнопок»; and of the
+  oral questions: «нажимаю устный, а там просьба выбрать лекции, и что делать в случае если лекций нет? можно ли… через
+  иишку… чтобы можно было тянуть билеты спокойно и отвечать?».
+- **The key's screen** (`import/KeySource.tsx`): the title is the question «Где в файле верные ответы?», one sentence
+  says what Meldy found («Meldy считает верным вариант со знаком «+». Если это не так, выберите, как на самом деле.»),
+  then the choice and «Готово» right under it. The key kept apart (a key file, a list) is one line that opens — «Ответы
+  лежат отдельно: в другом файле или списком» — open by itself when a key is there already or the page came for the
+  list. Before: a title, the radios and two more blocks with their hints, both buttons under the fold of a laptop.
+  The card of three questions says «Meldy считает верными эти ответы. В файле так же?» and leads on with «Указать,
+  где в файле ответы» (was «Отмечен по-другому?»).
+- **An oral exam without lectures** (`/api/oral/rubric` with `ai`, `oral.validate_ai_rubric`, `lib/oral/aiPoints.ts`):
+  the ticket of an exam that has no lectures said «К экзамену не выбраны лекции» and the answer went unchecked. Now it
+  also has «Составить пункты с ИИ»: the model writes 3–6 answer points from the usual content of the course, with a
+  short answer to each in place of a lecture's quote, and the answer is checked against them as ever (the examiner's
+  question too). The points are marked: «Пункты составил ИИ: у экзамена нет лекций. Он может ошибаться — сверьте с
+  конспектом.» over them, «Ответ ИИ» where a quote names its lecture. Asked for only (one press for the exam), never
+  for an exam with lectures — there the request changes nothing and every point still needs its quote. The price is
+  that of points from lectures; the points are kept on the device (the table of rubrics is tied to a lecture), so a
+  question drawn again costs nothing.
+- **Not done here**: such questions do not enter the day's plan (the exam page still says they come with lectures);
+  the points are not shared with a group and are not on the cheat sheet.
+- **Checked**: the key's screen in a real browser at 1900×916 and by its new tests; the endpoint with a fake model
+  (asked and not asked, with lectures, points that do not come together, a bad flag); the ticket page (the button, the
+  note, the second draw without a request); vitest (the full run), `tsc -b`, the backend's tests. Not checked: the
+  quality of the model's points on real questions — the prompt was not run against a live model here.
+
 ## 2026-11-19 — Release 59.7: «Добавить предмет» on the row, a name changed in place, plainer words (from the commit of this entry)
 
 - **Why**: the owner, 19.11, with screenshots of the exam page, a subject's page, «Первые шаги» and «Как считается»:

@@ -508,6 +508,34 @@ describe('ExamTicket: answering without a check', () => {
     expect(screen.getByRole('button', { name: 'Ответить текстом' })).toBeEnabled();
   });
 
+  it('an exam without lectures: «Составить пункты с ИИ» asks the model, says so over the points, and keeps them on this device', async () => {
+    seedDatabase();
+    const aiRubric = demoRubricResponse({
+      rubric_id: null,
+      cached: false,
+      saved: false,
+      rubric: { ...DEMO_RUBRIC, materials: [], origin: 'ai', points: DEMO_RUBRIC.points.map((point) => ({ ...point, source_ids: [] })) },
+    });
+    api['/api/oral/rubric'].mockImplementation(async (body: unknown) =>
+      (body as { ai?: boolean }).ai ? json(200, aiRubric) : json(422, { detail: 'К экзамену не выбраны лекции', code: 'no_lectures' }),
+    );
+    await renderPage(ticketUrl());
+    await screen.findByRole('heading', { name: 'К экзамену не выбраны лекции' });
+    // asked for, never by itself: the first request has no `ai`
+    expect(api['/api/oral/rubric'].mock.calls[0][0]).toEqual({ exam_id: EXAM, question_id: Q1, force: false });
+    fireEvent.click(screen.getByRole('button', { name: 'Составить пункты с ИИ' }));
+    expect(await screen.findByText('Пункты составил ИИ: у экзамена нет лекций. Он может ошибаться — сверьте с конспектом.')).toBeInTheDocument();
+    expect(api['/api/oral/rubric'].mock.calls[1][0]).toEqual({ exam_id: EXAM, question_id: Q1, force: false, ai: true });
+    expect(screen.queryByRole('heading', { name: 'К экзамену не выбраны лекции' })).toBeNull();
+    expect(window.localStorage.getItem(`meldy:oral-ai:${EXAM}`)).toBe('1');
+    expect(window.localStorage.getItem(`meldy:oral-ai:${EXAM}:${Q1}`)).not.toBeNull();
+    // drawn again: the same points from this device, no request and no unit
+    cleanup();
+    await renderPage(ticketUrl());
+    expect(await screen.findByText('Пункты составил ИИ: у экзамена нет лекций. Он может ошибаться — сверьте с конспектом.')).toBeInTheDocument();
+    expect(api['/api/oral/rubric']).toHaveBeenCalledTimes(2);
+  });
+
   it('shows the lectures’ nearest fragments again after an answer to a question they do not cover (409)', async () => {
     seedDatabase();
     api['/api/oral/rubric'].mockImplementation(async () =>

@@ -1,3 +1,4 @@
+import { AI_POINT_LABEL } from '../../lib/oral/aiPointsWords';
 import { useId, useRef, useState, type ReactNode } from 'react';
 import { Mark, seedFrom, type MarkKind } from '../marks';
 import { UnderlinedText, quoteText } from './RubricSlots';
@@ -192,6 +193,8 @@ export function lectureTitleOf(label: string): string {
  */
 function lectureCaption(label: string, fragments: string, named: boolean): string {
   const clean = label.trim();
+  // points the model wrote without lectures: there is no lecture to name or to call «там же»
+  if (clean === AI_POINT_LABEL) return clean;
   if (named && clean.startsWith('«')) return `Лекция ${clean}`;
   if (named && clean) return clean;
   return `Лекция${fragments ? `, ${fragments}` : ''}`;

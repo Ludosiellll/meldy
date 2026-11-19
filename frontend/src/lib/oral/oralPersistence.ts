@@ -18,6 +18,7 @@
  * - sessionStorage meldy_exam_peak_<examId> — the questions answered just now and their state
  *   before, so the exam sheet can draw the change (redesign spec 5.9).
  */
+import { AI_POINT_LABEL } from './aiPointsWords';
 import { notifyAIUsageChanged } from '../../api/limits';
 import { AI_COSTS } from '../plans';
 import { localDateKey } from '../../utils/streak';
@@ -100,7 +101,9 @@ export function fragmentsLabel(sourceIds: readonly string[]): string {
 }
 
 /** The material of a point (its first source id's key), its plain S-ids, and «Лекция», фрагмент N. */
-export function pointSource(point: Pick<RubricPoint, 'source_ids'>, rubric: Pick<Rubric, 'materials'>) {
+export function pointSource(point: Pick<RubricPoint, 'source_ids'>, rubric: Pick<Rubric, 'materials' | 'origin'>) {
+  // Points the model wrote for an exam without lectures: no lecture to name (lib/oral/aiPoints.ts).
+  if (rubric.origin === 'ai') return { materialId: null, materialTitle: '', sourceIds: [], fragments: '', label: AI_POINT_LABEL };
   const parts = point.source_ids.map(splitSourceId).filter((part) => part.id);
   // «M2:S07» names its lecture; plain ids (an old rubric) belong to the first one.
   const key = parts[0]?.key ?? null;

@@ -239,10 +239,11 @@ export const IMPORT = {
 
   problems: (n: number) => `Проверьте ${questions(n)}. Можно и после сохранения.`,
   problemsGo: 'Проверить',
-  spotCheck: 'Сверить ключ на трёх вопросах',
-  spotCheckLede: 'Совпадает ли ответ с файлом?',
-  spotCheckWrong: 'Не совпадает?',
-  spotCheckFile: 'В файле',
+  // owner 19.11: «не все понятно что к чему» — what the card shows and what to do when it is wrong
+  spotCheck: 'Проверить ответы на трёх вопросах',
+  spotCheckLede: 'Meldy считает верными эти ответы. В файле так же?',
+  spotCheckWrong: 'Ответы не те?',
+  spotCheckFile: 'Верный ответ',
   readAsOral: 'Прочитать как устные вопросы ›',
   readAsTest: 'Прочитать как вопросы с вариантами ›',
   rereading: 'Читаем заново…',
@@ -306,7 +307,8 @@ export const IMPORT = {
   save: 'Сохранить',
   saveAdd: (n: number) => `Добавить ${subjects(n)}`,
   saving: 'Сохраняем…',
-  nextLectures: 'Дальше добавьте лекции. По ним Meldy проверит устные ответы.',
+  // 19.11: an exam without lectures is not a dead end — the ticket has «Составить пункты с ИИ»
+  nextLectures: 'Дальше добавьте лекции: по ним Meldy проверит устные ответы. Лекций нет — пункты ответа составит ИИ.',
   savingItems: (done: number, total: number) => `Сохраняем вопросы: ${done} из ${total}`,
   saveRetry: 'Не всё сохранилось. Нажмите ещё раз: сохранённое не повторится.',
   saveFailed: 'Не сохранилось. Проверьте связь и нажмите ещё раз.',
@@ -336,7 +338,7 @@ export const IMPORT = {
   topicsLine: (n: number) => count(n, 'тема', 'темы', 'тем'),
   topicsTitle: 'Темы',
   noTopic: 'Без темы',
-  otherWay: 'Отмечен по-другому?',
+  otherWay: 'Указать, где в файле ответы',
   /**
    * «Проверьте 7 вопросов: в 4 нет ответа, 1 повторяется.» for several kinds of problems; one kind is said whole:
    * «В 1 вопросе варианты дают разные ответы.» (not «Проверьте 1: в 1 …»).
@@ -374,22 +376,29 @@ export const IMPORT = {
   keyVariantPick: 'Вариант',
 
   // the key: «Как в файле отмечен ответ?»
-  keyTitle: 'Как в файле отмечен ответ?',
+  // owner 19.11: «при открытии не понятно что от тебя требуют, да и снизу не видно кнопок» — one question, what Meldy
+  // found in a sentence, «Готово» right under the choice, the key kept apart behind one line
+  keyTitle: 'Где в файле верные ответы?',
+  keyLedeFound: (how: string) => `Meldy считает верным вариант ${how}. Если это не так, выберите, как на самом деле.`,
+  keyLedeNone: 'Meldy не нашёл в файле отмеченных ответов. Выберите, как они отмечены.',
   keyAuto: 'Как нашёл Meldy',
-  keyFirst: 'Первый вариант всегда верный',
-  keyNone: 'Ответы в файле не отмечены',
+  keySignal: (how: string, n: number) => `${how} — в ${n} ${plural(n, 'вопросе', 'вопросах', 'вопросах')}`,
+  keyFirst: 'Верный всегда первый вариант',
+  keyNone: 'В файле ответы не отмечены',
+  keyApart: 'Ответы лежат отдельно: в другом файле или списком',
   keyMarker: 'Знаком «+»',
-  keyListLabel: 'Ключ отдельным списком',
+  keyListLabel: 'Или вставьте ответы списком',
   keyListPlaceholder: '1 – б, 2 – а, 3 – г…',
-  keyListHint: 'Meldy сверит номера с файлом.',
-  keyListGo: 'Проверить ключ',
+  keyListHint: 'Номер вопроса и буква ответа.',
+  keyListGo: 'Применить список',
   keyListEmpty: 'Вставьте ключ: номер вопроса и букву ответа.',
   keyListResult: (keyed: number, total: number) => `Ключ подошёл к ${keyed} из ${total}.`,
   keyClose: 'Готово',
+  keyBack: 'Вернуться к вопросам',
   // a key kept in another file (owner, 2026-10-14): one section per variant, the test's own variant is taken
-  keyFileLabel: 'Ключ отдельным файлом',
-  keyFileHint: 'Word, Excel или TXT: таблица «1 | А» или строки «1 – А». Если в файле несколько вариантов, Meldy возьмёт тот, что указан в файле с вопросами.',
-  keyFilePick: 'Выбрать файл ключа',
+  keyFileLabel: 'Файл с ответами',
+  keyFileHint: 'Word, Excel или TXT. Подойдёт таблица «1 | А» или строки «1 – А».',
+  keyFilePick: 'Выбрать файл',
   keyFileOther: 'Другой файл',
   keyFileRemove: 'Убрать',
   keyFileUsed: (title: string, keyed: number, total: number) =>
@@ -475,6 +484,24 @@ export const SIGNAL_WORDS: Record<string, string> = {
   color: 'Цветом',
   highlight: 'Маркером',
   shade: 'Заливкой',
+};
+
+/** How Meldy found the key, as the end of «Meldy считает верным вариант …» (KeySource's first line). */
+export const KEY_PHRASES: Record<string, string> = {
+  bold: 'выделенный жирным',
+  underline: 'подчёркнутый',
+  italic: 'выделенный курсивом',
+  color: 'выделенный цветом',
+  highlight: 'выделенный маркером',
+  shade: 'с заливкой',
+  marker: 'со знаком «+»',
+  key_column: 'из столбца с ответами',
+  answer_line: 'из строки «Ответ»',
+  key_list: 'из ключа в конце файла',
+  key_text: 'из вашего списка',
+  gift: 'отмеченный в разметке файла',
+  first_option: 'первый по счёту',
+  manual: 'отмеченный вами',
 };
 
 /** The second line of a subject row: «ключ жирным» (Concept 1 §3.2). */

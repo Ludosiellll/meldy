@@ -276,6 +276,36 @@
 .sf-page .im-radio + .im-radio { border-top: 1px solid var(--sf-line); }
 .sf-page .im-radio input { flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--sf-accent); }
 .sf-page .im-radio:has(input:checked) { background: var(--sf-accent-soft); }
+.sf-page .im-keysrc-lede { margin: 14px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-ink); text-wrap: pretty; }
+.sf-page .im-keysrc-done { margin: 18px 0 0; }
+/* The key kept apart (a file, a list): one line that opens, so the screen is the choice and «Готово» */
+.sf-page .im-apart { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--sf-line); }
+.sf-page .im-apart > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  cursor: pointer;
+  list-style: none;
+}
+.sf-page .im-apart > summary::-webkit-details-marker { display: none; }
+.sf-page .im-apart > summary::before {
+  content: '';
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px 2px 2px;
+  border-right: 2px solid var(--sf-muted);
+  border-bottom: 2px solid var(--sf-muted);
+  transform: rotate(-45deg);
+  transition: transform 140ms ease;
+}
+.sf-page .im-apart[open] > summary::before { transform: rotate(45deg); }
+.sf-page .im-apart > summary:focus-visible { outline: 2px solid var(--sf-accent); outline-offset: 4px; border-radius: 10px; }
+.sf-page .im-apart .im-keyfile { margin-top: 10px; }
 .sf-page .im-keytext { display: grid; gap: 8px; margin-top: 26px; }
 /* «Ключ отдельным файлом» (KeyFile.tsx): above the typed key; the variant choice as small buttons. */
 .sf-page .im-keyfile { display: grid; gap: 8px; margin-top: 26px; }

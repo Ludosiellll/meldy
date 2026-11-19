@@ -569,6 +569,10 @@
 .sf-page .or-state-title { margin: 0; font-size: 28px; line-height: 1.14; font-weight: 500; letter-spacing: -.024em; text-wrap: balance; }
 .sf-page .or-side > .or-state-title { margin-top: 4px; }
 .sf-page .or-state-text { margin: 10px 0 0; max-width: 34em; font-size: 17px; line-height: 26px; color: var(--sf-muted); text-wrap: pretty; }
+/* An exam without lectures: «Составить пункты с ИИ» with its one honest line; the note over points the model wrote */
+.sf-page .or-state-ai { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 18px 0 0; }
+.sf-page .or-state-ai-note { flex: 1 1 14em; max-width: 30em; font-size: 15px; line-height: 22px; color: var(--sf-muted); text-wrap: pretty; }
+.sf-page .or-ai-note { max-width: 40em; }
 .sf-page .or-nearest { margin: 16px 0 0; padding: 0; list-style: none; }
 .sf-page .or-nearest li + li { margin-top: 12px; }
 .sf-page .or-nearest .sf-slip { border-radius: 22px; background: var(--sf-surface-soft); box-shadow: none; }
