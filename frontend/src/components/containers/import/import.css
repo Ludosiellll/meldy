@@ -82,6 +82,7 @@
 .sf-page .im-hint .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; vertical-align: baseline; }
 /* «Назвать по вопросам» under the name field: the link and what came of it */
 .sf-page .im-name-ai-note { display: block; margin-top: 4px; color: var(--sf-ink); }
+.sf-page .im-name-ai .sf-link + .sf-link { margin-left: 20px; }
 .sf-page .im-more { margin: 16px 0 0; }
 
 /* The reading list: rows of one card, the status on the right; a long name is cut in the middle. */

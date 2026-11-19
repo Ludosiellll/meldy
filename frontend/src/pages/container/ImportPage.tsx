@@ -4,7 +4,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { deferGuideOnce } from '../../components/guide/guideLater';
 import { useContainerData, useContainersOverview } from '../../lib/containers/hooks';
 import { loadOralPlanItems } from '../../lib/containers/oralPlan';
-import { addSubject, suggestTitle } from '../../api/containers';
+import { addSubject, suggestTitle, suggestTopics } from '../../api/containers';
+import { topicCandidates, withTopics } from '../../components/containers/import/aiTopics';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { clearDraftValue, readDraftValue, writeDraftValue } from '../../lib/urlState';
@@ -694,6 +695,27 @@ export default function ImportPage() {
   const subjectDates = active.map((subject) => subject.date);
   const anyDate = perSubject ? subjectDates.some(Boolean) : Boolean(date);
   const showName = targetKind !== 'container';
+  // «Разложить по темам»: one subject whose file has no headings — the model marks where each topic starts, and the
+  // file's result gets the topics as if it had them (import/aiTopics.ts); the questions keep their order
+  const topicItems = useMemo(() => (active.length === 1 && !updateId ? topicCandidates(active[0]) : null), [active, updateId]);
+  const [topicsAi, setTopicsAi] = useState<{ status: 'idle' | 'wait' | 'none' } | { status: 'done'; titles: string[] } | { status: 'failed'; text: string }>({ status: 'idle' });
+  const sortTopics = () => {
+    const subject = active[0];
+    if (!topicItems || !subject) return;
+    setTopicsAi({ status: 'wait' });
+    suggestTopics(topicItems.map((entry) => entry.text)).then(
+      (parts) => {
+        if (parts.length === 0) {
+          setTopicsAi({ status: 'none' });
+          return;
+        }
+        const positions = topicItems.map((entry) => entry.position);
+        setEntries((list) => list.map((entry) => (entry.id === subject.fileId && entry.result ? { ...entry, result: withTopics(entry.result, positions, parts) } : entry)));
+        setTopicsAi({ status: 'done', titles: parts.map((part) => part.title) });
+      },
+      (error: unknown) => setTopicsAi({ status: 'failed', text: errorText(error) }),
+    );
+  };
   // One oral list into a new exam is today's oral exam (decision 21): no minutes a day, no plan.
   const asOralExam = targetKind === 'new' && singleOral;
   const showMinutes = targetKind !== 'container' && !asOralExam;
@@ -1537,6 +1559,40 @@ export default function ImportPage() {
     </div>
   );
 
+  // The model's two helps with a new file, one quiet line: a name by the questions and topics for a file without
+  // headings. Under the name field; where there is no name field (a subject added to an exam) — the topics alone.
+  const aiLine = (withName: boolean) => {
+    const nameLink = withName && nameQuestions.length >= 2;
+    const topicsNote = topicsAi.status === 'none' ? IMPORT.topicsSuggestNone : topicsAi.status === 'done' && !topicItems ? IMPORT.topicsSuggestDone(topicsAi.titles) : topicsAi.status === 'failed' ? topicsAi.text : null;
+    if (locked || (!nameLink && !topicItems && !topicsNote)) return null;
+    const said = nameAi.status === 'failed' || nameAi.status === 'none' || topicsNote !== null;
+    return (
+      <p className="im-hint im-name-ai" data-muted="" role={said ? 'status' : undefined}>
+        {nameAi.status === 'wait' ? (
+          IMPORT.nameSuggestWait
+        ) : topicsAi.status === 'wait' ? (
+          IMPORT.topicsSuggestWait
+        ) : (
+          <>
+            {nameLink ? (
+              <button type="button" className="sf-link" title={IMPORT.nameSuggestPrice} onClick={suggestName}>
+                {IMPORT.nameSuggest}
+              </button>
+            ) : null}
+            {topicItems ? (
+              <button type="button" className="sf-link" title={IMPORT.nameSuggestPrice} onClick={sortTopics}>
+                {IMPORT.topicsSuggest}
+              </button>
+            ) : null}
+            {nameLink && nameAi.status === 'none' ? <span className="im-name-ai-note">{IMPORT.nameSuggestNone}</span> : null}
+            {nameLink && nameAi.status === 'failed' ? <span className="im-name-ai-note">{nameAi.text}</span> : null}
+            {topicsNote ? <span className="im-name-ai-note">{topicsNote}</span> : null}
+          </>
+        )}
+      </p>
+    );
+  };
+
   const nameField = showName ? (
     <div className="im-field">
       <label className="im-label" htmlFor={`${formId}-name`}>
@@ -1553,21 +1609,7 @@ export default function ImportPage() {
         disabled={locked}
         onChange={(event) => setForm((current) => ({ ...current, title: event.target.value, titleTouched: true }))}
       />
-      {nameQuestions.length >= 2 && !locked ? (
-        <p className="im-hint im-name-ai" data-muted="" role={nameAi.status === 'failed' || nameAi.status === 'none' ? 'status' : undefined}>
-          {nameAi.status === 'wait' ? (
-            IMPORT.nameSuggestWait
-          ) : (
-            <>
-              <button type="button" className="sf-link" title={IMPORT.nameSuggestPrice} onClick={suggestName}>
-                {IMPORT.nameSuggest}
-              </button>
-              {nameAi.status === 'none' ? <span className="im-name-ai-note">{IMPORT.nameSuggestNone}</span> : null}
-              {nameAi.status === 'failed' ? <span className="im-name-ai-note">{nameAi.text}</span> : null}
-            </>
-          )}
-        </p>
-      ) : null}
+      {aiLine(true)}
     </div>
   ) : null;
 
@@ -1678,6 +1720,7 @@ export default function ImportPage() {
       <section className="im-form">
         {targetField}
         {nameField}
+        {showName ? null : aiLine(false)}
         {dateFields}
         {minutesField}
       </section>

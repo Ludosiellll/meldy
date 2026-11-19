@@ -936,6 +936,36 @@ export async function suggestTitle(input: { fileName: string; questions: string[
 }
 
 /**
+ * Topics for a file without headings (owner 19.11; POST /api/exams/suggest-topics, 1 unit, nothing when the model
+ * finds none): the questions in the file's order go in, the topics come back one after another — each with its name
+ * and the number of its first question in the list sent. [] — no topics. Anything that is not such a list is [].
+ */
+export async function suggestTopics(questions: string[], signal?: AbortSignal): Promise<Array<{ title: string; from: number }>> {
+  let raw: unknown;
+  try {
+    raw = await backend('/api/exams/suggest-topics', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ questions: questions.map((text) => text.slice(0, 140)) }),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof ContainerApiError && (error.status ?? 0) > 0) notifyAIUsageChanged();
+    throw error;
+  }
+  notifyAIUsageChanged();
+  if (!isRecord(raw)) throw badShape('exams/suggest-topics');
+  const topics: Array<{ title: string; from: number }> = [];
+  for (const row of list(raw.topics)) {
+    if (!isRecord(row) || typeof row.title !== 'string' || !row.title.trim()) return [];
+    const from = int(row.from, 0);
+    if (from < 1 || from > questions.length || (topics.length > 0 && from <= topics[topics.length - 1].from)) return [];
+    topics.push({ title: row.title.trim().slice(0, 200), from });
+  }
+  return topics.length >= 2 && topics[0].from === 1 ? topics : [];
+}
+
+/**
  * POST /api/exams/keys/ai (backend/bank_keys_ai.py): keys for questions the file gave none, only on the student's press.
  * At most 300 questions a request, without pictures; charged before the model (keysAI, 5 units per started 100). The
  * top bar's AI limit is read again after the answer, as after every AI action (a request that never reached the server

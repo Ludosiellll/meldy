@@ -4,6 +4,21 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.15: «Разложить по темам» for a file without headings (from the commit of this entry)
+
+- **Why**: the owner, 19.11, of the offered «Название предмета и темы при загрузке файла. ИИ предлагает человеческое
+  название… и раскладывает вопросы по темам»: «первое и второе точно нужно». The name came in 59.11; the topics are
+  this release.
+- **What**: on the page where a file is added, beside «Назвать по вопросам», a link «Разложить по темам» — for one
+  subject of 12 to 300 questions whose file has no topics. The model reads the questions in the file's order and
+  marks where each topic starts (POST /api/exams/suggest-topics, 1 unit; 2 to 12 topics one after another, at least
+  three questions each; mixed questions — no topics, the unit comes back). The file's result gets the topics as if it
+  had the headings (import/aiTopics.ts): the questions keep their order, numbers and keys; the line then says «Темы: …».
+  With no name field (a subject added to an exam) the link stands alone in the same place.
+- **Checked**: full frontend and backend suites, `tsc -b`; the save of the topics with their questions in the page's
+  test; the line seen on a laptop and a phone width. Not checked: the model's topics on a real file (no key here) and
+  a signed-in walk on the live site.
+
 ## 2026-11-19 — Release 59.14: an oral exam without lectures is offered where lectures are asked for (from the commit of this entry)
 
 - **Why**: the owner's screenshot of «Изменить экзамен», 19.11: «и где тут ии сам составляет то? почему ты не добавил

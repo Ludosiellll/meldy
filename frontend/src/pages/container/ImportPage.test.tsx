@@ -19,6 +19,7 @@ const api = vi.hoisted(() => {
     ContainerApiError,
     parseBank: vi.fn(),
     suggestTitle: vi.fn(),
+    suggestTopics: vi.fn(),
     keysAi: vi.fn(),
     createContainer: vi.fn(),
     addSubject: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock('../../api/containers', () => ({
   containerError: (error: unknown) => error,
   parseBank: api.parseBank,
   suggestTitle: api.suggestTitle,
+  suggestTopics: api.suggestTopics,
   keysAi: api.keysAi,
   createContainer: api.createContainer,
   addSubject: api.addSubject,
@@ -225,6 +227,48 @@ describe('ImportPage: one door for every file', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Назвать по вопросам' }));
     expect(await screen.findByText('Не получилось. Введите название сами.')).toBeInTheDocument();
     expect(screen.getByLabelText('Название')).toHaveValue('Программирование и история');
+  });
+
+  it('«Разложить по темам»: the model’s topics for a file without headings go into the subject and are saved with it (owner 19.11)', async () => {
+    const items = Array.from({ length: 15 }, (_, index) => item(index + 1, { topic: null }));
+    api.parseBank.mockResolvedValue({ ...bank(items), topics: [] });
+    api.suggestTopics.mockReset().mockResolvedValueOnce([
+      { title: 'Сделки', from: 1 },
+      { title: 'Обязательства', from: 9 },
+    ]);
+    renderAt();
+    upload(['Гражданское право.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: 'Разложить по темам' }));
+    expect(await screen.findByText('Темы: Сделки, Обязательства.')).toBeInTheDocument();
+    // the questions went in the file's order, whole
+    expect(api.suggestTopics.mock.calls[0][0]).toEqual(items.map((entry) => entry.text));
+    // the subject has topics now: the link has nothing more to do
+    expect(screen.queryByRole('button', { name: 'Разложить по темам' })).toBeNull();
+
+    fireEvent.click(saveButton());
+    await waitFor(() => expect(where).toBe('/exams/c/c-1'));
+    expect(api.createContainer.mock.calls[0][2]).toEqual([expect.objectContaining({ topics: ['Сделки', 'Обязательства'] })]);
+    const saved = api.addItems.mock.calls[0][1] as Array<{ file_no: string; topic: number | null }>;
+    expect(saved.map((entry) => entry.topic)).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2]);
+    expect(saved.map((entry) => entry.file_no)).toEqual(items.map((entry) => entry.label));
+  });
+
+  it('«Разложить по темам» is not offered to a file with topics; a model that finds none says so and changes nothing', async () => {
+    api.parseBank.mockResolvedValue(TWO);
+    renderAt();
+    upload(['Тесты_две_дисциплины.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 18\sвопросов/ });
+    expect(screen.queryByRole('button', { name: 'Разложить по темам' })).toBeNull();
+    cleanup();
+
+    const items = Array.from({ length: 15 }, (_, index) => item(index + 1, { topic: null }));
+    api.parseBank.mockResolvedValue({ ...bank(items), topics: [] });
+    api.suggestTopics.mockReset().mockResolvedValueOnce([]);
+    renderAt();
+    upload(['Гражданское право.docx']);
+    fireEvent.click(await screen.findByRole('button', { name: 'Разложить по темам' }));
+    expect(await screen.findByText('Темы не нашлись.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Разложить по темам' })).toBeInTheDocument();
   });
 
   it('reads a file of two subjects, previews them and saves one exam with both (items, topics, minutes)', async () => {

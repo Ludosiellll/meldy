@@ -132,6 +132,8 @@ def test_a_malformed_request_is_400_and_asks_no_model(api, over):
 
 def test_without_a_login_it_is_401(api):
     assert api.post("/api/study/explain", json={}, headers={"Authorization": "Bearer nobody"}).status_code == 401
+    assert api.post("/api/exams/suggest-topics", json={"questions": ["Вопрос?"] * 12}, headers={"Authorization": "Bearer nobody"}).status_code == 401
+    assert api.calls == []
 
 
 def title(api, **over):
@@ -160,3 +162,57 @@ def test_a_title_needs_at_least_two_questions(api):
     assert title(api, questions=["Один вопрос?"]).status_code == 400
     assert title(api, questions="нет").status_code == 400
     assert api.calls == []
+
+
+# ── POST /api/exams/suggest-topics ───────────────────────────────────────────────
+
+TOPIC_QUESTIONS = [f"Вопрос {n} о Древней Руси?" for n in range(1, 9)] + [f"Вопрос {n} о Смутном времени?" for n in range(9, 21)]
+
+
+def topics(api, **over):
+    return api.post("/api/exams/suggest-topics", json={"questions": TOPIC_QUESTIONS, **over})
+
+
+def test_topics_follow_one_another_from_the_first_question_and_cost_one_unit(api):
+    api.answers.append({"topics": [{"title": "«древняя Русь».", "from": 1}, {"title": "Смутное время", "from": 9}]})
+    response = topics(api)
+    assert response.status_code == 200
+    assert response.json() == {"topics": [{"title": "Древняя Русь", "from": 1}, {"title": "Смутное время", "from": 9}]}
+    assert "1. Вопрос 1 о Древней Руси?" in api.calls[0]["text"] and "20. Вопрос 20 о Смутном времени?" in api.calls[0]["text"]
+    assert api.charges[0][2].kept
+
+
+def test_a_short_part_joins_its_neighbour_and_the_first_topic_starts_at_the_first_question(api):
+    # the model starts at 2 and cuts a part of two questions: the first topic is from 1, the short part joins the one before
+    api.answers.append({"topics": [{"title": "Смутное время", "from": 11}, {"title": "Древняя Русь", "from": 2}, {"title": "Крещение", "from": 9}]})
+    assert topics(api).json() == {"topics": [{"title": "Древняя Русь", "from": 1}, {"title": "Смутное время", "from": 11}]}
+
+
+def test_no_topics_when_the_questions_are_mixed_or_the_answer_is_unusable_and_the_unit_comes_back(api):
+    for answer in (
+        {"topics": []},
+        {"topics": [{"title": "Одна тема", "from": 1}]},  # one topic is no split
+        {"topics": [{"title": "А", "from": 1}, {"title": "Б", "from": 9}]},  # names too short
+        {"topics": [{"title": "Русь", "from": 1}, {"title": "русь", "from": 9}]},  # the same name twice
+        {"topics": [{"title": "Русь", "from": 1}, {"title": "Смута", "from": 99}]},  # past the list
+        {"topics": [{"title": "Русь", "from": 1}, {"title": "Смута", "from": 1}]},  # two parts from one question
+        {"topics": [{"title": f"Тема номер {n}", "from": n} for n in range(1, 21)]},  # a part per question
+        {"topics": "нет"},
+    ):
+        api.answers[:] = [answer]
+        api.charges.clear()
+        assert topics(api).json() == {"topics": []}, answer
+        assert api.charges[0][2].refunded
+
+
+def test_topics_need_a_list_long_enough_and_whole(api):
+    assert topics(api, questions=TOPIC_QUESTIONS[:11]).status_code == 400
+    assert topics(api, questions=TOPIC_QUESTIONS[:12] + [""]).status_code == 400
+    assert topics(api, questions=["Вопрос?"] * 301).status_code == 400
+    assert topics(api, questions="нет").status_code == 400
+    assert api.calls == []
+    # a long list fits the body's size
+    api.answers.append({"topics": [{"title": "Первая половина", "from": 1}, {"title": "Вторая половина", "from": 151}]})
+    long = topics(api, questions=["Очень длинный вопрос о предмете " + "я" * 200] * 300)
+    assert long.status_code == 200 and len(long.json()["topics"]) == 2
+

@@ -298,6 +298,12 @@ export const IMPORT = {
   nameSuggestPrice: '1 единица ИИ',
   nameSuggestWait: 'Читаем вопросы…',
   nameSuggestNone: 'Не получилось. Введите название сами.',
+  // topics for a file without headings: the model marks where each one starts (the same line as the name's link)
+  topicsSuggest: 'Разложить по темам',
+  topicsSuggestWait: 'Ищем темы…',
+  topicsSuggestNone: 'Темы не нашлись.',
+  topicsSuggestDone: (titles: string[]) =>
+    `Темы: ${titles.slice(0, 4).join(', ')}${titles.length > 4 ? ` и ещё ${titles.length - 4}` : ''}.`,
   nameTwo: (a: string, b: string) => `${a} и ${b}`,
   nameMissing: 'Назовите экзамен.',
   date: 'Дата экзамена',
