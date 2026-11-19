@@ -1721,7 +1721,7 @@ function TicketRoom({ examId, questionIds, requestedNumber, mode, fromContainer 
             <button type="button" className="or-alt" onClick={buildAiPoints}>
               Составить пункты с ИИ
             </button>
-            <span className="or-state-ai-note">Лекций нет? ИИ напишет пункты ответа сам. Он может ошибаться.</span>
+            <span className="or-state-ai-note">Если лекций нет.</span>
           </p>
         ) : null}
         {rubric.status === 'not_in_lectures' ? <NearestList items={rubric.nearest} /> : null}

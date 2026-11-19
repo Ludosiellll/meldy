@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   enqueue: vi.fn(),
   doubtKey: vi.fn(),
   updateItem: vi.fn(),
+  explainAnswer: vi.fn(),
   fetchSheet: vi.fn(),
   recordSelfRating: vi.fn(),
   recordSheetPeek: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../../api/containers', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/containers')>()),
   doubtKey: mocks.doubtKey,
   updateItem: mocks.updateItem,
+  explainAnswer: mocks.explainAnswer,
 }));
 vi.mock('../../api/cheatSheet', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../api/cheatSheet')>()),
@@ -214,7 +216,8 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     expect(plain(option('SERIALIZABLE').textContent)).toContain('Ответ из файла');
     const under = document.querySelector('.ct-under')!;
     // The author — here a solo student, the author of their own exam — fixes the key; doubting it is a member's (n4).
-    expect(within(under as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['Нажали не туда?', 'Ключ неверный?']);
+    // «Почему так?» stands first (owner 19.11); its price is the link's title, not more words on the screen
+    expect(within(under as HTMLElement).getAllByRole('button').map((b) => b.textContent)).toEqual(['Почему так?', 'Нажали не туда?', 'Ключ неверный?']);
     expect(plain(document.querySelector('.ct-ctx')?.textContent)).toBe('Базы данных · № 37 · тема 3.2');
     expect(mocks.enqueue).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Дальше' }));
@@ -277,6 +280,42 @@ describe('one question at a time (Concept 1 §3.7, decisions 41–43)', () => {
     renderStudy(dataWith(['q-plain'], { items: at([]), summary: summary({ role: 'member', owner: null }) }));
     fireEvent.click(option('Первая'));
     expect(page()).toContain('Автор исправил ответ');
+  });
+
+  it('«Почему так?» after a mistake: the model explains the key’s answer, said to be the model’s; asked once', async () => {
+    mocks.explainAnswer.mockReset().mockResolvedValue({ explanation: 'При SERIALIZABLE транзакции идут так, будто выполняются по очереди, поэтому фантомов нет.', unsure: false });
+    renderStudy(dataWith(dbItems().map((entry) => entry.id)));
+    // before an answer and after a right one there is nothing to explain
+    expect(screen.queryByRole('button', { name: /Почему так/ })).toBeNull();
+    fireEvent.click(option('REPEATABLE READ'));
+    fireEvent.click(screen.getByRole('button', { name: /Почему так/ }));
+    expect(await screen.findByText('Объяснение ИИ')).toBeInTheDocument();
+    expect(screen.getByText('При SERIALIZABLE транзакции идут так, будто выполняются по очереди, поэтому фантомов нет.')).toBeInTheDocument();
+    // one mark, the heading: no second line about the model under the explanation
+    expect(document.querySelector('.kq-explain[data-ai]')?.children).toHaveLength(2);
+    // the file's own options and indices go to the model: the key and what was chosen
+    const sentTo = mocks.explainAnswer.mock.calls[0][0] as { question: string; options: string[]; correct: number[]; chosen: number[] };
+    expect(sentTo.options[sentTo.correct[0]]).toBe('SERIALIZABLE');
+    expect(sentTo.chosen.map((index) => sentTo.options[index])).toEqual(['REPEATABLE READ']);
+    // explained: the link is gone, so it is not paid for twice
+    expect(screen.queryByRole('button', { name: /Почему так/ })).toBeNull();
+    expect(mocks.explainAnswer).toHaveBeenCalledTimes(1);
+  });
+
+  it('«Почему так?»: a model that will not explain the key says so; a failure keeps the link for another try', async () => {
+    mocks.explainAnswer.mockReset().mockResolvedValueOnce({ explanation: '', unsure: true });
+    renderStudy(dataWith(dbItems().map((entry) => entry.id)));
+    fireEvent.click(option('REPEATABLE READ'));
+    fireEvent.click(screen.getByRole('button', { name: /Почему так/ }));
+    expect(await screen.findByText('Объяснить не получилось. Возможно, в ключе ошибка.')).toBeInTheDocument();
+    expect(screen.queryByText('Объяснение ИИ')).toBeNull();
+    cleanup();
+    mocks.explainAnswer.mockReset().mockRejectedValueOnce(new Error('Лимит ИИ на сегодня закончился.'));
+    renderStudy(dataWith(dbItems().map((entry) => entry.id)));
+    fireEvent.click(option('REPEATABLE READ'));
+    fireEvent.click(screen.getByRole('button', { name: /Почему так/ }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Почему так/ })).toBeInTheDocument();
   });
 
   it('«Нажали не туда?» marks the answer as a misclick: no mistake, no retry in this session', async () => {

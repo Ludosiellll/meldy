@@ -80,6 +80,8 @@
 .sf-page .im-hint { margin: 8px 0 0; font-size: 15px; line-height: 1.45; color: var(--sf-ink); text-wrap: pretty; }
 .sf-page .im-hint[data-muted] { color: var(--sf-muted); }
 .sf-page .im-hint .sf-link { min-height: 44px; margin: -12px 0; font-size: inherit; vertical-align: baseline; }
+/* «Назвать по вопросам» under the name field: the link and what came of it */
+.sf-page .im-name-ai-note { display: block; margin-top: 4px; color: var(--sf-ink); }
 .sf-page .im-more { margin: 16px 0 0; }
 
 /* The reading list: rows of one card, the status on the right; a long name is cut in the middle. */

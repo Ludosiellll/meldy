@@ -220,6 +220,11 @@
 .ct-under { display: flex; flex-wrap: wrap; align-items: center; gap: 0 22px; margin-top: 14px; }
 .ct-under .sf-link { font-size: 16px; }
 .ct-under .sf-link[data-muted] { font-size: 15px; }
+/* «Почему так?» (the model's explanation of a missed question): the line while it is written or when the model
+   would not; the explanation itself is the author's explanation block under another heading */
+.ct-why-line { margin: 14px 0 0; max-width: 40em; font-size: 15px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.ct-why-line[role='alert'] { color: var(--sf-ink); }
+.kq-explain[data-ai] { margin-top: 14px; }
 .ct-dontknow { margin-top: 20px; }
 .ct-notes-q { display: grid; gap: 4px; margin-top: 12px; }
 .ct-notes-q p { margin: 0; font-size: 15px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }

@@ -18,6 +18,7 @@ const api = vi.hoisted(() => {
   return {
     ContainerApiError,
     parseBank: vi.fn(),
+    suggestTitle: vi.fn(),
     keysAi: vi.fn(),
     createContainer: vi.fn(),
     addSubject: vi.fn(),
@@ -40,6 +41,7 @@ vi.mock('../../api/containers', () => ({
   ContainerApiError: api.ContainerApiError,
   containerError: (error: unknown) => error,
   parseBank: api.parseBank,
+  suggestTitle: api.suggestTitle,
   keysAi: api.keysAi,
   createContainer: api.createContainer,
   addSubject: api.addSubject,
@@ -204,6 +206,25 @@ describe('ImportPage: one door for every file', () => {
     expect(screen.getByRole('button', { name: 'Выбрать файлы' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Вставить список текстом' })).toBeInTheDocument();
     expect(screen.getByText(/Сканы подходят только для списков без вариантов/)).toBeInTheDocument();
+  });
+
+  it('«Назвать по вопросам»: the model’s name for the subject goes into the name field, where it can be changed (owner 19.11)', async () => {
+    api.parseBank.mockResolvedValue(TWO);
+    api.suggestTitle.mockReset().mockResolvedValueOnce('Программирование и история');
+    renderAt();
+    upload(['Тесты_две_дисциплины.docx']);
+    await screen.findByRole('heading', { name: /Нашли 2\sпредмета и 18\sвопросов/ });
+    fireEvent.click(screen.getByRole('button', { name: 'Назвать по вопросам' }));
+    await waitFor(() => expect(screen.getByLabelText('Название')).toHaveValue('Программирование и история'));
+    const sentTo = api.suggestTitle.mock.calls[0][0] as { fileName: string; questions: string[] };
+    expect(sentTo.fileName).toBe('Тесты_две_дисциплины.docx');
+    expect(sentTo.questions.length).toBeGreaterThanOrEqual(2);
+    expect(sentTo.questions.length).toBeLessThanOrEqual(20);
+    // a model that cannot tell leaves the field as it is and says so
+    api.suggestTitle.mockResolvedValueOnce('');
+    fireEvent.click(screen.getByRole('button', { name: 'Назвать по вопросам' }));
+    expect(await screen.findByText('Не получилось. Введите название сами.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Название')).toHaveValue('Программирование и история');
   });
 
   it('reads a file of two subjects, previews them and saves one exam with both (items, topics, minutes)', async () => {

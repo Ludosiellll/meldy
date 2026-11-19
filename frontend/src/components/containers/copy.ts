@@ -387,6 +387,14 @@ function listLetters(names: string[]): string {
 export const MISCLICK = 'Нажали не туда?';
 export const DOUBT = 'Сомневаюсь в ответе';
 export const KEY_WRONG = 'Ключ неверный?';
+// «Почему так?» after a mistake (owner 19.11): the model explains the key's answer, said to be the model's.
+// Kept short (owner 19.11: no overload, no needless «ИИ» notes): the block's heading says whose words these are, and
+// that is the only mark; the price (1 unit) is the link's title, the top bar's limit shows it spent.
+export const WHY = 'Почему так?';
+export const WHY_PRICE = '1 единица ИИ';
+export const WHY_WAIT = 'Объясняем…';
+export const WHY_TITLE = 'Объяснение ИИ';
+export const WHY_UNSURE = 'Объяснить не получилось. Возможно, в ключе ошибка.';
 export const NOTE_MANUAL_AUTHOR = glue('В файле ответ не был выделен, его отметил автор.');
 export const NOTE_MANUAL_OWN = glue('В файле ответ не был выделен, его отметили вы.');
 /** A key from «Подобрать ключи с ИИ» (flag ai_key; owner, 2026-11-04), beside «Сомневаюсь в ключе» / «Ключ неверный?». */

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AnswerInput, AnswerResult, ContainerSummary, DayPlan, LocalDay, PlanInput, TestItem, UnitState } from '../../types/container';
+import { containerErrorText, explainAnswer } from '../../api/containers';
 import { enqueueAnswers } from '../../lib/containers/answerQueue';
 import { afterAnswer, counter, optionOrder, pinnedLast, type QueueEntry } from '../../lib/containers/session';
 import { answered as hasAnswer, answerFields, gradeAnswer, type KindAnswer } from '../../lib/kinds/answer';
@@ -67,6 +68,9 @@ import './room.css';
  *   page's flow, not in the pinned bar, so a long one scrolls and the bar with the verdict stays as it is; a right
  *   answer to such a question waits for «Дальше» instead of moving on after a second.
  */
+/** «Почему так?» for one question: asked, answered, not explained (the model would not), or failed with the server's words. */
+type Why = { status: 'wait' } | { status: 'ready'; text: string } | { status: 'unsure' } | { status: 'failed'; text: string };
+
 interface Pending {
   chosen: number[] | null;
   text: string | null;
@@ -138,6 +142,8 @@ export default function StudyRun(props: StudyRunProps) {
   const [hint, setHint] = useState<string | null>(null);
   const [keyOpen, setKeyOpen] = useState(false);
   const [doubtOpen, setDoubtOpen] = useState(false);
+  // «Почему так?»: the model's explanation of a missed question, by question and its version (kept for the session)
+  const [whys, setWhys] = useState<Record<string, Why>>({});
   const [patches, setPatches] = useState<Record<string, Pick<TestItem, 'correct' | 'answers' | 'rev' | 'flags'>>>({});
   const [aside, setAside] = useState<ReadonlySet<string>>(() => new Set());
   const [ended, setEnded] = useState<{ at: number } | null>(null);
@@ -648,6 +654,24 @@ export default function StudyRun(props: StudyRunProps) {
     }
   }
 
+  // «Почему так?» (owner 19.11): after a mistake in a question with options that has no explanation of its author's
+  const whyKey = `${item.id}:${item.rev}`;
+  const why = whys[whyKey] ?? null;
+  const canAskWhy =
+    Boolean(pending && answered && !answered.correct && !pending.misclick && !fixedNow.current) &&
+    (item.kind === 'single' || item.kind === 'multiple') &&
+    !(item.explanation ?? '').trim() &&
+    item.correct.length > 0 &&
+    !offline;
+  const askWhy = () => {
+    if (whys[whyKey]?.status === 'wait') return;
+    setWhys((current) => ({ ...current, [whyKey]: { status: 'wait' } }));
+    explainAnswer({ question: item.stem, options: item.options, correct: item.correct, chosen: pending?.chosen ?? [] }).then(
+      (answer) => setWhys((current) => ({ ...current, [whyKey]: answer.unsure ? { status: 'unsure' } : { status: 'ready', text: answer.explanation } })),
+      (error: unknown) => setWhys((current) => ({ ...current, [whyKey]: { status: 'failed', text: containerErrorText(error) } })),
+    );
+  };
+
   const notes: string[] = [];
   if (pending) {
     // a key the AI suggested says so beside «Сомневаюсь в ключе» / «Ключ неверный?» (owner, 2026-11-04)
@@ -681,6 +705,13 @@ export default function StudyRun(props: StudyRunProps) {
       under.push(
         <button key="key" type="button" className="sf-link" data-muted="" aria-expanded={keyOpen} onClick={() => setKeyOpen((v) => !v)}>
           {copy.KEY_WRONG}
+        </button>,
+      );
+    }
+    if (canAskWhy && (!why || why.status === 'failed')) {
+      under.unshift(
+        <button key="why" type="button" className="sf-link" title={copy.WHY_PRICE} onClick={askWhy}>
+          {copy.WHY}
         </button>,
       );
     }
@@ -724,6 +755,18 @@ export default function StudyRun(props: StudyRunProps) {
           <NumberKeyLine answers={item.answers} tolerance={item.tolerance} unit={item.unit} />
         ) : null}
         {pending ? <Explanation text={item.explanation} /> : null}
+        {pending && canAskWhy && why ? (
+          why.status === 'ready' ? (
+            <div className="kq-explain" data-ai="">
+              <p className="kq-explain-h">{copy.WHY_TITLE}</p>
+              <p className="kq-explain-t">{why.text}</p>
+            </div>
+          ) : (
+            <p className="ct-why-line" role={why.status === 'failed' ? 'alert' : 'status'}>
+              {why.status === 'wait' ? copy.WHY_WAIT : why.status === 'unsure' ? copy.WHY_UNSURE : why.text}
+            </p>
+          )
+        ) : null}
         {under.length > 0 ? (
           <div ref={underRef} className="ct-under">
             {under}

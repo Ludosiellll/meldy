@@ -290,6 +290,12 @@ export const IMPORT = {
   oralOffer: 'Или устный экзамен, который уже есть',
   oralOfferMeta: (day: string, n: number) => `устный · ${day || 'дата не указана'} · ${questions(n)}`,
   namePlaceholder: 'Например, Зимняя сессия',
+  // a name by the questions, for a file whose own name is not one (owner 19.11: «01 Таблица, ответ жирным — 12
+  // вопросов» became the subject's name); the model's, on a press, said with its price
+  nameSuggest: 'Назвать по вопросам',
+  nameSuggestPrice: '1 единица ИИ',
+  nameSuggestWait: 'Читаем вопросы…',
+  nameSuggestNone: 'Не получилось. Введите название сами.',
   nameTwo: (a: string, b: string) => `${a} и ${b}`,
   nameMissing: 'Назовите экзамен.',
   date: 'Дата экзамена',
@@ -308,7 +314,7 @@ export const IMPORT = {
   saveAdd: (n: number) => `Добавить ${subjects(n)}`,
   saving: 'Сохраняем…',
   // 19.11: an exam without lectures is not a dead end — the ticket has «Составить пункты с ИИ»
-  nextLectures: 'Дальше добавьте лекции: по ним Meldy проверит устные ответы. Лекций нет — пункты ответа составит ИИ.',
+  nextLectures: 'Дальше добавьте лекции: по ним Meldy проверит устные ответы.',
   savingItems: (done: number, total: number) => `Сохраняем вопросы: ${done} из ${total}`,
   saveRetry: 'Не всё сохранилось. Нажмите ещё раз: сохранённое не повторится.',
   saveFailed: 'Не сохранилось. Проверьте связь и нажмите ещё раз.',

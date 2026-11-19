@@ -4,6 +4,34 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.11: «Почему так?» after a mistake; «Назвать по вопросам» on a new file (from the commit of this entry)
+
+- **Why**: the owner, 19.11, on the list of where else the model could help: «первое и второе точно нужно» — an
+  explanation of a mistake in a session, and a human name for a subject in place of its file's name.
+- **«Почему так?»** (`backend/explain_api.py` `POST /api/study/explain`, `components/containers/StudyRun.tsx`): after a
+  wrong answer (or «Не знаю») to a question with options that has no explanation of its author's, a link under the
+  options with its price, 1 unit. The model gets the question, the options, the key and what was chosen, and writes
+  two or three sentences: why the key's answer is right and what is wrong with the chosen one. The key is the file's
+  or the author's and is not argued with; a model that cannot explain it with confidence says so («Объяснить не
+  получилось. Возможно, в ключе ошибка.») and nothing is spent. The block is
+  headed «Объяснение ИИ»: that heading is its one mark. Asked once per question in a session; not offered offline.
+- **«Назвать по вопросам»** (`POST /api/exams/suggest-title`, the import form's name field): the model reads up to
+  twenty questions and names the subject as a timetable would; the name goes into the field, where it can be changed.
+  When it cannot tell, the field stays and a line says so; nothing is spent then. 1 unit.
+- **Fewer words on these screens** (the owner, the same day: «чтобы не было перегружено и… пометок иишных ненужных и
+  сложных формулировок от самого приложения»): no price beside the two new links (it is the link's title; the top
+  bar's limit shows the unit spent), no «ИИ может ошибаться…» line under an explanation, «Объяснить не получилось.
+  Возможно, в ключе ошибка.» and «Не получилось. Введите название сами.» for the two refusals; on a ticket without
+  lectures the button's note is «Если лекций нет.» and the mark over the model's points «Пункты составил ИИ, без
+  лекций. Сверьте с конспектом.»
+- **Not in this release**: sorting a file's questions into topics by the model (the second half of that idea), and
+  the check of a bank before a game (the third idea).
+- **Checked**: both endpoints with a fake model (the key reaches the model as the truth, `unsure`, an unusable answer,
+  a failure — the unit comes back in each; malformed requests ask no model); the session (the link's place and price,
+  the explanation with its label, the model that will not explain, a failure keeps the link); the import form; vitest
+  and the backend's tests (the full runs), `tsc -b`. Not checked: the prompts against a live model — what the model
+  writes was not read by a person here.
+
 ## 2026-11-19 — Release 59.10: the first screen's phone tile, «Ответ вслух, как на экзамене» (from the commit of this entry)
 
 - **Why**: the owner, 19.11, with a screenshot of the landing's blue tile: «это я тоже думаю стоит переделать, мне нравится

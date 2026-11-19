@@ -880,6 +880,62 @@ export interface KeysAiResponse {
 }
 
 /**
+ * «Почему так?» after a wrong answer in a session (owner 19.11; POST /api/study/explain, 1 unit). The key is the
+ * file's or the author's and is not argued with: the model explains it, or says it cannot (`unsure` — nothing is
+ * spent then). Options and indices are the FILE's. Errors: ContainerApiError with the server's words (ai_limit…).
+ */
+export async function explainAnswer(
+  input: { question: string; options: string[]; correct: number[]; chosen: number[] },
+  signal?: AbortSignal,
+): Promise<{ explanation: string; unsure: boolean }> {
+  let raw: unknown;
+  try {
+    raw = await backend('/api/study/explain', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        question: input.question.slice(0, 2000),
+        options: input.options.map((option) => option.slice(0, 500)),
+        correct: input.correct,
+        chosen: input.chosen,
+      }),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof ContainerApiError && (error.status ?? 0) > 0) notifyAIUsageChanged();
+    throw error;
+  }
+  notifyAIUsageChanged();
+  if (!isRecord(raw)) throw badShape('study/explain');
+  const explanation = typeof raw.explanation === 'string' ? raw.explanation.trim() : '';
+  const unsure = raw.unsure === true;
+  if (!explanation && !unsure) throw badShape('study/explain');
+  return { explanation, unsure };
+}
+
+/**
+ * A subject's name by its questions, for a file whose own name is not one (owner 19.11; POST
+ * /api/exams/suggest-title, 1 unit, nothing when the model cannot tell). '' — no name.
+ */
+export async function suggestTitle(input: { fileName: string; questions: string[] }, signal?: AbortSignal): Promise<string> {
+  let raw: unknown;
+  try {
+    raw = await backend('/api/exams/suggest-title', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ file_name: input.fileName.slice(0, 200), questions: input.questions.slice(0, 20).map((text) => text.slice(0, 200)) }),
+      signal,
+    });
+  } catch (error) {
+    if (error instanceof ContainerApiError && (error.status ?? 0) > 0) notifyAIUsageChanged();
+    throw error;
+  }
+  notifyAIUsageChanged();
+  if (!isRecord(raw)) throw badShape('exams/suggest-title');
+  return typeof raw.title === 'string' ? raw.title.trim().slice(0, 200) : '';
+}
+
+/**
  * POST /api/exams/keys/ai (backend/bank_keys_ai.py): keys for questions the file gave none, only on the student's press.
  * At most 300 questions a request, without pictures; charged before the model (keysAI, 5 units per started 100). The
  * top bar's AI limit is read again after the answer, as after every AI action (a request that never reached the server

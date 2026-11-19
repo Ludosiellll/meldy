@@ -4,7 +4,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { deferGuideOnce } from '../../components/guide/guideLater';
 import { useContainerData, useContainersOverview } from '../../lib/containers/hooks';
 import { loadOralPlanItems } from '../../lib/containers/oralPlan';
-import { addSubject } from '../../api/containers';
+import { addSubject, suggestTitle } from '../../api/containers';
 import { track } from '../../lib/telemetry';
 import { useDocumentTitle } from '../../lib/useDocumentTitle';
 import { clearDraftValue, readDraftValue, writeDraftValue } from '../../lib/urlState';
@@ -668,6 +668,27 @@ export default function ImportPage() {
           ? IMPORT.nameTwo(active[0].title, active[1].title)
           : '';
   const title = form.titleTouched ? form.title : suggestion;
+  // «Назвать по вопросам»: the model reads the first questions and names the subject; the name goes into the field,
+  // where it can be changed (the file's name is often not a name: «01 Таблица, ответ жирным — 12 вопросов»)
+  const nameQuestions = useMemo(
+    () => active.flatMap((subject) => [...subject.test.map((item) => item.text), ...subject.oral.map((item) => item.text)]).filter((text) => text.trim().length >= 3).slice(0, 20),
+    [active],
+  );
+  const [nameAi, setNameAi] = useState<{ status: 'idle' | 'wait' | 'none' } | { status: 'failed'; text: string }>({ status: 'idle' });
+  const suggestName = () => {
+    setNameAi({ status: 'wait' });
+    suggestTitle({ fileName: active[0]?.fileName ?? '', questions: nameQuestions }).then(
+      (name) => {
+        if (!name) {
+          setNameAi({ status: 'none' });
+          return;
+        }
+        setForm((current) => ({ ...current, title: name, titleTouched: true }));
+        setNameAi({ status: 'idle' });
+      },
+      (error: unknown) => setNameAi({ status: 'failed', text: errorText(error) }),
+    );
+  };
   const date = form.dateTouched ? form.date : targetKind === 'old' ? oldExam?.exam_date ?? '' : form.date;
   const perSubject = form.perSubject && active.length > 1 && targetKind !== 'container';
   const subjectDates = active.map((subject) => subject.date);
@@ -1532,6 +1553,21 @@ export default function ImportPage() {
         disabled={locked}
         onChange={(event) => setForm((current) => ({ ...current, title: event.target.value, titleTouched: true }))}
       />
+      {nameQuestions.length >= 2 && !locked ? (
+        <p className="im-hint im-name-ai" data-muted="" role={nameAi.status === 'failed' || nameAi.status === 'none' ? 'status' : undefined}>
+          {nameAi.status === 'wait' ? (
+            IMPORT.nameSuggestWait
+          ) : (
+            <>
+              <button type="button" className="sf-link" title={IMPORT.nameSuggestPrice} onClick={suggestName}>
+                {IMPORT.nameSuggest}
+              </button>
+              {nameAi.status === 'none' ? <span className="im-name-ai-note">{IMPORT.nameSuggestNone}</span> : null}
+              {nameAi.status === 'failed' ? <span className="im-name-ai-note">{nameAi.text}</span> : null}
+            </>
+          )}
+        </p>
+      ) : null}
     </div>
   ) : null;
 
