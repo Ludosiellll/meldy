@@ -157,14 +157,19 @@ describe('the reveal', () => {
 describe('the wait and the final', () => {
   it('a seat away between questions: the minute it has', async () => {
     const st = base();
-    st.duel = { ...st.duel, stage: 'wait', wait_until: iso(45_000) };
+    // The server's «now» and the end of the wait from one instant: stamped apart (base() first, the wait after), a
+    // pause between the two on a busy machine gave «0:46» (release 59.15's first build). The page counts from the
+    // server's clock, so a slow mount can only take seconds off.
+    const at = Date.now();
+    st.now = new Date(at).toISOString();
+    st.duel = { ...st.duel, stage: 'wait', wait_until: new Date(at + 45_000).toISOString() };
     st.question = { ...st.question!, closed_at: iso(-20_000), reveal_until: iso(-13_000) };
     st.other!.present = false;
     st.result = { qi: 0, key: 1, me: null, other: null };
     const { view, ctl } = await mount(st);
     const wait = view.container.querySelector('.du-wait')!;
     expect(plain(wait.textContent)).toContain(DU.wait.title);
-    expect(plain(wait.textContent)).toMatch(/Осталось 0:4[45]/);
+    expect(plain(wait.textContent)).toMatch(/Осталось 0:4[2-5]/);
     expect(plain(view.container.querySelector('.du-side[data-side="other"]')?.textContent)).toContain(DU.lobby.away);
     expect(plain(wait.textContent)).toContain(DU.wait.text);
     ctl.dispose();

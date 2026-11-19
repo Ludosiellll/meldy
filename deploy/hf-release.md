@@ -18,6 +18,10 @@ is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api
 - **Checked**: full frontend and backend suites, `tsc -b`; the save of the topics with their questions in the page's
   test; the line seen on a laptop and a phone width. Not checked: the model's topics on a real file (no key here) and
   a signed-in walk on the live site.
+- **The first build stopped** on a test of the duel that has nothing to do with this release («Осталось 0:46» where
+  0:44–0:45 was expected): its fixture stamped the server's «now» and the end of the wait at two moments, and a pause
+  between them on the build machine added a second. Both are now from one instant (DuelApp.test.tsx); the page's code
+  is as it was.
 
 ## 2026-11-19 — Release 59.14: an oral exam without lectures is offered where lectures are asked for (from the commit of this entry)
 
