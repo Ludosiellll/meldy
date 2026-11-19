@@ -4,6 +4,16 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.13: one plainer line on the import page (from the commit of this entry)
+
+- **Why**: the owner's screenshot of the import page, 19.11: «почему тут так странно написано снизу» — the bar's line
+  «Дальше добавьте лекции: по ним Meldy проверит устные ответы. Лекций нет — пункты ответа составит ИИ.» (longer since
+  59.8) broke with a dash at the start of its second line. 59.11 already cut it back to its first sentence; this
+  release rewrites the line beside it on the same screen.
+- **What**: «Ответы к 10 устным вопросам Meldy возьмёт из ваших лекций.» in place of «Пункты ответа к 10 устным
+  вопросам Meldy составит по вашим лекциям. По частям, сколько позволит дневной лимит ИИ.»
+- **Checked**: the import page's tests (190 passed).
+
 ## 2026-11-19 — Release 59.12: the example for the jury no longer falls to key words when Gemini is slow (from the commit of this entry)
 
 - **Why**: the owner, 19.11: «я надеюсь в /try для жюри тоже нет подписей сложных». Walked on the live site as a jury
