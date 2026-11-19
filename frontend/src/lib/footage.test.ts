@@ -243,3 +243,19 @@ describe('canPlayFootage', () => {
     expect(canPlayFootage(STAND_RUN)).toBe(true);
   });
 });
+
+describe('footageStep: the step of a clip that plays at a second', () => {
+  it('is the last step begun; before the first it is the first', async () => {
+    const { footageStep, LANDING_ORAL_STEPS, LANDING_ORAL } = await import('./footage');
+    expect(footageStep([0, 2, 6], -1)).toBe(0);
+    expect(footageStep([0, 2, 6], 0)).toBe(0);
+    expect(footageStep([0, 2, 6], 1.99)).toBe(0);
+    expect(footageStep([0, 2, 6], 2)).toBe(1);
+    expect(footageStep([0, 2, 6], 99)).toBe(2);
+    // the first screen's phone: four steps, in order, all inside the clip
+    expect(LANDING_ORAL_STEPS).toHaveLength(4);
+    expect([...LANDING_ORAL_STEPS]).toEqual([...LANDING_ORAL_STEPS].sort((a, b) => a - b));
+    expect(LANDING_ORAL_STEPS[0]).toBe(0);
+    expect(LANDING_ORAL_STEPS[3]).toBeLessThan(LANDING_ORAL.duration);
+  });
+});

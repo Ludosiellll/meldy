@@ -18,8 +18,12 @@ export function ArrowIcon() {
  * the two), so it is links, text and the phone's poster only: the poster is an <img> with its size, and the page lays
  * the video over it (`oral`, after the window's load event) once it has taken the static screen's place. The page
  * turns the links into the app's navigation by one click handler on its root.
+ *
+ * The blue tile (owner 19.11): its heading, a whole phone, and under it the step the phone plays now — its number and
+ * its name, with the four steps as dots, as the tiles' clips name theirs. All four names are in the page (a list); the
+ * one that plays is shown (`step`; the static screen shows the first).
  */
-export default function HeroTop({ oral, children }: { oral?: ReactNode; children?: ReactNode }) {
+export default function HeroTop({ oral, step = 0, children }: { oral?: ReactNode; step?: number; children?: ReactNode }) {
   return (
     <>
       <header className="h3-nav">
@@ -64,7 +68,21 @@ export default function HeroTop({ oral, children }: { oral?: ReactNode; children
             </div>
           </div>
           <div className="h3-oral">
-            <h2 className="h3-oral-h">{bind(TILES.oral)}</h2>
+            <div className="h3-oral-text">
+              <h2 className="h3-oral-h">{bind(TILES.oral)}</h2>
+              <ol className="h3-oral-steps">
+                {TILES.oralSteps.map((text, n) => (
+                  <li key={text} data-on={n === step ? '' : undefined}>
+                    {bind(text)}
+                  </li>
+                ))}
+              </ol>
+              <p className="h3-oral-dots" aria-hidden="true">
+                {TILES.oralSteps.map((text, n) => (
+                  <i key={text} data-on={n === step ? '' : undefined} />
+                ))}
+              </p>
+            </div>
             {/* On a phone the screen keeps the recording's proportions (hero3.css): nothing of its sides is cut. */}
             <div className="h3-oral-phone" aria-hidden="true" style={{ '--oral-ar': `${LANDING_ORAL.width} / ${LANDING_ORAL.height}` } as CSSProperties}>
               <img className="h3-oral-poster" src={LANDING_ORAL.poster} alt="" width={LANDING_ORAL.width} height={LANDING_ORAL.height} decoding="async" />

@@ -8,7 +8,7 @@
 import { startTransition, useEffect, useLayoutEffect, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { LANDING_ORAL } from '../../lib/footage';
+import { LANDING_ORAL, LANDING_ORAL_STEPS, footageStep } from '../../lib/footage';
 import { prefetchLink } from '../../lib/prefetch';
 import Footage from '../film/Footage';
 import Builder from './Builder';
@@ -106,11 +106,21 @@ export default function Landing3() {
 
   // The phone's video goes over the static poster after the window's load event (its own poster is the same file,
   // already there, and the video fades in over it once it plays).
-  const oral = loaded ? <Footage footage={LANDING_ORAL} fit="cover" background="transparent" /> : null;
+  // The blue tile's steps follow the phone: the one whose part of the video plays is lit (LANDING_ORAL_STEPS).
+  const [oralVideo, setOralVideo] = useState<HTMLVideoElement | null>(null);
+  const [oralStep, setOralStep] = useState(0);
+  useEffect(() => {
+    if (!oralVideo) return undefined;
+    const tick = () => setOralStep(footageStep(LANDING_ORAL_STEPS, oralVideo.currentTime));
+    oralVideo.addEventListener('timeupdate', tick);
+    tick();
+    return () => oralVideo.removeEventListener('timeupdate', tick);
+  }, [oralVideo]);
+  const oral = loaded ? <Footage ref={setOralVideo} footage={LANDING_ORAL} fit="cover" background="transparent" /> : null;
 
   return (
     <div className="h3" onClick={follow} onPointerOver={intent} onTouchStart={intent} onFocus={intent}>
-      <HeroTop oral={oral}>
+      <HeroTop oral={oral} step={oralStep}>
         {rest ? (
           <>
             <Tiles phone={phone} still={!loaded} />

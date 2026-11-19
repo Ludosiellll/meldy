@@ -4,6 +4,26 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.10: the first screen's phone tile, «Ответ вслух, как на экзамене» (from the commit of this entry)
+
+- **Why**: the owner, 19.11, with a screenshot of the landing's blue tile: «это я тоже думаю стоит переделать, мне нравится
+  концепция экрана телефона, но что-то тут не так».
+- **What was off**: the heading stood small (15 px) in an empty band; the phone was a slab cut by the tile's foot; its
+  clip showed one moment of an answer with the lower third of the screen empty; nothing said what happens on it.
+- **Now**: the heading in 22 px, a whole phone (all four corners) and under it the step the phone plays — its number,
+  its name, the four steps as dots: «Отвечаете вслух», «Meldy слышит главное», «Экзаменатор задаёт вопрос», «Видно,
+  что названо, а что нет». The step follows the video (`lib/footage.ts` `LANDING_ORAL_STEPS`, `footageStep`; the
+  page listens to the video's time). On a phone the heading and the step stand beside the phone, as before.
+- **The clip** (600 × 1298, 16.2 s, 384 KB): the whole phone screen of the take the deck's slide 10 is cut from, in
+  those four steps — the answer aloud begins; the key words are heard, 1 of 4 then 2 of 4; the examiner asks about the
+  point named in part; the result and one point with the student's words beside the lecture's
+  (`deck/cf11/motion/landing-oral.html`).
+- **The first screen fits a laptop as before**: at 1532 × 734 the tile is 625 px tall and ends at the screen's foot.
+  `index.html` carries the same markup and styles for the static first screen.
+- **Checked**: the tile looked at in a browser — dark and light at 1532 × 734, at 1100, and on phones of 390 and
+  340 px, with the video playing and the step changing; its tests (the static screen equals the component, the steps,
+  the sync), the clips' file tests, vitest (the full run), `tsc -b`. Not checked: a real phone.
+
 ## 2026-11-19 — Release 59.9: the landing's clips of the lecture and the exam, re-cut (from the commit of this entry)
 
 - **Why**: the owner, 19.11, on the clips of the landing page that show what the app has: the one in a phone's shape

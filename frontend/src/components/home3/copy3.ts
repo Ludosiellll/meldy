@@ -105,6 +105,12 @@ export const EXAMPLE = {
 export const TILES = {
   /** The first screen's blue tile: a ticket answered aloud on a phone. */
   oral: 'Ответ вслух, как на экзамене',
+  /**
+   * What the phone shows, step by step (owner 19.11: «мне нравится концепция экрана телефона, но что-то тут не так» —
+   * the phone played with no word of what happens on it). The page lights the step that plays
+   * (lib/footage.ts LANDING_ORAL_STEPS).
+   */
+  oralSteps: ['Отвечаете вслух', 'Meldy слышит главное', 'Экзаменатор задаёт вопрос', 'Видно, что названо, а что нет'],
   lecture: {
     title: 'Лекция → конспект, карточки, самопроверка',
     text: 'У каждого раздела видно, откуда он взят в лекции.',

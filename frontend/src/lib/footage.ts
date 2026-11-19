@@ -81,15 +81,34 @@ export const STAND_RUN_PHONE: Footage = {
  * `node scripts/footage-parts.mjs <in.mp4> <poster> <name>`, which prints the definition pasted here.
  */
 
-/** «Ответ вслух, как на экзамене»: a ticket answered aloud on the phone page. 600 × 1298, 13.53 s, 432 KB in 5 parts. */
+/**
+ * «Ответ вслух, как на экзамене»: the phone of the landing's first screen. 600 × 1298, 16.16 s, 383 KB in 5 parts.
+ * Re-cut 19.11 (the owner: «мне нравится концепция экрана телефона, но что-то тут не так» — the cut that stood here
+ * showed one moment of an answer, the lower third of its screen empty): the whole phone screen of the take the deck's
+ * slide 10 is cut from, in four steps (deck/cf11/motion/landing-oral.html).
+ */
 export const LANDING_ORAL: Footage = {
-  ...files('landing-oral', 'a385050f33', 5),
+  ...files('landing-oral', '83701ed45b', 5),
   width: 600,
   height: 1298,
-  duration: 13.53,
+  duration: 16.16,
   type: 'video/mp4; codecs="avc1.640029"',
-  backdrop: '#f1f2ed',
+  backdrop: '#f2f3ee',
 };
+
+/**
+ * The second at which each step of LANDING_ORAL begins (the answer aloud; the key points heard; the examiner's
+ * question; the result): the first screen lights the step that plays (home3/HeroTop, copy3 TILES.oralSteps). Printed
+ * by the film's page as window.__film.steps.
+ */
+export const LANDING_ORAL_STEPS: readonly number[] = [0, 2.27, 6.37, 9.63];
+
+/** The step that plays at second `t`: the last one begun (0 before the first). */
+export function footageStep(starts: readonly number[], t: number): number {
+  let step = 0;
+  for (let n = 0; n < starts.length; n += 1) if (t >= starts[n]) step = n;
+  return step;
+}
 
 /**
  * «Лекция → конспект, карточки, самопроверка» on a computer. 1280 × 800, 19.88 s, 804 KB in 9 parts.
