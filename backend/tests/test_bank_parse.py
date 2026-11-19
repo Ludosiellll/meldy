@@ -1073,10 +1073,13 @@ def test_a_header_line_ending_with_a_colon_over_a_long_numbered_list_is_not_a_qu
     assert result["stats"]["kinds"] == {"open": 12}
 
 
-def test_format_open_turns_gift_options_into_question_text():
+def test_format_open_drops_the_options_of_a_real_test():
+    """A test read as oral questions (owner, 19.11: the ticket said «…Крещение Руси? 862 г. 988 г. 1054 г. 1147 г.»):
+    a question the file gave a key to is a real test question, and its options are no part of an oral question."""
     result = parse_bank_file((FIXTURES / "10_gift.txt").read_bytes(), "bank.txt", format_mode="open")
     assert result["stats"]["kinds"] == {"open": 10} and result["key_source"] == {}
-    assert result["items"][0]["text"].endswith("\n862 г.\n988 г.\n1054 г.\n1147 г.")
+    assert result["items"][0]["text"] == "В каком году произошло Крещение Руси?"
+    assert all("\n" not in item["text"] and not item["options"] for item in result["items"])
 
 
 def test_format_test_rejects_a_list_without_options():

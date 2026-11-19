@@ -21,9 +21,10 @@ export function aiPointsOn(examId: string): boolean {
   }
 }
 
-export function setAiPointsOn(examId: string): void {
+export function setAiPointsOn(examId: string, on = true): void {
   try {
-    localStorage.setItem(examKey(examId), '1');
+    if (on) localStorage.setItem(examKey(examId), '1');
+    else localStorage.removeItem(examKey(examId));
   } catch {
     /* the choice then lasts for this page only */
   }

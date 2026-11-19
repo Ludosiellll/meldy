@@ -29,6 +29,7 @@ import { FIT_TICK_HINT, fitQuestions, fitView, useLectureFit } from '../componen
 import PaperSelect from '../components/ui/PaperSelect';
 import PaperSuggestInput from '../components/ui/PaperSuggestInput';
 import { startMapping, useMapJob } from '../components/exams/mapJobs';
+import { aiPointsOn, setAiPointsOn } from '../lib/oral/aiPoints';
 import { countBucket, track } from '../lib/telemetry';
 import {
   EMPTY_PREVIEW,
@@ -95,6 +96,8 @@ const TICK_HINTS_PHONE = {
   'by-title': 'Отмечены лекции по названию экзамена.',
   'no-match': 'Отмечены все: по названию лекций нет.',
 } as const;
+/** The choice in «Лекции» for an exam that has none: the tickets' answer points are then written by the model. */
+export const NO_LECTURES_LABEL = 'Лекций нет, ответы составит ИИ';
 const TITLE_ID = 'exam-title';
 const DATE_ID = 'exam-date';
 /** The furthest exam date (exam_date_move and «Перенести экзамен» take up to two years ahead). */
@@ -194,6 +197,9 @@ export default function ExamEditor() {
   const [materials, setMaterials] = useState<PickerMaterial[]>([]);
   const [materialsState, setMaterialsState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  // «Лекций нет — пункты ответа составит ИИ»: kept for the exam on this device (lib/oral/aiPoints.ts), so its tickets
+  // ask the model for their points without another press.
+  const [noLectures, setNoLectures] = useState(false);
   const [selectionTouched, setSelectionTouched] = useState(false);
   const [imports, setImports] = useState<ImportStatus[]>([]);
 
@@ -228,6 +234,8 @@ export default function ExamEditor() {
         return;
       }
       setBundle(next);
+      // an exam saved without lectures whose points are the model's: the choice shows as it was made
+      setNoLectures(next.materialIds.length === 0 && aiPointsOn(next.exam.id));
       setTitle(next.exam.title);
       setKind(next.exam.kind);
       setExamDate(next.exam.exam_date ?? '');
@@ -422,6 +430,7 @@ export default function ExamEditor() {
     try {
       if (!editing) {
         const { examId } = await createExam(user.id, draft);
+        if (noLectures && usableSelected.length === 0) setAiPointsOn(examId);
         track('exam_created', { questions: countBucket(draft.questions.length), lectures: usableSelected.length > 0, source: sourceKind });
         if (usableSelected.length > 0) void startMapping({ examId, userId: user.id, verifyEnergy });
         navigate(`/exams/${examId}`);
@@ -432,6 +441,8 @@ export default function ExamEditor() {
       // failure repeats nothing. Lectures are compared with the ones the editor opened with: a save
       // that failed after attaching them leaves nothing to attach, and the mapping is still due.
       const result = await saveExamEdits({ exam: bundle.exam, draft, replaceSource });
+      // the choice as it stands now: taken off, it is taken off the tickets too
+      if (usableSelected.length === 0) setAiPointsOn(bundle.exam.id, noLectures);
       const opened = new Set(bundle.materialIds);
       const lecturesChanged = draft.materialIds.length !== opened.size || draft.materialIds.some((id) => !opened.has(id));
       if ((result.needsMapping.length > 0 || result.materialsChanged || lecturesChanged) && usableSelected.length > 0) {
@@ -893,6 +904,14 @@ export default function ExamEditor() {
             {/* Right after the title: the marks depend on these lectures, and the questions (else the title) tick them. */}
             <div className="nx-grp">
               <h2 className="nx-h">Лекции</h2>
+              {/* Without lectures the exam still works (owner 19.11: «и где тут ии сам составляет то?»): the answer
+                  points are then the model's, said so on every ticket. Offered while no lecture is chosen. */}
+              {usableSelected.length === 0 && materialsState !== 'loading' ? (
+                <label className="nx-nolec">
+                  <input type="checkbox" checked={noLectures} disabled={saving} onChange={(event) => setNoLectures(event.target.checked)} />
+                  <span>{NO_LECTURES_LABEL}</span>
+                </label>
+              ) : null}
               <MaterialPicker
                 materials={materials}
                 selected={selected}

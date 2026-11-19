@@ -2840,9 +2840,17 @@ def _mark_value(marked: int, letters: int) -> float:
 
 
 def _open_up(item: Item) -> None:
-    """format «open»: варианты (GIFT) и пары — строками текста вопроса; вопрос становится открытым."""
-    lines = [(f"{o.label}) " if o.label else "") + o.text for o in item.options]
+    """format «open»: вопрос становится открытым. Варианты вопроса, у которого файл уже дал ключ (GIFT, Moodle XML,
+    таблица с колонкой ответа), — это варианты настоящего теста: в текст они не идут, устный вопрос не должен их
+    показывать (владелец, 19.11: тест, прочитанный как устные вопросы, нёс «…Крещение Руси? 862 г. 988 г. 1054 г.
+    1147 г.»). Строки без ключа (список открытых вопросов, принятый за тест) и пары возвращаются в текст, как раньше."""
+    keyed = bool(item.options) and bool(item.correct)
+    lines = [] if keyed else [(f"{o.label}) " if o.label else "") + o.text for o in item.options]
     lines += [f"{a} — {b}" for a, b in item.pairs]
+    if keyed and not lines:
+        item.options, item.correct, item.weights, item.order = [], [], [], []
+        item.kind, item.evidence = "open", ""
+        return
     if lines:
         item.text = "\n".join([item.text, *lines]).strip()
         item.options, item.pairs, item.correct, item.weights, item.order = [], [], [], [], []

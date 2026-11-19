@@ -15,6 +15,8 @@ describe('aiPoints: the model’s points of an exam without lectures, kept on th
     setAiPointsOn(EXAM);
     expect(aiPointsOn(EXAM)).toBe(true);
     expect(aiPointsOn('e-2')).toBe(false);
+    setAiPointsOn(EXAM, false);
+    expect(aiPointsOn(EXAM)).toBe(false);
   });
 
   it('keeps only points the model wrote, by question, and reads them back whole', () => {

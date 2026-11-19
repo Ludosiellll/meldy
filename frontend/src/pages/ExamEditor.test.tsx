@@ -40,7 +40,7 @@ vi.mock('../components/exams/mapJobs', async (importOriginal) => {
   return { ...actual, startMapping: mocks.startMapping };
 });
 
-import ExamEditor from './ExamEditor';
+import ExamEditor, { NO_LECTURES_LABEL } from './ExamEditor';
 
 const PARSE: ParseResult = {
   method: 'regex',
@@ -259,6 +259,23 @@ describe('ExamEditor: a new exam', () => {
     await pasteAndParse();
     expect(screen.getByText('Пропустили 1 строку.')).toBeInTheDocument();
     expect(screen.queryByText(/Строка без номера пропущена/)).toBeNull();
+  });
+
+  it('«Лекций нет, ответы составит ИИ»: offered while no lecture is chosen; saved with the exam for its tickets (owner 19.11)', async () => {
+    window.localStorage.clear();
+    await pasteAndParse();
+    // lectures are ticked by the list: the choice is not offered beside them
+    expect(screen.queryByRole('checkbox', { name: NO_LECTURES_LABEL })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Снять все' }));
+    const choice = screen.getByRole('checkbox', { name: NO_LECTURES_LABEL });
+    expect(choice).not.toBeChecked();
+    fireEvent.click(choice);
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить список' }));
+    await waitFor(() => expect(mocks.createExam).toHaveBeenCalledTimes(1));
+    const [, draft] = mocks.createExam.mock.calls[0] as [string, ExamDraft];
+    expect(draft.materialIds).toEqual([]);
+    // the exam's tickets will ask the model for their points without another press (lib/oral/aiPoints.ts)
+    await waitFor(() => expect(window.localStorage.getItem('meldy:oral-ai:new-exam')).toBe('1'));
   });
 
   it('edits, deletes and saves: exam → questions without hashes → lectures, tickets by question keys, then mapping', async () => {
@@ -605,6 +622,19 @@ describe('ExamEditor: how the tickets are made, by default and by choice', () =>
 });
 
 describe('ExamEditor: editing a saved exam', () => {
+  it('an exam saved without lectures shows the choice as it was made; taken off, it is taken off the tickets too', async () => {
+    window.localStorage.clear();
+    window.localStorage.setItem('meldy:oral-ai:exam-1', '1');
+    mocks.loadExamBundle.mockResolvedValue({ ...savedBundle({ mapped_material_ids: [] }), materialIds: [], materials: [] });
+    renderEditor('/exams/exam-1/edit');
+    const choice = await screen.findByRole('checkbox', { name: NO_LECTURES_LABEL });
+    expect(choice).toBeChecked();
+    fireEvent.click(choice);
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить список' }));
+    await waitFor(() => expect(mocks.saveExamEdits).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(window.localStorage.getItem('meldy:oral-ai:exam-1')).toBeNull());
+  });
+
   it('sends a changed question by id (its coverage is reset on save) and maps again', async () => {
     mocks.loadExamBundle.mockResolvedValue(savedBundle());
     renderEditor('/exams/exam-1/edit');

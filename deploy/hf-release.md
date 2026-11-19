@@ -4,6 +4,21 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-19 — Release 59.14: an oral exam without lectures is offered where lectures are asked for (from the commit of this entry)
+
+- **Why**: the owner's screenshot of «Изменить экзамен», 19.11: «и где тут ии сам составляет то? почему ты не добавил
+  что говорил». The model's answer points for an exam without lectures (59.8) could only be asked for by a button on
+  the ticket's page; the editor's «Лекции» said «Лекции не выбраны» and nothing more. On the same screenshot the
+  questions carried their options in their text («…Крещение Руси? 862 г. 988 г. 1054 г. 1147 г.»): a test's file read
+  as oral questions.
+- **What**: at the head of «Лекции», while no lecture is chosen, a tick «Лекций нет, ответы составит ИИ». Saved with
+  the exam on this device (lib/oral/aiPoints.ts): its tickets then ask the model for their points without another
+  press; taken off and saved, it is taken off the tickets too. A question the file gave a key to no longer takes its
+  options into its text when the file is read as oral questions (backend/bank_parse.py `_open_up`); the lines of a
+  matching question and options without a key stay as before.
+- **Checked**: full frontend and backend suites, `tsc -b`; the block seen on a laptop and a phone width in both themes
+  (a local page with the real picker and styles). Not checked: a signed-in walk on the live site.
+
 ## 2026-11-19 — Release 59.13: one plainer line on the import page (from the commit of this entry)
 
 - **Why**: the owner's screenshot of the import page, 19.11: «почему тут так странно написано снизу» — the bar's line

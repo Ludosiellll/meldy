@@ -1698,6 +1698,9 @@
 .sf-page .nx-lbl { font-size: 15px; line-height: 22px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--sf-accent-fg); }
 .sf-page .nx-line { margin-top: 8px; font-size: 18px; line-height: 44px; overflow-wrap: anywhere; }
 .sf-page[data-frame='s'] .nx-line { font-size: 17px; }
+/* «Лекций нет — пункты ответа составит ИИ»: the choice at the head of «Лекции» while no lecture is chosen */
+.sf-page .nx-nolec { display: flex; align-items: center; gap: 12px; min-height: 44px; margin-top: 8px; font-size: 17px; line-height: 1.35; cursor: pointer; }
+.sf-page .nx-nolec input { flex: none; width: 22px; height: 22px; margin: 0; accent-color: var(--sf-accent); }
 .sf-page .nx-sel {
   position: relative;
   display: inline-flex;
