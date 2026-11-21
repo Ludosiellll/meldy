@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import Landing3, { PHONE_QUERY } from './Landing3';
 import { BUILD_URL } from './Builder';
-import { BUILDER_SECTION, CTA, FINAL, GAME_SECTION, HEADLINE, LEAD, NAV, SAMPLE_TEST_URL, TILES, bind } from './copy3';
+import { BUILDER_SECTION, CTA, DOORS, FINAL, GAME_SECTION, HEADLINE, NAV, SAMPLE_TEST_URL, TILES, bind } from './copy3';
 import { GAME_ALT, GAME_URL } from './Sections';
 import { LANDING_EXAM_PHONE, LANDING_EXAM_WIDE, LANDING_LECTURE_PHONE, LANDING_LECTURE_WIDE, LANDING_ORAL, STAND_RUN, STAND_RUN_PHONE } from '../../lib/footage';
 import { returnToFromSearch } from '../../lib/returnTo';
@@ -98,13 +98,28 @@ afterEach(() => {
 });
 
 describe('the landing «D — Плитки»', () => {
-  it('says the headline and the lead and offers the example and the public test first', () => {
+  it('opens on two doors, «Я учусь» and «Я преподаю»: what each comes to do, three things they get, one pill and one link (owner, 21.11)', () => {
     renderLanding();
     expect(screen.getByRole('heading', { level: 1, name: bind(HEADLINE) })).toBeInTheDocument();
-    expect(screen.getByText((_, element) => element?.tagName === 'P' && element.textContent === bind(LEAD))).toBeInTheDocument();
-    const hero = screen.getByRole('heading', { level: 1 }).closest('section')!;
-    expect(within(hero).getByRole('link', { name: CTA.example })).toHaveAttribute('href', '/try');
-    expect(within(hero).getByRole('link', { name: CTA.test })).toHaveAttribute('href', SAMPLE_TEST_URL);
+    const student = document.getElementById('door-student')!;
+    const teacher = document.getElementById('door-teacher')!;
+    expect(within(student).getByText(DOORS.student.who)).toBeInTheDocument();
+    expect(within(student).getByRole('heading', { level: 2, name: bind(DOORS.student.title) })).toBeInTheDocument();
+    expect(within(student).getAllByRole('listitem').slice(0, 3).map((item) => item.textContent)).toEqual(DOORS.student.points.map(bind));
+    expect(within(student).getByRole('link', { name: CTA.example })).toHaveAttribute('href', '/try');
+    // sign-up from a door remembers the door (Register ?role=): the account is not asked «Вы преподаёте?»
+    expect(within(student).getByRole('link', { name: DOORS.student.signUp })).toHaveAttribute('href', '/register?role=student');
+    expect(within(teacher).getByText(DOORS.teacher.who)).toBeInTheDocument();
+    expect(within(teacher).getByRole('heading', { level: 2, name: bind(DOORS.teacher.title) })).toBeInTheDocument();
+    expect(within(teacher).getAllByRole('listitem').map((item) => item.textContent)).toEqual(DOORS.teacher.points.map(bind));
+    expect(within(teacher).getByRole('link', { name: DOORS.teacher.test })).toHaveAttribute('href', SAMPLE_TEST_URL);
+    expect(within(teacher).getByRole('link', { name: DOORS.teacher.signUp })).toHaveAttribute('href', '/register?role=teacher');
+    // a phone's two short links above the doors lead to each
+    const jump = document.querySelector('.h3-jump')!;
+    expect([...jump.querySelectorAll('a')].map((link) => [link.textContent, link.getAttribute('href')])).toEqual([
+      [DOORS.student.who, '#door-student'],
+      [DOORS.teacher.who, '#door-teacher'],
+    ]);
   });
 
   it('takes the static first screen’s place and unhides the app', () => {
@@ -129,25 +144,43 @@ describe('the landing «D — Плитки»', () => {
     // the drawn arrows (glyphs.tsx) are pictures with a label, not text
     const plain = (text: string) => bind(text).replace(/ → /g, '  ');
     expect(names).toEqual(
-      [TILES.oral, TILES.lecture.title, TILES.exam.title, GAME_SECTION.title, TILES.link, TILES.telegram, BUILDER_SECTION.title, FINAL.title].map(plain),
+      [
+        DOORS.student.title,
+        DOORS.teacher.title,
+        NAV[0].label,
+        TILES.lecture.title,
+        TILES.exam.title,
+        NAV[1].label,
+        GAME_SECTION.title,
+        TILES.link,
+        TILES.telegram,
+        BUILDER_SECTION.title,
+        FINAL.title,
+      ].map(plain),
     );
+    // the phone's caption is one level under its door
+    expect(screen.getByRole('heading', { level: 3, name: bind(TILES.oral) })).toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 2, name: TILES.lecture.title })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     // the 48 s reel is no longer on the page
     expect(document.querySelector('.r3, .h3-reel-slot, .h3-reel-wait')).toBeNull();
   });
 
-  it('sends the top line’s links to their tiles: the lecture, the exam and the constructor', () => {
+  it('sends the top line’s links to the page’s two halves: a student’s tiles and a teacher’s', () => {
     renderLanding();
     const nav = screen.getByRole('navigation', { name: 'Главное меню' });
-    const expected = { lecture: TILES.lecture.title, exam: TILES.exam.title, builder: BUILDER_SECTION.title };
+    expect(NAV.map((item) => item.label)).toEqual(['Студентам', 'Преподавателям']);
     for (const item of NAV) {
       const link = within(nav).getByRole('link', { name: item.label });
       expect(link).toHaveAttribute('href', `#${item.id}`);
       const target = document.getElementById(item.id)!;
       expect(target, item.id).not.toBeNull();
-      expect(within(target).getAllByRole('heading', { level: 2 })[0]).toHaveAccessibleName(bind(expected[item.id]));
+      expect(target.tagName).toBe('H2');
+      expect(target).toHaveTextContent(item.label);
     }
+    // a student's half holds the lecture and the exam; a teacher's — the game and, after it, the constructor
+    const order = [...document.querySelectorAll('#student, #lecture, #exam, #teacher, #game, #builder')].map((node) => node.id);
+    expect(order).toEqual(['student', 'lecture', 'exam', 'teacher', 'game', 'builder']);
   });
 
   it('shows a recorded screen in the lecture’s and the exam’s tiles, as decoration the tile’s words explain', () => {

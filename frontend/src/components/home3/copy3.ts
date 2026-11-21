@@ -31,11 +31,39 @@ export const CTA = {
   game: 'Провести игру',
 } as const;
 
+/**
+ * The top line: the page's two halves (advice at the final of 20.11; owner, 21.11: «разделение на преподов и
+ * студентов»). Each link lands on its group of tiles; the same two words head the groups.
+ */
 export const NAV = [
-  { id: 'lecture', label: 'Лекции' },
-  { id: 'exam', label: 'Экзамены' },
-  { id: 'builder', label: 'Конструктор тестов' },
+  { id: 'student', label: 'Студентам' },
+  { id: 'teacher', label: 'Преподавателям' },
 ] as const;
+
+/**
+ * The first screen's two doors (owner, 21.11: «делай как лучше всего» of the three sketches; the one with two equal
+ * doors). Who it is for, what they come to do, three things they get, one thing to press. A teacher reads their door
+ * once and knows it is theirs; sign-up from a door remembers the choice (Register ?role=), so the app opens on the
+ * right first screen and never asks.
+ */
+export const DOORS = {
+  student: {
+    who: 'Я учусь',
+    title: 'Подготовиться к экзамену',
+    points: ['План по дням из вопросов к экзамену', 'Ответ вслух и вопросы экзаменатора', 'Конспект и карточки из лекции'],
+    signUp: 'Создать аккаунт',
+    signUpUrl: '/register?role=student',
+  },
+  teacher: {
+    who: 'Я преподаю',
+    title: 'Провести пару и контрольную',
+    points: ['Контрольная по ссылке, ученикам аккаунт не нужен', 'Игра по вашим вопросам на проекторе', 'Видно, как группа готовится к экзамену'],
+    /** The sample test: what a student sees when the teacher sends a link. */
+    test: 'Пройти тест как ученик',
+    signUp: 'Создать аккаунт преподавателя',
+    signUpUrl: '/register?role=teacher',
+  },
+} as const;
 
 /** The reel's chapters, in its order (the bar under the reel and the transcript). */
 export const CHAPTER_LABELS = {

@@ -13,6 +13,7 @@ import { afterSignIn, cameFromTry, emailRedirectTo, oauthRedirectTo, returnToFro
 import { detectInAppBrowser } from '../lib/inAppBrowser';
 import { useDocumentTitle } from '../lib/useDocumentTitle';
 import InAppNote from '../components/InAppNote';
+import { parseRole, rememberRoleIntent } from '../lib/role';
 
 /** The sign-up's own words: the heading and the button say the same (decision 5 of 2026-10-08: «Создать аккаунт»). */
 export const SIGN_UP_TITLE = 'Создать аккаунт';
@@ -22,6 +23,8 @@ export const REPEAT_EMPTY = 'Повторите пароль';
 export const TYPO_NOTE = 'Возможно, опечатка в адресе.';
 /** Under the heading: what the account keeps. */
 export const SIGN_UP_LEDE = 'Сохраните экзамены и продолжайте подготовку с\u00a0любого устройства.';
+/** The same line for a visitor who came through the landing's «Я преподаю» (?role=teacher). */
+export const SIGN_UP_LEDE_TEACHER = 'После входа откроется страница преподавателя: контрольные, игры на\u00a0паре и\u00a0экзамены для\u00a0группы.';
 /** The panel above the reel: the way from the department's file to the plan of each day (the reel's story). */
 export const SIGN_UP_PANEL_TITLE = 'План на\u00a0каждый день из\u00a0файла с\u00a0вопросами';
 /**
@@ -68,6 +71,9 @@ export default function Register() {
   // The page the visitor signs up for (?next=, a safe path of this site only), else «Сегодня» (lib/returnTo). The
   // confirmation letter carries it in its address: the letter is often opened in another browser.
   const returnTo = returnToFromSearch(location.search);
+  // The landing's door the visitor came through (?role=teacher | student): the account opens on that role's first
+  // screen and is never asked (lib/role.ts). In the account for a sign-up by e-mail, on this device for Google's.
+  const roleIntent = parseRole(new URLSearchParams(location.search).get('role'));
   const fromTry = cameFromTry(location.state);
   const browser = useMemo(() => detectInAppBrowser(typeof navigator === 'undefined' ? '' : navigator.userAgent), []);
 
@@ -114,7 +120,7 @@ export default function Register() {
       email: email.trim(),
       password,
       options: {
-        data: { full_name: name.trim() },
+        data: { full_name: name.trim(), ...(roleIntent ? { role_intent: roleIntent } : {}) },
         emailRedirectTo: emailRedirectTo(window.location.origin, returnTo),
       },
     });
@@ -158,6 +164,7 @@ export default function Register() {
   };
 
   const handleGoogleLogin = async () => {
+    if (roleIntent) rememberRoleIntent(roleIntent);
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -195,7 +202,7 @@ export default function Register() {
         <section className="au-card au-rise" aria-labelledby="register-title">
           <div className="au-in">
             <h1 id="register-title" className="au-h1">{SIGN_UP_TITLE}</h1>
-            <p className="au-lede">{SIGN_UP_LEDE}</p>
+            <p className="au-lede">{roleIntent === 'teacher' ? SIGN_UP_LEDE_TEACHER : SIGN_UP_LEDE}</p>
             <p className="au-free">{freePlanLine()}</p>
 
             {browser.app && !success && (

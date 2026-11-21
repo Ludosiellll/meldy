@@ -5,7 +5,9 @@ import { TILES } from './copy3';
 
 /** The step shown in the blue tile's markup: the list item and the dot that carry data-on. */
 function shown(markup: string): { step: number; dot: number; items: number } {
-  const items = [...markup.matchAll(/<li( data-on="")?>/g)].map((match) => Boolean(match[1]));
+  // the steps' own list: the doors have lists of their own (what each one gets)
+  const steps = markup.match(/<ol class="h3-oral-steps">([\s\S]*?)<\/ol>/)?.[1] ?? '';
+  const items = [...steps.matchAll(/<li( data-on="")?>/g)].map((match) => Boolean(match[1]));
   const dots = [...(markup.match(/<p class="h3-oral-dots" aria-hidden="true">([\s\S]*?)<\/p>/)?.[1] ?? '').matchAll(/<i( data-on="")?><\/i>/g)].map((match) => Boolean(match[1]));
   return { step: items.indexOf(true), dot: dots.indexOf(true), items: items.length };
 }

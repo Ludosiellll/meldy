@@ -428,7 +428,8 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       getProfile(userId).then((p) => {
         if (!p) return;
         setProfile(p);
-        syncRole(userId, p.onboarding_status); // the account's role, for the home page and the menu (lib/role.ts)
+        // the account's role, for the home page and the menu; the landing's door it signed up from, if it has none yet
+        syncRole(userId, p.onboarding_status, user.user_metadata?.role_intent);
       });
     fetchProfile();
     window.addEventListener('profile_updated', fetchProfile);

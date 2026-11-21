@@ -8,7 +8,7 @@
 import { startTransition, useEffect, useLayoutEffect, useState, type MouseEvent, type SyntheticEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { LANDING_ORAL, LANDING_ORAL_STEPS, footageStep } from '../../lib/footage';
+import { LANDING_ORAL, LANDING_ORAL_STEPS, STAND_RUN, footageStep } from '../../lib/footage';
 import { prefetchLink } from '../../lib/prefetch';
 import Footage from '../film/Footage';
 import Builder from './Builder';
@@ -117,10 +117,12 @@ export default function Landing3() {
     return () => oralVideo.removeEventListener('timeupdate', tick);
   }, [oralVideo]);
   const oral = loaded ? <Footage ref={setOralVideo} footage={LANDING_ORAL} fit="cover" background="transparent" /> : null;
+  // The teacher's door: the recorded game over its poster, the same way.
+  const game = loaded ? <Footage footage={STAND_RUN} fit="cover" /> : null;
 
   return (
     <div className="h3" onClick={follow} onPointerOver={intent} onTouchStart={intent} onFocus={intent}>
-      <HeroTop oral={oral} step={oralStep}>
+      <HeroTop oral={oral} game={game} step={oralStep}>
         {rest ? (
           <>
             <Tiles phone={phone} still={!loaded} />

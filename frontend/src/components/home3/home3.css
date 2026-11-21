@@ -40,6 +40,17 @@
   flex-wrap: wrap;
   gap: 24px;
 }
+/* «Студентам», «Преподавателям»: the page's two halves, the words of the top line and of the first screen's doors */
+.p3-group {
+  margin: 32px 0 -4px;
+  padding: 0 4px;
+  font-size: 30px;
+  font-weight: 500;
+  letter-spacing: -.035em;
+  line-height: 1.1;
+  scroll-margin-top: 100px;
+}
+.p3-group:first-child { margin-top: 20px; }
 .p3-tile {
   display: flex;
   flex-direction: column;

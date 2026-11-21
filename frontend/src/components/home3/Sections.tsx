@@ -20,7 +20,7 @@ import {
   STAND_RUN_PHONE,
   type Footage as FootageDef,
 } from '../../lib/footage';
-import { CTA, GAME_SECTION, TILES, bind } from './copy3';
+import { CTA, GAME_SECTION, NAV, TILES, bind } from './copy3';
 import { withGlyphs } from './glyphs';
 
 /** A section's heading and its line (the constructor's). */
@@ -134,6 +134,10 @@ function SendIcon() {
 export function Tiles({ phone, still }: TileProps) {
   return (
     <div className="h3-wrap p3-tiles">
+      {/* The page's two halves, as the first screen's doors: a student's tiles, then a teacher's (the constructor too). */}
+      <h2 id={NAV[0].id} className="p3-group">
+        {NAV[0].label}
+      </h2>
       <div className="p3-row">
         <ClipTile
           id="lecture"
@@ -154,6 +158,9 @@ export function Tiles({ phone, still }: TileProps) {
           still={still}
         />
       </div>
+      <h2 id={NAV[1].id} className="p3-group">
+        {NAV[1].label}
+      </h2>
       <div className="p3-row">
         <GameTile still={still} />
         <div className="p3-facts">

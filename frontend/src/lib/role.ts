@@ -56,10 +56,57 @@ export function roleOfFlags(flags: Record<string, boolean> | null | undefined): 
   return flags[ROLE_TEACHER_FLAG] ? 'teacher' : 'student';
 }
 
-/** The profile has been read: its answer wins over this device's memory; no answer there leaves the memory as it is. */
-export function syncRole(userId: string, flags: Record<string, boolean> | null | undefined): void {
+const INTENT_KEY = 'meldy:role-intent';
+/** How long a door's choice waits for its sign-up on this device. */
+const INTENT_MS = 60 * 60 * 1000;
+
+/** 'teacher' or 'student', else null. */
+export function parseRole(value: unknown): Role | null {
+  return value === 'teacher' || value === 'student' ? value : null;
+}
+
+/**
+ * The door a visitor signed up from (the landing's «Я учусь» / «Я преподаю», Register ?role=): kept on this device for
+ * an hour, for a sign-up that comes back to the same browser (Google); a sign-up by e-mail carries it in the account
+ * itself (user_metadata.role_intent), since the letter is often opened elsewhere.
+ */
+export function rememberRoleIntent(role: Role | null, now: number = Date.now()): void {
+  try {
+    if (role) localStorage.setItem(INTENT_KEY, `${role}:${now}`);
+    else localStorage.removeItem(INTENT_KEY);
+  } catch {
+    /* storage shut: the account is asked «Вы преподаёте?» instead */
+  }
+}
+
+function takeRoleIntent(meta: unknown, now: number = Date.now()): Role | null {
+  const fromAccount = parseRole(meta);
+  let fromDevice: Role | null = null;
+  try {
+    const [role, at] = (localStorage.getItem(INTENT_KEY) ?? '').split(':');
+    if (now - Number(at) < INTENT_MS) fromDevice = parseRole(role);
+    localStorage.removeItem(INTENT_KEY);
+  } catch {
+    /* none */
+  }
+  return fromAccount ?? fromDevice;
+}
+
+/**
+ * The profile has been read: its answer wins over this device's memory. With no answer there, the door the account
+ * signed up from (`intent`: user_metadata.role_intent) is its answer, saved now; with neither, the device's memory
+ * stays as it is and «Сегодня» may ask.
+ */
+export function syncRole(userId: string, flags: Record<string, boolean> | null | undefined, intent?: unknown): void {
   const role = roleOfFlags(flags);
   if (role) remember(userId, role);
+  else if (storedRole(userId) === null) {
+    const chosen = takeRoleIntent(intent);
+    if (chosen) {
+      void saveRole(userId, chosen);
+      return;
+    }
+  }
   known.add(userId);
   notify();
 }

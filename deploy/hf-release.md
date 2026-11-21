@@ -4,6 +4,24 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-21 — Release 59.18: the landing opens on two doors, «Я учусь» and «Я преподаю» (from the commit of this entry)
+
+- **Why**: the owner, 21.11, after the teacher's first screen (59.17): «надо значит еще и главную страницу наверное
+  поменять, типа… разделение на преподов и студентов»; of three sketches (two doors, a switch, one line for teachers):
+  «делай как лучше всего». The headline spoke to both at once («Готовьтесь к экзамену и собирайте свои тесты»), and
+  neither a student nor a teacher saw their own page in it.
+- **What**: the first screen is two doors of one size. «Я учусь»: «Подготовиться к экзамену», three things a student
+  gets, the phone answering a ticket aloud with the step it plays, «Попробовать на примере» and «Создать аккаунт».
+  «Я преподаю»: «Провести пару и контрольную», three things a teacher gets, the recorded game on the projector,
+  «Пройти тест как ученик» and «Создать аккаунт преподавателя». On a phone two short links above the doors lead to
+  each. The top line is «Студентам · Преподавателям»; the tiles below stand under the same two words (the lecture and
+  the exam; the game, the test by a link and the constructor). Sign-up from a door carries the door (Register
+  ?role=): in the account for a sign-up by e-mail (user_metadata.role_intent), on the device for an hour for Google's;
+  the account then opens on its role's first screen and is not asked «Вы преподаёте?». index.html's static first
+  screen and its inline styles are the new ones. The page's title, description and share picture are as they were.
+- **Checked**: full frontend suite, `tsc -b`; the page run locally at 1532×734, 1024×768 and 390×760, both themes. Not
+  checked: a real phone, and a sign-up through each door on the live site (it needs a new mailbox).
+
 ## 2026-11-21 — Release 59.17: a teacher's own first screen and menu (from the commit of this entry)
 
 - **Why**: advice at the final of 20.11 (second place), the owner, 21.11: «разделить преподавателей и учеников… функции

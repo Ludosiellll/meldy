@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import indexHtml from '../../../index.html?raw';
 import themeInit from '../../../public/theme-init.js?raw';
 import HeroTop from './HeroTop';
-import { LANDING_ORAL } from '../../lib/footage';
+import { LANDING_ORAL, STAND_RUN } from '../../lib/footage';
 import { TILES, bind } from './copy3';
 
 interface NodeFs {
@@ -47,7 +47,7 @@ describe('the static first screen (index.html #static-hero)', () => {
 
   it('shows the blue tile’s phone as its poster, an <img> of the video’s own size: no video, nothing moves when it comes', () => {
     const html = staticHero();
-    expect(html).toContain(`<h2 class="h3-oral-h">${bind(TILES.oral)}</h2>`);
+    expect(html).toContain(`<h3 class="h3-oral-h">${bind(TILES.oral)}</h3>`);
     const img = html.match(/<img class="h3-oral-poster"[^>]*>/)?.[0] ?? '';
     expect(img).toContain(`src="${LANDING_ORAL.poster}"`);
     expect(img).toContain(`width="${LANDING_ORAL.width}"`);
@@ -56,6 +56,12 @@ describe('the static first screen (index.html #static-hero)', () => {
     expect(img).not.toContain('loading="lazy"');
     // the phone is decoration (the tile's heading says what it shows), and the 48 s reel is no longer on the page
     expect(html).toContain(`<div class="h3-oral-phone" aria-hidden="true" style="--oral-ar:${LANDING_ORAL.width} / ${LANDING_ORAL.height}"><img`);
+    // the teacher's door: the game on the projector, a poster of the video's own size too
+    const proj = html.match(/<img class="h3-proj-poster"[^>]*>/)?.[0] ?? '';
+    expect(proj).toContain(`src="${STAND_RUN.poster}"`);
+    expect(proj).toContain(`width="${STAND_RUN.width}"`);
+    expect(proj).toContain(`height="${STAND_RUN.height}"`);
+    expect(proj).not.toContain('loading="lazy"');
     expect(html).not.toMatch(/<video|h3-reel/);
     expect(indexHtml).not.toMatch(/reel/i);
   });
@@ -66,6 +72,8 @@ describe('the static first screen (index.html #static-hero)', () => {
 
   it('works without the app: real links to the example, the test, sign-in and sign-up', () => {
     const html = staticHero();
-    for (const href of ['/try', '/k/kb0dxmwb21fb', '/login', '/register', '#builder']) expect(html).toContain(`href="${href}"`);
+    for (const href of ['/try', '/k/kb0dxmwb21fb', '/login', '/register', '/register?role=student', '/register?role=teacher', '#student', '#teacher']) {
+      expect(html).toContain(`href="${href}"`);
+    }
   });
 });
