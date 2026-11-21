@@ -1,7 +1,9 @@
-import { Link, Outlet, useLocation, useNavigationType } from 'react-router-dom';
+import { Link, Outlet, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { Suspense, useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowLeft, BookOpen, CalendarDays, Gamepad2, GraduationCap, Repeat, TrendingUp, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, BookOpen, CalendarDays, ClipboardList, Gamepad2, GraduationCap, Home, Repeat, TrendingUp, type LucideIcon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
+import { saveRole, syncRole, useRole, type Role } from '../lib/role';
+import { ROLE_SWITCH, TEACH_PATH } from './teach/copyTeach';
 import { getProfile, type UserProfile } from '../api/social';
 import { ErrorBoundary } from './ErrorBoundary';
 import ThemeToggle from './ThemeToggle';
@@ -79,9 +81,28 @@ export const DESK_LINKS: NavItem[] = [...NAV_ITEMS.slice(0, 3), GAMES_ITEM, ...N
 /** The phone tabs: the five sections. */
 export const PHONE_TABS = NAV_ITEMS;
 
+/**
+ * A teacher's menu (advice at the final of 20.11; owner 21.11): their first screen, their tests (the page of «Экзамены»
+ * opened on «Тесты»; the exams they gave a group are one switch away there), the games and the lectures. The student's
+ * «Сегодня», «Повторение» and «Прогресс» are not a teacher's work: they come back with «Я преподаватель» switched off.
+ */
+export const TEACH_ITEM: NavItem = { to: '/teach', label: 'Главная', match: /^\/teach(\/|$)/, icon: Home };
+export const TEACHER_LINKS: NavItem[] = [
+  TEACH_ITEM,
+  { to: '/exams?view=tests', label: 'Тесты', match: /^\/(exams|tests)(\/|$)/, icon: ClipboardList },
+  GAMES_ITEM,
+  NAV_ITEMS[2],
+];
+
+/** The menu of a role: the same line on a computer and the same tabs on a phone for a teacher. */
+export function linksOf(role: Role | null, phone = false): NavItem[] {
+  if (role === 'teacher') return TEACHER_LINKS;
+  return phone ? PHONE_TABS : DESK_LINKS;
+}
+
 /** The section whose item is current at `pathname`, or null (the profile, the upload page, …). */
-export function sectionOf(pathname: string): NavItem | null {
-  return DESK_LINKS.find((item) => item.match.test(pathname)) ?? null;
+export function sectionOf(pathname: string, links: readonly NavItem[] = DESK_LINKS): NavItem | null {
+  return links.find((item) => item.match.test(pathname)) ?? null;
 }
 
 /**
@@ -308,6 +329,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const { user, signOut } = useAuth();
   const guide = useGuide();
   const location = useLocation();
+  const navigate = useNavigate();
   const inTelegram = useMiniApp().status === 'on';
   const email = user?.email ?? '';
   const name = user?.user_metadata?.full_name || email.split('@')[0] || '';
@@ -402,7 +424,12 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
     if (!user?.id) return;
     const userId = user.id;
 
-    const fetchProfile = () => getProfile(userId).then(p => { if (p) setProfile(p); });
+    const fetchProfile = () =>
+      getProfile(userId).then((p) => {
+        if (!p) return;
+        setProfile(p);
+        syncRole(userId, p.onboarding_status); // the account's role, for the home page and the menu (lib/role.ts)
+      });
     fetchProfile();
     window.addEventListener('profile_updated', fetchProfile);
 
@@ -431,7 +458,12 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
   const avatarUrl = profile?.avatar_url;
   const back = inTelegram ? null : backLinkFor(location.pathname, location.search);
   const onAnalyze = location.pathname.startsWith('/analyze');
-  const current = sectionOf(location.pathname);
+  const role = useRole(user?.id);
+  const teacher = role === 'teacher';
+  const deskLinks = linksOf(role);
+  const phoneTabs = linksOf(role, true);
+  const home = teacher ? TEACH_PATH : '/dashboard';
+  const current = sectionOf(location.pathname, deskLinks);
 
   const accountMenu = menuOpen && (
     <div ref={menuRef} id={menuId} className="sf-acct" role="dialog" aria-label="Меню аккаунта" tabIndex={-1}>
@@ -447,9 +479,29 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
       <Link className="sf-acct-item" to="/profile">Профиль</Link>
       {/* «Игры» on a phone and a tablet, whose tabs have no room for it; on a computer it is in the top line, so the menu
           leaves it out there (UX audit 06.11, layout.css .sf-acct-narrow). */}
-      <Link className="sf-acct-item sf-acct-narrow" to={GAMES_ITEM.to}>
-        {GAMES_ITEM.label}
-      </Link>
+      {teacher ? null : (
+        <Link className="sf-acct-item sf-acct-narrow" to={GAMES_ITEM.to}>
+          {GAMES_ITEM.label}
+        </Link>
+      )}
+      {/* The role: a teacher's first screen and menu, or a student's (lib/role.ts). The page under it follows at once. */}
+      {user ? (
+        <button
+          type="button"
+          role="switch"
+          aria-checked={teacher}
+          className="sf-acct-item"
+          onClick={() => {
+            const next = teacher ? 'student' : 'teacher';
+            void saveRole(user.id, next);
+            setMenuOpen(false);
+            navigate(next === 'teacher' ? TEACH_PATH : '/dashboard');
+          }}
+        >
+          <span>{ROLE_SWITCH}</span>
+          <span className="sf-acct-state">{teacher ? 'да' : 'нет'}</span>
+        </button>
+      ) : null}
       {/* The way to the guide on a phone, whose line has no «?» (from 640 px the «?» is in the line and the menu leaves this
           out, .sf-acct-phone): the focus goes back to the account button, so the guide gives it back there when it closes. */}
       <button
@@ -517,7 +569,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
 
       <header ref={barRef} className="sf-bar">
         <div className="sf-bar-in">
-          <Link className="sf-wordmark" to="/dashboard">
+          <Link className="sf-wordmark" to={home}>
             Meldy
           </Link>
           {back ? (
@@ -527,7 +579,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
             </Link>
           ) : null}
           <nav aria-label="Разделы" className="sf-bar-nav">
-            {DESK_LINKS.map((item) => (
+            {deskLinks.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
@@ -605,7 +657,7 @@ function Shell({ profile, setProfile }: { profile: UserProfile | null; setProfil
 
       {tabsShown ? (
         <nav ref={tabsRef} aria-label="Разделы" className="sf-tabbar" data-testid="tab-bar">
-          {PHONE_TABS.map((item) => {
+          {phoneTabs.map((item) => {
             const Icon = item.icon;
             return (
               <Link

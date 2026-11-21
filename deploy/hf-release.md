@@ -4,6 +4,22 @@ Each change to this file on `claude/relaxed-hypatia-1tpmq5` runs `.github/workfl
 the live Space `main` is tagged `hf-backup-<UTC>-pre-push`, then the released tree (without `qa-screens/`)
 is pushed on top of it, and the job waits for `RUNNING` and checks `/` and `/api/health`.
 
+## 2026-11-21 — Release 59.17: a teacher's own first screen and menu (from the commit of this entry)
+
+- **Why**: advice at the final of 20.11 (second place), the owner, 21.11: «разделить преподавателей и учеников… функции
+  сохраняются и там и там, но преподавателю облегчить… преподы это же в основном люди 30-40+»; «реши сам, должно все
+  быть максимально не "иишно"… максимально понятно но при этом максимально информатично и удобно». Until now the app
+  had no role: the first screen was a student's plan for the day, and a test by a link, a game for a lesson and an exam
+  for a group were three or four screens inside «Экзамены» and «Игры».
+- **What**: the account's role, student or teacher (lib/role.ts; in the profile's onboarding flags, so it follows the
+  account, and on the device, so the right page opens at once). «Сегодня» asks once «Вы преподаёте?». A teacher's home
+  is /teach: «Провести контрольную», «Сыграть на паре», «Подготовить группу к экзамену» — each with what to bring and
+  what comes of it, one press from the page the app already has — and under them their tests with the контрольные and
+  the exams they gave a group. A teacher's menu is «Главная · Тесты · Игры · Лекции» on a computer and a phone.
+  «Я преподаватель» in the account menu switches the role either way; every function stays open to both.
+- **Checked**: full frontend suite, `tsc -b`; the page and the question seen at 1532×734 and a phone width, both
+  themes (a local page with the real styles). Not checked: a signed-in walk on the live site.
+
 ## 2026-11-19 — Release 59.16: the example for the jury asks Groq first, the extra provider last (from the commit of this entry)
 
 - **Why**: the owner put the GLM key into the Space and asked to check it. The Space's log: the extra provider timed

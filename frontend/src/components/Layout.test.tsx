@@ -78,6 +78,23 @@ afterEach(() => {
 });
 
 describe('the menu: five sections around the core', () => {
+  it('a teacher has their own short menu and home; «Я преподаватель» in the account menu switches it (owner, 21.11)', async () => {
+    mocks.getProfile.mockResolvedValue(profile({ onboarding_status: { guide: true, role_asked: true, teacher: true } }));
+    renderAt('/teach');
+    await waitFor(() => expect(within(deskNav()).getAllByRole('link').map((link) => link.textContent)).toEqual(['Главная', 'Тесты', 'Игры', 'Лекции']));
+    expect(within(deskNav()).getByRole('link', { name: 'Главная' })).toHaveAttribute('aria-current', 'page');
+    expect(within(deskNav()).getByRole('link', { name: 'Тесты' })).toHaveAttribute('href', '/exams?view=tests');
+    expect(within(bar()).getByRole('link', { name: 'Meldy' })).toHaveAttribute('href', '/teach');
+    // the student's sections are not a teacher's work
+    expect(within(deskNav()).queryByRole('link', { name: /Сегодня|Повторение|Прогресс/ })).toBeNull();
+    openMenu();
+    const toggle = within(screen.getByRole('dialog', { name: 'Меню аккаунта' })).getByRole('switch', { name: /Я преподаватель/ });
+    expect(toggle).toHaveAttribute('aria-checked', 'true');
+    fireEvent.click(toggle);
+    await waitFor(() => expect(within(deskNav()).getAllByRole('link')[0]).toHaveTextContent('Сегодня'));
+    expect(within(bar()).getByRole('link', { name: 'Meldy' })).toHaveAttribute('href', '/dashboard');
+  });
+
   it('is one line of the five sections and «Игры» after «Лекции» (owner, 31.10) — and no sidebar', async () => {
     renderAt('/dashboard');
     const links = within(deskNav()).getAllByRole('link');

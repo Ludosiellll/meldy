@@ -1,0 +1,133 @@
+/* The teacher's first screen (pages/Teach.tsx) and the one question on «Сегодня» (RoleAsk). The shell's language: the
+   warm canvas, white cards with large radii, one blue pill with its circle and arrow. Large type and three cards in a
+   row: a teacher reads the screen once and knows where to press. No blur, no endless animation. */
+
+.sf-page.tc-page { padding-bottom: 96px; }
+.sf-page .tc-h1 { padding-top: 56px; }
+
+.tc-actions { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; margin: 32px 0 0; padding: 0; list-style: none; }
+.sf-page:is([data-frame='xl'], [data-frame='l']) .tc-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.tc-actions > li { display: flex; min-width: 0; }
+
+.tc-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  padding: 32px 32px 28px;
+  border-radius: 40px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card, 0 0 0 1px var(--sf-line));
+  color: var(--sf-ink);
+  text-decoration: none;
+}
+.tc-name { font-size: 28px; line-height: 1.15; font-weight: 500; letter-spacing: -.02em; text-wrap: balance; }
+.tc-text { margin-top: 14px; font-size: 18px; line-height: 1.5; color: var(--sf-muted); text-wrap: pretty; }
+.tc-go {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 14px;
+  min-height: 56px;
+  margin-top: auto;
+  padding: 7px 7px 7px 24px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px var(--sf-line), 0 1px 2px rgba(11, 18, 28, .05);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.tc-text + .tc-go { margin-top: 28px; }
+.tc-card .tc-text { flex: 1; }
+.tc-dot {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--sf-ink);
+  color: var(--sf-canvas);
+}
+.tc-dot svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+/* The first thing a teacher does most: the blue pill. */
+.tc-card[data-first] .tc-go { background: var(--sf-accent); box-shadow: none; color: #fff; }
+.tc-card[data-first] .tc-dot { background: #fff; color: var(--sf-accent); }
+@media (hover: hover) {
+  .tc-card:hover .tc-dot { transform: translateX(3px); }
+  .tc-dot { transition: transform .18s ease; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tc-dot { transition: none; }
+  .tc-card:hover .tc-dot { transform: none; }
+}
+.tc-card:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 3px; }
+
+.tc-block { margin-top: 56px; }
+.tc-h2 { margin: 0; font-size: 26px; line-height: 1.2; font-weight: 500; letter-spacing: -.02em; }
+.tc-block .tv { margin-top: 20px; }
+
+.tc-rows { display: grid; gap: 12px; margin: 20px 0 0; padding: 0; list-style: none; }
+.tc-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 20px;
+  min-height: 64px;
+  padding: 18px 28px;
+  border-radius: 28px;
+  background: var(--sf-surface);
+  box-shadow: var(--ex-card, 0 0 0 1px var(--sf-line));
+  color: var(--sf-ink);
+  text-decoration: none;
+}
+.tc-row-t { flex: 1 1 240px; min-width: 0; font-size: 20px; line-height: 1.3; font-weight: 500; overflow-wrap: anywhere; }
+.tc-row-m { font-size: 17px; color: var(--sf-muted); font-variant-numeric: tabular-nums; }
+.tc-row-go { font-size: 17px; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.tc-row:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 3px; }
+
+.tc-foot { margin: 56px 0 0; font-size: 17px; line-height: 1.5; color: var(--sf-muted); }
+.sf-page .tc-foot .sf-link { font-size: inherit; }
+
+.sf-page[data-frame='s'] .tc-h1 { padding-top: 28px; }
+.sf-page[data-frame='s'] .tc-actions { margin-top: 20px; gap: 14px; }
+.sf-page[data-frame='s'] .tc-card { padding: 24px 22px 22px; border-radius: 32px; }
+.sf-page[data-frame='s'] .tc-name { font-size: 24px; }
+.sf-page[data-frame='s'] .tc-text { font-size: 17px; }
+.sf-page[data-frame='s'] .tc-text + .tc-go { margin-top: 20px; }
+.sf-page[data-frame='s'] .tc-block { margin-top: 40px; }
+.sf-page[data-frame='s'] .tc-row { padding: 16px 20px; border-radius: 24px; }
+
+/* The one question on «Сегодня»: a quiet card above the day, two answers side by side. */
+.tc-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px 32px;
+  margin: 24px 0 0;
+  padding: 22px 28px;
+  border-radius: 32px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line);
+}
+.tc-ask-words { flex: 1 1 320px; min-width: 0; }
+.tc-ask-t { margin: 0; font-size: 22px; line-height: 1.2; font-weight: 500; letter-spacing: -.01em; }
+.tc-ask-x { margin: 6px 0 0; font-size: 17px; line-height: 1.45; color: var(--sf-muted); text-wrap: pretty; }
+.tc-ask-b { display: flex; flex-wrap: wrap; gap: 10px; }
+.tc-ask-b button {
+  min-height: 48px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--sf-surface);
+  box-shadow: 0 0 0 1px var(--sf-line-strong);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--sf-ink);
+  cursor: pointer;
+}
+.tc-ask-b button[data-yes] { background: var(--sf-ink); box-shadow: none; color: var(--sf-canvas); }
+.tc-ask-b button:focus-visible { outline: 2px solid var(--ph-focus, var(--sf-accent)); outline-offset: 2px; }

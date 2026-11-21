@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, usePa
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { useAuth } from './hooks/useAuth';
+import { useRole } from './lib/role';
 import PWAUpdater from './components/PWAUpdater';
 import RouteLoading from './components/RouteLoading';
 import IdlePrefetch from './components/IdlePrefetch';
@@ -28,6 +29,7 @@ const Register = lazy(() => import('./pages/Register'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const UpdatePassword = lazy(() => import('./pages/UpdatePassword'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Teach = lazy(() => import('./pages/Teach'));
 const Analyze = lazy(() => import('./pages/Analyze'));
 const Library = lazy(() => import('./pages/Library'));
 const MaterialDetail = lazy(() => import('./pages/MaterialDetail'));
@@ -93,6 +95,16 @@ function loadExamTicket(): Promise<{ default: ComponentType }> {
   const pages = import.meta.glob<{ default: ComponentType }>('./pages/ExamTicket.tsx');
   const load = pages['./pages/ExamTicket.tsx'];
   return load ? load() : Promise.resolve({ default: TicketUnavailable });
+}
+
+/**
+ * The account's home: «Сегодня» for a student, the teacher's first screen for a teacher (lib/role.ts). Links and
+ * redirects all over the app lead to /dashboard; a teacher lands on /teach from any of them.
+ */
+function HomeRoute() {
+  const { user } = useAuth();
+  const role = useRole(user?.id);
+  return role === 'teacher' ? <Navigate to="/teach" replace /> : <Dashboard />;
 }
 
 function TicketUnavailable() {
@@ -230,7 +242,8 @@ export default function App() {
         <Route path="/" element={
           <PrivateRoute><SignedInShell /></PrivateRoute>
         }>
-          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="dashboard" element={<HomeRoute />} />
+          <Route path="teach" element={<Teach />} />
           <Route path="profile" element={<Profile />} />
           <Route path="analyze" element={<Analyze />} />
           <Route path="library" element={<Library />} />

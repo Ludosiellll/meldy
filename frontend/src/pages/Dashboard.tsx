@@ -1,3 +1,4 @@
+import RoleAsk from '../components/teach/RoleAsk';
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -991,6 +992,8 @@ export default function Dashboard() {
       {/* The exam containers' reads: they draw nothing (containerLayer.tsx). */}
       {probe}
       {planSources}
+      {/* «Вы преподаёте?» — once, for an account that has not said (components/teach/RoleAsk.tsx). */}
+      <RoleAsk />
       <div className="td-in">{content}</div>
       {moveDialog}
     </div>
